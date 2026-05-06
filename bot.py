@@ -24,7 +24,7 @@ import requests
 # ============================================================
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
-SYMBOL = "SOL/USDT:USDT"           # Perpetuo en Binance
+SYMBOL = "SOL/USDT"               # Perpetuo en Bybit
 TIMEFRAME = "15m"
 CHECK_INTERVAL_SECONDS = 60        # Revisa cada 60 segundos si hay vela nueva
 
@@ -172,8 +172,8 @@ def test_macro_decoherence(exchange) -> dict:
     """BTC + ETH 15m direccion alcista o bajista alineada."""
     result = {"passed": False, "direction": None, "btc_change": 0, "eth_change": 0}
     try:
-        btc = fetch_ohlcv(exchange, "BTC/USDT:USDT", "15m", limit=20)
-        eth = fetch_ohlcv(exchange, "ETH/USDT:USDT", "15m", limit=20)
+       btc = fetch_ohlcv(exchange, "BTC/USDT", "15m", limit=20)
+        eth = fetch_ohlcv(exchange, "ETH/USDT", "15m", limit=20)
         
         btc_chg = (btc["close"].iloc[-1] - btc["close"].iloc[-4]) / btc["close"].iloc[-4]
         eth_chg = (eth["close"].iloc[-1] - eth["close"].iloc[-4]) / eth["close"].iloc[-4]
@@ -558,8 +558,8 @@ def main():
     )
     
     # Init exchange
-    exchange = ccxt.binance({
-        "options": {"defaultType": "swap"},
+    exchange = ccxt.bybit({
+        "options": {"defaultType": "linear"},
         "enableRateLimit": True,
     })
     
