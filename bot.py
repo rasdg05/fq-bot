@@ -1,11 +1,13 @@
+# -*- coding: utf-8 -*-
+
 # “””
 
-FQ v4.1 SIGNAL BOT — RasDG_Sol
-Fibonacci Cuántico v4.1 — Emergent Time & Curved Price-Space
+FQ v4.1 SIGNAL BOT - RasDG_Sol
+Fibonacci Cuantico v4.1 - Emergent Time & Curved Price-Space
 
 # Monitorea SOL/USDT cada 15 minutos.
 Aplica gate de decoherencia 3/3 + P-Space + Laplaciano.
-Envía señales a Telegram solo si Theta(D)=1 y P_master >= phi^2.
+Envia senales a Telegram solo si Theta(D)=1 y P_master >= phi^2.
 Responde comandos: /status /analisis /sesion /about /help
 
 “””
@@ -337,7 +339,7 @@ else:                    leverage, sizing, tier = “3x”, “2% equity”,  �
 masas_text = “\n”.join([f”  • {m[0]}: ${m[1]:.2f}” for m in masses[“masses”][:5]])
 
 ```
-msg = f"""🚨 <b>SEÑAL FQ v4.1 — DECOHERENCIA CONFIRMADA</b> 🚨
+msg = f"""🚨 <b>SEÑAL FQ v4.1 - DECOHERENCIA CONFIRMADA</b> 🚨
 ```
 
 📊 <b>SOL/USDT PERPETUAL</b>
@@ -414,7 +416,7 @@ if BOT_STATE["last_signal_ts"]:
     dir_str = BOT_STATE["last_signal_dir"].upper() if BOT_STATE["last_signal_dir"] else "?"
     ultima_señal = f"Hace {h}h {m}m · {dir_str} @ ${BOT_STATE['last_signal_price']:.2f}"
 
-return f"""📊 <b>STATUS — FQ v4.1 BOT</b>
+return f"""📊 <b>STATUS - FQ v4.1 BOT</b>
 ```
 
 🕐 {cdmx_now_str()}
@@ -453,10 +455,10 @@ h    = now.hour + now.minute / 60.0
 
 ```
 sesiones = {
-    "asia":    ("00:00 – 07:00 CDMX", "W=0.50 · Solo Asia exception (RSI<25 + CHoCH)"),
-    "london":  ("02:00 – 07:30 CDMX", "W=0.80 · Apertura europea"),
-    "overlap": ("07:30 – 10:00 CDMX", "W=1.20 · ⭐ MÁXIMA ENERGÍA · Interferencia constructiva"),
-    "ny":      ("10:00 – 15:00 CDMX", "W=1.00 · Sesion NY pura"),
+    "asia":    ("00:00 - 07:00 CDMX", "W=0.50 · Solo Asia exception (RSI<25 + CHoCH)"),
+    "london":  ("02:00 - 07:30 CDMX", "W=0.80 · Apertura europea"),
+    "overlap": ("07:30 - 10:00 CDMX", "W=1.20 · ⭐ MÁXIMA ENERGÍA · Interferencia constructiva"),
+    "ny":      ("10:00 - 15:00 CDMX", "W=1.00 · Sesion NY pura"),
 }
 
 lineas = []
@@ -474,7 +476,7 @@ elif session_name == "ny":
     remaining_min = int((cierre - h) * 60)
     mins_to_close = f"\n⏰ Ventana cierra en: {remaining_min} minutos"
 
-return f"""🕐 <b>SESION ACTUAL — FQ v4.1</b>
+return f"""🕐 <b>SESION ACTUAL - FQ v4.1</b>
 ```
 
 {cdmx_now_str()}
@@ -522,7 +524,7 @@ session_name, w_clock = get_session_weight()
         elif last["close"] < last["bb_lower"]: bb_pos = "⚠️ Bajo BB Lower"
         else:                                  bb_pos = "✅ Dentro de Bollinger"
 
-    return f"""🔬 <b>ANALISIS FQ v4.1 — EN VIVO</b>
+    return f"""🔬 <b>ANALISIS FQ v4.1 - EN VIVO</b>
 ```
 
 ⏰ {cdmx_now_str()}
@@ -552,7 +554,7 @@ MACD:    {last[‘macd’]:.3f} / Signal: {last[‘macd_signal’]:.3f}
 ━━━━━━━━━━━━━━━━━━━━━━━
 🏁 <b>VEREDICTO</b>
 ━━━━━━━━━━━━━━━━━━━━━━━
-{‘🟢 SETUP EN FORMACION — esperar confirmacion’ if theta_d else ‘⏳ SIN SETUP — mercado en superposicion’}
+{‘🟢 SETUP EN FORMACION - esperar confirmacion’ if theta_d else ‘⏳ SIN SETUP - mercado en superposicion’}
 {‘Ventana operativa: ✅ ACTIVA’ if in_trading_window() else ‘Ventana operativa: ⛔ INACTIVA’}
 
 #FQv41 #Analisis”””
@@ -573,9 +575,9 @@ Una señal solo existe cuando esas historias colapsan.
 
 <b>4 Pilares:</b>
 I.   Decoherencia 3/3 (Hartle, Solvay 2005)
-II.  Tiempo emergente — W_clock por sesion (Page-Wootters)
+II.  Tiempo emergente - W_clock por sesion (Page-Wootters)
 III. P-Space curvado por masas de liquidez (Oreste 2011)
-IV.  Laplaciano discreto — ruptura de armonicidad (Knill 2020)
+IV.  Laplaciano discreto - ruptura de armonicidad (Knill 2020)
 
 ━━━━━━━━━━━━━━━━━━━━━━━
 ⚙️ <b>MASTER EQUATION v4.1</b>
@@ -591,7 +593,7 @@ Sin excepcion. Sin override.
 Par: SOL/USDT Perpetual
 Exchange datos: OKX
 Timeframe: 15 minutos
-Ventana: 07:00–15:00 CDMX
+Ventana: 07:00-15:00 CDMX
 Max leverage: 8x (φ³-coupled)
 Cooldown: 2h entre señales
 
@@ -600,13 +602,13 @@ Cooldown: 2h entre señales
 #FQv41 #RasDG”””
 
 def cmd_help() -> str:
-return “”“🤖 <b>FQ v4.1 SIGNAL BOT — COMANDOS</b>
+return “”“🤖 <b>FQ v4.1 SIGNAL BOT - COMANDOS</b>
 
-/status — Estado del bot y mercado en tiempo real
-/analisis — Análisis FQ v4.1 completo de SOL/USDT ahora mismo
-/sesion — Sesión activa, W_clock y calendario de sesiones
-/about — Sobre el sistema Fibonacci Cuántico v4.1
-/help — Esta ayuda
+/status - Estado del bot y mercado en tiempo real
+/analisis - Análisis FQ v4.1 completo de SOL/USDT ahora mismo
+/sesion - Sesión activa, W_clock y calendario de sesiones
+/about - Sobre el sistema Fibonacci Cuántico v4.1
+/help - Esta ayuda
 
 ━━━━━━━━━━━━━━━━━━━━━━━
 📡 <b>SEÑALES AUTOMATICAS</b>
@@ -680,7 +682,7 @@ return False
 
 # ============================================================
 
-# HILO DE COMANDOS — escucha mensajes entrantes
+# HILO DE COMANDOS - escucha mensajes entrantes
 
 # ============================================================
 
@@ -734,7 +736,7 @@ chat_id = str(msg.get(“chat”, {}).get(“id”, “”))
 
 def main():
 log.info(”=” * 60)
-log.info(”  FQ v4.1 SIGNAL BOT — RasDG_Sol”)
+log.info(”  FQ v4.1 SIGNAL BOT - RasDG_Sol”)
 log.info(”=” * 60)
 
 ```
