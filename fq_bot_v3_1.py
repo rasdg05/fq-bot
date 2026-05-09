@@ -69,7 +69,7 @@ WINDOW_24H = True
 MACRO_THRESHOLD_PCT = 0.0008    # 0.08%
 TECH_MIN_ALIGNED    = 5         # de 7 indicadores
 PSPACE_MIN_MASSES   = 2
-PMASTER_MIN         = 2.618     # phi^2
+PMASTER_MIN = 2.30      # calibrado post-validacion abril 2026
 RR_MIN_TP_DIVINO    = 1.8
 
 # FQ constants
