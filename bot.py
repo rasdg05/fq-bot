@@ -1,22 +1,32 @@
 # -*- coding: utf-8 -*-
 """
 ================================================================================
-  FQ v4.1 SIGNAL BOT v3.0 - "BUGATTI EDITION"
+  FQ v4.1 SIGNAL BOT v3.1 - "BUGATTI EDITION + CLAUDE COPILOT"
   Fibonacci Cuantico v4.1 - Emergent Time and Curved Price-Space
   by RasDG_Sol
 ================================================================================
 
+  CHANGELOG v3.1:
+    - Integracion Claude (Anthropic API) como co-pilot tactico
+      * /claude   - lectura tactica manual (Sonnet 4.5)
+      * /analisis - ahora incluye lectura Claude (Sonnet 4.5)
+      * /pspace   - ahora incluye lectura Claude (Sonnet 4.5)
+      * /niveles  - ahora incluye afinacion Claude (Sonnet 4.5)
+      * Senales P_master >= phi^3 - co-pilot Opus 4.6 auto-disparado
+    - Market context module:
+      * Funding rate, Open Interest, Long/Short ratio (OKX)
+      * Order book walls + presion de libro
+      * Detector de eventos: CHoCH, breakouts, divergencias RSI, volumen
+      * Patrones de vela: hammer, shooting star, engulfing
+      * Evolucion vela-a-vela ultimas 5 velas
+    - Snapshots inteligentes especializados por comando
+
   CHANGELOG v3.0:
     - Ventana operativa 24H (W_clock solo modula, no bloquea)
-    - /niveles con planes de entrada contextuales (zona, trigger, invalidacion)
-    - /pspace con doble lectura: ejecutiva + tecnica (curvatura k(p))
+    - /niveles con planes de entrada contextuales
+    - /pspace con doble lectura: ejecutiva + tecnica
     - /sesion completamente reescrito con W_clock dinamico
-    - Interfaz pulida: glyphs profesionales, jerarquia visual clara
-    - Master equation v4.1 completamente expuesta en cada output
-    - Modulador Asia: P_master se castiga pero no se bloquea
-    - Detector de momentum direccional para sugerir bias en /niveles
-    - Trigger system: pullback, breakout, retest, divergencia
-    - Plan B en cada setup hipotetico
+    - Interfaz pulida con glyphs profesionales
 
   ASCII-only source, zero encoding issues.
 ================================================================================
@@ -32,6 +42,10 @@ import ccxt
 import pandas as pd
 import pandas_ta as ta
 import requests
+
+# Modulos FQ v3.1
+import claude_integration as claude_ai
+import market_context as mctx
 
 # ============================================================
 # CONFIG
@@ -672,28 +686,34 @@ def build_signal_msg(direction, levels, decoh, masses, session, w_clock, p_maste
 # ============================================================
 def cmd_help():
     return (
-        "<b>FQ v4.1 BOT v3.0 - BUGATTI EDITION</b>\n"
+        "<b>FQ v4.1 BOT v3.1 - BUGATTI + CLAUDE</b>\n"
         "{fence}\n\n"
         "<b>COMANDOS:</b>\n"
         "/status    Estado bot, mercado, ultima senal\n"
-        "/analisis  Analisis FQ completo en vivo\n"
-        "/niveles   Plan de entrada con triggers contextuales\n"
+        "/analisis  Analisis FQ + lectura Claude (Sonnet)\n"
+        "/niveles   Plan de entrada + afinacion Claude\n"
+        "/pspace    Masas P-Space + libro + lectura Claude\n"
         "/sesion    Sesion actual + W_clock dinamico\n"
-        "/pspace    Masas P-Space + interpretacion\n"
         "/macro     Decoherencia macro BTC/ETH\n"
+        "/claude    Lectura tactica completa (Sonnet 4.5)\n"
+        "/ia        Alias de /claude\n"
         "/about     Sobre el sistema FQ v4.1\n"
         "/help      Esta ayuda\n\n"
         "{fence}\n\n"
-        "<b>MOTOR DE SENALES AUTOMATICAS</b>\n\n"
-        "Monitoreo 24/7. Solo emite senal con Theta(D) = 1\n"
-        "(decoherencia 3/3: macro + tecnica + liquidez).\n\n"
+        "<b>MOTOR DE SENALES + CLAUDE COPILOT</b>\n\n"
+        "Monitoreo 24/7. Solo emite senal con Theta(D) = 1.\n"
+        "Senales con P_master >= phi^3 (4.236) reciben\n"
+        "co-pilot Opus 4.6 con afinacion automatica.\n\n"
         "Ventana operativa: <b>24 HORAS</b>\n"
-        "El W_clock modula P_master pero no bloquea.\n"
         "Asia (W=0.50) reduce sizing automaticamente.\n\n"
-        "Promedio esperado: 1-3 senales/dia de alta conviccion.\n"
+        "<b>QUE VE CLAUDE:</b>\n"
+        "{b} Datos internos: indicadores, masas, decoherencia\n"
+        "{b} Datos externos: funding, OI, L/S ratio, walls\n"
+        "{b} Eventos: CHoCH, breakouts, divergencias, volumen\n"
+        "{b} Evolucion vela-a-vela ultimas 5 velas\n\n"
         "El silencio es disciplina. Calidad sobre cantidad.\n\n"
         "#FQv41 #BugattiEdition"
-    ).format(fence=G["fence"])
+    ).format(fence=G["fence"], b=G["bullet"])
 
 # ============================================================
 # COMMAND: /about
@@ -1270,7 +1290,7 @@ def cmd_analisis(exchange):
             "MACD:      {mc:.3f}  /  Signal: {ms:.3f}\n"
             "Bollinger: {bb}\n\n"
             "{thin}\n"
-            "  VEREDICTO\n"
+            "  VEREDICTO MATEMATICO\n"
             "{thin}\n"
             "{ver}\n\n"
             "#FQv41 #Analisis"
@@ -1377,13 +1397,271 @@ def evaluate_setup(exchange, intra=False):
             STATE.signals_total     += 1
             STATE.last_eval_result   = "SENAL ENVIADA: {} @ ${:.2f}".format(
                 direction.upper(), levels["entry"])
+
+        # OPUS CO-PILOT para senales de alta conviccion (P_master >= phi^3)
+        if claude_ai.is_available() and claude_ai.is_high_conviction(p_master):
+            try:
+                log.info("Triggering Opus co-pilot for high-conviction signal")
+                telegram_send(
+                    "<b>Senal de alta conviccion detectada</b>\n"
+                    "Activando co-pilot Opus 4.6 para revision final..."
+                )
+                signal_data = {
+                    "direction":    direction,
+                    "p_master":     p_master,
+                    "session":      session,
+                    "w_clock":      w_clock,
+                    "entry":        levels["entry"],
+                    "sl":           levels["sl"],
+                    "tp1":          levels["tp1"],
+                    "tp2":          levels["tp2"],
+                    "tp3":          levels["tp3"],
+                    "tp4":          levels["tp4"],
+                    "rr_tp1":       levels["rr_tp1"],
+                    "rr_tp2":       levels["rr_tp2"],
+                    "rr_tp3":       levels["rr_tp3"],
+                    "rr_tp4":       levels["rr_tp4"],
+                    "risk_pct":     (levels["risk"] / levels["entry"] * 100),
+                    "pspace_count": masses["count"],
+                    "price":        levels["entry"],
+                }
+                snapshot = mctx.snapshot_for_signal(df, signal_data, decoh)
+                opus_reading = claude_ai.signal_copilot(snapshot)
+                if opus_reading:
+                    opus_msg = (
+                        "<b>OPUS 4.6 - REVISION FINAL DE SENAL</b>\n"
+                        "{thin}\n\n{r}\n\n"
+                        "{thin}\nDecision final: SIEMPRE tuya.\n"
+                        "El gate matematico ya valido el setup.\n"
+                        "Esta lectura es para AFINAR, no validar.\n\n"
+                        "#FQv41 #Opus #SenalAltaConviccion"
+                    ).format(thin=G["thin"], r=opus_reading)
+                    # Split si es muy largo
+                    parts = split_telegram_message(opus_msg)
+                    for p in parts:
+                        telegram_send(p)
+            except Exception as e:
+                log.error("Opus co-pilot error: {}\n{}".format(e, traceback.format_exc()))
+
         return True
     return False
+
+# ============================================================
+# COMMAND: /claude - lectura tactica manual
+# ============================================================
+def cmd_claude(exchange):
+    """Comando manual para invocar lectura tactica de Claude"""
+    if not claude_ai.is_available():
+        return (
+            "<b>CLAUDE NO DISPONIBLE</b>\n"
+            "{fence}\n\n"
+            "Falta configurar ANTHROPIC_API_KEY en variables de entorno.\n"
+            "O instalar: pip install anthropic\n\n"
+            "Una vez configurado, /claude dara lectura tactica\n"
+            "del estado del mercado interno + externo en vivo.\n\n"
+            "#FQv41 #Setup"
+        ).format(fence=G["fence"])
+
+    try:
+        df = fetch_ohlcv(exchange, SYMBOL, TIMEFRAME, limit=200)
+        df = add_indicators(df)
+        last = df.iloc[-1]
+        session, w_clock, _, _ = get_session()
+        macro = test_macro(exchange)
+        direction_test = macro.get("direction") or "long"
+        tecnica = test_technical(df, direction_test)
+        liquidez = test_liquidity(df, direction_test)
+        masses = detect_pspace(df)
+        bias = detect_bias(df)
+        theta_d = macro["passed"] and tecnica["passed"] and liquidez["passed"]
+
+        basic_state = {
+            "price":        float(last["close"]),
+            "session":      session,
+            "w_clock":      w_clock,
+            "bias":         bias["bias"],
+            "bias_score":   bias["score"],
+            "mom_5":        bias["mom_5"],
+            "mom_20":       bias["mom_20"],
+            "btc_chg":      macro["btc_change"],
+            "eth_chg":      macro["eth_change"],
+            "tec_aligned":  tecnica["aligned"],
+            "tec_total":    tecnica["total"],
+            "rsi6":         liquidez["rsi6"],
+            "rsi12":        liquidez["rsi12"],
+            "rsi24":        liquidez["rsi24"],
+            "rsi14":        float(last.get("rsi14") or 0),
+            "pspace_count": masses["count"],
+            "theta_d":      theta_d,
+            "ema50":        float(last.get("ema50") or 0),
+            "ema200":       float(last.get("ema200") or 0),
+            "macd":         float(last.get("macd") or 0),
+        }
+
+        snapshot = mctx.snapshot_for_general(df, basic_state)
+        reading = claude_ai.tactical_general(snapshot)
+
+        return (
+            "<b>CLAUDE - LECTURA TACTICA</b>\n"
+            "{fence}\n\n"
+            "{when}  |  SOL ${px:.2f}\n"
+            "Sesion: {ses} (W={w:.2f}) | Sesgo: {bias}\n\n"
+            "{thin}\n\n"
+            "{reading}\n\n"
+            "{thin}\n"
+            "Modelo: Sonnet 4.5  |  Co-pilot FQ v4.1\n\n"
+            "#FQv41 #Claude"
+        ).format(
+            fence=G["fence"], thin=G["thin"],
+            when=cdmx_now_str(), px=basic_state["price"],
+            ses=session.upper(), w=w_clock, bias=bias["bias"].upper(),
+            reading=reading,
+        )
+    except Exception as e:
+        log.error("Error /claude: {}\n{}".format(e, traceback.format_exc()))
+        return "Error generando lectura: {}".format(e)
+
 
 # ============================================================
 # COMMAND LISTENER
 # ============================================================
 COMMANDS = {}
+CLAUDE_FOLLOWUP = {}  # comando -> funcion que produce snapshot + lectura
+
+def split_telegram_message(text, max_length=4000):
+    """Telegram limita 4096 chars. Hacemos split inteligente."""
+    if len(text) <= max_length:
+        return [text]
+    parts = []
+    while text:
+        if len(text) <= max_length:
+            parts.append(text)
+            break
+        # Cortar en doble newline si es posible
+        cut = text.rfind("\n\n", 0, max_length)
+        if cut == -1:
+            cut = text.rfind("\n", 0, max_length)
+        if cut == -1:
+            cut = max_length
+        parts.append(text[:cut])
+        text = text[cut:].lstrip("\n")
+    return parts
+
+def send_long(text, chat_id):
+    """Envia mensaje largo en partes si excede limite"""
+    parts = split_telegram_message(text)
+    for i, p in enumerate(parts):
+        if len(parts) > 1:
+            p = "({}/{})\n{}".format(i+1, len(parts), p)
+        telegram_send(p, chat_id)
+
+def claude_followup_general(exchange):
+    """Genera lectura Claude para /analisis"""
+    if not claude_ai.is_available():
+        return None
+    try:
+        df = fetch_ohlcv(exchange, SYMBOL, TIMEFRAME, limit=200)
+        df = add_indicators(df)
+        last = df.iloc[-1]
+        session, w_clock, _, _ = get_session()
+        macro = test_macro(exchange)
+        direction_test = macro.get("direction") or "long"
+        tecnica = test_technical(df, direction_test)
+        liquidez = test_liquidity(df, direction_test)
+        masses = detect_pspace(df)
+        bias = detect_bias(df)
+        theta_d = macro["passed"] and tecnica["passed"] and liquidez["passed"]
+        basic_state = {
+            "price": float(last["close"]), "session": session, "w_clock": w_clock,
+            "bias": bias["bias"], "bias_score": bias["score"],
+            "mom_5": bias["mom_5"], "mom_20": bias["mom_20"],
+            "btc_chg": macro["btc_change"], "eth_chg": macro["eth_change"],
+            "tec_aligned": tecnica["aligned"], "tec_total": tecnica["total"],
+            "rsi6": liquidez["rsi6"], "rsi12": liquidez["rsi12"], "rsi24": liquidez["rsi24"],
+            "rsi14": float(last.get("rsi14") or 0),
+            "pspace_count": masses["count"], "theta_d": theta_d,
+            "ema50": float(last.get("ema50") or 0),
+            "ema200": float(last.get("ema200") or 0),
+            "macd": float(last.get("macd") or 0),
+        }
+        snapshot = mctx.snapshot_for_general(df, basic_state)
+        reading = claude_ai.tactical_general(snapshot)
+        return (
+            "<b>CLAUDE - Lectura tactica del analisis</b>\n"
+            "{thin}\n\n{r}\n\n"
+            "{thin}\nModelo: Sonnet 4.5\n#FQv41 #Claude"
+        ).format(thin=G["thin"], r=reading)
+    except Exception as e:
+        log.error("Claude followup analisis error: {}".format(e))
+        return None
+
+def claude_followup_pspace(exchange):
+    """Genera lectura Claude para /pspace"""
+    if not claude_ai.is_available():
+        return None
+    try:
+        df = fetch_ohlcv(exchange, SYMBOL, TIMEFRAME, limit=200)
+        df = add_indicators(df)
+        last = df.iloc[-1]
+        ps = detect_pspace(df)
+        bias = detect_bias(df)
+        sw = ps["support_weight"]
+        rw = ps["resistance_weight"]
+        total_w = sw + rw
+        curv_balance = (sw - rw) / total_w if total_w > 0 else 0
+        basic_state = {
+            "price": float(last["close"]),
+            "bias": bias["bias"], "bias_score": bias["score"],
+            "curvature_balance": curv_balance,
+        }
+        snapshot = mctx.snapshot_for_pspace(df, basic_state, ps)
+        reading = claude_ai.tactical_pspace(snapshot)
+        return (
+            "<b>CLAUDE - Lectura P-Space + libro</b>\n"
+            "{thin}\n\n{r}\n\n"
+            "{thin}\nModelo: Sonnet 4.5\n#FQv41 #Claude"
+        ).format(thin=G["thin"], r=reading)
+    except Exception as e:
+        log.error("Claude followup pspace error: {}".format(e))
+        return None
+
+def claude_followup_niveles(exchange):
+    """Genera lectura Claude para /niveles"""
+    if not claude_ai.is_available():
+        return None
+    try:
+        df = fetch_ohlcv(exchange, SYMBOL, TIMEFRAME, limit=200)
+        df = add_indicators(df)
+        last = df.iloc[-1]
+        session, w_clock, _, _ = get_session()
+        bias = detect_bias(df)
+        ps = detect_pspace(df)
+        if "alcista" in bias["bias"]:
+            direction_main = "long"
+        elif "bajista" in bias["bias"]:
+            direction_main = "short"
+        else:
+            direction_main = "long"
+        levels = calculate_levels(df, direction_main)
+        plan_primary = build_trigger_plan(df, direction_main, ps, bias)
+        plan_secondary = build_trigger_plan(df, "short" if direction_main == "long" else "long", ps, bias)
+        basic_state = {
+            "price": float(last["close"]),
+            "session": session, "w_clock": w_clock,
+            "bias": bias["bias"], "bias_score": bias["score"],
+            "plan_sl": levels["sl"], "plan_tp3": levels["tp3"],
+        }
+        snapshot = mctx.snapshot_for_niveles(df, basic_state, plan_primary, plan_secondary)
+        reading = claude_ai.tactical_niveles(snapshot)
+        return (
+            "<b>CLAUDE - Afinacion del plan</b>\n"
+            "{thin}\n\n{r}\n\n"
+            "{thin}\nModelo: Sonnet 4.5\n#FQv41 #Claude"
+        ).format(thin=G["thin"], r=reading)
+    except Exception as e:
+        log.error("Claude followup niveles error: {}".format(e))
+        return None
+
 
 def command_listener(exchange):
     log.info("Command listener started")
@@ -1411,9 +1689,18 @@ def command_listener(exchange):
                         elif text == "/niveles":
                             telegram_send("Construyendo plan de entrada FQ...", chat_id)
                         elif text == "/pspace":
-                            telegram_send("Mapeando masas P-Space y calculando curvatura...", chat_id)
+                            telegram_send("Mapeando masas P-Space y orderbook...", chat_id)
+                        elif text == "/claude":
+                            telegram_send("Espejo en tiempo real - consultando Claude...", chat_id)
                         response = handler(exchange) if handler.__code__.co_argcount > 0 else handler()
-                        telegram_send(response, chat_id)
+                        send_long(response, chat_id)
+
+                        # Claude follow-up para comandos compatibles
+                        if text in CLAUDE_FOLLOWUP and claude_ai.is_available():
+                            telegram_send("Claude esta interpretando los datos...", chat_id)
+                            followup = CLAUDE_FOLLOWUP[text](exchange)
+                            if followup:
+                                send_long(followup, chat_id)
                     except Exception as e:
                         log.error("Error executing {}: {}\n{}".format(text, e, traceback.format_exc()))
                         telegram_send("Error ejecutando comando: {}".format(e), chat_id)
@@ -1428,9 +1715,10 @@ def command_listener(exchange):
 def main():
     global COMMANDS
     log.info("=" * 70)
-    log.info("  FQ v4.1 SIGNAL BOT v3.0 - BUGATTI EDITION")
+    log.info("  FQ v4.1 SIGNAL BOT v3.1 - BUGATTI + CLAUDE COPILOT")
     log.info("  Window: 24H | Macro: {:.2f}% | P-Space>={} | P_master>={:.2f}".format(
         MACRO_THRESHOLD_PCT * 100, PSPACE_MIN_MASSES, PMASTER_MIN))
+    log.info("  Claude integration: {}".format("ENABLED" if claude_ai.is_available() else "DISABLED"))
     log.info("=" * 70)
 
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
@@ -1449,24 +1737,38 @@ def main():
         "/niveles":  cmd_niveles,
         "/pspace":   cmd_pspace,
         "/macro":    cmd_macro,
+        "/claude":   cmd_claude,
+        "/ia":       cmd_claude,  # alias
     }
 
+    # Comandos que reciben follow-up automatico de Claude
+    global CLAUDE_FOLLOWUP
+    CLAUDE_FOLLOWUP = {
+        "/analisis": claude_followup_general,
+        "/pspace":   claude_followup_pspace,
+        "/niveles":  claude_followup_niveles,
+    }
+
+    claude_status = "ACTIVO (Sonnet+Opus)" if claude_ai.is_available() else "INACTIVO"
     telegram_send(
-        "<b>FQ v4.1 BOT v3.0 - BUGATTI EDITION ACTIVO</b>\n"
+        "<b>FQ v4.1 BOT v3.1 - BUGATTI + CLAUDE</b>\n"
         "{fence}\n\n"
         "Monitoreando SOL/USDT (OKX) cada 15 min.\n"
         "Ventana operativa: <b>24 HORAS</b>\n"
         "Eval intra-vela: minuto 12\n"
-        "W_clock modula P_master, no bloquea.\n\n"
-        "<b>Calibracion v3.0:</b>\n"
-        "{b} Triggers contextuales en /niveles\n"
-        "{b} Curvatura kappa(p) en /pspace\n"
-        "{b} W_clock dinamico en /sesion\n"
-        "{b} Asia auto-reduce sizing\n"
-        "{b} Plan A + Plan B siempre\n\n"
-        "Comandos: /status /analisis /niveles\n"
-        "          /sesion /pspace /macro\n"
-        "          /about /help".format(fence=G["fence"], b=G["bullet"])
+        "Claude integration: <b>{cs}</b>\n\n"
+        "<b>Co-pilot tactico:</b>\n"
+        "{b} /analisis, /pspace, /niveles -> Sonnet 4.5\n"
+        "{b} /claude o /ia -> lectura tactica manual\n"
+        "{b} Senales P_master >= phi^3 -> Opus 4.6 auto\n\n"
+        "<b>Que ve Claude:</b>\n"
+        "{b} Indicadores + masas + decoherencia (interno)\n"
+        "{b} Funding + OI + L/S ratio + walls (externo)\n"
+        "{b} Eventos: CHoCH, breakouts, divergencias\n"
+        "{b} Evolucion vela-a-vela ultimas 5 velas\n\n"
+        "Comandos: /status /analisis /niveles /pspace\n"
+        "          /sesion /macro /claude /about /help".format(
+            fence=G["fence"], b=G["bullet"], cs=claude_status)
     )
 
     t = threading.Thread(target=command_listener, args=(exchange,), daemon=True)
