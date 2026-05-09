@@ -60,7 +60,7 @@ TIMEFRAME   = "15m"
 
 LOOP_SECONDS          = 60
 INTRA_CANDLE_MINUTES  = 12
-SIGNAL_COOLDOWN_HOURS = 2
+SIGNAL_COOLDOWN_HOURS = 1
 
 # 24H operativo - W_clock solo modula
 WINDOW_24H = True
