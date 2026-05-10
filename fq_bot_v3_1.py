@@ -1328,6 +1328,48 @@ def cmd_analisis(exchange):
             elif last["close"] < float(bbl): bb_pos = "Bajo BB Lower - sobrevendido corto"
             else:                            bb_pos = "Dentro de Bollinger"
 
+        # ---- DERIVATIVES CONTEXT (funding + OI trend + L/S ratio) ----
+        # Visible para RasDG en /analisis. Claude ya los ve via snapshot_for_general.
+        deriv_block = ""
+        try:
+            funding = mctx.get_funding_rate(SYMBOL)
+            oi      = mctx.get_open_interest(SYMBOL)
+            oi_hist = mctx.get_oi_history(symbol=SYMBOL)
+            ls      = mctx.get_long_short_ratio(symbol="SOL")
+
+            f_line  = "Funding:   N/A"
+            oi_line = "OI:        N/A"
+            ls_line = "L/S ratio: N/A"
+
+            if funding:
+                f_pct = funding["current_pct"]
+                f_line = "Funding:   {:+.4f}%  (next {})\n             {}".format(
+                    f_pct, funding["next_time_str"],
+                    mctx.funding_interpretation(f_pct))
+
+            if oi:
+                if oi_hist:
+                    tr = mctx.oi_trend_analysis(oi_hist)
+                    oi_line = "OI:        ${:.1f}M  ({:+.2f}% 4h)\n             {}".format(
+                        oi["millions"], tr["change_pct"], tr["trend"])
+                else:
+                    oi_line = "OI:        ${:.1f}M".format(oi["millions"])
+
+            if ls:
+                ls_line = "L/S ratio: {:.2f}  (avg5 {:.2f})\n             {}".format(
+                    ls["current"], ls["avg_5"],
+                    mctx.ls_ratio_interpretation(ls["current"]))
+
+            deriv_block = (
+                "{thin}\n"
+                "  MERCADO DERIVATIVOS\n"
+                "{thin}\n"
+                "{f}\n{o}\n{l}\n\n"
+            ).format(thin=G["thin"], f=f_line, o=oi_line, l=ls_line)
+        except Exception as e:
+            log.warning("Derivatives block failed (non-fatal): {}".format(e))
+            deriv_block = ""
+
         if theta_d:
             veredicto = "{} SETUP EN FORMACION - candidato real".format(G["ok"])
         else:
@@ -1360,6 +1402,7 @@ def cmd_analisis(exchange):
             "RSI 14:    {r14:.1f}\n"
             "MACD:      {mc:.3f}  /  Signal: {ms:.3f}\n"
             "Bollinger: {bb}\n\n"
+            "{deriv}"
             "{thin}\n"
             "  VEREDICTO MATEMATICO\n"
             "{thin}\n"
@@ -1380,7 +1423,7 @@ def cmd_analisis(exchange):
             e50=float(last.get("ema50") or 0), e200=float(last.get("ema200") or 0),
             r14=float(last.get("rsi14") or 0),
             mc=float(last.get("macd") or 0), ms=float(last.get("macd_signal") or 0),
-            bb=bb_pos, ver=veredicto,
+            bb=bb_pos, deriv=deriv_block, ver=veredicto,
         )
     except Exception as e:
         log.error("Error analisis: {}\n{}".format(e, traceback.format_exc()))
