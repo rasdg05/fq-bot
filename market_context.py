@@ -64,120 +64,145 @@ def _safe_get(url, params=None, timeout=10):
     return None
 
 # ============================================================
-# BINANCE FALLBACK (fapi - USD-M Futures)
-# Se usa cuando OKX devuelve None (tipico en VPS por geo-block).
-# Binance fapi tolera IPs de datacenter sin restricciones por defecto.
+# BYBIT FALLBACK (V5 API - perpetuals linear)
+# Bybit V5 funciona desde IPs de cloud US (Railway, AWS us-east, etc.)
+# sin geo-block. Binance fapi devuelve HTTP 451 desde esas ubicaciones.
 # ============================================================
-BINANCE_FAPI = "https://fapi.binance.com"
+BYBIT_BASE = "https://api.bybit.com"
 
-# Mapeo simbolo: SOL-USDT-SWAP (OKX) -> SOLUSDT (Binance)
-def _okx_to_binance_symbol(okx_sym):
+# Mapeo simbolo: SOL-USDT-SWAP (OKX) -> SOLUSDT (Bybit)
+def _okx_to_bybit_symbol(okx_sym):
     if okx_sym.endswith("-USDT-SWAP"):
         return okx_sym.replace("-USDT-SWAP", "USDT")
     return okx_sym.replace("-", "")
 
-def _safe_get_binance(path, params=None, timeout=10):
-    """GET a Binance fapi con diagnostico explicito."""
-    url = "{}{}".format(BINANCE_FAPI, path)
+def _safe_get_bybit(path, params=None, timeout=10):
+    """GET a Bybit V5 con diagnostico explicito.
+    Bybit envuelve la respuesta en {retCode, retMsg, result: {...}}."""
+    url = "{}{}".format(BYBIT_BASE, path)
     try:
         r = requests.get(url, params=params, timeout=timeout)
         if r.status_code != 200:
-            log.warning("Binance HTTP {} on {} (params={}) body={}".format(
+            log.warning("Bybit HTTP {} on {} (params={}) body={}".format(
                 r.status_code, path, params, r.text[:200]))
             return None
-        return r.json()
+        data = r.json()
+        if data.get("retCode") != 0:
+            log.warning("Bybit retCode={} retMsg={} on {} (params={})".format(
+                data.get("retCode"), data.get("retMsg"), path, params))
+            return None
+        return data.get("result", {})
     except requests.exceptions.Timeout:
-        log.warning("Binance TIMEOUT on {} (params={})".format(path, params))
+        log.warning("Bybit TIMEOUT on {} (params={})".format(path, params))
     except Exception as e:
-        log.warning("Binance exception {} on {} (params={}): {}".format(
+        log.warning("Bybit exception {} on {} (params={}): {}".format(
             type(e).__name__, path, params, e))
     return None
 
-def get_funding_rate_binance(symbol="SOL-USDT-SWAP"):
-    """Funding rate desde Binance fapi (premiumIndex)."""
-    bsym = _okx_to_binance_symbol(symbol)
-    data = _safe_get_binance("/fapi/v1/premiumIndex", params={"symbol": bsym})
-    if not data:
+def get_funding_rate_bybit(symbol="SOL-USDT-SWAP"):
+    """Funding rate desde Bybit V5 (/v5/market/tickers)."""
+    bsym = _okx_to_bybit_symbol(symbol)
+    result = _safe_get_bybit("/v5/market/tickers",
+                             params={"category": "linear", "symbol": bsym})
+    if not result:
         return None
     try:
-        funding = float(data.get("lastFundingRate", 0))
-        next_time = int(data.get("nextFundingTime", 0))
+        items = result.get("list", [])
+        if not items:
+            return None
+        d = items[0]
+        funding = float(d.get("fundingRate", 0))  # ya viene como decimal, ej 0.0001
+        next_time_ms = int(d.get("nextFundingTime", 0))
         return {
             "current_pct":   funding * 100,
-            "next_pct":      funding * 100,  # Binance no expone next_pct
-            "next_time_ms":  next_time,
-            "next_time_str": datetime.fromtimestamp(next_time / 1000, tz=timezone.utc).strftime("%H:%M UTC") if next_time else "N/A",
-            "_source":       "binance",
+            "next_pct":      funding * 100,  # Bybit no separa current/next
+            "next_time_ms":  next_time_ms,
+            "next_time_str": datetime.fromtimestamp(next_time_ms / 1000, tz=timezone.utc).strftime("%H:%M UTC") if next_time_ms else "N/A",
+            "_source":       "bybit",
         }
     except Exception as e:
-        log.warning("Binance funding parse error: {}".format(e))
+        log.warning("Bybit funding parse error: {}".format(e))
         return None
 
-def get_open_interest_binance(symbol="SOL-USDT-SWAP"):
-    """OI actual desde Binance fapi. Devuelve contratos + USD estimado."""
-    bsym = _okx_to_binance_symbol(symbol)
-    data = _safe_get_binance("/fapi/v1/openInterest", params={"symbol": bsym})
-    if not data:
+def get_open_interest_bybit(symbol="SOL-USDT-SWAP"):
+    """OI actual desde Bybit V5. Tickers ya trae openInterest + openInterestValue."""
+    bsym = _okx_to_bybit_symbol(symbol)
+    result = _safe_get_bybit("/v5/market/tickers",
+                             params={"category": "linear", "symbol": bsym})
+    if not result:
         return None
     try:
-        oi_contracts = float(data.get("openInterest", 0))
-        # Para SOLUSDT-perp, contrato = 1 SOL. Necesitamos precio para USD.
-        # Sacamos precio del mismo premiumIndex que ya cacheamos? Pedimos ticker.
-        ticker = _safe_get_binance("/fapi/v1/ticker/price", params={"symbol": bsym})
-        if not ticker:
+        items = result.get("list", [])
+        if not items:
             return None
-        price = float(ticker.get("price", 0))
-        oi_usd = oi_contracts * price
+        d = items[0]
+        oi_contracts = float(d.get("openInterest", 0))
+        oi_usd       = float(d.get("openInterestValue", 0))
         return {
             "contracts": oi_contracts,
             "usd":       oi_usd,
             "millions":  oi_usd / 1_000_000,
-            "_source":   "binance",
+            "_source":   "bybit",
         }
     except Exception as e:
-        log.warning("Binance OI parse error: {}".format(e))
+        log.warning("Bybit OI parse error: {}".format(e))
         return None
 
-def get_oi_history_binance(symbol="SOL-USDT-SWAP", period="15m", limit=10):
-    """OI history desde Binance fapi (futures/data/openInterestHist)."""
-    bsym = _okx_to_binance_symbol(symbol)
-    # Binance usa "5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"
-    data = _safe_get_binance("/futures/data/openInterestHist",
-                             params={"symbol": bsym, "period": period, "limit": limit})
-    if not data or not isinstance(data, list):
+def get_oi_history_bybit(symbol="SOL-USDT-SWAP", period="15min", limit=10):
+    """OI history desde Bybit V5 (/v5/market/open-interest).
+    Periodos validos: 5min, 15min, 30min, 1h, 4h, 1d.
+    """
+    bsym = _okx_to_bybit_symbol(symbol)
+    result = _safe_get_bybit("/v5/market/open-interest",
+                             params={"category": "linear", "symbol": bsym,
+                                     "intervalTime": period, "limit": limit})
+    if not result:
         return None
     try:
-        # Binance: [{"symbol", "sumOpenInterest", "sumOpenInterestValue", "timestamp"}, ...]
-        # Mas reciente al final -> invertimos para matchear formato OKX (mas reciente primero)
+        items = result.get("list", [])
+        if not items:
+            return None
+        # Bybit devuelve mas reciente PRIMERO (igual que OKX) - no invertir
         out = []
-        for x in reversed(data):
+        for x in items:
             out.append({
                 "ts":  int(x.get("timestamp", 0)),
-                "oi":  float(x.get("sumOpenInterest", 0)),
-                "vol": float(x.get("sumOpenInterestValue", 0)),
+                "oi":  float(x.get("openInterest", 0)),
+                "vol": 0.0,  # Bybit en este endpoint no expone volumen junto al OI
             })
         return out[:limit]
     except Exception as e:
-        log.warning("Binance OI history parse error: {}".format(e))
+        log.warning("Bybit OI history parse error: {}".format(e))
         return None
 
-def get_long_short_ratio_binance(symbol="SOL", period="15m"):
-    """L/S ratio (cuentas) desde Binance fapi (globalLongShortAccountRatio)."""
+def get_long_short_ratio_bybit(symbol="SOL", period="15min"):
+    """L/S ratio desde Bybit V5 (/v5/market/account-ratio).
+    Bybit devuelve buyRatio/sellRatio que suman 1.0; ratio = buy/sell.
+    """
     bsym = "{}USDT".format(symbol) if not symbol.endswith("USDT") else symbol
-    data = _safe_get_binance("/futures/data/globalLongShortAccountRatio",
-                             params={"symbol": bsym, "period": period, "limit": 5})
-    if not data or not isinstance(data, list):
+    result = _safe_get_bybit("/v5/market/account-ratio",
+                             params={"category": "linear", "symbol": bsym,
+                                     "period": period, "limit": 5})
+    if not result:
         return None
     try:
-        # Mas reciente al final -> invertir
-        ratios = [float(x.get("longShortRatio", 0)) for x in reversed(data)]
+        items = result.get("list", [])
+        if not items:
+            return None
+        # Bybit: mas reciente primero
+        ratios = []
+        for x in items:
+            buy  = float(x.get("buyRatio", 0))
+            sell = float(x.get("sellRatio", 0))
+            if sell > 0:
+                ratios.append(buy / sell)
         if not ratios:
             return None
         current = ratios[0]
         avg_5 = sum(ratios) / len(ratios)
-        return {"current": current, "avg_5": avg_5, "history": ratios, "_source": "binance"}
+        return {"current": current, "avg_5": avg_5, "history": ratios, "_source": "bybit"}
     except Exception as e:
-        log.warning("Binance L/S parse error: {}".format(e))
+        log.warning("Bybit L/S parse error: {}".format(e))
         return None
 
 # ============================================================
@@ -188,13 +213,13 @@ def get_funding_rate(symbol="SOL-USDT-SWAP"):
     Funding rate actual + proximo timestamp.
     Funding > 0: longs pagan a shorts (mercado long-heavy)
     Funding < 0: shorts pagan a longs (mercado short-heavy)
-    Si OKX falla (geo-block en VPS), cae a Binance fapi automaticamente.
+    Si OKX falla (geo-block en VPS), cae a Bybit fapi automaticamente.
     """
     data = _safe_get("{}/api/v5/public/funding-rate".format(OKX_BASE),
                      params={"instId": symbol})
     if not data:
-        log.info("Funding: OKX fallo, intentando Binance fallback...")
-        return get_funding_rate_binance(symbol)
+        log.info("Funding: OKX fallo, intentando Bybit fallback...")
+        return get_funding_rate_bybit(symbol)
     d = data[0]
     try:
         funding = float(d.get("fundingRate", 0))
@@ -208,8 +233,8 @@ def get_funding_rate(symbol="SOL-USDT-SWAP"):
             "_source":       "okx",
         }
     except Exception:
-        log.info("Funding: OKX parse fallo, intentando Binance fallback...")
-        return get_funding_rate_binance(symbol)
+        log.info("Funding: OKX parse fallo, intentando Bybit fallback...")
+        return get_funding_rate_bybit(symbol)
 
 def funding_interpretation(funding_pct):
     """Interpretacion cualitativa del funding"""
@@ -230,13 +255,13 @@ def get_open_interest(symbol="SOL-USDT-SWAP"):
     Crecimiento de OI + precio subiendo = nuevas posiciones long
     Crecimiento de OI + precio bajando = nuevas posiciones short
     OI cayendo = cierre de posiciones
-    Fallback automatico a Binance si OKX falla.
+    Fallback automatico a Bybit si OKX falla.
     """
     data = _safe_get("{}/api/v5/public/open-interest".format(OKX_BASE),
                      params={"instType": "SWAP", "instId": symbol})
     if not data:
-        log.info("OI: OKX fallo, intentando Binance fallback...")
-        return get_open_interest_binance(symbol)
+        log.info("OI: OKX fallo, intentando Bybit fallback...")
+        return get_open_interest_bybit(symbol)
     d = data[0]
     try:
         oi_contracts = float(d.get("oi", 0))
@@ -248,28 +273,45 @@ def get_open_interest(symbol="SOL-USDT-SWAP"):
             "_source":   "okx",
         }
     except Exception:
-        log.info("OI: OKX parse fallo, intentando Binance fallback...")
-        return get_open_interest_binance(symbol)
+        log.info("OI: OKX parse fallo, intentando Bybit fallback...")
+        return get_open_interest_bybit(symbol)
+
+def _okx_period(period):
+    """OKX rubik/stat acepta solo: 5m, 1H, 1D. Traducimos lo demas a lo mas cercano."""
+    p = period.lower()
+    if p in ("5m", "15m", "30m"):
+        return "5m"
+    if p in ("1h", "2h", "4h"):
+        return "1H"
+    return "1D"
+
+def _bybit_period(period):
+    """Bybit V5 acepta: 5min, 15min, 30min, 1h, 4h, 1d."""
+    p = period.lower()
+    mapping = {"5m": "5min", "15m": "15min", "30m": "30min",
+               "1h": "1h", "4h": "4h", "1d": "1d"}
+    return mapping.get(p, "15min")
 
 def get_oi_history(symbol="SOL-USDT-SWAP", period="15m", limit=10):
-    """OI history. Endpoint rubik/stat de OKX es muy bloqueado en VPS -> Binance fallback."""
+    """OI history. Endpoint rubik/stat de OKX es muy bloqueado en VPS -> Bybit fallback.
+    OKX solo acepta period en [5m, 1H, 1D] - traducimos internamente."""
     import time
     end_ms   = int(time.time() * 1000)
     begin_ms = end_ms - (3600 * 1000 * 4)  # ultimas 4h
     data = _safe_get(
         "{}/api/v5/rubik/stat/contracts/open-interest-volume".format(OKX_BASE),
-        params={"ccy": "SOL", "period": period,
+        params={"ccy": "SOL", "period": _okx_period(period),
                 "begin": str(begin_ms), "end": str(end_ms)}
     )
     if not data:
-        log.info("OI history: OKX rubik/stat fallo, intentando Binance fallback...")
-        return get_oi_history_binance(symbol, period, limit)
+        log.info("OI history: OKX rubik/stat fallo, intentando Bybit fallback...")
+        return get_oi_history_bybit(symbol, _bybit_period(period), limit)
     try:
         return [{"ts": int(x[0]), "oi": float(x[1]), "vol": float(x[2])}
                 for x in data[:limit]]
     except Exception:
-        log.info("OI history: OKX parse fallo, intentando Binance fallback...")
-        return get_oi_history_binance(symbol, period, limit)
+        log.info("OI history: OKX parse fallo, intentando Bybit fallback...")
+        return get_oi_history_bybit(symbol, _bybit_period(period), limit)
 
 def oi_trend_analysis(oi_history):
     """Analiza tendencia de OI en ultimos N puntos"""
@@ -289,26 +331,27 @@ def oi_trend_analysis(oi_history):
 # LONG/SHORT RATIO
 # ============================================================
 def get_long_short_ratio(symbol="SOL", period="15m"):
-    """L/S ratio. Endpoint rubik/stat de OKX es muy bloqueado en VPS -> Binance fallback."""
+    """L/S ratio. Endpoint rubik/stat de OKX es muy bloqueado en VPS -> Bybit fallback.
+    OKX solo acepta period en [5m, 1H, 1D] - traducimos internamente."""
     import time
     end_ms   = int(time.time() * 1000)
     begin_ms = end_ms - (3600 * 1000 * 4)
     data = _safe_get(
         "{}/api/v5/rubik/stat/contracts/long-short-account-ratio".format(OKX_BASE),
-        params={"ccy": symbol, "period": period,
+        params={"ccy": symbol, "period": _okx_period(period),
                 "begin": str(begin_ms), "end": str(end_ms)}
     )
     if not data:
-        log.info("L/S ratio: OKX rubik/stat fallo, intentando Binance fallback...")
-        return get_long_short_ratio_binance(symbol, period)
+        log.info("L/S ratio: OKX rubik/stat fallo, intentando Bybit fallback...")
+        return get_long_short_ratio_bybit(symbol, _bybit_period(period))
     try:
         ratios  = [float(x[1]) for x in data[:5]]
         current = ratios[0]
         avg_5   = sum(ratios) / len(ratios)
         return {"current": current, "avg_5": avg_5, "history": ratios, "_source": "okx"}
     except Exception:
-        log.info("L/S ratio: OKX parse fallo, intentando Binance fallback...")
-        return get_long_short_ratio_binance(symbol, period)
+        log.info("L/S ratio: OKX parse fallo, intentando Bybit fallback...")
+        return get_long_short_ratio_bybit(symbol, _bybit_period(period))
 
 def ls_ratio_interpretation(ratio):
     """Interpretacion del L/S ratio"""
