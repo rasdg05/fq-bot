@@ -158,18 +158,33 @@ def fmt_walls(walls, label):
             w["price"], w["size"], w["dist_pct"]))
     return "\n".join(lines)
 
+def _fmt_num(v, fmt):
+    """Formatea valor numerico, o devuelve texto crudo si es string/None."""
+    if v is None:
+        return "N/A"
+    if isinstance(v, str):
+        return v  # "UNAVAILABLE" pasa derecho
+    try:
+        return fmt.format(v)
+    except (TypeError, ValueError):
+        return str(v)
+
 def fmt_external(s):
-    """Formatea bloque de datos externos"""
+    """Formatea bloque de datos externos. Defensivo: tolera UNAVAILABLE."""
     parts = []
     if "funding_pct" in s:
-        parts.append("Funding: {:+.4f}% - {}".format(s["funding_pct"], s.get("funding_interp", "")))
+        f = _fmt_num(s["funding_pct"], "{:+.4f}%")
+        parts.append("Funding: {} - {}".format(f, s.get("funding_interp", "")))
     if "oi_millions" in s:
-        oi_line = "Open Interest: ${:.2f}M".format(s["oi_millions"])
+        oi_val = _fmt_num(s["oi_millions"], "${:.2f}M")
+        oi_line = "Open Interest: {}".format(oi_val)
         if "oi_change_pct" in s:
-            oi_line += " (delta {:+.2f}%) - {}".format(s["oi_change_pct"], s.get("oi_trend", ""))
+            delta = _fmt_num(s["oi_change_pct"], "{:+.2f}%")
+            oi_line += " (delta {}) - {}".format(delta, s.get("oi_trend", ""))
         parts.append(oi_line)
     if "ls_ratio" in s:
-        parts.append("L/S Ratio: {:.2f} - {}".format(s["ls_ratio"], s.get("ls_interp", "")))
+        ls_val = _fmt_num(s["ls_ratio"], "{:.2f}")
+        parts.append("L/S Ratio: {} - {}".format(ls_val, s.get("ls_interp", "")))
     if "ob_pressure_interp" in s:
         parts.append("Presion libro 0.5%: {}".format(s["ob_pressure_interp"]))
     if not parts:
