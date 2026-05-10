@@ -208,6 +208,27 @@ def get_long_short_ratio_bybit(symbol="SOL", period="15min"):
 # ============================================================
 # FUNDING RATE
 # ============================================================
+def _safe_float(v, default=0.0):
+    """float() tolerante: strings vacios, None, o invalidos -> default."""
+    if v is None or v == "":
+        return default
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return default
+
+def _safe_int(v, default=0):
+    """int() tolerante: strings vacios, None, o invalidos -> default."""
+    if v is None or v == "":
+        return default
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        try:
+            return int(float(v))
+        except (TypeError, ValueError):
+            return default
+
 def get_funding_rate(symbol="SOL-USDT-SWAP"):
     """
     Funding rate actual + proximo timestamp.
@@ -222,9 +243,9 @@ def get_funding_rate(symbol="SOL-USDT-SWAP"):
         return get_funding_rate_bybit(symbol)
     d = data[0]
     try:
-        funding = float(d.get("fundingRate", 0))
-        next_funding = float(d.get("nextFundingRate", 0))
-        next_time = int(d.get("nextFundingTime", 0))
+        funding      = _safe_float(d.get("fundingRate"))
+        next_funding = _safe_float(d.get("nextFundingRate"))
+        next_time    = _safe_int(d.get("nextFundingTime"))
         return {
             "current_pct":   funding * 100,
             "next_pct":      next_funding * 100,
@@ -232,8 +253,9 @@ def get_funding_rate(symbol="SOL-USDT-SWAP"):
             "next_time_str": datetime.fromtimestamp(next_time / 1000, tz=timezone.utc).strftime("%H:%M UTC") if next_time else "N/A",
             "_source":       "okx",
         }
-    except Exception:
-        log.info("Funding: OKX parse fallo, intentando Bybit fallback...")
+    except Exception as e:
+        log.warning("Funding: OKX parse fallo (raw={}, err={}), intentando Bybit fallback...".format(
+            d, e))
         return get_funding_rate_bybit(symbol)
 
 def funding_interpretation(funding_pct):
@@ -264,16 +286,17 @@ def get_open_interest(symbol="SOL-USDT-SWAP"):
         return get_open_interest_bybit(symbol)
     d = data[0]
     try:
-        oi_contracts = float(d.get("oi", 0))
-        oi_usd       = float(d.get("oiUsd", 0))
+        oi_contracts = _safe_float(d.get("oi"))
+        oi_usd       = _safe_float(d.get("oiUsd"))
         return {
             "contracts": oi_contracts,
             "usd":       oi_usd,
             "millions":  oi_usd / 1_000_000,
             "_source":   "okx",
         }
-    except Exception:
-        log.info("OI: OKX parse fallo, intentando Bybit fallback...")
+    except Exception as e:
+        log.warning("OI: OKX parse fallo (raw={}, err={}), intentando Bybit fallback...".format(
+            d, e))
         return get_open_interest_bybit(symbol)
 
 def _okx_period(period):
@@ -307,10 +330,11 @@ def get_oi_history(symbol="SOL-USDT-SWAP", period="15m", limit=10):
         log.info("OI history: OKX rubik/stat fallo, intentando Bybit fallback...")
         return get_oi_history_bybit(symbol, _bybit_period(period), limit)
     try:
-        return [{"ts": int(x[0]), "oi": float(x[1]), "vol": float(x[2])}
+        return [{"ts": _safe_int(x[0]), "oi": _safe_float(x[1]), "vol": _safe_float(x[2])}
                 for x in data[:limit]]
-    except Exception:
-        log.info("OI history: OKX parse fallo, intentando Bybit fallback...")
+    except Exception as e:
+        log.warning("OI history: OKX parse fallo (raw_first={}, err={}), intentando Bybit fallback...".format(
+            data[0] if data else None, e))
         return get_oi_history_bybit(symbol, _bybit_period(period), limit)
 
 def oi_trend_analysis(oi_history):
@@ -345,12 +369,16 @@ def get_long_short_ratio(symbol="SOL", period="15m"):
         log.info("L/S ratio: OKX rubik/stat fallo, intentando Bybit fallback...")
         return get_long_short_ratio_bybit(symbol, _bybit_period(period))
     try:
-        ratios  = [float(x[1]) for x in data[:5]]
+        ratios  = [_safe_float(x[1]) for x in data[:5]]
+        ratios  = [r for r in ratios if r > 0]  # filtrar ceros (parse fallido)
+        if not ratios:
+            raise ValueError("ratios vacios despues de filtrar")
         current = ratios[0]
         avg_5   = sum(ratios) / len(ratios)
         return {"current": current, "avg_5": avg_5, "history": ratios, "_source": "okx"}
-    except Exception:
-        log.info("L/S ratio: OKX parse fallo, intentando Bybit fallback...")
+    except Exception as e:
+        log.warning("L/S ratio: OKX parse fallo (raw_first={}, err={}), intentando Bybit fallback...".format(
+            data[0] if data else None, e))
         return get_long_short_ratio_bybit(symbol, _bybit_period(period))
 
 def ls_ratio_interpretation(ratio):
