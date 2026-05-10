@@ -1,1 +1,1 @@
-worker: python fq_bot_mistral.py
+worker: python fq_bot_v3_2.py
