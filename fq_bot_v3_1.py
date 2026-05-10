@@ -208,6 +208,90 @@ def telegram_send(text, chat_id=None):
         log.warning("Telegram send failed {}: {}".format(r.status_code, r.text[:200]))
     return False
 
+def broadcast_to_subscribers(text, include_admin=True, tiers=None):
+    """
+    MISTRAL: Envia un mensaje (tipicamente una senal o anuncio operativo)
+    a todos los usuarios con suscripcion activa: VIP, TRIAL, ADMIN.
+
+    - Dedupea por chat_id (un admin VIP no recibe doble).
+    - Errores por usuario individual no rompen el broadcast.
+    - Si VIP_ENABLED es False o falla, hace fallback al admin unico (TELEGRAM_CHAT_ID).
+    - Devuelve (sent, failed) para logging.
+
+    Args:
+        text: mensaje a enviar (mismo formato que telegram_send)
+        include_admin: incluir al admin TELEGRAM_CHAT_ID aunque no este en BD
+        tiers: lista opcional de tiers a incluir. Default: vip + trial + admin
+
+    Uso tipico:
+        broadcast_to_subscribers(signal_msg)   # senal completa
+        broadcast_to_subscribers(opus_reading) # follow-up Opus
+    """
+    if tiers is None:
+        tiers = ["vip", "trial", "admin"]
+
+    sent = 0
+    failed = 0
+    seen = set()
+
+    # Fallback: si VIP no esta cargado, solo manda al admin
+    if not VIP_ENABLED or vip is None:
+        if include_admin and TELEGRAM_CHAT_ID:
+            ok = telegram_send(text, TELEGRAM_CHAT_ID)
+            return (1 if ok else 0, 0 if ok else 1)
+        return (0, 0)
+
+    # Recolectar destinatarios desde BD
+    try:
+        recipients = []
+        for tier in tiers:
+            try:
+                users = vip.get_all_users(tier=tier, limit=1000)
+                recipients.extend(users)
+            except Exception as e:
+                log.warning("broadcast: error getting tier {}: {}".format(tier, e))
+
+        # Asegurar que el admin original siempre reciba (si no esta en BD aun)
+        if include_admin and TELEGRAM_CHAT_ID:
+            seen.add(str(TELEGRAM_CHAT_ID))
+            ok = telegram_send(text, TELEGRAM_CHAT_ID)
+            if ok:
+                sent += 1
+            else:
+                failed += 1
+
+        for u in recipients:
+            cid = str(u.get("chat_id", "")).strip()
+            if not cid or cid in seen:
+                continue
+            # Saltar VIPs/trials cuya suscripcion ya expiro
+            try:
+                effective = vip.get_effective_tier(cid)
+                if effective == "free":
+                    continue
+            except Exception:
+                pass
+            seen.add(cid)
+            try:
+                ok = telegram_send(text, cid)
+                if ok:
+                    sent += 1
+                else:
+                    failed += 1
+            except Exception as e:
+                log.warning("broadcast to {}: {}".format(cid, e))
+                failed += 1
+
+        log.info("Broadcast: sent={} failed={} (tiers={})".format(sent, failed, tiers))
+        return (sent, failed)
+
+    except Exception as e:
+        log.error("broadcast_to_subscribers fatal: {}".format(e))
+        # Fallback final al admin
+        if include_admin and TELEGRAM_CHAT_ID:
+            telegram_send(text, TELEGRAM_CHAT_ID)
+        return (sent, failed)
+
 def telegram_get_updates(offset, timeout=25):
     url = "https://api.telegram.org/bot{}/getUpdates".format(TELEGRAM_TOKEN)
     params = {"offset": offset, "timeout": timeout, "allowed_updates": ["message"]}
@@ -1556,9 +1640,11 @@ def evaluate_setup(exchange, intra=False):
     STATE.last_eval_diagnostic = {"stage": "fired", "price": price, "direction": direction,
                                    "p_master": p_master, "session": session}
     msg = build_signal_msg(direction, levels, decoh, masses, session, w_clock, p_master, lap, intra)
-    if telegram_send(msg):
-        log.info("SIGNAL SENT: {} P_master={:.2f} W={:.2f} intra={}".format(
-            direction.upper(), p_master, w_clock, intra))
+    # MISTRAL: broadcast a todos los VIP/trial/admin activos
+    bsent, bfailed = broadcast_to_subscribers(msg)
+    if bsent > 0:
+        log.info("SIGNAL SENT: {} P_master={:.2f} W={:.2f} intra={} | broadcast sent={} failed={}".format(
+            direction.upper(), p_master, w_clock, intra, bsent, bfailed))
         with STATE.lock:
             STATE.last_signal_ts     = datetime.now(timezone.utc)
             STATE.last_signal_dir    = direction
@@ -1617,7 +1703,7 @@ def evaluate_setup(exchange, intra=False):
         if claude_ai.is_available() and claude_ai.is_high_conviction(p_master):
             try:
                 log.info("Triggering Opus co-pilot for high-conviction signal")
-                telegram_send(
+                broadcast_to_subscribers(
                     "<b>Senal de alta conviccion detectada</b>\n"
                     "Activando co-pilot Opus 4.6 para revision final..."
                 )
@@ -1654,7 +1740,7 @@ def evaluate_setup(exchange, intra=False):
                     # Split si es muy largo
                     parts = split_telegram_message(opus_msg)
                     for p in parts:
-                        telegram_send(p)
+                        broadcast_to_subscribers(p)
             except Exception as e:
                 log.error("Opus co-pilot error: {}\n{}".format(e, traceback.format_exc()))
 
@@ -2345,7 +2431,7 @@ def evolution_periodic_hook(exchange):
         if ev.should_trigger_audit() and claude_ai.is_available():
             n = ev.count_signals(closed_only=True)
             log.info("Triggering self-audit Opus (n={})".format(n))
-            telegram_send(
+            broadcast_to_subscribers(
                 "<b>SELF-AUDIT EVOLUTIVO ACTIVADO</b>\n"
                 "{} senales cerradas. Opus 4.6 auditando ledger...".format(n)
             )
@@ -2362,7 +2448,7 @@ def evolution_periodic_hook(exchange):
                     "#FQv41 #SelfAudit"
                 ).format(thin=G["thin"], r=opus_response)
                 for p in split_telegram_message(audit_msg):
-                    telegram_send(p)
+                    broadcast_to_subscribers(p)
 
         # Backup cada 10 senales totales
         if ev.should_trigger_backup():
