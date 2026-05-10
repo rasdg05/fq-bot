@@ -1,32 +1,42 @@
 # -*- coding: utf-8 -*-
 """
 ================================================================================
-  FQ v4.1 SIGNAL BOT v3.1 - "BUGATTI EDITION + CLAUDE COPILOT"
+  FQ v4.1 SIGNAL BOT v4.0 - "MISTRAL EDITION"
   Fibonacci Cuantico v4.1 - Emergent Time and Curved Price-Space
   by RasDG_Sol
 ================================================================================
 
-  CHANGELOG v3.1:
-    - Integracion Claude (Anthropic API) como co-pilot tactico
-      * /claude   - lectura tactica manual (Sonnet 4.5)
-      * /analisis - ahora incluye lectura Claude (Sonnet 4.5)
-      * /pspace   - ahora incluye lectura Claude (Sonnet 4.5)
-      * /niveles  - ahora incluye afinacion Claude (Sonnet 4.5)
-      * Senales P_master >= phi^3 - co-pilot Opus 4.6 auto-disparado
-    - Market context module:
-      * Funding rate, Open Interest, Long/Short ratio (OKX)
-      * Order book walls + presion de libro
-      * Detector de eventos: CHoCH, breakouts, divergencias RSI, volumen
-      * Patrones de vela: hammer, shooting star, engulfing
-      * Evolucion vela-a-vela ultimas 5 velas
-    - Snapshots inteligentes especializados por comando
+  CHANGELOG v4.0 (Mistral Edition):
+    - SIGNAL ENGINE v2: macro deslizante (no punto-a-punto)
+      * Threshold 0.05% (vs 0.08%)
+      * Eval intra-vela en min 7 (vs 12)
+      * Eval continuo cada 2 min cuando hay near-miss
+      * Cooldown 1h (vs 2h)
+      * Diagnostico granular en cada gate
+    - SISTEMA VIP MULTIUSUARIO:
+      * Tiers: free / trial / vip / admin
+      * Codigos de acceso (regalo / promo / venta)
+      * Suscripciones con expiracion
+      * Panel admin completo
+    - PAGOS:
+      * Stripe Checkout (tarjetas)
+      * Crypto USDT TRC20/ERC20 con verificacion automatica
+    - LANDING WEB:
+      * /vip /precio /codigo /renovar /miestado
+      * Webhook Stripe para confirmacion
+      * Polling crypto cada 5 min
+    - PANEL ADMIN:
+      * /gencode /usuarios /broadcast /revoke /grant /stats /admin
+    - HEARTBEAT cada hora con resumen del estado
 
-  CHANGELOG v3.0:
-    - Ventana operativa 24H (W_clock solo modula, no bloquea)
-    - /niveles con planes de entrada contextuales
-    - /pspace con doble lectura: ejecutiva + tecnica
-    - /sesion completamente reescrito con W_clock dinamico
-    - Interfaz pulida con glyphs profesionales
+  CHANGELOG v3.2 (Evolution Patch):
+    - Modulo entropy_cognition.py: ledger SQLite + outcome tracker
+    - Modulador kappa_evo (+-15% sobre P_master, NO sobre Theta(D))
+    - Self-audit Opus cada 25 senales cerradas
+    - Comandos: /metrics /entropy /ledger /evolve /audit
+
+  CHANGELOG v3.1: Claude integration (Sonnet+Opus)
+  CHANGELOG v3.0: Bugatti Edition (24H, triggers contextuales)
 
   ASCII-only source, zero encoding issues.
 ================================================================================
@@ -47,6 +57,15 @@ import requests
 import claude_integration as claude_ai
 import market_context as mctx
 
+# Modulos FQ v3.2 (Evolution Patch)
+import entropy_cognition as ev
+import claude_evolution as ev_claude
+
+# Modulos FQ v4.0 (Mistral Edition)
+import vip_system as vip
+import payments
+import signal_engine_v2 as sigv2
+
 # ============================================================
 # CONFIG
 # ============================================================
@@ -59,17 +78,17 @@ SYMBOL_ETH  = "ETH-USDT-SWAP"
 TIMEFRAME   = "15m"
 
 LOOP_SECONDS          = 60
-INTRA_CANDLE_MINUTES  = 12
-SIGNAL_COOLDOWN_HOURS = 1
+INTRA_CANDLE_MINUTES  = 7         # MISTRAL: era 12, eval temprano
+SIGNAL_COOLDOWN_HOURS = 1         # MISTRAL: 1h, mas oportunidades
 
 # 24H operativo - W_clock solo modula
 WINDOW_24H = True
 
-# FQ v4.1 thresholds (calibrado 2026-05-07 v3.0)
-MACRO_THRESHOLD_PCT = 0.0008    # 0.08%
+# FQ v4.1 thresholds (MISTRAL: calibrado mas permisivo)
+MACRO_THRESHOLD_PCT = 0.0005    # MISTRAL: era 0.0008, ahora 0.05%
 TECH_MIN_ALIGNED    = 5         # de 7 indicadores
 PSPACE_MIN_MASSES   = 2
-PMASTER_MIN = 2.30      # calibrado post-validacion abril 2026
+PMASTER_MIN = 2.30              # calibrado post-validacion abril 2026
 RR_MIN_TP_DIVINO    = 1.8
 
 # FQ constants
@@ -119,6 +138,8 @@ class BotState:
         self.last_sol_price       = 0.0
         self.last_eval_ts         = None
         self.last_eval_result     = "Esperando primera vela"
+        self.last_eval_diagnostic = None
+        self.last_heartbeat_ts    = None
         self.telegram_offset      = 0
         self.day_marker           = None
         self.lock                 = threading.Lock()
@@ -249,25 +270,73 @@ def session_quality_label(w_clock):
 # DECOHERENCE TESTS - Pillar I
 # ============================================================
 def test_macro(exchange):
-    out = {"passed": False, "direction": None, "btc_change": 0.0, "eth_change": 0.0}
+    """
+    MISTRAL: Macro test con ventana deslizante.
+    Antes: punto-a-punto (iloc[-1] vs iloc[-4]) - fallaba si BTC corregia
+    Ahora: ventana deslizante max move en 4 velas, ambas direcciones evaluadas
+    """
+    out = {
+        "passed": False, "direction": None,
+        "btc_change": 0.0, "eth_change": 0.0,
+        "btc_bull": 0.0, "btc_bear": 0.0,
+        "eth_bull": 0.0, "eth_bear": 0.0,
+        "diagnostic": "",
+    }
     try:
         btc = fetch_ohlcv(exchange, SYMBOL_BTC, "15m", limit=20)
         eth = fetch_ohlcv(exchange, SYMBOL_ETH, "15m", limit=20)
-        btc_chg = (btc["close"].iloc[-1] - btc["close"].iloc[-4]) / btc["close"].iloc[-4]
-        eth_chg = (eth["close"].iloc[-1] - eth["close"].iloc[-4]) / eth["close"].iloc[-4]
-        out["btc_change"] = btc_chg * 100
-        out["eth_change"] = eth_chg * 100
+
+        # Ventana 4 velas previas como base, vela actual como punto
+        btc_base_low  = float(btc["close"].iloc[-6:-2].min())
+        btc_base_high = float(btc["close"].iloc[-6:-2].max())
+        btc_now       = float(btc["close"].iloc[-1])
+
+        eth_base_low  = float(eth["close"].iloc[-6:-2].min())
+        eth_base_high = float(eth["close"].iloc[-6:-2].max())
+        eth_now       = float(eth["close"].iloc[-1])
+
+        # Momentum bull/bear desde extremos recientes
+        btc_bull = (btc_now - btc_base_low)  / btc_base_low  if btc_base_low  > 0 else 0
+        eth_bull = (eth_now - eth_base_low)  / eth_base_low  if eth_base_low  > 0 else 0
+        btc_bear = (btc_base_high - btc_now) / btc_base_high if btc_base_high > 0 else 0
+        eth_bear = (eth_base_high - eth_now) / eth_base_high if eth_base_high > 0 else 0
+
+        out["btc_bull"] = btc_bull * 100
+        out["btc_bear"] = btc_bear * 100
+        out["eth_bull"] = eth_bull * 100
+        out["eth_bear"] = eth_bear * 100
+
+        # Display: signo segun direccion dominante
+        btc_mid = (btc_base_low + btc_base_high) / 2
+        eth_mid = (eth_base_low + eth_base_high) / 2
+        out["btc_change"] = btc_bull * 100 if btc_now >= btc_mid else -btc_bear * 100
+        out["eth_change"] = eth_bull * 100 if eth_now >= eth_mid else -eth_bear * 100
+
         with STATE.lock:
-            STATE.last_btc_chg = btc_chg * 100
-            STATE.last_eth_chg = eth_chg * 100
-        if btc_chg > MACRO_THRESHOLD_PCT and eth_chg > MACRO_THRESHOLD_PCT:
+            STATE.last_btc_chg = out["btc_change"]
+            STATE.last_eth_chg = out["eth_change"]
+
+        # Decision con threshold
+        if btc_bull >= MACRO_THRESHOLD_PCT and eth_bull >= MACRO_THRESHOLD_PCT:
             out["passed"] = True
             out["direction"] = "long"
-        elif btc_chg < -MACRO_THRESHOLD_PCT and eth_chg < -MACRO_THRESHOLD_PCT:
+            out["diagnostic"] = "BULL OK"
+        elif btc_bear >= MACRO_THRESHOLD_PCT and eth_bear >= MACRO_THRESHOLD_PCT:
             out["passed"] = True
             out["direction"] = "short"
+            out["diagnostic"] = "BEAR OK"
+        else:
+            best_bull = min(btc_bull, eth_bull) * 100
+            best_bear = min(btc_bear, eth_bear) * 100
+            need = MACRO_THRESHOLD_PCT * 100
+            if best_bull > best_bear:
+                out["diagnostic"] = "bull falta {:.3f}%".format(need - best_bull)
+            else:
+                out["diagnostic"] = "bear falta {:.3f}%".format(need - best_bear)
+
     except Exception as e:
         log.error("Macro test error: {}".format(e))
+        out["diagnostic"] = "ERROR"
     return out
 
 def test_technical(df, direction):
@@ -686,9 +755,9 @@ def build_signal_msg(direction, levels, decoh, masses, session, w_clock, p_maste
 # ============================================================
 def cmd_help():
     return (
-        "<b>FQ v4.1 BOT v3.1 - BUGATTI + CLAUDE</b>\n"
+        "<b>FQ v4.1 BOT v3.2 - BUGATTI + CLAUDE + EVOLUTION</b>\n"
         "{fence}\n\n"
-        "<b>COMANDOS:</b>\n"
+        "<b>OPERATIVOS:</b>\n"
         "/status    Estado bot, mercado, ultima senal\n"
         "/analisis  Analisis FQ + lectura Claude (Sonnet)\n"
         "/niveles   Plan de entrada + afinacion Claude\n"
@@ -696,7 +765,14 @@ def cmd_help():
         "/sesion    Sesion actual + W_clock dinamico\n"
         "/macro     Decoherencia macro BTC/ETH\n"
         "/claude    Lectura tactica completa (Sonnet 4.5)\n"
-        "/ia        Alias de /claude\n"
+        "/ia        Alias de /claude\n\n"
+        "<b>EVOLUCION (v3.2):</b>\n"
+        "/metrics   Desempeno global (WR, expectancy, PF)\n"
+        "/entropy   Cognicion entropica (Shannon H, drift KL)\n"
+        "/ledger    Ultimas 10 senales con outcome\n"
+        "/evolve    Buckets activos del modulador kappa_evo\n"
+        "/audit     Trigger manual self-audit Opus\n\n"
+        "<b>INFO:</b>\n"
         "/about     Sobre el sistema FQ v4.1\n"
         "/help      Esta ayuda\n\n"
         "{fence}\n\n"
@@ -704,15 +780,14 @@ def cmd_help():
         "Monitoreo 24/7. Solo emite senal con Theta(D) = 1.\n"
         "Senales con P_master >= phi^3 (4.236) reciben\n"
         "co-pilot Opus 4.6 con afinacion automatica.\n\n"
+        "<b>EVOLUTION PATCH:</b>\n"
+        "Modulador kappa_evo (+-15%) ajusta P_master\n"
+        "segun desempeno historico por bucket. NO toca\n"
+        "el gate Theta(D). Self-audit Opus cada 25 cierres.\n\n"
         "Ventana operativa: <b>24 HORAS</b>\n"
         "Asia (W=0.50) reduce sizing automaticamente.\n\n"
-        "<b>QUE VE CLAUDE:</b>\n"
-        "{b} Datos internos: indicadores, masas, decoherencia\n"
-        "{b} Datos externos: funding, OI, L/S ratio, walls\n"
-        "{b} Eventos: CHoCH, breakouts, divergencias, volumen\n"
-        "{b} Evolucion vela-a-vela ultimas 5 velas\n\n"
         "El silencio es disciplina. Calidad sobre cantidad.\n\n"
-        "#FQv41 #BugattiEdition"
+        "#FQv41 #BugattiEdition #EvolutionPatch"
     ).format(fence=G["fence"], b=G["bullet"])
 
 # ============================================================
@@ -1319,69 +1394,157 @@ def cmd_analisis(exchange):
 # EVALUATE SETUP - signal engine
 # ============================================================
 def evaluate_setup(exchange, intra=False):
+    """
+    MISTRAL: Cada gate fail registra diagnostico estructurado en STATE.
+    last_eval_diagnostic contiene: stage alcanzado, datos crudos, razon.
+    Asi /status muestra exactamente por que no disparo.
+    """
+    diagnostic = {
+        "stage": "init",
+        "ts":    datetime.now(timezone.utc).isoformat(),
+        "intra": intra,
+    }
+
     # 24H operativo - sin restriccion de ventana
     df = fetch_ohlcv(exchange, SYMBOL, TIMEFRAME, limit=200)
     df = add_indicators(df)
     if len(df) < 50:
-        STATE.last_eval_result = "Datos insuficientes"
+        diagnostic["stage"] = "data"
+        diagnostic["reason"] = "Datos insuficientes ({})".format(len(df))
+        STATE.last_eval_result = diagnostic["reason"]
+        STATE.last_eval_diagnostic = diagnostic
         return False
 
+    price = float(df["close"].iloc[-1])
+    diagnostic["price"] = price
+
     with STATE.lock:
-        STATE.last_sol_price = float(df["close"].iloc[-1])
+        STATE.last_sol_price = price
         STATE.last_eval_ts   = datetime.now(timezone.utc)
 
     session, w_clock, _, _ = get_session()
+    diagnostic["session"] = session
+    diagnostic["w_clock"] = w_clock
 
+    # GATE 1: MACRO
+    diagnostic["stage"] = "macro"
     macro = test_macro(exchange)
+    diagnostic["macro"] = {
+        "passed":     macro["passed"],
+        "btc_change": macro["btc_change"],
+        "eth_change": macro["eth_change"],
+        "btc_bull":   macro.get("btc_bull", 0),
+        "btc_bear":   macro.get("btc_bear", 0),
+        "eth_bull":   macro.get("eth_bull", 0),
+        "eth_bear":   macro.get("eth_bear", 0),
+    }
     if not macro["passed"]:
-        msg = "Macro NO decoherente (BTC {:+.2f}% / ETH {:+.2f}%)".format(
-            macro["btc_change"], macro["eth_change"])
-        log.info(msg)
+        msg = "MACRO {} (BTC {:+.3f}%/ETH {:+.3f}%)".format(
+            macro.get("diagnostic", "FAIL"), macro["btc_change"], macro["eth_change"])
+        log.info("EVAL ${:.2f} W={:.2f} | {}".format(price, w_clock, msg))
+        diagnostic["reason"] = msg
         STATE.last_eval_result = msg
+        STATE.last_eval_diagnostic = diagnostic
         return False
     direction = macro["direction"]
+    diagnostic["direction"] = direction
 
+    # GATE 2: TECNICA
+    diagnostic["stage"] = "tecnica"
     tecnica = test_technical(df, direction)
+    diagnostic["tecnica"] = {
+        "passed":  tecnica["passed"],
+        "aligned": tecnica["aligned"],
+        "total":   tecnica["total"],
+    }
     if not tecnica["passed"]:
-        msg = "Tecnica NO decoherente ({}/{})".format(tecnica["aligned"], tecnica["total"])
-        log.info(msg)
+        msg = "TEC FAIL {}/{} dir={}".format(tecnica["aligned"], tecnica["total"], direction)
+        log.info("EVAL ${:.2f} | MACRO OK | {}".format(price, msg))
+        diagnostic["reason"] = msg
         STATE.last_eval_result = msg
+        STATE.last_eval_diagnostic = diagnostic
         return False
 
+    # GATE 3: LIQUIDEZ
+    diagnostic["stage"] = "liquidez"
     liquidez = test_liquidity(df, direction)
+    diagnostic["liquidez"] = {
+        "passed": liquidez["passed"],
+        "rsi6":   liquidez["rsi6"],
+        "rsi12":  liquidez["rsi12"],
+        "rsi24":  liquidez["rsi24"],
+    }
     if not liquidez["passed"]:
-        msg = "Liquidez NO decoherente (RSI {:.0f}/{:.0f}/{:.0f})".format(
-            liquidez["rsi6"], liquidez["rsi12"], liquidez["rsi24"])
-        log.info(msg)
+        msg = "LIQ FAIL RSI {:.0f}/{:.0f}/{:.0f} dir={}".format(
+            liquidez["rsi6"], liquidez["rsi12"], liquidez["rsi24"], direction)
+        log.info("EVAL ${:.2f} | MACRO OK | TEC OK | {}".format(price, msg))
+        diagnostic["reason"] = msg
         STATE.last_eval_result = msg
+        STATE.last_eval_diagnostic = diagnostic
         return False
 
+    # GATE 4: P-SPACE
+    diagnostic["stage"] = "pspace"
     masses = detect_pspace(df)
+    diagnostic["pspace"] = {"passed": masses["passed"], "count": masses["count"]}
     if not masses["passed"]:
-        msg = "P-Space insuficiente ({} masas)".format(masses["count"])
-        log.info(msg)
+        msg = "PSPACE FAIL {} masas (need>={})".format(masses["count"], PSPACE_MIN_MASSES)
+        log.info("EVAL ${:.2f} | gates 1-3 OK | {}".format(price, msg))
+        diagnostic["reason"] = msg
         STATE.last_eval_result = msg
+        STATE.last_eval_diagnostic = diagnostic
         return False
 
+    # MODULADORES
+    diagnostic["stage"] = "moduladores"
     lap = laplacian_check(df)
     h_factor = 1.0 if lap["active"] else 0.7
 
-    p_master = (PHI ** 1) * w_clock * h_factor
-    p_master *= 1 + (masses["count"] - 2) * 0.15
+    # P_master raw (formula original FQ v4.1)
+    p_master_raw = (PHI ** 1) * w_clock * h_factor
+    p_master_raw *= 1 + (masses["count"] - 2) * 0.15
+
+    # MODULADOR ENTROPICO kappa_evo (+-15% basado en historico del bucket)
+    # NO toca Theta(D). Solo afila P_master post-gate.
+    tier = ev.tier_from_pmaster(p_master_raw)
+    csign = ev.curvature_sign(masses.get("support_weight", 0),
+                              masses.get("resistance_weight", 0))
+    kappa_evo, bucket_stats = ev.compute_kappa_evo(session, tier, direction, csign)
+    p_master = p_master_raw * kappa_evo
+    diagnostic["p_master_raw"] = p_master_raw
+    diagnostic["kappa_evo"]    = kappa_evo
+    diagnostic["p_master"]     = p_master
+
+    if bucket_stats:
+        log.info("kappa_evo={:.3f} bucket=({},{},{},{}) n={} WR={:.0%} Exp={:+.2f}R".format(
+            kappa_evo, session, tier, direction, csign,
+            bucket_stats["n"], bucket_stats["win_rate"], bucket_stats["expectancy"]))
 
     if p_master < PMASTER_MIN:
-        msg = "P_master {:.2f} < {:.2f} (W={:.2f}, sesion {})".format(
-            p_master, PMASTER_MIN, w_clock, session)
-        log.info(msg)
+        msg = "P_master {:.2f}<{:.2f} (raw={:.2f} k={:.3f} W={:.2f} {})".format(
+            p_master, PMASTER_MIN, p_master_raw, kappa_evo, w_clock, session)
+        log.info("EVAL ${:.2f} | gates 1-4 OK | {}".format(price, msg))
+        diagnostic["reason"] = msg
         STATE.last_eval_result = msg
+        STATE.last_eval_diagnostic = diagnostic
         return False
 
     levels = calculate_levels(df, direction)
+    diagnostic["rr_tp3"] = levels["rr_tp3"]
     if levels["rr_tp3"] < RR_MIN_TP_DIVINO:
-        msg = "R:R TP divino {:.2f} < {:.2f}".format(levels["rr_tp3"], RR_MIN_TP_DIVINO)
-        log.info(msg)
+        msg = "RR FAIL tp3={:.2f}<{:.2f}".format(levels["rr_tp3"], RR_MIN_TP_DIVINO)
+        log.info("EVAL ${:.2f} | gates+P_master OK | {}".format(price, msg))
+        diagnostic["reason"] = msg
         STATE.last_eval_result = msg
+        STATE.last_eval_diagnostic = diagnostic
         return False
+
+    # TODOS LOS GATES PASADOS - DISPARAR
+    diagnostic["stage"] = "fired"
+    diagnostic["reason"] = "SENAL DISPARADA"
+    STATE.last_eval_diagnostic = diagnostic
+    log.info("SENAL DISPARADA ${:.2f} {} P={:.2f} W={:.2f} intra={}".format(
+        price, direction.upper(), p_master, w_clock, intra))
 
     decoh = {"macro": macro, "tecnica": tecnica, "liquidez": liquidez}
     msg = build_signal_msg(direction, levels, decoh, masses, session, w_clock, p_master, lap, intra)
@@ -1397,6 +1560,50 @@ def evaluate_setup(exchange, intra=False):
             STATE.signals_total     += 1
             STATE.last_eval_result   = "SENAL ENVIADA: {} @ ${:.2f}".format(
                 direction.upper(), levels["entry"])
+
+        # REGISTRO EN LEDGER EVOLUTIVO
+        try:
+            ledger_data = {
+                "direction":         direction,
+                "entry":             levels["entry"],
+                "sl":                levels["sl"],
+                "tp1":               levels["tp1"],
+                "tp2":               levels["tp2"],
+                "tp3":               levels["tp3"],
+                "tp4":               levels["tp4"],
+                "p_master_raw":      p_master_raw,
+                "p_master_final":    p_master,
+                "kappa_evo":         kappa_evo,
+                "session":           session,
+                "w_clock":           w_clock,
+                "pspace_count":      masses["count"],
+                "support_weight":    masses.get("support_weight", 0),
+                "resistance_weight": masses.get("resistance_weight", 0),
+                "macro_btc":         macro["btc_change"],
+                "macro_eth":         macro["eth_change"],
+                "rsi6":              liquidez["rsi6"],
+                "rsi12":             liquidez["rsi12"],
+                "rsi24":             liquidez["rsi24"],
+                "h_lap_active":      1 if lap["active"] else 0,
+                "snapshot": {
+                    "decoh_summary": {
+                        "macro": {k: v for k, v in macro.items() if k != "passed"},
+                        "tecnica_aligned": tecnica.get("aligned"),
+                    },
+                    "masses_count": masses["count"],
+                    "levels": levels,
+                    "intra": intra,
+                },
+            }
+            sid = ev.log_signal(ledger_data)
+            if sid and bucket_stats:
+                ev.log_evolution_event(
+                    ev.make_bucket_key(session, tier, direction, csign),
+                    bucket_stats["n"], bucket_stats["win_rate"],
+                    bucket_stats["expectancy"], kappa_evo,
+                )
+        except Exception as e:
+            log.error("Ledger write error: {}".format(e))
 
         # OPUS CO-PILOT para senales de alta conviccion (P_master >= phi^3)
         if claude_ai.is_available() and claude_ai.is_high_conviction(p_master):
@@ -1664,50 +1871,591 @@ def claude_followup_niveles(exchange):
 
 
 def command_listener(exchange):
-    log.info("Command listener started")
+    """
+    MISTRAL: Listener multiusuario.
+    - Acepta mensajes de cualquier chat_id (no solo admin)
+    - Registra usuario nuevo automaticamente en /start
+    - Verifica acceso por tier antes de cada comando
+    - Bloquea comandos VIP a usuarios free con mensaje de venta
+    """
+    log.info("Command listener (multi-user) started")
     while True:
         try:
             updates = telegram_get_updates(STATE.telegram_offset)
             for upd in updates:
                 STATE.telegram_offset = upd["update_id"] + 1
                 msg = upd.get("message", {})
-                text = (msg.get("text") or "").strip().lower()
-                chat_id = str(msg.get("chat", {}).get("id", ""))
-                if chat_id != TELEGRAM_CHAT_ID:
+                text_raw = (msg.get("text") or "").strip()
+                if not text_raw:
                     continue
 
+                text = text_raw.lower()
+                chat = msg.get("chat", {})
+                chat_id  = str(chat.get("id", ""))
+                username = chat.get("username") or chat.get("first_name", "")
+                first_name = chat.get("first_name", "")
+
+                if not chat_id:
+                    continue
+
+                # Strip @bot suffix
                 if "@" in text:
                     text = text.split("@")[0]
 
-                log.info("Cmd received: {}".format(text))
+                # Extraer comando y argumentos
+                parts = text.split()
+                cmd_name = parts[0] if parts else ""
+                cmd_args = parts[1:] if len(parts) > 1 else []
+                # Tambien parsear args originales (case-sensitive para codigos, etc)
+                raw_parts = text_raw.split()
+                raw_args = raw_parts[1:] if len(raw_parts) > 1 else []
 
-                if text in COMMANDS:
-                    handler = COMMANDS[text]
+                if not cmd_name.startswith("/"):
+                    continue
+
+                # Registrar / actualizar usuario
+                user = vip.get_or_create_user(chat_id, username=username, first_name=first_name)
+
+                log.info("Cmd: {} from {} ({}) tier={}".format(
+                    cmd_name, chat_id, username, user.get("tier")))
+
+                # Welcome a usuario nuevo
+                if user.get("is_new") and cmd_name in ("/start", "/help"):
+                    welcome = (
+                        "<b>Bienvenido al sistema FQ v4.1</b>\n"
+                        "================================\n\n"
+                        "Sistema de senales basado en decoherencia\n"
+                        "cuantica para SOL/USDT perpetual.\n\n"
+                        "<b>Empezar:</b>\n"
+                        "- /precio para ver planes\n"
+                        "- /codigo XXXX si tienes codigo\n"
+                        "- /vip para adquirir suscripcion\n"
+                        "- /miestado para ver tu estado\n\n"
+                        "RasDG_Sol"
+                    )
+                    telegram_send(welcome, chat_id)
+
+                # Manejo de /start con argumento (deep linking desde landing)
+                if cmd_name == "/start" and raw_args:
+                    arg = raw_args[0].lower()
+                    if arg.startswith("plan_"):
+                        plan_id = arg.replace("plan_", "")
+                        # Trigger flujo VIP con plan preseleccionado
+                        telegram_send(
+                            "Plan seleccionado: <b>{}</b>\n"
+                            "Usa /vip para ver opciones de pago.".format(plan_id),
+                            chat_id)
+                        continue
+                    if arg == "trial":
+                        telegram_send(
+                            "<b>Solicitud de trial</b>\n\n"
+                            "Los trials se otorgan via codigo de regalo.\n"
+                            "Contactar a @RasDG_Sol o usa /codigo XXXX si tienes uno.",
+                            chat_id)
+                        continue
+
+                # ===== ACCESS CONTROL =====
+                allowed, tier, reject_msg = vip.check_access(chat_id, cmd_name)
+                if not allowed:
+                    if reject_msg:
+                        send_long(reject_msg, chat_id)
+                    continue
+
+                # ===== COMANDOS VIP-SPECIFIC =====
+                if cmd_name == "/codigo":
+                    if not raw_args:
+                        telegram_send(
+                            "Uso: /codigo XXXX-XXXX\n\n"
+                            "Pega el codigo de regalo que recibiste.",
+                            chat_id)
+                        continue
+                    code = raw_args[0].strip().upper()
+                    success, msg, days = vip.redeem_code(code, chat_id, username)
+                    if success:
+                        telegram_send(
+                            "<b>Codigo aplicado correctamente</b>\n"
+                            "================================\n\n"
+                            "{m}\n\n"
+                            "Acceso VIP activo.\n"
+                            "Usa /miestado para verificar.\n"
+                            "Usa /help para ver comandos disponibles.".format(m=msg),
+                            chat_id)
+                    else:
+                        telegram_send("<b>Codigo invalido</b>\n{m}".format(m=msg), chat_id)
+                    continue
+
+                if cmd_name == "/vip":
+                    cmd_vip_flow(chat_id, raw_args)
+                    continue
+
+                if cmd_name == "/precio":
+                    telegram_send(vip.format_precio_message(), chat_id)
+                    continue
+
+                if cmd_name == "/miestado":
+                    telegram_send(vip.format_user_status(chat_id), chat_id)
+                    continue
+
+                if cmd_name == "/renovar":
+                    cmd_vip_flow(chat_id, [])
+                    continue
+
+                # ===== COMANDOS ADMIN =====
+                if cmd_name == "/gencode":
+                    cmd_admin_gencode(chat_id, raw_args)
+                    continue
+                if cmd_name == "/usuarios":
+                    telegram_send(vip.format_users_list(20), chat_id)
+                    continue
+                if cmd_name == "/stats":
+                    telegram_send(vip.format_admin_stats(), chat_id)
+                    continue
+                if cmd_name == "/admin":
+                    telegram_send(cmd_admin_help(), chat_id)
+                    continue
+                if cmd_name == "/grant":
+                    cmd_admin_grant(chat_id, raw_args)
+                    continue
+                if cmd_name == "/revoke":
+                    cmd_admin_revoke(chat_id, raw_args)
+                    continue
+                if cmd_name == "/broadcast":
+                    cmd_admin_broadcast(chat_id, raw_parts[1:])
+                    continue
+
+                # ===== COMANDOS NORMALES (FQ) =====
+                if cmd_name in COMMANDS:
+                    handler = COMMANDS[cmd_name]
                     try:
-                        if text == "/analisis":
+                        if cmd_name == "/analisis":
                             telegram_send("Analizando mercado en tiempo real...", chat_id)
-                        elif text == "/niveles":
+                        elif cmd_name == "/niveles":
                             telegram_send("Construyendo plan de entrada FQ...", chat_id)
-                        elif text == "/pspace":
+                        elif cmd_name == "/pspace":
                             telegram_send("Mapeando masas P-Space y orderbook...", chat_id)
-                        elif text == "/claude":
+                        elif cmd_name == "/claude" or cmd_name == "/ia":
                             telegram_send("Espejo en tiempo real - consultando Claude...", chat_id)
                         response = handler(exchange) if handler.__code__.co_argcount > 0 else handler()
                         send_long(response, chat_id)
 
-                        # Claude follow-up para comandos compatibles
-                        if text in CLAUDE_FOLLOWUP and claude_ai.is_available():
-                            telegram_send("Claude esta interpretando los datos...", chat_id)
-                            followup = CLAUDE_FOLLOWUP[text](exchange)
-                            if followup:
-                                send_long(followup, chat_id)
+                        # Claude follow-up en thread separado (no bloquea)
+                        if cmd_name in CLAUDE_FOLLOWUP and claude_ai.is_available():
+                            def send_claude_followup(c=cmd_name, cid=chat_id):
+                                try:
+                                    telegram_send("Claude interpretando datos...", cid)
+                                    fu = CLAUDE_FOLLOWUP[c](exchange)
+                                    if fu:
+                                        send_long(fu, cid)
+                                except Exception as e:
+                                    log.error("Claude followup thread: {}".format(e))
+                            threading.Thread(target=send_claude_followup, daemon=True).start()
                     except Exception as e:
-                        log.error("Error executing {}: {}\n{}".format(text, e, traceback.format_exc()))
-                        telegram_send("Error ejecutando comando: {}".format(e), chat_id)
+                        log.error("Error executing {}: {}\n{}".format(
+                            cmd_name, e, traceback.format_exc()))
+                        telegram_send("Error: {}".format(str(e)[:200]), chat_id)
+
             time.sleep(2)
         except Exception as e:
             log.error("Listener loop error: {}\n{}".format(e, traceback.format_exc()))
             time.sleep(10)
+
+# ============================================================
+# VIP / PAYMENT COMMAND FLOWS
+# ============================================================
+def cmd_vip_flow(chat_id, args):
+    """Flujo /vip - elegir plan y metodo de pago"""
+    if not args:
+        msg = (
+            "<b>ADQUIRIR VIP</b>\n"
+            "================================\n\n"
+            "<b>Planes disponibles:</b>\n"
+        )
+        for plan_id, info in vip.PLAN_PRICES.items():
+            if plan_id == "trial_7d":
+                continue
+            msg += "{} - <b>${} USD</b> ({}d)\n".format(
+                info["label"], info["price_usd"], info["days"])
+            msg += "   /vip {} stripe   o   /vip {} crypto\n\n".format(plan_id, plan_id)
+        msg += (
+            "<b>Metodos:</b>\n"
+            "- stripe: tarjeta credito/debito\n"
+            "- crypto: USDT TRC20 o ERC20\n\n"
+            "Ejemplo: /vip vip_30d stripe"
+        )
+        telegram_send(msg, chat_id)
+        return
+
+    plan_id = args[0].lower() if len(args) > 0 else None
+    method  = args[1].lower() if len(args) > 1 else "stripe"
+
+    if plan_id not in vip.PLAN_PRICES or plan_id == "trial_7d":
+        telegram_send("Plan invalido. Usa /vip para ver opciones.", chat_id)
+        return
+
+    plan_info = vip.PLAN_PRICES[plan_id]
+
+    if method == "stripe":
+        if not payments.stripe_available():
+            telegram_send(
+                "Stripe no configurado en este momento.\n"
+                "Usa crypto: /vip {} crypto".format(plan_id), chat_id)
+            return
+        url, err = payments.create_stripe_checkout(chat_id, plan_id)
+        if not url:
+            telegram_send("Error: {}".format(err), chat_id)
+            return
+        telegram_send(
+            "<b>{}</b>\n"
+            "================================\n\n"
+            "Monto: ${} USD\n"
+            "Duracion: {} dias\n\n"
+            "<b>Pagar con tarjeta:</b>\n"
+            "{}\n\n"
+            "El acceso se activa automaticamente al confirmar el pago.".format(
+                plan_info["label"], plan_info["price_usd"],
+                plan_info["days"], url),
+            chat_id)
+        return
+
+    if method in ("crypto", "trc20", "erc20"):
+        network = method if method in ("trc20", "erc20") else "trc20"
+        result, err = payments.create_crypto_payment(chat_id, plan_id, network)
+        if not result:
+            telegram_send("Error: {}".format(err), chat_id)
+            return
+        telegram_send(
+            "<b>{label}</b>\n"
+            "================================\n\n"
+            "<b>Pago en USDT-{net}</b>\n"
+            "Monto exacto: <code>{amt:.4f}</code> USDT\n"
+            "(envia el monto exacto, sin redondear)\n\n"
+            "<b>Wallet:</b>\n"
+            "<code>{wallet}</code>\n\n"
+            "Referencia: {ref}\n"
+            "Expira en {hrs} horas.\n\n"
+            "Una vez enviado, el sistema verifica\n"
+            "automaticamente cada 5 min y activa\n"
+            "tu acceso al confirmar la transaccion.".format(
+                label=plan_info["label"], net=network.upper(),
+                amt=result["amount"], wallet=result["wallet"],
+                ref=result["ref_id"], hrs=result["expires_in_hours"]),
+            chat_id)
+        return
+
+    telegram_send("Metodo invalido. Usa stripe o crypto.", chat_id)
+
+# ============================================================
+# ADMIN COMMANDS
+# ============================================================
+def cmd_admin_help():
+    return (
+        "<b>PANEL ADMIN</b>\n"
+        "================================\n\n"
+        "<b>Codigos:</b>\n"
+        "/gencode [dias] [tipo] [nota]\n"
+        "  Ejemplo: /gencode 7 trial early-adopter\n"
+        "  Tipos: trial, gift, promo, vip\n\n"
+        "<b>Usuarios:</b>\n"
+        "/usuarios - Lista ultimos 20\n"
+        "/grant CHAT_ID PLAN - Otorgar acceso\n"
+        "  Ejemplo: /grant 123456 vip_30d\n"
+        "/revoke CHAT_ID - Revocar acceso\n\n"
+        "<b>Comunicacion:</b>\n"
+        "/broadcast MENSAJE - Enviar a todos los VIPs\n\n"
+        "<b>Stats:</b>\n"
+        "/stats - Resumen general\n"
+    )
+
+def cmd_admin_gencode(admin_chat_id, args):
+    """/gencode [dias] [tipo] [nota]"""
+    days = 7
+    kind = "gift"
+    note = None
+
+    if len(args) >= 1:
+        try:
+            days = int(args[0])
+        except ValueError:
+            telegram_send("Dias debe ser numero. Uso: /gencode 7 trial mi-amigo", admin_chat_id)
+            return
+    if len(args) >= 2:
+        kind = args[1].lower()
+    if len(args) >= 3:
+        note = " ".join(args[2:])
+
+    # Mapear dias a plan
+    if days <= 7:
+        plan = "trial_7d"
+    elif days <= 30:
+        plan = "vip_30d"
+    elif days <= 90:
+        plan = "vip_90d"
+    elif days <= 365:
+        plan = "vip_365d"
+    else:
+        plan = "lifetime"
+
+    code = vip.generate_code(
+        duration_days=days, plan=plan, kind=kind,
+        created_by=admin_chat_id, note=note
+    )
+    telegram_send(
+        "<b>Codigo generado</b>\n"
+        "================================\n\n"
+        "Codigo: <code>{code}</code>\n"
+        "Duracion: {d} dias\n"
+        "Plan: {p}\n"
+        "Tipo: {k}\n"
+        "{note}\n"
+        "El usuario debe ejecutar:\n"
+        "<code>/codigo {code}</code>".format(
+            code=code, d=days, p=plan, k=kind,
+            note="Nota: {}\n".format(note) if note else ""),
+        admin_chat_id)
+
+def cmd_admin_grant(admin_chat_id, args):
+    if len(args) < 2:
+        telegram_send("Uso: /grant CHAT_ID PLAN\nPlanes: trial_7d, vip_30d, vip_90d, vip_365d, lifetime", admin_chat_id)
+        return
+    target_chat = args[0]
+    plan = args[1].lower()
+    if plan not in vip.PLAN_PRICES:
+        telegram_send("Plan invalido.", admin_chat_id)
+        return
+    plan_info = vip.PLAN_PRICES[plan]
+    new_exp = vip.grant_subscription(
+        target_chat, plan, plan_info["days"],
+        source="admin_grant", referrer=admin_chat_id
+    )
+    telegram_send(
+        "Acceso otorgado a {}\nPlan: {} ({}d)\nExpira: {}".format(
+            target_chat, plan, plan_info["days"], new_exp.strftime("%Y-%m-%d")),
+        admin_chat_id)
+    # Notificar al usuario
+    try:
+        telegram_send(
+            "<b>Acceso VIP otorgado</b>\n"
+            "Plan: {}\n"
+            "Expira: {}\n\n"
+            "Usa /miestado para verificar.".format(
+                plan_info["label"], new_exp.strftime("%Y-%m-%d")),
+            target_chat)
+    except Exception:
+        pass
+
+def cmd_admin_revoke(admin_chat_id, args):
+    if len(args) < 1:
+        telegram_send("Uso: /revoke CHAT_ID [razon]", admin_chat_id)
+        return
+    target = args[0]
+    reason = " ".join(args[1:]) if len(args) > 1 else "admin_revoke"
+    vip.revoke_subscription(target, reason)
+    telegram_send("Acceso revocado para {}".format(target), admin_chat_id)
+
+def cmd_admin_broadcast(admin_chat_id, raw_args):
+    if not raw_args:
+        telegram_send("Uso: /broadcast MENSAJE", admin_chat_id)
+        return
+    message = " ".join(raw_args)
+    users = vip.get_all_users(tier=vip.TIER_VIP, limit=500) + \
+            vip.get_all_users(tier=vip.TIER_TRIAL, limit=500)
+    sent = 0
+    failed = 0
+    for u in users:
+        try:
+            ok = telegram_send(
+                "<b>Anuncio - RasDG_Sol</b>\n"
+                "================================\n\n{}".format(message),
+                u["chat_id"]
+            )
+            if ok:
+                sent += 1
+            else:
+                failed += 1
+        except Exception:
+            failed += 1
+    telegram_send(
+        "Broadcast completado: {} enviados, {} fallidos".format(sent, failed),
+        admin_chat_id)
+
+
+# ============================================================
+# EVOLUTION COMMANDS (v3.2)
+# ============================================================
+def send_db_backup_to_telegram():
+    """Envia el .db actual al chat como documento"""
+    db_path = ev.export_db_path()
+    if not db_path:
+        log.warning("Backup: DB path no existe")
+        return False
+    url = "https://api.telegram.org/bot{}/sendDocument".format(TELEGRAM_TOKEN)
+    try:
+        with open(db_path, "rb") as f:
+            files = {"document": (
+                "fq_ledger_{}.db".format(
+                    datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")),
+                f
+            )}
+            data = {
+                "chat_id": TELEGRAM_CHAT_ID,
+                "caption": "Ledger backup - {} senales totales".format(
+                    ev.count_signals(closed_only=False)),
+            }
+            r = requests.post(url, data=data, files=files, timeout=60)
+            if r.status_code == 200:
+                log.info("DB backup enviado a Telegram")
+                return True
+            log.error("Backup HTTP {}: {}".format(r.status_code, r.text[:200]))
+    except Exception as e:
+        log.error("send_db_backup_to_telegram: {}".format(e))
+    return False
+
+def cmd_audit_manual(exchange):
+    """Trigger manual de self-audit"""
+    n = ev.count_signals(closed_only=True)
+    if not claude_ai.is_available():
+        return "Claude no disponible. Configura ANTHROPIC_API_KEY."
+
+    # Reconcilia primero por si hay outcomes pendientes
+    try:
+        ev.reconcile_outcomes(fetch_ohlcv, exchange, SYMBOL, TIMEFRAME)
+    except Exception as e:
+        log.error("Pre-audit reconcile error: {}".format(e))
+
+    n = ev.count_signals(closed_only=True)
+    if n == 0:
+        return "Sin senales cerradas aun. El audit requiere data."
+
+    prompt = ev.build_audit_prompt()
+    if not prompt:
+        return "No hay data suficiente para audit."
+
+    telegram_send(
+        "<b>AUDIT MANUAL - OPUS 4.6</b>\n"
+        "Procesando {} senales cerradas...".format(n)
+    )
+    response = ev_claude.self_audit(prompt)
+    metrics = ev.get_global_metrics()
+    ev.save_audit(n, metrics, response)
+
+    return (
+        "<b>AUDIT MANUAL - OPUS 4.6</b>\n"
+        "{thin}\n\n{r}\n\n"
+        "{thin}\nSugerencias - RasDG decide.\n"
+        "#SelfAudit #FQv41"
+    ).format(thin=G["thin"], r=response)
+
+def cmd_entropy(exchange=None):
+    return ev.format_entropy_telegram()
+
+def cmd_metrics(exchange=None):
+    return ev.format_metrics_telegram()
+
+def cmd_ledger(exchange=None):
+    return ev.format_ledger_telegram(10)
+
+def cmd_evolve(exchange=None):
+    """Estado del modulador kappa_evo - que buckets estan activos"""
+    e = ev.compute_entropy_metrics()
+    if e["n_total"] == 0:
+        return "Sin data evolutiva aun."
+    bp = ev._bucket_performance_table()
+    if not bp:
+        return (
+            "<b>KAPPA EVO STATUS</b>\n"
+            "Senales totales: {}\n"
+            "Senales cerradas: {}\n"
+            "Ningun bucket aun tiene >=4 cerradas.\n"
+            "kappa_evo = 1.0 en todo (modo neutral).".format(
+                e["n_total"], e["n_closed"])
+        )
+    bp.sort(key=lambda x: x["expectancy"], reverse=True)
+    lines = ["<b>KAPPA EVO - BUCKETS ACTIVOS</b>", ""]
+    for b in bp:
+        n_min = ev.KAPPA_EVO_MIN_SAMPLES
+        if b["n"] >= n_min:
+            tag = "MOD"
+        else:
+            tag = "watch"
+        lines.append("[{}] {} | n={} WR={:.0%} Exp={:+.2f}R".format(
+            tag, b["bucket"], b["n"], b["win_rate"], b["expectancy"]))
+    lines.append("")
+    lines.append(
+        "MOD = bucket modulando kappa_evo (n>={})".format(ev.KAPPA_EVO_MIN_SAMPLES))
+    lines.append("watch = juntando data, sin modular aun")
+    lines.append("")
+    lines.append("<b>Cap absoluto:</b> kappa_evo en [0.85, 1.15]")
+    return "\n".join(lines)
+
+def evolution_periodic_hook(exchange):
+    """
+    Hook llamado en cada vela nueva del main loop.
+    1. Reconcilia outcomes pendientes
+    2. Notifica cierres relevantes (TP3+ o SL grande)
+    3. Trigger self-audit si toca (cada 25 cerradas)
+    4. Backup ledger si toca (cada 10 totales)
+    """
+    try:
+        closed = ev.reconcile_outcomes(fetch_ohlcv, exchange, SYMBOL, TIMEFRAME)
+        for c in closed:
+            outcome = c["outcome"]
+            relevant = (
+                outcome in ("tp3", "tp4") or
+                (outcome == "sl") or
+                (outcome == "timeout")
+            )
+            if relevant:
+                if outcome.startswith("tp"):
+                    emoji = "[OK]"
+                elif outcome == "sl":
+                    emoji = "[--]"
+                else:
+                    emoji = "[~~]"
+                telegram_send(
+                    "{em} <b>Senal #{id} cerrada</b>\n"
+                    "Direccion: {dir}\n"
+                    "Entry: ${ent:.2f} -> Salida: ${exi:.2f}\n"
+                    "Outcome: {out}  PnL: {pnl:+.2f}R\n"
+                    "Duracion: {mn} min\n"
+                    "Tier: {tier}  P_master: {pm:.2f}".format(
+                        em=emoji, id=c["id"], dir=c["direction"].upper(),
+                        ent=c["entry_price"], exi=c["exit_price"],
+                        out=outcome.upper(), pnl=c["pnl_r"],
+                        mn=c["minutes_open"], tier=c["tier"],
+                        pm=c["p_master_final"],
+                    )
+                )
+
+        # Self-audit cada 25 cerradas
+        if ev.should_trigger_audit() and claude_ai.is_available():
+            n = ev.count_signals(closed_only=True)
+            log.info("Triggering self-audit Opus (n={})".format(n))
+            telegram_send(
+                "<b>SELF-AUDIT EVOLUTIVO ACTIVADO</b>\n"
+                "{} senales cerradas. Opus 4.6 auditando ledger...".format(n)
+            )
+            prompt = ev.build_audit_prompt()
+            if prompt:
+                opus_response = ev_claude.self_audit(prompt)
+                metrics = ev.get_global_metrics()
+                ev.save_audit(n, metrics, opus_response)
+                audit_msg = (
+                    "<b>AUDIT EVOLUTIVO - OPUS 4.6</b>\n"
+                    "{thin}\n\n{r}\n\n"
+                    "{thin}\n"
+                    "Estas son SUGERENCIAS. RasDG decide.\n"
+                    "#FQv41 #SelfAudit"
+                ).format(thin=G["thin"], r=opus_response)
+                for p in split_telegram_message(audit_msg):
+                    telegram_send(p)
+
+        # Backup cada 10 senales totales
+        if ev.should_trigger_backup():
+            send_db_backup_to_telegram()
+
+    except Exception as e:
+        log.error("evolution_periodic_hook error: {}\n{}".format(
+            e, traceback.format_exc()))
 
 # ============================================================
 # MAIN
@@ -1715,15 +2463,21 @@ def command_listener(exchange):
 def main():
     global COMMANDS
     log.info("=" * 70)
-    log.info("  FQ v4.1 SIGNAL BOT v3.1 - BUGATTI + CLAUDE COPILOT")
+    log.info("  FQ v4.1 SIGNAL BOT v3.2 - BUGATTI + CLAUDE + EVOLUTION")
     log.info("  Window: 24H | Macro: {:.2f}% | P-Space>={} | P_master>={:.2f}".format(
         MACRO_THRESHOLD_PCT * 100, PSPACE_MIN_MASSES, PMASTER_MIN))
     log.info("  Claude integration: {}".format("ENABLED" if claude_ai.is_available() else "DISABLED"))
+    log.info("  kappa_evo cap: +-{:.0%}  audit cada {} cerradas".format(
+        ev.KAPPA_EVO_MAX, ev.AUDIT_EVERY_N_CLOSED))
     log.info("=" * 70)
 
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
         log.error("FATAL: Missing TELEGRAM_TOKEN or TELEGRAM_CHAT_ID env vars")
         sys.exit(1)
+
+    # Inicializar ledger evolutivo
+    ev.init_db()
+    log.info("Evolution ledger: {}".format(ev.DB_PATH))
 
     exchange = ccxt.okx({"enableRateLimit": True, "timeout": 20000})
 
@@ -1738,7 +2492,13 @@ def main():
         "/pspace":   cmd_pspace,
         "/macro":    cmd_macro,
         "/claude":   cmd_claude,
-        "/ia":       cmd_claude,  # alias
+        "/ia":       cmd_claude,
+        # Evolution v3.2
+        "/audit":    cmd_audit_manual,
+        "/entropy":  lambda exc=None: cmd_entropy(),
+        "/metrics":  lambda exc=None: cmd_metrics(),
+        "/ledger":   lambda exc=None: cmd_ledger(),
+        "/evolve":   lambda exc=None: cmd_evolve(),
     }
 
     # Comandos que reciben follow-up automatico de Claude
@@ -1751,7 +2511,7 @@ def main():
 
     claude_status = "ACTIVO (Sonnet+Opus)" if claude_ai.is_available() else "INACTIVO"
     telegram_send(
-        "<b>FQ v4.1 BOT v3.1 - BUGATTI + CLAUDE</b>\n"
+        "<b>FQ v4.1 BOT v3.2 - BUGATTI + CLAUDE + EVOLUTION</b>\n"
         "{fence}\n\n"
         "Monitoreando SOL/USDT (OKX) cada 15 min.\n"
         "Ventana operativa: <b>24 HORAS</b>\n"
@@ -1761,13 +2521,19 @@ def main():
         "{b} /analisis, /pspace, /niveles -> Sonnet 4.5\n"
         "{b} /claude o /ia -> lectura tactica manual\n"
         "{b} Senales P_master >= phi^3 -> Opus 4.6 auto\n\n"
+        "<b>Evolution Patch (v3.2):</b>\n"
+        "{b} Modulador kappa_evo +-15% sobre P_master\n"
+        "{b} Self-audit Opus cada 25 senales cerradas\n"
+        "{b} Backup ledger a Telegram cada 10 senales\n"
+        "{b} Theta(D) sigue siendo veto absoluto - intacto\n\n"
         "<b>Que ve Claude:</b>\n"
         "{b} Indicadores + masas + decoherencia (interno)\n"
         "{b} Funding + OI + L/S ratio + walls (externo)\n"
         "{b} Eventos: CHoCH, breakouts, divergencias\n"
         "{b} Evolucion vela-a-vela ultimas 5 velas\n\n"
-        "Comandos: /status /analisis /niveles /pspace\n"
-        "          /sesion /macro /claude /about /help".format(
+        "Comandos: /status /analisis /niveles /pspace /sesion\n"
+        "  /macro /claude /metrics /entropy /ledger /evolve\n"
+        "  /audit /about /help".format(
             fence=G["fence"], b=G["bullet"], cs=claude_status)
     )
 
@@ -1811,6 +2577,10 @@ def main():
                 else:
                     if evaluate_setup(exchange, intra=eval_intra):
                         last_signal_ts = now_utc
+
+            # EVOLUTION HOOK - una vez por vela nueva
+            if is_new_candle:
+                evolution_periodic_hook(exchange)
 
             # Reset diario de signals_today
             today = cdmx_now().date()
