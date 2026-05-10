@@ -1,210 +1,197 @@
-[README(2).md](https://github.com/user-attachments/files/27545241/README.2.md)
-# FQ v4.1 Signal Bot — Bugatti + Claude Copilot (v3.1)
+[README(3).md](https://github.com/user-attachments/files/27565137/README.3.md)
+# FQ v4.1 Signal Bot v3.2 — Bugatti + Claude + Evolution Patch
 
 **Fibonacci Cuántico v4.1 — Emergent Time and Curved Price-Space**
-Bot de señales para SOL/USDT perpetual con co-pilot Claude integrado.
+Bot de señales para SOL/USDT perpetual con co-pilot Claude integrado y cognición entrópica autoevolutiva.
 
-> *"El mercado no está en un estado definido. Está en superposición de historias competidoras. Una señal solo existe cuando colapsan."*
+> *"El sistema no recuerda. Destila."*
 > — RasDG_Sol
 
 ---
 
-## Novedades v3.1: Claude Copilot
+## Novedades v3.2: Evolution Patch
 
-El bot ahora integra Claude (Anthropic API) como **co-pilot táctico** que ve exactamente lo que el bot ve, vela por vela. No reemplaza el gate matemático Θ(D) — lo afila.
+El bot ahora destila cada señal en distribuciones de buckets, mide la entropía de Shannon sobre el portfolio de setups, y modula P_master con un coeficiente `kappa_evo` (±15%) basado en desempeño histórico. Cada 25 señales cerradas, Opus 4.6 audita el ledger completo y propone ajustes.
 
-### Lo que ve Claude en cada llamada
+**El gate Θ(D) sigue siendo veto absoluto.** El parche evolutivo opera POST-gate, no PRE-gate.
 
-**Estado interno (FQ):**
-- Precio, indicadores, masas P-Space, decoherencia 3/3, P_master, sesión, W_clock
+### Lo que hace el módulo de cognición entrópica
 
-**Estado externo (derivados perpetual):**
-- Funding rate y interpretación cualitativa
-- Open Interest y tendencia (delta % en últimas N velas)
-- Long/Short ratio y posición vs extremos
-- Order book walls (acumulaciones de liquidez en bid/ask)
-- Presión de libro 0.5% (compradores vs vendedores)
+**Ledger persistente (SQLite):**
+- Cada señal se registra con su contexto: dirección, niveles, P_master raw y final, kappa_evo aplicado, sesión, tier de convicción, indicadores, decoherencia
+- Outcome tracker: monitorea cada señal contra velas posteriores hasta que toca TP1/2/3/4, SL, o timeout (8h)
+- Backup automático del .db a Telegram cada 10 señales totales
 
-**Eventos pre-detectados por el bot:**
-- CHoCH (Change of Character) bullish/bearish
-- Breakouts con confirmación de cuerpo y volumen
-- Divergencias RSI bullish/bearish
-- Volumen anómalo (>2.5× MA20)
-- Patrones de vela: hammer, shooting star, engulfing
+**Entropía de Shannon sobre buckets dimensionales:**
+- Bucket key: `sesion | tier | direccion | curvatura`
+- H_total: 0 = sistema colapsado en 1 setup, 1 = exploración sana
+- Marginales por dimensión (sesión, tier, dirección, curvatura)
+- KL divergence entre últimas 25 señales y las 25 anteriores → detecta drift de régimen
 
-**Evolución temporal:**
-- Últimas 5 velas con OHLCV, RSI, color, % cuerpo, deltas
+**Modulador κ_evo (post-gate):**
+- Calcula expectancy R por bucket sobre señales cerradas
+- Si `n ≥ 8` cerradas en el bucket: aplica modulador suave en `[0.85, 1.15]`
+- Mapeo lineal: expectancy +1.5R → κ=1.15, expectancy −1.5R → κ=0.85
+- Si bucket vacío o `n < 8`: κ=1.0 (neutral, no modula)
 
-### Modelos por contexto
-
-| Trigger | Modelo | Costo aprox |
-|---------|--------|-------------|
-| `/claude` o `/ia` (manual) | Sonnet 4.5 | ~$0.005 |
-| `/analisis` follow-up | Sonnet 4.5 | ~$0.005 |
-| `/pspace` follow-up | Sonnet 4.5 | ~$0.005 |
-| `/niveles` follow-up | Sonnet 4.5 | ~$0.005 |
-| Señal P_master ≥ φ³ (auto) | **Opus 4.6** | ~$0.030 |
-
-**Costo estimado uso intenso:** ~$1–2/día.
+**Self-audit Opus cada 25 cerradas:**
+- Le pasa a Opus: WR global, expectancy, profit factor por tier, top 5 buckets ganadores y perdedores, entropía por dimensión, drift KL
+- Opus diagnostica: atractores tóxicos, edges ocultos, sobreajuste, deriva de régimen
+- Sugerencias concretas con números (subir/bajar PMASTER_MIN, ajustar cooldown)
+- **Sugerencias, no instrucciones** — RasDG aplica manualmente
 
 ---
 
-## Filosofía
-
-Este bot no busca señales. **Espera la decoherencia.**
-
-A diferencia de sistemas técnicos clásicos que producen un score escalar de "confianza", FQ v4.1 implementa un **gate booleano** basado en decoherencia cuántica generalizada (Hartle, Solvay 2005). El bot solo emite señal cuando tres narrativas históricas independientes — macro, técnica y liquidez — colapsan en una trayectoria consistente. Si cualquiera de las tres permanece en superposición, `P_master = 0` y no hay trade.
-
-Claude opera **después** del gate, no antes. El gate es matemático, sin override. Claude es un segundo par de ojos calibrado que afila el setup ya validado.
-
-El silencio es disciplina. Calidad sobre cantidad.
-
----
-
-## Master Equation v4.1
+## Master Equation v4.1 (con Evolution Patch)
 
 ```
-P_master = Θ(D) · κ(p) · φⁿ · W_clock · H_Laplacian
+P_master_raw   = Θ(D) · κ(p) · φⁿ · W_clock · H_Laplacian
+P_master_final = P_master_raw · κ_evo
 ```
 
-| Símbolo | Significado | Pilar teórico |
-|---------|-------------|---------------|
-| `Θ(D)` | Gate de decoherencia (3/3 narrativas) | Hartle (2005) |
-| `κ(p)` | Curvatura del P-Space por masas de liquidez | Oreste (2011) |
-| `φⁿ` | Acoplamiento de leverage a convicción | Fibonacci |
-| `W_clock` | Tiempo emergente por sesión | Page–Wootters |
-| `H_Laplacian` | Armonicidad discreta del precio | Knill, Harvard (2020) |
+| Símbolo | Significado |
+|---------|-------------|
+| `Θ(D)` | Gate de decoherencia (3/3 narrativas) — **veto absoluto, no se modula** |
+| `κ(p)` | Curvatura del P-Space por masas de liquidez |
+| `φⁿ` | Acoplamiento de leverage a convicción |
+| `W_clock` | Tiempo emergente por sesión |
+| `H_Laplacian` | Armonicidad discreta del precio |
+| `κ_evo` | **NUEVO**: modulador entrópico [0.85, 1.15] basado en historia del bucket |
 
-Si `Θ(D) = 0` → `P_master = 0` → no trade. **Sin excepción. Sin override.**
+Si `Θ(D) = 0` → `P_master = 0` → no trade. **κ_evo no puede activar una señal que el gate ya rechazó.**
 
 ---
 
 ## Comandos Telegram
 
-| Comando | Función | Claude follow-up |
-|---------|---------|:----------------:|
-| `/status` | Estado del bot, mercado, última señal | — |
-| `/analisis` | Análisis FQ completo en vivo | ✓ Sonnet |
-| `/niveles` | Plan de entrada con triggers contextuales | ✓ Sonnet |
-| `/pspace` | Masas P-Space + libro de órdenes | ✓ Sonnet |
-| `/sesion` | Sesión activa, W_clock, calendario completo | — |
-| `/macro` | Decoherencia macro BTC/ETH | — |
-| `/claude` o `/ia` | Lectura táctica completa manual | ✓ Sonnet |
-| `/about` | Fundamentos teóricos del sistema | — |
-| `/help` | Lista de comandos | — |
+### Operativos (heredados v3.1)
+
+| Comando | Función |
+|---------|---------|
+| `/status` | Estado del bot, mercado, última señal |
+| `/analisis` | Análisis FQ + lectura Sonnet |
+| `/niveles` | Plan de entrada + afinación Sonnet |
+| `/pspace` | Masas P-Space + libro + lectura Sonnet |
+| `/sesion` | Sesión activa, W_clock, calendario |
+| `/macro` | Decoherencia macro BTC/ETH |
+| `/claude` o `/ia` | Lectura táctica manual |
+
+### Evolution v3.2
+
+| Comando | Función |
+|---------|---------|
+| `/metrics` | Win rate, expectancy R, profit factor por tier |
+| `/entropy` | Shannon H + KL drift + distribuciones por dimensión |
+| `/ledger` | Últimas 10 señales con outcome y PnL en R |
+| `/evolve` | Buckets activos del modulador κ_evo |
+| `/audit` | Trigger manual de self-audit Opus |
 
 ---
 
 ## Configuración Railway
 
-### Variables de entorno
+### Variables de entorno (sin cambios)
 
 ```
 TELEGRAM_TOKEN=<token del bot de @BotFather>
 TELEGRAM_CHAT_ID=<chat ID del usuario o grupo>
 ANTHROPIC_API_KEY=<sk-ant-... de console.anthropic.com>
+FQ_LEDGER_PATH=/data/fq_ledger.db   # opcional, default /tmp/fq_ledger.db
 ```
 
-> **Nota:** si `ANTHROPIC_API_KEY` no está configurada, el bot funciona normalmente sin Claude. Los comandos `/claude` y los follow-ups simplemente devolverán un mensaje de configuración.
+> **Importante para Railway:** si quieres que el ledger sobreviva a redeploys, usa el plan con persistent volume y apunta `FQ_LEDGER_PATH` al mount path (ej. `/data/fq_ledger.db`). Si no, el ledger se borra en cada redeploy — pero el backup a Telegram cada 10 señales te da una copia de respaldo descargable.
 
 ### Estructura del repo
 
 ```
 /
-├── fq_bot_v3_1.py         ← punto de entrada principal
-├── claude_integration.py  ← módulo de integración Anthropic
-├── market_context.py      ← módulo de datos externos + eventos
+├── fq_bot_v3_2.py          ← punto de entrada principal (renombrar a fq_bot.py si quieres)
+├── claude_integration.py   ← módulo Claude (sin cambios)
+├── claude_evolution.py     ← NUEVO: adapter Claude para self-audit
+├── entropy_cognition.py    ← NUEVO: ledger + entropía + κ_evo
+├── market_context.py       ← módulo datos externos (sin cambios)
 ├── requirements.txt
 └── README.md
 ```
 
-### Procfile (opcional)
-
-```
-worker: python fq_bot_v3_1.py
-```
+`requirements.txt` no cambia — `sqlite3` es stdlib de Python.
 
 ---
 
-## Estructura de cuatro pilares
-
-| # | Pilar | Implementación |
-|---|-------|----------------|
-| I | Decoherencia 3/3 | Tests independientes: macro (BTC/ETH 15m), técnica (7 indicadores), liquidez (RSI 6/12/24) |
-| II | Tiempo emergente | `W_clock` dinámico por sesión: Asia 0.50, London 0.80, NY 1.00, Overlap 1.20 |
-| III | P-Space curvado | Detección de masas con peso (estructurales 1.0, técnicas 0.6–0.7, volumen 0.9, psicológicas 0.7) |
-| IV | Laplaciano discreto | Operador `D = d + d*` sobre la serie de cierres, ratio > φ activa H_lap |
-
----
-
-## Parámetros operativos
+## Parámetros operativos del Evolution Patch
 
 | Parámetro | Valor | Justificación |
 |-----------|-------|---------------|
-| Par | SOL/USDT Perpetual | Liquidez alta, volatilidad operable |
-| Exchange (datos) | OKX | Feed gratuito vía CCXT + endpoints de derivados |
-| Timeframe | 15m | Balance entre ruido y oportunidad |
-| Ventana operativa | **24 HORAS** | W_clock modula, no bloquea |
-| Macro threshold | 0.08% | Filtra ruido <0.08% en 1h |
-| P-Space mínimo | 2 masas | Requiere confluencia real |
-| P_master mínimo | 2.618 (φ²) | Threshold de convicción |
-| P_master alto (Opus) | 4.236 (φ³) | Trigger del co-pilot Opus |
-| Cooldown | 2h | Previene over-trading |
-| Leverage máximo | 8x (φ³-coupled) | Cap absoluto independiente de score |
-| Eval intra-vela | minuto 12 | Captura setups antes del cierre |
+| `KAPPA_EVO_MAX` | 0.15 | Cap absoluto ±15% sobre P_master |
+| `KAPPA_EVO_MIN_SAMPLES` | 8 | Mínimo de señales cerradas en bucket para modular |
+| `AUDIT_EVERY_N_CLOSED` | 25 | Frecuencia de self-audit Opus |
+| `OUTCOME_TIMEOUT_HOURS` | 8 | Una señal sin resolver se marca timeout |
+| `BACKUP_EVERY_N_SIGNED` | 10 | Cada 10 señales totales, backup .db a Telegram |
 
-### Tiers de leverage por convicción
+### Tipos de outcome
 
-| `P_master` | Tier | Leverage | Sizing | Co-pilot |
-|------------|------|----------|--------|:--------:|
-| ≥ φ³ (4.236) | Alta convicción | 8x | 10% equity | **Opus 4.6** |
-| ≥ φ² (2.618) | Standard | 5x | 5% equity | — |
-| ≥ φ¹ (1.618) | Scalp | 3x | 2% equity | — |
+| Outcome | Significado | PnL R |
+|---------|-------------|-------|
+| `tp1` | Tomó primer take profit | +0.6R aprox |
+| `tp2` | Tomó TP2 | +1.5R aprox |
+| `tp3` | Tomó TP divino (TP3) | +2.8R aprox |
+| `tp4` | Tomó TP máximo | +variable |
+| `sl` | Tocó stop loss | −1.0R |
+| `timeout` | No resolvió en 8h, cierre al last close | variable |
 
-**Modulador Asia (W=0.50):** auto-reduce un escalón de leverage (8x→5x, 5x→3x) y mitad de sizing.
+> Importante: el tracker es **conservador**. Si en una vela tocan SL y TP, asume SL primero. Esto puede sub-reportar wins reales en mercados muy volátiles. Si esto te molesta, podemos refinar usando close > 50% del rango como heurística de "qué tocó primero", pero por ahora el conservador es más seguro para no inflar métricas.
 
 ---
 
-## Plan de entrada contextual (`/niveles`)
+## Reglas de oro (v3.2)
 
-El bot detecta el sesgo estructural (momentum 5v + 20v + posición vs EMA50/EMA200) y según las masas P-Space cercanas decide entre tres modos operativos:
-
-| Modo | Cuándo | Trigger |
-|------|--------|---------|
-| **PULLBACK** | Masa dentro de 0.5× ATR | Vela 15m de rechazo + volumen ≥ 1.3× MA20 |
-| **BREAKOUT** | Masa dentro de 1.5× ATR (arriba/abajo) | Cierre 15m con cuerpo > 60% rango + volumen ≥ 1.5× MA20 + retest exitoso |
-| **WAIT** | Sin masa cercana | Esperar pullback profundo a EMA50 o estructura |
-
-Cada plan incluye: zona de espera, trigger preciso, confirmación en 3 puntos, invalidación con cierre 15m, plan B en dirección contraria. Después del plan FQ, **Claude lo afina** con su lectura.
-
----
-
-## Reglas de oro (no negociables)
-
-1. **Sin Θ(D) no hay trade.** El gate booleano no admite override. Claude no puede invalidarlo.
-2. **El SL nunca se mueve hacia atrás** (Regla 4).
-3. **El SL se ancla a estructura** (EMA50, soporte estructural), nunca a Bollinger envelopes.
-4. **Sesgo estructural confirmado domina** — un CHoCH bajista no se anula con RSI alcista (Regla 6).
-5. **Cooldown 2h entre señales** — previene cascadas emocionales.
-6. **Leverage cap absoluto 8x** — independiente de cualquier score.
-7. **La decisión final siempre es del trader.** Claude sugiere, RasDG decide.
+1. **Sin Θ(D) no hay trade.** El gate booleano es absoluto. κ_evo no lo invalida ni lo activa.
+2. **κ_evo está capeado en [0.85, 1.15].** No puede mover P_master más del 15% en ninguna dirección.
+3. **κ_evo sin data → 1.0.** Buckets con menos de 8 señales cerradas no modulan.
+4. **El SL nunca se mueve hacia atrás.**
+5. **El SL se ancla a estructura.**
+6. **Sesgo estructural confirmado domina.**
+7. **Cooldown 1h entre señales.**
+8. **Leverage cap absoluto 8x (φ³).**
+9. **Self-audit propone, no aplica.** Las sugerencias de Opus son lectura, no escritura.
+10. **La decisión final siempre es del trader.**
 
 ---
 
-## Stack técnico
+## Cómo leer la salida del Evolution Patch
 
-- **Python 3.10+**
-- `ccxt` — feeds de datos OKX
-- `pandas` + `pandas-ta` — indicadores técnicos
-- `requests` — Telegram Bot API + endpoints OKX adicionales
-- `anthropic` — SDK oficial de Anthropic (Sonnet 4.5 + Opus 4.6)
-- Threading: 1 hilo principal (eval) + 1 hilo listener (comandos)
+### `/metrics`
+Te dice si el sistema gana plata. Si Profit Factor < 1.2 con n > 25, el edge es marginal o nulo.
+
+### `/entropy`
+- **H_total bajo (<0.5):** el sistema solo dispara en 1-2 setups → riesgo de sobreajuste, baja resiliencia
+- **H_total alto (>0.85):** sistema explora buen abanico, buena diversificación
+- **KL drift > 1.5:** el régimen de mercado cambió respecto a las 25 señales anteriores. Los buckets ganadores históricos pueden no servir hasta que se acumule data nueva
+- **KL drift > 0.7 y < 1.5:** atención, shift moderado
+
+### `/evolve`
+Lista de buckets con su WR y expectancy. Los que tienen `[MOD]` están activamente modulando κ_evo. Los que tienen `[watch]` están juntando data.
+
+### `/audit`
+Lectura cualitativa de Opus sobre el ledger destilado. Léelo como auditoría, no como recomendación binding.
+
+---
+
+## Filosofía del Evolution Patch
+
+El bot no aprende como un agente RL clásico. **El bot destila.**
+
+Cada señal vive como un punto en un espacio de 4 dimensiones discretas (sesión × tier × dirección × curvatura). En lugar de memorizar trayectorias específicas (lo cual sería frágil), el sistema mide la distribución de resultados sobre cada celda del espacio. Si una celda acumula expectancy positiva con suficiente muestreo, el modulador la afila marginalmente. Si acumula expectancy negativa, la atenúa.
+
+Esto se conecta directamente con la filosofía cuántica del FQ: el sistema no busca "predecir" cada vela. Busca caracterizar la distribución estadística sobre la cual el colapso (la señal) ocurre. La entropía de Shannon mide qué tan "delocalizada" está la actividad del bot — si todas las señales colapsan en el mismo bucket, el sistema está sobreajustado a un atractor y eso es exactamente lo que debe corregirse.
+
+El silencio sigue siendo disciplina. La evolución no es señal nueva — es señal mejor.
 
 ---
 
 ## Disclaimer
 
-Este bot es una herramienta de análisis personal del autor. No es asesoría financiera. Trading con leverage involucra riesgo de pérdida total. El usuario es responsable de sus propias decisiones operativas. Claude es un asistente de IA — sus interpretaciones son sugerencias, no instrucciones.
+Este bot es una herramienta de análisis personal del autor. No es asesoría financiera. Trading con leverage involucra riesgo de pérdida total. El usuario es responsable de sus propias decisiones operativas. Claude es un asistente de IA — sus interpretaciones son sugerencias, no instrucciones. El modulador κ_evo es post-gate y no puede invalidar el veto matemático del gate Θ(D), pero es un componente adaptativo y por lo tanto puede comportarse de formas no anticipadas en regímenes de mercado fuera de la distribución histórica del ledger.
 
 ---
 
@@ -212,4 +199,4 @@ Este bot es una herramienta de análisis personal del autor. No es asesoría fin
 
 Propietario — RasDG_Sol. Uso personal.
 
-#FQv41 #BugattiEdition #ClaudeCopilot #RasDG
+#FQv41 #BugattiEdition #ClaudeCopilot #EvolutionPatch #RasDG
