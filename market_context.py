@@ -108,14 +108,19 @@ def get_open_interest(symbol="SOL-USDT-SWAP"):
         return None
 
 def get_oi_history(symbol="SOL-USDT-SWAP", period="15m", limit=10):
-    """Historial de OI para detectar tendencia"""
-    data = _safe_get("{}/api/v5/rubik/stat/contracts/open-interest-volume".format(OKX_BASE),
-                     params={"ccy": "SOL", "begin": "", "end": "", "period": period})
+    import time
+    end_ms   = int(time.time() * 1000)
+    begin_ms = end_ms - (3600 * 1000 * 4)  # ultimas 4h
+    data = _safe_get(
+        "{}/api/v5/rubik/stat/contracts/open-interest-volume".format(OKX_BASE),
+        params={"ccy": "SOL", "period": period,
+                "begin": str(begin_ms), "end": str(end_ms)}
+    )
     if not data:
         return None
     try:
-        # data es lista de [ts, oi, vol] mas reciente primero
-        return [{"ts": int(x[0]), "oi": float(x[1]), "vol": float(x[2])} for x in data[:limit]]
+        return [{"ts": int(x[0]), "oi": float(x[1]), "vol": float(x[2])}
+                for x in data[:limit]]
     except Exception:
         return None
 
@@ -137,26 +142,21 @@ def oi_trend_analysis(oi_history):
 # LONG/SHORT RATIO
 # ============================================================
 def get_long_short_ratio(symbol="SOL", period="15m"):
-    """
-    Long/Short ratio de cuentas (no posiciones).
-    Ratio > 1: mas cuentas long que short
-    Ratio < 1: mas cuentas short que long
-    En extremos historicos suele anticipar reversion
-    """
-    data = _safe_get("{}/api/v5/rubik/stat/contracts/long-short-account-ratio".format(OKX_BASE),
-                     params={"ccy": symbol, "period": period})
+    import time
+    end_ms   = int(time.time() * 1000)
+    begin_ms = end_ms - (3600 * 1000 * 4)
+    data = _safe_get(
+        "{}/api/v5/rubik/stat/contracts/long-short-account-ratio".format(OKX_BASE),
+        params={"ccy": symbol, "period": period,
+                "begin": str(begin_ms), "end": str(end_ms)}
+    )
     if not data:
         return None
     try:
-        # data: [[ts, ratio], ...] mas reciente primero
-        ratios = [float(x[1]) for x in data[:5]]
+        ratios  = [float(x[1]) for x in data[:5]]
         current = ratios[0]
         avg_5   = sum(ratios) / len(ratios)
-        return {
-            "current":   current,
-            "avg_5":     avg_5,
-            "history":   ratios,
-        }
+        return {"current": current, "avg_5": avg_5, "history": ratios}
     except Exception:
         return None
 
