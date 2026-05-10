@@ -168,21 +168,45 @@ def telegram_send(text, chat_id=None):
         return False
     target = chat_id or TELEGRAM_CHAT_ID
     url = "https://api.telegram.org/bot{}/sendMessage".format(TELEGRAM_TOKEN)
+
+    def _post(payload):
+        try:
+            r = requests.post(url, json=payload, timeout=15)
+            return r
+        except Exception as e:
+            log.error("Telegram exception: {}".format(e))
+            return None
+
+    # Intento 1: con HTML parse mode (formato normal)
     payload = {
         "chat_id": target,
         "text": text,
         "parse_mode": "HTML",
         "disable_web_page_preview": True,
     }
-    try:
-        r = requests.post(url, json=payload, timeout=15)
-        if r.status_code != 200:
-            log.warning("Telegram send failed {}: {}".format(r.status_code, r.text[:200]))
-            return False
+    r = _post(payload)
+    if r is not None and r.status_code == 200:
         return True
-    except Exception as e:
-        log.error("Telegram exception: {}".format(e))
+
+    # Si fallo por parse de HTML (400 con can't parse entities),
+    # reintentar SIN parse_mode para que Telegram lo trate como texto plano.
+    # Comun cuando Claude responde con (200k) o <X> que parecen tags.
+    if r is not None and r.status_code == 400 and "can't parse entities" in r.text:
+        log.info("Telegram HTML parse fallo, reintentando como texto plano...")
+        payload.pop("parse_mode", None)
+        # Escapar los chars que parecian HTML para que se vean limpios
+        payload["text"] = text.replace("<", "&lt;").replace(">", "&gt;") if False else text
+        r2 = _post(payload)
+        if r2 is not None and r2.status_code == 200:
+            return True
+        if r2 is not None:
+            log.warning("Telegram send failed (plain retry) {}: {}".format(
+                r2.status_code, r2.text[:200]))
         return False
+
+    if r is not None:
+        log.warning("Telegram send failed {}: {}".format(r.status_code, r.text[:200]))
+    return False
 
 def telegram_get_updates(offset, timeout=25):
     url = "https://api.telegram.org/bot{}/getUpdates".format(TELEGRAM_TOKEN)
