@@ -59,6 +59,17 @@ import market_context as mctx
 import entropy_cognition as ev
 import claude_evolution as ev_claude
 
+# Modulos FQ v4.1.1 (ICT/SMC Refactor) - cargan solo si flag ON
+try:
+    import ict_smc
+    import killzones_pd
+    import fusion_engine
+    import field_reports
+    ICT_MODULES_AVAILABLE = True
+except ImportError as _e:
+    ICT_MODULES_AVAILABLE = False
+    ict_smc = killzones_pd = fusion_engine = field_reports = None
+
 # Modulos FQ v4.0 (Mistral - VIP System)
 try:
     import vip_system as vip
@@ -93,6 +104,13 @@ TECH_MIN_ALIGNED    = 5         # de 7 indicadores
 PSPACE_MIN_MASSES   = 2
 PMASTER_MIN = 1.80      # MISTRAL: calibrado evidencia 10-may (NY+2masas=1.81)
 RR_MIN_TP_DIVINO    = 1.8
+
+# ============================================================
+# FEATURE FLAGS v4.1.1 - ICT/SMC Refactor
+# ============================================================
+ENABLE_ICT_LAYER     = os.environ.get("FQ_ENABLE_ICT", "0") == "1"
+ENABLE_FIELD_REPORTS = os.environ.get("FQ_ENABLE_FIELD", "0") == "1"
+# Cuando ENABLE_ICT_LAYER=1, evaluate_setup delega a fusion_engine.evaluate_signal
 
 # FQ constants
 PHI       = 1.6180339887
@@ -1541,6 +1559,15 @@ def cmd_analisis(exchange):
 # EVALUATE SETUP - signal engine
 # ============================================================
 def evaluate_setup(exchange, intra=False):
+    # ============================================================
+    # CIRUGIA v4.1.1: delegate a fusion_engine cuando ICT layer ON
+    # ============================================================
+    if ENABLE_ICT_LAYER and ICT_MODULES_AVAILABLE:
+        return _evaluate_setup_v411(exchange, intra)
+
+    # ============================================================
+    # FLUJO LEGACY (cuando flag OFF) - INTACTO
+    # ============================================================
     # 24H operativo - sin restriccion de ventana
     df = fetch_ohlcv(exchange, SYMBOL, TIMEFRAME, limit=200)
     df = add_indicators(df)
@@ -1746,6 +1773,178 @@ def evaluate_setup(exchange, intra=False):
 
         return True
     return False
+
+# ============================================================
+# v4.1.1 — _evaluate_setup_v411 (delegate al fusion_engine)
+# ============================================================
+def _evaluate_setup_v411(exchange, intra=False):
+    """
+    Flujo v4.1.1: construye FieldState multi-TF y delega a fusion_engine.
+    
+    El motor matematico (P_master = phi*W*H_lap*...) se mantiene INTACTO,
+    pero ahora vive dentro de fusion_engine.evaluate_signal y opera POST 
+    cuatro fases A/B/C/D (sesgo, liquidez, confluencia, killzone+CRT+memoria).
+    """
+    try:
+        # 1. Fetch multi-TF
+        df_15m = fetch_ohlcv(exchange, SYMBOL, "15m", limit=200)
+        df_15m = add_indicators(df_15m)
+        if len(df_15m) < 50:
+            STATE.last_eval_result = "Datos insuficientes 15m"
+            return False
+        df_1h = fetch_ohlcv(exchange, SYMBOL, "1h", limit=100)
+        df_1h = add_indicators(df_1h)
+        df_4h = fetch_ohlcv(exchange, SYMBOL, "4h", limit=100)
+        df_4h = add_indicators(df_4h)
+        try:
+            df_1m = fetch_ohlcv(exchange, SYMBOL, "1m", limit=30)
+            df_1m = add_indicators(df_1m)
+        except Exception:
+            df_1m = None  # 1m es opcional para CRT
+
+        price = float(df_15m["close"].iloc[-1])
+        with STATE.lock:
+            STATE.last_sol_price = price
+            STATE.last_eval_ts = datetime.now(timezone.utc)
+
+        # 2. Config a fusion_engine
+        config = {
+            "PHI":              PHI,
+            "PMASTER_MIN":      PMASTER_MIN,
+            "RR_MIN_TP_DIVINO": RR_MIN_TP_DIVINO,
+        }
+
+        # 3. Delegate principal
+        fire, field, report = fusion_engine.evaluate_signal(
+            df_15m, df_1h, df_4h, df_1m,
+            detect_pspace, laplacian_check, calculate_levels,
+            config, intra=intra
+        )
+
+        # 4. Logging unificado
+        decision = report.get("decision", "?")
+        log.info("EVAL v4.1.1 ${:.2f} | {} | {}".format(
+            price, decision.upper(), field.summary_line()))
+        STATE.last_eval_diagnostic = {
+            "stage":  decision,
+            "reason": report.get("reason", ""),
+            "price":  price,
+            "field_summary": field.summary_line(),
+            "decision_report": {k: v for k, v in report.items()
+                                if k not in ("masses", "lap")},
+        }
+
+        # 5. Disparo o reporte de campo
+        if fire:
+            # SENAL ALINEADA — broadcast con plantilla Capa 5
+            msg = field_reports.build_signal_report(field, report)
+            bsent, _ = broadcast_to_subscribers(msg)
+            if bsent > 0:
+                pm_data = report["p_master_data"]
+                levels = report["levels"]
+                direction = report["direction"]
+                with STATE.lock:
+                    STATE.last_signal_ts = datetime.now(timezone.utc)
+                    STATE.last_signal_dir = direction
+                    STATE.last_signal_price = levels["entry"]
+                    STATE.last_signal_levels = levels
+                    STATE.signals_today += 1
+                    STATE.signals_total += 1
+                    STATE.last_eval_result = "SENAL v4.1.1: {} @ ${:.2f} P={:.2f}".format(
+                        direction.upper(), levels["entry"], pm_data["p_master"])
+
+                # 6. LEDGER v2 con FieldState completo
+                try:
+                    ledger_data = {
+                        "direction":         direction,
+                        "entry":             levels["entry"],
+                        "sl":                levels["sl"],
+                        "tp1":               levels["tp1"],
+                        "tp2":               levels["tp2"],
+                        "tp3":               levels["tp3"],
+                        "tp4":               levels["tp4"],
+                        "p_master_raw":      pm_data["p_master_raw"],
+                        "p_master_final":    pm_data["p_master"],
+                        "kappa_evo":         pm_data["kappa_evo"],
+                        "session":           field.killzone,  # killzone como session v2
+                        "w_clock":           pm_data["w_effective"],
+                        "pspace_count":      report["masses"]["count"],
+                        "support_weight":    report["masses"].get("support_weight", 0),
+                        "resistance_weight": report["masses"].get("resistance_weight", 0),
+                        "macro_btc":         0.0,  # ya no se usa gate macro
+                        "macro_eth":         0.0,
+                        "rsi6":              0, "rsi12": 0, "rsi24": 0,
+                        "h_lap_active":      1 if report["lap"]["active"] else 0,
+                        "alpha_hybrid":      pm_data["alpha_hybrid"],
+                        "snapshot": {
+                            "field": field.summary_line(),
+                            "confluence": field.confluence_list,
+                            "levels": levels,
+                            "intra": intra,
+                        },
+                    }
+                    if hasattr(ev, "log_signal_v2"):
+                        ev.log_signal_v2(ledger_data, field)
+                    else:
+                        # fallback al log legacy si patch v2 no esta aplicado
+                        ev.log_signal(ledger_data)
+                except Exception as e:
+                    log.error("Ledger v2 write: {}".format(e))
+
+                # 7. Opus co-pilot para alta conviccion (heredado)
+                if claude_ai.is_available() and claude_ai.is_high_conviction(pm_data["p_master"]):
+                    try:
+                        broadcast_to_subscribers(
+                            "<b>Senal alta conviccion v4.1.1</b>\n"
+                            "Activando Opus 4.6 para revision final..."
+                        )
+                        signal_data = {
+                            "direction": direction, "p_master": pm_data["p_master"],
+                            "session": field.killzone, "w_clock": pm_data["w_effective"],
+                            "entry": levels["entry"], "sl": levels["sl"],
+                            "tp1": levels["tp1"], "tp2": levels["tp2"],
+                            "tp3": levels["tp3"], "tp4": levels["tp4"],
+                            "rr_tp1": levels["rr_tp1"], "rr_tp2": levels["rr_tp2"],
+                            "rr_tp3": levels["rr_tp3"], "rr_tp4": levels["rr_tp4"],
+                            "risk_pct": (levels["risk"] / levels["entry"] * 100),
+                            "pspace_count": report["masses"]["count"], "price": levels["entry"],
+                        }
+                        decoh = {
+                            "macro": {"btc_change": 0, "eth_change": 0},
+                            "tecnica": {"aligned": field.confluence_count,
+                                        "total": field.confluence_count},
+                            "liquidez": {"rsi6": 0, "rsi12": 0, "rsi24": 0},
+                        }
+                        snapshot = mctx.snapshot_for_signal(df_15m, signal_data, decoh)
+                        opus_reading = claude_ai.signal_copilot(snapshot)
+                        if opus_reading:
+                            opus_msg = (
+                                "<b>OPUS 4.6 — REVISION v4.1.1</b>\n"
+                                "{thin}\n\n{r}\n\n"
+                                "{thin}\nDecision final: TUYA.\n"
+                                "#FQv411 #Opus"
+                            ).format(thin=G["thin"], r=opus_reading)
+                            for p in split_telegram_message(opus_msg):
+                                broadcast_to_subscribers(p)
+                    except Exception as e:
+                        log.error("Opus copilot v4.1.1: {}".format(e))
+                return True
+            return False
+        else:
+            # NO HAY SENAL — reporte de campo si flag ON, solo a admin/VIP
+            if ENABLE_FIELD_REPORTS and decision in ("field_only", "math_below_threshold", "rr_insufficient"):
+                try:
+                    msg = field_reports.build_field_only_report(field, report)
+                    broadcast_to_subscribers(msg, tiers=["admin", "vip"])
+                except Exception as e:
+                    log.error("Field report build: {}".format(e))
+            STATE.last_eval_result = "v4.1.1 {} | {}".format(
+                decision, report.get("reason", "")[:80])
+            return False
+    except Exception as e:
+        log.error("_evaluate_setup_v411: {}\n{}".format(e, traceback.format_exc()))
+        STATE.last_eval_result = "v4.1.1 EXCEPTION: " + str(e)[:80]
+        return False
 
 # ============================================================
 # COMMAND: /claude - lectura tactica manual
@@ -2388,6 +2587,32 @@ def cmd_evolve(exchange=None):
     lines.append("<b>Cap absoluto:</b> kappa_evo en [0.85, 1.15]")
     return "\n".join(lines)
 
+def cmd_campo(exchange):
+    """v4.1.1: Lectura on-demand del estado del campo (sin disparar senal)"""
+    if not (ENABLE_ICT_LAYER and ICT_MODULES_AVAILABLE):
+        return ("<b>Lectura de campo ICT/SMC</b>\n"
+                "Flag desactivado. Setea FQ_ENABLE_ICT=1 en Railway para activar.")
+    try:
+        df_15m = add_indicators(fetch_ohlcv(exchange, SYMBOL, "15m", limit=200))
+        df_1h  = add_indicators(fetch_ohlcv(exchange, SYMBOL, "1h",  limit=100))
+        df_4h  = add_indicators(fetch_ohlcv(exchange, SYMBOL, "4h",  limit=100))
+        try:
+            df_1m = add_indicators(fetch_ohlcv(exchange, SYMBOL, "1m", limit=30))
+        except Exception:
+            df_1m = None
+        masses = detect_pspace(df_15m)
+        lap = laplacian_check(df_15m)
+        field = ict_smc.read_field(df_15m, df_1h, df_4h, df_1m, masses, lap)
+        n_v2 = ev.count_closed_v2_buckets() if hasattr(ev, "count_closed_v2_buckets") else 0
+        killzones_pd.refine_field_timing(field, n_v2, 50)
+        # Construir reporte como si la senal hubiese fallado en pre_check
+        report = {"decision": "field_only", "failed_at": "manual",
+                  "direction_inferred": field.propose_direction() or "?",
+                  "reason": "Lectura on-demand"}
+        return field_reports.build_field_only_report(field, report)
+    except Exception as e:
+        return "Error /campo: {}".format(str(e)[:200])
+
 def evolution_periodic_hook(exchange):
     """
     Hook llamado en cada vela nueva del main loop.
@@ -2478,6 +2703,13 @@ def main():
 
     # Inicializar ledger evolutivo
     ev.init_db()
+    # Migracion schema v2 (idempotente — solo aplica si patch esta cargado)
+    if hasattr(ev, "migrate_schema_v2"):
+        try:
+            ev.migrate_schema_v2()
+            log.info("Schema v2 ICT/SMC migrado")
+        except Exception as e:
+            log.warning("migrate_schema_v2: {}".format(e))
     log.info("Evolution ledger: {}".format(ev.DB_PATH))
 
     # Inicializar sistema VIP
@@ -2513,6 +2745,8 @@ def main():
         "/metrics":  lambda exc=None: cmd_metrics(),
         "/ledger":   lambda exc=None: cmd_ledger(),
         "/evolve":   lambda exc=None: cmd_evolve(),
+        # v4.1.1 ICT/SMC
+        "/campo":    cmd_campo,
     }
 
     # Comandos que reciben follow-up automatico de Claude
