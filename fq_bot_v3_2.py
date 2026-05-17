@@ -108,8 +108,11 @@ RR_MIN_TP_DIVINO    = 1.8
 # ============================================================
 # FEATURE FLAGS v4.1.1 - ICT/SMC Refactor
 # ============================================================
-ENABLE_ICT_LAYER     = os.environ.get("FQ_ENABLE_ICT", "0") == "1"
-ENABLE_FIELD_REPORTS = os.environ.get("FQ_ENABLE_FIELD", "0") == "1"
+# Auto-enable cuando los modulos ICT/SMC cargan; permite override explicito.
+_ict_default = "1" if ICT_MODULES_AVAILABLE else "0"
+ENABLE_ICT_LAYER     = os.environ.get("FQ_ENABLE_ICT", _ict_default) == "1"
+ENABLE_FIELD_REPORTS = os.environ.get("FQ_ENABLE_FIELD", _ict_default) == "1"
+WEEKEND_VETO_LEGACY  = os.environ.get("FQ_WEEKEND_VETO", "1") == "1"
 # Cuando ENABLE_ICT_LAYER=1, evaluate_setup delega a fusion_engine.evaluate_signal
 
 # FQ constants
@@ -1560,6 +1563,21 @@ def cmd_analisis(exchange):
 # ============================================================
 def evaluate_setup(exchange, intra=False):
     # ============================================================
+    # WEEKEND VETO - aplica a ambos flujos
+    # ============================================================
+    if WEEKEND_VETO_LEGACY and ICT_MODULES_AVAILABLE:
+        try:
+            if killzones_pd.is_weekend_closed():
+                wk = killzones_pd.weekend_status()
+                msg = "WEEKEND VETO: mercado cerrado ({} {:.1f}UTC)".format(
+                    wk["weekday_label"], wk["hour_utc"])
+                STATE.last_eval_result = msg
+                STATE.last_eval_diagnostic = {"stage": "weekend_veto", "reason": msg}
+                return False
+        except Exception:
+            pass
+
+    # ============================================================
     # CIRUGIA v4.1.1: delegate a fusion_engine cuando ICT layer ON
     # ============================================================
     if ENABLE_ICT_LAYER and ICT_MODULES_AVAILABLE:
@@ -1883,7 +1901,24 @@ def _evaluate_setup_v411(exchange, intra=False):
                             "intra": intra,
                         },
                     }
-                    if hasattr(ev, "log_signal_v2"):
+                    # Prefiere log_signal_v3 (con concepts ICT) si disponible
+                    if hasattr(ev, "log_signal_v3"):
+                        try:
+                            concepts = ict_smc.compile_concept_flags(field)
+                        except Exception:
+                            concepts = {}
+                        weekend_flag = False
+                        try:
+                            weekend_flag = killzones_pd.is_weekend_closed()
+                        except Exception:
+                            pass
+                        ledger_data["kappa_evo"] = pm_data["kappa_evo"]
+                        ev.log_signal_v3(
+                            ledger_data, field, concepts,
+                            weekend_flag=weekend_flag,
+                            kappa_method=pm_data.get("kappa_method", "thompson"),
+                        )
+                    elif hasattr(ev, "log_signal_v2"):
                         ev.log_signal_v2(ledger_data, field)
                     else:
                         # fallback al log legacy si patch v2 no esta aplicado
@@ -2526,7 +2561,7 @@ def cmd_audit_manual(exchange):
     if n == 0:
         return "Sin senales cerradas aun. El audit requiere data."
 
-    prompt = ev.build_audit_prompt()
+    prompt = ev.build_audit_prompt_v3() if hasattr(ev, "build_audit_prompt_v3") else ev.build_audit_prompt()
     if not prompt:
         return "No hay data suficiente para audit."
 
@@ -2586,6 +2621,45 @@ def cmd_evolve(exchange=None):
     lines.append("")
     lines.append("<b>Cap absoluto:</b> kappa_evo en [0.85, 1.15]")
     return "\n".join(lines)
+
+def cmd_concepts(exchange=None):
+    """Desglose de edge por concepto ICT individual (v3)"""
+    if hasattr(ev, "format_concepts_telegram"):
+        return ev.format_concepts_telegram()
+    return "Modulo v3 no disponible. Ejecuta migrate_schema_v3 primero."
+
+def cmd_weekend(exchange=None):
+    """Estado del filtro fin de semana"""
+    if not ICT_MODULES_AVAILABLE:
+        return "Modulo killzones_pd no cargado."
+    try:
+        wk = killzones_pd.weekend_status()
+        wstatus = "CERRADO (veto activo)" if wk["closed"] else "MERCADO ABIERTO"
+        lines = [
+            "<b>WEEKEND FILTER STATUS</b>",
+            "",
+            "Estado actual: <b>{}</b>".format(wstatus),
+            "Dia UTC:       {} ({:.2f}h)".format(wk["weekday_label"], wk["hour_utc"]),
+            "",
+            "Veto: viernes 22:00 UTC -> domingo 22:00 UTC",
+            "    = sabado completo + viernes noche/domingo am",
+            "",
+            "Toggle env: FQ_WEEKEND_VETO=0 para desactivar.",
+        ]
+        # Si hay perf data, agregar
+        if hasattr(ev, "get_weekend_performance"):
+            wp = ev.get_weekend_performance()
+            if wp and wp.get("weekday") and wp.get("weekend"):
+                lines.append("")
+                lines.append("<b>Performance historica:</b>")
+                wkd, wke = wp["weekday"], wp["weekend"]
+                lines.append("  Weekday: n={} WR={:.0%} Exp={:+.2f}R".format(
+                    wkd["n"], wkd["win_rate"], wkd["expectancy"]))
+                lines.append("  Weekend: n={} WR={:.0%} Exp={:+.2f}R".format(
+                    wke["n"], wke["win_rate"], wke["expectancy"]))
+        return "\n".join(lines)
+    except Exception as e:
+        return "Error /weekend: {}".format(str(e)[:200])
 
 def cmd_campo(exchange):
     """v4.1.1: Lectura on-demand del estado del campo (sin disparar senal)"""
@@ -2660,7 +2734,7 @@ def evolution_periodic_hook(exchange):
                 "<b>SELF-AUDIT EVOLUTIVO ACTIVADO</b>\n"
                 "{} senales cerradas. Opus 4.6 auditando ledger...".format(n)
             )
-            prompt = ev.build_audit_prompt()
+            prompt = ev.build_audit_prompt_v3() if hasattr(ev, "build_audit_prompt_v3") else ev.build_audit_prompt()
             if prompt:
                 opus_response = ev_claude.self_audit(prompt)
                 metrics = ev.get_global_metrics()
@@ -2703,14 +2777,23 @@ def main():
 
     # Inicializar ledger evolutivo
     ev.init_db()
-    # Migracion schema v2 (idempotente — solo aplica si patch esta cargado)
+    # Migracion schema v2 (idempotente)
     if hasattr(ev, "migrate_schema_v2"):
         try:
             ev.migrate_schema_v2()
             log.info("Schema v2 ICT/SMC migrado")
         except Exception as e:
             log.warning("migrate_schema_v2: {}".format(e))
+    # Migracion schema v3 (idempotente - concepts ICT + Thompson)
+    if hasattr(ev, "migrate_schema_v3"):
+        try:
+            ev.migrate_schema_v3()
+            log.info("Schema v3 ICT concepts + Thompson migrado")
+        except Exception as e:
+            log.warning("migrate_schema_v3: {}".format(e))
     log.info("Evolution ledger: {}".format(ev.DB_PATH))
+    log.info("ICT layer:    {}".format("ON" if (ENABLE_ICT_LAYER and ICT_MODULES_AVAILABLE) else "OFF"))
+    log.info("Weekend veto: {}".format("ON" if WEEKEND_VETO_LEGACY else "OFF"))
 
     # Inicializar sistema VIP
     if VIP_ENABLED:
@@ -2747,6 +2830,9 @@ def main():
         "/evolve":   lambda exc=None: cmd_evolve(),
         # v4.1.1 ICT/SMC
         "/campo":    cmd_campo,
+        # v4.2 ICT concepts + Thompson sampling
+        "/concepts": lambda exc=None: cmd_concepts(),
+        "/weekend":  lambda exc=None: cmd_weekend(),
     }
 
     # Comandos que reciben follow-up automatico de Claude

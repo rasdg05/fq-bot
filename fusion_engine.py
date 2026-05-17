@@ -9,6 +9,7 @@
   Reemplaza la logica monolitica de evaluate_setup() en fq_bot_v3_2.py.
 """
 import logging
+import os
 import traceback
 from datetime import datetime, timezone
 
@@ -21,6 +22,13 @@ log = logging.getLogger("fq_fusion")
 PHI = 1.6180339887
 CONFLUENCE_MIN = 3
 HYBRID_DECAY_N = 50
+
+# Toggles (env)
+USE_THOMPSON_KAPPA = os.environ.get("FQ_USE_THOMPSON", "1") == "1"
+WEEKEND_VETO       = os.environ.get("FQ_WEEKEND_VETO", "1") == "1"
+REQUIRE_OTE_STRICT = os.environ.get("FQ_REQUIRE_OTE", "0") == "1"
+ICT_CONCEPT_BONUS  = 0.04   # +4% por concepto ICT activo
+ICT_BONUS_MAX_CONCEPTS = 4  # cap a 4 bonus = +16% max
 
 # ============================================================
 # CARGAR MEMORIA DE BUCKET (cierre del loop - decision 1)
@@ -199,6 +207,11 @@ def _execute_phase_c(field, direction):
     if field.pd_hierarchy == "nula":
         return {"passed": False, "phase": "C.4",
                 "reason": "Jerarquia PD = NULA"}
+    # C.5: OTE estricto si el bot esta en modo "solo OTE" (env flag)
+    if REQUIRE_OTE_STRICT:
+        if not (field.ote_zone and field.ote_zone.valid and field.ote_zone.in_zone):
+            return {"passed": False, "phase": "C.5",
+                    "reason": "Fuera de zona OTE estricta (62-79% retracement)"}
     return {"passed": True, "phase": "C"}
 
 # ============================================================
@@ -242,7 +255,10 @@ def _execute_phase_d(field, direction, p_master_provisional):
 # P_MASTER REFINADO
 # ============================================================
 def _compute_p_master_refined(field, direction, masses, lap, config):
-    """Calculo final con hibrido w_clock <-> w_killzone + f_confluence"""
+    """
+    Calculo final con hibrido w_clock <-> w_killzone + f_confluence + ICT concepts.
+    Usa Thompson sampling sobre bucket_key_v3 si FQ_USE_THOMPSON=1.
+    """
     n_closed_v2 = ev.count_closed_v2_buckets() if hasattr(ev, "count_closed_v2_buckets") else 0
     alpha = kzpd.refine_field_timing(field, n_closed_v2, HYBRID_DECAY_N)
 
@@ -253,11 +269,33 @@ def _compute_p_master_refined(field, direction, masses, lap, config):
     p_master_raw *= 1 + (masses["count"] - 2) * 0.15
     p_master_raw *= f_confluence
 
-    # kappa_evo del bucket v2 (post-gate, no toca THETA(D))
+    # === BONUS POR CONCEPTOS ICT v3 ===
+    # Cada concepto detectado y confirmado aporta hasta +ICT_CONCEPT_BONUS (capped)
+    concepts = ict.compile_concept_flags(field)
+    n_concepts = min(ICT_BONUS_MAX_CONCEPTS, sum(1 for v in concepts.values() if v))
+    f_ict = 1.0 + (n_concepts * ICT_CONCEPT_BONUS)
+    p_master_raw *= f_ict
+
+    # === KAPPA EVO ===
     tier = ev.tier_from_pmaster(p_master_raw)
     bucket_key_v2 = field.bucket_key_v2(tier, direction)
-    bm = _load_bucket_memory(bucket_key_v2)
-    kappa_evo = bm.kappa_evo
+    bucket_key_v3 = ev.make_bucket_key_v3(
+        field.killzone, tier, direction,
+        field.pd_zone, field.pd_hierarchy, concepts
+    )
+    bucket_key_coarse = ev.make_bucket_key_v3_coarse(field.killzone, tier, direction)
+
+    if USE_THOMPSON_KAPPA and hasattr(ev, "compute_kappa_thompson"):
+        kappa_evo, kappa_stats = ev.compute_kappa_thompson(
+            bucket_key_v3, bucket_key_coarse
+        )
+        kappa_method = "thompson"
+        bm = _load_bucket_memory(bucket_key_v2)  # mantiene info legacy para reports
+    else:
+        bm = _load_bucket_memory(bucket_key_v2)
+        kappa_evo = bm.kappa_evo
+        kappa_stats = {"n": bm.n_closed, "method": "legacy_v2"}
+        kappa_method = "legacy_v2"
 
     p_master = p_master_raw * kappa_evo
 
@@ -265,15 +303,22 @@ def _compute_p_master_refined(field, direction, masses, lap, config):
         "p_master_raw":   p_master_raw,
         "p_master":       p_master,
         "kappa_evo":      kappa_evo,
+        "kappa_method":   kappa_method,
+        "kappa_stats":    kappa_stats,
         "alpha_hybrid":   alpha,
         "w_effective":    field.w_effective,
         "w_clock_legacy": field.w_clock_legacy,
         "w_killzone":     field.w_killzone,
         "h_factor":       h_factor,
         "f_confluence":   f_confluence,
+        "f_ict":          f_ict,
+        "n_concepts":     n_concepts,
+        "concepts":       concepts,
         "n_masses":       masses["count"],
         "tier":           tier,
         "bucket_key_v2":  bucket_key_v2,
+        "bucket_key_v3":  bucket_key_v3,
+        "bucket_key_coarse": bucket_key_coarse,
         "bucket_memory":  bm,
         "n_closed_v2":    n_closed_v2,
     }
@@ -298,6 +343,17 @@ def evaluate_signal(
         (fire: bool, field: FieldState, decision_report: dict)
     """
     try:
+        # 0. WEEKEND VETO (PRE-CHECK ABSOLUTO)
+        if WEEKEND_VETO and kzpd.is_weekend_closed():
+            wk = kzpd.weekend_status()
+            empty_field = ict.FieldState()
+            return False, empty_field, _build_report(
+                decision="weekend_veto", failed_at="weekend",
+                reason="Mercado cerrado ({} {:.1f}UTC) - veto fin de semana".format(
+                    wk["weekday_label"], wk["hour_utc"]),
+                weekend_status=wk,
+            )
+
         # 1. CONSTRUIR FIELDSTATE
         masses = detect_pspace_fn(df_15m)
         lap = laplacian_check_fn(df_15m)

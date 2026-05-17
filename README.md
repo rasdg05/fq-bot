@@ -1,7 +1,31 @@
 [README_DEPLOY.md](https://github.com/user-attachments/files/27770355/README_DEPLOY.md)
-# FQ v4.1.1 — Refactor ICT/SMC
+# FQ v4.2 — ICT/SMC Avanzado + Memoria Autoevolutiva Persistente
 
 Capa interpretativa estructural sobre el motor matemático FQ v4.1, sin tocarlo.
+
+> **v4.2 (mayo 2026)**: completa los 14 conceptos ICT del PDF, agrega Thompson sampling
+> sobre buckets multi-dimensionales con flags por concepto, filtro fin de semana,
+> y ledger persistente en Railway Volume.
+
+## Cambios v4.2 (sobre v4.1.1)
+
+1. **7 detectores ICT nuevos** en `ict_smc.py` (Breaker Block, MSS, Inducement, Power of 3,
+   Balanced Price Range, Displacement, OTE estricto 62-79%).
+2. **Thompson sampling** sobre `bucket_key_v3` con flags por concepto ICT (env `FQ_USE_THOMPSON=1` por default).
+3. **Schema v3 migration** (idempotente) — agrega columnas `bucket_key_v3`, `concepts_flags`,
+   `had_breaker`, `had_mss`, `had_inducement`, `had_pwr3`, `had_bpr`, `had_ote_strict`,
+   `had_displacement`, `weekend_flag`, `kappa_method`.
+4. **Persistencia automática**: `FQ_LEDGER_PATH` default detecta `/data` montado (Railway
+   Volume) y cae a `/tmp` con warning. **Monta un Volume en `/data` para que la memoria sobreviva.**
+5. **Weekend veto** (env `FQ_WEEKEND_VETO=1` por default) — corta señales viernes 22:00 UTC
+   → domingo 22:00 UTC.
+6. **Silver Bullet recalibrado** al estándar ICT: London SB 2-3 CDMX, NY AM SB 9-10 CDMX,
+   NY PM SB 13-14 CDMX.
+7. **Audit Opus enriquecido** (`build_audit_prompt_v3`) — desglose por concepto ICT:
+   "¿cuáles del PDF aportan edge real?".
+8. **Comandos nuevos**: `/concepts`, `/weekend`.
+9. **Auto-enable** de la capa ICT cuando los módulos cargan (ya no hace falta poner
+   `FQ_ENABLE_ICT=1` a mano — solo úsalo para desactivar con `0`).
 
 ## Archivos del refactor
 
@@ -91,8 +115,28 @@ Cuando enciendas `FQ_ENABLE_ICT=1`, recibirás en Telegram el formato Capa 5 com
 
 | Comando | Función |
 |---|---|
-| `/campo` | Lectura on-demand del estado del campo (requiere `FQ_ENABLE_ICT=1`) |
+| `/campo` | Lectura on-demand del estado del campo |
+| `/concepts` | Edge por concepto ICT del PDF (con vs sin) |
+| `/weekend` | Estado del filtro fin de semana |
 
-Los demás (`/metrics`, `/entropy`, `/ledger`, `/evolve`, `/audit`) siguen funcionando como antes — y los buckets v2 empezarán a alimentarlos automáticamente.
+Los demás (`/metrics`, `/entropy`, `/ledger`, `/evolve`, `/audit`) siguen funcionando como antes — y los buckets v3 empezarán a alimentarlos automáticamente.
 
-#FQv411 #ICTSMC #RasDG
+## Deploy v4.2 en Railway — 3 cosas
+
+1. **Crea un Volume** en tu servicio Railway, monta en `/data` (5GB gratis).
+2. (Opcional) Setea `FQ_LEDGER_PATH=/data/fq_ledger.db` si quieres ser explícito; si no, lo detecta solo.
+3. Redeploy. El bot migra el schema v3 automáticamente y empieza a registrar concept flags
+   en cada señal. Tras 8 cerradas por bucket v3, Thompson sampling toma el control de kappa_evo.
+
+## Env vars v4.2
+
+| Var | Default | Función |
+|---|---|---|
+| `FQ_ENABLE_ICT` | auto | `1`=usa fusion_engine, `0`=legacy |
+| `FQ_ENABLE_FIELD` | auto | `1`=field reports en fallos |
+| `FQ_LEDGER_PATH` | `/data` si existe | Path del SQLite ledger |
+| `FQ_WEEKEND_VETO` | `1` | `0` para desactivar veto sáb-dom |
+| `FQ_USE_THOMPSON` | `1` | `0` para usar kappa_evo lineal v2 |
+| `FQ_REQUIRE_OTE` | `0` | `1` requiere OTE estricto en Fase C |
+
+#FQv42 #ICTSMC #RasDG
