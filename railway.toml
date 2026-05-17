@@ -1,7 +1,12 @@
 [build]
 builder = "NIXPACKS"
 
+# DOS SERVICIOS EN EL MISMO REPO:
+#   1) VIP (default) - usa startCommand abajo
+#   2) PUBLIC - en Railway dashboard, override startCommand a:
+#        python entry_public.py
+#      y agrega env vars TELEGRAM_TOKEN_PUBLIC + FQ_VIP_BOT_USERNAME (+ ANTHROPIC_API_KEY)
 [deploy]
-startCommand = "python fq_bot_v3_2.py"
+startCommand = "python entry_vip.py"
 restartPolicyType = "ALWAYS"
 restartPolicyMaxRetries = 10

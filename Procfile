@@ -1,1 +1,3 @@
-worker: python fq_bot_v3_2.py
+vip: python entry_vip.py
+public: python entry_public.py
+worker: python entry_vip.py
