@@ -177,6 +177,14 @@ class FieldState:
     support_weight:    float = 0.0
     resistance_weight: float = 0.0
 
+    # === FASE E: conceptos ICT v3 (PDF "14 Most Important ICT Concepts") ===
+    mss:               Optional[Any] = None    # MSSEvent
+    inducement:        Optional[Any] = None    # Inducement
+    power_of_3:        Optional[Any] = None    # PowerOf3
+    bpr:               Optional[Any] = None    # BalancedPriceRange
+    displacement:      Optional[Any] = None    # Displacement
+    ote_zone:          Optional[Any] = None    # OTEZone
+
     # ─── METODOS DERIVADOS ─────────────────────────────
 
     def aligned_with_direction(self, direction):
@@ -696,4 +704,414 @@ def read_field(df_15m, df_1h, df_4h, df_1m, masses, lap):
         f.support_weight = masses.get("support_weight", 0.0)
         f.resistance_weight = masses.get("resistance_weight", 0.0)
 
+    # === FASE E: conceptos ICT v3 (PDF "14 ICT Concepts") ===
+    direction_hint = f.propose_direction()
+    f.breaker      = detect_breaker_block(df_15m, f.order_blocks)
+    f.mss          = detect_mss(df_15m, pivot_highs, pivot_lows)
+    f.last_mss     = f.mss  # alias para backcompat con FieldState legacy
+    f.inducement   = detect_inducement(df_15m, pivot_highs, pivot_lows, direction_hint)
+    f.power_of_3   = detect_power_of_3(df_15m, df_1h)
+    f.bpr          = detect_balanced_price_range(df_15m, f.fvgs)
+    f.displacement = detect_displacement(df_15m)
+    f.ote_zone     = compute_ote_zone(df_15m, direction_hint, pivot_highs, pivot_lows)
+
     return f
+
+# ============================================================
+# CONCEPTOS ICT v3 - PDF "14 Most Important ICT Concepts"
+# Cada detector es INERTE - devuelve dict/dataclass con info
+# fusion_engine.py decide si usar o no segun config y direccion
+# ============================================================
+
+@dataclass
+class BreakerBlock:
+    """OB fallido que se convierte en zona contraria operable"""
+    low:           float
+    high:          float
+    ts:            Any
+    origin_dir:    str          # bullish_failed o bearish_failed
+    new_dir:       str          # direccion contraria (la operable)
+    confirmed:     bool = False
+    mss_after:     bool = False
+
+@dataclass
+class MSSEvent:
+    """Market Structure Shift - reverso ANTES de break of structure"""
+    confirmed:     bool
+    ts:            Any = None
+    price:         float = 0.0
+    direction:     Optional[str] = None    # bullish_mss o bearish_mss
+    extreme_swept: bool = False             # rompio extremo demand/supply zone?
+
+@dataclass
+class Inducement:
+    """Mini pullback que forma liquidez LTF antes del impulso real"""
+    detected:      bool
+    side:          Optional[str] = None      # 'high' o 'low' (donde se forma)
+    price:         float = 0.0
+    ts:            Any = None
+    swept:         bool = False
+
+@dataclass
+class PowerOf3:
+    """AMD: Accumulation / Manipulation / Distribution"""
+    detected:      bool
+    phase:         Optional[str] = None      # 'accumulation','manipulation','distribution'
+    range_high:    Optional[float] = None
+    range_low:     Optional[float] = None
+    sweep_side:    Optional[str] = None      # 'high' o 'low'
+    confirmed:     bool = False
+
+@dataclass
+class BalancedPriceRange:
+    """Double FVG zone - imán de precio"""
+    detected:      bool
+    upper_fvg:     Optional[FVG] = None
+    lower_fvg:     Optional[FVG] = None
+    midpoint:      Optional[float] = None
+
+@dataclass
+class Displacement:
+    """Movimiento direccional decisivo - body grande, wicks chicos"""
+    detected:      bool
+    direction:     Optional[str] = None      # bullish o bearish
+    magnitude_pct: float = 0.0
+    velocity:      float = 0.0               # candles for the move
+
+@dataclass
+class OTEZone:
+    """Optimal Trade Entry: 62-79% retracement con 70.5% como sweet spot"""
+    valid:         bool
+    direction:     Optional[str] = None
+    swing_high:    Optional[float] = None
+    swing_low:     Optional[float] = None
+    ote_lower:     Optional[float] = None    # 62%
+    ote_sweet:     Optional[float] = None    # 70.5%
+    ote_upper:     Optional[float] = None    # 79%
+    in_zone:       bool = False
+    distance_to_sweet_pct: float = 0.0       # 0 = en el sweet spot
+
+# ----------------------------------------------------------------------
+# 1. BREAKER BLOCK
+#    Definicion ICT: un OB fallido (precio rompe su zona contraria al
+#    impulso original), cuando precio retorna a esa zona, actua como
+#    soporte/resistencia inverso.
+# ----------------------------------------------------------------------
+def detect_breaker_block(df, order_blocks):
+    """
+    Detecta breaker blocks. Devuelve BreakerBlock o None.
+    OB bullish que rompe su low -> breaker bearish (resistencia)
+    OB bearish que rompe su high -> breaker bullish (soporte)
+    """
+    if len(df) < 5:
+        return None
+    bull_ob = order_blocks.get("bullish")
+    bear_ob = order_blocks.get("bearish")
+    current_price = float(df["close"].iloc[-1])
+    last_lows = df["low"].iloc[-5:].values
+    last_highs = df["high"].iloc[-5:].values
+
+    # Bullish OB fallido (precio rompio su low) -> breaker bearish
+    if bull_ob and not bull_ob.still_valid:
+        # Cerro debajo del low
+        if min(last_lows) < bull_ob.low:
+            return BreakerBlock(
+                low=bull_ob.low, high=bull_ob.high, ts=bull_ob.ts,
+                origin_dir="bullish_failed", new_dir="bearish",
+                confirmed=current_price < bull_ob.high
+            )
+    # Bearish OB fallido (precio rompio su high) -> breaker bullish
+    if bear_ob and not bear_ob.still_valid:
+        if max(last_highs) > bear_ob.high:
+            return BreakerBlock(
+                low=bear_ob.low, high=bear_ob.high, ts=bear_ob.ts,
+                origin_dir="bearish_failed", new_dir="bullish",
+                confirmed=current_price > bear_ob.low
+            )
+    return None
+
+# ----------------------------------------------------------------------
+# 2. MSS (Market Structure Shift)
+#    Definicion: reverso de la flow de ordenes ANTES de break of structure.
+#    Bullish MSS: en tendencia bajista, precio sube por encima del ultimo
+#    swing high relevante PERO sin haber roto previamente la estructura.
+# ----------------------------------------------------------------------
+def detect_mss(df, pivot_highs, pivot_lows, lookback=12):
+    """MSS distinto a BOS: cambio de caracter sin estructura completa rota"""
+    if len(df) < lookback or not pivot_highs or not pivot_lows:
+        return MSSEvent(confirmed=False)
+    recent_df = df.iloc[-lookback:]
+    current_price = float(df["close"].iloc[-1])
+
+    # Bullish MSS: tomar ultimo pivot high reciente, ver si lo superamos
+    # PERO sin haber tenido un higher_low previamente
+    recent_phs = [p for p in pivot_highs if p.idx >= len(df) - lookback - 5]
+    recent_pls = [p for p in pivot_lows  if p.idx >= len(df) - lookback - 5]
+
+    if recent_phs and recent_pls:
+        last_ph = recent_phs[-1]
+        last_pl = recent_pls[-1]
+        # Si todos los lows recientes son LL (bearish bias) y precio rompe last_ph
+        bearish_bias = all(
+            pl.price < recent_pls[i].price
+            for i, pl in enumerate(recent_pls[1:], 1)
+        ) if len(recent_pls) >= 2 else False
+        if bearish_bias and current_price > last_ph.price:
+            return MSSEvent(
+                confirmed=True, ts=df["timestamp"].iloc[-1] if "timestamp" in df.columns else None,
+                price=current_price, direction="bullish_mss",
+                extreme_swept=last_pl.idx >= len(df) - 5
+            )
+        # Bullish bias -> bearish MSS
+        bullish_bias = all(
+            ph.price > recent_phs[i].price
+            for i, ph in enumerate(recent_phs[1:], 1)
+        ) if len(recent_phs) >= 2 else False
+        if bullish_bias and current_price < last_pl.price:
+            return MSSEvent(
+                confirmed=True, ts=df["timestamp"].iloc[-1] if "timestamp" in df.columns else None,
+                price=current_price, direction="bearish_mss",
+                extreme_swept=last_ph.idx >= len(df) - 5
+            )
+    return MSSEvent(confirmed=False)
+
+# ----------------------------------------------------------------------
+# 3. INDUCEMENT
+#    Definicion: mini pullback dentro de un impulso mayor que forma
+#    liquidez (highs/lows) en LTF, esperando ser barrido antes del
+#    movimiento principal.
+# ----------------------------------------------------------------------
+def detect_inducement(df, pivot_highs, pivot_lows, direction_hint, lookback=10):
+    """
+    Inducement: highs/lows menores dentro del pullback.
+    En tendencia long, busca un mini-high SUB-IMPULSO formando liquidez arriba.
+    En tendencia short, busca un mini-low formando liquidez abajo.
+    """
+    if direction_hint not in ("long", "short") or len(df) < lookback:
+        return Inducement(detected=False)
+    recent_df = df.iloc[-lookback:]
+    current_price = float(df["close"].iloc[-1])
+
+    if direction_hint == "long":
+        # Busca highs LOCALES (no extremos) entre la accion reciente
+        mini_high = float(recent_df["high"].iloc[:-2].max()) if len(recent_df) >= 3 else None
+        if mini_high and mini_high > current_price * 1.001:
+            # Que NO sea el high absoluto (eso seria un BSL real, no inducement)
+            absolute_high = float(df["high"].iloc[-50:].max()) if len(df) >= 50 else mini_high
+            if mini_high < absolute_high * 0.997:
+                swept = float(recent_df["high"].iloc[-2:].max()) > mini_high
+                return Inducement(
+                    detected=True, side="high", price=mini_high,
+                    ts=recent_df["timestamp"].iloc[-1] if "timestamp" in df.columns else None,
+                    swept=swept
+                )
+    else:  # short
+        mini_low = float(recent_df["low"].iloc[:-2].min()) if len(recent_df) >= 3 else None
+        if mini_low and mini_low < current_price * 0.999:
+            absolute_low = float(df["low"].iloc[-50:].min()) if len(df) >= 50 else mini_low
+            if mini_low > absolute_low * 1.003:
+                swept = float(recent_df["low"].iloc[-2:].min()) < mini_low
+                return Inducement(
+                    detected=True, side="low", price=mini_low,
+                    ts=recent_df["timestamp"].iloc[-1] if "timestamp" in df.columns else None,
+                    swept=swept
+                )
+    return Inducement(detected=False)
+
+# ----------------------------------------------------------------------
+# 4. POWER OF 3 (AMD: Accumulation, Manipulation, Distribution)
+#    Definicion: precio acumula en un rango, manipula sweep de un lado,
+#    distribuye al lado opuesto. Lee LTF para detectar la fase actual.
+# ----------------------------------------------------------------------
+def detect_power_of_3(df_15m, df_1h, range_window=12):
+    """
+    AMD usando 15m sobre rango de 1h.
+    Accumulation: rango definido por highest-lowest en 1h
+    Manipulation: sweep reciente del rango en 15m
+    Distribution: post-sweep move > 2x el rango width
+    """
+    if len(df_15m) < range_window or df_1h is None or len(df_1h) < 4:
+        return PowerOf3(detected=False)
+
+    # Tomamos rango de ultimas 4 velas 1h = ~16 velas 15m
+    range_df = df_1h.iloc[-4:]
+    range_high = float(range_df["high"].max())
+    range_low  = float(range_df["low"].min())
+    range_width = range_high - range_low
+    if range_width <= 0:
+        return PowerOf3(detected=False)
+
+    # Buscar sweep en las ultimas 12 velas 15m
+    recent = df_15m.iloc[-range_window:]
+    swept_high = float(recent["high"].max()) > range_high * 1.0008
+    swept_low  = float(recent["low"].min()) < range_low * 0.9992
+    current_close = float(df_15m["close"].iloc[-1])
+
+    if swept_high and not swept_low:
+        # Manipulation alta -> esperar distribucion bajista
+        if current_close < range_low + range_width * 0.4:
+            return PowerOf3(detected=True, phase="distribution",
+                            range_high=range_high, range_low=range_low,
+                            sweep_side="high", confirmed=True)
+        return PowerOf3(detected=True, phase="manipulation",
+                        range_high=range_high, range_low=range_low,
+                        sweep_side="high", confirmed=False)
+    if swept_low and not swept_high:
+        if current_close > range_low + range_width * 0.6:
+            return PowerOf3(detected=True, phase="distribution",
+                            range_high=range_high, range_low=range_low,
+                            sweep_side="low", confirmed=True)
+        return PowerOf3(detected=True, phase="manipulation",
+                        range_high=range_high, range_low=range_low,
+                        sweep_side="low", confirmed=False)
+    # Sin sweep claro -> seguimos en accumulation
+    return PowerOf3(detected=True, phase="accumulation",
+                    range_high=range_high, range_low=range_low,
+                    sweep_side=None, confirmed=False)
+
+# ----------------------------------------------------------------------
+# 5. BALANCED PRICE RANGE (BPR)
+#    Definicion: zona donde coinciden double FVG (uno bullish y uno
+#    bearish solapados) -> magnet de precio.
+# ----------------------------------------------------------------------
+def detect_balanced_price_range(df, fvgs):
+    """Detecta BPR: overlap entre un FVG bullish y uno bearish"""
+    if len(fvgs) < 2:
+        return BalancedPriceRange(detected=False)
+    bull_fvgs = [f for f in fvgs if f.direction == "bullish"]
+    bear_fvgs = [f for f in fvgs if f.direction == "bearish"]
+    if not bull_fvgs or not bear_fvgs:
+        return BalancedPriceRange(detected=False)
+
+    for bf in bull_fvgs:
+        for ef in bear_fvgs:
+            # Overlap test
+            overlap_low  = max(bf.bottom, ef.bottom)
+            overlap_high = min(bf.top, ef.top)
+            if overlap_low < overlap_high:
+                return BalancedPriceRange(
+                    detected=True,
+                    upper_fvg=ef if ef.top > bf.top else bf,
+                    lower_fvg=bf if bf.bottom < ef.bottom else ef,
+                    midpoint=(overlap_low + overlap_high) / 2.0
+                )
+    return BalancedPriceRange(detected=False)
+
+# ----------------------------------------------------------------------
+# 6. DISPLACEMENT
+#    Definicion: movimiento direccional decisivo, body grande, wicks chicos.
+#    Magnitud >= 1.0% en una vela 15m con body > 70% del rango total.
+# ----------------------------------------------------------------------
+DISPLACEMENT_MIN_PCT = 0.010    # 1.0% movimiento
+DISPLACEMENT_BODY_RATIO = 0.65   # body >= 65% del rango total
+
+def detect_displacement(df, lookback=5):
+    """Detecta displacement reciente (ultimas N velas)"""
+    if len(df) < lookback:
+        return Displacement(detected=False)
+    recent = df.iloc[-lookback:]
+    for _, row in recent.iterrows():
+        o, c, h, l = float(row["open"]), float(row["close"]), float(row["high"]), float(row["low"])
+        rng = h - l
+        body = abs(c - o)
+        if rng <= 0:
+            continue
+        body_ratio = body / rng
+        pct_move = body / o if o > 0 else 0
+        if pct_move >= DISPLACEMENT_MIN_PCT and body_ratio >= DISPLACEMENT_BODY_RATIO:
+            return Displacement(
+                detected=True,
+                direction="bullish" if c > o else "bearish",
+                magnitude_pct=pct_move * 100,
+                velocity=1.0
+            )
+    return Displacement(detected=False)
+
+# ----------------------------------------------------------------------
+# 7. OPTIMAL TRADE ENTRY (OTE) - ESTRICTO
+#    Definicion ICT: zona Fibonacci 62-79% del swing, con 70.5% como
+#    el "sweet spot". Se calcula sobre el swing mas reciente.
+# ----------------------------------------------------------------------
+OTE_LOWER_PCT  = 0.62
+OTE_SWEET_PCT  = 0.705
+OTE_UPPER_PCT  = 0.79
+
+def compute_ote_zone(df, direction, pivot_highs, pivot_lows):
+    """
+    OTE estricto sobre el swing mas reciente.
+    LONG: swing low -> swing high mas alto; OTE = retracement del 62-79%
+    SHORT: swing high -> swing low mas bajo; OTE = retracement del 62-79%
+    """
+    if direction not in ("long", "short") or not pivot_highs or not pivot_lows:
+        return OTEZone(valid=False)
+
+    current_price = float(df["close"].iloc[-1])
+    if direction == "long":
+        # Tomamos ultimo swing low + swing high posterior
+        last_low = pivot_lows[-1] if pivot_lows else None
+        # swing high posterior al low
+        post_highs = [p for p in pivot_highs if p.idx > last_low.idx] if last_low else []
+        if not last_low or not post_highs:
+            return OTEZone(valid=False)
+        swing_high = post_highs[-1]
+        rng = swing_high.price - last_low.price
+        if rng <= 0:
+            return OTEZone(valid=False)
+        ote_lower = swing_high.price - rng * OTE_LOWER_PCT
+        ote_sweet = swing_high.price - rng * OTE_SWEET_PCT
+        ote_upper = swing_high.price - rng * OTE_UPPER_PCT
+        in_zone = (ote_upper <= current_price <= ote_lower)
+        dist_sweet = abs(current_price - ote_sweet) / max(rng, 1e-9) * 100
+        return OTEZone(
+            valid=True, direction="long",
+            swing_high=swing_high.price, swing_low=last_low.price,
+            ote_lower=ote_lower, ote_sweet=ote_sweet, ote_upper=ote_upper,
+            in_zone=in_zone, distance_to_sweet_pct=dist_sweet
+        )
+    else:  # short
+        last_high = pivot_highs[-1] if pivot_highs else None
+        post_lows = [p for p in pivot_lows if p.idx > last_high.idx] if last_high else []
+        if not last_high or not post_lows:
+            return OTEZone(valid=False)
+        swing_low = post_lows[-1]
+        rng = last_high.price - swing_low.price
+        if rng <= 0:
+            return OTEZone(valid=False)
+        ote_lower = swing_low.price + rng * OTE_LOWER_PCT
+        ote_sweet = swing_low.price + rng * OTE_SWEET_PCT
+        ote_upper = swing_low.price + rng * OTE_UPPER_PCT
+        in_zone = (ote_lower <= current_price <= ote_upper)
+        dist_sweet = abs(current_price - ote_sweet) / max(rng, 1e-9) * 100
+        return OTEZone(
+            valid=True, direction="short",
+            swing_high=last_high.price, swing_low=swing_low.price,
+            ote_lower=ote_lower, ote_sweet=ote_sweet, ote_upper=ote_upper,
+            in_zone=in_zone, distance_to_sweet_pct=dist_sweet
+        )
+
+# ----------------------------------------------------------------------
+# COMPILADOR DE FLAGS POR CONCEPTO - para el bucket v3
+# ----------------------------------------------------------------------
+def compile_concept_flags(field):
+    """
+    Devuelve dict de flags por concepto, listo para bucket_key_v3 y ledger.
+    Cada flag es True/False segun si el concepto estuvo activo en la senal.
+    """
+    return {
+        "breaker":      bool(field.breaker and field.breaker.confirmed)
+                        if getattr(field, "breaker", None) else False,
+        "mss":          bool(field.mss and field.mss.confirmed)
+                        if getattr(field, "mss", None) else False,
+        "inducement":   bool(field.inducement and field.inducement.detected and
+                             field.inducement.swept)
+                        if getattr(field, "inducement", None) else False,
+        "pwr3":         bool(field.power_of_3 and field.power_of_3.confirmed)
+                        if getattr(field, "power_of_3", None) else False,
+        "bpr":          bool(field.bpr and field.bpr.detected)
+                        if getattr(field, "bpr", None) else False,
+        "ote_strict":   bool(field.ote_zone and field.ote_zone.valid and
+                             field.ote_zone.in_zone)
+                        if getattr(field, "ote_zone", None) else False,
+        "displacement": bool(field.displacement and field.displacement.detected)
+                        if getattr(field, "displacement", None) else False,
+    }

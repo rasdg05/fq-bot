@@ -46,7 +46,20 @@ log = logging.getLogger("fq_entropy")
 # ============================================================
 # CONFIG
 # ============================================================
-DB_PATH               = os.environ.get("FQ_LEDGER_PATH", "/tmp/fq_ledger.db")
+def _resolve_db_path():
+    """Default persistente: /data si existe (Railway volume), si no /tmp con warning"""
+    forced = os.environ.get("FQ_LEDGER_PATH")
+    if forced:
+        return forced
+    if os.path.isdir("/data") and os.access("/data", os.W_OK):
+        return "/data/fq_ledger.db"
+    sys.stderr.write(
+        "[WARN] /data no montado - ledger en /tmp/fq_ledger.db (EFIMERO en Railway)\n"
+        "       Monta un Railway Volume en /data o setea FQ_LEDGER_PATH explicito.\n"
+    )
+    return "/tmp/fq_ledger.db"
+
+DB_PATH               = _resolve_db_path()
 KAPPA_EVO_MAX         = 0.15           # +-15% modulador
 KAPPA_EVO_MIN_SAMPLES = 8              # min senales cerradas en bucket para modular
 AUDIT_EVERY_N_CLOSED  = 25             # trigger self-audit
@@ -1138,4 +1151,513 @@ def log_signal_v2(signal_data, field_state):
     except Exception as e:
         log.error("log_signal_v2: {}".format(e))
         return None
+
+# ============================================================
+# V3 EVOLUTION - Thompson sampling, concept-aware buckets, enriched audit
+# Activado siempre - coexiste con v1/v2 sin romper backward compat
+# ============================================================
+
+SCHEMA_V3_MIGRATION = """
+ALTER TABLE signals ADD COLUMN bucket_key_v3      TEXT;
+ALTER TABLE signals ADD COLUMN concepts_flags     TEXT;
+ALTER TABLE signals ADD COLUMN had_breaker        INTEGER;
+ALTER TABLE signals ADD COLUMN had_mss            INTEGER;
+ALTER TABLE signals ADD COLUMN had_inducement     INTEGER;
+ALTER TABLE signals ADD COLUMN had_pwr3           INTEGER;
+ALTER TABLE signals ADD COLUMN had_bpr            INTEGER;
+ALTER TABLE signals ADD COLUMN had_ote_strict     INTEGER;
+ALTER TABLE signals ADD COLUMN had_displacement   INTEGER;
+ALTER TABLE signals ADD COLUMN weekend_flag       INTEGER;
+ALTER TABLE signals ADD COLUMN kappa_method       TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_bucket_v3 ON signals(bucket_key_v3);
+"""
+
+def migrate_schema_v3():
+    """Idempotente. Safe correr varias veces."""
+    with _lock:
+        conn = _connect()
+        try:
+            for stmt in SCHEMA_V3_MIGRATION.strip().split(";"):
+                s = stmt.strip()
+                if not s:
+                    continue
+                try:
+                    conn.execute(s)
+                except sqlite3.OperationalError as e:
+                    if "duplicate column" not in str(e).lower():
+                        log.warning("schema_v3 migration: {}".format(e))
+            conn.commit()
+            log.info("Schema v3 migrado/verificado")
+        finally:
+            conn.close()
+
+# ============================================================
+# BUCKET KEY V3 - dimensiones por concepto ICT
+# ============================================================
+ICT_CONCEPT_KEYS = [
+    "breaker", "mss", "inducement", "pwr3", "bpr", "ote_strict", "displacement"
+]
+
+def encode_concepts_flags(concepts_dict):
+    """
+    concepts_dict: dict[concept_name -> bool/int]
+    Devuelve string compacto tipo "br1.ms0.in1.p30.bp0.ot1.di1"
+    """
+    parts = []
+    for k in ICT_CONCEPT_KEYS:
+        v = 1 if concepts_dict.get(k) else 0
+        parts.append("{}{}".format(k[:2], v))
+    return ".".join(parts)
+
+def decode_concepts_flags(flags_str):
+    """Inverso de encode_concepts_flags"""
+    if not flags_str:
+        return {}
+    out = {}
+    for part in flags_str.split("."):
+        if len(part) < 3:
+            continue
+        prefix = part[:2]
+        val = part[2:] == "1"
+        for k in ICT_CONCEPT_KEYS:
+            if k.startswith(prefix):
+                out[k] = val
+                break
+    return out
+
+def make_bucket_key_v3(killzone, tier, direction, pd_zone, hierarchy, concepts_dict):
+    """
+    Bucket multi-dimensional. Concepts compactado al final.
+    Granular pero manageable - el audit puede agregar por dimension.
+    """
+    base = "{}|{}|{}|{}|{}".format(
+        killzone, tier, direction, pd_zone, hierarchy
+    )
+    concepts = encode_concepts_flags(concepts_dict)
+    return "{}|{}".format(base, concepts)
+
+def make_bucket_key_v3_coarse(killzone, tier, direction):
+    """Coarse: usado para fallback cuando v3 detallado no tiene n suficiente"""
+    return "{}|{}|{}|coarse".format(killzone, tier, direction)
+
+# ============================================================
+# THOMPSON SAMPLING - bandit kappa_evo
+# ============================================================
+# Cada bucket tiene posterior Beta(alpha, beta):
+#   alpha = 1 + sum(wins)        (donde win = outcome in tp1..tp4)
+#   beta  = 1 + sum(losses)      (donde loss = outcome == sl)
+# timeouts cuentan como 0.5 win + 0.5 loss (neutral)
+# Sample p ~ Beta(alpha, beta), traduce a kappa en [0.85, 1.15]
+# Cuando hay POCA data, alpha=beta=1 -> sample disperso (exploracion)
+# Cuando hay MUCHA data, sample concentrado -> explotacion
+
+import random as _random
+
+def _bucket_beta_counts(bucket_key_v3, fallback_coarse=None):
+    """Cuenta wins/losses para bucket v3 (con fallback a coarse si vacio)"""
+    with _lock:
+        conn = _connect()
+        try:
+            rows = conn.execute(
+                "SELECT outcome, pnl_r FROM signals "
+                "WHERE bucket_key_v3 = ? AND outcome IS NOT NULL",
+                (bucket_key_v3,)
+            ).fetchall()
+        finally:
+            conn.close()
+
+    if len(rows) < KAPPA_EVO_MIN_SAMPLES and fallback_coarse:
+        with _lock:
+            conn = _connect()
+            try:
+                rows = conn.execute(
+                    "SELECT outcome, pnl_r FROM signals "
+                    "WHERE bucket_key_v3 = ? AND outcome IS NOT NULL",
+                    (fallback_coarse,)
+                ).fetchall()
+            finally:
+                conn.close()
+
+    wins = losses = 0.0
+    for r in rows:
+        o = r["outcome"]
+        if o in ("tp1", "tp2", "tp3", "tp4"):
+            wins += 1.0
+        elif o == "sl":
+            losses += 1.0
+        elif o == "timeout":
+            pnl = r["pnl_r"] or 0
+            if pnl > 0:
+                wins += 0.5; losses += 0.5
+            else:
+                losses += 1.0
+    return wins, losses, len(rows)
+
+def _sample_beta(alpha, beta):
+    """Sample numerico de Beta(alpha, beta) sin scipy"""
+    try:
+        # random.betavariate existe en stdlib
+        return _random.betavariate(alpha, beta)
+    except Exception:
+        # fallback con normal aproximada
+        mean = alpha / (alpha + beta)
+        return max(0.0, min(1.0, mean))
+
+def compute_kappa_thompson(bucket_key_v3, bucket_key_coarse=None,
+                            min_kappa=0.85, max_kappa=1.15, seed=None):
+    """
+    Thompson sampling para kappa_evo.
+
+    p_sample ~ Beta(1+wins, 1+losses)
+    p_baseline = 0.5  (neutral)
+    delta = p_sample - p_baseline   en [-0.5, +0.5]
+    kappa = 1.0 + delta * 0.3       en [0.85, 1.15]
+
+    Returns (kappa, stats_dict)
+    """
+    if seed is not None:
+        _random.seed(seed)
+
+    wins, losses, n = _bucket_beta_counts(bucket_key_v3, bucket_key_coarse)
+    alpha = 1.0 + wins
+    beta  = 1.0 + losses
+    p_sample = _sample_beta(alpha, beta)
+    p_mean = alpha / (alpha + beta)
+
+    # Mapeo: p en [0,1] -> kappa en [min_kappa, max_kappa]
+    # p=0.5 -> 1.0 ; p=1.0 -> max_kappa ; p=0.0 -> min_kappa
+    delta = p_sample - 0.5
+    kappa = 1.0 + delta * (max_kappa - min_kappa)
+    kappa = max(min_kappa, min(max_kappa, kappa))
+
+    return kappa, {
+        "n":         int(n),
+        "wins":      wins,
+        "losses":    losses,
+        "alpha":     alpha,
+        "beta":      beta,
+        "p_sample":  p_sample,
+        "p_mean":    p_mean,
+        "method":    "thompson",
+    }
+
+# ============================================================
+# LOG SIGNAL V3 - con concepts y bucket v3
+# ============================================================
+def log_signal_v3(signal_data, field_state, concepts_dict, weekend_flag=False,
+                   kappa_method="thompson"):
+    """
+    Log enriquecido v3. concepts_dict tiene flags por concepto ICT
+    (breaker, mss, inducement, pwr3, bpr, ote_strict, displacement).
+    """
+    import json as _json
+    try:
+        field_dict = field_state.to_dict() if hasattr(field_state, "to_dict") else {}
+        field_json = _json.dumps(field_dict, default=str)[:50000]
+
+        tier = tier_from_pmaster(signal_data["p_master_raw"])
+        bucket_key_legacy = signal_data.get("bucket_key", make_bucket_key(
+            signal_data["session"], tier, signal_data["direction"],
+            curvature_sign(signal_data.get("support_weight", 0),
+                          signal_data.get("resistance_weight", 0))
+        ))
+        bucket_key_v2 = field_state.bucket_key_v2(tier, signal_data["direction"])
+        bucket_key_v3 = make_bucket_key_v3(
+            field_state.killzone, tier, signal_data["direction"],
+            field_state.pd_zone, field_state.pd_hierarchy, concepts_dict
+        )
+        concepts_flags = encode_concepts_flags(concepts_dict)
+
+        with _lock:
+            conn = _connect()
+            try:
+                cur = conn.execute("""
+                    INSERT INTO signals (
+                        ts_emitted, direction, entry_price, sl, tp1, tp2, tp3, tp4,
+                        p_master_raw, p_master_final, kappa_evo, session, w_clock,
+                        tier, pspace_count, curvature_bal, macro_btc, macro_eth,
+                        rsi6, rsi12, rsi24, h_lap_active, bucket_key, snapshot_json,
+                        killzone, killzone_priority, pd_zone, pd_pct, pd_hierarchy,
+                        confluence_count, confluence_list, bias_4h, bias_1h,
+                        bias_aligned, had_sweep, crt_confirmed, bucket_key_v2,
+                        alpha_hybrid, w_killzone, field_snapshot,
+                        bucket_key_v3, concepts_flags, had_breaker, had_mss,
+                        had_inducement, had_pwr3, had_bpr, had_ote_strict,
+                        had_displacement, weekend_flag, kappa_method
+                    ) VALUES (?,?,?,?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?,?,
+                              ?,?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,
+                              ?,?,?,?, ?,?,?,?, ?,?,?)
+                """, (
+                    datetime.now(timezone.utc).isoformat(),
+                    signal_data["direction"], signal_data["entry"], signal_data["sl"],
+                    signal_data["tp1"], signal_data["tp2"], signal_data["tp3"], signal_data["tp4"],
+                    signal_data["p_master_raw"], signal_data["p_master_final"],
+                    signal_data["kappa_evo"], signal_data["session"],
+                    signal_data["w_clock"], tier,
+                    signal_data.get("pspace_count", 0),
+                    signal_data.get("support_weight", 0) - signal_data.get("resistance_weight", 0),
+                    signal_data.get("macro_btc", 0), signal_data.get("macro_eth", 0),
+                    signal_data.get("rsi6", 0), signal_data.get("rsi12", 0),
+                    signal_data.get("rsi24", 0), signal_data.get("h_lap_active", 0),
+                    bucket_key_legacy, _json.dumps(signal_data.get("snapshot", {}))[:10000],
+                    # v2
+                    field_state.killzone, field_state.killzone_priority,
+                    field_state.pd_zone, field_state.pd_pct, field_state.pd_hierarchy,
+                    field_state.confluence_count,
+                    ",".join(field_state.confluence_list)[:500],
+                    field_state.bias_4h, field_state.bias_1h,
+                    1 if field_state.bias_aligned else 0,
+                    1 if field_state.recent_sweep else 0,
+                    1 if (field_state.crt and field_state.crt.confirmed) else 0,
+                    bucket_key_v2, signal_data.get("alpha_hybrid", 1.0),
+                    field_state.w_killzone, field_json,
+                    # v3
+                    bucket_key_v3, concepts_flags,
+                    1 if concepts_dict.get("breaker") else 0,
+                    1 if concepts_dict.get("mss") else 0,
+                    1 if concepts_dict.get("inducement") else 0,
+                    1 if concepts_dict.get("pwr3") else 0,
+                    1 if concepts_dict.get("bpr") else 0,
+                    1 if concepts_dict.get("ote_strict") else 0,
+                    1 if concepts_dict.get("displacement") else 0,
+                    1 if weekend_flag else 0,
+                    kappa_method,
+                ))
+                sid = cur.lastrowid
+                conn.commit()
+                log.info("log_signal_v3 #{} bucket_v3={}".format(sid, bucket_key_v3))
+                return sid
+            finally:
+                conn.close()
+    except Exception as e:
+        log.error("log_signal_v3: {}".format(e))
+        return None
+
+# ============================================================
+# AUDIT ENRIQUECIDO V3 - desglose por concepto ICT
+# ============================================================
+def get_concept_performance():
+    """Devuelve win-rate/expectancy por cada concepto ICT individual"""
+    with _lock:
+        conn = _connect()
+        try:
+            rows = conn.execute(
+                "SELECT had_breaker, had_mss, had_inducement, had_pwr3, had_bpr, "
+                "had_ote_strict, had_displacement, outcome, pnl_r "
+                "FROM signals WHERE outcome IS NOT NULL AND bucket_key_v3 IS NOT NULL"
+            ).fetchall()
+        finally:
+            conn.close()
+
+    if not rows:
+        return {}
+
+    out = {}
+    for concept_col, concept_label in [
+        ("had_breaker", "breaker_block"),
+        ("had_mss", "mss"),
+        ("had_inducement", "inducement"),
+        ("had_pwr3", "power_of_3"),
+        ("had_bpr", "balanced_price_range"),
+        ("had_ote_strict", "ote_strict_62_79"),
+        ("had_displacement", "displacement"),
+    ]:
+        with_concept    = [r for r in rows if r[concept_col] == 1]
+        without_concept = [r for r in rows if r[concept_col] == 0]
+
+        def _stats(rs):
+            if not rs:
+                return None
+            n = len(rs)
+            wins = sum(1 for r in rs if r["outcome"] in ("tp1","tp2","tp3","tp4"))
+            pnls = [r["pnl_r"] for r in rs if r["pnl_r"] is not None]
+            return {
+                "n":          n,
+                "win_rate":   wins / n,
+                "expectancy": sum(pnls) / len(pnls) if pnls else 0.0,
+            }
+
+        with_stats = _stats(with_concept)
+        without_stats = _stats(without_concept)
+        out[concept_label] = {
+            "with":    with_stats,
+            "without": without_stats,
+            "edge":    (with_stats["expectancy"] - without_stats["expectancy"])
+                       if with_stats and without_stats else None,
+        }
+    return out
+
+def get_weekend_performance():
+    """Compare weekday vs weekend performance"""
+    with _lock:
+        conn = _connect()
+        try:
+            rows = conn.execute(
+                "SELECT weekend_flag, outcome, pnl_r FROM signals "
+                "WHERE outcome IS NOT NULL AND weekend_flag IS NOT NULL"
+            ).fetchall()
+        finally:
+            conn.close()
+    if not rows:
+        return None
+    weekend = [r for r in rows if r["weekend_flag"] == 1]
+    weekday = [r for r in rows if r["weekend_flag"] == 0]
+    def _stats(rs):
+        if not rs:
+            return None
+        n = len(rs)
+        wins = sum(1 for r in rs if r["outcome"] in ("tp1","tp2","tp3","tp4"))
+        pnls = [r["pnl_r"] for r in rs if r["pnl_r"] is not None]
+        return {"n": n, "win_rate": wins/n, "expectancy": sum(pnls)/len(pnls) if pnls else 0}
+    return {"weekend": _stats(weekend), "weekday": _stats(weekday)}
+
+def build_audit_prompt_v3():
+    """
+    Audit enriquecido con desglose por concepto ICT.
+    Si v3 data esta vacio, cae al prompt v2 legacy.
+    """
+    metrics = get_global_metrics()
+    entropy = compute_entropy_metrics()
+    if metrics["n"] == 0:
+        return None
+
+    # Si no hay data v3, usa legacy
+    concept_perf = get_concept_performance()
+    has_v3 = any(
+        cp.get("with") and cp["with"]["n"] >= 4
+        for cp in concept_perf.values()
+    )
+    if not has_v3:
+        return build_audit_prompt()
+
+    weekend_perf = get_weekend_performance()
+
+    # Concepto-por-concepto: cual aporta edge?
+    concept_lines = []
+    for concept, data in sorted(
+        concept_perf.items(),
+        key=lambda x: -(x[1].get("edge") or -99)
+    ):
+        wstats = data.get("with")
+        wostats = data.get("without")
+        edge = data.get("edge")
+        if not wstats or wstats["n"] < 3:
+            concept_lines.append("  {}: data insuficiente (n_with={})".format(
+                concept, wstats["n"] if wstats else 0))
+            continue
+        wo_n = wostats["n"] if wostats else 0
+        wo_wr = wostats["win_rate"] if wostats else 0
+        wo_exp = wostats["expectancy"] if wostats else 0
+        concept_lines.append(
+            "  {}:\n"
+            "    CON concepto:  n={} WR={:.0%} Exp={:+.2f}R\n"
+            "    SIN concepto:  n={} WR={:.0%} Exp={:+.2f}R\n"
+            "    Edge (con-sin): {:+.2f}R".format(
+                concept, wstats["n"], wstats["win_rate"], wstats["expectancy"],
+                wo_n, wo_wr, wo_exp,
+                edge if edge is not None else 0
+            )
+        )
+
+    weekend_line = ""
+    if weekend_perf:
+        wkd = weekend_perf.get("weekday")
+        wke = weekend_perf.get("weekend")
+        if wkd and wke and wkd["n"] > 0 and wke["n"] > 0:
+            weekend_line = (
+                "\n\nWEEKDAY vs WEEKEND:\n"
+                "  weekday: n={} WR={:.0%} Exp={:+.2f}R\n"
+                "  weekend: n={} WR={:.0%} Exp={:+.2f}R".format(
+                    wkd["n"], wkd["win_rate"], wkd["expectancy"],
+                    wke["n"], wke["win_rate"], wke["expectancy"]
+                )
+            )
+
+    bucket_perf = _bucket_performance_table()
+    winners = sorted(bucket_perf, key=lambda x: x["expectancy"], reverse=True)[:5]
+    losers  = sorted(bucket_perf, key=lambda x: x["expectancy"])[:5]
+    winners_lines = "\n".join(
+        "  {} | n={} WR={:.0%} Exp={:+.2f}R".format(
+            w["bucket"], w["n"], w["win_rate"], w["expectancy"])
+        for w in winners) or "  (sin data)"
+    losers_lines = "\n".join(
+        "  {} | n={} WR={:.0%} Exp={:+.2f}R".format(
+            l["bucket"], l["n"], l["win_rate"], l["expectancy"])
+        for l in losers) or "  (sin data)"
+
+    return (
+        "AUDITORIA SELF-EVOLUCION FQ v4.2 (V3 ENRICHED) - {} SENALES CERRADAS\n"
+        "=======================================================================\n\n"
+        "DESEMPENO GLOBAL:\n"
+        "  Win rate:      {:.1%}\n"
+        "  Expectancy:    {:+.2f}R / trade\n"
+        "  Avg ganador:   {:+.2f}R   Avg perdedor: {:+.2f}R\n"
+        "  Profit factor: {:.2f}\n"
+        "  TP distribution: {}\n\n"
+        "EDGE POR CONCEPTO ICT (CON vs SIN):\n"
+        "  -- Aqui esta el oro: que conceptos del PDF agregan probabilidad real --\n"
+        "{}\n\n"
+        "ENTROPIA SHANNON (0=colapso, 1=diverso):\n"
+        "  H_total={:.3f}  H_sesion={:.3f}  H_tier={:.3f}\n"
+        "  H_direccion={:.3f}  KL drift 25v25={:.3f}\n\n"
+        "TOP 5 BUCKETS GANADORES:\n{}\n\n"
+        "TOP 5 BUCKETS PERDEDORES:\n{}{}\n\n"
+        "----\n"
+        "Como auditor del sistema cuantico-ICT FQ:\n\n"
+        "1. CONCEPT EDGE: cuales de los 7 conceptos ICT del PDF estan dando edge REAL\n"
+        "   (Exp con > Exp sin por >0.3R)? Cuales estan no aportando o son ruido?\n"
+        "   Nombralos uno por uno con tu juicio.\n\n"
+        "2. ATRACTORES TOXICOS: hay buckets v3 con muchas senales y expectancy negativa?\n"
+        "   Sugiere: subir threshold de ese bucket, o vetarlo entirely?\n\n"
+        "3. EDGE OCULTO: hay combinaciones de conceptos (ej: breaker+ote_strict) con pocas\n"
+        "   muestras pero expectancy alta? Vale invitar mas exposicion?\n\n"
+        "4. WEEKEND: el filtro fin de semana se justifica con la data? (si hay data v3 de\n"
+        "   weekend). Si veto es conservador, podemos relajar?\n\n"
+        "5. PMASTER_MIN sugerido (actual 1.80). Subir/bajar y por que.\n\n"
+        "6. KAPPA EVO METHOD: actual es Thompson sampling con prior Beta(1,1).\n"
+        "   El prior es razonable o muy ancho? Sugiere si vale concentrar (prior(2,2)).\n\n"
+        "Maximo 8 parrafos. Brutalmente honesto. Si un concepto del PDF no aporta edge,\n"
+        "dilo (esto es ciencia, no fe)."
+    ).format(
+        metrics["n"],
+        metrics["win_rate"], metrics["expectancy_r"],
+        metrics["avg_win_r"], metrics["avg_loss_r"],
+        metrics["profit_factor"], metrics["tp_dist"],
+        "\n".join(concept_lines),
+        entropy["h_total"], entropy["h_session"], entropy["h_tier"],
+        entropy["h_direction"], entropy["kl_drift_25v25"],
+        winners_lines, losers_lines, weekend_line,
+    )
+
+# ============================================================
+# FORMATEO TELEGRAM V3
+# ============================================================
+def format_concepts_telegram():
+    """Telegram-friendly desglose de edge por concepto"""
+    cp = get_concept_performance()
+    if not cp:
+        return "Sin data v3 aun. Necesita senales cerradas con flags de concepto."
+    lines = ["<b>EDGE POR CONCEPTO ICT</b>", ""]
+    for concept, data in sorted(
+        cp.items(),
+        key=lambda x: -(x[1].get("edge") or -99)
+    ):
+        wstats = data.get("with")
+        if not wstats or wstats["n"] < 3:
+            lines.append("{}: n={} (insuficiente)".format(
+                concept, wstats["n"] if wstats else 0))
+            continue
+        edge = data.get("edge") or 0
+        edge_tag = "[+]" if edge > 0.1 else ("[-]" if edge < -0.1 else "[~]")
+        lines.append("{} {}:".format(edge_tag, concept))
+        lines.append("  con: n={} WR={:.0%} Exp={:+.2f}R".format(
+            wstats["n"], wstats["win_rate"], wstats["expectancy"]))
+        wostats = data.get("without")
+        if wostats:
+            lines.append("  sin: n={} WR={:.0%} Exp={:+.2f}R".format(
+                wostats["n"], wostats["win_rate"], wostats["expectancy"]))
+        lines.append("  edge: {:+.2f}R".format(edge))
+        lines.append("")
+    return "\n".join(lines)
 

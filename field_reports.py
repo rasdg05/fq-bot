@@ -67,9 +67,15 @@ def build_signal_report(field, decision_report):
             field.recent_sweep["price"],
             "SI" if field.recent_sweep.get("reaction") else "NO")
 
-    # MSS/BOS
-    mss_str = "—" if not field.last_mss else "${:.2f} {}".format(
-        field.last_mss.get("price", 0), field.last_mss.get("direction", ""))
+    # MSS/BOS - soporta dict legacy y MSSEvent dataclass v3
+    mss_str = "—"
+    if field.last_mss:
+        if hasattr(field.last_mss, "confirmed") and field.last_mss.confirmed:
+            mss_str = "${:.2f} {}".format(
+                field.last_mss.price, field.last_mss.direction or "")
+        elif isinstance(field.last_mss, dict):
+            mss_str = "${:.2f} {}".format(
+                field.last_mss.get("price", 0), field.last_mss.get("direction", ""))
 
     # Bucket memory
     bm = pm.get("bucket_memory") or field.bucket_memory
@@ -78,6 +84,25 @@ def build_signal_report(field, decision_report):
             bm.n_closed, bm.win_rate, bm.expectancy_r, bm.streak)
     else:
         bm_str = "(sin historico suficiente)"
+
+    # ICT concepts v3 (PDF "14 Most Important ICT Concepts")
+    concepts = pm.get("concepts", {})
+    f_ict = pm.get("f_ict", 1.0)
+    n_concepts = pm.get("n_concepts", 0)
+    concept_labels = [
+        ("breaker",      "Breaker Block"),
+        ("mss",          "Market Structure Shift"),
+        ("inducement",   "Inducement (LTF liq)"),
+        ("pwr3",         "Power of 3 (AMD)"),
+        ("bpr",          "Balanced Price Range"),
+        ("ote_strict",   "OTE 62-79% (sweet 70.5)"),
+        ("displacement", "Displacement"),
+    ]
+    concepts_block = "\n".join(
+        "  {} {}".format("[+]" if concepts.get(k) else "[.]", label)
+        for k, label in concept_labels
+    )
+    kappa_method = pm.get("kappa_method", "legacy")
 
     msg = (
         "<b>FQ v4.1.1 — LECTURA DE CAMPO</b>\n"
@@ -119,14 +144,19 @@ def build_signal_report(field, decision_report):
         "TP3 25%: ${tp3:.2f}  R:R {rr3:.2f}\n"
         "TP4 15%: ${tp4:.2f}  R:R {rr4:.2f}\n"
         "Leverage: <b>{lev}</b>  Size: {size}\n\n"
+        "<b>━━ CONCEPTOS ICT (14 PDF) ━━</b>\n"
+        "{concepts_block}\n"
+        "Bonus ICT: x{f_ict:.3f} ({n_concepts} activos)\n\n"
         "<b>━━ MEMORIA DEL BUCKET ━━</b>\n"
-        "Bucket: {bk}\n"
-        "Conf: {bcf}  {bms}\n\n"
+        "Bucket v2: {bk}\n"
+        "Bucket v3: {bk3}\n"
+        "Conf: {bcf}  {bms}\n"
+        "Kappa metodo: {kmethod}\n\n"
         "<b>━━ INVALIDACION ━━</b>\n"
         "- Cierre 15m {cmp} ${sl:.2f} -> CERRAR\n"
         "- 90 min sin progreso a TP1 -> REVISAR\n"
         "- SL nunca se mueve (Regla 4)\n\n"
-        "#FQv411 #SOLUSDT #{side}"
+        "#FQv42 #SOLUSDT #{side}"
     ).format(
         when=_cdmx_now_str(),
         kz=field.killzone.upper(),
@@ -154,7 +184,11 @@ def build_signal_report(field, decision_report):
         tp4=levels["tp4"], rr4=levels["rr_tp4"],
         lev=leverage, size=sizing,
         bk=pm["bucket_key_v2"],
+        bk3=pm.get("bucket_key_v3", "—"),
         bcf=(bm.confidence.upper() if bm else "EMPTY"), bms=bm_str,
+        kmethod=kappa_method,
+        concepts_block=concepts_block,
+        f_ict=f_ict, n_concepts=n_concepts,
         cmp="<" if direction == "long" else ">",
     )
     return msg

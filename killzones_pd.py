@@ -11,24 +11,66 @@ from datetime import datetime, timezone, timedelta
 log = logging.getLogger("fq_killzones")
 
 CDMX_TZ = timezone(timedelta(hours=-6))
+UTC_TZ  = timezone.utc
 
 # ============================================================
 # KILLZONES ICT en hora CDMX (UTC-6)
-# Prioridad superior gana en overlap (Silver Bullet > London/NY Open > resto)
+# Calibrado al estandar ICT (referencia: howtotrade.com Silver Bullet)
+#   Silver Bullet London  : 3:00-4:00 AM EST (NY) = 2:00-3:00 CDMX
+#   Silver Bullet NY AM   : 10:00-11:00 AM EST    = 9:00-10:00 CDMX
+#   Silver Bullet NY PM   : 2:00-3:00 PM EST      = 1:00-2:00 CDMX (PM)
+# Prioridad superior gana en overlap (Silver Bullet > Open > resto)
 # ============================================================
 KILLZONES_CDMX = [
-    # name,             start,  end,  w_kz, priority,       order
-    ("silver_bullet_lo", 3.0,   4.0,  1.40, "maxima",       1),
-    ("silver_bullet_ny", 9.0,   10.0, 1.40, "maxima",       1),
-    ("london_open_kz",   2.0,   5.0,  1.20, "alta",         2),
-    ("ny_am_kz",         8.0,   11.0, 1.20, "alta",         2),
-    ("london_close_kz",  9.5,   11.0, 1.00, "media",        3),
-    ("ny_pm_kz",         13.0,  16.0, 1.10, "media-alta",   2),
-    ("asia_kz",          19.0,  22.0, 0.70, "media",        3),
+    # name,                 start,  end,  w_kz, priority,       order
+    ("silver_bullet_lo",     2.0,   3.0,  1.40, "maxima",       1),
+    ("silver_bullet_ny_am",  9.0,   10.0, 1.40, "maxima",       1),
+    ("silver_bullet_ny_pm",  13.0,  14.0, 1.40, "maxima",       1),
+    ("london_open_kz",       1.0,   5.0,  1.20, "alta",         2),
+    ("ny_am_kz",             8.0,   11.0, 1.20, "alta",         2),
+    ("ny_pm_kz",             13.0,  16.0, 1.10, "media-alta",   2),
+    ("london_close_kz",      9.5,   11.0, 1.00, "media",        3),
+    ("asia_kz",              19.0,  22.0, 0.70, "media",        3),
 ]
 
 W_OUTSIDE_KZ = 0.60
 PRIO_OUTSIDE = "baja"
+
+# ============================================================
+# WEEKEND FILTER - veto total entre cierre semanal y apertura
+# Cierre: viernes 17:00 EST (UTC-5) = 22:00 UTC
+# Apertura: domingo 17:00 EST       = 22:00 UTC
+# ============================================================
+def is_weekend_closed(now_utc=None):
+    """
+    Devuelve True si estamos dentro del cierre semanal (sab/dom).
+
+    Ventana cerrada: viernes 22:00 UTC -> domingo 22:00 UTC
+    (cierre/apertura semanal de FX/futuros tradicionales)
+    """
+    if now_utc is None:
+        now_utc = datetime.now(UTC_TZ)
+    weekday = now_utc.weekday()  # 0=Mon, 4=Fri, 5=Sat, 6=Sun
+    h = now_utc.hour + now_utc.minute / 60.0
+    if weekday == 5:                 # sabado entero
+        return True
+    if weekday == 4 and h >= 22.0:   # viernes despues de 22:00 UTC
+        return True
+    if weekday == 6 and h < 22.0:    # domingo antes de 22:00 UTC
+        return True
+    return False
+
+def weekend_status():
+    """Devuelve dict descriptivo del estado weekend"""
+    now_utc = datetime.now(UTC_TZ)
+    closed = is_weekend_closed(now_utc)
+    return {
+        "closed":          closed,
+        "weekday_utc":     now_utc.weekday(),
+        "weekday_label":   ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][now_utc.weekday()],
+        "hour_utc":        now_utc.hour + now_utc.minute/60.0,
+        "reason":          "weekend veto activo" if closed else "mercado activo",
+    }
 
 # Map de SESSION_WEIGHTS legacy (asia/london/ny/overlap) - heredado
 LEGACY_SESSION_WEIGHTS = {
