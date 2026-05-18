@@ -131,6 +131,14 @@ Documentación de fuentes en `_KNOWLEDGE_NOTES.md`.
 
 - **NO** agregar dependencias sin justificar (sin `xgboost`, sin `lightgbm`,
   sin `sklearn`, sin `scipy`). Sólo Python stdlib + pandas/numpy ya presentes.
+
+
+
+## 7. Reglas de integración para extracciones
+
+Cuando se proponga incorporar contenido de los PDFs:
+
+- **NO** agregar nuevas dependencias sin justificar.
 - **NO** modificar firmas de funciones públicas del motor sin marcar como BREAKING.
 - **NO** introducir constantes que choquen con §4.
 - **NO** reescribir módulos completos. Sólo extender vía nuevos archivos o funciones
