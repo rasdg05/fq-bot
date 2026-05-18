@@ -70,6 +70,14 @@ except ImportError as _e:
     ICT_MODULES_AVAILABLE = False
     ict_smc = killzones_pd = fusion_engine = field_reports = None
 
+# Modulos FQ v4.2 (Mistral curated VIP format)
+try:
+    import vip_format
+    VIP_FORMAT_AVAILABLE = True
+except ImportError:
+    VIP_FORMAT_AVAILABLE = False
+    vip_format = None
+
 # Modulos FQ v4.0 (Mistral - VIP System)
 try:
     import vip_system as vip
@@ -155,6 +163,8 @@ class BotState:
         self.last_signal_dir      = None
         self.last_signal_price    = 0.0
         self.last_signal_levels   = None
+        self.last_score_result    = None   # capa ML v4.3
+        self.last_regime          = None   # capa ML v4.3
         self.signals_today        = 0
         self.signals_total        = 0
         self.last_btc_chg         = 0.0
@@ -876,87 +886,34 @@ def build_signal_msg(direction, levels, decoh, masses, session, w_clock, p_maste
     return msg
 
 # ============================================================
-# COMMAND: /help
+# COMMAND: /help (tier-aware via vip_format)
 # ============================================================
-def cmd_help():
-    return (
-        "<b>FQ v4.1 BOT v3.2 - BUGATTI + CLAUDE + EVOLUTION</b>\n"
-        "{fence}\n\n"
-        "<b>OPERATIVOS:</b>\n"
-        "/status    Estado bot, mercado, ultima senal\n"
-        "/analisis  Analisis FQ + lectura Claude (Sonnet)\n"
-        "/niveles   Plan de entrada + afinacion Claude\n"
-        "/pspace    Masas P-Space + libro + lectura Claude\n"
-        "/sesion    Sesion actual + W_clock dinamico\n"
-        "/macro     Decoherencia macro BTC/ETH\n"
-        "/claude    Lectura tactica completa (Sonnet 4.5)\n"
-        "/ia        Alias de /claude\n\n"
-        "<b>EVOLUCION (v3.2):</b>\n"
-        "/metrics   Desempeno global (WR, expectancy, PF)\n"
-        "/entropy   Cognicion entropica (Shannon H, drift KL)\n"
-        "/ledger    Ultimas 10 senales con outcome\n"
-        "/evolve    Buckets activos del modulador kappa_evo\n"
-        "/audit     Trigger manual self-audit Opus\n\n"
-        "<b>INFO:</b>\n"
-        "/about     Sobre el sistema FQ v4.1\n"
-        "/help      Esta ayuda\n\n"
-        "{fence}\n\n"
-        "<b>MOTOR DE SENALES + CLAUDE COPILOT</b>\n\n"
-        "Monitoreo 24/7. Solo emite senal con Theta(D) = 1.\n"
-        "Senales con P_master >= phi^3 (4.236) reciben\n"
-        "co-pilot Opus 4.6 con afinacion automatica.\n\n"
-        "<b>EVOLUTION PATCH:</b>\n"
-        "Modulador kappa_evo (+-15%) ajusta P_master\n"
-        "segun desempeno historico por bucket. NO toca\n"
-        "el gate Theta(D). Self-audit Opus cada 25 cierres.\n\n"
-        "Ventana operativa: <b>24 HORAS</b>\n"
-        "Asia (W=0.50) reduce sizing automaticamente.\n\n"
-        "El silencio es disciplina. Calidad sobre cantidad.\n\n"
-        "#FQv41 #BugattiEdition #EvolutionPatch"
-    ).format(fence=G["fence"], b=G["bullet"])
+def _resolve_tier(chat_id=None):
+    """Devuelve 'admin','vip','trial','free' segun chat_id"""
+    if chat_id and str(chat_id) == str(TELEGRAM_CHAT_ID):
+        return "admin"
+    if VIP_ENABLED and chat_id:
+        try:
+            u = vip.get_or_create_user(chat_id)
+            t = u.get("tier", "free")
+            return t if t in ("admin","vip","trial","free") else "free"
+        except Exception:
+            return "free"
+    return "free"
+
+def cmd_help(chat_id=None):
+    if VIP_FORMAT_AVAILABLE:
+        return vip_format.help_for_tier(_resolve_tier(chat_id))
+    # Fallback legacy
+    return "/status /lectura /miestado /renovar /about /help"
 
 # ============================================================
-# COMMAND: /about
+# COMMAND: /about (tier-aware via vip_format)
 # ============================================================
-def cmd_about():
-    return (
-        "<b>FIBONACCI CUANTICO v4.1</b>\n"
-        "<i>Emergent Time and Curved Price-Space</i>\n"
-        "by RasDG_Sol  |  Bot v3.0 Bugatti Edition\n"
-        "{fence}\n\n"
-        "<b>FUNDAMENTOS</b>\n\n"
-        "El mercado no esta en un estado definido.\n"
-        "Esta en superposicion de historias competidoras.\n"
-        "Una senal solo existe cuando colapsan.\n\n"
-        "<b>CUATRO PILARES:</b>\n"
-        "I.   Decoherencia 3/3 (Hartle, Solvay 2005)\n"
-        "II.  Tiempo emergente W_clock (Page-Wootters)\n"
-        "III. P-Space curvado kappa(p) (Oreste 2011)\n"
-        "IV.  Laplaciano discreto (Knill, Harvard 2020)\n\n"
-        "{thin}\n"
-        "<b>MASTER EQUATION v4.1</b>\n"
-        "{thin}\n"
-        "P_master = Theta(D) {dot} kappa(p) {dot} phi^n {dot} W_clock {dot} H_lap\n\n"
-        "Si Theta(D) = 0 {arrow} P_master = 0 {arrow} no trade.\n"
-        "Sin excepcion. Sin override.\n\n"
-        "<b>CONSTANTES:</b>\n"
-        "phi    = 1.6180339887\n"
-        "phi^2  = 2.6180\n"
-        "phi^3  = 4.2360\n"
-        "alpha  = 1/137.507\n"
-        "B      = phi^2/alpha + e + pi = 364.6247\n\n"
-        "<b>PARAMETROS ACTUALES:</b>\n"
-        "Par:        SOL/USDT Perpetual\n"
-        "Exchange:   OKX (datos)\n"
-        "Timeframe:  15 minutos\n"
-        "Ventana:    24 HORAS (modulado por W_clock)\n"
-        "Macro thr:  0.08%\n"
-        "P-Space:    minimo 2 masas\n"
-        "P_master:   minimo 2.618 (phi^2)\n"
-        "Cooldown:   2h entre senales\n"
-        "Leverage:   max 8x (phi^3-coupled)\n\n"
-        "#FQv41 #RasDG"
-    ).format(fence=G["fence"], thin=G["thin"], dot="*", arrow=G["arrow"])
+def cmd_about(chat_id=None):
+    if VIP_FORMAT_AVAILABLE:
+        return vip_format.about_for_tier(_resolve_tier(chat_id))
+    return "FQ v4.2 - sistema de senales SOL/USDT con motor ICT/SMC + autoevolucion."
 
 # ============================================================
 # COMMAND: /status
@@ -1868,6 +1825,9 @@ def _evaluate_setup_v411(exchange, intra=False):
                     STATE.last_signal_levels = levels
                     STATE.signals_today += 1
                     STATE.signals_total += 1
+                    # Persistir metadata ML para /atribucion y /regimen
+                    STATE.last_score_result = report.get("score")
+                    STATE.last_regime = report.get("regime")
                     STATE.last_eval_result = "SENAL v4.1.1: {} @ ${:.2f} P={:.2f}".format(
                         direction.upper(), levels["entry"], pm_data["p_master"])
 
@@ -2244,15 +2204,15 @@ def command_listener(exchange):
                         user = vip.get_or_create_user(chat_id, username=username, first_name=first_name)
                         # Welcome a usuarios nuevos
                         if user.get("is_new"):
-                            telegram_send(
-                                "<b>Bienvenido al sistema FQ v4.1</b>\n"
-                                "================================\n\n"
-                                "Senales SOL/USDT con decoherencia cuantica.\n\n"
-                                "- /precio para ver planes VIP\n"
-                                "- /codigo XXXX si tienes codigo de acceso\n"
-                                "- /miestado para ver tu estado\n"
-                                "- /help para comandos disponibles\n\n"
-                                "RasDG_Sol", chat_id)
+                            if VIP_FORMAT_AVAILABLE:
+                                tier = user.get("tier", "free")
+                                telegram_send(vip_format.build_welcome_for_tier(tier), chat_id)
+                            else:
+                                telegram_send(
+                                    "Bienvenido al sistema FQ v4.2\n"
+                                    "Senales SOL/USDT con motor ICT/SMC + autoevolucion.\n"
+                                    "Usa /precio para tarifas o /codigo XXXX si tienes codigo.",
+                                    chat_id)
                     except Exception as e:
                         log.error("VIP user registration error: {}".format(e))
                         # Non-fatal: continuar sin VIP
@@ -2329,16 +2289,41 @@ def command_listener(exchange):
                         telegram_send("Bot privado. Contactar a RasDG_Sol.", chat_id)
                         continue
 
+                # === COMANDOS TIER-AWARE (chat_id-aware) ===
+                # /help y /about adaptan contenido segun tier del invocador
+                if cmd_name in ("/help", "/about", "/start"):
+                    try:
+                        if cmd_name == "/about":
+                            send_long(cmd_about(chat_id), chat_id)
+                        else:
+                            send_long(cmd_help(chat_id), chat_id)
+                    except Exception as e:
+                        log.error("tier-aware handler {}: {}".format(cmd_name, e))
+                        send_long("Error: {}".format(str(e)[:200]), chat_id)
+                    continue
+
+                # === ADMIN-ONLY GATE ===
+                ADMIN_ONLY = {"/audit", "/entropy", "/metrics", "/ledger",
+                              "/evolve", "/concepts", "/weekend", "/campo",
+                              "/gencode", "/grant", "/broadcast",
+                              "/atribucion", "/regimen", "/sweep"}
+                if cmd_name in ADMIN_ONLY and str(chat_id) != str(TELEGRAM_CHAT_ID):
+                    telegram_send(
+                        "Comando no disponible. Usa /help para ver tus comandos.",
+                        chat_id)
+                    continue
+
                 # === COMANDOS NORMALES (FQ) ===
                 if cmd_name in COMMANDS:
                     handler = COMMANDS[cmd_name]
                     try:
                         loading_map = {
-                            "/analisis": "Analizando mercado en tiempo real...",
-                            "/niveles":  "Construyendo plan de entrada FQ...",
-                            "/pspace":   "Mapeando masas P-Space y orderbook...",
-                            "/claude":   "Espejo en tiempo real - consultando Claude...",
-                            "/ia":       "Espejo en tiempo real - consultando Claude...",
+                            "/lectura":  "Lectura tactica en proceso - Claude Sonnet 4.6...",
+                            "/analisis": "Lectura tactica en proceso - Claude Sonnet 4.6...",
+                            "/niveles":  "Lectura tactica en proceso - Claude Sonnet 4.6...",
+                            "/pspace":   "Lectura tactica en proceso - Claude Sonnet 4.6...",
+                            "/claude":   "Lectura tactica en proceso - Claude Sonnet 4.6...",
+                            "/ia":       "Lectura tactica en proceso - Claude Sonnet 4.6...",
                         }
                         if cmd_name in loading_map:
                             telegram_send(loading_map[cmd_name], chat_id)
@@ -2622,6 +2607,69 @@ def cmd_evolve(exchange=None):
     lines.append("<b>Cap absoluto:</b> kappa_evo en [0.85, 1.15]")
     return "\n".join(lines)
 
+# ============================================================
+# ADMIN COMMANDS v4.3 - capa ML
+# ============================================================
+def cmd_atribucion(exchange=None):
+    """Atribucion Shapley de la ultima senal disparada"""
+    try:
+        import signal_scorer
+        with STATE.lock:
+            last_score = getattr(STATE, "last_score_result", None)
+        if last_score is None:
+            return ("Sin atribuciones aun. Se guarda automaticamente con cada "
+                    "senal disparada bajo v4.3.")
+        return signal_scorer.format_attribution_telegram(last_score)
+    except Exception as e:
+        return "Error /atribucion: {}".format(str(e)[:200])
+
+def cmd_regimen(exchange):
+    """Estado actual del regime detector"""
+    try:
+        import regime_detector
+        df = fetch_ohlcv(exchange, SYMBOL, TIMEFRAME, limit=80)
+        df = add_indicators(df)
+        regime = regime_detector.detect_regime(df)
+        return regime_detector.format_regime_telegram(regime)
+    except Exception as e:
+        return "Error /regimen: {}".format(str(e)[:200])
+
+def cmd_sweep(exchange=None):
+    """Greedy threshold sweep sobre el ledger cerrado"""
+    try:
+        import signal_scorer
+        with ev._lock:
+            conn = ev._connect()
+            try:
+                rows = conn.execute(
+                    "SELECT * FROM signals WHERE outcome IS NOT NULL ORDER BY id"
+                ).fetchall()
+                closed = [dict(r) for r in rows]
+            finally:
+                conn.close()
+        if not closed:
+            return "Ledger vacio. Necesita >=10 senales cerradas."
+        sweep = signal_scorer.threshold_sweep(closed)
+        if not sweep:
+            return ("Sweep: cerradas insuficientes en ventana ({} totales). "
+                    "Necesita >=10 cerradas por nivel de threshold.".format(len(closed)))
+        return signal_scorer.format_sweep_telegram(sweep, current_threshold=PMASTER_MIN)
+    except Exception as e:
+        return "Error /sweep: {}".format(str(e)[:200])
+
+def cmd_lectura(exchange):
+    """
+    /lectura - comando consolidado VIP-only.
+    Devuelve UNA lectura tactica integral via Claude Sonnet 4.6, con la
+    misma info que antes daban /analisis + /niveles + /pspace + /claude.
+    Internamente reutiliza cmd_claude (la mas completa).
+    """
+    try:
+        return cmd_claude(exchange)
+    except Exception as e:
+        log.error("cmd_lectura: {}".format(e))
+        return "Error en lectura: {}".format(str(e)[:200])
+
 def cmd_concepts(exchange=None):
     """Desglose de edge por concepto ICT individual (v3)"""
     if hasattr(ev, "format_concepts_telegram"):
@@ -2807,32 +2855,38 @@ def main():
 
     exchange = ccxt.okx({"enableRateLimit": True, "timeout": 20000})
 
+    # FQ v4.2 MISTRAL: comandos visibles en BotFather son los 6 minimal.
+    # Los antiguos siguen funcionando como aliases internos para no romper
+    # a quien los tenga memorizados, pero no aparecen en el menu publico.
     COMMANDS = {
-        # Publicos
+        # ============ VIP VISIBLES (BotFather) ============
         "/start":    lambda exc=None: cmd_help(),
         "/help":     lambda exc=None: cmd_help(),
         "/about":    lambda exc=None: cmd_about(),
-        "/sesion":   lambda exc=None: cmd_sesion(),
-        # Status
         "/status":   cmd_status,
-        "/macro":    cmd_macro,
-        # Premium
-        "/analisis": cmd_analisis,
-        "/niveles":  cmd_niveles,
-        "/pspace":   cmd_pspace,
-        "/claude":   cmd_claude,
-        "/ia":       cmd_claude,
-        # Evolution v3.2
-        "/audit":    cmd_audit_manual,
-        "/entropy":  lambda exc=None: cmd_entropy(),
-        "/metrics":  lambda exc=None: cmd_metrics(),
-        "/ledger":   lambda exc=None: cmd_ledger(),
-        "/evolve":   lambda exc=None: cmd_evolve(),
-        # v4.1.1 ICT/SMC
-        "/campo":    cmd_campo,
-        # v4.2 ICT concepts + Thompson sampling
-        "/concepts": lambda exc=None: cmd_concepts(),
-        "/weekend":  lambda exc=None: cmd_weekend(),
+        "/lectura":  cmd_lectura,
+        # /miestado y /renovar son manejados en vip_system handlers arriba
+        # ============ ALIASES INTERNOS (ocultos del menu BotFather) ============
+        "/analisis": cmd_lectura,    # consolidado en /lectura
+        "/niveles":  cmd_lectura,
+        "/pspace":   cmd_lectura,
+        "/claude":   cmd_lectura,
+        "/ia":       cmd_lectura,
+        "/sesion":   lambda exc=None: cmd_sesion(),  # legacy alias
+        "/macro":    cmd_macro,                       # legacy alias
+        # ============ ADMIN ONLY (gated por chat_id en command_listener) ============
+        "/audit":     cmd_audit_manual,
+        "/entropy":   lambda exc=None: cmd_entropy(),
+        "/metrics":   lambda exc=None: cmd_metrics(),
+        "/ledger":    lambda exc=None: cmd_ledger(),
+        "/evolve":    lambda exc=None: cmd_evolve(),
+        "/campo":     cmd_campo,
+        "/concepts":  lambda exc=None: cmd_concepts(),
+        "/weekend":   lambda exc=None: cmd_weekend(),
+        # ============ ADMIN v4.3 - capa ML ============
+        "/atribucion": lambda exc=None: cmd_atribucion(),
+        "/regimen":    cmd_regimen,
+        "/sweep":      lambda exc=None: cmd_sweep(),
     }
 
     # Comandos que reciben follow-up automatico de Claude

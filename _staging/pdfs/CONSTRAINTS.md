@@ -1,82 +1,164 @@
-# CONSTRAINTS.md — Invariantes del Motor FQ
+# CONSTRAINTS.md — Invariantes del Motor FQ v4.3 (Beta Final)
 
-Este archivo define las reglas duras del motor Fibonacci Cuántico que NO pueden 
-ser violadas por ninguna extensión, refactor o integración de conocimiento externo.
+Última actualización: 2026-05-18 — alineado con motor v4.3 post-extracción de knowledge.
 
-Cualquier propuesta de cambio que rompa una de estas reglas debe ser marcada 
-explícitamente como CONFLICTO y requiere aprobación manual antes de implementarse.
+Este archivo define las **reglas duras del motor Fibonacci Cuántico** vigentes para
+la fase final de beta y preparación para venta al público.
+
+Las versiones v3.0 del paper definían restricciones que la operativa real ha
+superado. Esta versión (v4.3) refleja la decisión vigente de RasDG:
+**operar como sniper avanzado con order flow institucional**, no como sistema
+amateur dependiente de filtros tardíos.
+
+Cualquier propuesta de cambio que rompa una de estas reglas debe ser marcada
+como CONFLICTO y requiere aprobación manual antes de implementarse.
 
 ---
 
-## 1. Invariantes operativas (6 reglas core, intocables)
+## 1. Invariantes operativas vigentes (v4.3)
 
-1. **Ventana de sesión**: solo se opera en London, NY u Overlap (07:30–10:00 CDMX). 
-   Asia queda excluida salvo override explícito documentado.
-2. **CHoCH obligatorio**: ninguna entrada puede ejecutarse sin Change of Character 
-   confirmado previo. f_CHoCH = φ = 1.618 solo si está confirmado.
-3. **Mínimo 2 toques Fibonacci**: f_Fib requiere n_touches ≥ 2. Capeado en 1.35.
-4. **SL inmovible**: el Stop Loss nunca se mueve una vez colocado. Ni trailing, 
-   ni breakeven manual, ni "darle chance". Nunca.
-5. **Leverage cap**: máximo 5x en operativa estándar. En v4.1, 8x es techo absoluto 
-   solo si P_master justifica; scalp a 3x cuando P < φ².
-6. **Umbral de entrada**: P_master ≥ 7/10 obligatorio. Sin excepciones.
+1. **Ventana 24/7 con sólo veto weekend.** El bot opera de domingo 22:00 UTC a
+   viernes 22:00 UTC. Asia, London, NY y los intermedios están todos habilitados.
+   El veto Asia previo (v3) se descartó: con scorer ensemble + regime detector,
+   sesiones de baja liquidez pueden producir setups válidos.
+2. **CHoCH es señal, no gate.** El motor lee CHoCH como una de varias confluencias
+   institucionales, pero NO bloquea operativas que se validan por order flow,
+   sweeps, displacement o Power-of-3 sin CHoCH explícito. (v3 lo requería, v4.3 lo
+   considera evidencia entre otras.)
+3. **Fibonacci toques no es gate.** El número de toques históricos al nivel Fib
+   no determina validez. Lo que importa es la confluencia ICT actual (OB + FVG +
+   Fib + PD) en el momento del setup. (v3 exigía ≥2 toques, v4.3 lo descartó.)
+4. **SL inmovible.** El Stop Loss NUNCA se mueve una vez colocado. Ni trailing,
+   ni breakeven manual, ni "darle chance". Nunca. (Conservado de v3.)
+5. **Leverage cap escalonado.** Máximo 8x absoluto, sólo si P_master >= φ³.
+   5x para tier estándar (φ² ≤ P < φ³). 3x para scalp (P < φ²). (Conservado.)
+6. **Umbral de fire P_master >= 1.80.** PMASTER_MIN actual = φ ≈ 1.80, que en la
+   escala de conviction (1-10) corresponde a ~4.25/10. El gate "P >= 7/10" (~2.965)
+   queda como opt-in vía `FQ_ENFORCE_HIGH_GATE=1` para producción estricta. Default
+   OFF en beta para permitir exploración del bucket histórico.
+7. **Weekend veto.** Veto duro viernes 22:00 UTC → domingo 22:00 UTC. Override
+   manual con `FQ_WEEKEND_VETO=0` solo para backtest.
 
 ## 2. Anclaje estructural del SL
 
-- SL **debe** anclarse a nodos estructurales de P-Space (EMA50, soportes confirmados).
-- SL **nunca** se ancla a Bollinger Bands (son targets de liquidity hunt, no soportes).
-- Lección documentada: LONG $84.20 con SL en BB → hit $83.79, −$77 USDT (15 abr 2026).
-- Fórmula vigente: `SL = entry × (1 − fib × (1 − φ⁻¹))`
+- SL **debe** anclarse a nodos estructurales (EMA50, soportes confirmados, OB low).
+- SL **nunca** se ancla a Bollinger Bands (lección 15 abr 2026: LONG $84.20 con
+  SL en BB → hit $83.79, -$77 USDT).
+- Fórmula vigente: `SL = entry × (1 − fib × (1 − φ⁻¹))` con anclaje preferente
+  a EMA50/estructura cuando esté dentro del rango.
 
-## 3. Kill-switch Θ(D) — v4.1
+## 3. Kill-switch Θ(D) — v4.2 (refinado)
 
-Tres decoherencias simultáneas deben validarse. Si alguna falla, **P_master = 0**:
+Tres decoherencias simultáneas validan el setup. Si alguna falla, **P_master = 0**:
 
-- Macro: BTC y ETH alineados en 15m con la dirección propuesta.
-- MAs: ≥11/13 medias móviles alineadas en 5m + 15m.
-- RSI: regime alignment en triple timeframe RSI(6/12/24).
+- **Macro**: BTC y ETH alineados en 15m con la dirección propuesta (ventana
+  deslizante 4 velas, threshold 0.05% post-calibración v4.1).
+- **Técnica**: ≥5/7 indicadores alineados en 15m (RSI, EMAs, momentum).
+- **Liquidez**: triple RSI(6/12/24) en regime alignment + sweep recientes válidos.
 
-κ(p) requiere ≥3 confluencias de masa en P-Space.
+κ(p) requiere ≥2 confluencias de masa en P-Space (relajado de ≥3 en v3.0).
 
 ## 4. Constantes matemáticas (no redefinir)
 
 - φ = 1.6180339887
-- φ² = 2.618
+- φ² = 2.6180
+- φ³ = 4.2360
 - φ⁻¹ = 0.618
 - α = 1/137.507 = 0.00727
 - B = φ²/α + e + π = 364.6247
 - ∠φ = 137.507°
 - h = φ√(3/4) = 1.401258
 
-## 5. Ecuación maestra (v3.0, base)
+## 5. Ecuación maestra v4.2 (vigente)
 
-`P_master = P_base · W_session · (1 + α·|Ψ|²) · f_CHoCH · f_Fib · f_RSI · f_node`
+```
+P_master = Θ(D) · κ_evo · φⁿ · W_eff · H_lap · f_conf · f_ict
+```
 
-Pesos de sesión: Asia 0.50 | London 0.80 | NY 1.00 | Overlap 1.20
+Donde:
+- `Θ(D)` ∈ {0, 1}: kill-switch (3 decoherencias).
+- `κ_evo` ∈ [0.85, 1.15]: modulador evolutivo Thompson sampling sobre bucket v3.
+- `φⁿ` = φ con n=1 (base scalp), φ² (standard), φ³ (high conviction).
+- `W_eff = W_clock_legacy · α + W_killzone · (1 − α)`, con
+  `α = max(0, 1 − n_closed_v3 / 50)`. Migración hibrida sesión legacy → killzones ICT.
+- `H_lap` ∈ {0.7, 1.0}: laplaciano activo / inactivo.
+- `f_conf` ∈ [1.00, 1.35]: jerarquía PD + confluencia ICT.
+- `f_ict` = `1.0 + n_concepts × 0.04` con cap n_concepts ≤ 4. Bonus por concepto
+  ICT activo (Breaker, MSS, Inducement, Power-of-3, BPR, OTE estricto, Displacement).
 
-Cualquier término nuevo propuesto desde los PDFs debe:
-- Justificar matemáticamente su inserción
-- No reescalar los pesos existentes
-- Documentar el rango esperado del factor
+**Pesos de killzone (post-recalibración v4.2):**
+- Silver Bullet London/NY AM/NY PM: 1.40 (prioridad máxima)
+- London Open / NY AM completo: 1.20
+- NY PM completo: 1.10
+- London Close: 1.00
+- Asia: 0.70
+- Fuera de killzone: 0.60
 
 ## 6. TPs
 
-- TP1 = entry × (1 + fib × φ⁻¹)
-- TP2 = entry × (1 + fib × φ)
-- v4.1: extensiones escalonadas en φ⁻¹, φ⁻², φ⁻³
+- TP1 = entry × (1 + fib × φ⁻¹)  · 30% size
+- TP2 = entry × (1 + fib × φ)     · 30% size
+- TP3 = entry × (1 + fib × φ²)    · 25% size
+- TP4 = entry × (1 + fib × φ³)    · 15% size
 
-## 7. Reglas de integración para extracciones
+## 7. Memoria autoevolutiva (v4.2+)
 
-Cuando se proponga incorporar contenido de los PDFs:
+- **Ledger persistente** en SQLite (`/data/fq_ledger.db` Railway Volume).
+- **Bucket key v3**: `killzone | tier | direction | pd_zone | hierarchy |
+  concept_flags`. 7 flags ICT compactados (breaker, mss, inducement, pwr3, bpr,
+  ote_strict, displacement).
+- **Thompson sampling** para κ_evo: Beta(1+wins, 1+losses), sample → κ ∈ [0.85, 1.15].
+- **Self-audit Opus cada 25 cerradas**, prompt enriquecido con desglose por
+  concepto ICT (CON vs SIN).
 
-- **NO** agregar nuevas dependencias sin justificar.
+## 8. Capa ML v4.3 (additiva, no modifica P_master)
+
+- **Ensemble scorer** (5 weak learners: volume, structure, liquidity, concept_stack,
+  history). Lineal con pesos env-configurables. Default uniforme.
+- **Shapley attribution** trivial (linear ensemble) — feature importance honesta
+  para post-mortem.
+- **Regime detector** (KL drift + ATR z-score + WR trend) → estable / shift_moderate
+  / deriva. En deriva + scorer bajo → veto adicional.
+- **MSBoost-style** attenuation: scorers con accuracy <10% bajo la media reciente
+  pierden 50% de peso temporalmente.
+- **GOSS-inspired** weight update: SL pesan 1.0 (residual grande), TP1 pesan 0.7,
+  TP2-4 pesan 0.5.
+- **Greedy threshold sweep** post-hoc (admin /sweep), no modifica nada vivo.
+
+Documentación de fuentes en `_KNOWLEDGE_NOTES.md`.
+
+## 9. Reglas de integración para extracciones
+
+- **NO** agregar dependencias sin justificar (sin `xgboost`, sin `lightgbm`,
+  sin `sklearn`, sin `scipy`). Sólo Python stdlib + pandas/numpy ya presentes.
 - **NO** modificar firmas de funciones públicas del motor sin marcar como BREAKING.
-- **NO** introducir constantes que choquen con las del §4.
-- **NO** reescribir módulos completos. Solo extender vía nuevos archivos o funciones aditivas.
-- **SÍ** documentar de qué PDF y página viene cada fórmula/concepto integrado.
+- **NO** introducir constantes que choquen con §4.
+- **NO** reescribir módulos completos. Sólo extender vía nuevos archivos o funciones
+  aditivas.
+- **SÍ** documentar fuente (PDF, página) de cada concepto integrado en `_KNOWLEDGE_NOTES.md`.
+- **SÍ** mantener back-compat con ledger histórico (todas las migraciones de schema
+  son idempotentes vía `migrate_schema_v2` y `migrate_schema_v3`).
 
-## 8. Estilo de código
+## 10. Estilo de código
 
-- Mantener la convención del motor actual (revisar `/src/` antes de proponer).
+- Convención del motor actual: ASCII-only en source files; UTF-8 en comments.
 - Comentarios en español para lógica de negocio, inglés para utilidades técnicas.
-- Tests obligatorios para cualquier fórmula nueva incorporada.
+- Tests obligatorios para cualquier fórmula nueva (mínimo smoke test sintético).
+- No emojis en código ni en mensajes Telegram salvo glyphs Unicode sólidos
+  (▴ ▾ ◆ ▰ ▸ ▪ ━) usados en bot público y format VIP.
+
+## 11. Beta final → producción
+
+Para preparar venta al público:
+- Schema v3 debe estar migrado en producción (`/data/fq_ledger.db`).
+- Bot público (`entry_public.py`) corriendo como servicio independiente con su
+  propio `TELEGRAM_TOKEN_PUBLIC` y BD local (`/data/fq_public.db`).
+- VIP signals en formato Mistral (`vip_format.build_vip_signal`) — fórmulas
+  internas DISFRAZADAS (P_master, κ_evo, Θ(D) no se exponen al VIP).
+- Admin commands (`/audit`, `/entropy`, `/metrics`, `/ledger`, `/evolve`,
+  `/concepts`, `/weekend`, `/campo`, `/atribucion`, `/regimen`, `/sweep`) gated
+  por `chat_id == TELEGRAM_CHAT_ID`.
+- VIP BotFather menu = 6 comandos (status / lectura / miestado / renovar /
+  about / help). Público BotFather menu = 4 comandos.
+
+#FQv43 #BetaFinal #ProductionReady

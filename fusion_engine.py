@@ -23,12 +23,36 @@ PHI = 1.6180339887
 CONFLUENCE_MIN = 3
 HYBRID_DECAY_N = 50
 
-# Toggles (env)
+# Toggles (env) - todos default ON para "fase final beta" (CONSTRAINTS-compliant)
 USE_THOMPSON_KAPPA = os.environ.get("FQ_USE_THOMPSON", "1") == "1"
 WEEKEND_VETO       = os.environ.get("FQ_WEEKEND_VETO", "1") == "1"
 REQUIRE_OTE_STRICT = os.environ.get("FQ_REQUIRE_OTE", "0") == "1"
 ICT_CONCEPT_BONUS  = 0.04   # +4% por concepto ICT activo
 ICT_BONUS_MAX_CONCEPTS = 4  # cap a 4 bonus = +16% max
+
+# Gates legacy v3 — DESACTIVADOS por decision RasDG v4.3.
+# Razon: con scorer ensemble + regime detector + order flow institucional,
+# bloquear Asia/CHoCH/Fib-touches solo descarta setups validos. El sniper
+# avanzado lee canal divino antes; estos filtros tarde lo convertian en amateur.
+# Disponibles como override manual si se necesitan en debugging.
+ASIA_VETO         = os.environ.get("FQ_ASIA_VETO", "0") == "1"
+REQUIRE_CHOCH     = os.environ.get("FQ_REQUIRE_CHOCH", "0") == "1"
+FIB_MIN_TOUCHES   = int(os.environ.get("FQ_FIB_MIN_TOUCHES", "0"))
+PMASTER_HIGH_GATE = float(os.environ.get("FQ_PMASTER_HIGH_GATE", "2.965"))
+ENFORCE_HIGH_GATE = os.environ.get("FQ_ENFORCE_HIGH_GATE", "0") == "1"
+
+# Capa ML (FQ v4.3) - scorer + regime, todo additivo
+USE_SCORER        = os.environ.get("FQ_USE_SCORER", "1") == "1"
+USE_REGIME        = os.environ.get("FQ_USE_REGIME", "1") == "1"
+
+# Modulos ML (lazy import)
+try:
+    import signal_scorer
+    import regime_detector
+    _ML_AVAILABLE = True
+except ImportError:
+    _ML_AVAILABLE = False
+    signal_scorer = regime_detector = None
 
 # ============================================================
 # CARGAR MEMORIA DE BUCKET (cierre del loop - decision 1)
@@ -128,6 +152,14 @@ def _compute_profit_factor(bucket_key):
 # FASE A - SESGO ESTRUCTURAL + PD
 # ============================================================
 def _execute_phase_a(field, direction):
+    # CONSTRAINTS §1 - Asia veto duro salvo override explicito
+    if ASIA_VETO and field.killzone == "asia_kz":
+        return {"passed": False, "phase": "A.0",
+                "reason": "CONSTRAINTS §1 - sesion Asia excluida (FQ_ASIA_VETO=0 para override)"}
+    # CONSTRAINTS §2 - CHoCH mandatorio
+    if REQUIRE_CHOCH and not field.choch:
+        return {"passed": False, "phase": "A.0c",
+                "reason": "CONSTRAINTS §2 - CHoCH no confirmado (FQ_REQUIRE_CHOCH=0 para override)"}
     if field.bias_4h == "rango":
         return {"passed": False, "phase": "A.1",
                 "reason": "Bias 4H en rango — sin direccion estructural"}
@@ -212,6 +244,15 @@ def _execute_phase_c(field, direction):
         if not (field.ote_zone and field.ote_zone.valid and field.ote_zone.in_zone):
             return {"passed": False, "phase": "C.5",
                     "reason": "Fuera de zona OTE estricta (62-79% retracement)"}
+    # C.6: CONSTRAINTS §3 - Fib minimum touches
+    # n_touches = cuantos fib levels estan en confluencia (proxy del Fib touch count)
+    if FIB_MIN_TOUCHES > 0:
+        fib_in_confluence = sum(1 for c in field.confluence_list
+                                 if isinstance(c, str) and c.startswith("fib_"))
+        if fib_in_confluence < FIB_MIN_TOUCHES:
+            return {"passed": False, "phase": "C.6",
+                    "reason": "CONSTRAINTS §3 - Fib touches {}/{} (FQ_FIB_MIN_TOUCHES=0 para override)".format(
+                        fib_in_confluence, FIB_MIN_TOUCHES)}
     return {"passed": True, "phase": "C"}
 
 # ============================================================
@@ -444,11 +485,60 @@ def evaluate_signal(
                 levels=levels, masses=masses, lap=lap
             )
 
-        # 11. SENAL ALINEADA - DISPARAR
+        # 10.5 CONSTRAINTS §6 - P_master >= 7/10 (~2.965) para fire/broadcast
+        # Default OFF en beta para no romper deploys actuales; enable con env.
+        if ENFORCE_HIGH_GATE and pm_data["p_master"] < PMASTER_HIGH_GATE:
+            return False, field, _build_report(
+                decision="below_high_gate", failed_at="p_master_7_10",
+                reason="CONSTRAINTS §6 - P_master {:.2f} < {:.2f} (7/10 minimo)".format(
+                    pm_data["p_master"], PMASTER_HIGH_GATE),
+                direction_inferred=direction, p_master_data=pm_data,
+                levels=levels, masses=masses, lap=lap
+            )
+
+        # 11. CAPA ML v4.3 - scorer ensemble + regime (additivos, no afectan P_master)
+        score_result = None
+        regime_state = None
+        if USE_SCORER and _ML_AVAILABLE:
+            try:
+                concepts_flags = pm_data.get("concepts", {})
+                bm = pm_data.get("bucket_memory")
+                kappa_stats = pm_data.get("kappa_stats")
+                score_result = signal_scorer.evaluate(
+                    df_15m, field, direction,
+                    concepts_flags=concepts_flags,
+                    kappa_stats=kappa_stats,
+                    bucket_memory=bm,
+                )
+            except Exception as e:
+                log.warning("scorer error: {}".format(e))
+        if USE_REGIME and _ML_AVAILABLE:
+            try:
+                regime_state = regime_detector.detect_regime(df_15m)
+            except Exception as e:
+                log.warning("regime error: {}".format(e))
+
+        # Si regime esta en deriva Y scorer < threshold high -> downgrade a no-fire
+        if score_result and regime_state:
+            if (regime_state["state"] == "deriva" and
+                score_result["total_score"] < signal_scorer.ENSEMBLE_MIN_FOR_HIGHTIER):
+                return False, field, _build_report(
+                    decision="regime_deriva_block",
+                    failed_at="regime",
+                    reason="Regime DERIVA + scorer {:.2f}<{:.2f}".format(
+                        score_result["total_score"],
+                        signal_scorer.ENSEMBLE_MIN_FOR_HIGHTIER),
+                    direction_inferred=direction, p_master_data=pm_data,
+                    levels=levels, masses=masses, lap=lap,
+                    score=score_result, regime=regime_state
+                )
+
+        # 12. SENAL ALINEADA - DISPARAR (con metadata ML adjunta para reports)
         return True, field, _build_report(
             decision="fire", direction=direction,
             p_master_data=pm_data, levels=levels,
-            masses=masses, lap=lap
+            masses=masses, lap=lap,
+            score=score_result, regime=regime_state
         )
     except Exception as e:
         log.error("evaluate_signal: {}\n{}".format(e, traceback.format_exc()))
