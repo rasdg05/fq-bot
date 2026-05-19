@@ -2766,15 +2766,158 @@ def cmd_sweep(exchange=None):
 
 def cmd_lectura(exchange):
     """
-    /lectura - comando consolidado VIP-only.
-    Devuelve UNA lectura tactica integral via Claude Sonnet 4.6, con la
-    misma info que antes daban /analisis + /niveles + /pspace + /claude.
-    Internamente reutiliza cmd_claude (la mas completa).
+    /lectura - vista consolidada multi-TF.
+    Para cada TF (5m INTRADIA / 15m SCALPING / 1h SWING) muestra: bias,
+    masas P-Space, P_master estimado vs umbral del perfil, niveles
+    entry/SL/TP1-4 con R:R, y cooldown restante. Despues opcionalmente
+    una lectura tactica de Claude sobre el TF anchor (15m).
     """
     try:
-        return cmd_claude(exchange)
+        session, w_clock, _, _ = get_session()
+        now_utc = datetime.now(timezone.utc)
+
+        tf_blocks = []
+        anchor_price = None
+        anchor_df = None
+        for tf_id in TIMEFRAMES:
+            profile = TF_PROFILES[tf_id]
+            tf_label = profile["label"]
+            try:
+                df = fetch_ohlcv(exchange, SYMBOL, tf_id, limit=200)
+                df = add_indicators(df)
+                if len(df) < 50:
+                    tf_blocks.append("<b>[{} {}]</b> datos insuficientes\n".format(
+                        tf_label, tf_id))
+                    continue
+                last = df.iloc[-1]
+                price = float(last["close"])
+                if tf_id == "15m":
+                    anchor_price = price
+                    anchor_df = df
+
+                bias = detect_bias(df)
+                masses = detect_pspace(df)
+                lap = laplacian_check(df)
+
+                if "alcista" in bias["bias"]:
+                    direction = "long"
+                elif "bajista" in bias["bias"]:
+                    direction = "short"
+                else:
+                    direction = "long"  # default neutral
+                dir_glyph = G["long"] if direction == "long" else G["short"]
+
+                levels = calculate_levels(df, direction)
+
+                h_factor = 1.0 if lap["active"] else 0.7
+                pm_est = PHI * w_clock * h_factor * (1 + max(0, masses["count"] - 2) * 0.15)
+                pmin = profile["PMASTER_MIN"]
+
+                last_sig_ts = STATE.last_signal_ts_tf.get(tf_id)
+                cooldown_min = profile["SIGNAL_COOLDOWN_MINUTES"]
+                if last_sig_ts:
+                    elapsed_min = (now_utc - last_sig_ts).total_seconds() / 60.0
+                    if elapsed_min < cooldown_min:
+                        cd_str = "{:.0f}m restantes".format(cooldown_min - elapsed_min)
+                    else:
+                        cd_str = "listo"
+                else:
+                    cd_str = "listo"
+
+                risk_pct = (levels["risk"] / levels["entry"]) * 100
+
+                block = (
+                    "<b>[{lab} {tf}]</b>  Precio: ${px:.2f}\n"
+                    "Bias: <b>{b}</b>  Masas P: {mc}  P_est: {pme:.2f}/{pmn:.2f}\n"
+                    "Direccion sugerida: {dg} <b>{dir}</b>\n"
+                    "Entry: <b>${e:.2f}</b>   SL: ${sl:.2f}  ({rp:.2f}%)\n"
+                    "TP1: ${t1:.2f}  R:R {r1:.2f}\n"
+                    "TP2: ${t2:.2f}  R:R {r2:.2f}\n"
+                    "TP3: ${t3:.2f}  R:R {r3:.2f}\n"
+                    "TP4: ${t4:.2f}  R:R {r4:.2f}\n"
+                    "Cooldown: {cd}\n"
+                ).format(
+                    lab=tf_label, tf=tf_id, px=price,
+                    b=bias["bias"].upper(), mc=masses["count"],
+                    pme=pm_est, pmn=pmin,
+                    dg=dir_glyph, dir=direction.upper(),
+                    e=levels["entry"], sl=levels["sl"], rp=risk_pct,
+                    t1=levels["tp1"], r1=levels["rr_tp1"],
+                    t2=levels["tp2"], r2=levels["rr_tp2"],
+                    t3=levels["tp3"], r3=levels["rr_tp3"],
+                    t4=levels["tp4"], r4=levels["rr_tp4"],
+                    cd=cd_str,
+                )
+                tf_blocks.append(block)
+            except Exception as ex:
+                log.warning("lectura TF {} error: {}".format(tf_id, ex))
+                tf_blocks.append("<b>[{} {}]</b> error: {}\n".format(
+                    tf_label, tf_id, str(ex)[:80]))
+
+        # Header (usa precio del anchor 15m si esta disponible)
+        header_price = anchor_price if anchor_price is not None else 0.0
+        header = (
+            "<b>LECTURA MULTI-TF - FQ v4.4</b>\n"
+            "{fence}\n"
+            "{when}  |  SOL: <b>${px:.2f}</b>\n"
+            "Sesion: {ses}  (W={w:.2f})\n\n"
+            "{thin}\n"
+            "  NIVELES + ESTADO POR TIMEFRAME\n"
+            "{thin}\n"
+        ).format(
+            fence=G["fence"], thin=G["thin"],
+            when=cdmx_now_str(), px=header_price,
+            ses=session.upper(), w=w_clock,
+        )
+
+        # Lectura Claude opcional sobre el TF anchor (15m)
+        claude_block = ""
+        if claude_ai.is_available() and anchor_df is not None:
+            try:
+                last_a = anchor_df.iloc[-1]
+                macro = test_macro(exchange)
+                direction_test = macro.get("direction") or "long"
+                tecnica = test_technical(anchor_df, direction_test)
+                liquidez = test_liquidity(anchor_df, direction_test)
+                masses_a = detect_pspace(anchor_df)
+                bias_a = detect_bias(anchor_df)
+                theta_d = macro["passed"] and tecnica["passed"] and liquidez["passed"]
+                basic_state = {
+                    "price": float(last_a["close"]), "session": session, "w_clock": w_clock,
+                    "bias": bias_a["bias"], "bias_score": bias_a["score"],
+                    "mom_5": bias_a["mom_5"], "mom_20": bias_a["mom_20"],
+                    "btc_chg": macro["btc_change"], "eth_chg": macro["eth_change"],
+                    "tec_aligned": tecnica["aligned"], "tec_total": tecnica["total"],
+                    "rsi6": liquidez["rsi6"], "rsi12": liquidez["rsi12"], "rsi24": liquidez["rsi24"],
+                    "rsi14": float(last_a.get("rsi14") or 0),
+                    "pspace_count": masses_a["count"], "theta_d": theta_d,
+                    "ema50": float(last_a.get("ema50") or 0),
+                    "ema200": float(last_a.get("ema200") or 0),
+                    "macd": float(last_a.get("macd") or 0),
+                }
+                snapshot = mctx.snapshot_for_general(anchor_df, basic_state)
+                reading = claude_ai.tactical_general(snapshot)
+                if reading:
+                    claude_block = (
+                        "\n{thin}\n"
+                        "  LECTURA TACTICA (Claude Sonnet, TF anchor 15m)\n"
+                        "{thin}\n"
+                        "{r}\n\n"
+                    ).format(thin=G["thin"], r=reading)
+            except Exception as ex:
+                log.warning("lectura Claude block error: {}".format(ex))
+
+        tail = (
+            "{thin}\n"
+            "Estos niveles son la propuesta del bot por TF. El motor solo dispara\n"
+            "automaticamente cuando P_master supera el min del perfil. SL no se\n"
+            "mueve hacia atras (Regla 4).\n\n"
+            "#FQv44 #Lectura #MultiTF"
+        ).format(thin=G["thin"])
+
+        return header + "\n".join(tf_blocks) + claude_block + tail
     except Exception as e:
-        log.error("cmd_lectura: {}".format(e))
+        log.error("cmd_lectura: {}\n{}".format(e, traceback.format_exc()))
         return "Error en lectura: {}".format(str(e)[:200])
 
 def cmd_concepts(exchange=None):
