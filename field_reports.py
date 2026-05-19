@@ -32,8 +32,11 @@ def _fmt_phase_verdict(decision, failed_at=None):
 # ============================================================
 # REPORTE COMPLETO (senal disparada)
 # ============================================================
-def build_signal_report(field, decision_report):
-    """Reporte de campo con SENAL ACTIVA. Usado cuando decision='fire'"""
+def build_signal_report(field, decision_report, tf_label="SCALPING", tf_id="15m", pmin=1.80):
+    """Reporte de campo con SENAL ACTIVA. Usado cuando decision='fire'.
+    tf_label: clase de estrategia (INTRADIA/SCALPING/SWING).
+    tf_id: timeframe primario ('5m'/'15m'/'1h').
+    pmin: umbral PMASTER_MIN del perfil del TF (para mostrar en el reporte)."""
     direction = decision_report["direction"]
     pm = decision_report["p_master_data"]
     levels = decision_report["levels"]
@@ -104,11 +107,19 @@ def build_signal_report(field, decision_report):
     )
     kappa_method = pm.get("kappa_method", "legacy")
 
+    # Mapa de contexto multi-TF segun primario
+    _ctx_map = {
+        "5m":  "1H+15m+5m+1m",
+        "15m": "4H+1H+15m+1m",
+        "1h":  "1D+4H+1h+5m",
+    }
+    tf_ctx = _ctx_map.get(tf_id, "4H+1H+15m+1m")
+
     msg = (
-        "<b>FQ v4.1.1 — LECTURA DE CAMPO</b>\n"
+        "<b>FQ v4.1.1 — [{tf_label} {tf_id}] LECTURA DE CAMPO</b>\n"
         "================================\n"
         "{when} | Killzone: <b>{kz}</b>\n"
-        "SOL/USDT | TFs: 4H+1H+15m+1m\n\n"
+        "SOL/USDT | TFs: {tf_ctx}\n\n"
         "<b>━━ ESTADO DEL CAMPO ━━</b>\n"
         "Sesgo 4H: {b4} (score {s4:+d})\n"
         "Sesgo 1H: {b1} (score {s1:+d})\n"
@@ -153,11 +164,12 @@ def build_signal_report(field, decision_report):
         "Conf: {bcf}  {bms}\n"
         "Kappa metodo: {kmethod}\n\n"
         "<b>━━ INVALIDACION ━━</b>\n"
-        "- Cierre 15m {cmp} ${sl:.2f} -> CERRAR\n"
+        "- Cierre {tf_id} {cmp} ${sl:.2f} -> CERRAR\n"
         "- 90 min sin progreso a TP1 -> REVISAR\n"
         "- SL nunca se mueve (Regla 4)\n\n"
-        "#FQv42 #SOLUSDT #{side}"
+        "#FQv42 #SOLUSDT #{tf_label} #{tf_id} #{side}"
     ).format(
+        tf_label=tf_label, tf_id=tf_id, tf_ctx=tf_ctx,
         when=_cdmx_now_str(),
         kz=field.killzone.upper(),
         b4=field.bias_4h, s4=field.score_4h,
@@ -175,7 +187,7 @@ def build_signal_report(field, decision_report):
         fch="1.618" if field.choch else "1.000",
         fcon=pm["f_confluence"], hl=pm["h_factor"],
         pmr=pm["p_master_raw"], kev=pm["kappa_evo"], pm=pm["p_master"],
-        pmin=1.80, tier_label=tier_label,
+        pmin=pmin, tier_label=tier_label,
         side_g=side_glyph, side=side,
         entry=levels["entry"], sl=levels["sl"],
         tp1=levels["tp1"], rr1=levels["rr_tp1"],

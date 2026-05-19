@@ -237,11 +237,16 @@ class FieldState:
             return "short"
         return None
 
-    def bucket_key_v2(self, tier, direction):
-        """Bucket dimensional v2: killzone × tier × dir × pd_zone × hierarchy"""
-        return "{}|{}|{}|{}|{}".format(
+    def bucket_key_v2(self, tier, direction, tf_id=None):
+        """Bucket dimensional v2: killzone × tier × dir × pd_zone × hierarchy [× tf].
+        tf_id: '15m' (anchor) omite sufijo para continuidad con memoria historica;
+        '5m' y '1h' reciben sufijo para segregar memoria por TF."""
+        base = "{}|{}|{}|{}|{}".format(
             self.killzone, tier, direction, self.pd_zone, self.pd_hierarchy
         )
+        if tf_id and tf_id != "15m":
+            return "{}|{}".format(base, tf_id)
+        return base
 
     def summary_line(self):
         crt_str = "Y" if (self.crt and self.crt.confirmed) else "N"

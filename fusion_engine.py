@@ -258,7 +258,7 @@ def _execute_phase_c(field, direction):
 # ============================================================
 # FASE D - TIMING + CRT + MEMORIA OUTCOME
 # ============================================================
-def _execute_phase_d(field, direction, p_master_provisional):
+def _execute_phase_d(field, direction, p_master_provisional, tf_id=None):
     # Sub-check 1: killzone operable
     if field.killzone_priority == "baja":
         if field.confluence_count < 5:
@@ -278,7 +278,7 @@ def _execute_phase_d(field, direction, p_master_provisional):
 
     # Sub-check 3: memoria de outcome (cierre del loop)
     tier_provisional = ev.tier_from_pmaster(p_master_provisional)
-    bucket_key = field.bucket_key_v2(tier_provisional, direction)
+    bucket_key = field.bucket_key_v2(tier_provisional, direction, tf_id=tf_id)
     field.bucket_memory = _load_bucket_memory(bucket_key)
     bm = field.bucket_memory
     if bm.confidence == "active":
@@ -300,6 +300,7 @@ def _compute_p_master_refined(field, direction, masses, lap, config):
     Calculo final con hibrido w_clock <-> w_killzone + f_confluence + ICT concepts.
     Usa Thompson sampling sobre bucket_key_v3 si FQ_USE_THOMPSON=1.
     """
+    tf_id = config.get("TF_ID")  # opcional: separa memorias 5m/15m/1h
     n_closed_v2 = ev.count_closed_v2_buckets() if hasattr(ev, "count_closed_v2_buckets") else 0
     alpha = kzpd.refine_field_timing(field, n_closed_v2, HYBRID_DECAY_N)
 
@@ -319,12 +320,12 @@ def _compute_p_master_refined(field, direction, masses, lap, config):
 
     # === KAPPA EVO ===
     tier = ev.tier_from_pmaster(p_master_raw)
-    bucket_key_v2 = field.bucket_key_v2(tier, direction)
+    bucket_key_v2 = field.bucket_key_v2(tier, direction, tf_id=tf_id)
     bucket_key_v3 = ev.make_bucket_key_v3(
         field.killzone, tier, direction,
-        field.pd_zone, field.pd_hierarchy, concepts
+        field.pd_zone, field.pd_hierarchy, concepts, tf_id=tf_id
     )
-    bucket_key_coarse = ev.make_bucket_key_v3_coarse(field.killzone, tier, direction)
+    bucket_key_coarse = ev.make_bucket_key_v3_coarse(field.killzone, tier, direction, tf_id=tf_id)
 
     if USE_THOMPSON_KAPPA and hasattr(ev, "compute_kappa_thompson"):
         kappa_evo, kappa_stats = ev.compute_kappa_thompson(
@@ -454,7 +455,7 @@ def evaluate_signal(
         p_provisional *= field.confluence_factor()
 
         # 8. FASE D (carga bucket memory)
-        d = _execute_phase_d(field, direction, p_provisional)
+        d = _execute_phase_d(field, direction, p_provisional, tf_id=config.get("TF_ID"))
         if not d["passed"]:
             return False, field, _build_report(
                 decision="field_only", failed_at="D", failed_phase=d["phase"],
