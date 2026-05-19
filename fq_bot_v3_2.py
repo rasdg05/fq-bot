@@ -97,11 +97,8 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
 SYMBOL      = "SOL-USDT-SWAP"
 SYMBOL_BTC  = "BTC-USDT-SWAP"
 SYMBOL_ETH  = "ETH-USDT-SWAP"
-TIMEFRAME   = "15m"
 
-LOOP_SECONDS          = 60
-INTRA_CANDLE_MINUTES  = 7    # MISTRAL: era 12, eval mas temprano
-SIGNAL_COOLDOWN_HOURS = 1
+LOOP_SECONDS = 60
 
 # 24H operativo - W_clock solo modula
 WINDOW_24H = True
@@ -110,8 +107,58 @@ WINDOW_24H = True
 MACRO_THRESHOLD_PCT = 0.0005    # MISTRAL: 0.05% (era 0.08%), ventana deslizante
 TECH_MIN_ALIGNED    = 5         # de 7 indicadores
 PSPACE_MIN_MASSES   = 2
-PMASTER_MIN = 1.80      # MISTRAL: calibrado evidencia 10-may (NY+2masas=1.81)
 RR_MIN_TP_DIVINO    = 1.8
+
+# ============================================================
+# MULTI-TIMEFRAME PROFILES (mayo 2026 - bajo volumen, multi-TF)
+# ============================================================
+# Cada TF emite en su propio ciclo con label, cooldown e intra-vela propios.
+# Cooldowns independientes por TF: una senal 5m NO bloquea 15m ni 1h.
+# 15m queda como anchor con valores identicos al regimen pre-refactor.
+TF_PROFILES = {
+    "5m": {
+        "label":                  "INTRADIA",
+        "INTRA_CANDLE_MINUTES":   2,
+        "SIGNAL_COOLDOWN_MINUTES": 20,
+        "PULLBACK_VOL_MULT":      1.5,
+        "BREAKOUT_VOL_MULT":      1.7,
+        "PMASTER_MIN":            1.95,
+        "context_mid":            "15m",
+        "context_high":           "1h",
+        "sub_tf":                 "1m",
+    },
+    "15m": {
+        "label":                  "SCALPING",
+        "INTRA_CANDLE_MINUTES":   7,     # anchor: identico a pre-refactor
+        "SIGNAL_COOLDOWN_MINUTES": 60,    # anchor: 1h
+        "PULLBACK_VOL_MULT":      1.3,
+        "BREAKOUT_VOL_MULT":      1.5,
+        "PMASTER_MIN":            1.80,   # anchor: calibrado 2026-05-10
+        "context_mid":            "1h",
+        "context_high":           "4h",
+        "sub_tf":                 "1m",
+    },
+    "1h": {
+        "label":                  "SWING",
+        "INTRA_CANDLE_MINUTES":   25,
+        "SIGNAL_COOLDOWN_MINUTES": 180,
+        "PULLBACK_VOL_MULT":      1.2,
+        "BREAKOUT_VOL_MULT":      1.4,
+        "PMASTER_MIN":            1.70,
+        "context_mid":            "4h",
+        "context_high":           "1d",
+        "sub_tf":                 "5m",
+    },
+}
+
+# Orden de evaluacion en el main loop (secuencial)
+TIMEFRAMES = ("5m", "15m", "1h")
+
+# Aliases legacy: comandos manuales y paths admin siguen usando 15m por default.
+TIMEFRAME             = "15m"
+INTRA_CANDLE_MINUTES  = TF_PROFILES["15m"]["INTRA_CANDLE_MINUTES"]
+SIGNAL_COOLDOWN_HOURS = TF_PROFILES["15m"]["SIGNAL_COOLDOWN_MINUTES"] / 60.0
+PMASTER_MIN           = TF_PROFILES["15m"]["PMASTER_MIN"]
 
 # ============================================================
 # FEATURE FLAGS v4.1.1 - ICT/SMC Refactor
@@ -119,7 +166,9 @@ RR_MIN_TP_DIVINO    = 1.8
 # Auto-enable cuando los modulos ICT/SMC cargan; permite override explicito.
 _ict_default = "1" if ICT_MODULES_AVAILABLE else "0"
 ENABLE_ICT_LAYER     = os.environ.get("FQ_ENABLE_ICT", _ict_default) == "1"
-ENABLE_FIELD_REPORTS = os.environ.get("FQ_ENABLE_FIELD", _ict_default) == "1"
+# Reportes de campo automaticos desactivados: con 3 TFs emitiendo, los reportes
+# "no hubo senal" se vuelven ruido. El comando /campo sigue disponible bajo demanda.
+ENABLE_FIELD_REPORTS = False
 WEEKEND_VETO_LEGACY  = os.environ.get("FQ_WEEKEND_VETO", "1") == "1"
 # Cuando ENABLE_ICT_LAYER=1, evaluate_setup delega a fusion_engine.evaluate_signal
 
@@ -156,23 +205,41 @@ G = {
 # ============================================================
 # GLOBAL STATE
 # ============================================================
+def _tf_dict(default=None):
+    """Helper: dict por TF inicializado con valor default (factory si callable)."""
+    return {tf: (default() if callable(default) else default) for tf in TIMEFRAMES}
+
 class BotState:
     def __init__(self):
         self.start_time           = datetime.now(timezone.utc)
+        # ---- Singular (backward compat con comandos admin /status, /audit, heartbeat) ----
+        # Refleja la senal/eval mas reciente entre todos los TFs.
         self.last_signal_ts       = None
         self.last_signal_dir      = None
         self.last_signal_price    = 0.0
         self.last_signal_levels   = None
-        self.last_score_result    = None   # capa ML v4.3
-        self.last_regime          = None   # capa ML v4.3
+        self.last_score_result    = None
+        self.last_regime          = None
+        self.last_eval_ts         = None
+        self.last_eval_result     = "Esperando primera vela"
+        self.last_eval_diagnostic = {}
+        # ---- Per-TF (multi-TF emission v4.4) ----
+        # Cada TF mantiene su propio cooldown y diagnostico de eval independiente.
+        self.last_signal_ts_tf       = _tf_dict(None)
+        self.last_signal_dir_tf      = _tf_dict(None)
+        self.last_signal_price_tf    = _tf_dict(0.0)
+        self.last_signal_levels_tf   = _tf_dict(None)
+        self.last_score_result_tf    = _tf_dict(None)
+        self.last_regime_tf          = _tf_dict(None)
+        self.last_eval_ts_tf         = _tf_dict(None)
+        self.last_eval_result_tf     = _tf_dict("Esperando primera vela")
+        self.last_eval_diagnostic_tf = _tf_dict(dict)
+        # ---- Globales cross-TF ----
         self.signals_today        = 0
         self.signals_total        = 0
         self.last_btc_chg         = 0.0
         self.last_eth_chg         = 0.0
         self.last_sol_price       = 0.0
-        self.last_eval_ts         = None
-        self.last_eval_result     = "Esperando primera vela"
-        self.last_eval_diagnostic = {}
         self.telegram_offset      = 0
         self.day_marker           = None
         self.lock                 = threading.Lock()
@@ -1518,7 +1585,9 @@ def cmd_analisis(exchange):
 # ============================================================
 # EVALUATE SETUP - signal engine
 # ============================================================
-def evaluate_setup(exchange, intra=False):
+def evaluate_setup(exchange, tf_id="15m", intra=False):
+    """Punto de entrada para evaluar un setup en un TF especifico.
+    tf_id: '5m'/'15m'/'1h'. Default '15m' por compat con llamadas legacy."""
     # ============================================================
     # WEEKEND VETO - aplica a ambos flujos
     # ============================================================
@@ -1528,8 +1597,10 @@ def evaluate_setup(exchange, intra=False):
                 wk = killzones_pd.weekend_status()
                 msg = "WEEKEND VETO: mercado cerrado ({} {:.1f}UTC)".format(
                     wk["weekday_label"], wk["hour_utc"])
+                STATE.last_eval_result_tf[tf_id] = msg
                 STATE.last_eval_result = msg
-                STATE.last_eval_diagnostic = {"stage": "weekend_veto", "reason": msg}
+                STATE.last_eval_diagnostic = {"stage": "weekend_veto", "reason": msg, "tf_id": tf_id}
+                STATE.last_eval_diagnostic_tf[tf_id] = STATE.last_eval_diagnostic
                 return False
         except Exception:
             pass
@@ -1538,7 +1609,7 @@ def evaluate_setup(exchange, intra=False):
     # CIRUGIA v4.1.1: delegate a fusion_engine cuando ICT layer ON
     # ============================================================
     if ENABLE_ICT_LAYER and ICT_MODULES_AVAILABLE:
-        return _evaluate_setup_v411(exchange, intra)
+        return _evaluate_setup_v411(exchange, tf_id=tf_id, intra=intra)
 
     # ============================================================
     # FLUJO LEGACY (cuando flag OFF) - INTACTO
@@ -1752,84 +1823,118 @@ def evaluate_setup(exchange, intra=False):
 # ============================================================
 # v4.1.1 — _evaluate_setup_v411 (delegate al fusion_engine)
 # ============================================================
-def _evaluate_setup_v411(exchange, intra=False):
+def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
     """
-    Flujo v4.1.1: construye FieldState multi-TF y delega a fusion_engine.
-    
+    Flujo v4.1.1 multi-TF: construye FieldState multi-TF y delega a fusion_engine.
+
+    tf_id: timeframe primario ("5m" / "15m" / "1h"). Determina el perfil de
+    cooldown, intra-vela, volumen y P_master, y los TFs de contexto.
+
     El motor matematico (P_master = phi*W*H_lap*...) se mantiene INTACTO,
-    pero ahora vive dentro de fusion_engine.evaluate_signal y opera POST 
+    pero ahora vive dentro de fusion_engine.evaluate_signal y opera POST
     cuatro fases A/B/C/D (sesgo, liquidez, confluencia, killzone+CRT+memoria).
     """
+    profile = TF_PROFILES[tf_id]
+    tf_label = profile["label"]
+    tf_pmin = profile["PMASTER_MIN"]
+    ctx_mid = profile["context_mid"]
+    ctx_high = profile["context_high"]
+    sub_tf = profile["sub_tf"]
     try:
-        # 1. Fetch multi-TF
-        df_15m = fetch_ohlcv(exchange, SYMBOL, "15m", limit=200)
-        df_15m = add_indicators(df_15m)
-        if len(df_15m) < 50:
-            STATE.last_eval_result = "Datos insuficientes 15m"
+        # 1. Fetch multi-TF segun perfil
+        df_primary = fetch_ohlcv(exchange, SYMBOL, tf_id, limit=200)
+        df_primary = add_indicators(df_primary)
+        if len(df_primary) < 50:
+            msg = "Datos insuficientes {}".format(tf_id)
+            STATE.last_eval_result_tf[tf_id] = msg
+            STATE.last_eval_result = msg
             return False
-        df_1h = fetch_ohlcv(exchange, SYMBOL, "1h", limit=100)
-        df_1h = add_indicators(df_1h)
-        df_4h = fetch_ohlcv(exchange, SYMBOL, "4h", limit=100)
-        df_4h = add_indicators(df_4h)
+        df_ctx_mid = fetch_ohlcv(exchange, SYMBOL, ctx_mid, limit=100)
+        df_ctx_mid = add_indicators(df_ctx_mid)
+        df_ctx_high = fetch_ohlcv(exchange, SYMBOL, ctx_high, limit=100)
+        df_ctx_high = add_indicators(df_ctx_high)
         try:
-            df_1m = fetch_ohlcv(exchange, SYMBOL, "1m", limit=30)
-            df_1m = add_indicators(df_1m)
+            df_sub = fetch_ohlcv(exchange, SYMBOL, sub_tf, limit=30)
+            df_sub = add_indicators(df_sub)
         except Exception:
-            df_1m = None  # 1m es opcional para CRT
+            df_sub = None  # sub-TF es opcional para CRT
 
-        price = float(df_15m["close"].iloc[-1])
+        price = float(df_primary["close"].iloc[-1])
         with STATE.lock:
             STATE.last_sol_price = price
-            STATE.last_eval_ts = datetime.now(timezone.utc)
+            now = datetime.now(timezone.utc)
+            STATE.last_eval_ts_tf[tf_id] = now
+            STATE.last_eval_ts = now
 
-        # 2. Config a fusion_engine
+        # 2. Config a fusion_engine (incluye tf_id para bucket keys y PMASTER por TF)
         config = {
             "PHI":              PHI,
-            "PMASTER_MIN":      PMASTER_MIN,
+            "PMASTER_MIN":      tf_pmin,
             "RR_MIN_TP_DIVINO": RR_MIN_TP_DIVINO,
+            "TF_ID":            tf_id,
+            "TF_LABEL":         tf_label,
+            "PULLBACK_VOL_MULT": profile["PULLBACK_VOL_MULT"],
+            "BREAKOUT_VOL_MULT": profile["BREAKOUT_VOL_MULT"],
         }
 
-        # 3. Delegate principal
+        # 3. Delegate principal. Pasamos primary/ctx_mid/ctx_high/sub manteniendo
+        # los nombres posicionales df_15m, df_1h, df_4h, df_1m por compat con
+        # fusion_engine que opera sobre estos roles, independiente del TF concreto.
         fire, field, report = fusion_engine.evaluate_signal(
-            df_15m, df_1h, df_4h, df_1m,
+            df_primary, df_ctx_mid, df_ctx_high, df_sub,
             detect_pspace, laplacian_check, calculate_levels,
             config, intra=intra
         )
 
-        # 4. Logging unificado
+        # 4. Logging unificado por TF
         decision = report.get("decision", "?")
-        log.info("EVAL v4.1.1 ${:.2f} | {} | {}".format(
-            price, decision.upper(), field.summary_line()))
-        STATE.last_eval_diagnostic = {
+        log.info("EVAL v4.1.1 [{}/{}] ${:.2f} | {} | {}".format(
+            tf_label, tf_id, price, decision.upper(), field.summary_line()))
+        diag = {
             "stage":  decision,
             "reason": report.get("reason", ""),
             "price":  price,
+            "tf_id":  tf_id,
+            "tf_label": tf_label,
             "field_summary": field.summary_line(),
             "decision_report": {k: v for k, v in report.items()
                                 if k not in ("masses", "lap")},
         }
+        STATE.last_eval_diagnostic_tf[tf_id] = diag
+        STATE.last_eval_diagnostic = diag
 
-        # 5. Disparo o reporte de campo
+        # 5. Disparo (los reportes-campo automaticos estan apagados; /campo sigue manual)
         if fire:
-            # SENAL ALINEADA — broadcast con plantilla Capa 5
-            msg = field_reports.build_signal_report(field, report)
+            # SENAL ALINEADA — broadcast con plantilla Capa 5 etiquetada por TF
+            msg = field_reports.build_signal_report(
+                field, report, tf_label=tf_label, tf_id=tf_id, pmin=tf_pmin
+            )
             bsent, _ = broadcast_to_subscribers(msg)
             if bsent > 0:
                 pm_data = report["p_master_data"]
                 levels = report["levels"]
                 direction = report["direction"]
                 with STATE.lock:
-                    STATE.last_signal_ts = datetime.now(timezone.utc)
-                    STATE.last_signal_dir = direction
-                    STATE.last_signal_price = levels["entry"]
+                    now = datetime.now(timezone.utc)
+                    # Per-TF (cooldown independiente por TF)
+                    STATE.last_signal_ts_tf[tf_id]     = now
+                    STATE.last_signal_dir_tf[tf_id]    = direction
+                    STATE.last_signal_price_tf[tf_id]  = levels["entry"]
+                    STATE.last_signal_levels_tf[tf_id] = levels
+                    STATE.last_score_result_tf[tf_id]  = report.get("score")
+                    STATE.last_regime_tf[tf_id]        = report.get("regime")
+                    STATE.last_eval_result_tf[tf_id]   = "SENAL [{}]: {} @ ${:.2f} P={:.2f}".format(
+                        tf_id, direction.upper(), levels["entry"], pm_data["p_master"])
+                    # Singular: refleja la senal mas reciente cross-TF
+                    STATE.last_signal_ts     = now
+                    STATE.last_signal_dir    = direction
+                    STATE.last_signal_price  = levels["entry"]
                     STATE.last_signal_levels = levels
-                    STATE.signals_today += 1
-                    STATE.signals_total += 1
-                    # Persistir metadata ML para /atribucion y /regimen
-                    STATE.last_score_result = report.get("score")
-                    STATE.last_regime = report.get("regime")
-                    STATE.last_eval_result = "SENAL v4.1.1: {} @ ${:.2f} P={:.2f}".format(
-                        direction.upper(), levels["entry"], pm_data["p_master"])
+                    STATE.signals_today     += 1
+                    STATE.signals_total     += 1
+                    STATE.last_score_result  = report.get("score")
+                    STATE.last_regime        = report.get("regime")
+                    STATE.last_eval_result   = STATE.last_eval_result_tf[tf_id]
 
                 # 6. LEDGER v2 con FieldState completo
                 try:
@@ -1854,11 +1959,14 @@ def _evaluate_setup_v411(exchange, intra=False):
                         "rsi6":              0, "rsi12": 0, "rsi24": 0,
                         "h_lap_active":      1 if report["lap"]["active"] else 0,
                         "alpha_hybrid":      pm_data["alpha_hybrid"],
+                        "tf_id":             tf_id,
                         "snapshot": {
                             "field": field.summary_line(),
                             "confluence": field.confluence_list,
                             "levels": levels,
                             "intra": intra,
+                            "tf_id": tf_id,
+                            "tf_label": tf_label,
                         },
                     }
                     # Prefiere log_signal_v3 (con concepts ICT) si disponible
@@ -1910,7 +2018,7 @@ def _evaluate_setup_v411(exchange, intra=False):
                                         "total": field.confluence_count},
                             "liquidez": {"rsi6": 0, "rsi12": 0, "rsi24": 0},
                         }
-                        snapshot = mctx.snapshot_for_signal(df_15m, signal_data, decoh)
+                        snapshot = mctx.snapshot_for_signal(df_primary, signal_data, decoh)
                         opus_reading = claude_ai.signal_copilot(snapshot)
                         if opus_reading:
                             opus_msg = (
@@ -1926,19 +2034,18 @@ def _evaluate_setup_v411(exchange, intra=False):
                 return True
             return False
         else:
-            # NO HAY SENAL — reporte de campo si flag ON, solo a admin/VIP
-            if ENABLE_FIELD_REPORTS and decision in ("field_only", "math_below_threshold", "rr_insufficient"):
-                try:
-                    msg = field_reports.build_field_only_report(field, report)
-                    broadcast_to_subscribers(msg, tiers=["admin", "vip"])
-                except Exception as e:
-                    log.error("Field report build: {}".format(e))
-            STATE.last_eval_result = "v4.1.1 {} | {}".format(
-                decision, report.get("reason", "")[:80])
+            # NO HAY SENAL: silenciar. Reportes de campo automaticos quedan desactivados
+            # (constante ENABLE_FIELD_REPORTS=False) - el comando manual /campo sigue vivo.
+            msg = "v4.1.1 [{}] {} | {}".format(
+                tf_id, decision, report.get("reason", "")[:80])
+            STATE.last_eval_result_tf[tf_id] = msg
+            STATE.last_eval_result = msg
             return False
     except Exception as e:
-        log.error("_evaluate_setup_v411: {}\n{}".format(e, traceback.format_exc()))
-        STATE.last_eval_result = "v4.1.1 EXCEPTION: " + str(e)[:80]
+        log.error("_evaluate_setup_v411[{}]: {}\n{}".format(tf_id, e, traceback.format_exc()))
+        msg = "v4.1.1 [{}] EXCEPTION: {}".format(tf_id, str(e)[:80])
+        STATE.last_eval_result_tf[tf_id] = msg
+        STATE.last_eval_result = msg
         return False
 
 # ============================================================
@@ -2737,14 +2844,21 @@ def cmd_campo(exchange):
 
 def evolution_periodic_hook(exchange):
     """
-    Hook llamado en cada vela nueva del main loop.
-    1. Reconcilia outcomes pendientes
+    Hook llamado cuando alguno de los TFs cierra vela nueva.
+    1. Reconcilia outcomes pendientes en CADA TF (cada uno usa sus propias velas)
     2. Notifica cierres relevantes (TP3+ o SL grande)
     3. Trigger self-audit si toca (cada 25 cerradas)
     4. Backup ledger si toca (cada 10 totales)
     """
     try:
-        closed = ev.reconcile_outcomes(fetch_ohlcv, exchange, SYMBOL, TIMEFRAME)
+        closed = []
+        # Reconciliar por TF: cada outcome se resuelve contra las velas del TF
+        # que origino la senal (5m signal vs 5m candles, 1h vs 1h, etc.).
+        for tf_id in TIMEFRAMES:
+            try:
+                closed.extend(ev.reconcile_outcomes(fetch_ohlcv, exchange, SYMBOL, tf_id))
+            except Exception as e:
+                log.error("reconcile [{}] error: {}".format(tf_id, e))
         for c in closed:
             outcome = c["outcome"]
             relevant = (
@@ -2839,6 +2953,13 @@ def main():
             log.info("Schema v3 ICT concepts + Thompson migrado")
         except Exception as e:
             log.warning("migrate_schema_v3: {}".format(e))
+    # Migracion schema v4 (idempotente - dimension TF para emision multi-timeframe)
+    if hasattr(ev, "migrate_schema_v4"):
+        try:
+            ev.migrate_schema_v4()
+            log.info("Schema v4 tf_id migrado")
+        except Exception as e:
+            log.warning("migrate_schema_v4: {}".format(e))
     log.info("Evolution ledger: {}".format(ev.DB_PATH))
     log.info("ICT layer:    {}".format("ON" if (ENABLE_ICT_LAYER and ICT_MODULES_AVAILABLE) else "OFF"))
     log.info("Weekend veto: {}".format("ON" if WEEKEND_VETO_LEGACY else "OFF"))
@@ -2928,46 +3049,62 @@ def main():
     t = threading.Thread(target=command_listener, args=(exchange,), daemon=True)
     t.start()
 
-    last_candle_ts = None
-    last_intra_ts  = None
-    last_signal_ts = None
-    cooldown = timedelta(hours=SIGNAL_COOLDOWN_HOURS)
+    # Estado por TF: cada TF rastrea su propia vela actual, intra-ts y cooldown
+    last_candle_ts = {tf: None for tf in TIMEFRAMES}
+    last_intra_ts  = {tf: None for tf in TIMEFRAMES}
+    cooldowns = {tf: timedelta(minutes=TF_PROFILES[tf]["SIGNAL_COOLDOWN_MINUTES"])
+                 for tf in TIMEFRAMES}
 
-    log.info("Main loop started")
+    log.info("Main loop started - multi-TF: {}".format(", ".join(
+        "{}({})".format(tf, TF_PROFILES[tf]["label"]) for tf in TIMEFRAMES)))
     while True:
         try:
-            df_check = fetch_ohlcv(exchange, SYMBOL, TIMEFRAME, limit=2)
-            current_ts = df_check["timestamp"].iloc[-1]
             now_utc = datetime.now(timezone.utc)
-            candle_dt = current_ts.to_pydatetime().replace(tzinfo=timezone.utc)
-            elapsed_min = (now_utc - candle_dt).total_seconds() / 60.0
+            any_new_candle = False  # Para evolution_periodic_hook
 
-            is_new_candle  = (last_candle_ts is None or current_ts > last_candle_ts)
-            is_intra_ready = (elapsed_min >= INTRA_CANDLE_MINUTES and
-                              last_intra_ts != current_ts and
-                              not is_new_candle)
+            # Iteracion secuencial sobre los 3 TFs. Cooldowns independientes por TF:
+            # una senal en 5m NO bloquea 15m ni 1h. Intencional - no se pierde
+            # ninguna oportunidad inter-TF.
+            for tf_id in TIMEFRAMES:
+                try:
+                    df_check = fetch_ohlcv(exchange, SYMBOL, tf_id, limit=2)
+                    current_ts = df_check["timestamp"].iloc[-1]
+                    candle_dt = current_ts.to_pydatetime().replace(tzinfo=timezone.utc)
+                    elapsed_min = (now_utc - candle_dt).total_seconds() / 60.0
+                    intra_threshold = TF_PROFILES[tf_id]["INTRA_CANDLE_MINUTES"]
 
-            if is_new_candle:
-                last_candle_ts = current_ts
-                last_intra_ts  = None
-                log.info("New candle closed: {}".format(current_ts))
+                    is_new_candle  = (last_candle_ts[tf_id] is None or
+                                      current_ts > last_candle_ts[tf_id])
+                    is_intra_ready = (elapsed_min >= intra_threshold and
+                                      last_intra_ts[tf_id] != current_ts and
+                                      not is_new_candle)
 
-            should_eval = is_new_candle or is_intra_ready
-            eval_intra  = is_intra_ready and not is_new_candle
+                    if is_new_candle:
+                        last_candle_ts[tf_id] = current_ts
+                        last_intra_ts[tf_id]  = None
+                        any_new_candle = True
+                        log.info("[{}] New candle closed: {}".format(tf_id, current_ts))
 
-            if should_eval:
-                if eval_intra:
-                    log.info("Intra-candle eval at {:.1f}m".format(elapsed_min))
-                    last_intra_ts = current_ts
-                if last_signal_ts and (now_utc - last_signal_ts) < cooldown:
-                    rem = cooldown - (now_utc - last_signal_ts)
-                    log.info("Cooldown active: {}".format(rem))
-                else:
-                    if evaluate_setup(exchange, intra=eval_intra):
-                        last_signal_ts = now_utc
+                    should_eval = is_new_candle or is_intra_ready
+                    eval_intra  = is_intra_ready and not is_new_candle
 
-            # EVOLUTION HOOK - una vez por vela nueva
-            if is_new_candle:
+                    if should_eval:
+                        if eval_intra:
+                            log.info("[{}] Intra-candle eval at {:.1f}m".format(tf_id, elapsed_min))
+                            last_intra_ts[tf_id] = current_ts
+                        last_ts = STATE.last_signal_ts_tf.get(tf_id)
+                        if last_ts and (now_utc - last_ts) < cooldowns[tf_id]:
+                            rem = cooldowns[tf_id] - (now_utc - last_ts)
+                            log.info("[{}] Cooldown active: {}".format(tf_id, rem))
+                        else:
+                            evaluate_setup(exchange, tf_id=tf_id, intra=eval_intra)
+                            # last_signal_ts_tf se actualiza dentro de _evaluate_setup_v411
+                            # cuando la senal efectivamente dispara y broadcastea.
+                except Exception as e:
+                    log.error("Eval [{}] error: {}".format(tf_id, e))
+
+            # EVOLUTION HOOK - corre si alguno de los TFs cerro vela nueva
+            if any_new_candle:
                 evolution_periodic_hook(exchange)
 
             # Reset diario de signals_today
@@ -2991,14 +3128,17 @@ def main():
                 except Exception as e:
                     log.warning("Crypto polling error: {}".format(e))
 
-            # Heartbeat cada hora
+            # Heartbeat cada hora con estado por TF
             now_h = int(now_utc.timestamp()) // 3600
             if not hasattr(STATE, "_last_heartbeat_h") or STATE._last_heartbeat_h != now_h:
                 STATE._last_heartbeat_h = now_h
-                d = STATE.last_eval_diagnostic or {}
-                log.info("HEARTBEAT | Senales hoy:{} total:{} | Ultima eval: {} | {}".format(
+                tf_summaries = []
+                for tf in TIMEFRAMES:
+                    d_tf = STATE.last_eval_diagnostic_tf.get(tf) or {}
+                    tf_summaries.append("{}={}".format(tf, d_tf.get("stage", "?")))
+                log.info("HEARTBEAT | Senales hoy:{} total:{} | TFs: {}".format(
                     STATE.signals_today, STATE.signals_total,
-                    d.get("stage", "?"), d.get("reason", "")))
+                    " ".join(tf_summaries)))
 
             time.sleep(LOOP_SECONDS)
         except KeyboardInterrupt:

@@ -171,12 +171,20 @@ def tier_from_pmaster(p_master):
     if p_master >= PHI:       return "scalp"
     return "subthreshold"
 
-def make_bucket_key(session, tier, direction, curvature_sign):
+_BUCKET_ANCHOR_TF = "15m"  # TF que preserva memoria historica (sin sufijo)
+
+def make_bucket_key(session, tier, direction, curvature_sign, tf_id=None):
     """
-    bucket = sesion + tier + direccion + signo de curvatura
+    bucket = sesion + tier + direccion + signo de curvatura [+ timeframe]
     curvature_sign: 'pos' si support_w > resistance_w, 'neg' al reves, 'flat' si ~0
+    tf_id: timeframe opcional. Si es '15m' (anchor) se omite el sufijo para
+    preservar continuidad con buckets historicos pre-multi-TF; 5m y 1h
+    reciben sufijo para segregar memoria (cold start intencional).
     """
-    return "{}|{}|{}|{}".format(session, tier, direction, curvature_sign)
+    base = "{}|{}|{}|{}".format(session, tier, direction, curvature_sign)
+    if tf_id and tf_id != _BUCKET_ANCHOR_TF:
+        return "{}|{}".format(base, tf_id)
+    return base
 
 def curvature_sign(support_w, resistance_w):
     diff = support_w - resistance_w
@@ -1173,6 +1181,40 @@ ALTER TABLE signals ADD COLUMN kappa_method       TEXT;
 CREATE INDEX IF NOT EXISTS idx_bucket_v3 ON signals(bucket_key_v3);
 """
 
+# ============================================================
+# SCHEMA v4 - dimension TF para emision multi-timeframe
+# ============================================================
+SCHEMA_V4_MIGRATION = """
+ALTER TABLE signals ADD COLUMN tf_id TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_tf_id ON signals(tf_id);
+"""
+
+def migrate_schema_v4():
+    """Agrega columna tf_id y backfilla filas historicas a '15m' (SOL/15m era el
+    universo pre-refactor). Idempotente."""
+    with _lock:
+        conn = _connect()
+        try:
+            for stmt in SCHEMA_V4_MIGRATION.strip().split(";"):
+                s = stmt.strip()
+                if not s:
+                    continue
+                try:
+                    conn.execute(s)
+                except sqlite3.OperationalError as e:
+                    if "duplicate column" not in str(e).lower():
+                        log.warning("schema_v4 migration: {}".format(e))
+            # Backfill: filas pre-refactor son todas SOL/15m
+            try:
+                conn.execute("UPDATE signals SET tf_id='15m' WHERE tf_id IS NULL")
+            except sqlite3.OperationalError as e:
+                log.warning("schema_v4 backfill: {}".format(e))
+            conn.commit()
+            log.info("Schema v4 (tf_id) migrado/verificado")
+        finally:
+            conn.close()
+
 def migrate_schema_v3():
     """Idempotente. Safe correr varias veces."""
     with _lock:
@@ -1226,20 +1268,28 @@ def decode_concepts_flags(flags_str):
                 break
     return out
 
-def make_bucket_key_v3(killzone, tier, direction, pd_zone, hierarchy, concepts_dict):
+def make_bucket_key_v3(killzone, tier, direction, pd_zone, hierarchy, concepts_dict, tf_id=None):
     """
     Bucket multi-dimensional. Concepts compactado al final.
     Granular pero manageable - el audit puede agregar por dimension.
+    tf_id: 15m (anchor) omite sufijo para continuidad con buckets historicos;
+    5m y 1h reciben sufijo para segregar memoria.
     """
     base = "{}|{}|{}|{}|{}".format(
         killzone, tier, direction, pd_zone, hierarchy
     )
     concepts = encode_concepts_flags(concepts_dict)
-    return "{}|{}".format(base, concepts)
+    key = "{}|{}".format(base, concepts)
+    if tf_id and tf_id != _BUCKET_ANCHOR_TF:
+        return "{}|{}".format(key, tf_id)
+    return key
 
-def make_bucket_key_v3_coarse(killzone, tier, direction):
+def make_bucket_key_v3_coarse(killzone, tier, direction, tf_id=None):
     """Coarse: usado para fallback cuando v3 detallado no tiene n suficiente"""
-    return "{}|{}|{}|coarse".format(killzone, tier, direction)
+    base = "{}|{}|{}|coarse".format(killzone, tier, direction)
+    if tf_id and tf_id != _BUCKET_ANCHOR_TF:
+        return "{}|{}".format(base, tf_id)
+    return base
 
 # ============================================================
 # THOMPSON SAMPLING - bandit kappa_evo
@@ -1357,15 +1407,18 @@ def log_signal_v3(signal_data, field_state, concepts_dict, weekend_flag=False,
         field_json = _json.dumps(field_dict, default=str)[:50000]
 
         tier = tier_from_pmaster(signal_data["p_master_raw"])
+        tf_id = signal_data.get("tf_id")  # opcional: separa memorias 5m/15m/1h
         bucket_key_legacy = signal_data.get("bucket_key", make_bucket_key(
             signal_data["session"], tier, signal_data["direction"],
             curvature_sign(signal_data.get("support_weight", 0),
-                          signal_data.get("resistance_weight", 0))
+                          signal_data.get("resistance_weight", 0)),
+            tf_id=tf_id,
         ))
-        bucket_key_v2 = field_state.bucket_key_v2(tier, signal_data["direction"])
+        bucket_key_v2 = field_state.bucket_key_v2(tier, signal_data["direction"], tf_id=tf_id)
         bucket_key_v3 = make_bucket_key_v3(
             field_state.killzone, tier, signal_data["direction"],
-            field_state.pd_zone, field_state.pd_hierarchy, concepts_dict
+            field_state.pd_zone, field_state.pd_hierarchy, concepts_dict,
+            tf_id=tf_id,
         )
         concepts_flags = encode_concepts_flags(concepts_dict)
 
@@ -1384,10 +1437,10 @@ def log_signal_v3(signal_data, field_state, concepts_dict, weekend_flag=False,
                         alpha_hybrid, w_killzone, field_snapshot,
                         bucket_key_v3, concepts_flags, had_breaker, had_mss,
                         had_inducement, had_pwr3, had_bpr, had_ote_strict,
-                        had_displacement, weekend_flag, kappa_method
+                        had_displacement, weekend_flag, kappa_method, tf_id
                     ) VALUES (?,?,?,?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?,?,
                               ?,?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,
-                              ?,?,?,?, ?,?,?,?, ?,?,?)
+                              ?,?,?,?, ?,?,?,?, ?,?,?, ?)
                 """, (
                     datetime.now(timezone.utc).isoformat(),
                     signal_data["direction"], signal_data["entry"], signal_data["sl"],
@@ -1423,10 +1476,12 @@ def log_signal_v3(signal_data, field_state, concepts_dict, weekend_flag=False,
                     1 if concepts_dict.get("displacement") else 0,
                     1 if weekend_flag else 0,
                     kappa_method,
+                    # v4
+                    tf_id or "15m",
                 ))
                 sid = cur.lastrowid
                 conn.commit()
-                log.info("log_signal_v3 #{} bucket_v3={}".format(sid, bucket_key_v3))
+                log.info("log_signal_v3 #{} bucket_v3={} tf={}".format(sid, bucket_key_v3, tf_id or "15m"))
                 return sid
             finally:
                 conn.close()
