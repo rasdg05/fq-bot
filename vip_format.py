@@ -122,6 +122,101 @@ def build_vip_signal(field, decision_report):
     )
 
 # ============================================================
+# /analisis VIP - F1 v5.0 (curated, 3 TPs, sin formulas)
+# ============================================================
+SL_ANCHOR_LABEL_VIP = {
+    "OB_bullish":      "Order Block alcista",
+    "OB_bearish":      "Order Block bajista",
+    "pool_low":        "liquidez sin barrer",
+    "pool_high":       "liquidez sin barrer",
+    "post_sweep_low":  "reaccion post-sweep",
+    "post_sweep_high": "reaccion post-sweep",
+    "swing_low":       "swing low estructural",
+    "swing_high":      "swing high estructural",
+    "FVG_bottom":      "FVG (borde inferior)",
+    "FVG_top":         "FVG (borde superior)",
+    "EMA50":           "EMA50",
+    "low_20":          "low de 20 velas",
+    "high_20":         "high de 20 velas",
+    "ATR_clamp":       "clamp ATR",
+}
+
+TP_KIND_LABEL_VIP = {
+    "pspace_R":     "resistencia",
+    "pspace_S":     "soporte",
+    "BSL_target":   "liquidez",
+    "SSL_target":   "liquidez",
+    "OB_bear":      "Order Block opuesto",
+    "OB_bull":      "Order Block opuesto",
+    "FVG_bear":     "FVG opuesto",
+    "FVG_bull":     "FVG opuesto",
+    "fib_1272":     "extension 1.27",
+    "fib_1618":     "extension 1.62",
+    "fib_fallback": "extension Fib",
+}
+
+def build_vip_analisis(direction, levels, bias, pm_est, last):
+    """
+    Formato VIP del /analisis. Una pantalla, 3 TPs, glyphs Mistral.
+    NO expone P_master crudo - solo conviction score derivado.
+    """
+    side  = "LONG" if direction == "long" else "SHORT"
+    arrow = "▴" if direction == "long" else "▾"
+
+    score = conviction_score(pm_est)
+    label = tier_label(pm_est)
+
+    when = datetime.now(CDMX_TZ).strftime("%H:%M CDMX")
+    rule = "━" * 30
+
+    entry    = levels["entry"]
+    sl       = levels["sl"]
+    risk_pct = (levels["risk"] / entry) * 100 if entry > 0 else 0
+    sla_lbl  = SL_ANCHOR_LABEL_VIP.get(
+        levels.get("sl_anchor", ""), levels.get("sl_anchor", "estructura"))
+
+    tp_meta = levels.get("tp_meta") or []
+    tp_lines = []
+    for i in range(min(3, len(tp_meta))):
+        kind_lbl = TP_KIND_LABEL_VIP.get(tp_meta[i]["kind"], tp_meta[i]["kind"])
+        tp_lines.append("  ▸ TP{n}     ${p:.2f}   R {rr:.2f}   {k}".format(
+            n=i+1, p=tp_meta[i]["price"], rr=tp_meta[i]["rr"], k=kind_lbl))
+    # Si no hay tp_meta (legacy levels), usa keys directas
+    if not tp_lines:
+        for i in range(1, 4):
+            p = levels.get("tp{}".format(i))
+            rr = levels.get("rr_tp{}".format(i), 0)
+            if p is not None:
+                tp_lines.append("  ▸ TP{n}     ${p:.2f}   R {rr:.2f}".format(
+                    n=i, p=p, rr=rr))
+    tps_block = "\n".join(tp_lines)
+
+    return (
+        "{rule}\n"
+        "  ▰ ANALISIS FQ · SOL/USDT\n"
+        "  {when}    ${px:.2f}\n"
+        "{rule}\n"
+        "  {arrow} Sesgo {side}      Conviccion {score}/10\n"
+        "  {label}\n"
+        "\n"
+        "  ▸ Entry   ${entry:.2f}\n"
+        "  ▸ Stop    ${sl:.2f}   ({risk:.2f}%)\n"
+        "    anclado a {sla}\n"
+        "\n"
+        "{tps}\n"
+        "{rule}\n"
+        "  ◆ SL estructural (anti stop-hunt)\n"
+        "  ◆ TPs en liquidez real\n"
+        "{rule}\n"
+        "  #FQ #SOLUSDT #Analisis"
+    ).format(
+        rule=rule, when=when, px=float(last["close"]),
+        arrow=arrow, side=side, score=score, label=label,
+        entry=entry, sl=sl, risk=risk_pct, sla=sla_lbl,
+        tps=tps_block,
+    )
+
+# ============================================================
 # /help y /about TIER-AWARE
 # ============================================================
 def build_help_vip():

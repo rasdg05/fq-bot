@@ -750,6 +750,395 @@ def calculate_levels(df, direction):
     }
 
 # ============================================================
+# LEVELS V2 - SL ANTI STOP-HUNT + TPs ESTRUCTURALES (F1 v5.0)
+# ============================================================
+# Reemplazo opcional de calculate_levels que ancla SL a estructura
+# ICT (OB / liquidity pool / swing low / FVG) y TPs a liquidez real
+# (P-Space resistances, pools no barridos, OB opuestos, Fib extensions).
+# calculate_levels original NO se modifica - cero rupturas.
+
+SL_ANCHOR_LABELS = {
+    "OB_bullish":      "Order Block alcista",
+    "OB_bearish":      "Order Block bajista",
+    "pool_low":        "pool de liquidez (sin barrer)",
+    "pool_high":       "pool de liquidez (sin barrer)",
+    "post_sweep_low":  "reaccion post-sweep (low)",
+    "post_sweep_high": "reaccion post-sweep (high)",
+    "swing_low":       "swing low estructural",
+    "swing_high":      "swing high estructural",
+    "FVG_bottom":      "FVG bullish (borde inferior)",
+    "FVG_top":         "FVG bearish (borde superior)",
+    "EMA50":           "EMA50 (fallback)",
+    "low_20":          "low de 20 velas (fallback)",
+    "high_20":         "high de 20 velas (fallback)",
+    "ATR_clamp":       "clamp ATR (anti-SL excesivo)",
+}
+
+TP_KIND_LABELS = {
+    "pspace_R":       "resistencia P-Space",
+    "pspace_S":       "soporte P-Space",
+    "BSL_target":     "liquidez sin barrer",
+    "SSL_target":     "liquidez sin barrer",
+    "OB_bear":        "Order Block opuesto",
+    "OB_bull":        "Order Block opuesto",
+    "FVG_bear":       "FVG bajista",
+    "FVG_bull":       "FVG alcista",
+    "fib_1272":       "extension 1.272",
+    "fib_1618":       "extension 1.618",
+    "fib_fallback":   "extension Fib",
+}
+
+def _safe_atr(last, entry):
+    """ATR seguro: usa atr14 si existe, sino 0.5% del entry."""
+    atr = last.get("atr14")
+    if atr is None or pd.isna(atr):
+        return entry * 0.005
+    return float(atr)
+
+def _collect_sl_candidates_long(entry, atr, buffer, field_data):
+    """
+    Devuelve lista de candidatos SL para LONG con (price_sl, anchor_label).
+    Ordenados por proximidad al entry (mas cercano primero).
+    """
+    cands = []
+
+    # 1. Order Block bullish valido por debajo del entry
+    ob_bull = field_data.get("ob_bullish")
+    if ob_bull is not None and getattr(ob_bull, "still_valid", True):
+        ob_low = float(ob_bull.low)
+        if ob_low < entry:
+            cands.append((ob_low - buffer, "OB_bullish"))
+
+    # 2. Liquidity pool low
+    pool_l = field_data.get("pool_low")
+    if pool_l is not None and pool_l.price < entry:
+        if not pool_l.swept:
+            cands.append((pool_l.price - buffer, "pool_low"))
+        else:
+            # Sweep ya cumplido - SL mas generoso debajo de la reaccion
+            cands.append((pool_l.price - buffer * 1.5, "post_sweep_low"))
+
+    # 3. Swing low estructural (ultimo pivot low)
+    pivot_lows = field_data.get("pivot_lows") or []
+    if pivot_lows:
+        last_pl = pivot_lows[-1]
+        pl_price = float(last_pl.price) if hasattr(last_pl, "price") else float(last_pl)
+        if pl_price < entry:
+            cands.append((pl_price - buffer, "swing_low"))
+
+    # 4. FVG bullish bottom mas cercano por debajo
+    fvgs = field_data.get("fvgs") or []
+    bull_fvgs_below = [f for f in fvgs
+                      if getattr(f, "direction", "") == "bullish"
+                      and float(f.bottom) < entry]
+    if bull_fvgs_below:
+        closest = max(bull_fvgs_below, key=lambda f: float(f.bottom))
+        cands.append((float(closest.bottom) - buffer * 0.5, "FVG_bottom"))
+
+    # 5. EMA50 fallback
+    ema50 = field_data.get("ema50")
+    if ema50 is not None and ema50 < entry:
+        cands.append((ema50 - buffer, "EMA50"))
+
+    # 6. Low 20 velas - ultimo fallback
+    low_20 = field_data.get("low_20")
+    if low_20 is not None and low_20 < entry:
+        cands.append((low_20 - buffer, "low_20"))
+
+    cands.sort(key=lambda c: entry - c[0])  # mas cercanos primero
+    return cands
+
+def _collect_sl_candidates_short(entry, atr, buffer, field_data):
+    """Simetrico para SHORT - todos los candidatos por encima del entry."""
+    cands = []
+
+    ob_bear = field_data.get("ob_bearish")
+    if ob_bear is not None and getattr(ob_bear, "still_valid", True):
+        ob_high = float(ob_bear.high)
+        if ob_high > entry:
+            cands.append((ob_high + buffer, "OB_bearish"))
+
+    pool_h = field_data.get("pool_high")
+    if pool_h is not None and pool_h.price > entry:
+        if not pool_h.swept:
+            cands.append((pool_h.price + buffer, "pool_high"))
+        else:
+            cands.append((pool_h.price + buffer * 1.5, "post_sweep_high"))
+
+    pivot_highs = field_data.get("pivot_highs") or []
+    if pivot_highs:
+        last_ph = pivot_highs[-1]
+        ph_price = float(last_ph.price) if hasattr(last_ph, "price") else float(last_ph)
+        if ph_price > entry:
+            cands.append((ph_price + buffer, "swing_high"))
+
+    fvgs = field_data.get("fvgs") or []
+    bear_fvgs_above = [f for f in fvgs
+                      if getattr(f, "direction", "") == "bearish"
+                      and float(f.top) > entry]
+    if bear_fvgs_above:
+        closest = min(bear_fvgs_above, key=lambda f: float(f.top))
+        cands.append((float(closest.top) + buffer * 0.5, "FVG_top"))
+
+    ema50 = field_data.get("ema50")
+    if ema50 is not None and ema50 > entry:
+        cands.append((ema50 + buffer, "EMA50"))
+
+    high_20 = field_data.get("high_20")
+    if high_20 is not None and high_20 > entry:
+        cands.append((high_20 + buffer, "high_20"))
+
+    cands.sort(key=lambda c: c[0] - entry)
+    return cands
+
+def _compute_sl_v2(entry, atr, direction, field_data):
+    """
+    Calcula SL anti-stop-hunt anclado a estructura ICT.
+    Devuelve (sl_price, anchor_label).
+    """
+    buffer = max(0.6 * atr, 0.0015 * entry)
+
+    if direction == "long":
+        cands = _collect_sl_candidates_long(entry, atr, buffer, field_data)
+    else:
+        cands = _collect_sl_candidates_short(entry, atr, buffer, field_data)
+
+    if not cands:
+        # Fallback ultimo: 1.5*ATR del entry
+        if direction == "long":
+            return entry - max(1.5 * atr, 0.015 * entry), "ATR_clamp"
+        else:
+            return entry + max(1.5 * atr, 0.015 * entry), "ATR_clamp"
+
+    # De los 3 mas cercanos, tomar el MAS LEJANO (margen anti-hunt)
+    top3 = cands[:3]
+    if direction == "long":
+        sl_price, anchor = min(top3, key=lambda c: c[0])  # menor precio = mas lejos
+    else:
+        sl_price, anchor = max(top3, key=lambda c: c[0])  # mayor precio = mas lejos
+
+    # Sanity clamp: SL no mas alla del 5% del entry
+    sl_dist_pct = abs(entry - sl_price) / entry
+    if sl_dist_pct > 0.05:
+        clamp_dist = min(2.5 * atr, 0.025 * entry)
+        if direction == "long":
+            sl_price = entry - clamp_dist
+        else:
+            sl_price = entry + clamp_dist
+        anchor = "ATR_clamp"
+
+    return sl_price, anchor
+
+def _collect_tp_targets(entry, direction, field_data, pspace):
+    """
+    Recolecta targets candidatos en la direccion del trade.
+    Devuelve list[dict(price, kind, weight)].
+    """
+    targets = []
+    is_long = direction == "long"
+
+    # P-Space masses (resistances arriba para LONG, supports abajo para SHORT)
+    if pspace:
+        if is_long:
+            for m in pspace.get("resistances", []):
+                if m["price"] > entry:
+                    targets.append({"price": float(m["price"]),
+                                    "kind": "pspace_R",
+                                    "weight": float(m.get("weight", 1.0))})
+        else:
+            for m in pspace.get("supports", []):
+                if m["price"] < entry:
+                    targets.append({"price": float(m["price"]),
+                                    "kind": "pspace_S",
+                                    "weight": float(m.get("weight", 1.0))})
+
+    # Liquidity pools NO barridos = BSL/SSL targets (mas peso)
+    if is_long:
+        pool_h = field_data.get("pool_high")
+        if pool_h is not None and not pool_h.swept and pool_h.price > entry:
+            targets.append({"price": float(pool_h.price),
+                            "kind": "BSL_target", "weight": 1.5})
+    else:
+        pool_l = field_data.get("pool_low")
+        if pool_l is not None and not pool_l.swept and pool_l.price < entry:
+            targets.append({"price": float(pool_l.price),
+                            "kind": "SSL_target", "weight": 1.5})
+
+    # Order Block opuesto
+    if is_long:
+        ob_bear = field_data.get("ob_bearish")
+        if ob_bear is not None and ob_bear.still_valid and float(ob_bear.low) > entry:
+            targets.append({"price": float(ob_bear.low),
+                            "kind": "OB_bear", "weight": 1.2})
+    else:
+        ob_bull = field_data.get("ob_bullish")
+        if ob_bull is not None and ob_bull.still_valid and float(ob_bull.high) < entry:
+            targets.append({"price": float(ob_bull.high),
+                            "kind": "OB_bull", "weight": 1.2})
+
+    # FVG opuestos
+    fvgs = field_data.get("fvgs") or []
+    if is_long:
+        bear_fvgs = [f for f in fvgs if f.direction == "bearish" and float(f.bottom) > entry]
+        for f in bear_fvgs:
+            targets.append({"price": float(f.bottom), "kind": "FVG_bear", "weight": 0.9})
+    else:
+        bull_fvgs = [f for f in fvgs if f.direction == "bullish" and float(f.top) < entry]
+        for f in bull_fvgs:
+            targets.append({"price": float(f.top), "kind": "FVG_bull", "weight": 0.9})
+
+    # Fib extensions 127.2% y 161.8%
+    swing_high = field_data.get("swing_high_recent")
+    swing_low = field_data.get("swing_low_recent")
+    if swing_high is not None and swing_low is not None and swing_high > swing_low:
+        rng = swing_high - swing_low
+        if is_long:
+            targets.append({"price": swing_low + rng * 1.272,
+                            "kind": "fib_1272", "weight": 0.8})
+            targets.append({"price": swing_low + rng * 1.618,
+                            "kind": "fib_1618", "weight": 0.8})
+        else:
+            targets.append({"price": swing_high - rng * 1.272,
+                            "kind": "fib_1272", "weight": 0.8})
+            targets.append({"price": swing_high - rng * 1.618,
+                            "kind": "fib_1618", "weight": 0.8})
+
+    return targets
+
+def _pick_tp_in_band(targets, entry, risk, rr_min, rr_max, prefer_kinds, direction):
+    """
+    Encuentra el mejor TP dentro del rango R:R [rr_min, rr_max].
+    1) Filtra targets con kind en prefer_kinds y R dentro de banda
+    2) Si no hay, prueba sin filtro de kind
+    3) Si tampoco, devuelve None
+    """
+    is_long = direction == "long"
+
+    def in_band(t):
+        if is_long and t["price"] <= entry: return False
+        if not is_long and t["price"] >= entry: return False
+        rr = abs(t["price"] - entry) / risk if risk > 0 else 0
+        return rr_min <= rr <= rr_max
+
+    in_band_list = [t for t in targets if in_band(t)]
+    if not in_band_list:
+        return None
+
+    preferred = [t for t in in_band_list if t["kind"] in prefer_kinds]
+    pool = preferred if preferred else in_band_list
+
+    if is_long:
+        return min(pool, key=lambda t: -t["weight"] * 1000 + t["price"])
+    return min(pool, key=lambda t: -t["weight"] * 1000 - t["price"])
+
+def _compute_tps_v2(entry, sl, direction, field_data, pspace):
+    """
+    Calcula TPs anclados a liquidez/estructura real.
+    Devuelve list de 4 dicts: [{price, kind, rr}, ...]
+    """
+    risk = abs(entry - sl)
+    if risk <= 0:
+        return []
+
+    targets = _collect_tp_targets(entry, direction, field_data, pspace)
+    tps = []
+
+    bands = [
+        (1.2, 2.0, ["BSL_target", "SSL_target", "pspace_R", "pspace_S", "OB_bear", "OB_bull"]),
+        (2.0, 3.5, ["BSL_target", "SSL_target", "fib_1272", "pspace_R", "pspace_S"]),
+        (3.5, 100, ["fib_1618", "fib_1272", "pspace_R", "pspace_S"]),
+        (5.0, 100, ["fib_1618", "fib_1272"]),
+    ]
+
+    for rr_min, rr_max, prefer in bands:
+        tp = _pick_tp_in_band(targets, entry, risk, rr_min, rr_max, prefer, direction)
+        if tp is None:
+            # Fallback: Fib sintetico
+            rr_target = (rr_min + min(rr_max, rr_min + 1.0)) / 2
+            if direction == "long":
+                tp = {"price": entry + risk * rr_target, "kind": "fib_fallback",
+                      "weight": 0.5}
+            else:
+                tp = {"price": entry - risk * rr_target, "kind": "fib_fallback",
+                      "weight": 0.5}
+        rr = abs(tp["price"] - entry) / risk
+        tps.append({"price": tp["price"], "kind": tp["kind"], "rr": rr})
+
+    return tps
+
+def _build_field_data_standalone(df_15m, df_1h, df_4h):
+    """
+    Construye field_data dict reutilizando ict_smc detectores cuando esten
+    disponibles. Si no, usa fallbacks basicos.
+    """
+    fd = {}
+    last = df_15m.iloc[-1]
+
+    # Fallbacks basicos siempre disponibles
+    fd["ema50"] = float(last.get("ema50")) if last.get("ema50") is not None and not pd.isna(last.get("ema50")) else None
+    fd["low_20"] = float(df_15m["low"].iloc[-20:].min())
+    fd["high_20"] = float(df_15m["high"].iloc[-20:].max())
+    fd["swing_high_recent"] = float(df_15m["high"].iloc[-50:].max())
+    fd["swing_low_recent"] = float(df_15m["low"].iloc[-50:].min())
+
+    # Detectores ICT si disponibles
+    if ICT_MODULES_AVAILABLE and ict_smc is not None:
+        try:
+            pivot_highs, pivot_lows = ict_smc.find_pivots(df_15m)
+            fd["pivot_highs"] = pivot_highs
+            fd["pivot_lows"] = pivot_lows
+
+            obs = ict_smc.detect_order_blocks(df_15m)
+            fd["ob_bullish"] = obs.get("bullish")
+            fd["ob_bearish"] = obs.get("bearish")
+
+            pool_h, pool_l, recent_sweep = ict_smc.detect_liquidity_pools(
+                df_15m, pivot_highs, pivot_lows)
+            fd["pool_high"] = pool_h
+            fd["pool_low"] = pool_l
+            fd["recent_sweep"] = recent_sweep
+
+            fd["fvgs"] = ict_smc.detect_fvgs(df_15m)
+        except Exception as e:
+            log.warning("ICT detectors fallback (calc_levels_v2): {}".format(e))
+
+    return fd
+
+def calculate_levels_v2(df, direction, df_1h=None, df_4h=None, df_1m=None, pspace=None):
+    """
+    Nueva calculadora de niveles con SL anclado a estructura ICT y TPs
+    anclados a liquidez real. Compatible con calculate_levels (devuelve
+    mismas keys) + extra: sl_anchor, tp_meta, atr.
+    """
+    last = df.iloc[-1]
+    entry = float(last["close"])
+    atr = _safe_atr(last, entry)
+
+    field_data = _build_field_data_standalone(df, df_1h, df_4h)
+
+    sl, anchor = _compute_sl_v2(entry, atr, direction, field_data)
+    tps = _compute_tps_v2(entry, sl, direction, field_data, pspace)
+
+    risk = abs(entry - sl)
+    result = {
+        "entry": entry, "sl": sl,
+        "risk": risk,
+        "atr": atr,
+        "sl_anchor": anchor,
+        "tp_meta": tps,
+    }
+
+    for i in range(4):
+        if i < len(tps):
+            result["tp{}".format(i+1)] = tps[i]["price"]
+            result["rr_tp{}".format(i+1)] = tps[i]["rr"]
+        else:
+            result["tp{}".format(i+1)] = entry
+            result["rr_tp{}".format(i+1)] = 0.0
+
+    return result
+
+# ============================================================
 # TRIGGER PLAN GENERATOR (el corazon de /niveles v3.0)
 # ============================================================
 def build_trigger_plan(df, direction, pspace, bias):
@@ -2197,6 +2586,57 @@ def claude_followup_general(exchange):
         log.error("Claude followup analisis error: {}".format(e))
         return None
 
+def claude_followup_analisis_vip(exchange):
+    """
+    Follow-up Claude VERSION VIP: 4 bullets, max 320 tokens.
+    Snapshot incluye probabilidades QTE cuando esten disponibles (F2).
+    """
+    if not claude_ai.is_available():
+        return None
+    try:
+        df = fetch_ohlcv(exchange, SYMBOL, "15m", limit=200)
+        df = add_indicators(df)
+        last = df.iloc[-1]
+        bias = detect_bias(df)
+        masses = detect_pspace(df)
+
+        if "alcista" in bias["bias"]:
+            direction = "long"
+        elif "bajista" in bias["bias"]:
+            direction = "short"
+        else:
+            direction = "long"
+
+        levels = calculate_levels_v2(df, direction, pspace=masses)
+
+        snapshot = {
+            "price": float(last["close"]),
+            "direction": direction,
+            "bias": bias["bias"],
+            "entry": levels["entry"],
+            "sl": levels["sl"],
+            "sl_anchor": levels.get("sl_anchor", "-"),
+            "tp1": levels["tp1"], "rr_tp1": levels["rr_tp1"],
+            "tp2": levels["tp2"], "rr_tp2": levels["rr_tp2"],
+            "tp3": levels["tp3"], "rr_tp3": levels["rr_tp3"],
+            "pspace_count": masses["count"],
+            "rsi14": float(last.get("rsi14") or 0),
+        }
+        reading = claude_ai.tactical_analisis_vip(snapshot)
+        if not reading:
+            return None
+        rule = "━" * 30
+        return (
+            "{rule}\n"
+            "  ◆ Claude — Lectura breve\n"
+            "{rule}\n"
+            "{r}\n"
+            "{rule}"
+        ).format(rule=rule, r=reading)
+    except Exception as e:
+        log.error("Claude followup analisis VIP error: {}".format(e))
+        return None
+
 def claude_followup_pspace(exchange):
     """Genera lectura Claude para /pspace"""
     if not claude_ai.is_available():
@@ -2418,6 +2858,43 @@ def command_listener(exchange):
                     telegram_send(
                         "Comando no disponible. Usa /help para ver tus comandos.",
                         chat_id)
+                    continue
+
+                # === /analisis TIER-AWARE (F1 v5.0): admin=lectura completa, VIP=curado ===
+                if cmd_name == "/analisis":
+                    tier_loc = "free"
+                    if str(chat_id) == str(TELEGRAM_CHAT_ID):
+                        tier_loc = "admin"
+                    elif VIP_ENABLED and vip is not None:
+                        try:
+                            tier_loc = vip.get_effective_tier(chat_id)
+                        except Exception:
+                            tier_loc = "free"
+
+                    telegram_send("Lectura tactica en proceso - Claude Sonnet 4.6...", chat_id)
+                    try:
+                        if tier_loc == "admin":
+                            response = cmd_lectura(exchange)
+                            fu_fn = claude_followup_general
+                        else:
+                            response = cmd_analisis_vip(exchange)
+                            fu_fn = claude_followup_analisis_vip
+                        send_long(response, chat_id)
+
+                        if claude_ai.is_available():
+                            def _send_fu_analisis(fn=fu_fn, cid=chat_id):
+                                try:
+                                    telegram_send("Claude interpretando datos...", cid)
+                                    fu = fn(exchange)
+                                    if fu:
+                                        send_long(fu, cid)
+                                except Exception as fu_e:
+                                    log.error("Claude fu /analisis err: {}".format(fu_e))
+                            threading.Thread(target=_send_fu_analisis, daemon=True).start()
+                    except Exception as e:
+                        log.error("/analisis tier-aware error: {}\n{}".format(
+                            e, traceback.format_exc()))
+                        telegram_send("Error: {}".format(str(e)[:200]), chat_id)
                     continue
 
                 # === COMANDOS NORMALES (FQ) ===
@@ -2807,7 +3284,8 @@ def cmd_lectura(exchange):
                     direction = "long"  # default neutral
                 dir_glyph = G["long"] if direction == "long" else G["short"]
 
-                levels = calculate_levels(df, direction)
+                # F1 v5.0: niveles anti-stop-hunt con anclaje estructural ICT
+                levels = calculate_levels_v2(df, direction, pspace=masses)
 
                 h_factor = 1.0 if lap["active"] else 0.7
                 pm_est = PHI * w_clock * h_factor * (1 + max(0, masses["count"] - 2) * 0.15)
@@ -2825,16 +3303,23 @@ def cmd_lectura(exchange):
                     cd_str = "listo"
 
                 risk_pct = (levels["risk"] / levels["entry"]) * 100
+                sl_anchor_lbl = SL_ANCHOR_LABELS.get(
+                    levels.get("sl_anchor", ""), levels.get("sl_anchor", "-"))
+                tp_meta = levels.get("tp_meta") or []
+                tp_kinds = [TP_KIND_LABELS.get(t["kind"], t["kind"]) for t in tp_meta[:4]]
+                while len(tp_kinds) < 4:
+                    tp_kinds.append("-")
 
                 block = (
                     "<b>[{lab} {tf}]</b>  Precio: ${px:.2f}\n"
                     "Bias: <b>{b}</b>  Masas P: {mc}  P_est: {pme:.2f}/{pmn:.2f}\n"
                     "Direccion sugerida: {dg} <b>{dir}</b>\n"
                     "Entry: <b>${e:.2f}</b>   SL: ${sl:.2f}  ({rp:.2f}%)\n"
-                    "TP1: ${t1:.2f}  R:R {r1:.2f}\n"
-                    "TP2: ${t2:.2f}  R:R {r2:.2f}\n"
-                    "TP3: ${t3:.2f}  R:R {r3:.2f}\n"
-                    "TP4: ${t4:.2f}  R:R {r4:.2f}\n"
+                    "  anclado a {sla}\n"
+                    "TP1: ${t1:.2f}  R:R {r1:.2f}  ({k1})\n"
+                    "TP2: ${t2:.2f}  R:R {r2:.2f}  ({k2})\n"
+                    "TP3: ${t3:.2f}  R:R {r3:.2f}  ({k3})\n"
+                    "TP4: ${t4:.2f}  R:R {r4:.2f}  ({k4})\n"
                     "Cooldown: {cd}\n"
                 ).format(
                     lab=tf_label, tf=tf_id, px=price,
@@ -2842,10 +3327,11 @@ def cmd_lectura(exchange):
                     pme=pm_est, pmn=pmin,
                     dg=dir_glyph, dir=direction.upper(),
                     e=levels["entry"], sl=levels["sl"], rp=risk_pct,
-                    t1=levels["tp1"], r1=levels["rr_tp1"],
-                    t2=levels["tp2"], r2=levels["rr_tp2"],
-                    t3=levels["tp3"], r3=levels["rr_tp3"],
-                    t4=levels["tp4"], r4=levels["rr_tp4"],
+                    sla=sl_anchor_lbl,
+                    t1=levels["tp1"], r1=levels["rr_tp1"], k1=tp_kinds[0],
+                    t2=levels["tp2"], r2=levels["rr_tp2"], k2=tp_kinds[1],
+                    t3=levels["tp3"], r3=levels["rr_tp3"], k3=tp_kinds[2],
+                    t4=levels["tp4"], r4=levels["rr_tp4"], k4=tp_kinds[3],
                     cd=cd_str,
                 )
                 tf_blocks.append(block)
@@ -2919,6 +3405,52 @@ def cmd_lectura(exchange):
     except Exception as e:
         log.error("cmd_lectura: {}\n{}".format(e, traceback.format_exc()))
         return "Error en lectura: {}".format(str(e)[:200])
+
+# ============================================================
+# /analisis VIP - F1 v5.0 (curado, formato Mistral)
+# ============================================================
+def cmd_analisis_vip(exchange):
+    """
+    Version VIP de /analisis. Muestra solo el TF anchor 15m con
+    formato Mistral curado (sin formulas crudas).
+    """
+    try:
+        df_15m = fetch_ohlcv(exchange, SYMBOL, "15m", limit=200)
+        df_15m = add_indicators(df_15m)
+        if len(df_15m) < 50:
+            return "Datos insuficientes para analisis."
+
+        last = df_15m.iloc[-1]
+        masses = detect_pspace(df_15m)
+        bias = detect_bias(df_15m)
+
+        if "alcista" in bias["bias"]:
+            direction = "long"
+        elif "bajista" in bias["bias"]:
+            direction = "short"
+        else:
+            direction = "long"
+
+        # Conviction estimada simple (sin exponer formulas)
+        session, w_clock, _, _ = get_session()
+        lap = laplacian_check(df_15m)
+        h_factor = 1.0 if lap["active"] else 0.7
+        pm_est = PHI * w_clock * h_factor * (1 + max(0, masses["count"] - 2) * 0.15)
+
+        levels = calculate_levels_v2(df_15m, direction, pspace=masses)
+
+        if VIP_FORMAT_AVAILABLE and vip_format is not None:
+            return vip_format.build_vip_analisis(
+                direction=direction,
+                levels=levels,
+                bias=bias,
+                pm_est=pm_est,
+                last=last,
+            )
+        return "Formato VIP no disponible."
+    except Exception as e:
+        log.error("cmd_analisis_vip: {}\n{}".format(e, traceback.format_exc()))
+        return "Error en analisis VIP: {}".format(str(e)[:200])
 
 def cmd_concepts(exchange=None):
     """Desglose de edge por concepto ICT individual (v3)"""
@@ -3154,9 +3686,9 @@ def main():
     }
 
     # Comandos que reciben follow-up automatico de Claude
+    # NOTA: /analisis usa routing tier-aware en command_listener (NO va aqui)
     global CLAUDE_FOLLOWUP
     CLAUDE_FOLLOWUP = {
-        "/analisis": claude_followup_general,
         "/pspace":   claude_followup_pspace,
         "/niveles":  claude_followup_niveles,
     }
