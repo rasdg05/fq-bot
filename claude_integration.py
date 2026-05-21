@@ -43,9 +43,10 @@ ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 MODEL_SONNET = "claude-sonnet-4-5"
 MODEL_OPUS   = "claude-opus-4-6"
 
-MAX_TOKENS_TACTICAL = 700
-MAX_TOKENS_SIGNAL   = 900
-TIMEOUT_SECONDS     = 35
+MAX_TOKENS_TACTICAL  = 700
+MAX_TOKENS_SIGNAL    = 900
+MAX_TOKENS_VIP_BRIEF = 320
+TIMEOUT_SECONDS      = 35
 
 _client = None
 
@@ -65,53 +66,67 @@ def get_client():
 # ============================================================
 # SYSTEM PROMPT
 # ============================================================
-SYSTEM_PROMPT_FQ = """Eres el co-pilot tactico del sistema Fibonacci Cuantico v4.1 (FQ v4.1) operado por RasDG_Sol.
+SYSTEM_PROMPT_FQ = """Eres el co-pilot tactico del sistema Fibonacci Cuantico v5.0 (FQ v5.0 - Mistral Quantum Timelines Edition) operado por RasDG_Sol.
 
 CONTEXTO DEL SISTEMA:
-- FQ v4.1 es un framework de trading basado en decoherencia cuantica generalizada
-- El gate Theta(D) es booleano, matematico, sin override
-- Si Theta(D) = 0, NO hay trade. El gate ya esta validado por matematica antes de que tu lo veas.
-- Tu rol NO es validar el gate. Tu rol es AFILAR el setup ya validado, o COMENTAR el contexto en lecturas exploratorias.
+- FQ v5.0 es un motor de trading probabilistico para SOL/USDT en OKX.
+- El nucleo decisorio es el Quantum Timelines Engine (QTE): antes de cada senal
+  simula 500 lineas de tiempo futuras bajo restricciones estructurales reales
+  (Order Blocks, liquidez no barrida, FVGs, swing pivots, ATR, drift macro).
+- QTE mide P(TP_i), P(SL), Valor Esperado en R, regimen dominante y coherencia.
+- El motor SOLO dispara si P(SL) <= 35% y EV >= 1R sobre los paths simulados.
+- Sobre QTE viven 14 conceptos ICT (OB, Breaker, FVG, BPR, MSS, Inducement,
+  Power-of-3, OTE, Killzones, Premium/Discount, Liquidity, Displacement, CHoCH, BOS)
+  que modulan la generacion de paths y filtran candidatos de SL/TP.
+- La capa v4.x (ensemble scorer, regime detector, Thompson sampling, weekend
+  veto, audit Opus cada 25 cierres) sigue funcionando intacta como sustrato.
+- Capa aditiva: QTE NO reemplaza Theta(D) ni P_master, opera DESPUES de ellos.
 
-MASTER EQUATION:
-P_master = Theta(D) * kappa(p) * phi^n * W_clock * H_lap
-
-PILARES:
-I.   Decoherencia 3/3 (macro BTC/ETH 15m + tecnica 7 indicadores + liquidez RSI 6/12/24)
-II.  Tiempo emergente W_clock (Asia 0.50, London 0.80, NY 1.00, Overlap 1.20)
-III. P-Space curvado por masas de liquidez kappa(p)
-IV.  Laplaciano discreto H_lap (armonicidad)
+PILARES DEL MOTOR v5.0:
+I.   Quantum Timelines (500 paths Monte Carlo bajo restricciones estructurales)
+II.  SL anclado a estructura (OB, pools, swing, FVG) - jerarquia anti-stop-hunt
+III. TPs anclados a liquidez real (P-Space R, BSL/SSL targets, OB opuestos, Fib ext)
+IV.  Memoria autoevolutiva por bucket multidimensional (Thompson sampling)
+V.   Gates ICT/SMC (CHoCH, MSS, Displacement, Power-of-3) como confluencias
 
 REGLAS DE ORO (no negociables):
-1. Sin Theta(D)=1 no hay trade
-2. SL nunca se mueve hacia atras (Regla 4)
-3. SL anclado a estructura (EMA50, soporte/resistencia real), NUNCA a Bollinger envelopes
-4. Sesgo estructural confirmado domina sobre RSI alcista solo (Regla 6)
-5. Leverage cap absoluto 8x (phi^3)
+1. Sin EV >= 1R no hay trade
+2. Sin P(SL) <= 35% no hay trade
+3. SL nunca se mueve hacia atras (Regla 4) - inmutable post-entrada
+4. SL anclado a estructura real (OB, swing, pool, FVG), NUNCA a Bollinger
+5. Leverage cap absoluto 8x (solo si conviccion extrema y EV alto)
+6. Veto fin de semana automatico (viernes 22 UTC -> domingo 22 UTC)
 
 LO QUE VES:
-Recibes snapshots reales del mercado en tiempo real:
-- Datos internos: precio, indicadores, masas P-Space, decoherencia, sesion
-- Datos externos: funding rate, open interest, long/short ratio, walls de libro de ordenes
-- Eventos pre-detectados por el bot: CHoCH, breakouts, divergencias RSI, volumen anomalo, patrones de vela
-- Evolucion vela-a-vela: las ultimas N velas con sus deltas
+Recibes snapshots reales del mercado con probabilidades del QTE:
+- Datos internos: precio, indicadores, niveles candidatos, ATR, regimen, conviccion
+- Probabilidades QTE: P(TP1/2/3), P(SL), EV en R, regimen dominante (%), coherencia
+- Datos externos: funding rate, open interest, long/short, walls de libro
+- Eventos: CHoCH, breakouts, divergencias, volumen, patrones de vela
+- Field state ICT: bias multi-TF, PD zone, liquidez pools, sweeps recientes
 
-Tu trabajo es ser un espejo inteligente de lo que pasa por dentro y por fuera del mercado en cada vela.
+TU TRABAJO es interpretar las probabilidades del QTE en lenguaje accionable:
+- Si P(TP1)=51% y EV=+1.42R: es un setup positivo, dilo sin inflar
+- Si P(SL)=34% pero EV=+1.1R: marginal, advierte el riesgo concreto
+- Si el regimen dominante es "sweep_and_reverse": menciona que hay alto riesgo
+  de barrida antes de la jugada principal
+- Si "chop" domina: probablemente no operar, sugiere esperar break
 
 TU ESTILO:
-- Directo, conciso, sin floritura. Lenguaje de trader experimentado, no de academico.
-- Si ves algo riesgoso, lo dices sin endulzar. Si el setup es solido, lo confirmas sin inflarlo.
-- Usa terminos FQ cuando aplique (decoherencia, masas, kappa, W_clock, etc).
-- NUNCA digas "esto no es asesoria financiera" - RasDG sabe que opera bajo su responsabilidad.
+- Directo, conciso, sin floritura. Lenguaje de trader cuantitativo, no academico.
+- Usa probabilidades concretas: "P(TP1)=51%, EV=+1.42R" en vez de "buena conviccion".
+- Si ves regimen dominante riesgoso, lo dices sin endulzar.
+- NUNCA digas "esto no es asesoria financiera" - RasDG opera bajo su responsabilidad.
 - Maximo 4-5 parrafos cortos. Esto es Telegram, no un essay.
 - Sin markdown pesado. Sin titulos H1/H2. Texto plano con saltos de linea.
 - Cuando sugieras un nivel, daslo en numero exacto, no en rango vago.
 
 TONO:
-RasDG opera con disciplina. Cuando algo esta bien, lo dices. Cuando hay riesgo, lo nombras.
-No eres un cheerleader. Eres un segundo par de ojos calibrado.
-Si tienes dudas reales sobre el setup, las planteas como observaciones tacticas concretas, no como objeciones moralistas.
-Si funding extremo, OI colapsando, o wall enorme cerca - eso ES informacion accionable que debe mencionarse.
+RasDG opera con disciplina cuantitativa. Cuando las probabilidades estan, lo confirmas.
+Cuando hay riesgo, lo nombras con la metrica especifica que lo evidencia.
+No eres un cheerleader. Eres un segundo par de ojos calibrado sobre el output del QTE.
+Si funding extremo, OI colapsando, o wall enorme cerca - menciona como puede sesgar
+los paths simulados en la proxima vela.
 """
 
 # ============================================================
@@ -322,6 +337,62 @@ def build_niveles_prompt(s):
         fmt_external(s),
     )
 
+def build_analisis_vip_prompt(s):
+    """
+    Prompt VIP /analisis breve. 4 bullets ultra-cortos, max ~250 palabras.
+    Usa SL anclado a estructura y probabilidades QTE cuando esten en el snapshot.
+    """
+    qte_block = ""
+    if s.get("qte_p_tp1") is not None:
+        qte_block = (
+            "QTE (timelines simuladas):\n"
+            "  paths        {npaths}\n"
+            "  P(TP1)       {p1:.0%}\n"
+            "  P(TP2)       {p2:.0%}\n"
+            "  P(SL)        {psl:.0%}\n"
+            "  EV           {ev:+.2f}R\n"
+            "  Regimen dom. {reg} ({regpct:.0%})\n\n"
+        ).format(
+            npaths=s.get("qte_n_paths", 0),
+            p1=s.get("qte_p_tp1", 0), p2=s.get("qte_p_tp2", 0),
+            psl=s.get("qte_p_sl", 0), ev=s.get("qte_ev", 0),
+            reg=s.get("qte_dominant_regime", "?"),
+            regpct=s.get("qte_dominant_pct", 0),
+        )
+
+    return (
+        "ANALISIS BREVE SOL/USDT (VIP) - FQ v5.0 Mistral Quantum\n"
+        "=======================================================\n\n"
+        "Precio:    ${price:.2f}\n"
+        "Sesgo:     {bias} -> {dir}\n"
+        "Entry:     ${entry:.2f}\n"
+        "Stop:      ${sl:.2f}  anclado a {sla}\n"
+        "TP1:       ${tp1:.2f}  R {rr1:.2f}\n"
+        "TP2:       ${tp2:.2f}  R {rr2:.2f}\n"
+        "TP3:       ${tp3:.2f}  R {rr3:.2f}\n"
+        "Masas P:   {pc}    RSI14: {rsi:.0f}\n\n"
+        "{qte}"
+        "----\n"
+        "Devuelve EXACTAMENTE 4 bullets ultra-cortos (max 250 palabras total):\n"
+        "  1. Validez del setup (si/no + por que en una linea)\n"
+        "  2. Mayor riesgo concreto al SL o al TP\n"
+        "  3. Confirmacion tecnica que esperarias antes de entrar\n"
+        "  4. Decision: Entrar / Esperar / Evitar + razon (1 linea)\n\n"
+        "Texto plano. Sin parrafos largos. Numeros exactos cuando aplique."
+    ).format(
+        price=s.get("price", 0),
+        bias=s.get("bias", "?"),
+        dir=s.get("direction", "?").upper(),
+        entry=s.get("entry", 0),
+        sl=s.get("sl", 0),
+        sla=s.get("sl_anchor", "estructura"),
+        tp1=s.get("tp1", 0), rr1=s.get("rr_tp1", 0),
+        tp2=s.get("tp2", 0), rr2=s.get("rr_tp2", 0),
+        tp3=s.get("tp3", 0), rr3=s.get("rr_tp3", 0),
+        pc=s.get("pspace_count", 0), rsi=s.get("rsi14", 0),
+        qte=qte_block,
+    )
+
 def build_signal_prompt(s):
     """Co-pilot para senal auto-disparada (Opus) - el mas profundo"""
     decoh = s.get("decoherence", {})
@@ -421,6 +492,10 @@ def tactical_pspace(snapshot):
 def tactical_niveles(snapshot):
     """Afinacion de plan de entrada - Sonnet"""
     return _call_anthropic(MODEL_SONNET, build_niveles_prompt(snapshot), MAX_TOKENS_TACTICAL)
+
+def tactical_analisis_vip(snapshot):
+    """Lectura VIP breve para /analisis - Sonnet, 320 tokens, 4 bullets"""
+    return _call_anthropic(MODEL_SONNET, build_analisis_vip_prompt(snapshot), MAX_TOKENS_VIP_BRIEF)
 
 def signal_copilot(snapshot):
     """Co-pilot para senal auto-disparada de alta conviccion - Opus"""

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ================================================================================
-  VIP FORMAT - Mistral edition (curated, minimalist, formula-hidden)
+  VIP FORMAT - Mistral Quantum Edition (curated, minimalist, formula-hidden)
   by RasDG_Sol + Claude
 
   Lo que ve un usuario VIP NO debe permitir reverse-engineering del sistema.
@@ -122,10 +122,130 @@ def build_vip_signal(field, decision_report):
     )
 
 # ============================================================
+# /analisis VIP - F1 v5.0 (curated, 3 TPs, sin formulas)
+# ============================================================
+SL_ANCHOR_LABEL_VIP = {
+    "OB_bullish":      "Order Block alcista",
+    "OB_bearish":      "Order Block bajista",
+    "pool_low":        "liquidez sin barrer",
+    "pool_high":       "liquidez sin barrer",
+    "post_sweep_low":  "reaccion post-sweep",
+    "post_sweep_high": "reaccion post-sweep",
+    "swing_low":       "swing low estructural",
+    "swing_high":      "swing high estructural",
+    "FVG_bottom":      "FVG (borde inferior)",
+    "FVG_top":         "FVG (borde superior)",
+    "EMA50":           "EMA50",
+    "low_20":          "low de 20 velas",
+    "high_20":         "high de 20 velas",
+    "ATR_clamp":       "clamp ATR",
+}
+
+TP_KIND_LABEL_VIP = {
+    "pspace_R":     "resistencia",
+    "pspace_S":     "soporte",
+    "BSL_target":   "liquidez",
+    "SSL_target":   "liquidez",
+    "OB_bear":      "Order Block opuesto",
+    "OB_bull":      "Order Block opuesto",
+    "FVG_bear":     "FVG opuesto",
+    "FVG_bull":     "FVG opuesto",
+    "fib_1272":     "extension 1.27",
+    "fib_1618":     "extension 1.62",
+    "fib_fallback": "extension Fib",
+}
+
+def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None):
+    """
+    Formato VIP del /analisis. Una pantalla, 3 TPs, glyphs Mistral.
+    NO expone P_master crudo - solo conviction score derivado.
+
+    qa (opcional): dict resultante de quantum_timelines.quantum_analysis.
+    Si esta presente, anade bloque de probabilidades reales.
+    """
+    side  = "LONG" if direction == "long" else "SHORT"
+    arrow = "▴" if direction == "long" else "▾"
+
+    score = conviction_score(pm_est)
+    label = tier_label(pm_est)
+
+    when = datetime.now(CDMX_TZ).strftime("%H:%M CDMX")
+    rule = "━" * 30
+
+    entry    = levels["entry"]
+    sl       = levels["sl"]
+    risk_pct = (levels["risk"] / entry) * 100 if entry > 0 else 0
+    sla_lbl  = SL_ANCHOR_LABEL_VIP.get(
+        levels.get("sl_anchor", ""), levels.get("sl_anchor", "estructura"))
+
+    tp_meta = levels.get("tp_meta") or []
+    tp_lines = []
+    for i in range(min(3, len(tp_meta))):
+        kind_lbl = TP_KIND_LABEL_VIP.get(tp_meta[i]["kind"], tp_meta[i]["kind"])
+        tp_lines.append("  ▸ TP{n}     ${p:.2f}   R {rr:.2f}   {k}".format(
+            n=i+1, p=tp_meta[i]["price"], rr=tp_meta[i]["rr"], k=kind_lbl))
+    # Si no hay tp_meta (legacy levels), usa keys directas
+    if not tp_lines:
+        for i in range(1, 4):
+            p = levels.get("tp{}".format(i))
+            rr = levels.get("rr_tp{}".format(i), 0)
+            if p is not None:
+                tp_lines.append("  ▸ TP{n}     ${p:.2f}   R {rr:.2f}".format(
+                    n=i, p=p, rr=rr))
+    tps_block = "\n".join(tp_lines)
+
+    # Bloque QTE opcional (F2 v5.0)
+    qte_block = ""
+    if qa is not None:
+        probs = qa["probabilities"]
+        regs = qa["regimes"]
+        qte_block = (
+            "\n  ◆ Timelines simuladas: {n}\n"
+            "  ▴ Bull {bp}%   ▾ Bear {brp}%   ◇ Sweep {sp}%\n"
+            "  ◆ P(TP1) {p1:.0%}   P(TP2) {p2:.0%}   P(SL) {ps:.0%}\n"
+            "  ◆ EV {ev:+.2f}R   Coherencia {coh:.0%}\n"
+            "{rule}\n"
+        ).format(
+            n=qa["n_paths"],
+            bp=int(regs.get("bull_continuation", 0) * 100),
+            brp=int(regs.get("bear_reversal", 0) * 100),
+            sp=int(regs.get("sweep_and_reverse", 0) * 100),
+            p1=probs["p_tp1"], p2=probs["p_tp2"], ps=probs["p_sl"],
+            ev=probs["expected_R"], coh=qa["coherence"],
+            rule=rule,
+        )
+
+    return (
+        "{rule}\n"
+        "  ▰ ANALISIS FQ · SOL/USDT\n"
+        "  {when}    ${px:.2f}\n"
+        "{rule}\n"
+        "  {arrow} Sesgo {side}      Conviccion {score}/10\n"
+        "  {label}\n"
+        "\n"
+        "  ▸ Entry   ${entry:.2f}\n"
+        "  ▸ Stop    ${sl:.2f}   ({risk:.2f}%)\n"
+        "    anclado a {sla}\n"
+        "\n"
+        "{tps}\n"
+        "{rule}"
+        "{qte}"
+        "  ◆ SL estructural (anti stop-hunt)\n"
+        "  ◆ TPs en liquidez real\n"
+        "{rule}\n"
+        "  #FQv5 #MistralQuantum #QTE"
+    ).format(
+        rule=rule, when=when, px=float(last["close"]),
+        arrow=arrow, side=side, score=score, label=label,
+        entry=entry, sl=sl, risk=risk_pct, sla=sla_lbl,
+        tps=tps_block, qte=qte_block if qte_block else "\n",
+    )
+
+# ============================================================
 # /help y /about TIER-AWARE
 # ============================================================
 def build_help_vip():
-    """6 comandos visibles. Mistral minimalist."""
+    """6 comandos visibles. Mistral Quantum minimalist."""
     rule = "━" * 30
     return (
         "{rule}\n"
@@ -167,7 +287,7 @@ def build_help_admin():
         "  ▸ /campo       Lectura on-demand del FieldState\n"
         "  ▸ /gencode /grant /broadcast (VIP system)\n"
         "{rule}\n"
-        "  FQ v4.2 — RasDG_Sol"
+        "  FQ v5.0 Mistral Quantum — RasDG_Sol"
     ).format(rule=rule)
 
 def build_help_free():
@@ -188,62 +308,68 @@ def build_help_free():
     ).format(rule=rule)
 
 def build_about_vip():
-    """About curado para VIP - cero formulas crudas, narrativa densa"""
+    """About curado para VIP - narrativa Mistral Quantum, cero formulas crudas"""
     rule = "━" * 30
     return (
         "{rule}\n"
-        "  ◆ FIBONACCI CUANTICO v4.2\n"
-        "  Mistral Edition · RasDG_Sol\n"
+        "  ◆ FIBONACCI CUANTICO v5.0\n"
+        "  Mistral Quantum · RasDG_Sol\n"
         "{rule}\n"
         "\n"
-        "  El mercado no esta en un estado\n"
-        "  definido. Esta en superposicion\n"
-        "  de historias competidoras. Una\n"
-        "  senal solo existe cuando colapsan.\n"
+        "  El mercado no es una linea.\n"
+        "  Es un abanico de futuros posibles.\n"
+        "  Cada vela es una nueva medicion\n"
+        "  que colapsa probabilidades en\n"
+        "  realidad.\n"
         "\n"
-        "  CUATRO PILARES:\n"
-        "  ▪ Estructura multi-TF (4H + 1H + 15m)\n"
-        "  ▪ Liquidez institucional (sweeps + pools)\n"
-        "  ▪ Confluencia ICT (OB + FVG + Fib + PD)\n"
-        "  ▪ Timing por killzone con DST automatico\n"
+        "  ◆ QUANTUM TIMELINES ENGINE\n"
+        "  Antes de cada senal, el motor\n"
+        "  simula 500 lineas de tiempo bajo\n"
+        "  restricciones estructurales reales\n"
+        "  (Order Blocks, liquidez, FVGs).\n"
+        "  Mide en cuantas el TP llega antes\n"
+        "  que el SL, identifica el escenario\n"
+        "  dominante y solo dispara si el\n"
+        "  Valor Esperado supera 1R.\n"
         "\n"
-        "  14 CONCEPTOS ICT INTEGRADOS:\n"
-        "  Order Blocks · Breaker · FVG · BPR · MSS\n"
-        "  Inducement · Power of 3 · OTE · Killzones\n"
-        "  Premium/Discount · Liquidity · Displacement\n"
-        "  CHoCH · BOS\n"
+        "  ◆ ANTI STOP-HUNT\n"
+        "  El SL ya no usa buffer fijo.\n"
+        "  Se ancla al nivel estructural mas\n"
+        "  cercano (Order Block, swing low,\n"
+        "  reaccion post-sweep). El precio\n"
+        "  puede mecerlo. No cazarlo.\n"
         "\n"
-        "  AUTOEVOLUCION:\n"
-        "  Cada cierre alimenta una memoria por\n"
-        "  bucket multidimensional. Thompson\n"
-        "  sampling decide cuanta exposicion\n"
-        "  merece cada combinacion de concepto.\n"
-        "  Opus 4.6 audita cada 25 cierres.\n"
-        "\n"
-        "  DISCIPLINA:\n"
-        "  ▪ SL inmutable (Regla 4)\n"
+        "  ◆ FUNDAMENTOS\n"
+        "  ▪ 14 conceptos ICT integrados\n"
+        "  ▪ Memoria autoevolutiva por bucket\n"
+        "  ▪ Thompson sampling sobre concepts\n"
+        "  ▪ Audit Opus cada 25 cierres\n"
         "  ▪ Veto fin de semana automatico\n"
+        "\n"
+        "  ◆ DISCIPLINA\n"
+        "  ▪ SL inmutable (Regla 4)\n"
+        "  ▪ Probabilidades reales, no scores\n"
+        "  ▪ Setups con EV<1R: descartados\n"
         "  ▪ Confirmacion de volumen institucional\n"
-        "  ▪ Solo senales con probabilidad real,\n"
-        "    no solo probabilidad matematica\n"
         "{rule}\n"
         "  Par:        SOL/USDT Perpetual\n"
         "  Exchange:   OKX (datos en vivo)\n"
         "  Timeframe:  15 min (con 4H/1H/1m)\n"
         "  Ventana:    24/7 menos fin de semana\n"
         "{rule}\n"
-        "  #FQv42 #ICT #SMC"
+        "  #FQv5 #MistralQuantum #QTE"
     ).format(rule=rule)
 
 def build_about_admin():
-    """Admin ve la salsa completa: ecuacion, constantes, thresholds"""
+    """Admin ve la salsa completa: ecuacion, constantes, thresholds + QTE"""
     rule = "━" * 30
     return (
         "{rule}\n"
-        "  ◆ FIBONACCI CUANTICO v4.2 (admin)\n"
+        "  ◆ FIBONACCI CUANTICO v5.0 (admin)\n"
+        "  Mistral Quantum Timelines Edition\n"
         "{rule}\n"
         "\n"
-        "  MASTER EQUATION v4.2:\n"
+        "  MASTER EQUATION v4.2 (sustrato):\n"
         "  P_master = Theta(D) * kappa_evo * phi *\n"
         "             W_eff * H_lap * f_conf * f_ict\n"
         "\n"
@@ -251,6 +377,16 @@ def build_about_admin():
         "          w_killzone * (1 - alpha)\n"
         "  alpha = max(0, 1 - n_closed_v3 / 50)\n"
         "  f_ict = 1.0 + n_concepts * 0.04   (cap 4)\n"
+        "\n"
+        "  GATE QTE v5.0 (capa final):\n"
+        "  EMIT  iff  P(SL) <= 0.35  AND  EV >= 1.0R\n"
+        "\n"
+        "  QUANTUM TIMELINES ENGINE:\n"
+        "  paths simulados   = 500 (admin 2000)\n"
+        "  horizon           = 96 velas (24h en 15m)\n"
+        "  optimizer         QAOA-inspired grid\n"
+        "  regimenes         bull/bear/chop/sweep/range\n"
+        "  modulo            quantum_timelines.py\n"
         "\n"
         "  CONSTANTES:\n"
         "  phi    = 1.6180339887\n"
@@ -264,15 +400,15 @@ def build_about_admin():
         "  RR_MIN_TP3      = 1.80\n"
         "  CONFLUENCE_MIN  = 3\n"
         "  KAPPA_EVO cap   = +-15%\n"
-        "  Volume mult     = 1.20x avg(20)\n"
+        "  QTE_MAX_P_SL    = 0.35\n"
+        "  QTE_MIN_EV_R    = 1.00\n"
         "  Cooldown        = 1h\n"
         "\n"
         "  FLAGS:\n"
         "  FQ_ENABLE_ICT, FQ_WEEKEND_VETO,\n"
-        "  FQ_USE_THOMPSON, FQ_REQUIRE_OTE,\n"
-        "  FQ_REQUIRE_VOLUME (nuevo)\n"
+        "  FQ_USE_THOMPSON, FQ_REQUIRE_OTE\n"
         "{rule}\n"
-        "  #FQv42 #Admin"
+        "  #FQv5 #MistralQuantum #Admin"
     ).format(rule=rule)
 
 # ============================================================
@@ -282,18 +418,18 @@ def build_welcome():
     rule = "━" * 30
     return (
         "{rule}\n"
-        "  ◆ FQ v4.2 · Mistral\n"
+        "  ◆ FQ v5.0 · Mistral Quantum\n"
         "{rule}\n"
         "\n"
         "  Senales SOL/USDT con motor\n"
-        "  ICT/SMC + autoevolucion.\n"
+        "  Quantum Timelines + ICT/SMC.\n"
         "\n"
-        "  El sistema solo emite cuando\n"
-        "  4 fases (estructura, liquidez,\n"
-        "  confluencia, timing) y la\n"
-        "  validacion de volumen estan\n"
-        "  alineadas. El resto del tiempo,\n"
-        "  silencio.\n"
+        "  El sistema simula 500 lineas\n"
+        "  de tiempo futuras antes de\n"
+        "  cada senal. Dispara solo cuando\n"
+        "  el Valor Esperado supera 1R y\n"
+        "  P(SL) baja del 35%. El resto\n"
+        "  del tiempo, silencio.\n"
         "\n"
         "  ▸ /precio      Tarifas\n"
         "  ▸ /codigo XXXX Si tienes codigo\n"
@@ -309,7 +445,8 @@ def build_welcome_for_tier(tier):
         rule = "━" * 30
         return (
             "{rule}\n"
-            "  ◆ FQ v4.2 · Acceso activo\n"
+            "  ◆ FQ v5.0 · Acceso activo\n"
+            "  Mistral Quantum\n"
             "{rule}\n"
             "  Bienvenido. Tu canal de\n"
             "  senales esta activo.\n"

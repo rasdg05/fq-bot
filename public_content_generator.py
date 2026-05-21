@@ -11,7 +11,7 @@
   IMPORTANTE:
   - JAMAS revelar formulas internas (phi, kappa_evo, Theta(D), etc.)
   - JAMAS dar senales accionables (entry, SL, TPs)
-  - Lenguaje: directo, sin emoji, vibra "Mistral" (denso, profesional)
+  - Lenguaje: directo, sin emoji, vibra "Mistral Quantum" (denso, probabilistico)
 ================================================================================
 """
 import os
@@ -182,7 +182,7 @@ Tu trabajo es generar lecturas educativas cortas (50-90 palabras) para un canal 
 REGLAS ABSOLUTAS:
 1. NUNCA reveles formulas internas (no menciones phi, kappa_evo, Theta(D), P_master, w_clock, alpha).
 2. NUNCA des niveles operativos (no precios de entry, SL, TPs, supports/resistances).
-3. Tono: directo, profesional, sin emoji, sin hype. Como un editorial de Mistral o Financial Times.
+3. Tono: directo, profesional, sin emoji, sin hype. Como un editorial de Mistral Quantum o Financial Times.
 4. Lenguaje: espanol neutro, sin modismos.
 5. No uses bold/italic, son texto plano (envoltorio lo hace el sistema).
 6. Cierra con una frase que invite a pensar, no a comprar.
