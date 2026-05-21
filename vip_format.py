@@ -155,10 +155,13 @@ TP_KIND_LABEL_VIP = {
     "fib_fallback": "extension Fib",
 }
 
-def build_vip_analisis(direction, levels, bias, pm_est, last):
+def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None):
     """
     Formato VIP del /analisis. Una pantalla, 3 TPs, glyphs Mistral.
     NO expone P_master crudo - solo conviction score derivado.
+
+    qa (opcional): dict resultante de quantum_timelines.quantum_analysis.
+    Si esta presente, anade bloque de probabilidades reales.
     """
     side  = "LONG" if direction == "long" else "SHORT"
     arrow = "▴" if direction == "long" else "▾"
@@ -191,6 +194,27 @@ def build_vip_analisis(direction, levels, bias, pm_est, last):
                     n=i, p=p, rr=rr))
     tps_block = "\n".join(tp_lines)
 
+    # Bloque QTE opcional (F2 v5.0)
+    qte_block = ""
+    if qa is not None:
+        probs = qa["probabilities"]
+        regs = qa["regimes"]
+        qte_block = (
+            "\n  ◆ Timelines simuladas: {n}\n"
+            "  ▴ Bull {bp}%   ▾ Bear {brp}%   ◇ Sweep {sp}%\n"
+            "  ◆ P(TP1) {p1:.0%}   P(TP2) {p2:.0%}   P(SL) {ps:.0%}\n"
+            "  ◆ EV {ev:+.2f}R   Coherencia {coh:.0%}\n"
+            "{rule}\n"
+        ).format(
+            n=qa["n_paths"],
+            bp=int(regs.get("bull_continuation", 0) * 100),
+            brp=int(regs.get("bear_reversal", 0) * 100),
+            sp=int(regs.get("sweep_and_reverse", 0) * 100),
+            p1=probs["p_tp1"], p2=probs["p_tp2"], ps=probs["p_sl"],
+            ev=probs["expected_R"], coh=qa["coherence"],
+            rule=rule,
+        )
+
     return (
         "{rule}\n"
         "  ▰ ANALISIS FQ · SOL/USDT\n"
@@ -204,16 +228,17 @@ def build_vip_analisis(direction, levels, bias, pm_est, last):
         "    anclado a {sla}\n"
         "\n"
         "{tps}\n"
-        "{rule}\n"
+        "{rule}"
+        "{qte}"
         "  ◆ SL estructural (anti stop-hunt)\n"
         "  ◆ TPs en liquidez real\n"
         "{rule}\n"
-        "  #FQ #SOLUSDT #Analisis"
+        "  #FQv5 #MistralQuantum #QTE"
     ).format(
         rule=rule, when=when, px=float(last["close"]),
         arrow=arrow, side=side, score=score, label=label,
         entry=entry, sl=sl, risk=risk_pct, sla=sla_lbl,
-        tps=tps_block,
+        tps=tps_block, qte=qte_block if qte_block else "\n",
     )
 
 # ============================================================

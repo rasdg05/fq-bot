@@ -70,13 +70,21 @@ except ImportError as _e:
     ICT_MODULES_AVAILABLE = False
     ict_smc = killzones_pd = fusion_engine = field_reports = None
 
-# Modulos FQ v4.2 (Mistral curated VIP format)
+# Modulos FQ v4.2+ (Mistral curated VIP format - v5.0 Quantum)
 try:
     import vip_format
     VIP_FORMAT_AVAILABLE = True
 except ImportError:
     VIP_FORMAT_AVAILABLE = False
     vip_format = None
+
+# Modulos FQ v5.0 (Quantum Timelines Engine)
+try:
+    import quantum_timelines as qt
+    QTE_AVAILABLE = True
+except ImportError:
+    QTE_AVAILABLE = False
+    qt = None
 
 # Modulos FQ v4.0 (Mistral - VIP System)
 try:
@@ -2622,6 +2630,29 @@ def claude_followup_analisis_vip(exchange):
             "pspace_count": masses["count"],
             "rsi14": float(last.get("rsi14") or 0),
         }
+
+        # F2 v5.0: inyectar probabilidades QTE en el snapshot que ve Claude
+        if QTE_AVAILABLE and qt is not None:
+            try:
+                qte_levels = {"entry": levels["entry"], "sl": levels["sl"],
+                              "tp1": levels["tp1"], "tp2": levels["tp2"],
+                              "tp3": levels["tp3"]}
+                qa = qt.quantum_analysis(
+                    df, direction=direction, levels=qte_levels,
+                    ict_module=ict_smc if ICT_MODULES_AVAILABLE else None,
+                    n_paths=500, run_optimizer=False)
+                snapshot.update({
+                    "qte_n_paths": qa["n_paths"],
+                    "qte_p_tp1": qa["probabilities"]["p_tp1"],
+                    "qte_p_tp2": qa["probabilities"]["p_tp2"],
+                    "qte_p_sl":  qa["probabilities"]["p_sl"],
+                    "qte_ev":    qa["probabilities"]["expected_R"],
+                    "qte_dominant_regime": qa["dominant_regime"],
+                    "qte_dominant_pct":    qa["dominant_regime_pct"],
+                })
+            except Exception as qte_e:
+                log.warning("QTE snapshot for Claude VIP failed: {}".format(qte_e))
+
         reading = claude_ai.tactical_analisis_vip(snapshot)
         if not reading:
             return None
@@ -2853,7 +2884,8 @@ def command_listener(exchange):
                 ADMIN_ONLY = {"/audit", "/entropy", "/metrics", "/ledger",
                               "/evolve", "/concepts", "/weekend", "/campo",
                               "/gencode", "/grant", "/broadcast",
-                              "/atribucion", "/regimen", "/sweep"}
+                              "/atribucion", "/regimen", "/sweep",
+                              "/timelines"}
                 if cmd_name in ADMIN_ONLY and str(chat_id) != str(TELEGRAM_CHAT_ID):
                     telegram_send(
                         "Comando no disponible. Usa /help para ver tus comandos.",
@@ -3310,6 +3342,21 @@ def cmd_lectura(exchange):
                 while len(tp_kinds) < 4:
                     tp_kinds.append("-")
 
+                # F2 v5.0: QTE para TF anchor 15m (admin recibe block detallado)
+                qte_admin_block = ""
+                if tf_id == "15m" and QTE_AVAILABLE and qt is not None:
+                    try:
+                        qte_levels = {"entry": levels["entry"], "sl": levels["sl"],
+                                      "tp1": levels["tp1"], "tp2": levels["tp2"],
+                                      "tp3": levels["tp3"]}
+                        qa15 = qt.quantum_analysis(
+                            df, direction=direction, levels=qte_levels,
+                            ict_module=ict_smc if ICT_MODULES_AVAILABLE else None,
+                            n_paths=500, run_optimizer=True)
+                        qte_admin_block = "\n" + qt.build_qte_block_admin(qa15) + "\n"
+                    except Exception as ex:
+                        log.warning("QTE en cmd_lectura TF15m fallo: {}".format(ex))
+
                 block = (
                     "<b>[{lab} {tf}]</b>  Precio: ${px:.2f}\n"
                     "Bias: <b>{b}</b>  Masas P: {mc}  P_est: {pme:.2f}/{pmn:.2f}\n"
@@ -3320,7 +3367,7 @@ def cmd_lectura(exchange):
                     "TP2: ${t2:.2f}  R:R {r2:.2f}  ({k2})\n"
                     "TP3: ${t3:.2f}  R:R {r3:.2f}  ({k3})\n"
                     "TP4: ${t4:.2f}  R:R {r4:.2f}  ({k4})\n"
-                    "Cooldown: {cd}\n"
+                    "Cooldown: {cd}\n{qte}"
                 ).format(
                     lab=tf_label, tf=tf_id, px=price,
                     b=bias["bias"].upper(), mc=masses["count"],
@@ -3332,7 +3379,7 @@ def cmd_lectura(exchange):
                     t2=levels["tp2"], r2=levels["rr_tp2"], k2=tp_kinds[1],
                     t3=levels["tp3"], r3=levels["rr_tp3"], k3=tp_kinds[2],
                     t4=levels["tp4"], r4=levels["rr_tp4"], k4=tp_kinds[3],
-                    cd=cd_str,
+                    cd=cd_str, qte=qte_admin_block,
                 )
                 tf_blocks.append(block)
             except Exception as ex:
@@ -3439,6 +3486,20 @@ def cmd_analisis_vip(exchange):
 
         levels = calculate_levels_v2(df_15m, direction, pspace=masses)
 
+        # F2 v5.0: QTE - probabilidades reales sobre los niveles propuestos
+        qa = None
+        if QTE_AVAILABLE and qt is not None:
+            try:
+                qte_levels = {"entry": levels["entry"], "sl": levels["sl"],
+                              "tp1": levels["tp1"], "tp2": levels["tp2"],
+                              "tp3": levels["tp3"]}
+                qa = qt.quantum_analysis(
+                    df_15m, direction=direction, levels=qte_levels,
+                    ict_module=ict_smc if ICT_MODULES_AVAILABLE else None,
+                    n_paths=500, run_optimizer=False)
+            except Exception as ex:
+                log.warning("QTE en cmd_analisis_vip fallo: {}".format(ex))
+
         if VIP_FORMAT_AVAILABLE and vip_format is not None:
             return vip_format.build_vip_analisis(
                 direction=direction,
@@ -3446,11 +3507,88 @@ def cmd_analisis_vip(exchange):
                 bias=bias,
                 pm_est=pm_est,
                 last=last,
+                qa=qa,
             )
         return "Formato VIP no disponible."
     except Exception as e:
         log.error("cmd_analisis_vip: {}\n{}".format(e, traceback.format_exc()))
         return "Error en analisis VIP: {}".format(str(e)[:200])
+
+def cmd_timelines(exchange):
+    """
+    /timelines (admin) - Quantum Timelines Engine deep dive.
+    Simula 2000 paths, muestra distribucion de regimenes, optimizer QAOA
+    y ASCII histogram de los precios finales.
+    """
+    if not QTE_AVAILABLE or qt is None:
+        return "QTE no disponible (modulo quantum_timelines.py no cargado)."
+
+    try:
+        df_15m = fetch_ohlcv(exchange, SYMBOL, "15m", limit=200)
+        df_15m = add_indicators(df_15m)
+        if len(df_15m) < 50:
+            return "Datos insuficientes para QTE."
+
+        last = df_15m.iloc[-1]
+        masses = detect_pspace(df_15m)
+        bias = detect_bias(df_15m)
+        direction = "long" if "alcista" in bias["bias"] else (
+            "short" if "bajista" in bias["bias"] else "long")
+
+        levels = calculate_levels_v2(df_15m, direction, pspace=masses)
+        qte_levels = {"entry": levels["entry"], "sl": levels["sl"],
+                      "tp1": levels["tp1"], "tp2": levels["tp2"],
+                      "tp3": levels["tp3"]}
+
+        qa = qt.quantum_analysis(
+            df_15m, direction=direction, levels=qte_levels,
+            ict_module=ict_smc if ICT_MODULES_AVAILABLE else None,
+            n_paths=2000, run_optimizer=True)
+
+        # ASCII histogram de precios finales
+        paths, _ = qt.generate_paths(
+            df_15m, n_paths=2000, horizon=qt.DEFAULT_HORIZON,
+            ict_module=ict_smc if ICT_MODULES_AVAILABLE else None, seed=42)
+        finals = paths[:, -1]
+        nbins = 20
+        hist, edges = _np_histogram_safe(finals, nbins)
+        max_count = max(hist) if max(hist) > 0 else 1
+        hist_lines = []
+        for i, c in enumerate(hist):
+            bar_len = int(c / max_count * 24)
+            hist_lines.append("  ${:.2f}  {} {:d}".format(
+                (edges[i] + edges[i+1]) / 2, "█" * bar_len, c))
+        hist_block = "\n".join(hist_lines)
+
+        block = qt.build_qte_block_admin(qa)
+        rule = "━" * 30
+
+        return (
+            "<b>QTE DEEP DIVE</b>\n"
+            "{rule}\n"
+            "Direccion:     {dir}\n"
+            "Entry:         ${e:.2f}\n"
+            "SL anchor:     {sla}\n\n"
+            "{block}\n\n"
+            "DISTRIBUCION DE CIERRES FINALES (24h):\n"
+            "{hist}\n"
+            "{rule}\n"
+            "#FQv5 #QTE #Timelines"
+        ).format(
+            rule=rule, dir=direction.upper(), e=levels["entry"],
+            sla=SL_ANCHOR_LABELS.get(
+                levels.get("sl_anchor", ""), levels.get("sl_anchor", "-")),
+            block=block, hist=hist_block,
+        )
+    except Exception as e:
+        log.error("cmd_timelines: {}\n{}".format(e, traceback.format_exc()))
+        return "Error en /timelines: {}".format(str(e)[:200])
+
+def _np_histogram_safe(values, nbins):
+    """Wrapper minimo para histogram de numpy sin importar np a nivel modulo."""
+    import numpy as _np
+    h, e = _np.histogram(values, bins=nbins)
+    return h.tolist(), e.tolist()
 
 def cmd_concepts(exchange=None):
     """Desglose de edge por concepto ICT individual (v3)"""
@@ -3683,6 +3821,8 @@ def main():
         "/atribucion": lambda exc=None: cmd_atribucion(),
         "/regimen":    cmd_regimen,
         "/sweep":      lambda exc=None: cmd_sweep(),
+        # ============ ADMIN v5.0 - Quantum Timelines ============
+        "/timelines":  cmd_timelines,
     }
 
     # Comandos que reciben follow-up automatico de Claude
