@@ -1,10 +1,20 @@
 # -*- coding: utf-8 -*-
 """
 ================================================================================
-  FQ v4.1 SIGNAL BOT v3.2 - "BUGATTI + CLAUDE + EVOLUTION PATCH"
-  Fibonacci Cuantico v4.1 - Emergent Time and Curved Price-Space
-  by RasDG_Sol
+  FQ v5.0 SIGNAL BOT - "MISTRAL QUANTUM TIMELINES EDITION"
+  Fibonacci Cuantico v5.0 - Quantum Timelines Engine (QTE)
+  by RasDG_Sol + Claude
 ================================================================================
+
+  CHANGELOG v5.0 (Mistral Quantum Timelines):
+    - Modulo quantum_timelines.py: Monte Carlo de 500 paths futuros
+      bajo restricciones estructurales reales (ICT/SMC)
+    - SL/TP anclado a estructura ICT (OB, pools, swing, FVG) anti-stop-hunt
+    - Output en probabilidades reales: P(TP_i), P(SL), EV en R, coherencia
+    - QAOA-inspired optimizer sobre niveles candidatos (constraints P(SL)<=35%)
+    - Routing tier-aware /analisis: admin detallado, VIP curado Mistral
+    - Comando /timelines (admin): 2000 paths, ASCII histograms, drawdown dist
+    - Claude follow-up VIP breve (4 bullets, 320 tokens) con probabilidades QTE
 
   CHANGELOG v3.2 (Evolution Patch):
     - Modulo entropy_cognition.py: ledger SQLite + outcome tracker

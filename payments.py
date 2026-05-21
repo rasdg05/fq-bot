@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ================================================================================
-  PAYMENTS MODULE - FQ v4.1 Mistral Edition
+  PAYMENTS MODULE - FQ v5.0 Mistral Quantum Edition
   Stripe Checkout + Crypto USDT (TRC20/ERC20) verification
 ================================================================================
 

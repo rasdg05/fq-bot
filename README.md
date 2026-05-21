@@ -1,11 +1,25 @@
 [README_DEPLOY.md](https://github.com/user-attachments/files/27770355/README_DEPLOY.md)
-# FQ v4.2 — ICT/SMC Avanzado + Memoria Autoevolutiva Persistente
+# FQ v5.0 — Mistral · Quantum Timelines Edition
 
-Capa interpretativa estructural sobre el motor matemático FQ v4.1, sin tocarlo.
+Motor de trading probabilístico para SOL/USDT. Simula líneas de tiempo futuras bajo restricciones ICT/SMC y opera sólo cuando el Valor Esperado supera 1R.
 
-> **v4.2 (mayo 2026)**: completa los 14 conceptos ICT del PDF, agrega Thompson sampling
-> sobre buckets multi-dimensionales con flags por concepto, filtro fin de semana,
-> y ledger persistente en Railway Volume.
+> **v5.0 (mayo 2026)**: salto generacional. Introduce el **Quantum Timelines Engine (QTE)** — simulación Monte Carlo de 500 paths futuros bajo restricciones estructurales reales, cálculo de SL/TP anclado a Order Blocks / liquidez / swing pivots / FVGs (anti-stop-hunt), y output en **probabilidades reales** (P(TP1), P(SL), EV en R) en lugar de scores abstractos.
+
+## Cambios v5.0 (sobre v4.3)
+
+1. **Quantum Timelines Engine (`quantum_timelines.py`)** — módulo nuevo, cuántico-inspirado clásico (numpy puro, cero qiskit/D-Wave). Antes de cada señal, simula 500 paths Monte Carlo sobre 96 velas (24h en 15m) con:
+   - drift de mean-reversion a EMA50
+   - vol_shock estocástico calibrado al ATR
+   - magnetic_pull a pools de liquidez **no barridos** (∝ 1/dist²)
+   - sweep_bias cerca de wicks de stop hunt
+2. **Probabilidades reales** — sobre los paths se mide P(TP1), P(TP2), P(TP3), P(SL), EV en múltiplos de R y win_rate. Se clasifican los paths en 5 regímenes (bull_continuation / bear_reversal / chop / sweep_and_reverse / range) y se reporta el dominante.
+3. **SL anti-stop-hunt** — `calculate_levels_v2` reemplaza al cálculo legacy. SL anclado por **jerarquía**: Order Block bullish → liquidity pool → swing low → FVG bottom → EMA50 (fallback). Buffer ATR-adaptativo (`max(0.6*ATR, 0.15%*entry)`) en lugar de fijo 0.2%.
+4. **TPs en liquidez real** — anclados a P-Space resistances, pools no barridos (BSL/SSL targets), Order Blocks opuestos, FVGs opuestos y extensiones Fib 1.272/1.618. Se elige la combinación con mayor EV simulado.
+5. **QAOA-inspired optimizer** — grid search clásico sobre candidatos de (SL, TP1, TP2, TP3) que maximiza EV sobre los paths, sujeto a `P(SL) ≤ 35%` y `EV ≥ 1R`. Si encuentra mejora, sustituye los niveles F1.
+6. **Routing tier-aware `/analisis`** — admin recibe lectura multi-TF completa con bloque QTE detallado y Claude Sonnet (700 tokens); VIP recibe formato Mistral curado con bloque QTE compacto y Claude breve (4 bullets, 320 tokens).
+7. **Comando `/timelines` (admin)** — análisis profundo con n_paths=2000, ASCII histogram de cierres finales 24h, comparativa baseline vs optimized.
+
+La capa v4.3 (ensemble scorer, regime detector, ICT/SMC 14 conceptos, Thompson sampling, weekend veto, audit Opus cada 25 cierres) sigue funcionando intacta como sustrato del QTE — es **aditivo**, no reemplaza.
 
 ## Cambios v4.2 (sobre v4.1.1)
 
@@ -139,4 +153,4 @@ Los demás (`/metrics`, `/entropy`, `/ledger`, `/evolve`, `/audit`) siguen funci
 | `FQ_USE_THOMPSON` | `1` | `0` para usar kappa_evo lineal v2 |
 | `FQ_REQUIRE_OTE` | `0` | `1` requiere OTE estricto en Fase C |
 
-#FQv42 #ICTSMC #RasDG
+#FQv5 #MistralQuantum #QTE #RasDG

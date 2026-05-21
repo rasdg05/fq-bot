@@ -1,4 +1,4 @@
-# FQ Public Bot — Guía de Deploy
+# FQ v5.0 Public Bot — Guía de Deploy (Mistral Quantum Edition)
 
 Bot de marketing/propaganda separado del VIP. Vive en el **mismo repo** pero
 corre como un **segundo servicio Railway** apuntando a `entry_public.py`.
@@ -110,7 +110,7 @@ Si no defines `TELEGRAM_TOKEN_PUBLIC`, intentará usar `TELEGRAM_TOKEN` como fal
 2. Railway deployea automáticamente el nuevo servicio
 3. Verifica los logs del servicio público:
    ```
-   FQ PUBLIC BOT - Mistral propaganda edition
+   FQ v5.0 PUBLIC BOT - Mistral Quantum propaganda edition
    VIP ledger (RO): /data/fq_ledger.db
    Public DB:       /data/fq_public.db
    VIP bot @:       RasDG_FQ_VIP_bot
@@ -260,4 +260,4 @@ Total marginal: < $15/mes para tener el bot público corriendo.
 
 Estas mejoras son opcionales — el sistema actual ya es funcional end-to-end.
 
-#FQv42 #PublicBot #Mistral
+#FQv5 #PublicBot #MistralQuantum

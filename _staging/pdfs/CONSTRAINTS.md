@@ -1,14 +1,14 @@
-# CONSTRAINTS.md — Invariantes del Motor FQ v4.3 (Beta Final)
+# CONSTRAINTS.md — Invariantes del Motor FQ v5.0 (Mistral · Quantum Timelines Edition)
 
-Última actualización: 2026-05-18 — alineado con motor v4.3 post-extracción de knowledge.
+Última actualización: 2026-05-21 — alineado con motor v5.0 post-integración del Quantum Timelines Engine.
 
 Este archivo define las **reglas duras del motor Fibonacci Cuántico** vigentes para
-la fase final de beta y preparación para venta al público.
+la edición Mistral Quantum y preparación para venta al público.
 
-Las versiones v3.0 del paper definían restricciones que la operativa real ha
-superado. Esta versión (v4.3) refleja la decisión vigente de RasDG:
-**operar como sniper avanzado con order flow institucional**, no como sistema
-amateur dependiente de filtros tardíos.
+Las versiones previas (v3.0 paper, v4.x mistral edition) definían restricciones que la
+operativa real ha superado. Esta versión (v5.0) introduce el **Quantum Timelines Engine
+(QTE)** como capa decisoria principal — simulación Monte Carlo bajo restricciones
+estructurales reales — manteniendo TODOS los invariantes v4.3 como sustrato.
 
 Cualquier propuesta de cambio que rompa una de estas reglas debe ser marcada
 como CONFLICTO y requiere aprobación manual antes de implementarse.
@@ -155,6 +155,28 @@ Cuando se proponga incorporar contenido de los PDFs:
 - No emojis en código ni en mensajes Telegram salvo glyphs Unicode sólidos
   (▴ ▾ ◆ ▰ ▸ ▪ ━) usados en bot público y format VIP.
 
+## 12. Capa Quantum Timelines (v5.0)
+
+- **Simulación obligatoria** antes de emitir señal: 500 paths Monte Carlo bajo
+  restricciones ICT/SMC reales (drift mean-reversion EMA50 + vol_shock ATR-calibrado
+  + magnetic_pull a pools no barridos + sweep_bias en wicks de stop hunt).
+- **Constraints de emisión**:
+  - `P(SL) ≤ 0.35` — no aceptar setups con >35% probabilidad de stop primero.
+  - `expected_R ≥ 1.0` — EV mínimo 1R o no se dispara.
+  - `SL distancia ≥ 0.5 × ATR` del entry — no SL ridículamente cercanos.
+- **SL anclado a estructura** — jerarquía Order Block → liquidity pool → swing low →
+  FVG → EMA50 (fallback). NUNCA a buffer fijo. NUNCA a Bollinger.
+- **TPs anclados a liquidez/estructura real** — P-Space resistances, pools no
+  barridos (BSL/SSL targets), Order Blocks opuestos, FVG bearish bottoms,
+  fib extensions 1.272 y 1.618.
+- **Output en probabilidades** — el reporte VIP muestra P(TP_i), P(SL), EV en R,
+  régimen dominante y coherencia (1 - uncertainty). NO se exponen formulas internas
+  de generación de paths (gain de magnetic_pull, vol_normalization, sweep_bias_radius).
+- **QAOA-inspired optimization** — admin puede correr `/timelines` con 2000 paths
+  y ver la combinación óptima de niveles dentro de los candidatos estructurales.
+- **Capa aditiva** — QTE NO reemplaza P_master ni Θ(D). Se aplica DESPUÉS de que
+  ambos gates pasan. La señal sólo se emite cuando: `Θ(D)=1 ∧ P_master ≥ φ ∧ EV_QTE ≥ 1R ∧ P_SL_QTE ≤ 0.35`.
+
 ## 11. Beta final → producción
 
 Para preparar venta al público:
@@ -169,4 +191,4 @@ Para preparar venta al público:
 - VIP BotFather menu = 6 comandos (status / lectura / miestado / renovar /
   about / help). Público BotFather menu = 4 comandos.
 
-#FQv43 #BetaFinal #ProductionReady
+#FQv5 #MistralQuantum #QTE #ProductionReady

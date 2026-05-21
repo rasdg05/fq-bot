@@ -166,7 +166,7 @@ def _handle_update(update):
 # ============================================================
 def main():
     log.info("=" * 70)
-    log.info("  FQ PUBLIC BOT - Mistral propaganda edition")
+    log.info("  FQ v5.0 PUBLIC BOT - Mistral Quantum propaganda edition")
     log.info("  VIP ledger (RO): {}".format(poa.VIP_DB_PATH))
     log.info("  Public DB:       {}".format(poa.PUBLIC_DB_PATH))
     log.info("  VIP bot @:       {}".format(ph.VIP_BOT_USERNAME or "(no configurado)"))
