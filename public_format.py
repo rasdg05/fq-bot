@@ -106,6 +106,49 @@ def build_closure_announcement(signal_row, stats_7d=None):
     return "\n".join(lines)
 
 # ============================================================
+# TEASER DE SENAL NUEVA - sin niveles, solo direccion/sesion/conviccion
+# ============================================================
+SESSION_LABELS = {
+    "asia":    "Asia",
+    "london":  "Londres",
+    "ny":      "NY killzone",
+    "overlap": "Overlap LDN/NY",
+}
+
+def build_new_signal_teaser(signal_row):
+    """
+    signal_row: dict con direction, ts_emitted, session, p_master_final
+    Nunca expone entry/SL/TPs - solo crea expectativa.
+    """
+    direction = (signal_row.get("direction") or "").lower()
+    side_glyph = G["long"] if direction == "long" else G["short"]
+    side_label = direction.upper() or "?"
+
+    session = (signal_row.get("session") or "").lower()
+    session_label = SESSION_LABELS.get(session, session.capitalize() or "?")
+
+    p_master = float(signal_row.get("p_master_final") or 0.0)
+    label = conviction_label(p_master)
+    score = conviction_score(p_master)
+
+    ts_emit = _fmt_dt(signal_row.get("ts_emitted"))
+
+    return "\n".join([
+        G["rule"],
+        "  {} FQ · Senal disparada".format(G["title"]),
+        G["rule"],
+        "  {} {} SOL/USDT".format(side_glyph, side_label),
+        "  {} Sesion       {}".format(G["bullet_act"], session_label),
+        "  {} Conviccion   {} · {}/10".format(G["bullet_act"], label, score),
+        "  {} Disparada    {}".format(G["bullet_act"], ts_emit),
+        G["rule"],
+        "  Entry, SL y 4 TPs ya",
+        "  publicados en el canal VIP.",
+        "",
+        "  {} Acceso al VIP    /unirme".format(G["bullet_act"]),
+    ])
+
+# ============================================================
 # MOCKUP C: LECTURA DEL DIA (generada por Claude Sonnet)
 # ============================================================
 def wrap_lectura(titulo, cuerpo):
@@ -253,6 +296,41 @@ CTA_VARIANTS = [
         "concepto ICT se valida con data.",
         "Thompson sampling al timon.",
     ),
+    (
+        "{} FQ · Mientras lees esto".format(G["title"]),
+        "El motor escanea SOL/USDT",
+        "cada minuto. Sin pausa.",
+        "Las senales del VIP no esperan",
+        "a que abras el chat.",
+    ),
+    (
+        "{} FQ · Cinco capas".format(G["title"]),
+        "Macro, tecnica, liquidez,",
+        "P-space, Quantum Timelines.",
+        "Cinco filtros antes de que",
+        "una senal toque el VIP.",
+    ),
+    (
+        "{} FQ · El silencio del bot".format(G["title"]),
+        "Cuando no hay edge, calla.",
+        "Cuando habla, ya paso por las",
+        "cinco capas. No es ruido:",
+        "es probabilidad calculada.",
+    ),
+    (
+        "{} FQ · Cada killzone cuenta".format(G["title"]),
+        "Cada cierre afina al motor.",
+        "Cada bucket actualiza pesos.",
+        "El sistema que entra al VIP",
+        "manana, no es el de hoy.",
+    ),
+    (
+        "{} FQ · Otros venden senales".format(G["title"]),
+        "Aqui se mide expectancy.",
+        "Se auditan resultados cada 25",
+        "trades. Se publican stats reales.",
+        "El edge es verificable.",
+    ),
 ]
 
 def build_cta(variant_idx):
@@ -389,3 +467,65 @@ def build_crypto(usdt_address, network="TRC20"):
         "  genera tu codigo de activacion.",
         G["rule"],
     ])
+
+# ============================================================
+# MANTRAS MISTRAL QUANTUM - pildoras filosoficas del trading
+# Rotacion deterministica por dia del ano - una al amanecer, otra al cierre.
+# ============================================================
+MANTRAS = [
+    "El edge no se busca. Se mide. El que mide gana.",
+    "El stop loss es la unica certeza que un trader controla.",
+    "Paciencia es un activo descontado: paga al final del ciclo.",
+    "Cinco gates antes de disparar. Esa es la diferencia entre operar y rezar.",
+    "Mercado no premia opinion. Premia estructura.",
+    "El sistema no recuerda tu ultima perdida. Su edge tampoco.",
+    "Liquidez se forma donde la mayoria coloca su stop.",
+    "Killzone NY: dos horas donde el dinero institucional se mueve. El resto es ruido.",
+    "Una senal sin probabilidad declarada es una opinion disfrazada.",
+    "El precio no respeta tu entry. Respeta la estructura que lo sostiene.",
+    "Mover el SL para 'darle aire' es destruir el edge con tus propias manos.",
+    "El displacement marca decision. El ranging marca indecision. Lee la diferencia.",
+    "Inducement: liquidez creada para ser barrida. No te pares ahi.",
+    "OTE 70.5: el punto donde el riesgo es estructural, no emocional.",
+    "Power of 3: acumulacion, manipulacion, distribucion. En ese orden.",
+    "Cada cierre en TP4 vale lo mismo que el ultimo. Cero memoria emocional.",
+    "El edge probabilistico se cobra en miles de trades, no en cinco.",
+    "Confluencia no es coincidencia. Es estructura repetida en tres timeframes.",
+    "Asia acumula. Londres manipula. NY distribuye. Conoce la fase, conoce el trade.",
+    "El SL inmutable es la prueba de que el sistema, no tu, opera.",
+    "El bot que opera con miedo no es bot. Es operador disfrazado.",
+    "Edge medible vence a intuicion no auditada. Siempre.",
+    "Una senal selectiva pesa mas que cien senales optimistas.",
+    "Premium para vender. Discount para comprar. El resto es zona gris.",
+    "Market Structure Shift: la primera huella del giro. No la ultima.",
+    "El weekend no opera. Spreads anchos, liquidez delgada, sin volumen real.",
+    "Thompson sampling decide por que bucket es turno. No lo decide la corazonada.",
+    "Cada concepto ICT vale lo que su backtest probabilistico declara.",
+    "Si una senal no pasa los cinco gates, no es senal. Es ansiedad.",
+    "El sistema no aprende rapido. Aprende correcto.",
+]
+
+def build_mantra(idx):
+    """idx: int para rotar; modulo len(MANTRAS)"""
+    frase = MANTRAS[idx % len(MANTRAS)]
+    return "\n".join([
+        G["rule"],
+        "  {} FQ · Lectura breve".format(G["title"]),
+        G["rule"],
+        "",
+        "  " + frase,
+        "",
+        G["rule"],
+        "  {} Mas /info  ·  VIP /unirme".format(G["bullet_act"]),
+    ])
+
+def pick_mantra_idx_for_today(slot_h=None):
+    """
+    Rota deterministicamente segun dia del ano + slot.
+    Asi 06:00 y 22:30 del mismo dia tienen mantras distintos.
+    """
+    day_of_year = _cdmx_now().timetuple().tm_yday
+    base = day_of_year * 2
+    if slot_h is not None and slot_h >= 12:
+        base += 1
+    return base % len(MANTRAS)
