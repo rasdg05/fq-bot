@@ -48,6 +48,11 @@ PUBLIC_DB_PATH = _resolve_public_db_path()
 MIN_PNL_R_TO_ANNOUNCE = 1.0
 ANNOUNCE_LOOKBACK_HOURS = 48   # solo anuncia cierres recientes (no historicos)
 
+# Para teasers de senales nuevas (sin niveles)
+NEW_SIGNAL_LOOKBACK_MIN = 30   # solo senales emitidas en los ultimos N min
+# Filtrar conviction baja (phi^1 = 1.618). Solo anunciamos MEDIA+
+MIN_PMASTER_FOR_TEASER = 1.6180339887
+
 _lock = threading.Lock()
 
 # ============================================================
@@ -69,10 +74,17 @@ CREATE TABLE IF NOT EXISTS announced_signals (
     pnl_r          REAL
 );
 
+CREATE TABLE IF NOT EXISTS announced_new_signals (
+    vip_signal_id  INTEGER PRIMARY KEY,
+    ts_announced   TEXT NOT NULL,
+    direction      TEXT,
+    tier           TEXT
+);
+
 CREATE TABLE IF NOT EXISTS public_content_log (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     ts           TEXT NOT NULL,
-    kind         TEXT NOT NULL,   -- 'lectura','cta','closure','stats','welcome'
+    kind         TEXT NOT NULL,   -- 'lectura','cta','closure','stats','welcome','new_signal','mantra'
     title        TEXT,
     n_sent       INTEGER DEFAULT 0,
     n_failed     INTEGER DEFAULT 0
@@ -213,6 +225,61 @@ def mark_announced(vip_signal_id, outcome=None, pnl_r=None):
             """, (int(vip_signal_id),
                   datetime.now(timezone.utc).isoformat(),
                   outcome, pnl_r))
+            conn.commit()
+        finally:
+            conn.close()
+
+# ============================================================
+# TEASERS DE SENAL NUEVA (sin niveles)
+# ============================================================
+def get_new_signals_to_announce():
+    """
+    Devuelve lista de signals recien emitidas (outcome IS NULL) que NO han sido
+    anunciadas en el bot publico, filtrando conviction baja para no spamear.
+    Solo mira las ultimas NEW_SIGNAL_LOOKBACK_MIN minutos.
+    """
+    vip_conn = _connect_vip_readonly()
+    if vip_conn is None:
+        return []
+
+    cutoff = (datetime.now(timezone.utc) -
+              timedelta(minutes=NEW_SIGNAL_LOOKBACK_MIN)).isoformat()
+    try:
+        with _lock:
+            pub_conn = _connect_public()
+            try:
+                already_rows = pub_conn.execute(
+                    "SELECT vip_signal_id FROM announced_new_signals"
+                ).fetchall()
+                already_ids = set(r["vip_signal_id"] for r in already_rows)
+            finally:
+                pub_conn.close()
+
+        cur = vip_conn.execute("""
+            SELECT id, direction, ts_emitted, session, tier, p_master_final
+            FROM signals
+            WHERE outcome IS NULL
+              AND ts_emitted >= ?
+              AND p_master_final >= ?
+            ORDER BY ts_emitted ASC
+        """, (cutoff, MIN_PMASTER_FOR_TEASER))
+        candidates = [dict(r) for r in cur.fetchall()]
+    finally:
+        vip_conn.close()
+
+    return [c for c in candidates if c["id"] not in already_ids]
+
+def mark_new_announced(vip_signal_id, direction=None, tier=None):
+    with _lock:
+        conn = _connect_public()
+        try:
+            conn.execute("""
+                INSERT OR IGNORE INTO announced_new_signals
+                    (vip_signal_id, ts_announced, direction, tier)
+                VALUES (?, ?, ?, ?)
+            """, (int(vip_signal_id),
+                  datetime.now(timezone.utc).isoformat(),
+                  direction, tier))
             conn.commit()
         finally:
             conn.close()

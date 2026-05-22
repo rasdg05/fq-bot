@@ -139,6 +139,17 @@ CREATE TABLE IF NOT EXISTS evolution_log (
     expectancy_r    REAL,
     kappa_applied   REAL NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS signal_progress (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    signal_id   INTEGER NOT NULL,
+    event       TEXT NOT NULL,        -- 'tp1_hit','tp2_hit','tp3_hit','be_suggested','partial_suggested'
+    ts_event    TEXT NOT NULL,
+    price       REAL,
+    UNIQUE(signal_id, event)
+);
+
+CREATE INDEX IF NOT EXISTS idx_progress_sig ON signal_progress(signal_id);
 """
 
 # ============================================================

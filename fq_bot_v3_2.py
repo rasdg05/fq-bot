@@ -69,6 +69,14 @@ import market_context as mctx
 import entropy_cognition as ev
 import claude_evolution as ev_claude
 
+# Progress tracker (v5.1) - alertas intermedias en senal activa (TP1/TP2/TP3)
+try:
+    import signal_progress_tracker as spt
+    PROGRESS_TRACKER_AVAILABLE = True
+except ImportError:
+    PROGRESS_TRACKER_AVAILABLE = False
+    spt = None
+
 # Modulos FQ v4.1.1 (ICT/SMC Refactor) - cargan solo si flag ON
 try:
     import ict_smc
@@ -3674,6 +3682,27 @@ def evolution_periodic_hook(exchange):
     4. Backup ledger si toca (cada 10 totales)
     """
     try:
+        # Progress checks: alertas intermedias en senales abiertas (TP1/TP2/TP3 hits)
+        # Se ejecutan ANTES del reconcile para que las alertas se manden aunque
+        # la senal cierre en TP4 en la misma vela.
+        if PROGRESS_TRACKER_AVAILABLE and spt is not None:
+            for tf_id in TIMEFRAMES:
+                try:
+                    df_open = fetch_ohlcv(exchange, SYMBOL, tf_id, limit=50)
+                    if df_open is None or len(df_open) == 0:
+                        continue
+                    for sig in ev.get_open_signals():
+                        events = spt.check_progress_events(sig, df_open)
+                        for kind, price in events:
+                            if spt.mark_progress_event(sig["id"], kind, price):
+                                msg = spt.build_progress_alert(sig, kind, price)
+                                try:
+                                    broadcast_to_subscribers(msg, tiers=["vip", "admin"])
+                                except Exception as be:
+                                    log.error("progress broadcast error: {}".format(be))
+                except Exception as e:
+                    log.error("progress check [{}]: {}".format(tf_id, e))
+
         closed = []
         # Reconciliar por TF: cada outcome se resuelve contra las velas del TF
         # que origino la senal (5m signal vs 5m candles, 1h vs 1h, etc.).

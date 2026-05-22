@@ -36,13 +36,21 @@ SLOTS_LECTURA = [
 
 SLOTS_CTA = [
     (11, 0),
+    (14, 0),    # mid-day NY
+    (18, 0),    # tarde
     (20, 0),
+]
+
+SLOTS_MANTRA = [
+    (6, 0),     # amanecer CDMX / apertura Asia
+    (22, 30),   # cierre NY / night cap
 ]
 
 # Domingo 18:00 CDMX (weekday 6 en datetime: lun=0, dom=6)
 SLOT_STATS_SEMANAL = (6, 18, 0)  # (weekday, hour, minute)
 
 CLOSURE_POLL_MIN = 8        # poll cierres cada 8 min
+NEW_SIG_POLL_MIN = 2        # poll senales nuevas cada 2 min (FOMO inmediato)
 SLOT_TOLERANCE_MIN = 6      # disparar slot dentro de +-6 min de la hora exacta
 
 # ============================================================
@@ -52,8 +60,10 @@ class SchedulerState:
     def __init__(self):
         self.last_lectura_slot_key   = None     # "YYYY-MM-DD-08:30"
         self.last_cta_slot_key       = None
+        self.last_mantra_slot_key    = None
         self.last_weekly_stats_key   = None     # "YYYY-WW"
         self.last_closure_check_ts   = None
+        self.last_new_sig_check_ts   = None
         self.cta_rotation_idx        = 0
         self.lock                    = threading.Lock()
 
@@ -84,8 +94,10 @@ def scheduler_tick(state, send_callback):
     """
     try:
         _check_closures(state, send_callback)
+        _check_new_signals(state, send_callback)
         _check_lecturas(state, send_callback)
         _check_ctas(state, send_callback)
+        _check_mantras(state, send_callback)
         _check_weekly_stats(state, send_callback)
     except Exception as e:
         log.error("scheduler_tick: {}".format(e))
@@ -114,6 +126,30 @@ def _check_closures(state, send_callback):
             log.info("Closure #{} anunciado a {} chats".format(c["id"], sent or 0))
         except Exception as e:
             log.error("closure announce error #{}: {}".format(c.get("id"), e))
+
+# ============================================================
+# 1B. TEASERS DE SENAL NUEVA (sin niveles)
+# ============================================================
+def _check_new_signals(state, send_callback):
+    now = datetime.now(timezone.utc)
+    if state.last_new_sig_check_ts and (now - state.last_new_sig_check_ts).total_seconds() < NEW_SIG_POLL_MIN * 60:
+        return
+    state.last_new_sig_check_ts = now
+
+    new_sigs = poa.get_new_signals_to_announce()
+    if not new_sigs:
+        return
+    log.info("New signals to tease: {}".format(len(new_sigs)))
+    for s in new_sigs:
+        try:
+            msg = fmt.build_new_signal_teaser(s)
+            label = fmt.conviction_label(float(s.get("p_master_final") or 0))
+            sent = send_callback(msg, kind="new_signal",
+                                  title="#{} {} {}".format(s["id"], s.get("direction","?"), label))
+            poa.mark_new_announced(s["id"], direction=s.get("direction"), tier=label)
+            log.info("Teaser senal nueva #{} enviado a {} chats".format(s["id"], sent or 0))
+        except Exception as e:
+            log.error("new signal teaser error #{}: {}".format(s.get("id"), e))
 
 # ============================================================
 # 2. LECTURAS DEL DIA (Sonnet 1-2 al dia)
@@ -159,6 +195,27 @@ def _check_ctas(state, send_callback):
         msg = fmt.build_cta(idx)
         sent = send_callback(msg, kind="cta", title="rot_{}".format(idx))
         log.info("CTA #{} enviado a {} chats".format(idx, sent or 0))
+        return
+
+# ============================================================
+# 3B. MANTRAS MISTRAL QUANTUM (texto plano, sin LLM, deterministico)
+# ============================================================
+def _check_mantras(state, send_callback):
+    now = _cdmx_now()
+    for slot_h, slot_m in SLOTS_MANTRA:
+        if not _is_within_slot(now, slot_h, slot_m):
+            continue
+        key = _slot_key(slot_h, slot_m, now)
+        with state.lock:
+            if state.last_mantra_slot_key == key:
+                return
+            state.last_mantra_slot_key = key
+        idx = fmt.pick_mantra_idx_for_today(slot_h=slot_h)
+        log.info("Slot mantra activado: {} idx={}".format(key, idx))
+
+        msg = fmt.build_mantra(idx)
+        sent = send_callback(msg, kind="mantra", title="m_{}".format(idx))
+        log.info("Mantra #{} enviado a {} chats".format(idx, sent or 0))
         return
 
 # ============================================================
