@@ -177,14 +177,33 @@ TF_PROFILES = {
     },
 }
 
-# Orden de evaluacion en el main loop (secuencial)
-TIMEFRAMES = ("5m", "15m", "1h")
+# Orden de evaluacion en el main loop (secuencial).
+# Default: 5m+15m (intradia/scalping). 1h SWING opt-in via FQ_INCLUDE_1H=1.
+# Override completo con FQ_TIMEFRAMES="5m,15m" (CSV).
+def _resolve_timeframes():
+    raw = os.environ.get("FQ_TIMEFRAMES", "").strip()
+    if raw:
+        tfs = tuple(t.strip() for t in raw.split(",") if t.strip() in TF_PROFILES)
+        if tfs:
+            return tfs
+    tfs = ["5m", "15m"]
+    if os.environ.get("FQ_INCLUDE_1H", "").strip() in ("1", "true", "yes"):
+        tfs.append("1h")
+    return tuple(tfs)
+
+TIMEFRAMES = _resolve_timeframes()
 
 # Aliases legacy: comandos manuales y paths admin siguen usando 15m por default.
 TIMEFRAME             = "15m"
 INTRA_CANDLE_MINUTES  = TF_PROFILES["15m"]["INTRA_CANDLE_MINUTES"]
 SIGNAL_COOLDOWN_HOURS = TF_PROFILES["15m"]["SIGNAL_COOLDOWN_MINUTES"] / 60.0
 PMASTER_MIN           = TF_PROFILES["15m"]["PMASTER_MIN"]
+
+# Gate QTE (Quantum Timelines Engine) - si una senal pasa P_master pero el
+# QTE da P(SL) alto o EV bajo, se rechaza para no quemar suscriptores.
+QTE_GATE_ENABLED = os.environ.get("FQ_QTE_GATE_ENABLED", "1").strip() in ("1","true","yes")
+QTE_GATE_MAX_P_SL = float(os.environ.get("FQ_QTE_MAX_P_SL", "0.40"))
+QTE_GATE_MIN_EV   = float(os.environ.get("FQ_QTE_MIN_EV", "1.20"))
 
 # ============================================================
 # FEATURE FLAGS v4.1.1 - ICT/SMC Refactor
@@ -2318,6 +2337,37 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
         STATE.last_eval_diagnostic_tf[tf_id] = diag
         STATE.last_eval_diagnostic = diag
 
+        # 4B. Gate QTE: si una senal paso P_master pero el motor de Quantum
+        # Timelines da probabilidad alta de SL o EV insuficiente, rechazamos
+        # para no quemar suscriptores con setups marginales.
+        if fire and QTE_GATE_ENABLED and QTE_AVAILABLE and qt is not None:
+            try:
+                levels_q = report.get("levels", {})
+                direction_q = report.get("direction")
+                if levels_q and direction_q:
+                    qte_levels_in = {
+                        "entry": levels_q["entry"], "sl": levels_q["sl"],
+                        "tp1":   levels_q["tp1"],   "tp2": levels_q["tp2"],
+                        "tp3":   levels_q["tp3"],
+                    }
+                    qa_gate = qt.quantum_analysis(
+                        df_primary, direction=direction_q, levels=qte_levels_in,
+                        ict_module=ict_smc if ICT_MODULES_AVAILABLE else None,
+                        n_paths=500, run_optimizer=False,
+                    )
+                    p_sl_q = float(qa_gate["probabilities"].get("p_sl", 0.0))
+                    ev_q   = float(qa_gate["probabilities"].get("expected_R", 0.0))
+                    if p_sl_q > QTE_GATE_MAX_P_SL or ev_q < QTE_GATE_MIN_EV:
+                        reason = "QTE veto: P(SL)={:.2f} max={:.2f} | EV={:.2f} min={:.2f}".format(
+                            p_sl_q, QTE_GATE_MAX_P_SL, ev_q, QTE_GATE_MIN_EV)
+                        log.warning("[{}/{}] {} - senal rechazada".format(tf_label, tf_id, reason))
+                        STATE.last_eval_result_tf[tf_id] = "QTE-VETO [{}] P_SL={:.2f} EV={:.2f}".format(
+                            tf_id, p_sl_q, ev_q)
+                        STATE.last_eval_result = STATE.last_eval_result_tf[tf_id]
+                        fire = False
+            except Exception as qte_e:
+                log.warning("QTE gate error [{}]: {}".format(tf_id, qte_e))
+
         # 5. Disparo (los reportes-campo automaticos estan apagados; /campo sigue manual)
         if fire:
             # SENAL ALINEADA — broadcast con plantilla Capa 5 etiquetada por TF
@@ -3763,9 +3813,13 @@ def evolution_periodic_hook(exchange):
                 for p in split_telegram_message(audit_msg):
                     broadcast_to_subscribers(p)
 
-        # Backup cada 10 senales totales
+        # Backup cada N senales totales (configurable via FQ_BACKUP_EVERY_N).
+        # mark_backup_done() evita re-envio en cada cierre de vela.
         if ev.should_trigger_backup():
-            send_db_backup_to_telegram()
+            try:
+                send_db_backup_to_telegram()
+            finally:
+                ev.mark_backup_done()
 
     except Exception as e:
         log.error("evolution_periodic_hook error: {}\n{}".format(

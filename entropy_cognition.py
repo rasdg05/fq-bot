@@ -63,11 +63,16 @@ DB_PATH               = _resolve_db_path()
 KAPPA_EVO_MAX         = 0.15           # +-15% modulador
 KAPPA_EVO_MIN_SAMPLES = 8              # min senales cerradas en bucket para modular
 AUDIT_EVERY_N_CLOSED  = 25             # trigger self-audit
-OUTCOME_TIMEOUT_HOURS = 8              # vela 15m -> 8h ~ 32 velas para resolver
-BACKUP_EVERY_N_SIGNED = 10             # backup a Telegram cada 10 senales
+OUTCOME_TIMEOUT_HOURS = int(os.environ.get("FQ_OUTCOME_TIMEOUT_HOURS", "8"))
+BACKUP_EVERY_N_SIGNED = int(os.environ.get("FQ_BACKUP_EVERY_N", "50"))
 PHI                   = 1.6180339887
 PHI_SQ                = PHI * PHI
 PHI_CB                = PHI ** 3
+
+# Guard para evitar re-envio del mismo backup en cada tick del hook.
+# evolution_periodic_hook se llama por cada cierre de vela en cada TF; sin este
+# guard, mientras n no cambie, should_trigger_backup() retorna True en cada tick.
+_last_backup_n_sent = None
 
 # Buckets dimensionales para entropia
 SESSION_BUCKETS = ["asia", "london", "ny", "overlap"]
@@ -903,11 +908,23 @@ def export_ledger_csv():
     return df.to_csv(index=False)
 
 def should_trigger_backup():
-    """Cada N senales totales (abiertas o cerradas) hace backup"""
+    """
+    Cada N senales totales (abiertas o cerradas) hace backup, pero SOLO UNA VEZ
+    por cada n alcanzado. Sin este guard, el hook reenviaba el backup en cada
+    cierre de vela mientras n no cambiara.
+    """
+    global _last_backup_n_sent
     n = count_signals(closed_only=False)
     if n == 0 or n % BACKUP_EVERY_N_SIGNED != 0:
         return False
+    if _last_backup_n_sent == n:
+        return False
     return True
+
+def mark_backup_done():
+    """Llamar despues de un send_db_backup_to_telegram exitoso."""
+    global _last_backup_n_sent
+    _last_backup_n_sent = count_signals(closed_only=False)
 
 # ============================================================
 # FORMATEO TELEGRAM
