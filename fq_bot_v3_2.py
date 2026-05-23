@@ -104,6 +104,14 @@ except ImportError:
     QTE_AVAILABLE = False
     qt = None
 
+# Modulos FQ v5.1 (Postulado tau(t) - Phase E)
+try:
+    import emergent_time
+    EMERGENT_TIME_MODULE_AVAILABLE = True
+except ImportError:
+    EMERGENT_TIME_MODULE_AVAILABLE = False
+    emergent_time = None
+
 # Modulos FQ v4.0 (Mistral - VIP System)
 try:
     import vip_system as vip
@@ -1897,6 +1905,91 @@ def cmd_niveles(exchange):
         return "Error al calcular niveles: {}".format(e)
 
 # ============================================================
+# PHASE E INFORMATIVO - sync_score sin Phase A-D (para /analisis)
+# ============================================================
+def compute_phase_e_informative(df, direction, tf_id="15m"):
+    """Computa sync_score + 4 phi_* sin construir field completo. Uso
+    informativo para /analisis. Devuelve dict con sync_score, tier y
+    breakdown completo, o None si no se puede computar.
+
+    Diferencia con Phase E real en fusion_engine:
+    - No carga bucket_memory (phi_memory=1.0 neutral en modo informativo).
+    - Usa w_clock de get_session() como proxy de w_killzone.
+    - Skip regime_consistency/killzone_alignment/streak_health del sync_score
+      compuesto - solo reporta tau y sus 4 componentes (es lo que Sonnet usa).
+    """
+    if not EMERGENT_TIME_MODULE_AVAILABLE or emergent_time is None:
+        return None
+    try:
+        # phi_clock: w_clock como proxy de w_killzone (en alpha-blend se mezclan)
+        _session, w_clock_val, _, _ = get_session()
+
+        # phi_horizon: QTE payload
+        qte_payload = None
+        if QTE_AVAILABLE and qt is not None:
+            try:
+                qa = qt.quantum_analysis(
+                    df, direction=direction,
+                    ict_module=ict_smc if ICT_MODULES_AVAILABLE else None,
+                    n_paths=300, run_optimizer=False,
+                )
+                qte_payload = emergent_time.build_qte_payload_from_quantum_analysis(qa)
+            except Exception as e:
+                log.warning("QTE en compute_phase_e_informative fallo: {}".format(e))
+
+        # phi_refractory: delta desde ultima senal del TF
+        last_ts = STATE.last_signal_ts_tf.get(tf_id) if hasattr(STATE, "last_signal_ts_tf") else None
+        delta_min = None
+        if last_ts:
+            try:
+                if isinstance(last_ts, (int, float)):
+                    last_dt = datetime.fromtimestamp(float(last_ts), tz=timezone.utc)
+                else:
+                    last_dt = last_ts
+                    if last_dt.tzinfo is None:
+                        last_dt = last_dt.replace(tzinfo=timezone.utc)
+                delta_min = (datetime.now(timezone.utc) - last_dt).total_seconds() / 60.0
+            except Exception:
+                delta_min = None
+
+        # cooldown del TF profile
+        cooldown_tf = TF_PROFILES.get(tf_id, {}).get(
+            "PHASE_E_COOLDOWN_MIN", emergent_time.COOLDOWN_REF_MINUTES)
+
+        # tau con bucket=None -> phi_memory=1.0 (neutral, modo informativo)
+        tau_data = emergent_time.tau(
+            w_killzone=w_clock_val, bucket_memory=None,
+            qte_payload=qte_payload, delta_minutes=delta_min,
+            cooldown_minutes=cooldown_tf,
+        )
+
+        # Sync_score informativo: solo el componente tau (peso 1.0).
+        # Sin regime_consistency/killzone_alignment/streak porque no tenemos
+        # field/bucket. Reportamos tau directamente como "sync informativo".
+        sync_informative = tau_data["tau"]
+        mods = emergent_time.sync_modulators(sync_informative)
+
+        return {
+            "sync_score":     sync_informative,
+            "tier":           mods["tier"],
+            "phi_clock":      tau_data["phi_clock"],
+            "phi_memory":     tau_data["phi_memory"],  # 1.0 = no medido
+            "phi_horizon":    tau_data["phi_horizon"],
+            "phi_refractory": tau_data["phi_refractory"],
+            "tau":            tau_data["tau"],
+            "regime_modal":   qte_payload.get("regime_modal") if qte_payload else None,
+            "coherence":      qte_payload.get("coherence") if qte_payload else None,
+            "p_sl_qte":       qte_payload.get("p_sl") if qte_payload else None,
+            "ev_r_qte":       qte_payload.get("ev_r") if qte_payload else None,
+            "delta_min":      delta_min,
+            "cooldown_min":   cooldown_tf,
+            "w_clock_proxy":  w_clock_val,
+        }
+    except Exception as e:
+        log.warning("compute_phase_e_informative error: {}".format(e))
+        return None
+
+# ============================================================
 # COMMAND: /analisis
 # ============================================================
 def cmd_analisis(exchange):
@@ -1977,6 +2070,42 @@ def cmd_analisis(exchange):
 
         ico = lambda b: G["ok"] if b else G["fail"]
 
+        # FQ v5.1: Phase E informativo (sync_score + 4 phi)
+        phase_e = compute_phase_e_informative(df, direction, tf_id=TIMEFRAME)
+        phase_e_block = ""
+        if phase_e is not None:
+            pm_str = "{:.2f}".format(phase_e["phi_memory"]) + " (informativo)" \
+                if phase_e["phi_memory"] is not None else "N/A"
+            refrac_line = "phi_refractory: {:.2f}".format(phase_e["phi_refractory"])
+            if phase_e["delta_min"] is None:
+                refrac_line += " (sin senal previa)"
+            else:
+                refrac_line += " (delta {:.0f}min / cooldown {:.0f}min)".format(
+                    phase_e["delta_min"], phase_e["cooldown_min"])
+            qte_line = ""
+            if phase_e["p_sl_qte"] is not None:
+                qte_line = "QTE:       P(SL)={:.0%}  EV={:+.2f}R  regimen={}\n".format(
+                    phase_e["p_sl_qte"], phase_e["ev_r_qte"],
+                    phase_e["regime_modal"] or "?")
+            phase_e_block = (
+                "{thin}\n"
+                "  PHASE E - SYNC EMERGENTE tau(t)\n"
+                "{thin}\n"
+                "sync_score: <b>{s:.2f}</b>  tier=<b>{t}</b>\n"
+                "tau:        {tau:.3f}\n"
+                "phi_clock:  {pc:.2f}  (w_clock={wc:.2f})\n"
+                "phi_memory: {pm}\n"
+                "phi_horizon: {ph:.2f}\n"
+                "{rl}\n"
+                "{qte}\n"
+            ).format(
+                thin=G["thin"],
+                s=phase_e["sync_score"], t=phase_e["tier"],
+                tau=phase_e["tau"], pc=phase_e["phi_clock"], wc=phase_e["w_clock_proxy"],
+                pm=pm_str, ph=phase_e["phi_horizon"],
+                rl=refrac_line, qte=qte_line,
+            )
+
         return (
             "<b>ANALISIS FQ v5.1 - LIVE</b>\n"
             "{fence}\n\n"
@@ -2003,6 +2132,7 @@ def cmd_analisis(exchange):
             "MACD:      {mc:.3f}  /  Signal: {ms:.3f}\n"
             "Bollinger: {bb}\n\n"
             "{deriv}"
+            "{phase_e}"
             "{thin}\n"
             "  VEREDICTO MATEMATICO\n"
             "{thin}\n"
@@ -2023,7 +2153,7 @@ def cmd_analisis(exchange):
             e50=float(last.get("ema50") or 0), e200=float(last.get("ema200") or 0),
             r14=float(last.get("rsi14") or 0),
             mc=float(last.get("macd") or 0), ms=float(last.get("macd_signal") or 0),
-            bb=bb_pos, deriv=deriv_block, ver=veredicto,
+            bb=bb_pos, deriv=deriv_block, phase_e=phase_e_block, ver=veredicto,
         )
     except Exception as e:
         log.error("Error analisis: {}\n{}".format(e, traceback.format_exc()))
@@ -2740,6 +2870,23 @@ def claude_followup_analisis_vip(exchange):
                 })
             except Exception as qte_e:
                 log.warning("QTE snapshot for Claude VIP failed: {}".format(qte_e))
+
+        # FQ v5.1: Phase E informativo - alimenta validacion del motor por Sonnet
+        phase_e = compute_phase_e_informative(df, direction, tf_id="15m")
+        if phase_e is not None:
+            snapshot.update({
+                "phase_e_sync_score":   phase_e["sync_score"],
+                "phase_e_tier":         phase_e["tier"],
+                "phase_e_tau":          phase_e["tau"],
+                "phase_e_phi_clock":    phase_e["phi_clock"],
+                "phase_e_phi_memory":   phase_e["phi_memory"],
+                "phase_e_phi_horizon":  phase_e["phi_horizon"],
+                "phase_e_phi_refractory": phase_e["phi_refractory"],
+                "phase_e_coherence":    phase_e["coherence"],
+                "phase_e_regime_modal": phase_e["regime_modal"],
+                "phase_e_delta_min":    phase_e["delta_min"],
+                "phase_e_cooldown_min": phase_e["cooldown_min"],
+            })
 
         reading = claude_ai.tactical_analisis_vip(snapshot)
         if not reading:

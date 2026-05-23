@@ -45,7 +45,7 @@ MODEL_OPUS   = "claude-opus-4-6"
 
 MAX_TOKENS_TACTICAL  = 700
 MAX_TOKENS_SIGNAL    = 900
-MAX_TOKENS_VIP_BRIEF = 320
+MAX_TOKENS_VIP_BRIEF = 420   # FQ v5.1: +100 para que el bullet 1 (validacion vs motor) tenga espacio
 TIMEOUT_SECONDS      = 35
 
 _client = None
@@ -351,8 +351,11 @@ def build_niveles_prompt(s):
 
 def build_analisis_vip_prompt(s):
     """
-    Prompt VIP /analisis breve. 4 bullets ultra-cortos, max ~250 palabras.
-    Usa SL anclado a estructura y probabilidades QTE cuando esten en el snapshot.
+    Prompt VIP /analisis breve. Sonnet recibe los numeros del motor (QTE +
+    Phase E sync_score con las 4 phi del postulado tau(t)) y DEBE validar
+    si su lectura cualitativa coincide o discrepa de esos numeros.
+
+    Output: 4 bullets ultra-cortos, max ~280 palabras.
     """
     qte_block = ""
     if s.get("qte_p_tp1") is not None:
@@ -372,6 +375,34 @@ def build_analisis_vip_prompt(s):
             regpct=s.get("qte_dominant_pct", 0),
         )
 
+    # FQ v5.1: Phase E - sync_score + 4 phi del postulado tau(t)
+    # Sonnet usa esto para validar su lectura cualitativa contra el motor.
+    phase_e_block = ""
+    if s.get("phase_e_sync_score") is not None:
+        pm = s.get("phase_e_phi_memory")
+        pm_str = "{:.2f} (informativo, sin bucket)".format(pm) if pm is not None else "N/A"
+        delta = s.get("phase_e_delta_min")
+        delta_str = "{:.0f}min desde ultima senal".format(delta) if delta is not None else "sin senal previa"
+        phase_e_block = (
+            "PHASE E - SYNC EMERGENTE tau(t) (FQ v5.1):\n"
+            "  sync_score   {sync:.2f}     tier  {tier}\n"
+            "  tau          {tau:.3f}\n"
+            "  phi_clock    {pc:.2f}     (sesion / killzone weight)\n"
+            "  phi_memory   {pm}\n"
+            "  phi_horizon  {ph:.2f}     (1-P_SL * EV/2 * coherence)\n"
+            "  phi_refract  {pr:.2f}     ({dt})\n"
+            "  coherence    {coh}\n\n"
+        ).format(
+            sync=s.get("phase_e_sync_score"), tier=s.get("phase_e_tier", "?"),
+            tau=s.get("phase_e_tau", 0),
+            pc=s.get("phase_e_phi_clock", 0),
+            pm=pm_str,
+            ph=s.get("phase_e_phi_horizon", 0),
+            pr=s.get("phase_e_phi_refractory", 0),
+            dt=delta_str,
+            coh="{:.2f}".format(s["phase_e_coherence"]) if s.get("phase_e_coherence") is not None else "N/A",
+        )
+
     return (
         "ANALISIS BREVE SOL/USDT (VIP) - FQ v5.1 Mistral Emergent Time\n"
         "=======================================================\n\n"
@@ -384,13 +415,25 @@ def build_analisis_vip_prompt(s):
         "TP3:       ${tp3:.2f}  R {rr3:.2f}\n"
         "Masas P:   {pc}    RSI14: {rsi:.0f}\n\n"
         "{qte}"
+        "{phase_e}"
         "----\n"
-        "Devuelve EXACTAMENTE 4 bullets ultra-cortos (max 250 palabras total):\n"
-        "  1. Validez del setup (si/no + por que en una linea)\n"
-        "  2. Mayor riesgo concreto al SL o al TP\n"
-        "  3. Confirmacion tecnica que esperarias antes de entrar\n"
-        "  4. Decision: Entrar / Esperar / Evitar + razon (1 linea)\n\n"
-        "Texto plano. Sin parrafos largos. Numeros exactos cuando aplique."
+        "CONTRATO: tu trabajo es DAR una lectura tactica Y validarla contra los\n"
+        "numeros del motor de arriba (QTE + Phase E). Devuelve EXACTAMENTE 4\n"
+        "bullets ultra-cortos (max 280 palabras total):\n\n"
+        "  1. COHERENCIA CON EL MOTOR (CRITICO): tu lectura cualitativa coincide\n"
+        "     con sync_score, tau y las 4 phi? Marca explicito:\n"
+        "       - Si sync >= 0.70 y tu recomendas entrar -> 'coherente fuerte: ...'\n"
+        "       - Si sync < 0.50 y tu recomendas entrar -> 'discrepancia: yo veo X\n"
+        "         que el motor no capta porque ...' (1 linea concreta)\n"
+        "       - Si phi_horizon < 0.40 (QTE bajista para esta direccion) tu lectura\n"
+        "         debe explicar por que el QTE puede estar subvalorando el setup.\n"
+        "  2. Mayor riesgo concreto al SL o TP (con numero del motor cuando aplique).\n"
+        "  3. Confirmacion tecnica que esperarias antes de entrar.\n"
+        "  4. DECISION: Entrar / Esperar / Evitar + 1 linea de razon ANCLADA a\n"
+        "     los numeros (ej: 'Esperar: sync 0.42 pide phi_refract>0.6 antes de ...').\n\n"
+        "Texto plano. Sin parrafos largos. Si phi_memory='informativo' significa que\n"
+        "este analisis es manual sin bucket de track-record real - no inventes WR.\n"
+        "Numeros exactos cuando aplique."
     ).format(
         price=s.get("price", 0),
         bias=s.get("bias", "?"),
@@ -403,6 +446,7 @@ def build_analisis_vip_prompt(s):
         tp3=s.get("tp3", 0), rr3=s.get("rr_tp3", 0),
         pc=s.get("pspace_count", 0), rsi=s.get("rsi14", 0),
         qte=qte_block,
+        phase_e=phase_e_block,
     )
 
 def build_signal_prompt(s):
