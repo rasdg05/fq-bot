@@ -126,4 +126,60 @@ Si en el futuro acumulamos >500 señales cerradas y queremos saltar a tree-based
 
 ---
 
-#FQv43 #KnowledgeExtraction #CONSTRAINTS-compliant
+## 9. Postulado τ(t) — Tiempo Emergente Unificado (v5.1)
+
+**Fuente:** síntesis interna del motor (no de un PDF) — diseño documentado en
+`_POSTULATE_EMERGENT_TIME.md`, sesión RasDG_Sol + Claude del 2026-05-23.
+
+**Concepto extraído:** unificar las fórmulas de fase dispersas del motor
+(`W_killzone`, `α=1-n/50` blend legacy↔ICT, QTE horizon=96, cooldown=1h,
+bucket confidence tiers) en una sola función emergente `τ(t) ∈ [0, 1]` que mide
+la probabilidad de que el ahora sea operable. Multiplicación de 4 proyecciones
+(φ_clock, φ_memory, φ_horizon, φ_refractory) — cualquier 0 anula τ, generalizando
+Θ(D) a 4 dimensiones temporales.
+
+**Adaptación al motor FQ:** introduce `Phase E` en `fusion_engine` con `sync_score`
+híbrido graduado (veto <0.30, modulación 0.30-0.70, boost ≥0.70). QTE pasa de
+sidecar post-fire a input directo de `evaluate_signal(qte_payload=...)`. Sin
+nuevas dependencias — solo numpy/pandas ya presentes.
+
+**Cumplimiento CONSTRAINTS:** §4 (no nuevas constantes — reusa HYBRID_DECAY_N=50
+y killzone weights de §5), §5 (extiende ecuación maestra con `σ(τ)` aditivo,
+reduce a v5.0 cuando qte_payload=None), §7 (cambio de firma con default opcional,
+no rompe back-compat), §12 (QTE sigue siendo aditivo en el sentido de que setups
+v5.0 sin QTE pasan sin modificación).
+
+**Estado:** diseño aprobado, implementación pendiente en `emergent_time.py` (Fase 1
+del plan §6 del postulado).
+
+---
+
+## 10. Gap reconocido — Inverse Fair Value Gaps (IFVG)
+
+**Fuente:** revisión del 2026-05-23 — concepto ICT estándar de Michael J. Huddleston
+(The Inner Circle Trader). No proviene de PDF del repo; concepto canónico ICT.
+
+**Concepto:** una FVG que ha sido traspasada por precio (cierre al otro lado)
+invierte su rol. Una FVG alcista cruzada hacia abajo pasa a actuar como resistencia
+(IFVG bajista); una FVG bajista cruzada hacia arriba actúa como soporte (IFVG
+alcista). Es lectura institucional fuerte: la inefficiencia fue mitigada pero su
+borde sirve ahora como zona de reacción opuesta.
+
+**Estado actual del motor:** NO implementado. `ict_smc.detect_fvgs()` (línea 478)
+filtra solo FVGs con `filled_pct < 0.5` y descarta las que se invirtieron.
+
+**Plan v5.2:**
+
+1. `detect_inverse_fvgs(df, fvgs_historicas)` — rastrea FVGs con `filled_pct ≥ 1.0`
+   y cierre opuesto confirmado; activas hasta segundo barrido.
+2. `build_confluence()` — IFVG cuenta como masa con peso ≥ FVG normal en jerarquía PD.
+3. `bucket_key_v4` con flag `had_ifvg` (migración idempotente schema v4).
+4. Documentar fuente ICT canónica en este archivo cuando se implemente.
+
+**Cumplimiento CONSTRAINTS:** §7 (aditivo, sin nuevas deps), §1 (no toca ventana
+operativa), §5 (no reescribe ecuación maestra). Pendiente: §12 declarar IFVG como
+una más de las masas que el QTE consume en `_extract_structural_anchors`.
+
+---
+
+#FQv51 #KnowledgeExtraction #CONSTRAINTS-compliant #TauPostulate #IFVGGap

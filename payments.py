@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ================================================================================
-  PAYMENTS MODULE - FQ v5.0 Mistral Quantum Edition
+  PAYMENTS MODULE - FQ v5.1 Mistral Emergent Time Edition
   Stripe Checkout + Crypto USDT (TRC20/ERC20) verification
 ================================================================================
 
@@ -99,9 +99,9 @@ def create_stripe_checkout(chat_id, plan_id):
                 "mode": "payment",
                 "payment_method_types[]": "card",
                 "line_items[0][price_data][currency]": "usd",
-                "line_items[0][price_data][product_data][name]": "FQ v4.1 - " + plan_info["label"],
+                "line_items[0][price_data][product_data][name]": "FQ v5.1 - " + plan_info["label"],
                 "line_items[0][price_data][product_data][description]":
-                    "Acceso VIP por {} dias al sistema FQ v4.1".format(plan_info["days"]),
+                    "Acceso VIP por {} dias al sistema FQ v5.1".format(plan_info["days"]),
                 "line_items[0][price_data][unit_amount]": int(plan_info["price_usd"] * 100),
                 "line_items[0][quantity]": "1",
                 "success_url": LANDING_URL + "/success?session_id={CHECKOUT_SESSION_ID}",

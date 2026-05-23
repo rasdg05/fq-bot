@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ================================================================================
-  ENTROPY COGNITION MODULE - FQ v4.1 Bot v3.2 "EVOLUTION PATCH"
+  ENTROPY COGNITION MODULE - FQ v5.1 Bot "EVOLUTION PATCH"
   Autoevolucion entropica sin puntos de memoria
   by RasDG_Sol + Claude
 ================================================================================
@@ -754,7 +754,7 @@ def build_audit_prompt():
     )
 
     return (
-        "AUDITORIA SELF-EVOLUCION FQ v4.1 - {} SENALES CERRADAS\n"
+        "AUDITORIA SELF-EVOLUCION FQ v5.1 - {} SENALES CERRADAS\n"
         "=========================================================\n\n"
         "DESEMPENO GLOBAL:\n"
         "  Win rate:         {:.1%}\n"
@@ -1670,7 +1670,7 @@ def build_audit_prompt_v3():
         for l in losers) or "  (sin data)"
 
     return (
-        "AUDITORIA SELF-EVOLUCION FQ v4.2 (V3 ENRICHED) - {} SENALES CERRADAS\n"
+        "AUDITORIA SELF-EVOLUCION FQ v5.1 (V3 ENRICHED) - {} SENALES CERRADAS\n"
         "=======================================================================\n\n"
         "DESEMPENO GLOBAL:\n"
         "  Win rate:      {:.1%}\n"

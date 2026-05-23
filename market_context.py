@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ================================================================================
-  MARKET CONTEXT MODULE - FQ v4.1 Bot v3.1
+  MARKET CONTEXT MODULE - FQ v5.1 Bot
   Real-time mirror of internal + external market state
 ================================================================================
 

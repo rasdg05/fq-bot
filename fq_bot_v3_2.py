@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
 ================================================================================
-  FQ v5.0 SIGNAL BOT - "MISTRAL QUANTUM TIMELINES EDITION"
-  Fibonacci Cuantico v5.0 - Quantum Timelines Engine (QTE)
+  FQ v5.1 SIGNAL BOT - "MISTRAL EMERGENT TIME EDITION"
+  Fibonacci Cuantico v5.1 - QTE + Postulado tau(t) Tiempo Emergente
   by RasDG_Sol + Claude
 ================================================================================
 
-  CHANGELOG v5.0 (Mistral Quantum Timelines):
+  CHANGELOG v5.1 (Mistral Emergent Time):
     - Modulo quantum_timelines.py: Monte Carlo de 500 paths futuros
       bajo restricciones estructurales reales (ICT/SMC)
     - SL/TP anclado a estructura ICT (OB, pools, swing, FVG) anti-stop-hunt
@@ -204,6 +204,12 @@ PMASTER_MIN           = TF_PROFILES["15m"]["PMASTER_MIN"]
 QTE_GATE_ENABLED = os.environ.get("FQ_QTE_GATE_ENABLED", "1").strip() in ("1","true","yes")
 QTE_GATE_MAX_P_SL = float(os.environ.get("FQ_QTE_MAX_P_SL", "0.40"))
 QTE_GATE_MIN_EV   = float(os.environ.get("FQ_QTE_MIN_EV", "1.20"))
+
+# Cooldown VIP para /analisis - evita gasto de API y quema a proposito.
+# Admin bypasea (es RasDG). Free no llega aqui (PREMIUM_COMMANDS gate).
+# Set FQ_VIP_ANALISIS_COOLDOWN_MIN=0 para desactivar.
+VIP_ANALISIS_COOLDOWN_SEC = int(os.environ.get("FQ_VIP_ANALISIS_COOLDOWN_MIN", "30")) * 60
+_VIP_ANALISIS_LAST = {}  # chat_id (str) -> epoch seconds del ultimo /analisis
 
 # ============================================================
 # FEATURE FLAGS v4.1.1 - ICT/SMC Refactor
@@ -1330,7 +1336,7 @@ def build_signal_msg(direction, levels, decoh, masses, session, w_clock, p_maste
     intra_note = "\n{} INTRA-VELA - confirmar al cierre 15m".format(G["warn"]) if intra else ""
 
     msg = (
-        "<b>SENAL FQ v4.1 - DECOHERENCIA Theta(D) = 1</b>{intra}\n\n"
+        "<b>SENAL FQ v5.1 - DECOHERENCIA Theta(D) = 1</b>{intra}\n\n"
         "<b>{side_glyph}  SOL/USDT  {side}</b>\n"
         "Conviccion: <b>{tier}</b>{asia_warn}\n"
         "{when}  |  Sesion: <b>{session}</b> (W={w:.2f})\n\n"
@@ -1362,7 +1368,7 @@ def build_signal_msg(direction, levels, decoh, masses, session, w_clock, p_maste
         "{bullet} Cierre 15m {cmp} ${sl:.2f} {arrow} CERRAR\n"
         "{bullet} 90 min sin progreso a TP1 {arrow} REVISAR\n"
         "{bullet} SL nunca se mueve hacia abajo (Regla 4)\n\n"
-        "#FQv41 #SOLUSDT #{tag}"
+        "#FQv51 #SOLUSDT #{tag}"
     ).format(
         intra=intra_note, side_glyph=side_glyph, side=side, tier=tier, asia_warn=asia_warn,
         when=cdmx_now_str(), session=session.upper(), w=w_clock,
@@ -1414,7 +1420,7 @@ def cmd_help(chat_id=None):
 def cmd_about(chat_id=None):
     if VIP_FORMAT_AVAILABLE:
         return vip_format.about_for_tier(_resolve_tier(chat_id))
-    return "FQ v4.2 - sistema de senales SOL/USDT con motor ICT/SMC + autoevolucion."
+    return "FQ v5.1 - sistema de senales SOL/USDT con QTE + Postulado tau(t) + ICT/SMC + autoevolucion."
 
 # ============================================================
 # COMMAND: /status
@@ -1449,7 +1455,7 @@ def cmd_status(exchange):
                 abs(STATE.last_eth_chg) > MACRO_THRESHOLD_PCT * 100)
 
     return (
-        "<b>STATUS - FQ v4.1 BOT v3.0</b>\n"
+        "<b>STATUS - FQ v5.1 BOT</b>\n"
         "{fence}\n\n"
         "{when}\n"
         "Uptime: {h}h {m}m  |  Exchange: OKX live\n\n"
@@ -1468,7 +1474,7 @@ def cmd_status(exchange):
         "Gate macro: <b>{gate}</b>\n"
         "Ultima eval: {evr}\n\n"
         "Ventana operativa: 24H\n\n"
-        "#FQv41 #Status"
+        "#FQv51 #Status"
     ).format(
         fence=G["fence"],
         when=cdmx_now_str(), h=up_h, m=up_m,
@@ -1547,7 +1553,7 @@ def cmd_sesion():
     ).format(p_min_efectivo, PMASTER_MIN, w_clock)
 
     return (
-        "<b>SESION ACTIVA - FQ v4.1</b>\n"
+        "<b>SESION ACTIVA - FQ v5.1</b>\n"
         "{fence}\n\n"
         "{when}\n\n"
         "Sesion:     <b>{ses}</b>\n"
@@ -1568,7 +1574,7 @@ def cmd_sesion():
         "{imp}\n\n"
         "El W_clock modula la senal, no la bloquea.\n"
         "Bot operativo 24H en ventana abierta.\n\n"
-        "#FQv41 #Sesion"
+        "#FQv51 #Sesion"
     ).format(
         fence=G["fence"], thin=G["thin"],
         when=cdmx_now_str(),
@@ -1626,7 +1632,7 @@ def cmd_macro(exchange):
         "{thin}\n"
         "{gg} <b>{gate}</b>\n\n"
         "{ana}\n\n"
-        "#FQv41 #Macro"
+        "#FQv51 #Macro"
     ).format(
         fence=G["fence"], thin=G["thin"],
         when=cdmx_now_str(),
@@ -1756,7 +1762,7 @@ def cmd_pspace(exchange):
             "Balance kappa(p): {cb:+.2f}  (-1 bajista / +1 alcista)\n"
             "Tolerancia zona:  0.6% del precio\n\n"
             "Gate P-Space: <b>{g}</b>\n\n"
-            "#FQv41 #PSpace"
+            "#FQv51 #PSpace"
         ).format(
             fence=G["fence"], thin=G["thin"],
             when=cdmx_now_str(), px=price, bias=bias["bias"].upper(),
@@ -1816,7 +1822,7 @@ def cmd_niveles(exchange):
             secondary_tag = "LONG"
 
         return (
-            "<b>NIVELES + TRIGGERS - FQ v4.1</b>\n"
+            "<b>NIVELES + TRIGGERS - FQ v5.1</b>\n"
             "{fence}\n\n"
             "{when}\n"
             "Precio: <b>${px:.2f}</b>\n"
@@ -1856,7 +1862,7 @@ def cmd_niveles(exchange):
             "{b} La confirmacion DEBE cumplirse antes del click\n"
             "{b} SL nunca se mueve hacia atras (Regla 4)\n"
             "{b} Si invalida sin tocar trigger {arrow} no era setup\n\n"
-            "#FQv41 #Niveles"
+            "#FQv51 #Niveles"
         ).format(
             fence=G["fence"], thin=G["thin"],
             when=cdmx_now_str(), px=price, bias=bias_str, sc=bias["score"],
@@ -1965,7 +1971,7 @@ def cmd_analisis(exchange):
         ico = lambda b: G["ok"] if b else G["fail"]
 
         return (
-            "<b>ANALISIS FQ v4.1 - LIVE</b>\n"
+            "<b>ANALISIS FQ v5.1 - LIVE</b>\n"
             "{fence}\n\n"
             "{when}\n"
             "SOL/USDT:  <b>${px:.2f}</b>\n"
@@ -1994,7 +2000,7 @@ def cmd_analisis(exchange):
             "  VEREDICTO MATEMATICO\n"
             "{thin}\n"
             "{ver}\n\n"
-            "#FQv41 #Analisis"
+            "#FQv51 #Analisis"
         ).format(
             fence=G["fence"], thin=G["thin"],
             when=cdmx_now_str(), px=float(last["close"]),
@@ -2242,7 +2248,7 @@ def evaluate_setup(exchange, tf_id="15m", intra=False):
                         "{thin}\nDecision final: SIEMPRE tuya.\n"
                         "El gate matematico ya valido el setup.\n"
                         "Esta lectura es para AFINAR, no validar.\n\n"
-                        "#FQv41 #Opus #SenalAltaConviccion"
+                        "#FQv51 #Opus #SenalAltaConviccion"
                     ).format(thin=G["thin"], r=opus_reading)
                     # Split si es muy largo
                     parts = split_telegram_message(opus_msg)
@@ -2490,7 +2496,7 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
                                 "<b>OPUS 4.6 — REVISION v4.1.1</b>\n"
                                 "{thin}\n\n{r}\n\n"
                                 "{thin}\nDecision final: TUYA.\n"
-                                "#FQv411 #Opus"
+                                "#FQv511 #Opus"
                             ).format(thin=G["thin"], r=opus_reading)
                             for p in split_telegram_message(opus_msg):
                                 broadcast_to_subscribers(p)
@@ -2526,7 +2532,7 @@ def cmd_claude(exchange):
             "O instalar: pip install anthropic\n\n"
             "Una vez configurado, /claude dara lectura tactica\n"
             "del estado del mercado interno + externo en vivo.\n\n"
-            "#FQv41 #Setup"
+            "#FQv51 #Setup"
         ).format(fence=G["fence"])
 
     try:
@@ -2576,8 +2582,8 @@ def cmd_claude(exchange):
             "{thin}\n\n"
             "{reading}\n\n"
             "{thin}\n"
-            "Modelo: Sonnet 4.5  |  Co-pilot FQ v4.1\n\n"
-            "#FQv41 #Claude"
+            "Modelo: Sonnet 4.5  |  Co-pilot FQ v5.1\n\n"
+            "#FQv51 #Claude"
         ).format(
             fence=G["fence"], thin=G["thin"],
             when=cdmx_now_str(), px=basic_state["price"],
@@ -2656,7 +2662,7 @@ def claude_followup_general(exchange):
         return (
             "<b>CLAUDE - Lectura tactica del analisis</b>\n"
             "{thin}\n\n{r}\n\n"
-            "{thin}\nModelo: Sonnet 4.5\n#FQv41 #Claude"
+            "{thin}\nModelo: Sonnet 4.5\n#FQv51 #Claude"
         ).format(thin=G["thin"], r=reading)
     except Exception as e:
         log.error("Claude followup analisis error: {}".format(e))
@@ -2760,7 +2766,7 @@ def claude_followup_pspace(exchange):
         return (
             "<b>CLAUDE - Lectura P-Space + libro</b>\n"
             "{thin}\n\n{r}\n\n"
-            "{thin}\nModelo: Sonnet 4.5\n#FQv41 #Claude"
+            "{thin}\nModelo: Sonnet 4.5\n#FQv51 #Claude"
         ).format(thin=G["thin"], r=reading)
     except Exception as e:
         log.error("Claude followup pspace error: {}".format(e))
@@ -2797,7 +2803,7 @@ def claude_followup_niveles(exchange):
         return (
             "<b>CLAUDE - Afinacion del plan</b>\n"
             "{thin}\n\n{r}\n\n"
-            "{thin}\nModelo: Sonnet 4.5\n#FQv41 #Claude"
+            "{thin}\nModelo: Sonnet 4.5\n#FQv51 #Claude"
         ).format(thin=G["thin"], r=reading)
     except Exception as e:
         log.error("Claude followup niveles error: {}".format(e))
@@ -2855,7 +2861,7 @@ def command_listener(exchange):
                                 telegram_send(vip_format.build_welcome_for_tier(tier), chat_id)
                             else:
                                 telegram_send(
-                                    "Bienvenido al sistema FQ v4.2\n"
+                                    "Bienvenido al sistema FQ v5.1\n"
                                     "Senales SOL/USDT con motor ICT/SMC + autoevolucion.\n"
                                     "Usa /precio para tarifas o /codigo XXXX si tienes codigo.",
                                     chat_id)
@@ -2970,6 +2976,28 @@ def command_listener(exchange):
                             tier_loc = vip.get_effective_tier(chat_id)
                         except Exception:
                             tier_loc = "free"
+
+                    # Cooldown VIP/trial: 30 min entre /analisis por usuario.
+                    # Admin no rate-limitado. Se marca el timestamp antes de la llamada
+                    # cara para que errores transitorios no permitan spam-retry.
+                    if tier_loc in ("vip", "trial") and VIP_ANALISIS_COOLDOWN_SEC > 0:
+                        now_s = time.time()
+                        last_s = _VIP_ANALISIS_LAST.get(str(chat_id), 0)
+                        remaining = VIP_ANALISIS_COOLDOWN_SEC - (now_s - last_s)
+                        if remaining > 0:
+                            mins = int(remaining // 60)
+                            secs = int(remaining % 60)
+                            telegram_send(
+                                "<b>/analisis en cooldown</b>\n"
+                                "================================\n\n"
+                                "Espera <b>{}m {:02d}s</b> antes del siguiente analisis.\n\n"
+                                "Cooldown VIP = {} min por usuario. Protege la API y\n"
+                                "asegura que cada lectura que pidas sea fresca.\n\n"
+                                "Las senales automaticas siguen llegando sin limite.".format(
+                                    mins, secs, VIP_ANALISIS_COOLDOWN_SEC // 60),
+                                chat_id)
+                            continue
+                        _VIP_ANALISIS_LAST[str(chat_id)] = now_s
 
                     telegram_send("Lectura tactica en proceso - Claude Sonnet 4.6...", chat_id)
                     try:
@@ -3246,7 +3274,7 @@ def cmd_audit_manual(exchange):
         "<b>AUDIT MANUAL - OPUS 4.6</b>\n"
         "{thin}\n\n{r}\n\n"
         "{thin}\nSugerencias - RasDG decide.\n"
-        "#SelfAudit #FQv41"
+        "#SelfAudit #FQv51"
     ).format(thin=G["thin"], r=response)
 
 def cmd_entropy(exchange=None):
@@ -3513,7 +3541,7 @@ def cmd_lectura(exchange):
             "Estos niveles son la propuesta del bot por TF. El motor solo dispara\n"
             "automaticamente cuando P_master supera el min del perfil. SL no se\n"
             "mueve hacia atras (Regla 4).\n\n"
-            "#FQv44 #Lectura #MultiTF"
+            "#FQv51 #Lectura #MultiTF"
         ).format(thin=G["thin"])
 
         return header + "\n".join(tf_blocks) + claude_block + tail
@@ -3641,7 +3669,7 @@ def cmd_timelines(exchange):
             "DISTRIBUCION DE CIERRES FINALES (24h):\n"
             "{hist}\n"
             "{rule}\n"
-            "#FQv5 #QTE #Timelines"
+            "#FQv51 #QTE #EmergentTime #Timelines"
         ).format(
             rule=rule, dir=direction.upper(), e=levels["entry"],
             sla=SL_ANCHOR_LABELS.get(
@@ -3808,7 +3836,7 @@ def evolution_periodic_hook(exchange):
                     "{thin}\n\n{r}\n\n"
                     "{thin}\n"
                     "Estas son SUGERENCIAS. RasDG decide.\n"
-                    "#FQv41 #SelfAudit"
+                    "#FQv51 #SelfAudit"
                 ).format(thin=G["thin"], r=opus_response)
                 for p in split_telegram_message(audit_msg):
                     broadcast_to_subscribers(p)
@@ -3831,7 +3859,7 @@ def evolution_periodic_hook(exchange):
 def main():
     global COMMANDS
     log.info("=" * 70)
-    log.info("  FQ v4.1 SIGNAL BOT v4.0 - MISTRAL EDITION")
+    log.info("  FQ v5.1 SIGNAL BOT - MISTRAL EMERGENT TIME EDITION")
     log.info("  Window: 24H | Macro: {:.2f}% | Intra:{}m | P-Space>={} | P_master>={:.2f}".format(
         MACRO_THRESHOLD_PCT * 100, INTRA_CANDLE_MINUTES, PSPACE_MIN_MASSES, PMASTER_MIN))
     log.info("  Claude integration: {}".format("ENABLED" if claude_ai.is_available() else "DISABLED"))
@@ -3928,7 +3956,7 @@ def main():
 
     claude_status = "ACTIVO (Sonnet+Opus)" if claude_ai.is_available() else "INACTIVO"
     telegram_send(
-        "<b>FQ v4.1 BOT v3.2 - BUGATTI + CLAUDE + EVOLUTION</b>\n"
+        "<b>FQ v5.1 BOT - BUGATTI + CLAUDE + EMERGENT TIME</b>\n"
         "{fence}\n\n"
         "Monitoreando SOL/USDT (OKX) cada 15 min.\n"
         "Ventana operativa: <b>24 HORAS</b>\n"

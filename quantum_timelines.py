@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ================================================================================
-  QUANTUM TIMELINES ENGINE (QTE) - FQ v5.0 Mistral Quantum Edition
+  QUANTUM TIMELINES ENGINE (QTE) - FQ v5.1 Mistral Emergent Time Edition
   by RasDG_Sol + Claude
 
   Motor probabilistico cuantico-inspirado. Simula N futuros posibles

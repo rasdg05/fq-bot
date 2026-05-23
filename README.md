@@ -1,9 +1,22 @@
 [README_DEPLOY.md](https://github.com/user-attachments/files/27770355/README_DEPLOY.md)
-# FQ v5.0 — Mistral · Quantum Timelines Edition
+# FQ v5.1 — Mistral · Emergent Time Edition
 
-Motor de trading probabilístico para SOL/USDT. Simula líneas de tiempo futuras bajo restricciones ICT/SMC y opera sólo cuando el Valor Esperado supera 1R.
+Motor de trading probabilístico para SOL/USDT. Simula líneas de tiempo futuras bajo restricciones ICT/SMC, las sincroniza con un postulado de tiempo emergente τ(t), y opera sólo cuando el Valor Esperado supera 1R y la fase del sistema cruza el umbral.
 
-> **v5.0 (mayo 2026)**: salto generacional. Introduce el **Quantum Timelines Engine (QTE)** — simulación Monte Carlo de 500 paths futuros bajo restricciones estructurales reales, cálculo de SL/TP anclado a Order Blocks / liquidez / swing pivots / FVGs (anti-stop-hunt), y output en **probabilidades reales** (P(TP1), P(SL), EV en R) en lugar de scores abstractos.
+> **v5.1 (mayo 2026)**: introduce el **postulado τ(t) de tiempo emergente** que unifica las fórmulas dispersas de fase (killzone weighting, decay legacy↔ICT, horizonte QTE, refractario post-emisión) en una sola función ∈ [0, 1]. Cablea el QTE como **input** a la fusión (no como sidecar veto). Añade **Phase E** con sync_score híbrido graduado: veto duro <0.30, modulación 0.30-0.70, boost ≥0.70. Documentación del postulado en `_POSTULATE_EMERGENT_TIME.md`. **Estado: diseño aprobado, implementación en módulo inerte pendiente.**
+
+## Cambios v5.1 (sobre v5.0)
+
+1. **Postulado τ(t) unificado** — `_POSTULATE_EMERGENT_TIME.md` define `τ(t) = φ_clock · φ_memory · φ_horizon · φ_refractory` como la probabilidad emergente de que el ahora sea operable. Reusa constantes existentes (HYBRID_DECAY_N=50, killzone weights de §5, QTE horizon=96, SIGNAL_COOLDOWN=1h). Sin nuevas dependencias.
+2. **Contrato QTE → Fusion** — `evaluate_signal()` aceptará `qte_payload=None` como parámetro opcional. Con payload presente, el QTE pasa de "veto post-fire" a "input al P_master". Back-compat preservada con default None.
+3. **Phase E — sync_score híbrido** — gate graduado:
+   - sync_score < 0.30 → veto absoluto (P_master = 0)
+   - 0.30-0.50 → atenuación f_conf · 0.85, κ_evo · 0.95
+   - 0.50-0.70 → paso neutro
+   - 0.70-0.85 → boost f_conf · 1.05
+   - ≥ 0.85 → boost fuerte f_conf · 1.10, κ_evo · 1.05
+4. **Ecuación maestra v5.1** — `P_master = Θ(D) · κ_evo' · φⁿ · W_eff · H_lap · f_conf' · f_ict · σ(τ)`. Reduce a v5.0 exacta cuando `qte_payload=None`.
+5. **Gap reconocido (IFVG)** — las **Inverse Fair Value Gaps** todavía NO están implementadas. `ict_smc.detect_fvgs()` filtra solo FVGs no rellenas (`filled_pct < 0.5`) y descarta las invertidas, que actúan como zonas opuestas fuertes (resistencia tras break alcista, soporte tras break bajista). Pendiente para v5.2: `detect_inverse_fvgs()` con tracking de FVGs traspasadas, integración en `build_confluence()` y bandera `had_ifvg` en bucket_key_v4.
 
 ## Cambios v5.0 (sobre v4.3)
 
@@ -153,4 +166,4 @@ Los demás (`/metrics`, `/entropy`, `/ledger`, `/evolve`, `/audit`) siguen funci
 | `FQ_USE_THOMPSON` | `1` | `0` para usar kappa_evo lineal v2 |
 | `FQ_REQUIRE_OTE` | `0` | `1` requiere OTE estricto en Fase C |
 
-#FQv5 #MistralQuantum #QTE #RasDG
+#FQv51 #MistralEmergentTime #QTE #TauPostulate #RasDG

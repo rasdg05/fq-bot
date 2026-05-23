@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ================================================================================
-  PUBLIC BOT FORMAT - Estetica Mistral Quantum con glyphs Unicode
+  PUBLIC BOT FORMAT - Estetica Mistral Emergent Time con glyphs Unicode
   by RasDG_Sol + Claude
 
   Glyphs sutiles (no emoji-style): ━ ◆ ▰ ▸ ▪ ▴ ▾
@@ -152,7 +152,7 @@ def build_new_signal_teaser(signal_row):
 # MOCKUP C: LECTURA DEL DIA (generada por Claude Sonnet)
 # ============================================================
 def wrap_lectura(titulo, cuerpo):
-    """Envuelve la lectura generada por Claude en el formato Mistral Quantum"""
+    """Envuelve la lectura generada por Claude en el formato Mistral Emergent Time"""
     return "\n".join([
         G["rule"],
         "  {} FQ · Lectura del dia".format(G["title"]),
