@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ================================================================================
-  VIP SYSTEM - FQ v5.0 Mistral Quantum Edition
+  VIP SYSTEM - FQ v5.1 Mistral Emergent Time Edition
   Sistema de acceso multiusuario con codigos, suscripciones y panel admin
 ================================================================================
 
@@ -503,10 +503,10 @@ def get_stats():
 def format_precio_message():
     """Mensaje publico de planes y precios"""
     lines = [
-        "<b>FQ v5.0 BOT - PLANES VIP</b>",
+        "<b>FQ v5.1 BOT - PLANES VIP</b>",
         "================================",
         "",
-        "Acceso al sistema Fibonacci Cuantico v5.0 - Mistral Quantum:",
+        "Acceso al sistema Fibonacci Cuantico v5.1 - Mistral Emergent Time:",
         "- Senales SOL/USDT con Quantum Timelines Engine",
         "- Probabilidades reales: P(TP), P(SL), EV en R, regimen dominante",
         "- SL anti stop-hunt (anclado a estructura ICT real)",

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ================================================================================
-  VIP FORMAT - Mistral Quantum Edition (curated, minimalist, formula-hidden)
+  VIP FORMAT - Mistral Emergent Time Edition (curated, minimalist, formula-hidden, v5.1)
   by RasDG_Sol + Claude
 
   Lo que ve un usuario VIP NO debe permitir reverse-engineering del sistema.
@@ -233,7 +233,7 @@ def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None):
         "  ◆ SL estructural (anti stop-hunt)\n"
         "  ◆ TPs en liquidez real\n"
         "{rule}\n"
-        "  #FQv5 #MistralQuantum #QTE"
+        "  #FQv51 #MistralEmergentTime #QTE #TauPostulate"
     ).format(
         rule=rule, when=when, px=float(last["close"]),
         arrow=arrow, side=side, score=score, label=label,
@@ -245,7 +245,7 @@ def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None):
 # /help y /about TIER-AWARE
 # ============================================================
 def build_help_vip():
-    """6 comandos visibles. Mistral Quantum minimalist."""
+    """6 comandos visibles. Mistral Emergent Time minimalist."""
     rule = "━" * 30
     return (
         "{rule}\n"
@@ -287,7 +287,7 @@ def build_help_admin():
         "  ▸ /campo       Lectura on-demand del FieldState\n"
         "  ▸ /gencode /grant /broadcast (VIP system)\n"
         "{rule}\n"
-        "  FQ v5.0 Mistral Quantum — RasDG_Sol"
+        "  FQ v5.1 Mistral Emergent Time — RasDG_Sol"
     ).format(rule=rule)
 
 def build_help_free():
@@ -308,12 +308,12 @@ def build_help_free():
     ).format(rule=rule)
 
 def build_about_vip():
-    """About curado para VIP - narrativa Mistral Quantum, cero formulas crudas"""
+    """About curado para VIP - narrativa Mistral Emergent Time, cero formulas crudas"""
     rule = "━" * 30
     return (
         "{rule}\n"
         "  ◆ FIBONACCI CUANTICO v5.0\n"
-        "  Mistral Quantum · RasDG_Sol\n"
+        "  Mistral Emergent Time · RasDG_Sol\n"
         "{rule}\n"
         "\n"
         "  El mercado no es una linea.\n"
@@ -357,7 +357,7 @@ def build_about_vip():
         "  Timeframe:  15 min (con 4H/1H/1m)\n"
         "  Ventana:    24/7 menos fin de semana\n"
         "{rule}\n"
-        "  #FQv5 #MistralQuantum #QTE"
+        "  #FQv51 #MistralEmergentTime #QTE #TauPostulate"
     ).format(rule=rule)
 
 def build_about_admin():
@@ -365,8 +365,8 @@ def build_about_admin():
     rule = "━" * 30
     return (
         "{rule}\n"
-        "  ◆ FIBONACCI CUANTICO v5.0 (admin)\n"
-        "  Mistral Quantum Timelines Edition\n"
+        "  ◆ FIBONACCI CUANTICO v5.1 (admin)\n"
+        "  Mistral Emergent Time Edition\n"
         "{rule}\n"
         "\n"
         "  MASTER EQUATION v4.2 (sustrato):\n"
@@ -408,7 +408,7 @@ def build_about_admin():
         "  FQ_ENABLE_ICT, FQ_WEEKEND_VETO,\n"
         "  FQ_USE_THOMPSON, FQ_REQUIRE_OTE\n"
         "{rule}\n"
-        "  #FQv5 #MistralQuantum #Admin"
+        "  #FQv51 #MistralEmergentTime #Admin"
     ).format(rule=rule)
 
 # ============================================================
@@ -418,7 +418,7 @@ def build_welcome():
     rule = "━" * 30
     return (
         "{rule}\n"
-        "  ◆ FQ v5.0 · Mistral Quantum\n"
+        "  ◆ FQ v5.1 · Mistral Emergent Time\n"
         "{rule}\n"
         "\n"
         "  Senales SOL/USDT con motor\n"
@@ -445,8 +445,8 @@ def build_welcome_for_tier(tier):
         rule = "━" * 30
         return (
             "{rule}\n"
-            "  ◆ FQ v5.0 · Acceso activo\n"
-            "  Mistral Quantum\n"
+            "  ◆ FQ v5.1 · Acceso activo\n"
+            "  Mistral Emergent Time\n"
             "{rule}\n"
             "  Bienvenido. Tu canal de\n"
             "  senales esta activo.\n"

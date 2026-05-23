@@ -139,7 +139,7 @@ def check_progress_events(signal_row, df):
     return events
 
 # ============================================================
-# FORMATO DE ALERTAS - estetica Mistral Quantum
+# FORMATO DE ALERTAS - estetica Mistral Emergent Time
 # ============================================================
 _G = {
     "rule": "━" * 30,

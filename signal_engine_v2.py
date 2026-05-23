@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ================================================================================
-  SIGNAL ENGINE v2 - FQ v5.0 Mistral Quantum Edition
+  SIGNAL ENGINE v2 - FQ v5.1 Mistral Emergent Time Edition
   Disparo de senales arreglado con macro deslizante y eval continuo
 ================================================================================
 

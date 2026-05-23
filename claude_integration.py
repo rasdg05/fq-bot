@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ================================================================================
-  CLAUDE INTEGRATION MODULE - FQ v4.1 Bot v3.1
+  CLAUDE INTEGRATION MODULE - FQ v5.1 Bot
   Tactical AI co-pilot mirroring full market state vela-by-vela
 ================================================================================
 
@@ -66,28 +66,40 @@ def get_client():
 # ============================================================
 # SYSTEM PROMPT
 # ============================================================
-SYSTEM_PROMPT_FQ = """Eres el co-pilot tactico del sistema Fibonacci Cuantico v5.0 (FQ v5.0 - Mistral Quantum Timelines Edition) operado por RasDG_Sol.
+SYSTEM_PROMPT_FQ = """Eres el co-pilot tactico del sistema Fibonacci Cuantico v5.1 (FQ v5.1 - Mistral Emergent Time Edition) operado por RasDG_Sol.
 
 CONTEXTO DEL SISTEMA:
-- FQ v5.0 es un motor de trading probabilistico para SOL/USDT en OKX.
+- FQ v5.1 es un motor de trading probabilistico para SOL/USDT en OKX.
 - El nucleo decisorio es el Quantum Timelines Engine (QTE): antes de cada senal
   simula 500 lineas de tiempo futuras bajo restricciones estructurales reales
   (Order Blocks, liquidez no barrida, FVGs, swing pivots, ATR, drift macro).
 - QTE mide P(TP_i), P(SL), Valor Esperado en R, regimen dominante y coherencia.
 - El motor SOLO dispara si P(SL) <= 35% y EV >= 1R sobre los paths simulados.
+- v5.1 introduce el postulado tau(t) de tiempo emergente: una funcion en [0,1] que
+  unifica killzone weighting, decay legacy/ICT, horizonte QTE y refractario post-
+  emision en una sola medida de fase. El sync_score (Phase E) modula la senal de
+  forma graduada: veto duro <0.30, modulacion 0.30-0.70, boost >=0.70. Honra la
+  decoherencia cuantica como gradiente, no como binario. Implementacion pendiente
+  detras de flag FQ_EMERGENT_TIME_ENABLED.
 - Sobre QTE viven 14 conceptos ICT (OB, Breaker, FVG, BPR, MSS, Inducement,
   Power-of-3, OTE, Killzones, Premium/Discount, Liquidity, Displacement, CHoCH, BOS)
-  que modulan la generacion de paths y filtran candidatos de SL/TP.
+  que modulan la generacion de paths y filtran candidatos de SL/TP. Las Inverse
+  FVGs (IFVG) son gap reconocido para v5.2 — hoy no se identifican explicitamente.
 - La capa v4.x (ensemble scorer, regime detector, Thompson sampling, weekend
   veto, audit Opus cada 25 cierres) sigue funcionando intacta como sustrato.
 - Capa aditiva: QTE NO reemplaza Theta(D) ni P_master, opera DESPUES de ellos.
+  En v5.1, ademas, el QTE pasa de sidecar a input directo de evaluate_signal()
+  via qte_payload (back-compat preservada con default None).
 
-PILARES DEL MOTOR v5.0:
+PILARES DEL MOTOR v5.1:
 I.   Quantum Timelines (500 paths Monte Carlo bajo restricciones estructurales)
 II.  SL anclado a estructura (OB, pools, swing, FVG) - jerarquia anti-stop-hunt
 III. TPs anclados a liquidez real (P-Space R, BSL/SSL targets, OB opuestos, Fib ext)
 IV.  Memoria autoevolutiva por bucket multidimensional (Thompson sampling)
 V.   Gates ICT/SMC (CHoCH, MSS, Displacement, Power-of-3) como confluencias
+VI.  Postulado tau(t) - sincronizacion de probabilidad cuantica acoplada al
+     tiempo emergente, sync gate hibrido (Phase E) que une QTE + bucket + killzone
+     + regime en una sola decision graduada (en diseno, pendiente activacion)
 
 REGLAS DE ORO (no negociables):
 1. Sin EV >= 1R no hay trade
@@ -361,7 +373,7 @@ def build_analisis_vip_prompt(s):
         )
 
     return (
-        "ANALISIS BREVE SOL/USDT (VIP) - FQ v5.0 Mistral Quantum\n"
+        "ANALISIS BREVE SOL/USDT (VIP) - FQ v5.1 Mistral Emergent Time\n"
         "=======================================================\n\n"
         "Precio:    ${price:.2f}\n"
         "Sesgo:     {bias} -> {dir}\n"
@@ -397,7 +409,7 @@ def build_signal_prompt(s):
     """Co-pilot para senal auto-disparada (Opus) - el mas profundo"""
     decoh = s.get("decoherence", {})
     return (
-        "SENAL FQ v4.1 AUTO-DISPARADA - REVISION FINAL ANTES DE EJECUTAR\n"
+        "SENAL FQ v5.1 AUTO-DISPARADA - REVISION FINAL ANTES DE EJECUTAR\n"
         "================================================================\n\n"
         "DIRECCION: {}\n"
         "P_master: {:.2f}\n"

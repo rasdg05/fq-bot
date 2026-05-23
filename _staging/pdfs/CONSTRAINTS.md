@@ -1,14 +1,15 @@
-# CONSTRAINTS.md — Invariantes del Motor FQ v5.0 (Mistral · Quantum Timelines Edition)
+# CONSTRAINTS.md — Invariantes del Motor FQ v5.1 (Mistral · Emergent Time Edition)
 
-Última actualización: 2026-05-21 — alineado con motor v5.0 post-integración del Quantum Timelines Engine.
+Última actualización: 2026-05-23 — alineado con el postulado τ(t) de tiempo emergente (`_POSTULATE_EMERGENT_TIME.md`).
 
 Este archivo define las **reglas duras del motor Fibonacci Cuántico** vigentes para
-la edición Mistral Quantum y preparación para venta al público.
+la edición Mistral Emergent Time y operativa al público.
 
-Las versiones previas (v3.0 paper, v4.x mistral edition) definían restricciones que la
-operativa real ha superado. Esta versión (v5.0) introduce el **Quantum Timelines Engine
-(QTE)** como capa decisoria principal — simulación Monte Carlo bajo restricciones
-estructurales reales — manteniendo TODOS los invariantes v4.3 como sustrato.
+Las versiones previas (v3.0 paper, v4.x mistral edition, v5.0 quantum timelines) definían
+restricciones que la operativa real ha superado o extendido. Esta versión (v5.1) introduce
+el **postulado τ(t)** que unifica todas las fórmulas de fase del sistema y formaliza el
+cableo QTE→Fusion con un sync gate híbrido (Phase E). Mantiene TODOS los invariantes v5.0
+como sustrato — la Phase E es aditiva y reversible vía flag.
 
 Cualquier propuesta de cambio que rompa una de estas reglas debe ser marcada
 como CONFLICTO y requiere aprobación manual antes de implementarse.
@@ -177,6 +178,76 @@ Cuando se proponga incorporar contenido de los PDFs:
 - **Capa aditiva** — QTE NO reemplaza P_master ni Θ(D). Se aplica DESPUÉS de que
   ambos gates pasan. La señal sólo se emite cuando: `Θ(D)=1 ∧ P_master ≥ φ ∧ EV_QTE ≥ 1R ∧ P_SL_QTE ≤ 0.35`.
 
+## 13. Postulado τ(t) — Tiempo Emergente Unificado (v5.1)
+
+**Estado:** diseño aprobado en `_POSTULATE_EMERGENT_TIME.md`. Implementación pendiente
+en `emergent_time.py` (módulo INERTE, Fase 1 del plan). Cableo a `evaluate_signal()`
+detrás de flag `FQ_EMERGENT_TIME_ENABLED` (default OFF hasta validación con ≥50 señales
+históricas).
+
+**Definición:**
+
+```
+τ(t) = φ_clock(t) · φ_memory(N) · φ_horizon(QTE) · φ_refractory(Δ)
+```
+
+Cada φᵢ ∈ [0, 1]. Elección multiplicativa intencional: cualquier proyección 0 anula τ
+(generalización de Θ(D) a cuatro dimensiones temporales).
+
+| Proyección | Fórmula | Reusa |
+|---|---|---|
+| φ_clock | W_killzone(t) / 1.40 | §5 killzone weights |
+| φ_memory | 1 − exp(−N / HYBRID_DECAY_N) si bucket no toxic; 0 si toxic | HYBRID_DECAY_N=50 |
+| φ_horizon | (1 − P_SL) · clip(EV_R/2, 0, 1) · coherence | §12 QTE outputs |
+| φ_refractory | clip(Δ_min / 60, 0, 1) | SIGNAL_COOLDOWN=1h |
+
+**Phase E — sync gate híbrido (recomendado, no implementado aún):**
+
+| sync_score | Acción | Modulador |
+|---|---|---|
+| < 0.30 | VETO duro | P_master = 0 |
+| 0.30-0.50 | Atenuado | f_conf · 0.85, κ_evo · 0.95 |
+| 0.50-0.70 | Neutro | sin cambio |
+| 0.70-0.85 | Boost | f_conf · 1.05 |
+| ≥ 0.85 | Boost fuerte | f_conf · 1.10, κ_evo · 1.05 (cap §5) |
+
+**Ecuación maestra v5.1:**
+
+```
+P_master_v51 = Θ(D) · κ_evo' · φⁿ · W_eff · H_lap · f_conf' · f_ict · σ(τ)
+```
+
+Con `qte_payload=None` se reduce a v5.0 exacta. κ_evo' siempre clipeado a [0.85, 1.15].
+
+## 14. Gap reconocido — Inverse Fair Value Gaps (IFVG)
+
+**Estado:** NO implementado en v5.1. Identificado como gap el 2026-05-23.
+
+`ict_smc.detect_fvgs()` detecta FVGs alcistas (prev_high < next_low) y bajistas
+(prev_low > next_high), pero filtra solo las **no rellenadas** (`filled_pct < 0.5`).
+Una FVG **inversa** (IFVG) es cuando una FVG es traspasada — el precio cierra al
+otro lado — y pasa a actuar como zona opuesta:
+
+- FVG alcista traspasada → IFVG bajista (resistencia desde arriba)
+- FVG bajista traspasada → IFVG alcista (soporte desde abajo)
+
+Las IFVG son señales ICT institucionales fuertes porque representan inefficiencia
+que ya fue mitigada pero ahora actúa como referencia inversa (el "stop hunt" del
+nivel original).
+
+**Plan v5.2:**
+
+1. `ict_smc.detect_inverse_fvgs()` — rastrea FVGs que cruzaron `filled_pct ≥ 1.0`
+   con cierre opuesto y las marca como IFVG activa hasta segundo barrido.
+2. Integración en `build_confluence()` — IFVG cuenta como masa adicional con peso
+   diferenciado (>= FVG normal en jerarquía PD).
+3. Bandera `had_ifvg` en `bucket_key_v4` (migración idempotente).
+4. Documentación de la fuente ICT en `_KNOWLEDGE_NOTES.md` § nuevo.
+
+Hasta que esté en producción, el motor **subestima** confluencia institucional en
+setups donde la zona operable es una IFVG (no la pierde, simplemente no la
+identifica explícitamente — el OB/swing/sweep usualmente la cubre indirectamente).
+
 ## 11. Beta final → producción
 
 Para preparar venta al público:
@@ -191,4 +262,4 @@ Para preparar venta al público:
 - VIP BotFather menu = 6 comandos (status / lectura / miestado / renovar /
   about / help). Público BotFather menu = 4 comandos.
 
-#FQv5 #MistralQuantum #QTE #ProductionReady
+#FQv51 #MistralEmergentTime #QTE #TauPostulate #IFVGPending #ProductionReady
