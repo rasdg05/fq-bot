@@ -1,12 +1,15 @@
 [build]
 builder = "NIXPACKS"
 
-# DOS SERVICIOS EN EL MISMO REPO:
-#   1) VIP (default) - usa startCommand abajo
-#   2) PUBLIC - en Railway dashboard, override startCommand a:
-#        python entry_public.py
-#      y agrega env vars TELEGRAM_TOKEN_PUBLIC + FQ_VIP_BOT_USERNAME (+ ANTHROPIC_API_KEY)
+# UN SOLO SERVICIO con AMBOS bots (VIP + PUBLIC) corriendo como subprocesos.
+# Razon: Railway no soporta compartir un volumen entre servicios, asi que el
+# bot publico vive en el mismo container que el VIP para poder leer /data/fq_ledger.db.
+#
+# Variables que el servicio Railway debe tener:
+#   VIP:    TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, ANTHROPIC_API_KEY, FQ_LEDGER_PATH
+#   PUBLIC: TELEGRAM_TOKEN_PUBLIC, FQ_VIP_BOT_USERNAME,
+#           FQ_PUBLIC_DB_PATH=/data/fq_public.db, FQ_VIP_LEDGER_PATH=/data/fq_ledger.db
 [deploy]
-startCommand = "python entry_vip.py"
+startCommand = "python launcher.py"
 restartPolicyType = "ALWAYS"
 restartPolicyMaxRetries = 10
