@@ -138,20 +138,25 @@ def phi_refractory(delta_minutes, cooldown_minutes=COOLDOWN_REF_MINUTES):
 # TAU - PRODUCTO DE LAS 4 PROYECCIONES
 # ============================================================
 def tau(w_killzone, bucket_memory, qte_payload, delta_minutes,
-        decay_n=DECAY_N_DEFAULT):
+        decay_n=DECAY_N_DEFAULT, cooldown_minutes=COOLDOWN_REF_MINUTES):
     """Postulado tau(t) = phi_clock * phi_memory * phi_horizon * phi_refractory.
-    Cualquier proyeccion=0 anula tau (Theta(D) generalizado a 4D temporal)."""
+    Cualquier proyeccion=0 anula tau (Theta(D) generalizado a 4D temporal).
+
+    bucket_memory=None: tratado como "no medido" -> phi_memory=1.0 (neutral,
+    NO veta). Esto permite uso informativo desde /analisis donde no se construye
+    el field completo. Bucket explicito con confidence='empty' SI da phi_memory=0
+    (sin track record real)."""
     if bucket_memory is None:
-        n_closed, win_rate, confidence = 0, 0.0, "empty"
+        pm = 1.0  # informative mode: ausencia != veto
     else:
-        n_closed   = getattr(bucket_memory, "n_closed",  0)
-        win_rate   = getattr(bucket_memory, "win_rate",  0.0)
+        n_closed   = getattr(bucket_memory, "n_closed",   0)
+        win_rate   = getattr(bucket_memory, "win_rate",   0.0)
         confidence = getattr(bucket_memory, "confidence", "empty")
+        pm = phi_memory(n_closed, win_rate, confidence, decay_n)
 
     pc = phi_clock(w_killzone)
-    pm = phi_memory(n_closed, win_rate, confidence, decay_n)
     ph = phi_horizon(qte_payload)
-    pr = phi_refractory(delta_minutes)
+    pr = phi_refractory(delta_minutes, cooldown_minutes=cooldown_minutes)
     return {
         "tau":            pc * pm * ph * pr,
         "phi_clock":      pc,
@@ -222,9 +227,11 @@ def bucket_streak_health(streak):
 # SYNC SCORE
 # ============================================================
 def compute_sync_score(field, bucket_memory, qte_payload, delta_minutes,
-                       direction, weights=None, decay_n=DECAY_N_DEFAULT):
+                       direction, weights=None, decay_n=DECAY_N_DEFAULT,
+                       cooldown_minutes=COOLDOWN_REF_MINUTES):
     """Combinacion ponderada de 5 componentes.
     Pesos default (0.30, 0.25, 0.20, 0.15, 0.10), override por env FQ_SYNC_WEIGHTS.
+    cooldown_minutes permite override per-TF desde fusion_engine via config.
     Retorna dict con sync_score + breakdown completo."""
     if weights is None:
         weights = _load_weights_from_env()
@@ -233,7 +240,8 @@ def compute_sync_score(field, bucket_memory, qte_payload, delta_minutes,
     kz_priority = getattr(field, "killzone_priority", None) if field is not None else None
     streak = getattr(bucket_memory, "streak", None) if bucket_memory is not None else None
 
-    tau_data = tau(w_killzone, bucket_memory, qte_payload, delta_minutes, decay_n)
+    tau_data = tau(w_killzone, bucket_memory, qte_payload, delta_minutes,
+                   decay_n=decay_n, cooldown_minutes=cooldown_minutes)
 
     regime_label = qte_payload.get("regime_modal") if qte_payload else None
     components = {
@@ -445,6 +453,33 @@ def _run_self_tests():
         assert abs(a - b) < 1e-9, "weights uniformes deberian re-normalizar a 0.2"
     print("[9] weights env override + re-normalizacion: OK")
     del os.environ["FQ_SYNC_WEIGHTS"]
+
+    # ---- Test 10: modo informativo (bucket_memory=None, field=None)
+    # Para uso desde /analisis sin construir field completo
+    tau_info = tau(w_killzone=1.0, bucket_memory=None, qte_payload=qte_good, delta_minutes=60)
+    print("[10] informativo bucket=None: phi_mem={:.2f} tau={:.3f}".format(
+        tau_info["phi_memory"], tau_info["tau"]))
+    assert tau_info["phi_memory"] == 1.0, "bucket=None debe dar phi_memory=1.0 (neutral)"
+    assert tau_info["tau"] > 0, "tau informativo no debe ser 0 si las otras phi son positivas"
+    # Empty bucket explicito sigue dando phi_memory=0
+    class _BMempty:
+        n_closed = 0
+        win_rate = 0.0
+        confidence = "empty"
+    tau_empty = tau(w_killzone=1.0, bucket_memory=_BMempty(), qte_payload=qte_good, delta_minutes=60)
+    assert tau_empty["phi_memory"] == 0.0, "bucket explicito empty debe seguir vetando"
+
+    # ---- Test 11: cooldown_minutes override per-TF
+    # 5m profile: cooldown=20min. delta=10min -> phi_refractory=0.5
+    tau_5m = tau(w_killzone=1.0, bucket_memory=None, qte_payload=qte_good,
+                 delta_minutes=10, cooldown_minutes=20)
+    assert abs(tau_5m["phi_refractory"] - 0.5) < 1e-9, \
+        "cooldown=20, delta=10 -> phi_ref=0.5 (dio {:.3f})".format(tau_5m["phi_refractory"])
+    # Mismo delta con cooldown global 60 -> phi_ref=0.166...
+    tau_15m = tau(w_killzone=1.0, bucket_memory=None, qte_payload=qte_good,
+                  delta_minutes=10, cooldown_minutes=60)
+    assert abs(tau_15m["phi_refractory"] - (10.0/60.0)) < 1e-9
+    print("[11] cooldown per-TF: 5m(20min)/delta=10 -> phi_ref=0.5; 15m(60min) -> 0.17")
 
     print("\nALL TESTS PASSED")
 

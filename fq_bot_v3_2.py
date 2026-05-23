@@ -152,6 +152,9 @@ TF_PROFILES = {
         "context_mid":            "15m",
         "context_high":           "1h",
         "sub_tf":                 "1m",
+        # FQ v5.1 Phase E - calibrado para scalping intradia
+        "PHASE_E_N_PATHS":        200,    # menos paths: el 5m evalua mas seguido
+        "PHASE_E_COOLDOWN_MIN":   20,     # = SIGNAL_COOLDOWN_MINUTES del 5m
     },
     "15m": {
         "label":                  "SCALPING",
@@ -163,6 +166,8 @@ TF_PROFILES = {
         "context_mid":            "1h",
         "context_high":           "4h",
         "sub_tf":                 "1m",
+        "PHASE_E_N_PATHS":        300,    # baseline del postulado
+        "PHASE_E_COOLDOWN_MIN":   60,
     },
     "1h": {
         "label":                  "SWING",
@@ -174,6 +179,8 @@ TF_PROFILES = {
         "context_mid":            "4h",
         "context_high":           "1d",
         "sub_tf":                 "5m",
+        "PHASE_E_N_PATHS":        500,    # corre poco, mas paths para mejor precision
+        "PHASE_E_COOLDOWN_MIN":   180,
     },
 }
 
@@ -2307,7 +2314,7 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
             STATE.last_eval_ts = now
 
         # 2. Config a fusion_engine (incluye tf_id para bucket keys y PMASTER por TF)
-        # LAST_SIGNAL_TS alimenta phi_refractory de Phase E (FQ v5.1)
+        # LAST_SIGNAL_TS + PHASE_E_* alimentan Phase E (FQ v5.1) calibrado por TF
         config = {
             "PHI":              PHI,
             "PMASTER_MIN":      tf_pmin,
@@ -2317,6 +2324,8 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
             "PULLBACK_VOL_MULT": profile["PULLBACK_VOL_MULT"],
             "BREAKOUT_VOL_MULT": profile["BREAKOUT_VOL_MULT"],
             "LAST_SIGNAL_TS":   STATE.last_signal_ts_tf.get(tf_id),
+            "PHASE_E_N_PATHS":  profile.get("PHASE_E_N_PATHS"),
+            "PHASE_E_COOLDOWN_MIN": profile.get("PHASE_E_COOLDOWN_MIN"),
         }
 
         # 3. Delegate principal. Pasamos primary/ctx_mid/ctx_high/sub manteniendo
