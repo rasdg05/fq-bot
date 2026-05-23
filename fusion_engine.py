@@ -45,6 +45,11 @@ ENFORCE_HIGH_GATE = os.environ.get("FQ_ENFORCE_HIGH_GATE", "0") == "1"
 USE_SCORER        = os.environ.get("FQ_USE_SCORER", "1") == "1"
 USE_REGIME        = os.environ.get("FQ_USE_REGIME", "1") == "1"
 
+# Phase E - postulado tau(t) emergente (FQ v5.1)
+EMERGENT_TIME_ENABLED = os.environ.get("FQ_EMERGENT_TIME_ENABLED", "0").strip() in ("1", "true", "yes")
+PHASE_E_QTE_N_PATHS   = int(os.environ.get("FQ_PHASE_E_N_PATHS", "300"))
+PHASE_E_VETO_LO       = 0.30   # sync_score < esto -> veto absoluto
+
 # Modulos ML (lazy import)
 try:
     import signal_scorer
@@ -53,6 +58,15 @@ try:
 except ImportError:
     _ML_AVAILABLE = False
     signal_scorer = regime_detector = None
+
+# QTE + emergent_time (lazy import) para Phase E
+try:
+    import quantum_timelines as qt
+    import emergent_time
+    _QTE_AVAILABLE = True
+except ImportError:
+    _QTE_AVAILABLE = False
+    qt = emergent_time = None
 
 # ============================================================
 # CARGAR MEMORIA DE BUCKET (cierre del loop - decision 1)
@@ -147,6 +161,22 @@ def _compute_profit_factor(bucket_key):
         return wins / losses
     except Exception:
         return 0.0
+
+def _compute_delta_minutes(last_ts):
+    """Minutos desde last_ts. None/timestamp invalido -> None (primera senal)."""
+    if last_ts is None:
+        return None
+    try:
+        if isinstance(last_ts, (int, float)):
+            last_dt = datetime.fromtimestamp(float(last_ts), tz=timezone.utc)
+        else:
+            last_dt = last_ts
+            if last_dt.tzinfo is None:
+                last_dt = last_dt.replace(tzinfo=timezone.utc)
+        delta = datetime.now(timezone.utc) - last_dt
+        return delta.total_seconds() / 60.0
+    except Exception:
+        return None
 
 # ============================================================
 # FASE A - SESGO ESTRUCTURAL + PD
@@ -295,10 +325,11 @@ def _execute_phase_d(field, direction, p_master_provisional, tf_id=None):
 # ============================================================
 # P_MASTER REFINADO
 # ============================================================
-def _compute_p_master_refined(field, direction, masses, lap, config):
+def _compute_p_master_refined(field, direction, masses, lap, config, phase_e_data=None):
     """
     Calculo final con hibrido w_clock <-> w_killzone + f_confluence + ICT concepts.
     Usa Thompson sampling sobre bucket_key_v3 si FQ_USE_THOMPSON=1.
+    Si phase_e_data presente: aplica sync_modulator sobre kappa_evo y P_master con caps.
     """
     tf_id = config.get("TF_ID")  # opcional: separa memorias 5m/15m/1h
     n_closed_v2 = ev.count_closed_v2_buckets() if hasattr(ev, "count_closed_v2_buckets") else 0
@@ -341,6 +372,25 @@ def _compute_p_master_refined(field, direction, masses, lap, config):
 
     p_master = p_master_raw * kappa_evo
 
+    # === FASE E - SYNC MODULATOR (FQ v5.1) ===
+    # Si phase_e_data presente: aplica sigma_tau sobre P_master + kappa_evo_mult con caps.
+    # Si no: comportamiento identico a v5.0 exacto (back-compat).
+    sigma_tau = 1.0
+    sync_score = None
+    sync_tier = None
+    kappa_evo_modulated = kappa_evo
+    caps_applied = []
+    if phase_e_data is not None and _QTE_AVAILABLE:
+        mods = emergent_time.sync_modulators(phase_e_data["sync_score"])
+        sigma_tau = mods["sigma_tau"]
+        sync_score = phase_e_data["sync_score"]
+        sync_tier = mods["tier"]
+        kappa_evo_modulated = emergent_time.apply_kappa_cap(kappa_evo * mods["kappa_evo_mult"])
+        p_master_pre = p_master_raw * kappa_evo_modulated
+        p_master_post_raw = p_master_pre * sigma_tau
+        p_master, caps_applied = emergent_time.apply_inflation_cap(p_master_pre, p_master_post_raw)
+        kappa_evo = kappa_evo_modulated  # para reporting downstream
+
     return {
         "p_master_raw":   p_master_raw,
         "p_master":       p_master,
@@ -363,6 +413,14 @@ def _compute_p_master_refined(field, direction, masses, lap, config):
         "bucket_key_coarse": bucket_key_coarse,
         "bucket_memory":  bm,
         "n_closed_v2":    n_closed_v2,
+        # Phase E (FQ v5.1) - None cuando flag OFF
+        "sync_score":           sync_score,
+        "sync_tier":            sync_tier,
+        "sigma_tau":            sigma_tau,
+        "kappa_evo_modulated":  kappa_evo_modulated,
+        "phase_e_components":   phase_e_data["components"] if phase_e_data else None,
+        "phase_e_tau":          phase_e_data["tau_components"] if phase_e_data else None,
+        "caps_applied":         caps_applied,
     }
 
 # ============================================================
@@ -422,6 +480,21 @@ def evaluate_signal(
                 masses=masses, lap=lap
             )
 
+        # 3.b QTE pre-fusion (FQ v5.1 Phase E) - solo si flag ON
+        # Corre con direction ya resuelta para evitar 2x calls o sesgo
+        qte_payload = None
+        if EMERGENT_TIME_ENABLED and _QTE_AVAILABLE:
+            try:
+                qa = qt.quantum_analysis(
+                    df_15m, direction=direction,
+                    ict_module=ict,
+                    n_paths=PHASE_E_QTE_N_PATHS, run_optimizer=False,
+                )
+                qte_payload = emergent_time.build_qte_payload_from_quantum_analysis(qa)
+            except Exception as e:
+                log.warning("QTE pre-fusion error: {}".format(e))
+                qte_payload = None
+
         # 4. FASE A
         a = _execute_phase_a(field, direction)
         if not a["passed"]:
@@ -463,8 +536,39 @@ def evaluate_signal(
                 masses=masses, lap=lap
             )
 
+        # 8.b FASE E - Sync gate emergente (FQ v5.1)
+        # tau(t) = phi_clock * phi_memory * phi_horizon * phi_refractory
+        # sync_score < 0.30 -> veto absoluto. Modulador continuo encima.
+        phase_e_data = None
+        if EMERGENT_TIME_ENABLED and _QTE_AVAILABLE and qte_payload is not None:
+            last_ts = config.get("LAST_SIGNAL_TS")
+            delta_min = _compute_delta_minutes(last_ts)
+            phase_e_data = emergent_time.compute_sync_score(
+                field, field.bucket_memory, qte_payload, delta_min, direction
+            )
+            mods = emergent_time.sync_modulators(phase_e_data["sync_score"])
+            log.info("PHASE_E tf=%s sync=%.3f tau=%.3f phi_c=%.2f phi_m=%.2f phi_h=%.2f phi_r=%.2f tier=%s",
+                config.get("TF_ID", "?"),
+                phase_e_data["sync_score"],
+                phase_e_data["tau_components"]["tau"],
+                phase_e_data["tau_components"]["phi_clock"],
+                phase_e_data["tau_components"]["phi_memory"],
+                phase_e_data["tau_components"]["phi_horizon"],
+                phase_e_data["tau_components"]["phi_refractory"],
+                mods["tier"]
+            )
+            if phase_e_data["sync_score"] < PHASE_E_VETO_LO:
+                return False, field, _build_report(
+                    decision="sync_veto", failed_at="E", failed_phase="E.veto",
+                    reason="Phase E veto: sync={:.2f}<{:.2f}".format(
+                        phase_e_data["sync_score"], PHASE_E_VETO_LO),
+                    direction_inferred=direction,
+                    phase_e=phase_e_data,
+                    masses=masses, lap=lap
+                )
+
         # 9. P_MASTER FINAL REFINADO
-        pm_data = _compute_p_master_refined(field, direction, masses, lap, config)
+        pm_data = _compute_p_master_refined(field, direction, masses, lap, config, phase_e_data=phase_e_data)
 
         if pm_data["p_master"] < config["PMASTER_MIN"]:
             return False, field, _build_report(
