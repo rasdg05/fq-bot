@@ -2307,6 +2307,7 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
             STATE.last_eval_ts = now
 
         # 2. Config a fusion_engine (incluye tf_id para bucket keys y PMASTER por TF)
+        # LAST_SIGNAL_TS alimenta phi_refractory de Phase E (FQ v5.1)
         config = {
             "PHI":              PHI,
             "PMASTER_MIN":      tf_pmin,
@@ -2315,6 +2316,7 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
             "TF_LABEL":         tf_label,
             "PULLBACK_VOL_MULT": profile["PULLBACK_VOL_MULT"],
             "BREAKOUT_VOL_MULT": profile["BREAKOUT_VOL_MULT"],
+            "LAST_SIGNAL_TS":   STATE.last_signal_ts_tf.get(tf_id),
         }
 
         # 3. Delegate principal. Pasamos primary/ctx_mid/ctx_high/sub manteniendo
@@ -2343,10 +2345,13 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
         STATE.last_eval_diagnostic_tf[tf_id] = diag
         STATE.last_eval_diagnostic = diag
 
-        # 4B. Gate QTE: si una senal paso P_master pero el motor de Quantum
-        # Timelines da probabilidad alta de SL o EV insuficiente, rechazamos
-        # para no quemar suscriptores con setups marginales.
-        if fire and QTE_GATE_ENABLED and QTE_AVAILABLE and qt is not None:
+        # 4B. Gate QTE LEGACY (post-fire). Si Phase E (FQ v5.1) esta activo,
+        # el QTE ya fue procesado pre-fusion como input al P_master con sync gate,
+        # asi que el gate legacy se salta para no doble-vetar la misma senal.
+        # Flag OFF -> comportamiento v5.0 exacto (legacy gate corre).
+        _phase_e_active = getattr(fusion_engine, "EMERGENT_TIME_ENABLED", False)
+        if fire and QTE_GATE_ENABLED and QTE_AVAILABLE and qt is not None \
+           and not _phase_e_active:
             try:
                 levels_q = report.get("levels", {})
                 direction_q = report.get("direction")

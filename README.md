@@ -3,7 +3,7 @@
 
 Motor de trading probabilístico para SOL/USDT. Simula líneas de tiempo futuras bajo restricciones ICT/SMC, las sincroniza con un postulado de tiempo emergente τ(t), y opera sólo cuando el Valor Esperado supera 1R y la fase del sistema cruza el umbral.
 
-> **v5.1 (mayo 2026)**: introduce el **postulado τ(t) de tiempo emergente** que unifica las fórmulas dispersas de fase (killzone weighting, decay legacy↔ICT, horizonte QTE, refractario post-emisión) en una sola función ∈ [0, 1]. Cablea el QTE como **input** a la fusión (no como sidecar veto). Añade **Phase E** con sync_score híbrido graduado: veto duro <0.30, modulación 0.30-0.70, boost ≥0.70. Documentación del postulado en `_POSTULATE_EMERGENT_TIME.md`. **Estado: diseño aprobado, implementación en módulo inerte pendiente.**
+> **v5.1 (mayo 2026)**: introduce el **postulado τ(t) de tiempo emergente** que unifica las fórmulas dispersas de fase (killzone weighting, decay legacy↔ICT, horizonte QTE, refractario post-emisión) en una sola función ∈ [0, 1]. Cablea el QTE como **input** a la fusión (no como sidecar veto). Añade **Phase E** con sync_score híbrido graduado: veto duro <0.30, modulación 0.30-0.70, boost ≥0.70. Documentación del postulado en `_POSTULATE_EMERGENT_TIME.md`. **Estado: IMPLEMENTADO en `emergent_time.py` + cableado en `fusion_engine.py`. Gateado por `FQ_EMERGENT_TIME_ENABLED` (default `0` = comportamiento v5.0 exacto). Pendiente: validación shadow-mode + flip de flag en producción.**
 
 ## Cambios v5.1 (sobre v5.0)
 
@@ -17,6 +17,16 @@ Motor de trading probabilístico para SOL/USDT. Simula líneas de tiempo futuras
    - ≥ 0.85 → boost fuerte f_conf · 1.10, κ_evo · 1.05
 4. **Ecuación maestra v5.1** — `P_master = Θ(D) · κ_evo' · φⁿ · W_eff · H_lap · f_conf' · f_ict · σ(τ)`. Reduce a v5.0 exacta cuando `qte_payload=None`.
 5. **Gap reconocido (IFVG)** — las **Inverse Fair Value Gaps** todavía NO están implementadas. `ict_smc.detect_fvgs()` filtra solo FVGs no rellenas (`filled_pct < 0.5`) y descarta las invertidas, que actúan como zonas opuestas fuertes (resistencia tras break alcista, soporte tras break bajista). Pendiente para v5.2: `detect_inverse_fvgs()` con tracking de FVGs traspasadas, integración en `build_confluence()` y bandera `had_ifvg` en bucket_key_v4.
+
+### Env vars Phase E (v5.1)
+
+| Var | Default | Función |
+|---|---|---|
+| `FQ_EMERGENT_TIME_ENABLED` | `0` | `1`=activa Phase E + QTE pre-fusion. Default OFF preserva v5.0 exacto. |
+| `FQ_PHASE_E_N_PATHS` | `300` | Paths del QTE pre-fusion (vs 500 del gate legacy post-fire). |
+| `FQ_SYNC_WEIGHTS` | `0.30,0.25,0.20,0.15,0.10` | Pesos de los 5 componentes del sync_score (τ, regime, killzone, evr, streak). Re-normalizado si no suma 1. |
+
+**Rollback de Phase E:** flip `FQ_EMERGENT_TIME_ENABLED=0` en Railway. El gate QTE legacy post-fire vuelve a correr automáticamente sin redeploy.
 
 ## Cambios v5.0 (sobre v4.3)
 

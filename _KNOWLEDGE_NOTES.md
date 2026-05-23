@@ -149,8 +149,17 @@ reduce a v5.0 cuando qte_payload=None), §7 (cambio de firma con default opciona
 no rompe back-compat), §12 (QTE sigue siendo aditivo en el sentido de que setups
 v5.0 sin QTE pasan sin modificación).
 
-**Estado:** diseño aprobado, implementación pendiente en `emergent_time.py` (Fase 1
-del plan §6 del postulado).
+**Estado:** **IMPLEMENTADO (2026-05-23).** Módulo `emergent_time.py` con 14 funciones puras
+y 9 self-tests integrados (`python emergent_time.py` → `ALL TESTS PASSED`). Cableado en
+`fusion_engine.evaluate_signal` como Phase E entre Phase D y `_compute_p_master_refined`.
+QTE corre pre-fusion (n_paths=300) con dirección ya resuelta. Modulador `σ(τ)` y
+`κ_evo_mult` aplicados con caps `[0.85, 1.15]` para κ y `≤ 1.10·pre` para P_master.
+
+Gateado por `FQ_EMERGENT_TIME_ENABLED` (default `0`). Con flag OFF: comportamiento v5.0
+exacto. Con flag ON: gate QTE legacy post-fire en `fq_bot_v3_2.py` se salta para no
+doble-vetar. Rollback = flip de flag sin redeploy.
+
+Pendiente: shadow-mode 24-72h observando logs `PHASE_E` antes del flip a `=1` en prod.
 
 ---
 
