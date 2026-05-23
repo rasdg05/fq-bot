@@ -481,14 +481,17 @@ def evaluate_signal(
             )
 
         # 3.b QTE pre-fusion (FQ v5.1 Phase E) - solo si flag ON
-        # Corre con direction ya resuelta para evitar 2x calls o sesgo
+        # Corre con direction ya resuelta para evitar 2x calls o sesgo.
+        # n_paths se toma del TF profile cuando esta presente (5m/15m/1h tunean
+        # latencia vs precision) o cae al global FQ_PHASE_E_N_PATHS.
         qte_payload = None
         if EMERGENT_TIME_ENABLED and _QTE_AVAILABLE:
             try:
+                n_paths_tf = config.get("PHASE_E_N_PATHS") or PHASE_E_QTE_N_PATHS
                 qa = qt.quantum_analysis(
                     df_15m, direction=direction,
                     ict_module=ict,
-                    n_paths=PHASE_E_QTE_N_PATHS, run_optimizer=False,
+                    n_paths=n_paths_tf, run_optimizer=False,
                 )
                 qte_payload = emergent_time.build_qte_payload_from_quantum_analysis(qa)
             except Exception as e:
@@ -539,12 +542,16 @@ def evaluate_signal(
         # 8.b FASE E - Sync gate emergente (FQ v5.1)
         # tau(t) = phi_clock * phi_memory * phi_horizon * phi_refractory
         # sync_score < 0.30 -> veto absoluto. Modulador continuo encima.
+        # cooldown_minutes se toma del TF profile (5m=20, 15m=60, 1h=180) o
+        # cae al default global COOLDOWN_REF_MINUTES.
         phase_e_data = None
         if EMERGENT_TIME_ENABLED and _QTE_AVAILABLE and qte_payload is not None:
             last_ts = config.get("LAST_SIGNAL_TS")
             delta_min = _compute_delta_minutes(last_ts)
+            cooldown_tf = config.get("PHASE_E_COOLDOWN_MIN") or emergent_time.COOLDOWN_REF_MINUTES
             phase_e_data = emergent_time.compute_sync_score(
-                field, field.bucket_memory, qte_payload, delta_min, direction
+                field, field.bucket_memory, qte_payload, delta_min, direction,
+                cooldown_minutes=cooldown_tf,
             )
             mods = emergent_time.sync_modulators(phase_e_data["sync_score"])
             log.info("PHASE_E tf=%s sync=%.3f tau=%.3f phi_c=%.2f phi_m=%.2f phi_h=%.2f phi_r=%.2f tier=%s",
