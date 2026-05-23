@@ -205,6 +205,12 @@ QTE_GATE_ENABLED = os.environ.get("FQ_QTE_GATE_ENABLED", "1").strip() in ("1","t
 QTE_GATE_MAX_P_SL = float(os.environ.get("FQ_QTE_MAX_P_SL", "0.40"))
 QTE_GATE_MIN_EV   = float(os.environ.get("FQ_QTE_MIN_EV", "1.20"))
 
+# Cooldown VIP para /analisis - evita gasto de API y quema a proposito.
+# Admin bypasea (es RasDG). Free no llega aqui (PREMIUM_COMMANDS gate).
+# Set FQ_VIP_ANALISIS_COOLDOWN_MIN=0 para desactivar.
+VIP_ANALISIS_COOLDOWN_SEC = int(os.environ.get("FQ_VIP_ANALISIS_COOLDOWN_MIN", "30")) * 60
+_VIP_ANALISIS_LAST = {}  # chat_id (str) -> epoch seconds del ultimo /analisis
+
 # ============================================================
 # FEATURE FLAGS v4.1.1 - ICT/SMC Refactor
 # ============================================================
@@ -2970,6 +2976,28 @@ def command_listener(exchange):
                             tier_loc = vip.get_effective_tier(chat_id)
                         except Exception:
                             tier_loc = "free"
+
+                    # Cooldown VIP/trial: 30 min entre /analisis por usuario.
+                    # Admin no rate-limitado. Se marca el timestamp antes de la llamada
+                    # cara para que errores transitorios no permitan spam-retry.
+                    if tier_loc in ("vip", "trial") and VIP_ANALISIS_COOLDOWN_SEC > 0:
+                        now_s = time.time()
+                        last_s = _VIP_ANALISIS_LAST.get(str(chat_id), 0)
+                        remaining = VIP_ANALISIS_COOLDOWN_SEC - (now_s - last_s)
+                        if remaining > 0:
+                            mins = int(remaining // 60)
+                            secs = int(remaining % 60)
+                            telegram_send(
+                                "<b>/analisis en cooldown</b>\n"
+                                "================================\n\n"
+                                "Espera <b>{}m {:02d}s</b> antes del siguiente analisis.\n\n"
+                                "Cooldown VIP = {} min por usuario. Protege la API y\n"
+                                "asegura que cada lectura que pidas sea fresca.\n\n"
+                                "Las senales automaticas siguen llegando sin limite.".format(
+                                    mins, secs, VIP_ANALISIS_COOLDOWN_SEC // 60),
+                                chat_id)
+                            continue
+                        _VIP_ANALISIS_LAST[str(chat_id)] = now_s
 
                     telegram_send("Lectura tactica en proceso - Claude Sonnet 4.6...", chat_id)
                     try:
