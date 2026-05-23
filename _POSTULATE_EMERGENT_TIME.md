@@ -1,10 +1,10 @@
 # POSTULADO τ(t) — Tiempo Emergente Unificado
-## FQ v5.1 (propuesta) — Quantum Time Synchronization Edition
+## FQ v5.1 — Quantum Time Synchronization Edition
 
 **Fecha:** 2026-05-23
 **Autor:** RasDG_Sol + Claude
-**Estado:** DISEÑO — no implementado. Pre-commit al motor.
-**CONSTRAINTS:** §4 (constantes), §5 (ecuación maestra), §7 (no nuevas deps), §12 (QTE aditivo).
+**Estado:** **IMPLEMENTADO (2026-05-23)** en `emergent_time.py` + cableado en `fusion_engine.evaluate_signal` como Phase E. Gateado por `FQ_EMERGENT_TIME_ENABLED` (default `0`). Self-tests pasan: `python emergent_time.py`.
+**CONSTRAINTS:** §4 (constantes), §5 (ecuación maestra), §7 (no nuevas deps), §12 (QTE aditivo), §13 (postulado documentado).
 
 ---
 

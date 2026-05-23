@@ -180,10 +180,13 @@ Cuando se proponga incorporar contenido de los PDFs:
 
 ## 13. Postulado τ(t) — Tiempo Emergente Unificado (v5.1)
 
-**Estado:** diseño aprobado en `_POSTULATE_EMERGENT_TIME.md`. Implementación pendiente
-en `emergent_time.py` (módulo INERTE, Fase 1 del plan). Cableo a `evaluate_signal()`
-detrás de flag `FQ_EMERGENT_TIME_ENABLED` (default OFF hasta validación con ≥50 señales
-históricas).
+**Estado:** **IMPLEMENTADO** en `emergent_time.py` (14 funciones puras + 9 self-tests).
+Cableado en `fusion_engine.evaluate_signal` como Phase E entre Phase D y P_master final,
+con QTE pre-fusion (`FQ_PHASE_E_N_PATHS=300`) usando la dirección ya resuelta para evitar
+sesgo de `direction=None` o 2× calls. Gateado por `FQ_EMERGENT_TIME_ENABLED` (default `0`)
+hasta validación shadow-mode + ≥50 señales históricas. Con flag OFF, el motor opera
+idéntico a v5.0 (back-compat exacta). Con flag ON, el gate QTE legacy post-fire en
+`fq_bot_v3_2.py` se salta para no doble-vetar.
 
 **Definición:**
 
@@ -201,7 +204,7 @@ Cada φᵢ ∈ [0, 1]. Elección multiplicativa intencional: cualquier proyecci�
 | φ_horizon | (1 − P_SL) · clip(EV_R/2, 0, 1) · coherence | §12 QTE outputs |
 | φ_refractory | clip(Δ_min / 60, 0, 1) | SIGNAL_COOLDOWN=1h |
 
-**Phase E — sync gate híbrido (recomendado, no implementado aún):**
+**Phase E — sync gate híbrido (implementado en `emergent_time.sync_modulators`):**
 
 | sync_score | Acción | Modulador |
 |---|---|---|
