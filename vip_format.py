@@ -327,6 +327,45 @@ def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None, plan=None
     )
 
 # ============================================================
+# /resultados - track record verificable (VIP/admin)
+# ============================================================
+def _fmt_results_window(label, w):
+    if not w:
+        return "  {}\n  ▪ sin cierres aun".format(label)
+    pf = w["profit_factor"]
+    pf_str = "inf" if pf == float("inf") else "{:.2f}".format(pf)
+    return (
+        "  {label}\n"
+        "  ▪ Senales      {n}\n"
+        "  ▪ Win rate     {wr:.0%}\n"
+        "  ▪ Expectancy   {ex:+.2f}R\n"
+        "  ▪ Profit fctr  {pf}"
+    ).format(label=label, n=w["n"], wr=w["win_rate"], ex=w["expectancy"], pf=pf_str)
+
+def build_resultados(summary):
+    """Track record VIP. summary = dict de get_results_summary, o None."""
+    if not summary or not summary.get("total"):
+        return (
+            "{rule}\n  ◆ {product} · Resultados\n{rule}\n"
+            "  Aun no hay cierres registrados.\n{rule}"
+        ).format(rule=RULE, product=PRODUCT)
+    lines = [
+        RULE,
+        "  ◆ {} · Resultados".format(PRODUCT),
+        RULE,
+        _fmt_results_window("Ultimos 30 dias", summary.get("w30")),
+        "",
+        _fmt_results_window("Ultimos 90 dias", summary.get("w90")),
+        "",
+        _fmt_results_window("Historico total", summary.get("total")),
+    ]
+    streak = summary.get("longest_streak") or 0
+    if streak >= 2:
+        lines += ["", "  ▪ Mejor racha   {} cierres".format(streak)]
+    lines += [RULE, "  {}".format(DISCLAIMER)]
+    return "\n".join(lines)
+
+# ============================================================
 # /help y /about
 # ============================================================
 def build_help_vip():

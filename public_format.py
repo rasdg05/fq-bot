@@ -230,6 +230,62 @@ def build_weekly_stats(stats):
     return "\n".join(lines)
 
 # ============================================================
+# /resultados - track record verificable desde ledger real
+# ============================================================
+def _fmt_window(label, w):
+    """Renderiza una ventana de stats. Texto sobrio si vacia."""
+    if not w:
+        return "  {}\n  {} sin cierres aun".format(label, G["bullet_chk"])
+    pf = w["profit_factor"]
+    pf_str = "inf" if pf == float("inf") else "{:.2f}".format(pf)
+    return (
+        "  {label}\n"
+        "  {chk} Senales      {n}\n"
+        "  {chk} Win rate     {wr:.0%}\n"
+        "  {chk} Expectancy   {ex:+.2f}R\n"
+        "  {chk} Profit fctr  {pf}"
+    ).format(label=label, chk=G["bullet_chk"], n=w["n"],
+             wr=w["win_rate"], ex=w["expectancy"], pf=pf_str)
+
+def build_resultados(summary):
+    """Track record. summary = dict de compute_results_summary, o None."""
+    if not summary or not summary.get("total"):
+        return "\n".join([
+            RULE,
+            "  {} {} · Resultados".format(G["title"], PRODUCT),
+            RULE,
+            "  Aun no hay cierres registrados.",
+            "  El track record se publica aqui",
+            "  conforme el sistema opera.",
+            RULE,
+            "  {} VIP    /unirme".format(G["bullet_act"]),
+        ])
+    lines = [
+        RULE,
+        "  {} {} · Resultados".format(G["title"], PRODUCT),
+        RULE,
+        "  Verificable desde el registro",
+        "  interno del sistema.",
+        "",
+        _fmt_window("Ultimos 30 dias", summary.get("w30")),
+        "",
+        _fmt_window("Ultimos 90 dias", summary.get("w90")),
+        "",
+        _fmt_window("Historico total", summary.get("total")),
+    ]
+    streak = summary.get("longest_streak") or 0
+    if streak >= 2:
+        lines.append("")
+        lines.append("  {} Mejor racha   {} cierres".format(G["bullet_chk"], streak))
+    lines.extend([
+        RULE,
+        "  {}".format(DISCLAIMER),
+        "",
+        "  {} VIP    /unirme".format(G["bullet_act"]),
+    ])
+    return "\n".join(lines)
+
+# ============================================================
 # CTAS ROTATIVOS (texto plano, sin LLM)
 # ============================================================
 CTA_VARIANTS = [

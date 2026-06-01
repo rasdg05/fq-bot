@@ -68,6 +68,8 @@ import market_context as mctx
 # Modulos FQ v3.2 (Evolution Patch)
 import entropy_cognition as ev
 import claude_evolution as ev_claude
+import legal
+from ops import heartbeat
 
 # Progress tracker (v5.1) - alertas intermedias en senal activa (TP1/TP2/TP3)
 try:
@@ -331,12 +333,8 @@ STATE = BotState()
 # ============================================================
 # LOGGING
 # ============================================================
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    stream=sys.stdout,
-)
+import fq_logging
+fq_logging.setup()
 log = logging.getLogger("fq_bot_v3")
 
 # ============================================================
@@ -3200,6 +3198,11 @@ def command_listener(exchange):
                                     "Senales SOL/USDT con disciplina sistematica.\n"
                                     "Usa /precio para tarifas o /codigo XXXX si tienes codigo.",
                                     chat_id)
+                            # Aviso de riesgo una sola vez (primer contacto)
+                            try:
+                                telegram_send(legal.build_disclaimer(), chat_id)
+                            except Exception:
+                                pass
                     except Exception as e:
                         log.error("VIP user registration error: {}".format(e))
                         # Non-fatal: continuar sin VIP
@@ -3211,6 +3214,17 @@ def command_listener(exchange):
                         continue
                     if cmd_name == "/miestado":
                         telegram_send(vip.format_user_status(chat_id), chat_id)
+                        continue
+                    if cmd_name == "/legal":
+                        send_long(legal.build_legal_menu(), chat_id)
+                        continue
+                    if cmd_name in ("/resultados", "/track"):
+                        try:
+                            summary = ev.get_results_summary()
+                            telegram_send(vip_format.build_resultados(summary), chat_id)
+                        except Exception as e:
+                            log.error("/resultados error: {}".format(e))
+                            telegram_send("Resultados no disponibles ahora.", chat_id)
                         continue
                     if cmd_name == "/vip":
                         _cmd_vip_flow(exchange, chat_id, raw_args)
@@ -4364,6 +4378,12 @@ def main():
                             "Suscripcion VIP activada.".format(pid))
                 except Exception as e:
                     log.warning("Crypto polling error: {}".format(e))
+
+            # Latido para el watchdog (cada iteracion del loop ~60s)
+            try:
+                heartbeat.beat("vip")
+            except Exception:
+                pass
 
             # Heartbeat cada hora con estado por TF
             now_h = int(now_utc.timestamp()) // 3600

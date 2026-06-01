@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Pytest suite
+        run: pytest tests/ -q
+
+      - name: Self-tests embebidos del motor
+        run: |
+          python emergent_time.py
+          python quantum_timelines.py
+          python battle_planner.py
+
+      - name: Smoke import de modulos de cara al cliente
+        run: |
+          python -c "import branding, legal, ledger_stats, fq_logging, vip_format, public_format, public_content_generator, public_handlers, public_outcome_announcer"
+          python -c "from ops import heartbeat, backup_ledger, maintenance"
