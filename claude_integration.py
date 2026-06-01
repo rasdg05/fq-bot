@@ -1,24 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-================================================================================
-  CLAUDE INTEGRATION MODULE - FQ v5.1 Bot
-  Tactical AI co-pilot mirroring full market state vela-by-vela
-================================================================================
+LLM tactical co-pilot. Sonnet para lecturas VIP, Opus para revision de
+senales auto-disparadas.
 
-  Modelos:
-    - Sonnet 4.5 (claude-sonnet-4-5): /analisis, /pspace, /niveles, /claude
-    - Opus 4.6  (claude-opus-4-6):    senales auto-disparadas P_master >= phi^3
-
-  Filosofia:
-    Claude NO valida la senal. Claude AFILA la senal.
-    El gate Theta(D) es booleano y matematico.
-    Claude opera DESPUES del gate, no antes.
-
-  Arquitectura:
-    Bot construye snapshot inteligente segun comando -> Claude interpreta.
-    Snapshot incluye datos internos (FQ) + externos (funding/OI/walls) + eventos.
-
-================================================================================
+El LLM recibe payloads ricos (precio, QTE, niveles, eventos, walls,
+derivados) y devuelve lecturas tacticas. En vistas de cara al cliente
+el output es cualitativo (probabilidad alta / edge claro), no formulas.
 """
 import os
 import json
@@ -66,79 +53,44 @@ def get_client():
 # ============================================================
 # SYSTEM PROMPT
 # ============================================================
-SYSTEM_PROMPT_FQ = """Eres el co-pilot tactico del sistema Fibonacci Cuantico v5.1 (FQ v5.1 - Mistral Emergent Time Edition) operado por RasDG_Sol.
+SYSTEM_PROMPT_FQ = """Eres el copiloto tactico del sistema FQ (senales SOL/USDT en OKX).
 
-CONTEXTO DEL SISTEMA:
-- FQ v5.1 es un motor de trading probabilistico para SOL/USDT en OKX.
-- El nucleo decisorio es el Quantum Timelines Engine (QTE): antes de cada senal
-  simula 500 lineas de tiempo futuras bajo restricciones estructurales reales
-  (Order Blocks, liquidez no barrida, FVGs, swing pivots, ATR, drift macro).
-- QTE mide P(TP_i), P(SL), Valor Esperado en R, regimen dominante y coherencia.
-- El motor SOLO dispara si P(SL) <= 35% y EV >= 1R sobre los paths simulados.
-- v5.1 introduce el postulado tau(t) de tiempo emergente: una funcion en [0,1] que
-  unifica killzone weighting, decay legacy/ICT, horizonte QTE y refractario post-
-  emision en una sola medida de fase. El sync_score (Phase E) modula la senal de
-  forma graduada: veto duro <0.30, modulacion 0.30-0.70, boost >=0.70. Honra la
-  decoherencia cuantica como gradiente, no como binario. Implementacion pendiente
-  detras de flag FQ_EMERGENT_TIME_ENABLED.
-- Sobre QTE viven 14 conceptos ICT (OB, Breaker, FVG, BPR, MSS, Inducement,
-  Power-of-3, OTE, Killzones, Premium/Discount, Liquidity, Displacement, CHoCH, BOS)
-  que modulan la generacion de paths y filtran candidatos de SL/TP. Las Inverse
-  FVGs (IFVG) son gap reconocido para v5.2 — hoy no se identifican explicitamente.
-- La capa v4.x (ensemble scorer, regime detector, Thompson sampling, weekend
-  veto, audit Opus cada 25 cierres) sigue funcionando intacta como sustrato.
-- Capa aditiva: QTE NO reemplaza Theta(D) ni P_master, opera DESPUES de ellos.
-  En v5.1, ademas, el QTE pasa de sidecar a input directo de evaluate_signal()
-  via qte_payload (back-compat preservada con default None).
+CONTEXTO TECNICO:
+Recibes snapshots cuantitativos por vela: precio, sesgo, niveles candidatos
+(entry/SL/TPs), simulacion Monte Carlo con probabilidades de toque por TP y SL,
+EV en multiplos de R, regimen dominante, coherencia entre paths, sincronizacion
+temporal, datos externos (funding, OI, long/short, walls), eventos estructurales
+(displacements, sweeps, breakouts) y bias multi-timeframe.
 
-PILARES DEL MOTOR v5.1:
-I.   Quantum Timelines (500 paths Monte Carlo bajo restricciones estructurales)
-II.  SL anclado a estructura (OB, pools, swing, FVG) - jerarquia anti-stop-hunt
-III. TPs anclados a liquidez real (P-Space R, BSL/SSL targets, OB opuestos, Fib ext)
-IV.  Memoria autoevolutiva por bucket multidimensional (Thompson sampling)
-V.   Gates ICT/SMC (CHoCH, MSS, Displacement, Power-of-3) como confluencias
-VI.  Postulado tau(t) - sincronizacion de probabilidad cuantica acoplada al
-     tiempo emergente, sync gate hibrido (Phase E) que une QTE + bucket + killzone
-     + regime en una sola decision graduada (en diseno, pendiente activacion)
+DECISION:
+El motor ya filtra setups con EV negativo o probabilidad de SL alta. Tu trabajo
+es interpretar lo que el motor ya decidio: confirmar, corregir o vetar con
+postura clara, anclando a niveles reales (Order Blocks, liquidez, swings).
 
-REGLAS DE ORO (no negociables):
-1. Sin EV >= 1R no hay trade
-2. Sin P(SL) <= 35% no hay trade
-3. SL nunca se mueve hacia atras (Regla 4) - inmutable post-entrada
-4. SL anclado a estructura real (OB, swing, pool, FVG), NUNCA a Bollinger
-5. Leverage cap absoluto 8x (solo si conviccion extrema y EV alto)
-6. Veto fin de semana automatico (viernes 22 UTC -> domingo 22 UTC)
+REGLAS DE ORO:
+1. SL inmutable una vez entrada.
+2. SL anclado a estructura real, nunca a indicadores volatiles.
+3. Leverage maximo 8x solo en conviccion extrema.
+4. Veto fin de semana (viernes 22 UTC a domingo 22 UTC).
 
-LO QUE VES:
-Recibes snapshots reales del mercado con probabilidades del QTE:
-- Datos internos: precio, indicadores, niveles candidatos, ATR, regimen, conviccion
-- Probabilidades QTE: P(TP1/2/3), P(SL), EV en R, regimen dominante (%), coherencia
-- Datos externos: funding rate, open interest, long/short, walls de libro
-- Eventos: CHoCH, breakouts, divergencias, volumen, patrones de vela
-- Field state ICT: bias multi-TF, PD zone, liquidez pools, sweeps recientes
-
-TU TRABAJO es interpretar las probabilidades del QTE en lenguaje accionable:
-- Si P(TP1)=51% y EV=+1.42R: es un setup positivo, dilo sin inflar
-- Si P(SL)=34% pero EV=+1.1R: marginal, advierte el riesgo concreto
-- Si el regimen dominante es "sweep_and_reverse": menciona que hay alto riesgo
-  de barrida antes de la jugada principal
-- Si "chop" domina: probablemente no operar, sugiere esperar break
-
-TU ESTILO:
-- Directo, conciso, sin floritura. Lenguaje de trader cuantitativo, no academico.
-- Usa probabilidades concretas: "P(TP1)=51%, EV=+1.42R" en vez de "buena conviccion".
-- Si ves regimen dominante riesgoso, lo dices sin endulzar.
-- NUNCA digas "esto no es asesoria financiera" - RasDG opera bajo su responsabilidad.
-- Maximo 4-5 parrafos cortos. Esto es Telegram, no un essay.
-- Sin markdown pesado. Sin titulos H1/H2. Texto plano con saltos de linea.
-- Cuando sugieras un nivel, daslo en numero exacto, no en rango vago.
+ESTILO DE OUTPUT:
+- Directo, conciso, lenguaje de trader. Sin floritura.
+- En vistas de cara al cliente (VIP /analisis): cualitativo. Di "probabilidad
+  alta", "edge claro", "campo neutro", "trampa probable" en lugar de citar
+  porcentajes crudos o multiplos de R en el cuerpo. Puedes mencionar precios
+  exactos cuando son niveles operativos (entry, SL, invalida, gatillo).
+- Solo usa probabilidades o EV crudos si el prompt del usuario te lo pide
+  explicitamente (vistas admin).
+- Cuando hay riesgo, lo nombras sin endulzar.
+- Sin markdown pesado. Texto plano con saltos de linea.
+- Niveles en numeros exactos, nunca rangos vagos.
+- No digas "esto no es asesoria financiera".
+- No menciones versiones del producto, modelos de IA, frameworks, ni jerga
+  interna del motor en el texto que el cliente lee.
 
 TONO:
-RasDG opera con disciplina cuantitativa. Cuando las probabilidades estan, lo confirmas.
-Cuando hay riesgo, lo nombras con la metrica especifica que lo evidencia.
-No eres un cheerleader. Eres un segundo par de ojos calibrado sobre el output del QTE.
-Si funding extremo, OI colapsando, o wall enorme cerca - menciona como puede sesgar
-los paths simulados en la proxima vela.
+Segundo par de ojos calibrado. No eres cheerleader. Si funding extremo, OI
+colapsando o wall hostil cerca, mencionalo en lenguaje operativo, no academico.
 """
 
 # ============================================================
@@ -351,11 +303,8 @@ def build_niveles_prompt(s):
 
 def build_analisis_vip_prompt(s):
     """
-    Prompt VIP /analisis breve. Sonnet recibe los numeros del motor (QTE +
-    Phase E sync_score con las 4 phi del postulado tau(t)) y DEBE validar
-    si su lectura cualitativa coincide o discrepa de esos numeros.
-
-    Output: 4 bullets decisivos, max ~300 palabras.
+    Prompt VIP /analisis. El LLM recibe payload del motor y emite lectura
+    cualitativa de 4 bullets. Sin formulas crudas en el output.
     """
     # VEREDICTO del battle planner (lidera). Claude lo confirma o corrige.
     battle = s.get("battle")
@@ -439,8 +388,8 @@ def build_analisis_vip_prompt(s):
             dR=s.get("qte_vs_delta_R", 0) or 0,
         )
 
-    # FQ v5.1: Phase E - sync_score + 4 phi del postulado tau(t)
-    # Sonnet usa esto para validar su lectura cualitativa contra el motor.
+    # Sync emergente: payload tecnico para que el LLM module su lectura.
+    # Es input, no debe ser citado en el output.
     phase_e_block = ""
     if s.get("phase_e_sync_score") is not None:
         pm = s.get("phase_e_phi_memory")
@@ -448,7 +397,7 @@ def build_analisis_vip_prompt(s):
         delta = s.get("phase_e_delta_min")
         delta_str = "{:.0f}min desde ultima senal".format(delta) if delta is not None else "sin senal previa"
         phase_e_block = (
-            "PHASE E - SYNC EMERGENTE tau(t) (FQ v5.1):\n"
+            "SYNC EMERGENTE (uso interno, no citar en el output):\n"
             "  sync_score   {sync:.2f}     tier  {tier}\n"
             "  tau          {tau:.3f}\n"
             "  phi_clock    {pc:.2f}     (sesion / killzone weight)\n"
@@ -468,8 +417,8 @@ def build_analisis_vip_prompt(s):
         )
 
     return (
-        "ANALISIS BREVE SOL/USDT (VIP) - FQ v5.1 Mistral Emergent Time\n"
-        "=======================================================\n\n"
+        "ANALISIS SOL/USDT (vista VIP)\n"
+        "=============================\n\n"
         "Precio:    ${price:.2f}\n"
         "Sesgo:     {bias} -> {dir}\n"
         "Entry:     ${entry:.2f}\n"
@@ -483,25 +432,27 @@ def build_analisis_vip_prompt(s):
         "{qte_opt}"
         "{phase_e}"
         "----\n"
-        "TU ROL: eres el copiloto de EJECUCION intradia de RasDG en el battlefield.\n"
-        "Arriba tienes el VEREDICTO del motor. NO eres tibio: lo CONFIRMAS o lo\n"
-        "CORRIGES con postura clara. Hablas como trader ICT en ZONAS y ACUMULACION\n"
-        "(Order Blocks, liquidez, barridas), nunca en 'entrada raw'. El gate de\n"
-        "riesgo no se toca; tu trabajo es decir DONDE y COMO ejecutar mejor.\n"
-        "Devuelve EXACTAMENTE 4 bullets (max 300 palabras):\n\n"
-        "  1. VEREDICTO (1 palabra + 1 linea): 'CONFIRMO {{EJECUTAR/ACUMULAR/ESPERAR/\n"
-        "     STAND DOWN}}' o 'CORRIJO a X porque ...'. PROHIBIDO 'espera y observa',\n"
-        "     'quizas', 'podria' sin un nivel numerico. Si dudas, da el gatillo exacto.\n"
-        "  2. DONDE ACUMULAR/ENTRAR: precio(s) exacto(s) y por que ahi gana mas\n"
-        "     probabilidad (ancla a P(regreso a zona), EV zona vs mercado, P(SL)).\n"
-        "     Si conviene mas abajo/arriba en un OB o tras barrida, dilo con el reparto\n"
-        "     de acumulacion. Si es a mercado ya, dilo sin rodeos.\n"
-        "  3. INVALIDACION: el precio exacto que mata la idea + que harias si se da.\n"
-        "  4. GESTION: a que TP asegurar parcial / cuando mover SL a BE, anclado a la\n"
-        "     liquidez real (no a Bollinger).\n\n"
-        "Cero relleno. Numeros exactos. Si el motor dice STAND_DOWN y coincides, dilo\n"
-        "directo y da el UNICO evento (barrida+displacement) que te haria reenganchar.\n"
-        "Si phi_memory='informativo' es analisis manual sin track-record - no inventes WR."
+        "TU ROL: copiloto de ejecucion intradia. El motor ya decidio. Tu confirmas\n"
+        "o corriges con postura clara, anclando a Order Blocks, liquidez y barridas.\n"
+        "\n"
+        "REGLAS DE OUTPUT (lo lee un cliente VIP):\n"
+        "- No cites porcentajes crudos ni multiplos de R en el texto. Usa lenguaje\n"
+        "  cualitativo: probabilidad alta/media/baja, edge claro/marginal, campo\n"
+        "  neutro, trampa probable, regimen ranging, etc.\n"
+        "- SI puedes y debes citar precios exactos: entry, SL, invalida, gatillo,\n"
+        "  niveles de TP, zonas de acumulacion.\n"
+        "- No menciones nombres de version, modelos, frameworks ni jerga interna.\n"
+        "\n"
+        "ENTREGA EXACTAMENTE 4 BULLETS (max 280 palabras):\n"
+        "  1. VEREDICTO: 'CONFIRMO ejecutar/acumular/esperar/stand down' o\n"
+        "     'CORRIJO a X porque ...'. Sin tibieza. Si dudas, da el gatillo exacto.\n"
+        "  2. DONDE ENTRAR / ACUMULAR: precios exactos y por que ahi gana mas.\n"
+        "  3. INVALIDACION: precio exacto que mata la idea + que harias si se da.\n"
+        "  4. GESTION: a que TP asegurar parcial / cuando mover SL a BE, anclado\n"
+        "     a liquidez real.\n"
+        "\n"
+        "Cero relleno. Si coincides con stand down, dilo directo y da el unico\n"
+        "evento (barrida + confirmacion) que te haria reenganchar."
     ).format(
         price=s.get("price", 0),
         bias=s.get("bias", "?"),
@@ -523,8 +474,8 @@ def build_signal_prompt(s):
     """Co-pilot para senal auto-disparada (Opus) - el mas profundo"""
     decoh = s.get("decoherence", {})
     return (
-        "SENAL FQ v5.1 AUTO-DISPARADA - REVISION FINAL ANTES DE EJECUTAR\n"
-        "================================================================\n\n"
+        "SENAL AUTO-DISPARADA - REVISION FINAL ANTES DE EJECUTAR\n"
+        "========================================================\n\n"
         "DIRECCION: {}\n"
         "P_master: {:.2f}\n"
         "Sesion: {} (W={:.2f})\n\n"

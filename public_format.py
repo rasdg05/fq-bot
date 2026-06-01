@@ -1,29 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-================================================================================
-  PUBLIC BOT FORMAT - Estetica Mistral Emergent Time con glyphs Unicode
-  by RasDG_Sol + Claude
-
-  Glyphs sutiles (no emoji-style): ━ ◆ ▰ ▸ ▪ ▴ ▾
-  Renderea identico en Telegram Android/iOS/desktop.
-================================================================================
+Public bot format. Construye strings de cara al cliente publico.
+Sin versiones, sin formulas, sin jerga de motor.
 """
 from datetime import datetime, timezone, timedelta
 
+from branding import PRODUCT, PAIR, GLYPHS, RULE, DISCLAIMER
+
 CDMX_TZ = timezone(timedelta(hours=-6))
 
-# ============================================================
-# GLYPHS - todos Unicode solido, no emoji-style
-# ============================================================
-G = {
-    "rule":       "━" * 30,   # ━━━...
-    "title":      "◆",         # ◆
-    "event":      "▰",         # ▰
-    "bullet_act": "▸",         # ▸
-    "bullet_chk": "▪",         # ▪
-    "long":       "▴",         # ▴
-    "short":      "▾",         # ▾
-}
+# Alias para compat con codigo existente del modulo.
+G = GLYPHS
 
 def _cdmx_now():
     return datetime.now(CDMX_TZ)
@@ -80,29 +67,27 @@ def build_closure_announcement(signal_row, stats_7d=None):
     ts_close = _fmt_dt(signal_row.get("ts_closed"))
 
     lines = [
-        G["rule"],
-        "  {} FQ · Cierre confirmado".format(G["title"]),
-        G["rule"],
-        "  {} {} SOL/USDT".format(side_glyph, side_label),
+        RULE,
+        "  {} {} · Cierre confirmado".format(G["title"], PRODUCT),
+        RULE,
+        "  {} {} {}".format(side_glyph, side_label, PAIR),
         "  {} Disparada    {}".format(G["bullet_act"], ts_emit),
         "  {} Cerrada      {}".format(G["bullet_act"], ts_close),
         "  {} Resultado    {}  ·  {:+.2f}R".format(G["bullet_act"], outcome, pnl_r),
         "  {} Duracion     {}".format(G["bullet_act"], duration),
-        G["rule"],
+        RULE,
     ]
 
     if stats_7d and stats_7d.get("n_closed_7d", 0) > 0:
         n = stats_7d.get("n_closed_7d", 0)
         plural = "es" if n != 1 else ""
         lines.extend([
-            "  {} senal{} cerrada{} esta".format(n, plural, plural),
-            "  semana en el canal VIP.",
+            "  {} senal{} cerrada{} esta semana.".format(n, plural, "s" if n != 1 else ""),
             "  {} Win rate 7d     {:.0%}".format(G["bullet_chk"], stats_7d["win_rate_7d"]),
-            "  {} Expectancy      {:+.2f}R".format(G["bullet_chk"], stats_7d["expectancy_7d"]),
-            G["rule"],
+            RULE,
         ])
 
-    lines.append("  {} Acceso al VIP   /unirme".format(G["bullet_act"]))
+    lines.append("  {} Acceso VIP    /unirme".format(G["bullet_act"]))
     return "\n".join(lines)
 
 # ============================================================
@@ -111,15 +96,12 @@ def build_closure_announcement(signal_row, stats_7d=None):
 SESSION_LABELS = {
     "asia":    "Asia",
     "london":  "Londres",
-    "ny":      "NY killzone",
+    "ny":      "Nueva York",
     "overlap": "Overlap LDN/NY",
 }
 
 def build_new_signal_teaser(signal_row):
-    """
-    signal_row: dict con direction, ts_emitted, session, p_master_final
-    Nunca expone entry/SL/TPs - solo crea expectativa.
-    """
+    """Teaser publico. No expone niveles. No expone score numerico."""
     direction = (signal_row.get("direction") or "").lower()
     side_glyph = G["long"] if direction == "long" else G["short"]
     side_label = direction.upper() or "?"
@@ -129,40 +111,38 @@ def build_new_signal_teaser(signal_row):
 
     p_master = float(signal_row.get("p_master_final") or 0.0)
     label = conviction_label(p_master)
-    score = conviction_score(p_master)
 
     ts_emit = _fmt_dt(signal_row.get("ts_emitted"))
 
     return "\n".join([
-        G["rule"],
-        "  {} FQ · Senal disparada".format(G["title"]),
-        G["rule"],
-        "  {} {} SOL/USDT".format(side_glyph, side_label),
+        RULE,
+        "  {} {} · Senal disparada".format(G["title"], PRODUCT),
+        RULE,
+        "  {} {} {}".format(side_glyph, side_label, PAIR),
         "  {} Sesion       {}".format(G["bullet_act"], session_label),
-        "  {} Conviccion   {} · {}/10".format(G["bullet_act"], label, score),
+        "  {} Conviccion   {}".format(G["bullet_act"], label.title()),
         "  {} Disparada    {}".format(G["bullet_act"], ts_emit),
-        G["rule"],
-        "  Entry, SL y 4 TPs ya",
-        "  publicados en el canal VIP.",
+        RULE,
+        "  Niveles publicados en el VIP.",
         "",
-        "  {} Acceso al VIP    /unirme".format(G["bullet_act"]),
+        "  {} Acceso VIP    /unirme".format(G["bullet_act"]),
     ])
 
 # ============================================================
 # MOCKUP C: LECTURA DEL DIA (generada por Claude Sonnet)
 # ============================================================
 def wrap_lectura(titulo, cuerpo):
-    """Envuelve la lectura generada por Claude en el formato Mistral Emergent Time"""
+    """Envuelve la lectura editorial generada por el LLM."""
     return "\n".join([
-        G["rule"],
-        "  {} FQ · Lectura del dia".format(G["title"]),
-        G["rule"],
+        RULE,
+        "  {} {} · Lectura del dia".format(G["title"], PRODUCT),
+        RULE,
         "  " + titulo.strip(),
         "",
         cuerpo.strip(),
-        G["rule"],
-        "  {} Mas lecturas    /info".format(G["bullet_act"]),
-        "  {} VIP             /unirme".format(G["bullet_act"]),
+        RULE,
+        "  {} Mas      /info".format(G["bullet_act"]),
+        "  {} VIP      /unirme".format(G["bullet_act"]),
     ])
 
 # ============================================================
@@ -177,9 +157,9 @@ PRICE_TIERS = [
 
 def build_pricing():
     lines = [
-        G["rule"],
-        "  {} FQ · VIP".format(G["title"]),
-        G["rule"],
+        RULE,
+        "  {} {} · VIP".format(G["title"], PRODUCT),
+        RULE,
     ]
     for label, price, off in PRICE_TIERS:
         if off:
@@ -189,16 +169,16 @@ def build_pricing():
             lines.append("  {} {:<13} {}".format(
                 G["bullet_act"], label, price))
     lines.extend([
-        G["rule"],
-        "  Lo que recibes:",
-        "  {} Senales SOL/USDT en vivo".format(G["bullet_chk"]),
-        "  {} Niveles exactos: entry, SL, TPs".format(G["bullet_chk"]),
-        "  {} Analisis tactico bajo demanda".format(G["bullet_chk"]),
-        "  {} Auditoria sistemica cada 25 trades".format(G["bullet_chk"]),
-        G["rule"],
-        "  {} Tarjeta      /stripe".format(G["bullet_act"]),
-        "  {} USDT         /crypto".format(G["bullet_act"]),
-        "  {} Codigo       /codigo XXXX".format(G["bullet_act"]),
+        RULE,
+        "  Incluye:",
+        "  {} Senales {} en vivo".format(G["bullet_chk"], PAIR),
+        "  {} Entry, SL y TPs exactos".format(G["bullet_chk"]),
+        "  {} Analisis on-demand".format(G["bullet_chk"]),
+        "  {} Resultados verificables".format(G["bullet_chk"]),
+        RULE,
+        "  {} Tarjeta    /stripe".format(G["bullet_act"]),
+        "  {} USDT       /crypto".format(G["bullet_act"]),
+        "  {} Codigo     /codigo XXXX".format(G["bullet_act"]),
     ])
     return "\n".join(lines)
 
@@ -207,19 +187,17 @@ def build_pricing():
 # ============================================================
 def build_welcome():
     return "\n".join([
-        G["rule"],
-        "  {} FQ · Bot publico".format(G["title"]),
-        G["rule"],
-        "  Este canal emite reportes",
-        "  y resultados del canal VIP.",
+        RULE,
+        "  {} {}".format(G["title"], PRODUCT),
+        RULE,
+        "  Canal publico de reportes y",
+        "  resultados verificables del VIP.",
         "",
-        "  Para senales en vivo, niveles,",
-        "  y analisis tactico:",
-        "",
-        "  {} /unirme    al VIP".format(G["bullet_act"]),
-        "  {} /info      saber mas".format(G["bullet_act"]),
-        "  {} /precio    tarifas".format(G["bullet_act"]),
-        G["rule"],
+        "  {} /unirme      Activar VIP".format(G["bullet_act"]),
+        "  {} /precio      Tarifas".format(G["bullet_act"]),
+        "  {} /resultados  Track record".format(G["bullet_act"]),
+        "  {} /info        Sobre el sistema".format(G["bullet_act"]),
+        RULE,
     ])
 
 def build_unknown():
@@ -230,16 +208,11 @@ def build_unknown():
 # MOCKUP F: STATS SEMANALES (cada domingo)
 # ============================================================
 def build_weekly_stats(stats):
-    """
-    stats: dict con n_total_7d, n_closed_7d, wins, sls, win_rate,
-           expectancy, profit_factor, best_pnl, longest_streak
-    """
+    """Reporte semanal publico desde ledger real."""
     lines = [
-        G["rule"],
-        "  {} FQ · Reporte semanal".format(G["title"]),
-        G["rule"],
-        "  Cierre de semana en VIP:",
-        "",
+        RULE,
+        "  {} {} · Semana".format(G["title"], PRODUCT),
+        RULE,
         "  {} Senales cerradas   {}".format(G["bullet_chk"], stats.get("n_closed_7d", 0)),
         "  {} Win rate           {:.0%}".format(G["bullet_chk"], stats.get("win_rate", 0)),
         "  {} Expectancy         {:+.2f}R".format(G["bullet_chk"], stats.get("expectancy", 0)),
@@ -249,11 +222,66 @@ def build_weekly_stats(stats):
         lines.append("  {} Mejor cierre       {:+.2f}R".format(
             G["bullet_chk"], stats["best_pnl"]))
     lines.extend([
-        G["rule"],
-        "  La proxima semana,",
-        "  mismo sistema.",
+        RULE,
+        "  {}".format(DISCLAIMER),
         "",
-        "  {} Acceso al VIP    /unirme".format(G["bullet_act"]),
+        "  {} VIP    /unirme".format(G["bullet_act"]),
+    ])
+    return "\n".join(lines)
+
+# ============================================================
+# /resultados - track record verificable desde ledger real
+# ============================================================
+def _fmt_window(label, w):
+    """Renderiza una ventana de stats. Texto sobrio si vacia."""
+    if not w:
+        return "  {}\n  {} sin cierres aun".format(label, G["bullet_chk"])
+    pf = w["profit_factor"]
+    pf_str = "inf" if pf == float("inf") else "{:.2f}".format(pf)
+    return (
+        "  {label}\n"
+        "  {chk} Senales      {n}\n"
+        "  {chk} Win rate     {wr:.0%}\n"
+        "  {chk} Expectancy   {ex:+.2f}R\n"
+        "  {chk} Profit fctr  {pf}"
+    ).format(label=label, chk=G["bullet_chk"], n=w["n"],
+             wr=w["win_rate"], ex=w["expectancy"], pf=pf_str)
+
+def build_resultados(summary):
+    """Track record. summary = dict de compute_results_summary, o None."""
+    if not summary or not summary.get("total"):
+        return "\n".join([
+            RULE,
+            "  {} {} · Resultados".format(G["title"], PRODUCT),
+            RULE,
+            "  Aun no hay cierres registrados.",
+            "  El track record se publica aqui",
+            "  conforme el sistema opera.",
+            RULE,
+            "  {} VIP    /unirme".format(G["bullet_act"]),
+        ])
+    lines = [
+        RULE,
+        "  {} {} · Resultados".format(G["title"], PRODUCT),
+        RULE,
+        "  Verificable desde el registro",
+        "  interno del sistema.",
+        "",
+        _fmt_window("Ultimos 30 dias", summary.get("w30")),
+        "",
+        _fmt_window("Ultimos 90 dias", summary.get("w90")),
+        "",
+        _fmt_window("Historico total", summary.get("total")),
+    ]
+    streak = summary.get("longest_streak") or 0
+    if streak >= 2:
+        lines.append("")
+        lines.append("  {} Mejor racha   {} cierres".format(G["bullet_chk"], streak))
+    lines.extend([
+        RULE,
+        "  {}".format(DISCLAIMER),
+        "",
+        "  {} VIP    /unirme".format(G["bullet_act"]),
     ])
     return "\n".join(lines)
 
@@ -262,152 +290,115 @@ def build_weekly_stats(stats):
 # ============================================================
 CTA_VARIANTS = [
     (
-        "{} FQ · Recordatorio".format(G["title"]),
-        "El edge del sistema no espera.",
+        "{} {} · Recordatorio".format(G["title"], PRODUCT),
         "Cada senal del VIP llega con",
-        "entry, SL y 4 TPs ya calculados.",
-        "Cero ambiguedad, cero opinion.",
+        "entry, SL y TPs ya calculados.",
+        "Cero ambiguedad.",
     ),
     (
-        "{} FQ · Disciplina sistemica".format(G["title"]),
+        "{} {} · Disciplina".format(G["title"], PRODUCT),
         "El sistema no opera con miedo",
         "ni con codicia. Solo con datos.",
-        "Cada trade del VIP pasa por 4",
-        "fases antes de disparar.",
     ),
     (
-        "{} FQ · Edge medible".format(G["title"]),
+        "{} {} · Edge medible".format(G["title"], PRODUCT),
         "No vendemos predicciones.",
-        "Vendemos expectancy positiva",
-        "auditada cada 25 trades por",
-        "el motor evolutivo Opus 4.6.",
+        "Vendemos resultados auditables.",
     ),
     (
-        "{} FQ · Estructura no opinion".format(G["title"]),
-        "Liquidez, killzones, OTE.",
+        "{} {} · Estructura".format(G["title"], PRODUCT),
         "Cada nivel viene de la lectura",
-        "del campo, no de la corazonada",
-        "del operador del momento.",
+        "del mercado, no de la corazonada.",
     ),
     (
-        "{} FQ · Memoria que evoluciona".format(G["title"]),
-        "El bot recuerda cada cierre.",
-        "Cada bucket aprende. Cada",
-        "concepto ICT se valida con data.",
-        "Thompson sampling al timon.",
-    ),
-    (
-        "{} FQ · Mientras lees esto".format(G["title"]),
-        "El motor escanea SOL/USDT",
-        "cada minuto. Sin pausa.",
+        "{} {} · Mientras lees esto".format(G["title"], PRODUCT),
+        "El motor escanea {} sin pausa.".format(PAIR),
         "Las senales del VIP no esperan",
         "a que abras el chat.",
     ),
     (
-        "{} FQ · Cinco capas".format(G["title"]),
-        "Macro, tecnica, liquidez,",
-        "P-space, Quantum Timelines.",
-        "Cinco filtros antes de que",
-        "una senal toque el VIP.",
-    ),
-    (
-        "{} FQ · El silencio del bot".format(G["title"]),
+        "{} {} · El silencio".format(G["title"], PRODUCT),
         "Cuando no hay edge, calla.",
-        "Cuando habla, ya paso por las",
-        "cinco capas. No es ruido:",
-        "es probabilidad calculada.",
+        "Cuando habla, ya paso los filtros.",
     ),
     (
-        "{} FQ · Cada killzone cuenta".format(G["title"]),
-        "Cada cierre afina al motor.",
-        "Cada bucket actualiza pesos.",
-        "El sistema que entra al VIP",
-        "manana, no es el de hoy.",
+        "{} {} · Cada cierre cuenta".format(G["title"], PRODUCT),
+        "El sistema afina con cada trade.",
+        "El que entra al VIP manana",
+        "no es el de hoy.",
     ),
     (
-        "{} FQ · Otros venden senales".format(G["title"]),
-        "Aqui se mide expectancy.",
-        "Se auditan resultados cada 25",
-        "trades. Se publican stats reales.",
-        "El edge es verificable.",
+        "{} {} · Resultados verificables".format(G["title"], PRODUCT),
+        "Win rate, expectancy y profit",
+        "factor publicados desde el ledger.",
+        "Compruebalo en /resultados.",
     ),
 ]
 
 def build_cta(variant_idx):
-    """variant_idx: int para rotar; modulo len(CTA_VARIANTS)"""
+    """Rota CTAs deterministicamente."""
     v = CTA_VARIANTS[variant_idx % len(CTA_VARIANTS)]
-    lines = [G["rule"], "  " + v[0], G["rule"]]
+    lines = [RULE, "  " + v[0], RULE]
     for ln in v[1:]:
         lines.append("  " + ln)
     lines.extend([
-        G["rule"],
+        RULE,
         "  {} Conocer mas    /info".format(G["bullet_act"]),
         "  {} Unirse al VIP  /unirme".format(G["bullet_act"]),
     ])
     return "\n".join(lines)
 
 # ============================================================
-# /info detallado (template estatico)
+# /info
 # ============================================================
 def build_info():
     return "\n".join([
-        G["rule"],
-        "  {} FQ · Sistema cuantico-ICT".format(G["title"]),
-        G["rule"],
-        "  FQ es un sistema de senales para",
-        "  SOL/USDT operado por RasDG_Sol.",
+        RULE,
+        "  {} {}".format(G["title"], PRODUCT),
+        RULE,
+        "  Senales {} con disciplina".format(PAIR),
+        "  sistematica.",
         "",
-        "  No es un grupo. No es analisis.",
-        "  Es un motor cerrado que emite",
-        "  setups con entry, SL y 4 TPs.",
-        "",
-        "  {} 14 conceptos ICT/SMC".format(G["bullet_chk"]),
-        "  {} Killzones Silver Bullet".format(G["bullet_chk"]),
-        "  {} Memoria autoevolutiva".format(G["bullet_chk"]),
-        "  {} Audit Opus cada 25 trades".format(G["bullet_chk"]),
-        "  {} Disciplina: SL inmutable".format(G["bullet_chk"]),
-        "",
-        "  El edge se mide. No se cree.",
-        G["rule"],
-        "  {} Ver precios    /precio".format(G["bullet_act"]),
-        "  {} Unirse al VIP  /unirme".format(G["bullet_act"]),
+        "  {} Entry, SL y TPs exactos".format(G["bullet_chk"]),
+        "  {} SL anclado a estructura".format(G["bullet_chk"]),
+        "  {} Resultados verificables".format(G["bullet_chk"]),
+        "  {} Veto fin de semana".format(G["bullet_chk"]),
+        RULE,
+        "  {} Tarifas       /precio".format(G["bullet_act"]),
+        "  {} Track record  /resultados".format(G["bullet_act"]),
+        "  {} VIP           /unirme".format(G["bullet_act"]),
     ])
 
 # ============================================================
 # Deep link al bot VIP con codigo embedded
 # ============================================================
 def build_codigo_response(codigo, vip_bot_username):
-    """Cuando alguien escribe /codigo XXXX en el bot publico, se le manda
-       un deep link al bot VIP con el codigo pre-llenado en /start."""
+    """Deep link al bot VIP con codigo embebido en /start."""
     if not codigo or not vip_bot_username:
         return "\n".join([
-            G["rule"],
-            "  {} FQ · Codigo".format(G["title"]),
-            G["rule"],
+            RULE,
+            "  {} {} · Codigo".format(G["title"], PRODUCT),
+            RULE,
             "  Formato: /codigo XXXX-XXXX",
             "",
-            "  Si tu codigo es valido, el",
-            "  bot te dara un link al VIP.",
-            G["rule"],
+            "  Si tu codigo es valido, el bot",
+            "  VIP te dara acceso.",
+            RULE,
         ])
     link = "https://t.me/{}?start={}".format(vip_bot_username, codigo)
     return "\n".join([
-        G["rule"],
-        "  {} FQ · Codigo recibido".format(G["title"]),
-        G["rule"],
-        "  El bot VIP validara tu codigo.",
+        RULE,
+        "  {} {} · Codigo recibido".format(G["title"], PRODUCT),
+        RULE,
         "  Toca el siguiente link para",
-        "  abrirlo con el codigo cargado:",
+        "  validar tu codigo en el VIP:",
         "",
         "  {}".format(link),
-        "",
-        "  Si el codigo es valido, se",
-        "  activa tu acceso al VIP.",
-        G["rule"],
+        RULE,
     ])
 
 # ============================================================
-# /unirme - menu rapido (sin disclaim de precios)
+# /unirme
 # ============================================================
 def build_unirme(vip_bot_username):
     if vip_bot_username:
@@ -415,57 +406,49 @@ def build_unirme(vip_bot_username):
     else:
         link = "@RasDG_Sol"
     return "\n".join([
-        G["rule"],
-        "  {} FQ · Unirse al VIP".format(G["title"]),
-        G["rule"],
-        "  3 formas de entrar:",
+        RULE,
+        "  {} {} · Unirse al VIP".format(G["title"], PRODUCT),
+        RULE,
+        "  {} /stripe    Tarjeta".format(G["bullet_act"]),
+        "  {} /crypto    USDT".format(G["bullet_act"]),
+        "  {} /codigo    Codigo de acceso".format(G["bullet_act"]),
         "",
-        "  {} /stripe    pago con tarjeta".format(G["bullet_act"]),
-        "  {} /crypto    pago con USDT".format(G["bullet_act"]),
-        "  {} /codigo    tienes un codigo?".format(G["bullet_act"]),
-        "",
-        "  Tambien puedes hablar directo",
-        "  con el bot VIP:",
-        "  {}".format(link),
-        G["rule"],
+        "  Bot VIP: {}".format(link),
+        RULE,
     ])
 
 # ============================================================
-# /stripe y /crypto - placeholders con links configurables
+# /stripe y /crypto
 # ============================================================
 def build_stripe(stripe_link):
     link = stripe_link or "(pendiente de configurar)"
     return "\n".join([
-        G["rule"],
-        "  {} FQ · Pago con tarjeta".format(G["title"]),
-        G["rule"],
+        RULE,
+        "  {} {} · Tarjeta".format(G["title"], PRODUCT),
+        RULE,
         "  Stripe seguro.",
-        "  Activacion inmediata.",
         "",
         "  {}".format(link),
         "",
-        "  Despues del pago recibiras",
-        "  un codigo de activacion via",
-        "  email. Usalo con /codigo XXXX",
-        "  en el bot VIP.",
-        G["rule"],
+        "  Al completar el pago recibiras",
+        "  tu codigo de acceso.",
+        RULE,
     ])
 
 def build_crypto(usdt_address, network="TRC20"):
     addr = usdt_address or "(pendiente)"
     return "\n".join([
-        G["rule"],
-        "  {} FQ · Pago con USDT".format(G["title"]),
-        G["rule"],
-        "  USDT {} (rapido y barato)".format(network),
+        RULE,
+        "  {} {} · USDT".format(G["title"], PRODUCT),
+        RULE,
+        "  Red {}".format(network),
         "",
         "  Direccion:",
         "  {}".format(addr),
         "",
-        "  Tras tu transferencia, envia",
-        "  el TXID a @RasDG_Sol y se te",
-        "  genera tu codigo de activacion.",
-        G["rule"],
+        "  Tras la transferencia recibiras",
+        "  tu codigo de acceso.",
+        RULE,
     ])
 
 # ============================================================
@@ -476,46 +459,36 @@ MANTRAS = [
     "El edge no se busca. Se mide. El que mide gana.",
     "El stop loss es la unica certeza que un trader controla.",
     "Paciencia es un activo descontado: paga al final del ciclo.",
-    "Cinco gates antes de disparar. Esa es la diferencia entre operar y rezar.",
     "Mercado no premia opinion. Premia estructura.",
     "El sistema no recuerda tu ultima perdida. Su edge tampoco.",
     "Liquidez se forma donde la mayoria coloca su stop.",
-    "Killzone NY: dos horas donde el dinero institucional se mueve. El resto es ruido.",
     "Una senal sin probabilidad declarada es una opinion disfrazada.",
     "El precio no respeta tu entry. Respeta la estructura que lo sostiene.",
     "Mover el SL para 'darle aire' es destruir el edge con tus propias manos.",
-    "El displacement marca decision. El ranging marca indecision. Lee la diferencia.",
-    "Inducement: liquidez creada para ser barrida. No te pares ahi.",
-    "OTE 70.5: el punto donde el riesgo es estructural, no emocional.",
-    "Power of 3: acumulacion, manipulacion, distribucion. En ese orden.",
-    "Cada cierre en TP4 vale lo mismo que el ultimo. Cero memoria emocional.",
+    "Cada cierre vale lo mismo que el ultimo. Cero memoria emocional.",
     "El edge probabilistico se cobra en miles de trades, no en cinco.",
-    "Confluencia no es coincidencia. Es estructura repetida en tres timeframes.",
-    "Asia acumula. Londres manipula. NY distribuye. Conoce la fase, conoce el trade.",
+    "Confluencia no es coincidencia. Es estructura repetida.",
     "El SL inmutable es la prueba de que el sistema, no tu, opera.",
     "El bot que opera con miedo no es bot. Es operador disfrazado.",
     "Edge medible vence a intuicion no auditada. Siempre.",
     "Una senal selectiva pesa mas que cien senales optimistas.",
-    "Premium para vender. Discount para comprar. El resto es zona gris.",
-    "Market Structure Shift: la primera huella del giro. No la ultima.",
-    "El weekend no opera. Spreads anchos, liquidez delgada, sin volumen real.",
-    "Thompson sampling decide por que bucket es turno. No lo decide la corazonada.",
-    "Cada concepto ICT vale lo que su backtest probabilistico declara.",
-    "Si una senal no pasa los cinco gates, no es senal. Es ansiedad.",
+    "El weekend no opera. Liquidez delgada, sin volumen real.",
     "El sistema no aprende rapido. Aprende correcto.",
+    "Calidad sobre cantidad. Siempre.",
+    "Cuando hay edge, dispara. Cuando no, calla.",
 ]
 
 def build_mantra(idx):
-    """idx: int para rotar; modulo len(MANTRAS)"""
+    """Rota mantras deterministicamente."""
     frase = MANTRAS[idx % len(MANTRAS)]
     return "\n".join([
-        G["rule"],
-        "  {} FQ · Lectura breve".format(G["title"]),
-        G["rule"],
+        RULE,
+        "  {} {}".format(G["title"], PRODUCT),
+        RULE,
         "",
         "  " + frase,
         "",
-        G["rule"],
+        RULE,
         "  {} Mas /info  ·  VIP /unirme".format(G["bullet_act"]),
     ])
 

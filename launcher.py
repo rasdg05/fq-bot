@@ -29,8 +29,9 @@ import subprocess
 import time
 
 BOTS = [
-    ("vip",    [sys.executable, "-u", "entry_vip.py"]),
-    ("public", [sys.executable, "-u", "entry_public.py"]),
+    ("vip",         [sys.executable, "-u", "entry_vip.py"]),
+    ("public",      [sys.executable, "-u", "entry_public.py"]),
+    ("maintenance", [sys.executable, "-u", "-m", "ops.maintenance"]),
 ]
 
 GRACE_SECONDS = 8       # tiempo para que los hijos atiendan SIGTERM

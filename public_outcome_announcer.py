@@ -17,6 +17,8 @@ import logging
 import threading
 from datetime import datetime, timezone, timedelta
 
+import ledger_stats
+
 log = logging.getLogger("fq_public_announcer")
 
 # ============================================================
@@ -120,10 +122,16 @@ def _connect_vip_readonly():
 # SUBSCRIBERS
 # ============================================================
 def add_subscriber(chat_id, username=None, first_name=None):
-    """Idempotente. Si ya existe, lo reactiva."""
+    """Idempotente. Si ya existe, lo reactiva.
+       Devuelve True si es un subscriber nuevo, False si ya existia."""
     with _lock:
         conn = _connect_public()
         try:
+            prev = conn.execute(
+                "SELECT 1 FROM public_subscribers WHERE chat_id=?",
+                (int(chat_id),)
+            ).fetchone()
+            is_new = prev is None
             conn.execute("""
                 INSERT INTO public_subscribers (chat_id, username, first_name, ts_joined, active)
                 VALUES (?, ?, ?, ?, 1)
@@ -134,6 +142,7 @@ def add_subscriber(chat_id, username=None, first_name=None):
             """, (int(chat_id), username or "", first_name or "",
                   datetime.now(timezone.utc).isoformat()))
             conn.commit()
+            return is_new
         finally:
             conn.close()
 
@@ -334,6 +343,30 @@ def compute_short_stats_7d():
         "win_rate_7d":   full["win_rate"],
         "expectancy_7d": full["expectancy"],
     }
+
+# ============================================================
+# TRACK RECORD verificable (/resultados) - ventanas 30d / 90d / total
+# ============================================================
+def compute_results_summary():
+    """
+    Track record verificable desde el ledger VIP (read-only).
+    Devuelve dict con ventanas 30d / 90d / total + racha. None si no hay ledger.
+    Reusa el mismo patron read-only que compute_weekly_stats() y la
+    estadistica compartida de ledger_stats.
+    """
+    vip_conn = _connect_vip_readonly()
+    if vip_conn is None:
+        return None
+    try:
+        all_rows = vip_conn.execute("""
+            SELECT outcome, pnl_r, ts_closed
+            FROM signals
+            WHERE outcome IS NOT NULL
+            ORDER BY ts_closed ASC
+        """).fetchall()
+    finally:
+        vip_conn.close()
+    return ledger_stats.summarize(all_rows)
 
 # ============================================================
 # LOGGING DE CONTENIDO ENVIADO (analitica interna)

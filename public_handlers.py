@@ -17,6 +17,7 @@ import logging
 
 import public_format as fmt
 import public_outcome_announcer as poa
+import legal
 
 log = logging.getLogger("fq_public_handlers")
 
@@ -35,19 +36,35 @@ CODIGO_RX = re.compile(r"^[A-Za-z0-9\-_]{4,32}$")
 # COMMAND HANDLERS - cada uno recibe (chat_id, args_str, msg_obj) -> str
 # ============================================================
 def cmd_start(chat_id, args, msg_obj=None):
-    """Suscribe automaticamente al chat al canal publico"""
+    """Suscribe automaticamente al chat. Muestra el aviso de riesgo en el
+       primer contacto (una sola vez)."""
     username = ""
     first_name = ""
     if msg_obj and isinstance(msg_obj, dict):
         from_user = msg_obj.get("from", {})
         username = from_user.get("username", "") or ""
         first_name = from_user.get("first_name", "") or ""
+    is_new = True
     try:
-        poa.add_subscriber(chat_id, username=username, first_name=first_name)
-        log.info("Nuevo subscriber publico: chat_id={} @{}".format(chat_id, username))
+        is_new = poa.add_subscriber(chat_id, username=username, first_name=first_name)
+        log.info("Subscriber publico: chat_id={} @{} new={}".format(chat_id, username, is_new))
     except Exception as e:
         log.error("add_subscriber error: {}".format(e))
-    return fmt.build_welcome()
+    welcome = fmt.build_welcome()
+    if is_new:
+        return welcome + "\n\n" + legal.build_disclaimer()
+    return welcome
+
+def cmd_resultados(chat_id=None, args=None, msg_obj=None):
+    try:
+        summary = poa.compute_results_summary()
+    except Exception as e:
+        log.error("compute_results_summary error: {}".format(e))
+        summary = None
+    return fmt.build_resultados(summary)
+
+def cmd_legal(chat_id=None, args=None, msg_obj=None):
+    return legal.build_legal_menu()
 
 def cmd_info(chat_id=None, args=None, msg_obj=None):
     return fmt.build_info()
@@ -91,6 +108,9 @@ COMMANDS = {
     "/info":         cmd_info,
     "/precio":       cmd_precio,
     "/precios":      cmd_precio,      # alias
+    "/resultados":   cmd_resultados,
+    "/track":        cmd_resultados,   # alias
+    "/legal":        cmd_legal,
     "/unirme":       cmd_unirme,
     "/vip":          cmd_unirme,       # alias
     "/stripe":       cmd_stripe,

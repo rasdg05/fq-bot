@@ -41,6 +41,8 @@ import traceback
 from datetime import datetime, timezone, timedelta
 from collections import Counter, defaultdict
 
+import ledger_stats
+
 log = logging.getLogger("fq_entropy")
 
 # ============================================================
@@ -719,6 +721,23 @@ def get_recent_signals(n=10):
             return [dict(r) for r in rows]
         finally:
             conn.close()
+
+def get_results_summary():
+    """
+    Track record verificable desde el ledger propio (acceso directo VIP).
+    Misma forma de dict que public_outcome_announcer.compute_results_summary,
+    via la estadistica compartida de ledger_stats. None si no hay cierres.
+    """
+    with _lock:
+        conn = _connect()
+        try:
+            rows = conn.execute(
+                "SELECT outcome, pnl_r, ts_closed FROM signals "
+                "WHERE outcome IS NOT NULL ORDER BY ts_closed ASC"
+            ).fetchall()
+        finally:
+            conn.close()
+    return ledger_stats.summarize(rows)
 
 # ============================================================
 # SELF-AUDIT - prompt builder para Opus

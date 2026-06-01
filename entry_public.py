@@ -39,6 +39,7 @@ import public_format as fmt
 import public_handlers as ph
 import public_outcome_announcer as poa
 import public_scheduler as ps
+from ops import heartbeat as hb
 
 # ============================================================
 # CONFIG
@@ -54,12 +55,8 @@ SCHEDULER_TICK_SECONDS = 60       # tick cada minuto
 # ============================================================
 # LOGGING
 # ============================================================
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    stream=sys.stdout,
-)
+import fq_logging
+fq_logging.setup()
 log = logging.getLogger("fq_public_bot")
 
 # ============================================================
@@ -166,7 +163,7 @@ def _handle_update(update):
 # ============================================================
 def main():
     log.info("=" * 70)
-    log.info("  FQ v5.1 PUBLIC BOT - Mistral Emergent Time propaganda edition")
+    log.info("  FQ PUBLIC BOT")
     log.info("  VIP ledger (RO): {}".format(poa.VIP_DB_PATH))
     log.info("  Public DB:       {}".format(poa.PUBLIC_DB_PATH))
     log.info("  VIP bot @:       {}".format(ph.VIP_BOT_USERNAME or "(no configurado)"))
@@ -219,6 +216,10 @@ def main():
     while True:
         try:
             time.sleep(300)
+            try:
+                hb.beat("public")
+            except Exception:
+                pass
             log.info("Heartbeat | subs={} VIP_db_exists={}".format(
                 poa.count_subscribers(),
                 os.path.isfile(poa.VIP_DB_PATH)
