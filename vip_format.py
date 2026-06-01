@@ -1,16 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-================================================================================
-  VIP FORMAT - Mistral Emergent Time Edition (curated, minimalist, formula-hidden, v5.1)
-  by RasDG_Sol + Claude
+VIP format. Construye strings de cara al cliente.
 
-  Lo que ve un usuario VIP NO debe permitir reverse-engineering del sistema.
-  Lo que ve el admin (tu chat_id) muestra TODO sin filtro.
-
-  Modulo INERTE - solo construye strings. No envia, no consulta DB.
-================================================================================
+Regla: las vistas VIP no exponen formulas, versiones ni jerga interna.
+La vista admin permanece en bloque separado para evitar fugas accidentales.
+Modulo inerte: no envia, no consulta DB.
 """
 from datetime import datetime, timezone, timedelta
+
+from branding import PRODUCT, PAIR, HASHTAGS_SIGNAL, RULE, GLYPHS, DISCLAIMER
 
 CDMX_TZ = timezone(timedelta(hours=-6))
 
@@ -19,31 +17,30 @@ PHI_SQ = PHI * PHI
 PHI_CB = PHI ** 3
 
 # ============================================================
-# DISFRAZ DE METRICAS - sin formulas expuestas
+# Etiquetas cualitativas (la superficie nunca muestra el numero crudo).
 # ============================================================
-def conviction_score(p_master):
-    """Devuelve int 1-10 sin exponer formula"""
-    if p_master is None:
-        return 0
-    return max(1, min(10, round(p_master / PHI_CB * 10)))
-
 def conviction_label(p_master):
-    if p_master is None:
-        return "BAJA"
-    if p_master >= PHI_CB:   return "EXTREMA"
-    if p_master >= PHI_SQ:   return "ALTA"
-    if p_master >= PHI:      return "MEDIA"
-    return "BAJA"
+    if p_master is None:        return "Exploratoria"
+    if p_master >= PHI_CB:      return "Extrema"
+    if p_master >= PHI_SQ:      return "Alta"
+    if p_master >= PHI:         return "Media"
+    return "Exploratoria"
 
 def tier_label(p_master):
-    """Tier publico sin nombrar phi"""
-    if p_master >= PHI_CB:   return "Conviccion maxima"
-    if p_master >= PHI_SQ:   return "Conviccion estandar"
+    if p_master >= PHI_CB:      return "Conviccion maxima"
+    if p_master >= PHI_SQ:      return "Conviccion estandar"
     return "Conviccion exploratoria"
 
+def risk_band(risk_pct):
+    """Banda cualitativa de riesgo a partir del % de la cuenta arriesgado."""
+    if risk_pct is None:        return "—"
+    if risk_pct < 1.0:          return "Bajo"
+    if risk_pct < 2.0:          return "Medio"
+    return "Alto"
+
 def leverage_for_tier(p_master):
-    if p_master >= PHI_CB:   return "8x", "10%"
-    if p_master >= PHI_SQ:   return "5x", "5%"
+    if p_master >= PHI_CB:      return "8x", "10%"
+    if p_master >= PHI_SQ:      return "5x", "5%"
     return "3x", "2%"
 
 # ============================================================
@@ -62,13 +59,11 @@ def build_vip_signal(field, decision_report):
     levels = decision_report["levels"]
 
     side  = "LONG" if direction == "long" else "SHORT"
-    arrow = "▴" if direction == "long" else "▾"
+    arrow = GLYPHS["long"] if direction == "long" else GLYPHS["short"]
 
-    score = conviction_score(pm["p_master"])
-    label = tier_label(pm["p_master"])
+    conviction = conviction_label(pm["p_master"])
     lev, sizing = leverage_for_tier(pm["p_master"])
 
-    # Las 3 abstracciones - cada una OK si su pilar interno paso
     estruct_ok  = field.bias_aligned and field.pd_zone in ("discount", "premium")
     liquidez_ok = field.has_fuel and (
         bool(field.recent_sweep) or
@@ -83,46 +78,45 @@ def build_vip_signal(field, decision_report):
     ])
 
     when = datetime.now(CDMX_TZ).strftime("%H:%M CDMX")
-    rule = "━" * 30
 
     risk_pct = (levels["risk"] / levels["entry"]) * 100 if levels.get("risk") else 0
+    risk_lbl = risk_band(risk_pct)
 
     return (
         "{rule}\n"
-        "  ▰ SENAL FQ · SOL/USDT\n"
+        "  ▰ Senal {product} · {pair}\n"
         "  {when}\n"
         "{rule}\n"
-        "  {arrow} {side}          Conviccion  {score}/10\n"
-        "  {label}\n"
+        "  {arrow} {side}        Conviccion {conv}\n"
         "\n"
         "  ▸ Entry    ${entry:.2f}\n"
-        "  ▸ Stop     ${sl:.2f}      Riesgo  {risk:.2f}%\n"
+        "  ▸ Stop     ${sl:.2f}    Riesgo {risk}\n"
         "\n"
-        "  ▸ TP1      ${tp1:.2f}      R {rr1:.2f}\n"
-        "  ▸ TP2      ${tp2:.2f}      R {rr2:.2f}\n"
-        "  ▸ TP3      ${tp3:.2f}      R {rr3:.2f}\n"
-        "  ▸ TP4      ${tp4:.2f}      R {rr4:.2f}\n"
+        "  ▸ TP1      ${tp1:.2f}    R {rr1:.2f}\n"
+        "  ▸ TP2      ${tp2:.2f}    R {rr2:.2f}\n"
+        "  ▸ TP3      ${tp3:.2f}    R {rr3:.2f}\n"
+        "  ▸ TP4      ${tp4:.2f}    R {rr4:.2f}\n"
         "{rule}\n"
         "{pilares}\n"
-        "  ◆ Setup confirmado\n"
         "{rule}\n"
         "  Leverage {lev}   Size {sizing}\n"
-        "  SL inmutable. Disciplina.\n"
+        "  SL inmutable.\n"
         "\n"
-        "  #FQ #SOLUSDT #{side}"
+        "  {tags} #{side}"
     ).format(
-        rule=rule, when=when, arrow=arrow, side=side,
-        score=score, label=label,
-        entry=levels["entry"], sl=levels["sl"], risk=risk_pct,
+        rule=RULE, product=PRODUCT, pair=PAIR, when=when, arrow=arrow,
+        side=side, conv=conviction, risk=risk_lbl,
+        entry=levels["entry"], sl=levels["sl"],
         tp1=levels["tp1"], rr1=levels.get("rr_tp1", 0),
         tp2=levels["tp2"], rr2=levels.get("rr_tp2", 0),
         tp3=levels["tp3"], rr3=levels.get("rr_tp3", 0),
         tp4=levels["tp4"], rr4=levels.get("rr_tp4", 0),
         pilares=pilares, lev=lev, sizing=sizing,
+        tags=HASHTAGS_SIGNAL,
     )
 
 # ============================================================
-# /analisis VIP - F1 v5.0 (curated, 3 TPs, sin formulas)
+# /analisis VIP - 3 TPs, sin formulas
 # ============================================================
 SL_ANCHOR_LABEL_VIP = {
     "OB_bullish":      "Order Block alcista",
@@ -155,27 +149,40 @@ TP_KIND_LABEL_VIP = {
     "fib_fallback": "extension Fib",
 }
 
+def _prob_label(p):
+    """Probabilidad cruda -> etiqueta cualitativa."""
+    if p is None:               return "—"
+    if p >= 0.65:               return "Alta"
+    if p >= 0.45:               return "Media"
+    return "Baja"
+
+def _ev_label(ev):
+    """EV en R -> etiqueta cualitativa."""
+    if ev is None:              return "—"
+    if ev >= 1.5:               return "Edge fuerte"
+    if ev >= 1.0:               return "Edge"
+    if ev >= 0.0:               return "Marginal"
+    return "Negativo"
+
 def build_battle_block(plan):
     """
-    Renderiza el VEREDICTO del battle_planner como bloque lider del /analisis.
-    `plan` = dict de battle_planner.build_battle_plan. Devuelve "" si None.
-
-    El veredicto manda: EJECUTAR_AHORA / ACUMULAR_EN_ZONA / ESPERAR_GATILLO /
-    STAND_DOWN. Lenguaje de trader, cero tibieza, anclado a probabilidad.
+    Veredicto del battle_planner como bloque lider del /analisis.
+    Sin EV crudo ni P(SL) crudo en la superficie VIP.
     """
     if not plan:
         return ""
-    rule = "━" * 30
     v = plan["verdict"]
-    side = "LONG" if plan["direction"] == "long" else "SHORT"
     mkt = plan["market"]
     tps = plan.get("tps") or []
     tps_str = " / ".join("${:.2f}".format(t) for t in tps[:3]) if tps else "-"
 
+    p_market = _prob_label(1.0 - (mkt.get("p_sl") or 0.5))
+    ev_market = _ev_label(mkt.get("ev"))
+
     lines = [
-        rule,
-        "  ▰ PLAN DE BATALLA · SOL/USDT",
-        rule,
+        RULE,
+        "  ▰ Plan · {}".format(PAIR),
+        RULE,
         "  {} <b>{}</b>".format(plan["emoji"], plan["headline"]),
         "",
     ]
@@ -186,29 +193,32 @@ def build_battle_block(plan):
             "  ▸ Invalida   ${:.2f}".format(plan["invalidation"]),
             "  ▸ Objetivos  {}".format(tps_str),
             "",
-            "  ◆ A mercado: EV {:+.2f}R · P(SL) {:.0%}".format(mkt["ev"], mkt["p_sl"]),
+            "  ◆ {} · probabilidad {}".format(ev_market, p_market.lower()),
         ]
     elif v == "ACUMULAR_EN_ZONA":
         z = plan["primary_zone"]
         acc = "\n".join(
-            "     {:>3}%  ${:.2f}".format(a["weight_pct"], a["price"]) for a in z["accumulate"])
-        lines += [
-            "  ▸ Acumula"]
-        lines += [acc]
+            "     {:>3}%  ${:.2f}".format(a["weight_pct"], a["price"])
+            for a in z["accumulate"]
+        )
+        p_zone = _prob_label(1.0 - (z.get("p_sl_cond") or 0.5))
+        ev_zone = _ev_label(z.get("ev_cond"))
+        p_reach = _prob_label(z.get("reach_prob"))
+        lines += ["  ▸ Acumula", acc]
         if plan.get("trigger"):
             lines.append("  ▸ Gatillo    {}".format(plan["trigger"]))
         lines += [
             "  ▸ Invalida   ${:.2f}".format(plan["invalidation"]),
             "  ▸ Objetivos  {}".format(tps_str),
             "",
-            "  ◆ P(regreso a zona)  {:.0%}".format(z["reach_prob"]),
-            "  ◆ Desde zona:  EV {:+.2f}R · P(SL) {:.0%}".format(z["ev_cond"], z["p_sl_cond"]),
-            "  ◆ A mercado:   EV {:+.2f}R · P(SL) {:.0%}".format(mkt["ev"], mkt["p_sl"]),
-            "  → Mejor probabilidad acumulando en la zona.",
+            "  ◆ Regreso a zona: {}".format(p_reach.lower()),
+            "  ◆ Desde zona:    {} · prob. {}".format(ev_zone, p_zone.lower()),
+            "  ◆ A mercado:     {} · prob. {}".format(ev_market, p_market.lower()),
+            "  → Mejor entrar acumulando en zona.",
         ]
     elif v == "ESPERAR_GATILLO":
         lines += [
-            "  ▸ Gatillo    {}".format(plan.get("trigger") or "displacement/CHoCH a favor"),
+            "  ▸ Gatillo    {}".format(plan.get("trigger") or "confirmacion a favor"),
             "  ▸ Invalida   ${:.2f}".format(plan["invalidation"]),
             "  ▸ Objetivos  {}".format(tps_str),
             "",
@@ -219,31 +229,54 @@ def build_battle_block(plan):
             "  ◆ {}".format(plan["rationale"]),
         ]
 
-    # Sin rule de cierre: la seccion siguiente (DETALLE) abre con su propio rule.
     return "\n".join(lines) + "\n"
+
+
+def _market_tone(qa, direction):
+    """
+    Compacta el resultado del QTE en UNA linea cualitativa que el VIP
+    puede leer sin tocar formulas. Cero numeros crudos en la superficie.
+    """
+    if qa is None:
+        return None
+    probs = qa.get("probabilities") or {}
+    regs  = qa.get("regimes") or {}
+    p_tp1 = probs.get("p_reach_tp1", probs.get("p_tp1", 0)) or 0
+    p_sl  = probs.get("p_sl", 0) or 0
+    ev    = probs.get("expected_R", 0) or 0
+    coh   = qa.get("coherence", 0) or 0
+
+    bull = regs.get("bull_continuation", 0) or 0
+    bear = regs.get("bear_reversal", 0) or 0
+    fav = bull if direction == "long" else bear
+
+    if ev >= 1.2 and p_sl <= 0.30 and fav >= 0.40 and coh >= 0.55:
+        return "Sesgo dominante a favor · confluencia alta"
+    if ev >= 1.0 and p_sl <= 0.35:
+        return "Confluencia confirmada"
+    if ev >= 0.5:
+        return "Confluencia media · ejecutar con disciplina"
+    if p_tp1 < 0.40:
+        return "Campo neutro · esperar confirmacion"
+    return "Confluencia limitada"
 
 
 def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None, plan=None):
     """
-    Formato VIP del /analisis. Una pantalla, 3 TPs, glyphs Mistral.
-    NO expone P_master crudo - solo conviction score derivado.
-
-    qa (opcional): dict resultante de quantum_timelines.quantum_analysis.
-    plan (opcional): dict de battle_planner.build_battle_plan. Si esta presente,
-    el mensaje LIDERA con el veredicto certero y el resto pasa a detalle de apoyo.
+    /analisis VIP. Una pantalla, sin formulas, sin score numerico.
+    El veredicto del battle planner lidera si esta presente.
     """
     side  = "LONG" if direction == "long" else "SHORT"
-    arrow = "▴" if direction == "long" else "▾"
+    arrow = GLYPHS["long"] if direction == "long" else GLYPHS["short"]
 
-    score = conviction_score(pm_est)
-    label = tier_label(pm_est)
+    conviction = conviction_label(pm_est)
 
     when = datetime.now(CDMX_TZ).strftime("%H:%M CDMX")
-    rule = "━" * 30
 
     entry    = levels["entry"]
     sl       = levels["sl"]
     risk_pct = (levels["risk"] / entry) * 100 if entry > 0 else 0
+    risk_lbl = risk_band(risk_pct)
     sla_lbl  = SL_ANCHOR_LABEL_VIP.get(
         levels.get("sl_anchor", ""), levels.get("sl_anchor", "estructura"))
 
@@ -253,7 +286,6 @@ def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None, plan=None
         kind_lbl = TP_KIND_LABEL_VIP.get(tp_meta[i]["kind"], tp_meta[i]["kind"])
         tp_lines.append("  ▸ TP{n}     ${p:.2f}   R {rr:.2f}   {k}".format(
             n=i+1, p=tp_meta[i]["price"], rr=tp_meta[i]["rr"], k=kind_lbl))
-    # Si no hay tp_meta (legacy levels), usa keys directas
     if not tp_lines:
         for i in range(1, 4):
             p = levels.get("tp{}".format(i))
@@ -263,275 +295,195 @@ def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None, plan=None
                     n=i, p=p, rr=rr))
     tps_block = "\n".join(tp_lines)
 
-    # Bloque QTE opcional (F2 v5.0)
-    qte_block = ""
-    if qa is not None:
-        probs = qa["probabilities"]
-        regs = qa["regimes"]
-        qte_block = (
-            "\n  ◆ Timelines simuladas: {n}\n"
-            "  ▴ Bull {bp}%   ▾ Bear {brp}%   ◇ Sweep {sp}%\n"
-            "  ◆ P(TP1) {p1:.0%}   P(TP2) {p2:.0%}   P(SL) {ps:.0%}\n"
-            "  ◆ EV {ev:+.2f}R   Coherencia {coh:.0%}\n"
-            "{rule}\n"
-        ).format(
-            n=qa["n_paths"],
-            bp=int(regs.get("bull_continuation", 0) * 100),
-            brp=int(regs.get("bear_reversal", 0) * 100),
-            sp=int(regs.get("sweep_and_reverse", 0) * 100),
-            p1=probs.get("p_reach_tp1", probs["p_tp1"]),
-            p2=probs.get("p_reach_tp2", probs["p_tp2"]),  # P(toca TP2<SL); p_tp2 era 0
-            ps=probs["p_sl"],
-            ev=probs["expected_R"], coh=qa["coherence"],
-            rule=rule,
-        )
+    tone = _market_tone(qa, direction)
+    tone_block = "  ◆ {}\n{}\n".format(tone, RULE) if tone else ""
 
-    # Veredicto del battle planner lidera (si esta presente)
     battle = build_battle_block(plan)
-    detalle_hdr = "  ▰ DETALLE / APOYO" if battle else "  ▰ ANALISIS FQ · SOL/USDT"
+    detalle_hdr = "  ▰ Detalle" if battle else "  ▰ Analisis · {}".format(PAIR)
 
     return battle + (
         "{rule}\n"
         "{dhdr}\n"
         "  {when}    ${px:.2f}\n"
         "{rule}\n"
-        "  {arrow} Sesgo {side}      Conviccion {score}/10\n"
-        "  {label}\n"
+        "  {arrow} Sesgo {side}     Conviccion {conv}\n"
         "\n"
         "  ▸ Entry   ${entry:.2f}\n"
-        "  ▸ Stop    ${sl:.2f}   ({risk:.2f}%)\n"
+        "  ▸ Stop    ${sl:.2f}   Riesgo {risk}\n"
         "    anclado a {sla}\n"
         "\n"
         "{tps}\n"
-        "{rule}"
-        "{qte}"
-        "  ◆ SL estructural (anti stop-hunt)\n"
+        "{rule}\n"
+        "{tone}"
+        "  ◆ SL estructural\n"
         "  ◆ TPs en liquidez real\n"
         "{rule}\n"
-        "  #FQv51 #MistralEmergentTime #QTE #TauPostulate"
+        "  {tags}"
     ).format(
-        rule=rule, dhdr=detalle_hdr, when=when, px=float(last["close"]),
-        arrow=arrow, side=side, score=score, label=label,
-        entry=entry, sl=sl, risk=risk_pct, sla=sla_lbl,
-        tps=tps_block, qte=qte_block if qte_block else "\n",
+        rule=RULE, dhdr=detalle_hdr, when=when, px=float(last["close"]),
+        arrow=arrow, side=side, conv=conviction, risk=risk_lbl,
+        entry=entry, sl=sl, sla=sla_lbl,
+        tps=tps_block, tone=tone_block, tags=HASHTAGS_SIGNAL,
     )
 
 # ============================================================
-# /help y /about TIER-AWARE
+# /help y /about
 # ============================================================
 def build_help_vip():
-    """6 comandos visibles. Mistral Emergent Time minimalist."""
-    rule = "━" * 30
     return (
         "{rule}\n"
-        "  ◆ FQ · Comandos\n"
+        "  ◆ {product} · Comandos\n"
         "{rule}\n"
-        "  ▸ /status      Estado y ultima senal\n"
-        "  ▸ /lectura     Analisis Claude on-demand\n"
-        "  ▸ /miestado    Tu cuenta VIP\n"
-        "  ▸ /renovar     Renovar suscripcion\n"
+        "  ▸ /status      Estado del sistema\n"
+        "  ▸ /lectura     Analisis on-demand\n"
+        "  ▸ /miestado    Tu cuenta\n"
+        "  ▸ /renovar     Renovar acceso\n"
         "  ▸ /about       Sobre el sistema\n"
-        "  ▸ /help        Esta lista\n"
+        "  ▸ /legal       Aviso de riesgo\n"
         "{rule}\n"
-        "  El silencio es disciplina.\n"
         "  Calidad sobre cantidad."
-    ).format(rule=rule)
+    ).format(rule=RULE, product=PRODUCT)
 
 def build_help_admin():
-    """Admin ve todo - la salsa completa"""
-    rule = "━" * 30
     return (
         "{rule}\n"
-        "  ◆ FQ · Comandos (admin)\n"
+        "  ◆ {product} · Comandos (admin)\n"
         "{rule}\n"
-        "  PUBLICOS (visibles VIP):\n"
-        "  ▸ /status /lectura /miestado /renovar /about /help\n"
+        "  Cliente:\n"
+        "  ▸ /status /lectura /miestado /renovar /about /legal\n"
         "\n"
-        "  CONSOLIDADOS (alias internos):\n"
+        "  Alias:\n"
         "  ▸ /analisis /niveles /pspace /claude /ia → /lectura\n"
         "  ▸ /sesion /macro → /status\n"
         "\n"
-        "  ADMIN ONLY (ocultos a VIP):\n"
-        "  ▸ /audit       Trigger Opus self-audit\n"
-        "  ▸ /entropy     Shannon H + KL drift\n"
-        "  ▸ /metrics     Win rate, expectancy, PF\n"
-        "  ▸ /ledger      Ultimas 10 senales con outcome\n"
-        "  ▸ /evolve      Buckets kappa_evo\n"
-        "  ▸ /concepts    Edge por concepto ICT (v3)\n"
+        "  Admin:\n"
+        "  ▸ /audit       Self-audit\n"
+        "  ▸ /entropy     Drift\n"
+        "  ▸ /metrics     Win rate · expectancy · PF\n"
+        "  ▸ /ledger      Ultimas 10 senales\n"
+        "  ▸ /evolve      Buckets\n"
+        "  ▸ /concepts    Edge por concepto\n"
         "  ▸ /weekend     Filtro fin de semana\n"
-        "  ▸ /campo       Lectura on-demand del FieldState\n"
-        "  ▸ /gencode /grant /broadcast (VIP system)\n"
-        "{rule}\n"
-        "  FQ v5.1 Mistral Emergent Time — RasDG_Sol"
-    ).format(rule=rule)
+        "  ▸ /campo       FieldState on-demand\n"
+        "  ▸ /gencode /grant /broadcast\n"
+        "{rule}"
+    ).format(rule=RULE, product=PRODUCT)
 
 def build_help_free():
-    """Free tier: solo lo necesario para comprar"""
-    rule = "━" * 30
     return (
         "{rule}\n"
-        "  ◆ FQ · Acceso\n"
+        "  ◆ {product} · Acceso\n"
         "{rule}\n"
-        "  ▸ /precio      Tarifas del VIP\n"
+        "  ▸ /precio      Tarifas\n"
         "  ▸ /vip         Activar acceso\n"
         "  ▸ /codigo XXXX Canjear codigo\n"
-        "  ▸ /miestado    Tu estado actual\n"
+        "  ▸ /miestado    Tu estado\n"
         "  ▸ /about       Sobre el sistema\n"
-        "{rule}\n"
-        "  Senales SOL/USDT con motor\n"
-        "  ICT/SMC + autoevolucion."
-    ).format(rule=rule)
+        "{rule}"
+    ).format(rule=RULE, product=PRODUCT)
 
 def build_about_vip():
-    """About curado para VIP - narrativa Mistral Emergent Time, cero formulas crudas"""
-    rule = "━" * 30
+    """About VIP. Una pantalla, sin mecanica interna, sin versionado."""
     return (
         "{rule}\n"
-        "  ◆ FIBONACCI CUANTICO v5.0\n"
-        "  Mistral Emergent Time · RasDG_Sol\n"
+        "  ◆ {product}\n"
         "{rule}\n"
         "\n"
-        "  El mercado no es una linea.\n"
-        "  Es un abanico de futuros posibles.\n"
-        "  Cada vela es una nueva medicion\n"
-        "  que colapsa probabilidades en\n"
-        "  realidad.\n"
+        "  Senales {pair} con disciplina\n"
+        "  sistematica.\n"
         "\n"
-        "  ◆ QUANTUM TIMELINES ENGINE\n"
-        "  Antes de cada senal, el motor\n"
-        "  simula 500 lineas de tiempo bajo\n"
-        "  restricciones estructurales reales\n"
-        "  (Order Blocks, liquidez, FVGs).\n"
-        "  Mide en cuantas el TP llega antes\n"
-        "  que el SL, identifica el escenario\n"
-        "  dominante y solo dispara si el\n"
-        "  Valor Esperado supera 1R.\n"
+        "  Cuando hay edge, dispara.\n"
+        "  Cuando no, calla.\n"
         "\n"
-        "  ◆ ANTI STOP-HUNT\n"
-        "  El SL ya no usa buffer fijo.\n"
-        "  Se ancla al nivel estructural mas\n"
-        "  cercano (Order Block, swing low,\n"
-        "  reaccion post-sweep). El precio\n"
-        "  puede mecerlo. No cazarlo.\n"
+        "  ▪ SL anclado a estructura\n"
+        "  ▪ TPs en liquidez real\n"
+        "  ▪ Resultados auditables\n"
+        "  ▪ Veto fin de semana\n"
         "\n"
-        "  ◆ FUNDAMENTOS\n"
-        "  ▪ 14 conceptos ICT integrados\n"
-        "  ▪ Memoria autoevolutiva por bucket\n"
-        "  ▪ Thompson sampling sobre concepts\n"
-        "  ▪ Audit Opus cada 25 cierres\n"
-        "  ▪ Veto fin de semana automatico\n"
-        "\n"
-        "  ◆ DISCIPLINA\n"
-        "  ▪ SL inmutable (Regla 4)\n"
-        "  ▪ Probabilidades reales, no scores\n"
-        "  ▪ Setups con EV<1R: descartados\n"
-        "  ▪ Confirmacion de volumen institucional\n"
+        "  Par         {pair}\n"
+        "  Exchange    OKX\n"
+        "  Ventana     24/5 (lun-vie)\n"
         "{rule}\n"
-        "  Par:        SOL/USDT Perpetual\n"
-        "  Exchange:   OKX (datos en vivo)\n"
-        "  Timeframe:  15 min (con 4H/1H/1m)\n"
-        "  Ventana:    24/7 menos fin de semana\n"
-        "{rule}\n"
-        "  #FQv51 #MistralEmergentTime #QTE #TauPostulate"
-    ).format(rule=rule)
+        "  {disclaimer}"
+    ).format(rule=RULE, product=PRODUCT, pair=PAIR, disclaimer=DISCLAIMER)
 
 def build_about_admin():
-    """Admin ve la salsa completa: ecuacion, constantes, thresholds + QTE"""
-    rule = "━" * 30
+    """Vista admin con sustrato matematico. NO se expone a clientes."""
     return (
         "{rule}\n"
-        "  ◆ FIBONACCI CUANTICO v5.1 (admin)\n"
-        "  Mistral Emergent Time Edition\n"
+        "  ◆ {product} · admin\n"
         "{rule}\n"
         "\n"
-        "  MASTER EQUATION v4.2 (sustrato):\n"
+        "  MASTER EQUATION:\n"
         "  P_master = Theta(D) * kappa_evo * phi *\n"
         "             W_eff * H_lap * f_conf * f_ict\n"
         "\n"
-        "  W_eff = w_clock_legacy * alpha +\n"
-        "          w_killzone * (1 - alpha)\n"
-        "  alpha = max(0, 1 - n_closed_v3 / 50)\n"
+        "  W_eff = w_clock * alpha + w_kz * (1-alpha)\n"
+        "  alpha = max(0, 1 - n_closed / 50)\n"
         "  f_ict = 1.0 + n_concepts * 0.04   (cap 4)\n"
         "\n"
-        "  GATE QTE v5.0 (capa final):\n"
-        "  EMIT  iff  P(SL) <= 0.35  AND  EV >= 1.0R\n"
+        "  GATE FINAL:\n"
+        "  EMIT iff P(SL) <= 0.35 AND EV >= 1.0R\n"
         "\n"
-        "  QUANTUM TIMELINES ENGINE:\n"
-        "  paths simulados   = 500 (admin 2000)\n"
-        "  horizon           = 96 velas (24h en 15m)\n"
-        "  optimizer         QAOA-inspired grid\n"
-        "  regimenes         bull/bear/chop/sweep/range\n"
-        "  modulo            quantum_timelines.py\n"
+        "  TIMELINES:\n"
+        "  paths      500 (admin 2000)\n"
+        "  horizon    96 velas (24h / 15m)\n"
+        "  optimizer  grid QAOA-inspired\n"
         "\n"
         "  CONSTANTES:\n"
         "  phi    = 1.6180339887\n"
-        "  phi^2  = 2.6180        (tier standard)\n"
-        "  phi^3  = 4.2360        (tier high)\n"
+        "  phi^2  = 2.6180\n"
+        "  phi^3  = 4.2360\n"
         "  alpha  = 1/137.507\n"
-        "  B      = phi^2/alpha + e + pi = 364.62\n"
         "\n"
-        "  THRESHOLDS (env-overridable):\n"
+        "  THRESHOLDS:\n"
         "  PMASTER_MIN     = 1.80\n"
         "  RR_MIN_TP3      = 1.80\n"
         "  CONFLUENCE_MIN  = 3\n"
-        "  KAPPA_EVO cap   = +-15%\n"
+        "  KAPPA cap       = +-15%\n"
         "  QTE_MAX_P_SL    = 0.35\n"
         "  QTE_MIN_EV_R    = 1.00\n"
         "  Cooldown        = 1h\n"
-        "\n"
-        "  FLAGS:\n"
-        "  FQ_ENABLE_ICT, FQ_WEEKEND_VETO,\n"
-        "  FQ_USE_THOMPSON, FQ_REQUIRE_OTE\n"
-        "{rule}\n"
-        "  #FQv51 #MistralEmergentTime #Admin"
-    ).format(rule=rule)
+        "{rule}"
+    ).format(rule=RULE, product=PRODUCT)
 
 # ============================================================
-# WELCOME (suscriptor nuevo) - una sola version, narrativa limpia
+# WELCOME
 # ============================================================
 def build_welcome():
-    rule = "━" * 30
     return (
         "{rule}\n"
-        "  ◆ FQ v5.1 · Mistral Emergent Time\n"
+        "  ◆ {product}\n"
         "{rule}\n"
         "\n"
-        "  Senales SOL/USDT con motor\n"
-        "  Quantum Timelines + ICT/SMC.\n"
+        "  Senales {pair} con disciplina\n"
+        "  sistematica.\n"
         "\n"
-        "  El sistema simula 500 lineas\n"
-        "  de tiempo futuras antes de\n"
-        "  cada senal. Dispara solo cuando\n"
-        "  el Valor Esperado supera 1R y\n"
-        "  P(SL) baja del 35%. El resto\n"
-        "  del tiempo, silencio.\n"
+        "  Cuando hay edge, dispara.\n"
+        "  Cuando no, calla.\n"
         "\n"
         "  ▸ /precio      Tarifas\n"
-        "  ▸ /codigo XXXX Si tienes codigo\n"
-        "  ▸ /miestado    Tu estado actual\n"
+        "  ▸ /codigo XXXX Canjear codigo\n"
+        "  ▸ /miestado    Tu estado\n"
         "  ▸ /about       Sobre el sistema\n"
         "{rule}\n"
-        "  RasDG_Sol"
-    ).format(rule=rule)
+        "  {disclaimer}"
+    ).format(rule=RULE, product=PRODUCT, pair=PAIR, disclaimer=DISCLAIMER)
 
 def build_welcome_for_tier(tier):
-    """Misma carcasa pero adapta CTA segun tier"""
     if tier in ("vip", "admin", "trial"):
-        rule = "━" * 30
         return (
             "{rule}\n"
-            "  ◆ FQ v5.1 · Acceso activo\n"
-            "  Mistral Emergent Time\n"
+            "  ◆ {product} · Acceso activo\n"
             "{rule}\n"
-            "  Bienvenido. Tu canal de\n"
-            "  senales esta activo.\n"
+            "  Tu canal de senales esta activo.\n"
             "\n"
-            "  ▸ /status      Estado actual\n"
-            "  ▸ /lectura     Analisis Claude\n"
+            "  ▸ /status      Estado\n"
+            "  ▸ /lectura     Analisis\n"
             "  ▸ /miestado    Tu cuenta\n"
             "  ▸ /help        Comandos\n"
             "{rule}"
-        ).format(rule=rule)
+        ).format(rule=RULE, product=PRODUCT)
     return build_welcome()
 
 # ============================================================

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 ================================================================================
-  VIP SYSTEM - FQ v5.1 Mistral Emergent Time Edition
+  VIP SYSTEM - FQ
   Sistema de acceso multiusuario con codigos, suscripciones y panel admin
 ================================================================================
 
@@ -501,38 +501,32 @@ def get_stats():
 # TELEGRAM FORMATTERS
 # ============================================================
 def format_precio_message():
-    """Mensaje publico de planes y precios"""
+    """Pagina de planes VIP."""
+    rule = "━" * 30
     lines = [
-        "<b>FQ v5.1 BOT - PLANES VIP</b>",
-        "================================",
+        "<b>FQ · VIP</b>",
+        rule,
+        "  Senales SOL/USDT con disciplina sistematica.",
         "",
-        "Acceso al sistema Fibonacci Cuantico v5.1 - Mistral Emergent Time:",
-        "- Senales SOL/USDT con Quantum Timelines Engine",
-        "- Probabilidades reales: P(TP), P(SL), EV en R, regimen dominante",
-        "- SL anti stop-hunt (anclado a estructura ICT real)",
-        "- 14 conceptos ICT/SMC + memoria autoevolutiva",
-        "- Co-pilot Claude (Sonnet + Opus) con lectura cuantitativa",
+        "  ▪ Entry, SL y TPs exactos",
+        "  ▪ SL anclado a estructura",
+        "  ▪ Analisis tactico on-demand",
+        "  ▪ Resultados verificables",
         "",
-        "<b>PLANES:</b>",
-        "",
+        "<b>Planes:</b>",
     ]
     for plan_id, info in PLAN_PRICES.items():
         if plan_id == "trial_7d":
-            continue  # trial solo por codigo
-        lines.append("{} - <b>${} USD</b>".format(info["label"], info["price_usd"]))
-        lines.append("  {} dias de acceso completo".format(info["days"]))
-        lines.append("")
+            continue
+        lines.append("  ▸ {:<12} <b>${} USD</b>   {} dias".format(
+            info["label"], info["price_usd"], info["days"]))
     lines.extend([
-        "================================",
-        "<b>COMO ADQUIRIR:</b>",
         "",
-        "/vip - Iniciar proceso de pago",
-        "/codigo XXXX - Canjear codigo de regalo",
+        rule,
+        "  ▸ /vip          Iniciar pago",
+        "  ▸ /codigo XXXX  Canjear codigo",
         "",
-        "Pagos: tarjeta (Stripe) o crypto (USDT-TRC20).",
-        "Trial 7d disponible solo via codigo.",
-        "",
-        "RasDG_Sol",
+        "  Tarjeta (Stripe) o USDT (TRC20).",
     ])
     return "\n".join(lines)
 

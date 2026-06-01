@@ -116,7 +116,7 @@ def build_signal_report(field, decision_report, tf_label="SCALPING", tf_id="15m"
     tf_ctx = _ctx_map.get(tf_id, "4H+1H+15m+1m")
 
     msg = (
-        "<b>FQ v5.1 — [{tf_label} {tf_id}] LECTURA DE CAMPO</b>\n"
+        "<b>FQ — [{tf_label} {tf_id}] LECTURA DE CAMPO</b>\n"
         "================================\n"
         "{when} | Killzone: <b>{kz}</b>\n"
         "SOL/USDT | TFs: {tf_ctx}\n\n"
@@ -167,7 +167,7 @@ def build_signal_report(field, decision_report, tf_label="SCALPING", tf_id="15m"
         "- Cierre {tf_id} {cmp} ${sl:.2f} -> CERRAR\n"
         "- 90 min sin progreso a TP1 -> REVISAR\n"
         "- SL nunca se mueve (Regla 4)\n\n"
-        "#FQv51 #SOLUSDT #{tf_label} #{tf_id} #{side}"
+        "#FQ #SOLUSDT #{tf_label} #{tf_id} #{side}"
     ).format(
         tf_label=tf_label, tf_id=tf_id, tf_ctx=tf_ctx,
         when=_cdmx_now_str(),
@@ -226,7 +226,7 @@ def build_field_only_report(field, decision_report):
     conf_str = ", ".join(field.confluence_list[:5]) if field.confluence_list else "—"
 
     msg = (
-        "<b>FQ v5.1 — REPORTE DE CAMPO</b>\n"
+        "<b>FQ — REPORTE DE CAMPO</b>\n"
         "================================\n"
         "{when} | Killzone: {kz}\n\n"
         "<b>━━ ESTADO ━━</b>\n"
@@ -241,7 +241,7 @@ def build_field_only_report(field, decision_report):
         "Razon: {reason}\n\n"
         "<b>━━ CONDICION DE ESPERA ━━</b>\n"
         "{wait}\n\n"
-        "#FQv51 #FieldOnly"
+        "#FQ #FieldOnly"
     ).format(
         when=_cdmx_now_str(),
         kz=field.killzone.upper(),
