@@ -210,7 +210,9 @@ def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None):
             bp=int(regs.get("bull_continuation", 0) * 100),
             brp=int(regs.get("bear_reversal", 0) * 100),
             sp=int(regs.get("sweep_and_reverse", 0) * 100),
-            p1=probs["p_tp1"], p2=probs["p_tp2"], ps=probs["p_sl"],
+            p1=probs.get("p_reach_tp1", probs["p_tp1"]),
+            p2=probs.get("p_reach_tp2", probs["p_tp2"]),  # P(toca TP2<SL); p_tp2 era 0
+            ps=probs["p_sl"],
             ev=probs["expected_R"], coh=qa["coherence"],
             rule=rule,
         )

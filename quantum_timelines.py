@@ -249,9 +249,105 @@ def generate_paths(df_15m, n_paths=DEFAULT_N_PATHS_VIP, horizon=DEFAULT_HORIZON,
 
 
 # ============================================================
-# PROBABILIDADES P(TP_i) vs P(SL)
+# PROBABILIDADES P(TP_i) vs P(SL)  -  vectorizado (numpy)
 # ============================================================
 def compute_tp_sl_probabilities(paths, entry, sl, tp_list, direction):
+    """
+    Version vectorizada del calculo de primer-paso TP/SL sobre los N paths.
+
+    Para cada path, en orden temporal:
+      - SL primero  -> R = -1.0
+      - TP1 primero -> R = (tp1-entry)/risk  (el TP mas cercano; ver nota)
+      - sin toque en el horizonte -> timeout, R = (final-entry)/risk
+
+    Paridad EXACTA con _compute_tp_sl_probabilities_loop (oraculo del self-test):
+    SL y TP1 son mutuamente excluyentes en un mismo precio (long: sl<entry<tp1),
+    asi que el orden "SL antes que TP" del loop nunca cambia un resultado. Como el
+    loop hace break en el primer TP tocado (el mas cercano), p_tp2/p_tp3 son 0.0 y
+    se preservan asi por compatibilidad. Para una medida util de los targets
+    lejanos se AÑADEN p_reach_tp1/2/3 = P(tocar TPk antes que SL).
+
+    paths: shape (n_paths, horizon+1)
+    Returns: mismas keys que la version loop + p_reach_tp1/2/3.
+    """
+    n_paths, _ = paths.shape
+    risk = abs(entry - sl)
+    if risk <= 0:
+        return {"p_sl": 0, "p_tp1": 0, "p_tp2": 0, "p_tp3": 0, "p_tp4": 0,
+                "expected_R": 0, "win_rate": 0, "p_timeout": 1,
+                "p_reach_tp1": 0.0, "p_reach_tp2": 0.0, "p_reach_tp3": 0.0}
+
+    is_long = direction == "long"
+    tps_sorted = sorted(tp_list) if is_long else sorted(tp_list, reverse=True)
+
+    fut = paths[:, 1:]          # (N, H); col 0 == barra t=1 (== loop range(1,len))
+    H = fut.shape[1]
+
+    def _first_idx(hit):
+        """Indice del primer True por fila; H (centinela "nunca") si all-False."""
+        any_hit = hit.any(axis=1)
+        idx = np.where(any_hit, hit.argmax(axis=1), H)
+        return idx, any_hit
+
+    if is_long:
+        sl_hit  = fut <= sl
+        tp1_hit = fut >= tps_sorted[0]
+        tp2_hit = (fut >= tps_sorted[1]) if len(tps_sorted) > 1 else np.zeros_like(sl_hit)
+        tp3_hit = (fut >= tps_sorted[2]) if len(tps_sorted) > 2 else np.zeros_like(sl_hit)
+    else:
+        sl_hit  = fut >= sl
+        tp1_hit = fut <= tps_sorted[0]
+        tp2_hit = (fut <= tps_sorted[1]) if len(tps_sorted) > 1 else np.zeros_like(sl_hit)
+        tp3_hit = (fut <= tps_sorted[2]) if len(tps_sorted) > 2 else np.zeros_like(sl_hit)
+
+    sl_idx,  sl_any  = _first_idx(sl_hit)
+    tp1_idx, tp1_any = _first_idx(tp1_hit)
+    tp2_idx, tp2_any = _first_idx(tp2_hit)
+    tp3_idx, tp3_any = _first_idx(tp3_hit)
+
+    # Loop chequea SL antes que TP -> SL gana el empate (imposible en la practica)
+    sl_first  = sl_any  & (sl_idx <= tp1_idx)
+    tp1_first = tp1_any & (tp1_idx < sl_idx)
+    timeout   = ~sl_first & ~tp1_first
+
+    final = paths[:, -1]
+    r = np.empty(n_paths, dtype=np.float64)
+    r[sl_first]  = -1.0
+    r[tp1_first] = abs(tps_sorted[0] - entry) / risk
+    if is_long:
+        r[timeout] = (final[timeout] - entry) / risk
+    else:
+        r[timeout] = (entry - final[timeout]) / risk
+
+    n = float(n_paths)
+    p_sl       = float(sl_first.sum())  / n
+    p_tp1      = float(tp1_first.sum()) / n
+    p_timeout  = float(timeout.sum())   / n
+    expected_R = float(r.mean())
+    win_rate   = p_tp1   # == sum(p_tps); p_tp2/p_tp3 son 0 igual que en el loop
+
+    # P(tocar TPk antes que SL) - medida util de targets lejanos (aditiva).
+    # Monotona por construccion (umbral mas lejano -> tpk_idx no-decreciente).
+    p_reach_tp1 = float((tp1_any & (tp1_idx < sl_idx)).sum()) / n
+    p_reach_tp2 = float((tp2_any & (tp2_idx < sl_idx)).sum()) / n
+    p_reach_tp3 = float((tp3_any & (tp3_idx < sl_idx)).sum()) / n
+
+    return {
+        "p_sl":        p_sl,
+        "p_timeout":   p_timeout,
+        "expected_R":  expected_R,
+        "win_rate":    win_rate,
+        "p_tp1":       p_tp1,
+        "p_tp2":       0.0,
+        "p_tp3":       0.0,
+        "p_tp4":       0.0,
+        "p_reach_tp1": p_reach_tp1,
+        "p_reach_tp2": p_reach_tp2,
+        "p_reach_tp3": p_reach_tp3,
+    }
+
+
+def _compute_tp_sl_probabilities_loop(paths, entry, sl, tp_list, direction):
     """
     Para cada path, en orden temporal:
       - Si toca SL primero -> SL hit
@@ -347,9 +443,59 @@ def compute_tp_sl_probabilities(paths, entry, sl, tp_list, direction):
 
 
 # ============================================================
-# CLASIFICACION DE REGIMENES
+# CLASIFICACION DE REGIMENES  -  vectorizado (numpy)
 # ============================================================
 def classify_regimes(paths, entry, atr, meta=None):
+    """
+    Version vectorizada. Paridad EXACTA con _classify_regimes_loop (oraculo del
+    self-test). Clasifica cada path en uno de REGIME_LIST y devuelve
+    {regime: fraction} ordenado descendente (mismo desempate estable que el loop).
+    """
+    n_paths, _ = paths.shape
+    anchors = (meta or {}).get("anchors", {})
+    pool_h = anchors.get("pool_high_price")
+    pool_l = anchors.get("pool_low_price")
+
+    final = paths[:, -1]
+    max_p = paths.max(axis=1)
+    min_p = paths.min(axis=1)
+    delta = final - entry
+    crosses = (np.diff(np.sign(paths - entry), axis=1) != 0).sum(axis=1)
+
+    is_bull = delta >= 1.0 * atr
+    is_bear = delta <= -1.0 * atr
+    mid = ~is_bull & ~is_bear
+
+    false_n = np.zeros(n_paths, dtype=bool)
+    # Nota: pool_h/pool_l pueden ser None -> usar mascara all-False (None no
+    # hace broadcast). Se replican las sub-condiciones delta>0 / delta<0 del
+    # loop para paridad exacta incluso con atr degenerado (<=0).
+    touch_low  = (min_p <= pool_l) if pool_l is not None else false_n
+    touch_high = (max_p >= pool_h) if pool_h is not None else false_n
+
+    sweep_bull = is_bull & touch_low  & (delta > 0)
+    sweep_bear = is_bear & touch_high & (delta < 0)
+
+    if pool_h is not None and pool_l is not None:
+        inside_range = (max_p < pool_h * 1.005) & (min_p > pool_l * 0.995)
+        range_mask = mid & inside_range & (crosses >= 4)
+    else:
+        range_mask = false_n
+
+    regime = np.select(
+        [sweep_bull, is_bull, sweep_bear, is_bear, range_mask],
+        ["sweep_and_reverse", "bull_continuation",
+         "sweep_and_reverse", "bear_reversal", "range"],
+        default="chop",
+    )
+
+    counts = {r: int(np.count_nonzero(regime == r)) for r in REGIME_LIST}
+    n = float(n_paths)
+    fractions = {r: counts[r] / n for r in REGIME_LIST}
+    return dict(sorted(fractions.items(), key=lambda x: -x[1]))
+
+
+def _classify_regimes_loop(paths, entry, atr, meta=None):
     """
     Sobre los N paths, clasifica el resultado de cada uno:
       - bull_continuation: termina >= +1 ATR arriba del entry sin SL
@@ -583,6 +729,9 @@ def quantum_analysis(df_15m, df_1h=None, df_4h=None, direction=None,
         "optimized_levels": optimized,
         "vs_baseline": vs_baseline,
         "anchors": meta["anchors"],
+        # Precios finales de cada path (paths[:,-1]) para que /timelines no
+        # tenga que re-simular 2000 paths solo para su histograma. Aditivo.
+        "final_prices": paths[:, -1],
     }
 
 
@@ -662,7 +811,11 @@ def build_qte_block_vip(qa):
         bp=int(regs.get("bull_continuation", 0) * 100),
         brp=int(regs.get("bear_reversal", 0) * 100),
         sp=int(regs.get("sweep_and_reverse", 0) * 100),
-        p1=probs["p_tp1"], p2=probs["p_tp2"], ps=probs["p_sl"],
+        # p_reach_tp* = P(tocar TPk antes que SL). p_tp2/p_tp3 quedaron en 0 por
+        # el break del primer-paso; fallback a ellos por compat defensiva.
+        p1=probs.get("p_reach_tp1", probs["p_tp1"]),
+        p2=probs.get("p_reach_tp2", probs["p_tp2"]),
+        ps=probs["p_sl"],
         ev=probs["expected_R"], coh=qa["coherence"],
     )
 
@@ -684,8 +837,8 @@ def build_qte_block_admin(qa):
         "PROBABILIDADES (niveles F1):",
         "  P(SL)        {:.1%}".format(probs["p_sl"]),
         "  P(TP1)       {:.1%}".format(probs["p_tp1"]),
-        "  P(TP2)       {:.1%}".format(probs["p_tp2"]),
-        "  P(TP3)       {:.1%}".format(probs["p_tp3"]),
+        "  P(TP2<SL)    {:.1%}".format(probs.get("p_reach_tp2", probs["p_tp2"])),
+        "  P(TP3<SL)    {:.1%}".format(probs.get("p_reach_tp3", probs["p_tp3"])),
         "  P(timeout)   {:.1%}".format(probs["p_timeout"]),
         "  EV en R      {:+.2f}".format(probs["expected_R"]),
         "  Win rate     {:.1%}".format(probs["win_rate"]),
@@ -707,3 +860,123 @@ def build_qte_block_admin(qa):
             "  delta EV        {:+.2f}R".format(vb["delta_R"]),
         ])
     return "\n".join(lines)
+
+
+# ============================================================
+# SELF-TESTS  -  ejecutar con:  python quantum_timelines.py
+# ============================================================
+def _synth_paths(seed, n=400, horizon=DEFAULT_HORIZON, p0=100.0, vol=0.01):
+    """Random walks sinteticos (sin clip). Solo para tests de paridad."""
+    rng = np.random.default_rng(seed)
+    shocks = rng.normal(0.0, vol, size=(n, horizon))
+    walk = np.cumprod(1.0 + shocks, axis=1)
+    paths = np.empty((n, horizon + 1), dtype=np.float64)
+    paths[:, 0] = p0
+    paths[:, 1:] = p0 * walk
+    return paths
+
+
+def _synth_df(n=200):
+    """DataFrame minimo con las columnas que generate_paths necesita."""
+    rng = np.random.default_rng(123)
+    close = 100.0 + np.cumsum(rng.normal(0.0, 0.3, size=n))
+    high = close + np.abs(rng.normal(0.0, 0.2, size=n))
+    low = close - np.abs(rng.normal(0.0, 0.2, size=n))
+    return pd.DataFrame({
+        "close": close, "high": high, "low": low,
+        "atr14": np.full(n, 0.5),
+        "ema50": close, "ema200": close,
+    })
+
+
+def _run_self_tests():
+    print("Running quantum_timelines self-tests...\n")
+
+    # ---- Test 1: paridad compute_tp_sl_probabilities + p_reach -------------
+    n_checks = 0
+    for seed in [1, 7, 42, 99]:
+        for direction in ["long", "short"]:
+            paths = _synth_paths(seed)
+            entry = 100.0
+            if direction == "long":
+                sl_configs = [entry - 1.5, entry - 0.6, entry - 5.0]
+                tp_configs = [
+                    [entry + 1, entry + 2, entry + 3],
+                    [entry + 0.5, entry + 1.0, entry + 1.5],
+                    [entry + 8, entry + 12, entry + 20],   # wide -> mucho timeout
+                ]
+            else:
+                sl_configs = [entry + 1.5, entry + 0.6, entry + 5.0]
+                tp_configs = [
+                    [entry - 1, entry - 2, entry - 3],
+                    [entry - 0.5, entry - 1.0, entry - 1.5],
+                    [entry - 8, entry - 12, entry - 20],
+                ]
+            for sl in sl_configs:
+                for tps in tp_configs:
+                    vec = compute_tp_sl_probabilities(paths, entry, sl, tps, direction)
+                    ref = _compute_tp_sl_probabilities_loop(paths, entry, sl, tps, direction)
+                    for k in ("p_sl", "p_tp1", "p_tp2", "p_tp3", "p_tp4",
+                              "p_timeout", "win_rate"):
+                        assert abs(vec[k] - ref[k]) < 1e-12, \
+                            "probs[{}] mismatch: {} vs {}".format(k, vec[k], ref[k])
+                    assert np.isclose(vec["expected_R"], ref["expected_R"],
+                                      atol=1e-9, rtol=0), \
+                        "expected_R mismatch: {} vs {}".format(
+                            vec["expected_R"], ref["expected_R"])
+                    # p_reach: consistencia + monotonia
+                    assert abs(vec["p_reach_tp1"] - vec["p_tp1"]) < 1e-12
+                    assert vec["p_reach_tp1"] >= vec["p_reach_tp2"] - 1e-12
+                    assert vec["p_reach_tp2"] >= vec["p_reach_tp3"] - 1e-12
+                    n_checks += 1
+    print("  [OK] compute_tp_sl_probabilities paridad + p_reach ({} configs)".format(n_checks))
+
+    # ---- Test 2: guard risk<=0 --------------------------------------------
+    g = compute_tp_sl_probabilities(_synth_paths(1), 100.0, 100.0,
+                                    [101, 102, 103], "long")
+    assert g["p_timeout"] == 1 and g["p_sl"] == 0
+    assert g["p_reach_tp1"] == 0.0 and g["p_reach_tp2"] == 0.0 and g["p_reach_tp3"] == 0.0
+    print("  [OK] guard risk<=0 (dict uniforme con p_reach)")
+
+    # ---- Test 3: paridad classify_regimes (con/sin pools, atr variado) -----
+    n_reg = 0
+    for seed in [1, 7, 42, 99]:
+        paths = _synth_paths(seed)
+        entry = 100.0
+        for atr in [0.5, 1.0, 2.0]:
+            for meta in [
+                None,
+                {"anchors": {"pool_high_price": 103.0, "pool_low_price": 97.0}},
+                {"anchors": {"pool_high_price": None, "pool_low_price": 98.5}},
+                {"anchors": {"pool_high_price": 101.5, "pool_low_price": None}},
+            ]:
+                v = classify_regimes(paths, entry, atr, meta)
+                r = _classify_regimes_loop(paths, entry, atr, meta)
+                assert list(v.keys()) == list(r.keys()), \
+                    "regime order mismatch: {} vs {}".format(list(v.keys()), list(r.keys()))
+                for k in REGIME_LIST:
+                    assert abs(v[k] - r[k]) < 1e-12, \
+                        "regime[{}] mismatch: {} vs {}".format(k, v[k], r[k])
+                n_reg += 1
+    print("  [OK] classify_regimes paridad ({} configs)".format(n_reg))
+
+    # ---- Test 4: all-False (nada se toca -> todo timeout) ------------------
+    flat = np.full((100, DEFAULT_HORIZON + 1), 100.0)
+    af = compute_tp_sl_probabilities(flat, 100.0, 90.0, [110, 120, 130], "long")
+    assert abs(af["p_timeout"] - 1.0) < 1e-12 and af["p_sl"] == 0.0 and af["p_tp1"] == 0.0
+    print("  [OK] all-False -> p_timeout=1")
+
+    # ---- Test 5: integracion quantum_analysis (final_prices + keys) --------
+    df = _synth_df(200)
+    qa = quantum_analysis(df, direction="long", n_paths=300, run_optimizer=True)
+    assert "final_prices" in qa and len(qa["final_prices"]) == 300
+    for k in ("p_sl", "p_tp1", "p_tp2", "p_tp3", "expected_R", "win_rate",
+              "p_reach_tp1", "p_reach_tp2", "p_reach_tp3"):
+        assert k in qa["probabilities"], "quantum_analysis falta key {}".format(k)
+    print("  [OK] quantum_analysis devuelve final_prices + p_reach")
+
+    print("\nALL TESTS PASSED")
+
+
+if __name__ == "__main__":
+    _run_self_tests()

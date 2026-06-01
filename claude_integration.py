@@ -45,7 +45,7 @@ MODEL_OPUS   = "claude-opus-4-6"
 
 MAX_TOKENS_TACTICAL  = 700
 MAX_TOKENS_SIGNAL    = 900
-MAX_TOKENS_VIP_BRIEF = 420   # FQ v5.1: +100 para que el bullet 1 (validacion vs motor) tenga espacio
+MAX_TOKENS_VIP_BRIEF = 560   # FQ v5.x: +140 para el bullet de eleccion de niveles (QTE optimizer advisory)
 TIMEOUT_SECONDS      = 35
 
 _client = None
@@ -359,20 +359,52 @@ def build_analisis_vip_prompt(s):
     """
     qte_block = ""
     if s.get("qte_p_tp1") is not None:
+        # Distribucion de regimenes (top 3) en formato corto
+        reg_lbl = {"bull_continuation": "bull", "bear_reversal": "bear",
+                   "chop": "chop", "sweep_and_reverse": "sweep", "range": "range"}
+        reg_top3 = s.get("qte_regimes_top3") or []
+        reg_dist = " / ".join(
+            "{} {:.0%}".format(reg_lbl.get(k, k), v) for k, v in reg_top3
+        ) or "{} ({:.0%})".format(
+            s.get("qte_dominant_regime", "?"), s.get("qte_dominant_pct", 0) or 0)
+        # P(tocar TPk antes que SL) - medida util; fallback a p_tp* legacy
+        r1 = s.get("qte_p_reach_tp1") if s.get("qte_p_reach_tp1") is not None else s.get("qte_p_tp1", 0)
+        r2 = s.get("qte_p_reach_tp2") if s.get("qte_p_reach_tp2") is not None else s.get("qte_p_tp2", 0)
+        r3 = s.get("qte_p_reach_tp3") or 0
         qte_block = (
-            "QTE (timelines simuladas):\n"
-            "  paths        {npaths}\n"
-            "  P(TP1)       {p1:.0%}\n"
-            "  P(TP2)       {p2:.0%}\n"
-            "  P(SL)        {psl:.0%}\n"
-            "  EV           {ev:+.2f}R\n"
-            "  Regimen dom. {reg} ({regpct:.0%})\n\n"
+            "QTE ({npaths} timelines simuladas, niveles del bot):\n"
+            "  P(SL)            {psl:.0%}      P(timeout) {pto:.0%}\n"
+            "  P(toca TP1<SL)   {r1:.0%}\n"
+            "  P(toca TP2<SL)   {r2:.0%}\n"
+            "  P(toca TP3<SL)   {r3:.0%}\n"
+            "  EV               {ev:+.2f}R     Coherencia {coh:.0%}\n"
+            "  Regimenes:       {regdist}\n\n"
         ).format(
             npaths=s.get("qte_n_paths", 0),
-            p1=s.get("qte_p_tp1", 0), p2=s.get("qte_p_tp2", 0),
-            psl=s.get("qte_p_sl", 0), ev=s.get("qte_ev", 0),
-            reg=s.get("qte_dominant_regime", "?"),
-            regpct=s.get("qte_dominant_pct", 0),
+            psl=s.get("qte_p_sl", 0) or 0,
+            pto=s.get("qte_p_timeout", 0) or 0,
+            r1=r1 or 0, r2=r2 or 0, r3=r3 or 0,
+            ev=s.get("qte_ev", 0) or 0,
+            coh=s.get("qte_coherence", 0) or 0,
+            regdist=reg_dist,
+        )
+
+    # Alternativa del optimizer QAOA (advisory). Solo si el QAOA hallo niveles
+    # que cumplen constraints (P_SL<=35%, EV>=1R sobre los 2000 paths).
+    qte_opt_block = ""
+    if s.get("qte_opt_sl") is not None:
+        qte_opt_block = (
+            "QTE OPTIMIZER (alternativa ADVISORY - NO cambia los niveles del bot):\n"
+            "  niveles bot:   SL ${bsl:.2f}   EV {bev:+.2f}R   P(SL) {bpsl:.0%}\n"
+            "  QTE-optimized: SL ${osl:.2f}   TP1 ${ot1:.2f}  TP2 ${ot2:.2f}  TP3 ${ot3:.2f}\n"
+            "                 EV {oev:+.2f}R   P(SL) {opsl:.0%}   (deltaEV {dR:+.2f}R)\n\n"
+        ).format(
+            bsl=s.get("sl", 0), bev=s.get("qte_vs_baseline_ev", 0) or 0,
+            bpsl=s.get("qte_vs_baseline_p_sl", 0) or 0,
+            osl=s.get("qte_opt_sl", 0), ot1=s.get("qte_opt_tp1", 0),
+            ot2=s.get("qte_opt_tp2", 0), ot3=s.get("qte_opt_tp3", 0),
+            oev=s.get("qte_opt_ev", 0) or 0, opsl=s.get("qte_opt_p_sl", 0) or 0,
+            dR=s.get("qte_vs_delta_R", 0) or 0,
         )
 
     # FQ v5.1: Phase E - sync_score + 4 phi del postulado tau(t)
@@ -415,22 +447,28 @@ def build_analisis_vip_prompt(s):
         "TP3:       ${tp3:.2f}  R {rr3:.2f}\n"
         "Masas P:   {pc}    RSI14: {rsi:.0f}\n\n"
         "{qte}"
+        "{qte_opt}"
         "{phase_e}"
         "----\n"
-        "CONTRATO: tu trabajo es DAR una lectura tactica Y validarla contra los\n"
-        "numeros del motor de arriba (QTE + Phase E). Devuelve EXACTAMENTE 4\n"
-        "bullets ultra-cortos (max 280 palabras total):\n\n"
+        "TU ROL: eres ASESOR. Eliges mirando la probabilidad de los 2000 paths y\n"
+        "RECOMIENDAS, pero NO cambias el gate ni los niveles del bot (Claude AFILA,\n"
+        "no decide el gate). Devuelve EXACTAMENTE 4 bullets ultra-cortos\n"
+        "(max 300 palabras total):\n\n"
         "  1. COHERENCIA CON EL MOTOR (CRITICO): tu lectura cualitativa coincide\n"
-        "     con sync_score, tau y las 4 phi? Marca explicito:\n"
+        "     con el QTE (P(SL), EV, P(toca TPk<SL), regimenes) y con sync_score/tau?\n"
         "       - Si sync >= 0.70 y tu recomendas entrar -> 'coherente fuerte: ...'\n"
-        "       - Si sync < 0.50 y tu recomendas entrar -> 'discrepancia: yo veo X\n"
-        "         que el motor no capta porque ...' (1 linea concreta)\n"
-        "       - Si phi_horizon < 0.40 (QTE bajista para esta direccion) tu lectura\n"
-        "         debe explicar por que el QTE puede estar subvalorando el setup.\n"
-        "  2. Mayor riesgo concreto al SL o TP (con numero del motor cuando aplique).\n"
-        "  3. Confirmacion tecnica que esperarias antes de entrar.\n"
-        "  4. DECISION: Entrar / Esperar / Evitar + 1 linea de razon ANCLADA a\n"
-        "     los numeros (ej: 'Esperar: sync 0.42 pide phi_refract>0.6 antes de ...').\n\n"
+        "       - Si sync < 0.50 o el regimen dominante contradice la direccion ->\n"
+        "         'discrepancia: yo veo X que el motor no capta porque ...' (1 linea).\n"
+        "  2. Mayor riesgo concreto: cita el numero del QTE (P(SL), P(timeout) o el\n"
+        "     regimen sweep/chop si domina) que mas amenaza el setup.\n"
+        "  3. ELECCION DE NIVELES (ADVISORY): si hay bloque QTE OPTIMIZER, elige\n"
+        "     'Prefiero niveles del bot' o 'Prefiero QTE-optimized' + 1 linea anclada\n"
+        "     al delta de P(SL)/EV (ej: 'QTE-opt baja P(SL) 31%->24% con +0.3R').\n"
+        "     Si NO hay bloque optimizer, di 'sin alternativa: el QAOA no hallo un\n"
+        "     set que mejore EV>=1R y P(SL)<=35%'. Recuerda: es recomendacion, el\n"
+        "     bot mantiene sus niveles.\n"
+        "  4. DECISION: Entrar / Esperar / Evitar + 1 linea ANCLADA a los numeros\n"
+        "     (ej: 'Esperar: P(SL) 38% > 35% y regimen sweep 22%').\n\n"
         "Texto plano. Sin parrafos largos. Si phi_memory='informativo' significa que\n"
         "este analisis es manual sin bucket de track-record real - no inventes WR.\n"
         "Numeros exactos cuando aplique."
@@ -446,6 +484,7 @@ def build_analisis_vip_prompt(s):
         tp3=s.get("tp3", 0), rr3=s.get("rr_tp3", 0),
         pc=s.get("pspace_count", 0), rsi=s.get("rsi14", 0),
         qte=qte_block,
+        qte_opt=qte_opt_block,
         phase_e=phase_e_block,
     )
 

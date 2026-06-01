@@ -2855,19 +2855,47 @@ def claude_followup_analisis_vip(exchange):
                 qte_levels = {"entry": levels["entry"], "sl": levels["sl"],
                               "tp1": levels["tp1"], "tp2": levels["tp2"],
                               "tp3": levels["tp3"]}
+                # FQ v5.x: Claude ve la corrida COMPLETA de 2000 paths + el
+                # optimizer QAOA, para que elija mirando probabilidad (advisory).
+                # Ya vectorizado: 2000 paths + optimizer corre en ~150ms.
                 qa = qt.quantum_analysis(
                     df, direction=direction, levels=qte_levels,
                     ict_module=ict_smc if ICT_MODULES_AVAILABLE else None,
-                    n_paths=500, run_optimizer=False)
+                    n_paths=2000, run_optimizer=True)
+                probs = qa["probabilities"]
                 snapshot.update({
                     "qte_n_paths": qa["n_paths"],
-                    "qte_p_tp1": qa["probabilities"]["p_tp1"],
-                    "qte_p_tp2": qa["probabilities"]["p_tp2"],
-                    "qte_p_sl":  qa["probabilities"]["p_sl"],
-                    "qte_ev":    qa["probabilities"]["expected_R"],
+                    "qte_p_tp1": probs["p_tp1"],
+                    "qte_p_tp2": probs["p_tp2"],
+                    "qte_p_sl":  probs["p_sl"],
+                    "qte_ev":    probs["expected_R"],
                     "qte_dominant_regime": qa["dominant_regime"],
                     "qte_dominant_pct":    qa["dominant_regime_pct"],
+                    # Probabilidades de tocar cada TP antes que SL (utiles, no 0)
+                    "qte_p_reach_tp1": probs.get("p_reach_tp1"),
+                    "qte_p_reach_tp2": probs.get("p_reach_tp2"),
+                    "qte_p_reach_tp3": probs.get("p_reach_tp3"),
+                    "qte_p_timeout":   probs.get("p_timeout"),
+                    "qte_win_rate":    probs.get("win_rate"),
+                    "qte_coherence":   qa.get("coherence"),
+                    "qte_regimes_top3": list(qa["regimes"].items())[:3],
                 })
+                # Alternativa del optimizer (advisory) si el QAOA hallo niveles
+                # que cumplen constraints; si no, las keys quedan ausentes.
+                opt = qa.get("optimized_levels")
+                vb = qa.get("vs_baseline")
+                if opt and vb:
+                    snapshot.update({
+                        "qte_opt_sl":  opt["sl"],
+                        "qte_opt_tp1": opt["tp1"],
+                        "qte_opt_tp2": opt["tp2"],
+                        "qte_opt_tp3": opt["tp3"],
+                        "qte_opt_ev":  opt["expected_R"],
+                        "qte_opt_p_sl": opt["p_sl"],
+                        "qte_vs_delta_R":       vb["delta_R"],
+                        "qte_vs_baseline_p_sl": vb["baseline_p_sl"],
+                        "qte_vs_baseline_ev":   vb["baseline_ev_R"],
+                    })
             except Exception as qte_e:
                 log.warning("QTE snapshot for Claude VIP failed: {}".format(qte_e))
 
@@ -3802,11 +3830,15 @@ def cmd_timelines(exchange):
             ict_module=ict_smc if ICT_MODULES_AVAILABLE else None,
             n_paths=2000, run_optimizer=True)
 
-        # ASCII histogram de precios finales
-        paths, _ = qt.generate_paths(
-            df_15m, n_paths=2000, horizon=qt.DEFAULT_HORIZON,
-            ict_module=ict_smc if ICT_MODULES_AVAILABLE else None, seed=42)
-        finals = paths[:, -1]
+        # ASCII histogram de precios finales. Reusa los paths ya simulados por
+        # quantum_analysis (final_prices) en vez de re-simular 2000 paths. Es
+        # identico porque ambos usan seed=42 (default de quantum_analysis).
+        finals = qa.get("final_prices")
+        if finals is None:   # fallback defensivo si la key no esta
+            paths, _ = qt.generate_paths(
+                df_15m, n_paths=2000, horizon=qt.DEFAULT_HORIZON,
+                ict_module=ict_smc if ICT_MODULES_AVAILABLE else None, seed=42)
+            finals = paths[:, -1]
         nbins = 20
         hist, edges = _np_histogram_safe(finals, nbins)
         max_count = max(hist) if max(hist) > 0 else 1
