@@ -2929,28 +2929,86 @@ def radar_check(exchange, tf_id="15m"):
         log.warning("radar_check error: {}".format(e))
 
 
-def claude_followup_analisis_vip(exchange):
+def build_analisis_context(exchange):
     """
-    Follow-up Claude VERSION VIP: 4 bullets, max 320 tokens.
-    Snapshot incluye probabilidades QTE cuando esten disponibles (F2).
+    Computa UNA sola vez el contexto pesado de /analisis (df + indicadores,
+    sesgo, niveles, QTE de 2000 paths con optimizer + paths, battle plan) para
+    COMPARTIRLO entre el mensaje curado (cmd_analisis_vip) y la lectura de Claude
+    (claude_followup_analisis_vip). Evita re-simular el QTE por cada /analisis.
+
+    Devuelve dict {df,last,bias,masses,direction,pm_est,levels,qa,plan} o None si
+    no hay datos suficientes. qa/plan pueden ser None si el QTE/planner fallan.
+    """
+    df = fetch_ohlcv(exchange, SYMBOL, "15m", limit=200)
+    df = add_indicators(df)
+    if len(df) < 50:
+        return None
+    last = df.iloc[-1]
+    bias = detect_bias(df)
+    masses = detect_pspace(df)
+    direction = "long" if "alcista" in bias["bias"] else (
+        "short" if "bajista" in bias["bias"] else "long")
+
+    session, w_clock, _, _ = get_session()
+    lap = laplacian_check(df)
+    h_factor = 1.0 if lap["active"] else 0.7
+    pm_est = PHI * w_clock * h_factor * (1 + max(0, masses["count"] - 2) * 0.15)
+
+    levels = calculate_levels_v2(df, direction, pspace=masses)
+
+    # QTE: una sola corrida 2000 paths + optimizer + paths. Sirve al mensaje
+    # curado, al battle plan y a la lectura de Claude (incl. bloque optimizer).
+    qa = None
+    if QTE_AVAILABLE and qt is not None:
+        try:
+            qte_levels = {"entry": levels["entry"], "sl": levels["sl"],
+                          "tp1": levels["tp1"], "tp2": levels["tp2"],
+                          "tp3": levels["tp3"]}
+            qa = qt.quantum_analysis(
+                df, direction=direction, levels=qte_levels,
+                ict_module=ict_smc if ICT_MODULES_AVAILABLE else None,
+                n_paths=2000, run_optimizer=True, return_paths=True)
+        except Exception as ex:
+            log.warning("QTE en build_analisis_context fallo: {}".format(ex))
+
+    # Battle plan sobre los paths recien simulados (sin re-simular)
+    plan = None
+    if (BATTLE_PLANNER_AVAILABLE and battle_planner is not None
+            and qa is not None and qa.get("paths") is not None):
+        try:
+            fd = _build_field_data_standalone(df, None, None)
+            plan = battle_planner.build_battle_plan(
+                direction=direction, current_price=float(last["close"]),
+                field_data=fd, levels=levels,
+                paths=qa["paths"], qa=qa, atr=levels.get("atr"))
+        except Exception as ex:
+            log.warning("battle_planner en build_analisis_context fallo: {}".format(ex))
+
+    return {"df": df, "last": last, "bias": bias, "masses": masses,
+            "direction": direction, "pm_est": pm_est, "levels": levels,
+            "qa": qa, "plan": plan}
+
+
+def claude_followup_analisis_vip(exchange, ctx=None):
+    """
+    Follow-up Claude VERSION VIP: 4 bullets decisivos. Reutiliza el contexto
+    pesado (df, niveles, QTE 2000 paths, battle plan) si el router pasa `ctx`,
+    evitando re-simular el QTE. Si ctx es None, lo computa por su cuenta.
     """
     if not claude_ai.is_available():
         return None
     try:
-        df = fetch_ohlcv(exchange, SYMBOL, "15m", limit=200)
-        df = add_indicators(df)
-        last = df.iloc[-1]
-        bias = detect_bias(df)
-        masses = detect_pspace(df)
-
-        if "alcista" in bias["bias"]:
-            direction = "long"
-        elif "bajista" in bias["bias"]:
-            direction = "short"
-        else:
-            direction = "long"
-
-        levels = calculate_levels_v2(df, direction, pspace=masses)
+        if ctx is None:
+            ctx = build_analisis_context(exchange)
+        if not ctx:
+            return None
+        last = ctx["last"]
+        bias = ctx["bias"]
+        masses = ctx["masses"]
+        direction = ctx["direction"]
+        levels = ctx["levels"]
+        qa = ctx.get("qa")
+        plan = ctx.get("plan")
 
         snapshot = {
             "price": float(last["close"]),
@@ -2966,72 +3024,48 @@ def claude_followup_analisis_vip(exchange):
             "rsi14": float(last.get("rsi14") or 0),
         }
 
-        # F2 v5.0: inyectar probabilidades QTE en el snapshot que ve Claude
-        if QTE_AVAILABLE and qt is not None:
-            try:
-                qte_levels = {"entry": levels["entry"], "sl": levels["sl"],
-                              "tp1": levels["tp1"], "tp2": levels["tp2"],
-                              "tp3": levels["tp3"]}
-                # FQ v5.x: Claude ve la corrida COMPLETA de 2000 paths + el
-                # optimizer QAOA, para que elija mirando probabilidad (advisory).
-                # Ya vectorizado: 2000 paths + optimizer corre en ~150ms.
-                qa = qt.quantum_analysis(
-                    df, direction=direction, levels=qte_levels,
-                    ict_module=ict_smc if ICT_MODULES_AVAILABLE else None,
-                    n_paths=2000, run_optimizer=True, return_paths=True)
-                probs = qa["probabilities"]
+        # QTE ya simulado en el contexto compartido -> snapshot que ve Claude
+        if qa is not None:
+            probs = qa["probabilities"]
+            snapshot.update({
+                "qte_n_paths": qa["n_paths"],
+                "qte_p_tp1": probs["p_tp1"],
+                "qte_p_tp2": probs["p_tp2"],
+                "qte_p_sl":  probs["p_sl"],
+                "qte_ev":    probs["expected_R"],
+                "qte_dominant_regime": qa["dominant_regime"],
+                "qte_dominant_pct":    qa["dominant_regime_pct"],
+                # Probabilidades de tocar cada TP antes que SL (utiles, no 0)
+                "qte_p_reach_tp1": probs.get("p_reach_tp1"),
+                "qte_p_reach_tp2": probs.get("p_reach_tp2"),
+                "qte_p_reach_tp3": probs.get("p_reach_tp3"),
+                "qte_p_timeout":   probs.get("p_timeout"),
+                "qte_win_rate":    probs.get("win_rate"),
+                "qte_coherence":   qa.get("coherence"),
+                "qte_regimes_top3": list(qa["regimes"].items())[:3],
+            })
+            # Alternativa del optimizer (advisory) si el QAOA hallo niveles
+            opt = qa.get("optimized_levels")
+            vb = qa.get("vs_baseline")
+            if opt and vb:
                 snapshot.update({
-                    "qte_n_paths": qa["n_paths"],
-                    "qte_p_tp1": probs["p_tp1"],
-                    "qte_p_tp2": probs["p_tp2"],
-                    "qte_p_sl":  probs["p_sl"],
-                    "qte_ev":    probs["expected_R"],
-                    "qte_dominant_regime": qa["dominant_regime"],
-                    "qte_dominant_pct":    qa["dominant_regime_pct"],
-                    # Probabilidades de tocar cada TP antes que SL (utiles, no 0)
-                    "qte_p_reach_tp1": probs.get("p_reach_tp1"),
-                    "qte_p_reach_tp2": probs.get("p_reach_tp2"),
-                    "qte_p_reach_tp3": probs.get("p_reach_tp3"),
-                    "qte_p_timeout":   probs.get("p_timeout"),
-                    "qte_win_rate":    probs.get("win_rate"),
-                    "qte_coherence":   qa.get("coherence"),
-                    "qte_regimes_top3": list(qa["regimes"].items())[:3],
+                    "qte_opt_sl":  opt["sl"],
+                    "qte_opt_tp1": opt["tp1"],
+                    "qte_opt_tp2": opt["tp2"],
+                    "qte_opt_tp3": opt["tp3"],
+                    "qte_opt_ev":  opt["expected_R"],
+                    "qte_opt_p_sl": opt["p_sl"],
+                    "qte_vs_delta_R":       vb["delta_R"],
+                    "qte_vs_baseline_p_sl": vb["baseline_p_sl"],
+                    "qte_vs_baseline_ev":   vb["baseline_ev_R"],
                 })
-                # Alternativa del optimizer (advisory) si el QAOA hallo niveles
-                # que cumplen constraints; si no, las keys quedan ausentes.
-                opt = qa.get("optimized_levels")
-                vb = qa.get("vs_baseline")
-                if opt and vb:
-                    snapshot.update({
-                        "qte_opt_sl":  opt["sl"],
-                        "qte_opt_tp1": opt["tp1"],
-                        "qte_opt_tp2": opt["tp2"],
-                        "qte_opt_tp3": opt["tp3"],
-                        "qte_opt_ev":  opt["expected_R"],
-                        "qte_opt_p_sl": opt["p_sl"],
-                        "qte_vs_delta_R":       vb["delta_R"],
-                        "qte_vs_baseline_p_sl": vb["baseline_p_sl"],
-                        "qte_vs_baseline_ev":   vb["baseline_ev_R"],
-                    })
 
-                # FQ v5.x: PLAN DE BATALLA - veredicto + zonas de acumulacion.
-                # Claude lo recibe y debe CONFIRMARLO o refinarlo, sin hedging.
-                if (BATTLE_PLANNER_AVAILABLE and battle_planner is not None
-                        and qa.get("paths") is not None):
-                    try:
-                        fd = _build_field_data_standalone(df, None, None)
-                        plan = battle_planner.build_battle_plan(
-                            direction=direction, current_price=float(last["close"]),
-                            field_data=fd, levels=levels,
-                            paths=qa["paths"], qa=qa, atr=levels.get("atr"))
-                        snapshot["battle"] = _battle_snapshot(plan)
-                    except Exception as bp_e:
-                        log.warning("battle_planner (Claude VIP) fallo: {}".format(bp_e))
-            except Exception as qte_e:
-                log.warning("QTE snapshot for Claude VIP failed: {}".format(qte_e))
+        # PLAN DE BATALLA ya construido en el contexto -> Claude lo confirma/corrige
+        if plan is not None:
+            snapshot["battle"] = _battle_snapshot(plan)
 
-        # FQ v5.1: Phase E informativo - alimenta validacion del motor por Sonnet
-        phase_e = compute_phase_e_informative(df, direction, tf_id="15m")
+        # FQ v5.1: Phase E informativo - usa el df del contexto (sin re-fetch)
+        phase_e = compute_phase_e_informative(ctx["df"], direction, tf_id="15m")
         if phase_e is not None:
             snapshot.update({
                 "phase_e_sync_score":   phase_e["sync_score"],
@@ -3321,19 +3355,24 @@ def command_listener(exchange):
 
                     telegram_send("Lectura tactica en proceso - Claude Sonnet 4.6...", chat_id)
                     try:
+                        # Contexto pesado (QTE 2000 + battle plan) UNA sola vez,
+                        # compartido entre mensaje curado y lectura de Claude.
+                        analisis_ctx = None
                         if tier_loc == "admin":
                             response = cmd_lectura(exchange)
                             fu_fn = claude_followup_general
                         else:
-                            response = cmd_analisis_vip(exchange)
+                            analisis_ctx = build_analisis_context(exchange)
+                            response = cmd_analisis_vip(exchange, ctx=analisis_ctx)
                             fu_fn = claude_followup_analisis_vip
                         send_long(response, chat_id)
 
                         if claude_ai.is_available():
-                            def _send_fu_analisis(fn=fu_fn, cid=chat_id):
+                            def _send_fu_analisis(fn=fu_fn, cid=chat_id, ctx=analisis_ctx):
                                 try:
                                     telegram_send("Claude interpretando datos...", cid)
-                                    fu = fn(exchange)
+                                    # El follow-up VIP reutiliza el ctx; el admin no lo usa.
+                                    fu = fn(exchange, ctx=ctx) if ctx is not None else fn(exchange)
                                     if fu:
                                         send_long(fu, cid)
                                 except Exception as fu_e:
@@ -3872,75 +3911,27 @@ def cmd_lectura(exchange):
 # ============================================================
 # /analisis VIP - F1 v5.0 (curado, formato Mistral)
 # ============================================================
-def cmd_analisis_vip(exchange):
+def cmd_analisis_vip(exchange, ctx=None):
     """
-    Version VIP de /analisis. Muestra solo el TF anchor 15m con
-    formato Mistral curado (sin formulas crudas).
+    Version VIP de /analisis. Muestra el TF anchor 15m con formato Mistral curado
+    liderado por el PLAN DE BATALLA. Reutiliza `ctx` (build_analisis_context) si el
+    router lo pasa, evitando re-simular el QTE; si es None lo computa por su cuenta.
     """
     try:
-        df_15m = fetch_ohlcv(exchange, SYMBOL, "15m", limit=200)
-        df_15m = add_indicators(df_15m)
-        if len(df_15m) < 50:
+        if ctx is None:
+            ctx = build_analisis_context(exchange)
+        if not ctx:
             return "Datos insuficientes para analisis."
-
-        last = df_15m.iloc[-1]
-        masses = detect_pspace(df_15m)
-        bias = detect_bias(df_15m)
-
-        if "alcista" in bias["bias"]:
-            direction = "long"
-        elif "bajista" in bias["bias"]:
-            direction = "short"
-        else:
-            direction = "long"
-
-        # Conviction estimada simple (sin exponer formulas)
-        session, w_clock, _, _ = get_session()
-        lap = laplacian_check(df_15m)
-        h_factor = 1.0 if lap["active"] else 0.7
-        pm_est = PHI * w_clock * h_factor * (1 + max(0, masses["count"] - 2) * 0.15)
-
-        levels = calculate_levels_v2(df_15m, direction, pspace=masses)
-
-        # F2 v5.0: QTE - probabilidades reales sobre los niveles propuestos.
-        # return_paths=True para que el battle_planner evalue zonas de acumulacion
-        # sobre los MISMOS paths (donde es mas probable ganar entrando).
-        qa = None
-        if QTE_AVAILABLE and qt is not None:
-            try:
-                qte_levels = {"entry": levels["entry"], "sl": levels["sl"],
-                              "tp1": levels["tp1"], "tp2": levels["tp2"],
-                              "tp3": levels["tp3"]}
-                qa = qt.quantum_analysis(
-                    df_15m, direction=direction, levels=qte_levels,
-                    ict_module=ict_smc if ICT_MODULES_AVAILABLE else None,
-                    n_paths=2000, run_optimizer=False, return_paths=True)
-            except Exception as ex:
-                log.warning("QTE en cmd_analisis_vip fallo: {}".format(ex))
-
-        # FQ v5.x: PLAN DE BATALLA - veredicto certero + zonas de acumulacion ICT
-        plan = None
-        if (BATTLE_PLANNER_AVAILABLE and battle_planner is not None
-                and qa is not None and qa.get("paths") is not None):
-            try:
-                field_data = _build_field_data_standalone(df_15m, None, None)
-                plan = battle_planner.build_battle_plan(
-                    direction=direction, current_price=float(last["close"]),
-                    field_data=field_data, levels=levels,
-                    paths=qa["paths"], qa=qa, atr=levels.get("atr"))
-            except Exception as ex:
-                log.warning("battle_planner en cmd_analisis_vip fallo: {}\n{}".format(
-                    ex, traceback.format_exc()))
 
         if VIP_FORMAT_AVAILABLE and vip_format is not None:
             return vip_format.build_vip_analisis(
-                direction=direction,
-                levels=levels,
-                bias=bias,
-                pm_est=pm_est,
-                last=last,
-                qa=qa,
-                plan=plan,
+                direction=ctx["direction"],
+                levels=ctx["levels"],
+                bias=ctx["bias"],
+                pm_est=ctx["pm_est"],
+                last=ctx["last"],
+                qa=ctx.get("qa"),
+                plan=ctx.get("plan"),
             )
         return "Formato VIP no disponible."
     except Exception as e:
