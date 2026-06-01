@@ -155,13 +155,82 @@ TP_KIND_LABEL_VIP = {
     "fib_fallback": "extension Fib",
 }
 
-def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None):
+def build_battle_block(plan):
+    """
+    Renderiza el VEREDICTO del battle_planner como bloque lider del /analisis.
+    `plan` = dict de battle_planner.build_battle_plan. Devuelve "" si None.
+
+    El veredicto manda: EJECUTAR_AHORA / ACUMULAR_EN_ZONA / ESPERAR_GATILLO /
+    STAND_DOWN. Lenguaje de trader, cero tibieza, anclado a probabilidad.
+    """
+    if not plan:
+        return ""
+    rule = "━" * 30
+    v = plan["verdict"]
+    side = "LONG" if plan["direction"] == "long" else "SHORT"
+    mkt = plan["market"]
+    tps = plan.get("tps") or []
+    tps_str = " / ".join("${:.2f}".format(t) for t in tps[:3]) if tps else "-"
+
+    lines = [
+        rule,
+        "  ▰ PLAN DE BATALLA · SOL/USDT",
+        rule,
+        "  {} <b>{}</b>".format(plan["emoji"], plan["headline"]),
+        "",
+    ]
+
+    if v == "EJECUTAR_AHORA":
+        lines += [
+            "  ▸ Entry      ${:.2f}".format(mkt["entry"]),
+            "  ▸ Invalida   ${:.2f}".format(plan["invalidation"]),
+            "  ▸ Objetivos  {}".format(tps_str),
+            "",
+            "  ◆ A mercado: EV {:+.2f}R · P(SL) {:.0%}".format(mkt["ev"], mkt["p_sl"]),
+        ]
+    elif v == "ACUMULAR_EN_ZONA":
+        z = plan["primary_zone"]
+        acc = "\n".join(
+            "     {:>3}%  ${:.2f}".format(a["weight_pct"], a["price"]) for a in z["accumulate"])
+        lines += [
+            "  ▸ Acumula"]
+        lines += [acc]
+        if plan.get("trigger"):
+            lines.append("  ▸ Gatillo    {}".format(plan["trigger"]))
+        lines += [
+            "  ▸ Invalida   ${:.2f}".format(plan["invalidation"]),
+            "  ▸ Objetivos  {}".format(tps_str),
+            "",
+            "  ◆ P(regreso a zona)  {:.0%}".format(z["reach_prob"]),
+            "  ◆ Desde zona:  EV {:+.2f}R · P(SL) {:.0%}".format(z["ev_cond"], z["p_sl_cond"]),
+            "  ◆ A mercado:   EV {:+.2f}R · P(SL) {:.0%}".format(mkt["ev"], mkt["p_sl"]),
+            "  → Mejor probabilidad acumulando en la zona.",
+        ]
+    elif v == "ESPERAR_GATILLO":
+        lines += [
+            "  ▸ Gatillo    {}".format(plan.get("trigger") or "displacement/CHoCH a favor"),
+            "  ▸ Invalida   ${:.2f}".format(plan["invalidation"]),
+            "  ▸ Objetivos  {}".format(tps_str),
+            "",
+            "  ◆ {}".format(plan["rationale"]),
+        ]
+    else:  # STAND_DOWN
+        lines += [
+            "  ◆ {}".format(plan["rationale"]),
+        ]
+
+    # Sin rule de cierre: la seccion siguiente (DETALLE) abre con su propio rule.
+    return "\n".join(lines) + "\n"
+
+
+def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None, plan=None):
     """
     Formato VIP del /analisis. Una pantalla, 3 TPs, glyphs Mistral.
     NO expone P_master crudo - solo conviction score derivado.
 
     qa (opcional): dict resultante de quantum_timelines.quantum_analysis.
-    Si esta presente, anade bloque de probabilidades reales.
+    plan (opcional): dict de battle_planner.build_battle_plan. Si esta presente,
+    el mensaje LIDERA con el veredicto certero y el resto pasa a detalle de apoyo.
     """
     side  = "LONG" if direction == "long" else "SHORT"
     arrow = "▴" if direction == "long" else "▾"
@@ -210,14 +279,20 @@ def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None):
             bp=int(regs.get("bull_continuation", 0) * 100),
             brp=int(regs.get("bear_reversal", 0) * 100),
             sp=int(regs.get("sweep_and_reverse", 0) * 100),
-            p1=probs["p_tp1"], p2=probs["p_tp2"], ps=probs["p_sl"],
+            p1=probs.get("p_reach_tp1", probs["p_tp1"]),
+            p2=probs.get("p_reach_tp2", probs["p_tp2"]),  # P(toca TP2<SL); p_tp2 era 0
+            ps=probs["p_sl"],
             ev=probs["expected_R"], coh=qa["coherence"],
             rule=rule,
         )
 
-    return (
+    # Veredicto del battle planner lidera (si esta presente)
+    battle = build_battle_block(plan)
+    detalle_hdr = "  ▰ DETALLE / APOYO" if battle else "  ▰ ANALISIS FQ · SOL/USDT"
+
+    return battle + (
         "{rule}\n"
-        "  ▰ ANALISIS FQ · SOL/USDT\n"
+        "{dhdr}\n"
         "  {when}    ${px:.2f}\n"
         "{rule}\n"
         "  {arrow} Sesgo {side}      Conviccion {score}/10\n"
@@ -235,7 +310,7 @@ def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None):
         "{rule}\n"
         "  #FQv51 #MistralEmergentTime #QTE #TauPostulate"
     ).format(
-        rule=rule, when=when, px=float(last["close"]),
+        rule=rule, dhdr=detalle_hdr, when=when, px=float(last["close"]),
         arrow=arrow, side=side, score=score, label=label,
         entry=entry, sl=sl, risk=risk_pct, sla=sla_lbl,
         tps=tps_block, qte=qte_block if qte_block else "\n",

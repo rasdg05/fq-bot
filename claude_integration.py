@@ -45,7 +45,7 @@ MODEL_OPUS   = "claude-opus-4-6"
 
 MAX_TOKENS_TACTICAL  = 700
 MAX_TOKENS_SIGNAL    = 900
-MAX_TOKENS_VIP_BRIEF = 420   # FQ v5.1: +100 para que el bullet 1 (validacion vs motor) tenga espacio
+MAX_TOKENS_VIP_BRIEF = 560   # FQ v5.x: +140 para el bullet de eleccion de niveles (QTE optimizer advisory)
 TIMEOUT_SECONDS      = 35
 
 _client = None
@@ -355,24 +355,88 @@ def build_analisis_vip_prompt(s):
     Phase E sync_score con las 4 phi del postulado tau(t)) y DEBE validar
     si su lectura cualitativa coincide o discrepa de esos numeros.
 
-    Output: 4 bullets ultra-cortos, max ~280 palabras.
+    Output: 4 bullets decisivos, max ~300 palabras.
     """
+    # VEREDICTO del battle planner (lidera). Claude lo confirma o corrige.
+    battle = s.get("battle")
+    battle_block = ""
+    if battle:
+        zb = ""
+        z = battle.get("zone")
+        if z:
+            acc = z.get("accumulate") or []
+            acc_str = " · ".join(
+                "{}% ${:.2f}".format(a["weight_pct"], a["price"]) for a in acc) or "-"
+            zb = (
+                "  Zona {lbl} ${lo:.2f}-${hi:.2f}\n"
+                "    P(regreso a zona) {rp:.0%} · EV desde zona {ev:+.2f}R · P(SL) {ps:.0%}\n"
+                "    acumular: {acc}\n"
+            ).format(lbl=z["label"], lo=z["low"], hi=z["high"],
+                     rp=z["reach_prob"], ev=z["ev_cond"], ps=z["p_sl_cond"], acc=acc_str)
+        trig = "  Gatillo: {}\n".format(battle["trigger"]) if battle.get("trigger") else ""
+        tps = battle.get("tps") or []
+        tps_str = " / ".join("${:.2f}".format(t) for t in tps[:3]) if tps else "-"
+        battle_block = (
+            "VEREDICTO DEL MOTOR (battle planner sobre 2000 paths):\n"
+            "  {verdict}: {headline}\n"
+            "  {rationale}\n"
+            "  A mercado AHORA: EV {mev:+.2f}R · P(SL) {mpsl:.0%}\n"
+            "{zone}{trig}"
+            "  Objetivos: {tps}    Invalida: ${inv:.2f}\n\n"
+        ).format(
+            verdict=battle.get("verdict", "?"), headline=battle.get("headline", ""),
+            rationale=battle.get("rationale", ""), mev=battle.get("market_ev", 0) or 0,
+            mpsl=battle.get("market_p_sl", 0) or 0, zone=zb, trig=trig,
+            tps=tps_str, inv=battle.get("invalidation", 0) or 0)
+
     qte_block = ""
     if s.get("qte_p_tp1") is not None:
+        # Distribucion de regimenes (top 3) en formato corto
+        reg_lbl = {"bull_continuation": "bull", "bear_reversal": "bear",
+                   "chop": "chop", "sweep_and_reverse": "sweep", "range": "range"}
+        reg_top3 = s.get("qte_regimes_top3") or []
+        reg_dist = " / ".join(
+            "{} {:.0%}".format(reg_lbl.get(k, k), v) for k, v in reg_top3
+        ) or "{} ({:.0%})".format(
+            s.get("qte_dominant_regime", "?"), s.get("qte_dominant_pct", 0) or 0)
+        # P(tocar TPk antes que SL) - medida util; fallback a p_tp* legacy
+        r1 = s.get("qte_p_reach_tp1") if s.get("qte_p_reach_tp1") is not None else s.get("qte_p_tp1", 0)
+        r2 = s.get("qte_p_reach_tp2") if s.get("qte_p_reach_tp2") is not None else s.get("qte_p_tp2", 0)
+        r3 = s.get("qte_p_reach_tp3") or 0
         qte_block = (
-            "QTE (timelines simuladas):\n"
-            "  paths        {npaths}\n"
-            "  P(TP1)       {p1:.0%}\n"
-            "  P(TP2)       {p2:.0%}\n"
-            "  P(SL)        {psl:.0%}\n"
-            "  EV           {ev:+.2f}R\n"
-            "  Regimen dom. {reg} ({regpct:.0%})\n\n"
+            "QTE ({npaths} timelines simuladas, niveles del bot):\n"
+            "  P(SL)            {psl:.0%}      P(timeout) {pto:.0%}\n"
+            "  P(toca TP1<SL)   {r1:.0%}\n"
+            "  P(toca TP2<SL)   {r2:.0%}\n"
+            "  P(toca TP3<SL)   {r3:.0%}\n"
+            "  EV               {ev:+.2f}R     Coherencia {coh:.0%}\n"
+            "  Regimenes:       {regdist}\n\n"
         ).format(
             npaths=s.get("qte_n_paths", 0),
-            p1=s.get("qte_p_tp1", 0), p2=s.get("qte_p_tp2", 0),
-            psl=s.get("qte_p_sl", 0), ev=s.get("qte_ev", 0),
-            reg=s.get("qte_dominant_regime", "?"),
-            regpct=s.get("qte_dominant_pct", 0),
+            psl=s.get("qte_p_sl", 0) or 0,
+            pto=s.get("qte_p_timeout", 0) or 0,
+            r1=r1 or 0, r2=r2 or 0, r3=r3 or 0,
+            ev=s.get("qte_ev", 0) or 0,
+            coh=s.get("qte_coherence", 0) or 0,
+            regdist=reg_dist,
+        )
+
+    # Alternativa del optimizer QAOA (advisory). Solo si el QAOA hallo niveles
+    # que cumplen constraints (P_SL<=35%, EV>=1R sobre los 2000 paths).
+    qte_opt_block = ""
+    if s.get("qte_opt_sl") is not None:
+        qte_opt_block = (
+            "QTE OPTIMIZER (alternativa ADVISORY - NO cambia los niveles del bot):\n"
+            "  niveles bot:   SL ${bsl:.2f}   EV {bev:+.2f}R   P(SL) {bpsl:.0%}\n"
+            "  QTE-optimized: SL ${osl:.2f}   TP1 ${ot1:.2f}  TP2 ${ot2:.2f}  TP3 ${ot3:.2f}\n"
+            "                 EV {oev:+.2f}R   P(SL) {opsl:.0%}   (deltaEV {dR:+.2f}R)\n\n"
+        ).format(
+            bsl=s.get("sl", 0), bev=s.get("qte_vs_baseline_ev", 0) or 0,
+            bpsl=s.get("qte_vs_baseline_p_sl", 0) or 0,
+            osl=s.get("qte_opt_sl", 0), ot1=s.get("qte_opt_tp1", 0),
+            ot2=s.get("qte_opt_tp2", 0), ot3=s.get("qte_opt_tp3", 0),
+            oev=s.get("qte_opt_ev", 0) or 0, opsl=s.get("qte_opt_p_sl", 0) or 0,
+            dR=s.get("qte_vs_delta_R", 0) or 0,
         )
 
     # FQ v5.1: Phase E - sync_score + 4 phi del postulado tau(t)
@@ -414,26 +478,30 @@ def build_analisis_vip_prompt(s):
         "TP2:       ${tp2:.2f}  R {rr2:.2f}\n"
         "TP3:       ${tp3:.2f}  R {rr3:.2f}\n"
         "Masas P:   {pc}    RSI14: {rsi:.0f}\n\n"
+        "{battle}"
         "{qte}"
+        "{qte_opt}"
         "{phase_e}"
         "----\n"
-        "CONTRATO: tu trabajo es DAR una lectura tactica Y validarla contra los\n"
-        "numeros del motor de arriba (QTE + Phase E). Devuelve EXACTAMENTE 4\n"
-        "bullets ultra-cortos (max 280 palabras total):\n\n"
-        "  1. COHERENCIA CON EL MOTOR (CRITICO): tu lectura cualitativa coincide\n"
-        "     con sync_score, tau y las 4 phi? Marca explicito:\n"
-        "       - Si sync >= 0.70 y tu recomendas entrar -> 'coherente fuerte: ...'\n"
-        "       - Si sync < 0.50 y tu recomendas entrar -> 'discrepancia: yo veo X\n"
-        "         que el motor no capta porque ...' (1 linea concreta)\n"
-        "       - Si phi_horizon < 0.40 (QTE bajista para esta direccion) tu lectura\n"
-        "         debe explicar por que el QTE puede estar subvalorando el setup.\n"
-        "  2. Mayor riesgo concreto al SL o TP (con numero del motor cuando aplique).\n"
-        "  3. Confirmacion tecnica que esperarias antes de entrar.\n"
-        "  4. DECISION: Entrar / Esperar / Evitar + 1 linea de razon ANCLADA a\n"
-        "     los numeros (ej: 'Esperar: sync 0.42 pide phi_refract>0.6 antes de ...').\n\n"
-        "Texto plano. Sin parrafos largos. Si phi_memory='informativo' significa que\n"
-        "este analisis es manual sin bucket de track-record real - no inventes WR.\n"
-        "Numeros exactos cuando aplique."
+        "TU ROL: eres el copiloto de EJECUCION intradia de RasDG en el battlefield.\n"
+        "Arriba tienes el VEREDICTO del motor. NO eres tibio: lo CONFIRMAS o lo\n"
+        "CORRIGES con postura clara. Hablas como trader ICT en ZONAS y ACUMULACION\n"
+        "(Order Blocks, liquidez, barridas), nunca en 'entrada raw'. El gate de\n"
+        "riesgo no se toca; tu trabajo es decir DONDE y COMO ejecutar mejor.\n"
+        "Devuelve EXACTAMENTE 4 bullets (max 300 palabras):\n\n"
+        "  1. VEREDICTO (1 palabra + 1 linea): 'CONFIRMO {{EJECUTAR/ACUMULAR/ESPERAR/\n"
+        "     STAND DOWN}}' o 'CORRIJO a X porque ...'. PROHIBIDO 'espera y observa',\n"
+        "     'quizas', 'podria' sin un nivel numerico. Si dudas, da el gatillo exacto.\n"
+        "  2. DONDE ACUMULAR/ENTRAR: precio(s) exacto(s) y por que ahi gana mas\n"
+        "     probabilidad (ancla a P(regreso a zona), EV zona vs mercado, P(SL)).\n"
+        "     Si conviene mas abajo/arriba en un OB o tras barrida, dilo con el reparto\n"
+        "     de acumulacion. Si es a mercado ya, dilo sin rodeos.\n"
+        "  3. INVALIDACION: el precio exacto que mata la idea + que harias si se da.\n"
+        "  4. GESTION: a que TP asegurar parcial / cuando mover SL a BE, anclado a la\n"
+        "     liquidez real (no a Bollinger).\n\n"
+        "Cero relleno. Numeros exactos. Si el motor dice STAND_DOWN y coincides, dilo\n"
+        "directo y da el UNICO evento (barrida+displacement) que te haria reenganchar.\n"
+        "Si phi_memory='informativo' es analisis manual sin track-record - no inventes WR."
     ).format(
         price=s.get("price", 0),
         bias=s.get("bias", "?"),
@@ -445,7 +513,9 @@ def build_analisis_vip_prompt(s):
         tp2=s.get("tp2", 0), rr2=s.get("rr_tp2", 0),
         tp3=s.get("tp3", 0), rr3=s.get("rr_tp3", 0),
         pc=s.get("pspace_count", 0), rsi=s.get("rsi14", 0),
+        battle=battle_block,
         qte=qte_block,
+        qte_opt=qte_opt_block,
         phase_e=phase_e_block,
     )
 
