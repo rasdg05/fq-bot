@@ -355,8 +355,40 @@ def build_analisis_vip_prompt(s):
     Phase E sync_score con las 4 phi del postulado tau(t)) y DEBE validar
     si su lectura cualitativa coincide o discrepa de esos numeros.
 
-    Output: 4 bullets ultra-cortos, max ~280 palabras.
+    Output: 4 bullets decisivos, max ~300 palabras.
     """
+    # VEREDICTO del battle planner (lidera). Claude lo confirma o corrige.
+    battle = s.get("battle")
+    battle_block = ""
+    if battle:
+        zb = ""
+        z = battle.get("zone")
+        if z:
+            acc = z.get("accumulate") or []
+            acc_str = " · ".join(
+                "{}% ${:.2f}".format(a["weight_pct"], a["price"]) for a in acc) or "-"
+            zb = (
+                "  Zona {lbl} ${lo:.2f}-${hi:.2f}\n"
+                "    P(regreso a zona) {rp:.0%} · EV desde zona {ev:+.2f}R · P(SL) {ps:.0%}\n"
+                "    acumular: {acc}\n"
+            ).format(lbl=z["label"], lo=z["low"], hi=z["high"],
+                     rp=z["reach_prob"], ev=z["ev_cond"], ps=z["p_sl_cond"], acc=acc_str)
+        trig = "  Gatillo: {}\n".format(battle["trigger"]) if battle.get("trigger") else ""
+        tps = battle.get("tps") or []
+        tps_str = " / ".join("${:.2f}".format(t) for t in tps[:3]) if tps else "-"
+        battle_block = (
+            "VEREDICTO DEL MOTOR (battle planner sobre 2000 paths):\n"
+            "  {verdict}: {headline}\n"
+            "  {rationale}\n"
+            "  A mercado AHORA: EV {mev:+.2f}R · P(SL) {mpsl:.0%}\n"
+            "{zone}{trig}"
+            "  Objetivos: {tps}    Invalida: ${inv:.2f}\n\n"
+        ).format(
+            verdict=battle.get("verdict", "?"), headline=battle.get("headline", ""),
+            rationale=battle.get("rationale", ""), mev=battle.get("market_ev", 0) or 0,
+            mpsl=battle.get("market_p_sl", 0) or 0, zone=zb, trig=trig,
+            tps=tps_str, inv=battle.get("invalidation", 0) or 0)
+
     qte_block = ""
     if s.get("qte_p_tp1") is not None:
         # Distribucion de regimenes (top 3) en formato corto
@@ -446,32 +478,30 @@ def build_analisis_vip_prompt(s):
         "TP2:       ${tp2:.2f}  R {rr2:.2f}\n"
         "TP3:       ${tp3:.2f}  R {rr3:.2f}\n"
         "Masas P:   {pc}    RSI14: {rsi:.0f}\n\n"
+        "{battle}"
         "{qte}"
         "{qte_opt}"
         "{phase_e}"
         "----\n"
-        "TU ROL: eres ASESOR. Eliges mirando la probabilidad de los 2000 paths y\n"
-        "RECOMIENDAS, pero NO cambias el gate ni los niveles del bot (Claude AFILA,\n"
-        "no decide el gate). Devuelve EXACTAMENTE 4 bullets ultra-cortos\n"
-        "(max 300 palabras total):\n\n"
-        "  1. COHERENCIA CON EL MOTOR (CRITICO): tu lectura cualitativa coincide\n"
-        "     con el QTE (P(SL), EV, P(toca TPk<SL), regimenes) y con sync_score/tau?\n"
-        "       - Si sync >= 0.70 y tu recomendas entrar -> 'coherente fuerte: ...'\n"
-        "       - Si sync < 0.50 o el regimen dominante contradice la direccion ->\n"
-        "         'discrepancia: yo veo X que el motor no capta porque ...' (1 linea).\n"
-        "  2. Mayor riesgo concreto: cita el numero del QTE (P(SL), P(timeout) o el\n"
-        "     regimen sweep/chop si domina) que mas amenaza el setup.\n"
-        "  3. ELECCION DE NIVELES (ADVISORY): si hay bloque QTE OPTIMIZER, elige\n"
-        "     'Prefiero niveles del bot' o 'Prefiero QTE-optimized' + 1 linea anclada\n"
-        "     al delta de P(SL)/EV (ej: 'QTE-opt baja P(SL) 31%->24% con +0.3R').\n"
-        "     Si NO hay bloque optimizer, di 'sin alternativa: el QAOA no hallo un\n"
-        "     set que mejore EV>=1R y P(SL)<=35%'. Recuerda: es recomendacion, el\n"
-        "     bot mantiene sus niveles.\n"
-        "  4. DECISION: Entrar / Esperar / Evitar + 1 linea ANCLADA a los numeros\n"
-        "     (ej: 'Esperar: P(SL) 38% > 35% y regimen sweep 22%').\n\n"
-        "Texto plano. Sin parrafos largos. Si phi_memory='informativo' significa que\n"
-        "este analisis es manual sin bucket de track-record real - no inventes WR.\n"
-        "Numeros exactos cuando aplique."
+        "TU ROL: eres el copiloto de EJECUCION intradia de RasDG en el battlefield.\n"
+        "Arriba tienes el VEREDICTO del motor. NO eres tibio: lo CONFIRMAS o lo\n"
+        "CORRIGES con postura clara. Hablas como trader ICT en ZONAS y ACUMULACION\n"
+        "(Order Blocks, liquidez, barridas), nunca en 'entrada raw'. El gate de\n"
+        "riesgo no se toca; tu trabajo es decir DONDE y COMO ejecutar mejor.\n"
+        "Devuelve EXACTAMENTE 4 bullets (max 300 palabras):\n\n"
+        "  1. VEREDICTO (1 palabra + 1 linea): 'CONFIRMO {{EJECUTAR/ACUMULAR/ESPERAR/\n"
+        "     STAND DOWN}}' o 'CORRIJO a X porque ...'. PROHIBIDO 'espera y observa',\n"
+        "     'quizas', 'podria' sin un nivel numerico. Si dudas, da el gatillo exacto.\n"
+        "  2. DONDE ACUMULAR/ENTRAR: precio(s) exacto(s) y por que ahi gana mas\n"
+        "     probabilidad (ancla a P(regreso a zona), EV zona vs mercado, P(SL)).\n"
+        "     Si conviene mas abajo/arriba en un OB o tras barrida, dilo con el reparto\n"
+        "     de acumulacion. Si es a mercado ya, dilo sin rodeos.\n"
+        "  3. INVALIDACION: el precio exacto que mata la idea + que harias si se da.\n"
+        "  4. GESTION: a que TP asegurar parcial / cuando mover SL a BE, anclado a la\n"
+        "     liquidez real (no a Bollinger).\n\n"
+        "Cero relleno. Numeros exactos. Si el motor dice STAND_DOWN y coincides, dilo\n"
+        "directo y da el UNICO evento (barrida+displacement) que te haria reenganchar.\n"
+        "Si phi_memory='informativo' es analisis manual sin track-record - no inventes WR."
     ).format(
         price=s.get("price", 0),
         bias=s.get("bias", "?"),
@@ -483,6 +513,7 @@ def build_analisis_vip_prompt(s):
         tp2=s.get("tp2", 0), rr2=s.get("rr_tp2", 0),
         tp3=s.get("tp3", 0), rr3=s.get("rr_tp3", 0),
         pc=s.get("pspace_count", 0), rsi=s.get("rsi14", 0),
+        battle=battle_block,
         qte=qte_block,
         qte_opt=qte_opt_block,
         phase_e=phase_e_block,

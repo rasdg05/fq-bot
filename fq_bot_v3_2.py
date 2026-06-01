@@ -104,6 +104,14 @@ except ImportError:
     QTE_AVAILABLE = False
     qt = None
 
+# Modulo FQ v5.x (Battle Planner - veredicto certero + zonas de acumulacion)
+try:
+    import battle_planner
+    BATTLE_PLANNER_AVAILABLE = True
+except ImportError:
+    BATTLE_PLANNER_AVAILABLE = False
+    battle_planner = None
+
 # Modulos FQ v5.1 (Postulado tau(t) - Phase E)
 try:
     import emergent_time
@@ -225,6 +233,14 @@ QTE_GATE_MIN_EV   = float(os.environ.get("FQ_QTE_MIN_EV", "1.20"))
 # Set FQ_VIP_ANALISIS_COOLDOWN_MIN=0 para desactivar.
 VIP_ANALISIS_COOLDOWN_SEC = int(os.environ.get("FQ_VIP_ANALISIS_COOLDOWN_MIN", "30")) * 60
 _VIP_ANALISIS_LAST = {}  # chat_id (str) -> epoch seconds del ultimo /analisis
+
+# RADAR proactivo (FQ v5.x): en vela nueva, si el battle planner ve un setup
+# operable (EJECUTAR/ACUMULAR) avisa al admin entre senales. NO afloja el gate
+# automatico - es inteligencia anticipada. Admin-only por defecto (blast radius).
+# Set FQ_RADAR_ENABLED=0 para desactivar; FQ_RADAR_COOLDOWN_MIN controla el spam.
+RADAR_ENABLED      = os.environ.get("FQ_RADAR_ENABLED", "1").strip() in ("1", "true", "yes")
+RADAR_COOLDOWN_SEC = int(os.environ.get("FQ_RADAR_COOLDOWN_MIN", "90")) * 60
+_RADAR_LAST = {"ts": 0.0, "verdict": None, "direction": None}
 
 # ============================================================
 # FEATURE FLAGS v4.1.1 - ICT/SMC Refactor
@@ -2812,6 +2828,107 @@ def claude_followup_general(exchange):
         log.error("Claude followup analisis error: {}".format(e))
         return None
 
+def _battle_snapshot(plan):
+    """Aplana el battle plan a un dict compacto para el snapshot de Claude."""
+    if not plan:
+        return None
+    z = plan.get("primary_zone")
+    out = {
+        "verdict":       plan["verdict"],
+        "headline":      plan["headline"],
+        "rationale":     plan["rationale"],
+        "trigger":       plan.get("trigger"),
+        "invalidation":  plan["invalidation"],
+        "market_ev":     plan["market"]["ev"],
+        "market_p_sl":   plan["market"]["p_sl"],
+        "market_entry":  plan["market"]["entry"],
+        "tps":           plan.get("tps"),
+    }
+    if z:
+        out["zone"] = {
+            "label": z["label"], "low": z["low"], "high": z["high"],
+            "reach_prob": z["reach_prob"], "ev_cond": z["ev_cond"],
+            "p_sl_cond": z["p_sl_cond"], "accumulate": z.get("accumulate"),
+        }
+    return out
+
+
+def radar_check(exchange, tf_id="15m"):
+    """
+    RADAR proactivo: en vela nueva, si el battle planner ve un setup OPERABLE
+    (EJECUTAR_AHORA / ACUMULAR_EN_ZONA con buena ventaja) y no acabamos de
+    disparar senal, avisa al admin. NO afloja el gate automatico - es
+    inteligencia anticipada para estar listo, no una orden de entrada.
+    """
+    if not (RADAR_ENABLED and QTE_AVAILABLE and qt is not None
+            and BATTLE_PLANNER_AVAILABLE and battle_planner is not None
+            and VIP_FORMAT_AVAILABLE and vip_format is not None):
+        return
+    try:
+        now_s = time.time()
+        df = fetch_ohlcv(exchange, SYMBOL, tf_id, limit=200)
+        df = add_indicators(df)
+        if len(df) < 50:
+            return
+        last = df.iloc[-1]
+        bias = detect_bias(df)
+        masses = detect_pspace(df)
+        direction = "long" if "alcista" in bias["bias"] else (
+            "short" if "bajista" in bias["bias"] else "long")
+        levels = calculate_levels_v2(df, direction, pspace=masses)
+        qte_levels = {"entry": levels["entry"], "sl": levels["sl"],
+                      "tp1": levels["tp1"], "tp2": levels["tp2"], "tp3": levels["tp3"]}
+        qa = qt.quantum_analysis(
+            df, direction=direction, levels=qte_levels,
+            ict_module=ict_smc if ICT_MODULES_AVAILABLE else None,
+            n_paths=2000, run_optimizer=False, return_paths=True)
+        if qa.get("paths") is None:
+            return
+        fd = _build_field_data_standalone(df, None, None)
+        plan = battle_planner.build_battle_plan(
+            direction, float(last["close"]), fd, levels, qa["paths"], qa,
+            atr=levels.get("atr"))
+
+        # Solo avisar de setups realmente operables
+        if plan["verdict"] not in ("EJECUTAR_AHORA", "ACUMULAR_EN_ZONA"):
+            return
+        if plan["verdict"] == "ACUMULAR_EN_ZONA":
+            z = plan.get("primary_zone")
+            if not z or z["reach_prob"] < 0.30 or z["ev_cond"] < 1.0:
+                return
+
+        # Cooldown: no repetir misma direccion+verdict dentro de la ventana
+        same = (_RADAR_LAST["direction"] == direction and
+                _RADAR_LAST["verdict"] == plan["verdict"])
+        if same and (now_s - _RADAR_LAST["ts"]) < RADAR_COOLDOWN_SEC:
+            return
+
+        # No duplicar si una senal automatica disparo hace poco en este TF
+        last_sig = STATE.last_signal_ts_tf.get(tf_id)
+        if last_sig:
+            try:
+                lt = last_sig if isinstance(last_sig, datetime) else \
+                    datetime.fromtimestamp(float(last_sig), tz=timezone.utc)
+                if lt.tzinfo is None:
+                    lt = lt.replace(tzinfo=timezone.utc)
+                if (datetime.now(timezone.utc) - lt).total_seconds() < 1800:
+                    return
+            except Exception:
+                pass
+
+        _RADAR_LAST.update({"ts": now_s, "verdict": plan["verdict"],
+                            "direction": direction})
+        body = vip_format.build_battle_block(plan)
+        msg = ("<b>📡 RADAR FQ — setup armandose</b>\n"
+               "<i>No es senal automatica. Inteligencia anticipada.</i>\n\n"
+               + body +
+               "\n<i>El gate automatico sigue intacto. Confirma con /analisis.</i>")
+        telegram_send(msg, TELEGRAM_CHAT_ID)
+        log.info("RADAR enviado: %s %s", plan["verdict"], direction)
+    except Exception as e:
+        log.warning("radar_check error: {}".format(e))
+
+
 def claude_followup_analisis_vip(exchange):
     """
     Follow-up Claude VERSION VIP: 4 bullets, max 320 tokens.
@@ -2861,7 +2978,7 @@ def claude_followup_analisis_vip(exchange):
                 qa = qt.quantum_analysis(
                     df, direction=direction, levels=qte_levels,
                     ict_module=ict_smc if ICT_MODULES_AVAILABLE else None,
-                    n_paths=2000, run_optimizer=True)
+                    n_paths=2000, run_optimizer=True, return_paths=True)
                 probs = qa["probabilities"]
                 snapshot.update({
                     "qte_n_paths": qa["n_paths"],
@@ -2896,6 +3013,20 @@ def claude_followup_analisis_vip(exchange):
                         "qte_vs_baseline_p_sl": vb["baseline_p_sl"],
                         "qte_vs_baseline_ev":   vb["baseline_ev_R"],
                     })
+
+                # FQ v5.x: PLAN DE BATALLA - veredicto + zonas de acumulacion.
+                # Claude lo recibe y debe CONFIRMARLO o refinarlo, sin hedging.
+                if (BATTLE_PLANNER_AVAILABLE and battle_planner is not None
+                        and qa.get("paths") is not None):
+                    try:
+                        fd = _build_field_data_standalone(df, None, None)
+                        plan = battle_planner.build_battle_plan(
+                            direction=direction, current_price=float(last["close"]),
+                            field_data=fd, levels=levels,
+                            paths=qa["paths"], qa=qa, atr=levels.get("atr"))
+                        snapshot["battle"] = _battle_snapshot(plan)
+                    except Exception as bp_e:
+                        log.warning("battle_planner (Claude VIP) fallo: {}".format(bp_e))
             except Exception as qte_e:
                 log.warning("QTE snapshot for Claude VIP failed: {}".format(qte_e))
 
@@ -3771,7 +3902,9 @@ def cmd_analisis_vip(exchange):
 
         levels = calculate_levels_v2(df_15m, direction, pspace=masses)
 
-        # F2 v5.0: QTE - probabilidades reales sobre los niveles propuestos
+        # F2 v5.0: QTE - probabilidades reales sobre los niveles propuestos.
+        # return_paths=True para que el battle_planner evalue zonas de acumulacion
+        # sobre los MISMOS paths (donde es mas probable ganar entrando).
         qa = None
         if QTE_AVAILABLE and qt is not None:
             try:
@@ -3781,9 +3914,23 @@ def cmd_analisis_vip(exchange):
                 qa = qt.quantum_analysis(
                     df_15m, direction=direction, levels=qte_levels,
                     ict_module=ict_smc if ICT_MODULES_AVAILABLE else None,
-                    n_paths=500, run_optimizer=False)
+                    n_paths=2000, run_optimizer=False, return_paths=True)
             except Exception as ex:
                 log.warning("QTE en cmd_analisis_vip fallo: {}".format(ex))
+
+        # FQ v5.x: PLAN DE BATALLA - veredicto certero + zonas de acumulacion ICT
+        plan = None
+        if (BATTLE_PLANNER_AVAILABLE and battle_planner is not None
+                and qa is not None and qa.get("paths") is not None):
+            try:
+                field_data = _build_field_data_standalone(df_15m, None, None)
+                plan = battle_planner.build_battle_plan(
+                    direction=direction, current_price=float(last["close"]),
+                    field_data=field_data, levels=levels,
+                    paths=qa["paths"], qa=qa, atr=levels.get("atr"))
+            except Exception as ex:
+                log.warning("battle_planner en cmd_analisis_vip fallo: {}\n{}".format(
+                    ex, traceback.format_exc()))
 
         if VIP_FORMAT_AVAILABLE and vip_format is not None:
             return vip_format.build_vip_analisis(
@@ -3793,6 +3940,7 @@ def cmd_analisis_vip(exchange):
                 pm_est=pm_est,
                 last=last,
                 qa=qa,
+                plan=plan,
             )
         return "Formato VIP no disponible."
     except Exception as e:
@@ -4190,6 +4338,7 @@ def main():
         try:
             now_utc = datetime.now(timezone.utc)
             any_new_candle = False  # Para evolution_periodic_hook
+            new_candle_tfs = set()  # TFs que cerraron vela nueva esta iteracion
 
             # Iteracion secuencial sobre los 3 TFs. Cooldowns independientes por TF:
             # una senal en 5m NO bloquea 15m ni 1h. Intencional - no se pierde
@@ -4212,6 +4361,7 @@ def main():
                         last_candle_ts[tf_id] = current_ts
                         last_intra_ts[tf_id]  = None
                         any_new_candle = True
+                        new_candle_tfs.add(tf_id)
                         log.info("[{}] New candle closed: {}".format(tf_id, current_ts))
 
                     should_eval = is_new_candle or is_intra_ready
@@ -4235,6 +4385,11 @@ def main():
             # EVOLUTION HOOK - corre si alguno de los TFs cerro vela nueva
             if any_new_candle:
                 evolution_periodic_hook(exchange)
+
+            # RADAR proactivo: en vela nueva 15m, avisa de setups operables que
+            # no dispararon senal auto (no afloja el gate). Admin-only, con cooldown.
+            if "15m" in new_candle_tfs:
+                radar_check(exchange, "15m")
 
             # Reset diario de signals_today
             today = cdmx_now().date()

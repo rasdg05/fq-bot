@@ -347,6 +347,81 @@ def compute_tp_sl_probabilities(paths, entry, sl, tp_list, direction):
     }
 
 
+def _first_true_idx(hit, sentinel):
+    """Indice del primer True por fila (axis=1); `sentinel` si all-False."""
+    any_hit = hit.any(axis=1)
+    idx = np.where(any_hit, hit.argmax(axis=1), sentinel)
+    return idx, any_hit
+
+
+def evaluate_entry_zone(paths, zone_entry, zone_sl, tp_prices, direction):
+    """
+    Evalua la calidad de ENTRAR EN UNA ZONA (pullback / acumulacion) reutilizando
+    los MISMOS paths Monte Carlo - sin re-simular. Responde la pregunta del
+    trader: "es mas probable ganar si entro mas abajo en esta zona?".
+
+    Para LONG, zone_entry suele estar < precio actual (paths[:,0]); mide:
+      - reach_prob: fraccion de paths que TOCAN la zona dentro del horizonte
+      - condicional (solo paths que tocan, desde el primer toque en adelante):
+          p_sl_cond, ev_cond (R), p_reach_tp1_cond
+      - median_bars_to_reach: mediana de velas hasta tocar la zona
+
+    Devuelve dict. Si ningun path toca la zona, reach_prob=0 y condicionales None.
+    """
+    n_paths, _ = paths.shape
+    is_long = direction == "long"
+    fut = paths[:, 1:]                  # (N, H); col 0 == barra t=1
+    H = fut.shape[1]
+    cols = np.arange(H)[None, :]        # (1, H)
+
+    # 1) Primer toque de la zona
+    reach_hit = (fut <= zone_entry) if is_long else (fut >= zone_entry)
+    reach_idx, reached = _first_true_idx(reach_hit, H)
+    n_reached = int(reached.sum())
+    reach_prob = n_reached / float(n_paths)
+    if n_reached == 0:
+        return {"reach_prob": 0.0, "n_reached": 0, "p_sl_cond": None,
+                "ev_cond": None, "p_reach_tp1_cond": None,
+                "median_bars_to_reach": None}
+
+    # 2) Edge condicional desde el toque: solo barras en/after el primer toque
+    risk = abs(zone_entry - zone_sl)
+    after = cols >= reach_idx[:, None]          # (N, H)
+    tps_sorted = sorted(tp_prices) if is_long else sorted(tp_prices, reverse=True)
+    if is_long:
+        sl_hit  = (fut <= zone_sl) & after
+        tp1_hit = (fut >= tps_sorted[0]) & after
+    else:
+        sl_hit  = (fut >= zone_sl) & after
+        tp1_hit = (fut <= tps_sorted[0]) & after
+    sl_idx,  sl_any  = _first_true_idx(sl_hit, H)
+    tp1_idx, tp1_any = _first_true_idx(tp1_hit, H)
+
+    sl_first  = sl_any  & (sl_idx <= tp1_idx)
+    tp1_first = tp1_any & (tp1_idx < sl_idx)
+    timeout   = reached & ~sl_first & ~tp1_first
+
+    final = paths[:, -1]
+    r = np.zeros(n_paths, dtype=np.float64)
+    if risk > 0:
+        r[sl_first]  = -1.0
+        r[tp1_first] = abs(tps_sorted[0] - zone_entry) / risk
+        if is_long:
+            r[timeout] = (final[timeout] - zone_entry) / risk
+        else:
+            r[timeout] = (zone_entry - final[timeout]) / risk
+
+    nr = float(n_reached)
+    return {
+        "reach_prob":           reach_prob,
+        "n_reached":            n_reached,
+        "p_sl_cond":            float(sl_first.sum()) / nr,
+        "ev_cond":              float(r[reached].mean()) if risk > 0 else 0.0,
+        "p_reach_tp1_cond":     float(tp1_first.sum()) / nr,
+        "median_bars_to_reach": float(np.median(reach_idx[reached] + 1)),
+    }
+
+
 def _compute_tp_sl_probabilities_loop(paths, entry, sl, tp_list, direction):
     """
     Para cada path, en orden temporal:
@@ -647,7 +722,7 @@ def compute_coherence(paths):
 def quantum_analysis(df_15m, df_1h=None, df_4h=None, direction=None,
                      pspace=None, levels=None, ict_module=None,
                      n_paths=DEFAULT_N_PATHS_VIP, horizon=DEFAULT_HORIZON,
-                     seed=42, run_optimizer=True):
+                     seed=42, run_optimizer=True, return_paths=False):
     """
     Funcion publica principal del QTE.
 
@@ -716,7 +791,7 @@ def quantum_analysis(df_15m, df_1h=None, df_4h=None, direction=None,
             log.warning("QTE optimizer error: {}".format(e))
 
     elapsed_ms = (time.perf_counter() - t0) * 1000
-    return {
+    result = {
         "n_paths": n_paths,
         "horizon_candles": horizon,
         "horizon_hours": horizon * 15 / 60,
@@ -733,6 +808,11 @@ def quantum_analysis(df_15m, df_1h=None, df_4h=None, direction=None,
         # tenga que re-simular 2000 paths solo para su histograma. Aditivo.
         "final_prices": paths[:, -1],
     }
+    if return_paths:
+        # Matriz completa (N, horizon+1) para que battle_planner evalue zonas de
+        # entrada sobre los MISMOS paths. Solo bajo demanda (no infla otros calls).
+        result["paths"] = paths
+    return result
 
 
 def _build_sl_candidate_grid(entry, atr, direction, levels):
@@ -974,6 +1054,61 @@ def _run_self_tests():
               "p_reach_tp1", "p_reach_tp2", "p_reach_tp3"):
         assert k in qa["probabilities"], "quantum_analysis falta key {}".format(k)
     print("  [OK] quantum_analysis devuelve final_prices + p_reach")
+
+    # ---- Test 6: evaluate_entry_zone (reach + edge condicional) ------------
+    def _zone_loop(paths, zone, sl, tps, direction):
+        """Oraculo lento para evaluate_entry_zone."""
+        is_long = direction == "long"
+        tps_s = sorted(tps) if is_long else sorted(tps, reverse=True)
+        risk = abs(zone - sl)
+        reached = 0; rs = []
+        for path in paths:
+            t_touch = None
+            for t in range(1, len(path)):
+                if (is_long and path[t] <= zone) or (not is_long and path[t] >= zone):
+                    t_touch = t; break
+            if t_touch is None:
+                continue
+            reached += 1
+            outcome = None
+            for t in range(t_touch, len(path)):
+                p = path[t]
+                if (is_long and p <= sl) or (not is_long and p >= sl):
+                    outcome = -1.0; break
+                if (is_long and p >= tps_s[0]) or (not is_long and p <= tps_s[0]):
+                    outcome = abs(tps_s[0]-zone)/risk; break
+            if outcome is None:
+                outcome = (path[-1]-zone)/risk if is_long else (zone-path[-1])/risk
+            rs.append(outcome)
+        n = len(paths)
+        if reached == 0:
+            return 0.0, None, None
+        return reached/float(n), sum(1 for x in rs if x==-1.0)/float(reached), sum(rs)/float(reached)
+
+    nz = 0
+    for seed in [1, 42, 99]:
+        for direction in ["long", "short"]:
+            paths = _synth_paths(seed, vol=0.012)
+            entry = 100.0
+            if direction == "long":
+                zones = [(99.0, 98.0, [101, 102, 103]), (97.0, 96.0, [100.5, 102, 104])]
+            else:
+                zones = [(101.0, 102.0, [99, 98, 97]), (103.0, 104.0, [99.5, 98, 96])]
+            for zone, sl, tps in zones:
+                ez = evaluate_entry_zone(paths, zone, sl, tps, direction)
+                rp_ref, psl_ref, ev_ref = _zone_loop(paths, zone, sl, tps, direction)
+                assert abs(ez["reach_prob"] - rp_ref) < 1e-12, "reach_prob mismatch"
+                assert 0.0 <= ez["reach_prob"] <= 1.0
+                if ez["n_reached"] > 0:
+                    assert abs(ez["p_sl_cond"] - psl_ref) < 1e-12, "p_sl_cond mismatch"
+                    assert np.isclose(ez["ev_cond"], ev_ref, atol=1e-9, rtol=0), "ev_cond mismatch"
+                nz += 1
+    # zona mas profunda -> reach_prob menor o igual (mas dificil de alcanzar)
+    p = _synth_paths(7, vol=0.012)
+    near = evaluate_entry_zone(p, 99.0, 98.0, [101, 102], "long")["reach_prob"]
+    far  = evaluate_entry_zone(p, 96.0, 95.0, [101, 102], "long")["reach_prob"]
+    assert near >= far - 1e-12, "zona profunda deberia ser menos alcanzable"
+    print("  [OK] evaluate_entry_zone paridad + reach monotono ({} configs)".format(nz))
 
     print("\nALL TESTS PASSED")
 
