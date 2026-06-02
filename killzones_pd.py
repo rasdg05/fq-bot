@@ -14,12 +14,25 @@ CDMX_TZ = timezone(timedelta(hours=-6))
 UTC_TZ  = timezone.utc
 
 # ============================================================
-# KILLZONES ICT en hora CDMX (UTC-6)
+# KILLZONES ICT en hora CDMX (UTC-6) - v5.2 reforma
+#
 # Calibrado al estandar ICT (referencia: howtotrade.com Silver Bullet)
 #   Silver Bullet London  : 3:00-4:00 AM EST (NY) = 2:00-3:00 CDMX
 #   Silver Bullet NY AM   : 10:00-11:00 AM EST    = 9:00-10:00 CDMX
 #   Silver Bullet NY PM   : 2:00-3:00 PM EST      = 1:00-2:00 CDMX (PM)
-# Prioridad superior gana en overlap (Silver Bullet > Open > resto)
+#
+# Cambios v5.2 (calibrado contra senales tacticas observadas en 2026-06-01):
+#   - asia_open (17:00-18:30): recompensa franja de la 6 PM donde el bot
+#     historicamente daba senales rentables pero quedaban penalizadas como
+#     "fuera de killzone".
+#   - eu_pre_open (00:30-02:00): pre-apertura europea, momentum genuino.
+#   - ny_close_hour (15:00-16:00): PENALTY explicito. Ultima hora de NY,
+#     liquidez se evapora y el bot daba falsos positivos.
+#   - asia_kz recortada (0.70 -> 0.65) para reflejar menor liquidez efectiva.
+#
+# Prioridad superior gana en overlap (Silver Bullet > Open > resto > penalty).
+# El penalty (ny_close_hour) tiene la menor prioridad: cualquier KZ valida
+# encima de el la sobreescribe.
 # ============================================================
 KILLZONES_CDMX = [
     # name,                 start,  end,  w_kz, priority,       order
@@ -28,9 +41,12 @@ KILLZONES_CDMX = [
     ("silver_bullet_ny_pm",  13.0,  14.0, 1.40, "maxima",       1),
     ("london_open_kz",       1.0,   5.0,  1.20, "alta",         2),
     ("ny_am_kz",             8.0,   11.0, 1.20, "alta",         2),
-    ("ny_pm_kz",             13.0,  16.0, 1.10, "media-alta",   2),
+    ("ny_pm_kz",             13.0,  15.0, 1.10, "media-alta",   2),  # acortada: termina antes del penalty
+    ("asia_open",            17.0,  18.5, 1.05, "alta-volumen", 2),  # nuevo: recompensa franja 6PM
+    ("eu_pre_open",          0.5,   2.0,  1.05, "alta-volumen", 2),  # nuevo: pre-apertura EU
     ("london_close_kz",      9.5,   11.0, 1.00, "media",        3),
-    ("asia_kz",              19.0,  22.0, 0.70, "media",        3),
+    ("asia_kz",              19.0,  22.0, 0.65, "media",        3),  # recortado de 0.70
+    ("ny_close_hour",       15.0,  16.0, 0.45, "penalty",       9),  # nuevo: ultima hora NY (penalty)
 ]
 
 W_OUTSIDE_KZ = 0.60
@@ -61,15 +77,24 @@ def is_weekend_closed(now_utc=None):
     return False
 
 def weekend_status():
-    """Devuelve dict descriptivo del estado weekend"""
+    """Devuelve dict descriptivo del estado weekend.
+
+    v5.2: agrega near_close (viernes >=14:00 CDMX). No es veto, solo señal
+    informativa que volume_quality.is_dead_window tambien marca.
+    """
     now_utc = datetime.now(UTC_TZ)
     closed = is_weekend_closed(now_utc)
+    now_cdmx = now_utc.astimezone(CDMX_TZ)
+    h_cdmx = now_cdmx.hour + now_cdmx.minute / 60.0
+    near_close = (now_utc.weekday() == 4 and h_cdmx >= 14.0)
     return {
         "closed":          closed,
         "weekday_utc":     now_utc.weekday(),
         "weekday_label":   ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][now_utc.weekday()],
         "hour_utc":        now_utc.hour + now_utc.minute/60.0,
-        "reason":          "weekend veto activo" if closed else "mercado activo",
+        "near_close":      near_close,
+        "reason":          "weekend veto activo" if closed else (
+                              "viernes cerca de cierre" if near_close else "mercado activo"),
     }
 
 # Map de SESSION_WEIGHTS legacy (asia/london/ny/overlap) - heredado

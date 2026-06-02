@@ -17,6 +17,13 @@ import ict_smc as ict
 import killzones_pd as kzpd
 import entropy_cognition as ev
 
+try:
+    import volume_quality as volq
+    _VOL_QUALITY_AVAILABLE = True
+except Exception as _e:
+    volq = None
+    _VOL_QUALITY_AVAILABLE = False
+
 log = logging.getLogger("fq_fusion")
 
 PHI = 1.6180339887
@@ -325,11 +332,13 @@ def _execute_phase_d(field, direction, p_master_provisional, tf_id=None):
 # ============================================================
 # P_MASTER REFINADO
 # ============================================================
-def _compute_p_master_refined(field, direction, masses, lap, config, phase_e_data=None):
+def _compute_p_master_refined(field, direction, masses, lap, config, phase_e_data=None,
+                              vol_data=None):
     """
     Calculo final con hibrido w_clock <-> w_killzone + f_confluence + ICT concepts.
     Usa Thompson sampling sobre bucket_key_v3 si FQ_USE_THOMPSON=1.
     Si phase_e_data presente: aplica sync_modulator sobre kappa_evo y P_master con caps.
+    Si vol_data presente (FQ v5.2): aplica volume_modulator final sobre P_master.
     """
     tf_id = config.get("TF_ID")  # opcional: separa memorias 5m/15m/1h
     n_closed_v2 = ev.count_closed_v2_buckets() if hasattr(ev, "count_closed_v2_buckets") else 0
@@ -391,9 +400,26 @@ def _compute_p_master_refined(field, direction, masses, lap, config, phase_e_dat
         p_master, caps_applied = emergent_time.apply_inflation_cap(p_master_pre, p_master_post_raw)
         kappa_evo = kappa_evo_modulated  # para reporting downstream
 
+    # === VOLUME MODULATOR (FQ v5.2) ===
+    # Aplica el ultimo modulador suave [0.75, 1.20] basado en volumen real.
+    # Si vol_data es None o el modulo no esta disponible, vol_mult=1.0 (no-op).
+    p_master_before_vol = p_master
+    vol_mult = 1.0
+    vol_score_val = None
+    vol_label = None
+    if vol_data is not None and _VOL_QUALITY_AVAILABLE:
+        try:
+            vol_score_val = vol_data.get("score")
+            vol_mult = volq.volume_modulator(vol_score_val)
+            vol_label = volq.volume_quality_label(vol_score_val)
+            p_master = p_master * vol_mult
+        except Exception as e:
+            log.warning("volume_modulator error: {}".format(e))
+
     return {
         "p_master_raw":   p_master_raw,
         "p_master":       p_master,
+        "p_master_pre_vol": p_master_before_vol,
         "kappa_evo":      kappa_evo,
         "kappa_method":   kappa_method,
         "kappa_stats":    kappa_stats,
@@ -421,6 +447,11 @@ def _compute_p_master_refined(field, direction, masses, lap, config, phase_e_dat
         "phase_e_components":   phase_e_data["components"] if phase_e_data else None,
         "phase_e_tau":          phase_e_data["tau_components"] if phase_e_data else None,
         "caps_applied":         caps_applied,
+        # Volume quality (FQ v5.2)
+        "vol_score":            vol_score_val,
+        "vol_mult":             vol_mult,
+        "vol_label":            vol_label,
+        "vol_data":             vol_data,
     }
 
 # ============================================================
@@ -574,8 +605,33 @@ def evaluate_signal(
                     masses=masses, lap=lap
                 )
 
-        # 9. P_MASTER FINAL REFINADO
-        pm_data = _compute_p_master_refined(field, direction, masses, lap, config, phase_e_data=phase_e_data)
+        # 8.c VOLUME QUALITY (FQ v5.2) - calcular ANTES del P_master final
+        # para poder modular y poder vetar en horas muertas con bajo volumen.
+        vol_data = None
+        if _VOL_QUALITY_AVAILABLE:
+            try:
+                vol_data = volq.volume_score(df_15m)
+            except Exception as e:
+                log.warning("volume_quality.volume_score error: {}".format(e))
+                vol_data = None
+
+        # Veto duro: SOLO cuando coinciden franja muerta + baja liquidez.
+        # is_dead_window() ya marca: 15:00-16:00 CDMX y viernes >=14:00 CDMX.
+        # El veto absoluto de fin de semana ya fue chequeado al inicio.
+        if vol_data is not None and _VOL_QUALITY_AVAILABLE:
+            vetoed, vreason = volq.volume_veto(vol_data["score"])
+            if vetoed:
+                return False, field, _build_report(
+                    decision="vol_veto", failed_at="volume",
+                    reason="Volume veto: " + vreason,
+                    direction_inferred=direction,
+                    vol_data=vol_data,
+                    masses=masses, lap=lap
+                )
+
+        # 9. P_MASTER FINAL REFINADO (con modulador de volumen)
+        pm_data = _compute_p_master_refined(field, direction, masses, lap, config,
+                                            phase_e_data=phase_e_data, vol_data=vol_data)
 
         if pm_data["p_master"] < config["PMASTER_MIN"]:
             return False, field, _build_report(

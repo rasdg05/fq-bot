@@ -232,6 +232,125 @@ def build_battle_block(plan):
     return "\n".join(lines) + "\n"
 
 
+# ============================================================
+# ALERTA TACTICA FQ - promueve battle_planner a VIP con TPs cortos
+# FQ v5.2 - resuelve falsos positivos en franjas dudosas usando TPs reales
+# que la practica demostro alcanzables (RR 1.0 / 1.5 / 2.2 en vez de
+# estructurales lejanos donde TP3 ~1:6 casi nunca se llega en intradia).
+# ============================================================
+def build_tactical_alert(plan, tps_short, vol_label=None, killzone_name=None,
+                         tf_label=None):
+    """
+    Render de la ALERTA TACTICA FQ para el VIP.
+
+    Args:
+        plan: dict del battle_planner.build_battle_plan
+              (verdict, headline, market, primary_zone, invalidation, direction)
+        tps_short: lista de 3 dicts [{"price","rr","weight_pct","kind"}, ...]
+                   con TPs (mezcla de estructurales + sinteticos segun contexto).
+        vol_label: etiqueta de volumen ("Alto"/"Normal"/"Bajo"/...) opcional.
+        killzone_name: nombre de la killzone activa para contexto.
+        tf_label: timeframe del setup ("1m"/"3m"/"15m") para etiquetar en header.
+
+    El mensaje NO sustituye la senal automatica - la frase final lo hace
+    explicito para no diluir la marca de la senal clasica.
+    """
+    if not plan or not tps_short:
+        return ""
+
+    v = plan["verdict"]
+    side = "LONG" if plan["direction"] == "long" else "SHORT"
+    mkt = plan.get("market") or {}
+    invalidation = plan.get("invalidation")
+
+    # Etiquetas cualitativas (sin numeros crudos)
+    p_market = _prob_label(1.0 - (mkt.get("p_sl") or 0.5))
+    if v == "ACUMULAR_EN_ZONA" and plan.get("primary_zone"):
+        z = plan["primary_zone"]
+        p_label = _prob_label(1.0 - (z.get("p_sl_cond") or 0.5))
+        ev_label_str = _ev_label(z.get("ev_cond"))
+    else:
+        p_label = p_market
+        ev_label_str = _ev_label(mkt.get("ev"))
+
+    # Headline segun veredicto
+    if v == "EJECUTAR_AHORA":
+        entry_str = "${:.2f}".format(mkt.get("entry") or 0)
+        emoji_head = "🟢"
+        headline = "EJECUTA {} a mercado ~{}".format(side, entry_str)
+    elif v == "ACUMULAR_EN_ZONA":
+        z = plan["primary_zone"]
+        emoji_head = "🟡"
+        headline = "ACUMULA {} en {} ${:.2f}-${:.2f}".format(
+            side, z["label"], z["low"], z["high"])
+        entry_str = "${:.2f}".format(z["ref"])
+    else:
+        # No deberia llegar otro verdict, pero defensive
+        emoji_head = "⚡"
+        headline = plan.get("headline", "ALERTA TACTICA")
+        entry_str = "${:.2f}".format(mkt.get("entry") or 0)
+
+    # Header con contexto (killzone + volumen). Si no hay info, omitir limpio.
+    ctx_bits = []
+    if killzone_name and killzone_name != "fuera":
+        ctx_bits.append("Killzone {}".format(killzone_name))
+    if vol_label:
+        ctx_bits.append("Volumen {}".format(vol_label.lower()))
+    ctx_line = " · ".join(ctx_bits)
+
+    header = "⚡ ALERTA TACTICA FQ"
+    if tf_label:
+        header += " — {}".format(tf_label)
+    else:
+        header += " — intradia"
+    lines = [
+        "<b>{}</b>".format(header),
+    ]
+    if ctx_line:
+        lines.append("<i>{}</i>".format(ctx_line))
+    lines += [
+        RULE,
+        "  ▰ Plan tactico · {}".format(PAIR),
+        RULE,
+        "  {} <b>{}</b>".format(emoji_head, headline),
+        "",
+    ]
+
+    # Entrada / acumulacion
+    if v == "EJECUTAR_AHORA":
+        lines.append("  ▸ Entry      {}".format(entry_str))
+    elif v == "ACUMULAR_EN_ZONA":
+        acc = plan["primary_zone"].get("accumulate") or []
+        lines.append("  ▸ Acumula")
+        for a in acc:
+            lines.append("     {:>3}%  ${:.2f}".format(a.get("weight_pct", 0),
+                                                          a.get("price", 0)))
+        if plan.get("trigger"):
+            lines.append("  ▸ Gatillo    {}".format(plan["trigger"]))
+
+    if invalidation is not None:
+        lines.append("  ▸ Invalida   ${:.2f}".format(invalidation))
+
+    # TPs cortos con % de cierre (40/35/25) y RR
+    for i, tp in enumerate(tps_short, start=1):
+        wp = tp.get("weight_pct", 0)
+        lines.append("  ▸ TP{} ({:>2}%) ${:.2f}    R:R {:.2f}".format(
+            i, wp, tp.get("price", 0), tp.get("rr", 0)))
+
+    # Resumen cualitativo
+    summary_bits = [ev_label_str, "prob. {}".format(p_label.lower())]
+    if vol_label:
+        summary_bits.append("volumen {}".format(vol_label.lower()))
+    lines.append("")
+    lines.append("  ◆ " + " · ".join(summary_bits))
+    lines.append("")
+    lines.append("<i>(no sustituye la senal automatica)</i>")
+    lines.append("")
+    lines.append("#FQ #SOLUSDT #Tactica #{}".format(side))
+
+    return "\n".join(lines)
+
+
 def _market_tone(qa, direction):
     """
     Compacta el resultado del QTE en UNA linea cualitativa que el VIP

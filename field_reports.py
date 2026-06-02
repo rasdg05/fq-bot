@@ -109,6 +109,7 @@ def build_signal_report(field, decision_report, tf_label="SCALPING", tf_id="15m"
 
     # Mapa de contexto multi-TF segun primario
     _ctx_map = {
+        "3m":  "1H+15m+3m+1m",   # FQ v5.2
         "5m":  "1H+15m+5m+1m",
         "15m": "4H+1H+15m+1m",
         "1h":  "1D+4H+1h+5m",
