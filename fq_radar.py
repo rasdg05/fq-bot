@@ -55,15 +55,20 @@ RADAR_FLIP_MAX_PSL  = float(os.environ.get("FQ_RADAR_FLIP_MAX_PSL",  "0.45"))
 # veredicto operable (EJECUTAR/ACUMULAR) sin importar la fuerza del edge, lo
 # que producia ruido tipo "Edge - probabilidad media". v5.3 exige edge claro
 # ANTES de emitir nada:
-#   - TFs de campo (5m y menores): EV >= 1.5 (Edge fuerte) y P(SL) <= 0.40.
+#   - TFs de campo (5m y menores): EV >= 1.5 (Edge fuerte).
 #   - 15m (RADAR original): piso de EV >= 1.2 para recortar lo marginal sin
 #     romper lo que ya funcionaba.
 #   - ACUMULAR: ev_cond y reach_prob deben superar los mismos pisos.
-# Todo override-able por env para tuning fino.
+#
+# v5.3 (peticion RasDG, jun-2026): la CONVICCION la define el EDGE (R:R
+# fuerte), no la probabilidad. Se permite hasta "probabilidad media"
+# (P(SL) <= 0.55, que es el limite del label "Media") para no matar señales
+# utiles tipo "Edge fuerte · probabilidad media" como el SHORT $79.10. La
+# utilidad la carga el R:R. Todo override-able por env para tuning fino.
 # ============================================================
 RADAR_MIN_EV_FIELD = float(os.environ.get("FQ_RADAR_FIELD_MIN_EV", "1.5"))
 RADAR_MIN_EV_15M   = float(os.environ.get("FQ_RADAR_MIN_EV",       "1.2"))
-RADAR_MAX_PSL      = float(os.environ.get("FQ_RADAR_MAX_PSL",      "0.40"))
+RADAR_MAX_PSL      = float(os.environ.get("FQ_RADAR_MAX_PSL",      "0.55"))
 RADAR_MIN_REACH    = float(os.environ.get("FQ_RADAR_MIN_REACH",    "0.35"))
 
 

@@ -273,6 +273,26 @@ def test_promote_ok_when_all_align():
     assert ok is True
 
 
+def test_promote_allows_medium_probability():
+    """v5.3: una señal 'Edge fuerte · probabilidad media' (p_sl=0.50) SI se
+    promueve al VIP (el corte de probabilidad subio a 0.55)."""
+    b = _reload_with_flag("1")
+    import volume_quality as vq
+    if vq.is_dead_window():
+        import pytest
+        pytest.skip("franja muerta")
+    plan = {"verdict": "EJECUTAR_AHORA", "direction": "short",
+            "market": {"entry": 80.91, "p_sl": 0.50, "ev": 1.30}}
+    ok, reason = b._should_promote_tactical_to_vip(plan, {"score": 1.2}, "asia_open")
+    assert ok is True, reason
+
+    # Pero p_sl por encima de 0.55 (probabilidad baja) si bloquea.
+    plan_low = {"verdict": "EJECUTAR_AHORA", "direction": "short",
+                "market": {"entry": 80.91, "p_sl": 0.60, "ev": 1.30}}
+    ok2, _ = b._should_promote_tactical_to_vip(plan_low, {"score": 1.2}, "asia_open")
+    assert ok2 is False
+
+
 def test_promote_accumulate_checks_zone_edge():
     b = _reload_with_flag("1")
     import volume_quality as vq
@@ -359,11 +379,21 @@ def test_conviction_field_medium_edge_blocked():
     assert "ev=" in reason
 
 
-def test_conviction_field_high_psl_blocked():
-    """Edge fuerte pero P(SL) alto -> NO emite."""
+def test_conviction_field_allows_medium_probability():
+    """v5.3: Edge fuerte + 'probabilidad media' (P(SL)<=0.55) SI emite.
+    Mantiene señales utiles tipo 'Edge fuerte · probabilidad media'."""
     import fq_bot_v3_2 as b
     plan = {"verdict": "EJECUTAR_AHORA",
-            "market": {"entry": 79.0, "p_sl": 0.55, "ev": 1.80}}
+            "market": {"entry": 79.0, "p_sl": 0.50, "ev": 1.80}}
+    ok, _ = b._radar_has_conviction(plan, "5m")
+    assert ok is True
+
+
+def test_conviction_field_high_psl_blocked():
+    """P(SL) por encima del label 'Media' (>0.55) -> NO emite (probabilidad baja)."""
+    import fq_bot_v3_2 as b
+    plan = {"verdict": "EJECUTAR_AHORA",
+            "market": {"entry": 79.0, "p_sl": 0.60, "ev": 1.80}}
     ok, reason = b._radar_has_conviction(plan, "5m")
     assert ok is False
     assert "p_sl=" in reason

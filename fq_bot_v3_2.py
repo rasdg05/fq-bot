@@ -301,11 +301,22 @@ from fq_radar import (
     _radar_cooldown_for, _radar_has_conviction, _radar_emit_decision,
 )
 
-# ALERTA TACTICA al VIP (FQ v5.2): cuando RADAR encuentra setup operable +
-# volumen real >= 0.85 + no franja muerta + edge robusto, se difunde al VIP
-# como ALERTA TACTICA FQ con TPs cortos (1R/1.5R/2.2R). En caso contrario se
-# mantiene el envio admin-only del RADAR legacy. Opt-in para rollout seguro.
-TACTICAL_VIP_ENABLED = os.environ.get("FQ_TACTICAL_VIP_ENABLED", "0").strip() in ("1", "true", "yes")
+# ALERTA TACTICA al VIP (FQ v5.2 -> ACTIVADA por defecto en v5.3): cuando el
+# RADAR encuentra un setup operable + convicción (gate fq_radar) + volumen real
+# >= 0.85 + no franja muerta + edge robusto, se difunde al VIP/trial como ALERTA
+# TACTICA FQ con TPs INTELIGENTES. En caso contrario se mantiene el envío
+# admin-only del RADAR legacy.
+#
+# v5.3 (peticion RasDG, jun-2026): con el canal 5m afinado y el gate de
+# convicción en su sitio, se activa por defecto para que las señales lleguen al
+# VIP. Se puede desactivar con FQ_TACTICAL_VIP_ENABLED=0.
+TACTICAL_VIP_ENABLED = os.environ.get("FQ_TACTICAL_VIP_ENABLED", "1").strip() in ("1", "true", "yes")
+# Bar de promocion a VIP: la CONVICCION la define el edge (ya filtrado por el
+# gate de convicción del radar). Para la probabilidad se permite hasta "media"
+# (P(SL) <= 0.55), alineado con RADAR_MAX_PSL, para no excluir señales utiles
+# tipo "Edge fuerte · probabilidad media". Override: FQ_TACTICAL_MAX_PSL.
+TACTICAL_PROMOTE_MAX_PSL = float(os.environ.get("FQ_TACTICAL_MAX_PSL", "0.55"))
+TACTICAL_PROMOTE_MIN_EV  = float(os.environ.get("FQ_TACTICAL_MIN_EV",  "0.70"))
 
 # ============================================================
 # FEATURE FLAGS v4.1.1 - ICT/SMC Refactor
@@ -3058,10 +3069,10 @@ def _should_promote_tactical_to_vip(plan, vol_data, killzone_name):
     v = plan.get("verdict")
     mkt = plan.get("market") or {}
     if v == "EJECUTAR_AHORA":
-        if (mkt.get("ev") or 0) < 0.70:
-            return False, "market.ev<0.70"
-        if (mkt.get("p_sl") or 1.0) > 0.40:
-            return False, "market.p_sl>0.40"
+        if (mkt.get("ev") or 0) < TACTICAL_PROMOTE_MIN_EV:
+            return False, "market.ev<{:.2f}".format(TACTICAL_PROMOTE_MIN_EV)
+        if (mkt.get("p_sl") or 1.0) > TACTICAL_PROMOTE_MAX_PSL:
+            return False, "market.p_sl>{:.2f}".format(TACTICAL_PROMOTE_MAX_PSL)
     elif v == "ACUMULAR_EN_ZONA":
         z = plan.get("primary_zone") or {}
         if (z.get("ev_cond") or 0) < 1.0:

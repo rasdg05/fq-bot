@@ -47,8 +47,10 @@ def _resolve_public_db_path():
 
 VIP_DB_PATH    = _resolve_vip_db_path()
 PUBLIC_DB_PATH = _resolve_public_db_path()
-MIN_PNL_R_TO_ANNOUNCE = 1.0
 ANNOUNCE_LOOKBACK_HOURS = 48   # solo anuncia cierres recientes (no historicos)
+# v5.3 (peticion RasDG): transparencia total. Se anuncian wins Y losses (mismo
+# trato) para un track record honesto = confianza. Outcomes definitivos:
+ANNOUNCE_OUTCOMES = ("tp1", "tp2", "tp3", "tp4", "sl")
 
 # Celebraciones de TP3 (animo): se leen de la tabla signal_progress del ledger
 # VIP (read-only). Solo TP3 recientes para evitar festejos historicos.
@@ -197,8 +199,10 @@ def count_subscribers():
 # ============================================================
 def get_new_closures_to_announce():
     """
-    Devuelve lista de signals cerrados con pnl_r >= MIN que NO han sido anunciados.
-    Solo mira las ultimas ANNOUNCE_LOOKBACK_HOURS para evitar spam historico.
+    Devuelve lista de signals cerrados (wins Y losses) que NO han sido
+    anunciados. Transparencia total: se anuncian todos los outcomes
+    definitivos (tp1-4 y sl), no solo los ganadores. Solo mira las ultimas
+    ANNOUNCE_LOOKBACK_HOURS para evitar spam historico.
     """
     vip_conn = _connect_vip_readonly()
     if vip_conn is None:
@@ -218,15 +222,15 @@ def get_new_closures_to_announce():
             finally:
                 pub_conn.close()
 
+        placeholders = ",".join("?" * len(ANNOUNCE_OUTCOMES))
         cur = vip_conn.execute("""
             SELECT id, direction, entry_price, sl, tp1, tp2, tp3, tp4,
                    ts_emitted, ts_closed, outcome, exit_price, pnl_r, minutes_open
             FROM signals
-            WHERE outcome IS NOT NULL
-              AND pnl_r >= ?
+            WHERE outcome IN ({})
               AND ts_closed >= ?
             ORDER BY ts_closed ASC
-        """, (MIN_PNL_R_TO_ANNOUNCE, cutoff))
+        """.format(placeholders), tuple(ANNOUNCE_OUTCOMES) + (cutoff,))
         candidates = [dict(r) for r in cur.fetchall()]
     finally:
         vip_conn.close()
