@@ -312,6 +312,34 @@ def test_promote_accumulate_checks_zone_edge():
     assert ok2 is False
 
 
+def test_promote_volume_gate_by_type():
+    """v5.3: ACUMULA usa un piso de volumen bajo (~0.60); EJECUTAR mantiene
+    la confirmacion (0.85). Rescata señales tipo el ACUMULA SHORT $76.90 que
+    marco vol~0.78 y se quedaba fuera del VIP."""
+    b = _reload_with_flag("1")
+    import volume_quality as vq
+    if vq.is_dead_window():
+        import pytest
+        pytest.skip("franja muerta")
+
+    # ACUMULA con vol 0.78 (antes <0.85 lo bloqueaba) -> ahora SI promueve
+    acum = {"verdict": "ACUMULAR_EN_ZONA", "direction": "short",
+            "primary_zone": {"ev_cond": 1.2, "reach_prob": 0.5}}
+    ok, reason = b._should_promote_tactical_to_vip(acum, {"score": 0.78}, "ny")
+    assert ok is True, reason
+
+    # Pero tape muerto de verdad (<0.60) SI bloquea hasta el ACUMULA
+    ok_dead, _ = b._should_promote_tactical_to_vip(acum, {"score": 0.45}, "ny")
+    assert ok_dead is False
+
+    # EJECUTAR a mercado con el mismo 0.78 sigue exigiendo momentum -> bloquea
+    exe = {"verdict": "EJECUTAR_AHORA", "direction": "short",
+           "market": {"entry": 79.0, "p_sl": 0.40, "ev": 1.6}}
+    ok_exe, reason_exe = b._should_promote_tactical_to_vip(exe, {"score": 0.78}, "ny")
+    assert ok_exe is False
+    assert "vol_score" in reason_exe
+
+
 # ===========================================
 # 6. FIELD TIMEFRAMES (RADAR/ALERTA TACTICA corre aqui)
 # ===========================================

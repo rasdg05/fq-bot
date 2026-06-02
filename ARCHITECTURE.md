@@ -37,6 +37,9 @@ acoplamiento de código entre procesos.
 ### Núcleo de decisión (puro, testeable)
 - `fq_radar.py` — **(extraído v5.3)** lógica pura del radar: cooldowns por TF,
   gate de convicción, anti-flip. Sin I/O ni estado.
+- `fq_market_data.py` — **(extraído v5.3)** acceso a velas (`fetch_ohlcv`) +
+  indicadores (`add_indicators`). El exchange entra por parámetro → mockeable
+  sin red.
 - `battle_planner.py` — convierte contexto+paths en un veredicto operable.
 - `signal_scorer.py`, `signal_engine_v2.py`, `fusion_engine.py` — scoring.
 - `quantum_timelines.py` — motor de simulación (QTE).
@@ -64,8 +67,8 @@ acoplamiento de código entre procesos.
 ## Hoja de ruta (extracciones siguientes, en orden de menor riesgo)
 
 1. **[hecho] `fq_radar.py`** — decisión pura del radar.
-2. **`fq_market_data.py`** — `fetch_ohlcv` + `add_indicators` (I/O exchange +
-   pandas-ta) detrás de una interfaz pequeña; facilita mocks en tests.
+2. **[hecho] `fq_market_data.py`** — `fetch_ohlcv` + `add_indicators` (I/O
+   exchange + pandas-ta) detrás de una interfaz pequeña; mockeable en tests.
 3. **`fq_broadcast.py`** — `broadcast_to_subscribers` + `telegram_send` +
    `telegram_get_updates`, desacoplado de los globals del monolito (recibe
    config por parámetro / objeto).

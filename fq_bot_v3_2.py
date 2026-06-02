@@ -51,6 +51,7 @@
 """
 import os
 import sys
+import re
 import time
 import logging
 import threading
@@ -58,7 +59,6 @@ import traceback
 from datetime import datetime, timezone, timedelta
 import ccxt
 import pandas as pd
-import pandas_ta as ta
 import requests
 
 # Modulos FQ v3.1
@@ -317,6 +317,16 @@ TACTICAL_VIP_ENABLED = os.environ.get("FQ_TACTICAL_VIP_ENABLED", "1").strip() in
 # tipo "Edge fuerte · probabilidad media". Override: FQ_TACTICAL_MAX_PSL.
 TACTICAL_PROMOTE_MAX_PSL = float(os.environ.get("FQ_TACTICAL_MAX_PSL", "0.55"))
 TACTICAL_PROMOTE_MIN_EV  = float(os.environ.get("FQ_TACTICAL_MIN_EV",  "0.70"))
+# Gate de volumen POR TIPO de senal (v5.3, peticion RasDG, jun-2026):
+#  - EJECUTAR_AHORA (entrada a mercado YA): exige confirmacion de volumen /
+#    momentum en la vela del setup.
+#  - ACUMULAR_EN_ZONA (limite esperando regreso a la zona/FVG): la vela del
+#    setup es un pullback de bajo volumen POR NATURALEZA; exigirle momentum
+#    medía lo que no importa y descartaba buenas señales (sobre todo en verano
+#    / horas de menor liquidez). Basta un piso que descarte tape muerto; la
+#    calidad la dan reach_prob + ev_cond + no-franja-muerta.
+TACTICAL_VOL_MIN_EXECUTE  = float(os.environ.get("FQ_TACTICAL_VOL_MIN",      "0.85"))
+TACTICAL_VOL_MIN_ACUMULA  = float(os.environ.get("FQ_TACTICAL_VOL_MIN_ACUM", "0.60"))
 
 # ============================================================
 # FEATURE FLAGS v4.1.1 - ICT/SMC Refactor
@@ -414,6 +424,19 @@ log = logging.getLogger("fq_bot_v3")
 # ============================================================
 # TELEGRAM
 # ============================================================
+def _html_escape(s):
+    """Escapa &,<,> para incrustar texto dinamico (p.ej. el reason del gate,
+    "vol_score=0.78<0.85") en mensajes HTML de Telegram sin romper el parse."""
+    return (s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+
+
+def _strip_html_tags(s):
+    """Quita tags HTML simples (los que empiezan con letra: <b>, </i>, <a ...>)
+    dejando intacto texto tipo "<0.85". Para el fallback a texto plano sin
+    parse_mode, donde los tags se verian crudos."""
+    return re.sub(r"</?[a-zA-Z][^>]*>", "", s)
+
+
 def telegram_send(text, chat_id=None):
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
         log.error("Missing TELEGRAM_TOKEN or TELEGRAM_CHAT_ID")
@@ -446,8 +469,9 @@ def telegram_send(text, chat_id=None):
     if r is not None and r.status_code == 400 and "can't parse entities" in r.text:
         log.info("Telegram HTML parse fallo, reintentando como texto plano...")
         payload.pop("parse_mode", None)
-        # Escapar los chars que parecian HTML para que se vean limpios
-        payload["text"] = text.replace("<", "&lt;").replace(">", "&gt;") if False else text
+        # Sin parse_mode los tags se verian crudos (<b>, <i>...). Quitarlos
+        # para dejar texto limpio (preserva "<0.85").
+        payload["text"] = _strip_html_tags(text)
         r2 = _post(payload)
         if r2 is not None and r2.status_code == 200:
             return True
@@ -558,38 +582,11 @@ def telegram_get_updates(offset, timeout=25):
 # ============================================================
 # DATA
 # ============================================================
-def fetch_ohlcv(exchange, symbol, timeframe, limit=200):
-    raw = exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
-    df = pd.DataFrame(raw, columns=["timestamp", "open", "high", "low", "close", "volume"])
-    df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
-    return df
-
-def add_indicators(df):
-    df = df.copy()
-    df["rsi6"]  = ta.rsi(df["close"], length=6)
-    df["rsi12"] = ta.rsi(df["close"], length=12)
-    df["rsi14"] = ta.rsi(df["close"], length=14)
-    df["rsi24"] = ta.rsi(df["close"], length=24)
-    df["ema9"]   = ta.ema(df["close"], length=9)
-    df["ema20"]  = ta.ema(df["close"], length=20)
-    df["ema50"]  = ta.ema(df["close"], length=50)
-    df["ema200"] = ta.ema(df["close"], length=200)
-    df["sma20"] = ta.sma(df["close"], length=20)
-    df["sma50"] = ta.sma(df["close"], length=50)
-    bb = ta.bbands(df["close"], length=20, std=2)
-    if bb is not None and not bb.empty:
-        df["bb_lower"] = bb.iloc[:, 0]
-        df["bb_mid"]   = bb.iloc[:, 1]
-        df["bb_upper"] = bb.iloc[:, 2]
-    macd_df = ta.macd(df["close"], fast=12, slow=26, signal=9)
-    if macd_df is not None and not macd_df.empty:
-        df["macd"]        = macd_df.iloc[:, 0]
-        df["macd_signal"] = macd_df.iloc[:, 2]
-    atr = ta.atr(df["high"], df["low"], df["close"], length=14)
-    if atr is not None:
-        df["atr14"] = atr
-    df["vol_ma20"] = df["volume"].rolling(20).mean()
-    return df
+# v5.3 etapa 2: el acceso a velas + indicadores vive en fq_market_data.py
+# (ver ARCHITECTURE.md). Se reexporta para no tocar los ~30 call sites que
+# usan fetch_ohlcv()/add_indicators() como nombres del modulo.
+import fq_market_data
+from fq_market_data import fetch_ohlcv, add_indicators
 
 # ============================================================
 # TIME / SESSION
@@ -3046,27 +3043,33 @@ def _should_promote_tactical_to_vip(plan, vol_data, killzone_name):
     Decide si la alerta tactica se difunde al VIP (o solo al admin como antes).
 
     Criterios (todos AND, conservadores):
-      - vol_score >= 0.85 (volumen real respaldando el setup)
+      - Volumen POR TIPO: EJECUTAR exige >= TACTICAL_VOL_MIN_EXECUTE (0.85);
+        ACUMULAR solo un piso TACTICAL_VOL_MIN_ACUMULA (0.60) - la vela de zona
+        es de bajo volumen por naturaleza.
       - NO estamos en franja muerta (15-16 CDMX / viernes >=14 CDMX)
       - El edge condicional supera umbrales decentes:
-          EJECUTAR_AHORA: market.ev >= 0.70 y market.p_sl <= 0.40
+          EJECUTAR_AHORA: market.ev >= 0.70 y market.p_sl <= 0.55
           ACUMULAR:       zone.ev_cond >= 1.0 y zone.reach_prob >= 0.35
-      - Flag FQ_TACTICAL_VIP_ENABLED=1 (opt-in para rollout seguro)
+      - Flag FQ_TACTICAL_VIP_ENABLED=1
     """
     if not TACTICAL_VIP_ENABLED:
         return False, "TACTICAL_VIP flag off"
 
+    v = plan.get("verdict")
+
+    # Gate de volumen segun el tipo de senal (ver constantes arriba).
+    vol_min = (TACTICAL_VOL_MIN_ACUMULA if v == "ACUMULAR_EN_ZONA"
+               else TACTICAL_VOL_MIN_EXECUTE)
     if vol_data is not None:
         vs = vol_data.get("score", 1.0)
-        if vs < 0.85:
-            return False, "vol_score={:.2f}<0.85".format(vs)
+        if vs < vol_min:
+            return False, "vol_score={:.2f}<{:.2f}".format(vs, vol_min)
 
     if VOLUME_QUALITY_AVAILABLE and volume_quality is not None:
         if volume_quality.is_dead_window():
             return False, "dead window: " + (
                 volume_quality.dead_window_label() or "?")
 
-    v = plan.get("verdict")
     mkt = plan.get("market") or {}
     if v == "EJECUTAR_AHORA":
         if (mkt.get("ev") or 0) < TACTICAL_PROMOTE_MIN_EV:
@@ -3261,7 +3264,10 @@ def radar_check(exchange, tf_id="15m"):
         body = vip_format.build_battle_block(plan)
         suffix = "\n<i>El gate automatico sigue intacto. Confirma con /analisis.</i>"
         if reason:
-            suffix += "\n<i>(no promovida: {})</i>".format(reason)
+            # El reason del gate puede traer '<'/'>' (p.ej. "vol_score=0.78<0.85"
+            # o "market.p_sl>0.55") que rompen el parse HTML de Telegram y harian
+            # caer el mensaje a texto plano con los tags crudos. Escaparlos.
+            suffix += "\n<i>(no promovida: {})</i>".format(_html_escape(reason))
         # En TFs de campo (1m/3m/5m) etiqueta el RADAR con el TF para no confundir
         # con el 15m original.
         tf_tag = " [{}]".format(tf_id) if tf_id in _FIELD_FAST_TFS else ""
