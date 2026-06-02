@@ -9,6 +9,7 @@ Modulo inerte: no envia, no consulta DB.
 from datetime import datetime, timezone, timedelta
 
 from branding import PRODUCT, PAIR, HASHTAGS_SIGNAL, RULE, GLYPHS, DISCLAIMER
+import qte_verdict  # veredicto canonico compartido con el bloque QTE admin
 
 CDMX_TZ = timezone(timedelta(hours=-6))
 
@@ -353,31 +354,17 @@ def build_tactical_alert(plan, tps_short, vol_label=None, killzone_name=None,
 
 def _market_tone(qa, direction):
     """
-    Compacta el resultado del QTE en UNA linea cualitativa que el VIP
-    puede leer sin tocar formulas. Cero numeros crudos en la superficie.
+    Compacta el resultado del QTE en UNA linea cualitativa que el VIP puede
+    leer sin tocar formulas. Cero numeros crudos en la superficie.
+
+    Delega en qte_verdict.compute() - la MISMA fuente que usa el bloque admin -
+    para que VIP y admin nunca cuenten historias distintas del mismo setup.
+    Prefiere el veredicto ya horneado en qa["verdict"]; recomputa si falta.
     """
     if qa is None:
         return None
-    probs = qa.get("probabilities") or {}
-    regs  = qa.get("regimes") or {}
-    p_tp1 = probs.get("p_reach_tp1", probs.get("p_tp1", 0)) or 0
-    p_sl  = probs.get("p_sl", 0) or 0
-    ev    = probs.get("expected_R", 0) or 0
-    coh   = qa.get("coherence", 0) or 0
-
-    bull = regs.get("bull_continuation", 0) or 0
-    bear = regs.get("bear_reversal", 0) or 0
-    fav = bull if direction == "long" else bear
-
-    if ev >= 1.2 and p_sl <= 0.30 and fav >= 0.40 and coh >= 0.55:
-        return "Sesgo dominante a favor · confluencia alta"
-    if ev >= 1.0 and p_sl <= 0.35:
-        return "Confluencia confirmada"
-    if ev >= 0.5:
-        return "Confluencia media · ejecutar con disciplina"
-    if p_tp1 < 0.40:
-        return "Campo neutro · esperar confirmacion"
-    return "Confluencia limitada"
+    verdict = qa.get("verdict") or qte_verdict.compute(qa, direction)
+    return verdict["tone"] if verdict else None
 
 
 def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None, plan=None):

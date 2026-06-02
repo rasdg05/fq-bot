@@ -28,6 +28,8 @@ import pandas as pd
 import logging
 import time
 
+import qte_verdict  # veredicto canonico compartido con la superficie VIP
+
 log = logging.getLogger("quantum_timelines")
 
 # ============================================================
@@ -801,6 +803,11 @@ def quantum_analysis(df_15m, df_1h=None, df_4h=None, direction=None,
         "dominant_regime": dominant_regime,
         "dominant_regime_pct": dominant_pct,
         "coherence": coherence,
+        # Veredicto canonico horneado aqui (direction conocida) para que admin,
+        # VIP y la lectura de Claude lean la MISMA interpretacion del setup.
+        "verdict": qte_verdict.compute(
+            {"probabilities": probs, "regimes": regimes, "coherence": coherence},
+            direction),
         "optimized_levels": optimized,
         "vs_baseline": vs_baseline,
         "anchors": meta["anchors"],
@@ -900,51 +907,12 @@ def build_qte_block_vip(qa):
     )
 
 
-def coherence_label(coh):
-    """Traduce la coherencia (0-1) a una etiqueta legible sobre la dispersion
-    de las timelines simuladas."""
-    if coh >= 0.66:
-        return "timelines convergentes, escenario definido"
-    if coh >= 0.40:
-        return "dispersion media, escenario abierto"
-    return "timelines dispersas, alta incertidumbre"
-
-
-def qte_verdict(qa):
-    """
-    Sintetiza el QTE en un veredicto accionable en lenguaje natural.
-
-    Convierte numeros crudos (P(SL), EV en R, alcance de TPs) en una lectura
-    clara: hay edge o no, en que direccion, y que hacer. Evita que el bloque
-    se vea como un volcado de formulas sin interpretacion.
-    """
-    probs = qa["probabilities"]
-    p_sl = probs["p_sl"]
-    ev = probs["expected_R"]
-    p_tp1 = probs.get("p_reach_tp1", probs.get("p_tp1", 0.0))
-
-    if ev >= 1.0 and p_sl <= 0.35:
-        head = "EDGE FAVORABLE"
-        body = ("La mayoria de timelines alcanza TP antes que SL "
-                "(EV {:+.2f}R, P(SL) {:.0%}). Setup con ventaja estadistica.").format(ev, p_sl)
-    elif ev >= 0.3 and p_sl <= 0.55:
-        head = "EDGE MODERADO"
-        body = ("Balance inclinado a favor pero con riesgo real "
-                "(EV {:+.2f}R, P(SL) {:.0%}). Considerar tamano reducido.").format(ev, p_sl)
-    elif p_sl >= 0.80 or ev <= -0.6:
-        head = "ESCENARIO ADVERSO"
-        body = ("Casi todas las timelines tocan SL antes que cualquier TP "
-                "(EV {:+.2f}R, P(SL) {:.0%}). Sin edge: manos quietas.").format(ev, p_sl)
-    else:
-        head = "SIN EDGE CLARO"
-        body = ("Probabilidades mixtas, ninguna direccion domina "
-                "(EV {:+.2f}R, P(SL) {:.0%}, TP1 {:.0%}). Esperar confirmacion.").format(
-                    ev, p_sl, p_tp1)
-    return head, body
-
-
-def build_qte_block_admin(qa):
+def build_qte_block_admin(qa, direction=None):
     """Bloque detallado admin con probabilidades, regimenes y veredicto.
+
+    El veredicto sale de qte_verdict.compute() (misma fuente que la superficie
+    VIP), preferentemente el horneado en qa["verdict"]; cae a recomputar si el
+    qa no lo trae (p.ej. dicts sinteticos de test).
 
     NOTA: no usar el caracter '<' en este bloque. El mensaje se envia con
     parse_mode=HTML en Telegram y un '<' suelto (p.ej. 'P(TP2<SL)') se
@@ -953,14 +921,15 @@ def build_qte_block_admin(qa):
     """
     probs = qa["probabilities"]
     regs_str = regimes_short_label(qa["regimes"])
-    head, body = qte_verdict(qa)
+    verdict = qa.get("verdict") or qte_verdict.compute(qa, direction)
     lines = [
         "QUANTUM TIMELINES ENGINE (QTE)",
         "  paths        {}".format(qa["n_paths"]),
         "  horizon      {} velas ({:.0f}h)".format(
             qa["horizon_candles"], qa["horizon_hours"]),
         "  elapsed      {:.0f} ms".format(qa["elapsed_ms"]),
-        "  coherencia   {:.0%}  ({})".format(qa["coherence"], coherence_label(qa["coherence"])),
+        "  coherencia   {:.0%}  ({})".format(
+            qa["coherence"], qte_verdict.coherence_label(qa["coherence"])),
         "",
         "PROBABILIDADES (sobre niveles propuestos):",
         "  {:<22s}{:>6.1%}".format("Toca SL primero", probs["p_sl"]),
@@ -983,13 +952,26 @@ def build_qte_block_admin(qa):
             "  P(SL)  {:.1%} -> {:.1%}".format(vb["baseline_p_sl"], vb["optimized_p_sl"]),
             "  EV     {:+.2f}R -> {:+.2f}R  (delta {:+.2f}R)".format(
                 vb["baseline_ev_R"], vb["optimized_ev_R"], vb["delta_R"]),
+            "  {}".format(_optimizer_note(vb)),
         ])
-    lines.extend([
-        "",
-        "VEREDICTO QTE: {}".format(head),
-        "  {}".format(body),
-    ])
+    if verdict:
+        lines.extend([
+            "",
+            "VEREDICTO QTE: {}".format(verdict["label"]),
+            "  {}".format(verdict["admin_body"]),
+        ])
     return "\n".join(lines)
+
+
+def _optimizer_note(vb):
+    """Interpreta el delta del optimizer en una frase (conecta el ajuste de
+    niveles con el veredicto en vez de dejar dos lineas de numeros sueltas)."""
+    delta = vb.get("delta_R", 0.0) or 0.0
+    if delta >= 0.5:
+        return "el motor mejora el EV ajustando SL/TP (vale la pena)"
+    if delta >= 0.1:
+        return "ajuste marginal de SL/TP"
+    return "los niveles propuestos ya son cercanos al optimo"
 
 
 # ============================================================

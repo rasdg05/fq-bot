@@ -3422,6 +3422,12 @@ def claude_followup_analisis_vip(exchange, ctx=None):
                 "qte_coherence":   qa.get("coherence"),
                 "qte_regimes_top3": list(qa["regimes"].items())[:3],
             })
+            # Veredicto canonico (misma fuente que VIP/admin) para alinear la
+            # lectura de Claude con el resto de superficies.
+            _v = qa.get("verdict")
+            if _v:
+                snapshot["qte_verdict_label"] = _v["label"]
+                snapshot["qte_verdict_grade"] = _v["grade"]
             # Alternativa del optimizer (advisory) si el QAOA hallo niveles
             opt = qa.get("optimized_levels")
             vb = qa.get("vs_baseline")
