@@ -58,7 +58,6 @@ import traceback
 from datetime import datetime, timezone, timedelta
 import ccxt
 import pandas as pd
-import pandas_ta as ta
 import requests
 
 # Modulos FQ v3.1
@@ -558,38 +557,11 @@ def telegram_get_updates(offset, timeout=25):
 # ============================================================
 # DATA
 # ============================================================
-def fetch_ohlcv(exchange, symbol, timeframe, limit=200):
-    raw = exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
-    df = pd.DataFrame(raw, columns=["timestamp", "open", "high", "low", "close", "volume"])
-    df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
-    return df
-
-def add_indicators(df):
-    df = df.copy()
-    df["rsi6"]  = ta.rsi(df["close"], length=6)
-    df["rsi12"] = ta.rsi(df["close"], length=12)
-    df["rsi14"] = ta.rsi(df["close"], length=14)
-    df["rsi24"] = ta.rsi(df["close"], length=24)
-    df["ema9"]   = ta.ema(df["close"], length=9)
-    df["ema20"]  = ta.ema(df["close"], length=20)
-    df["ema50"]  = ta.ema(df["close"], length=50)
-    df["ema200"] = ta.ema(df["close"], length=200)
-    df["sma20"] = ta.sma(df["close"], length=20)
-    df["sma50"] = ta.sma(df["close"], length=50)
-    bb = ta.bbands(df["close"], length=20, std=2)
-    if bb is not None and not bb.empty:
-        df["bb_lower"] = bb.iloc[:, 0]
-        df["bb_mid"]   = bb.iloc[:, 1]
-        df["bb_upper"] = bb.iloc[:, 2]
-    macd_df = ta.macd(df["close"], fast=12, slow=26, signal=9)
-    if macd_df is not None and not macd_df.empty:
-        df["macd"]        = macd_df.iloc[:, 0]
-        df["macd_signal"] = macd_df.iloc[:, 2]
-    atr = ta.atr(df["high"], df["low"], df["close"], length=14)
-    if atr is not None:
-        df["atr14"] = atr
-    df["vol_ma20"] = df["volume"].rolling(20).mean()
-    return df
+# v5.3 etapa 2: el acceso a velas + indicadores vive en fq_market_data.py
+# (ver ARCHITECTURE.md). Se reexporta para no tocar los ~30 call sites que
+# usan fetch_ohlcv()/add_indicators() como nombres del modulo.
+import fq_market_data
+from fq_market_data import fetch_ohlcv, add_indicators
 
 # ============================================================
 # TIME / SESSION
