@@ -122,6 +122,14 @@ except ImportError:
     EMERGENT_TIME_MODULE_AVAILABLE = False
     emergent_time = None
 
+# Modulo FQ v5.2 (Volume Quality - modulador + veto en horas muertas)
+try:
+    import volume_quality
+    VOLUME_QUALITY_AVAILABLE = True
+except ImportError:
+    VOLUME_QUALITY_AVAILABLE = False
+    volume_quality = None
+
 # Modulos FQ v4.0 (Mistral - VIP System)
 try:
     import vip_system as vip
@@ -160,6 +168,24 @@ RR_MIN_TP_DIVINO    = 1.8
 # Cooldowns independientes por TF: una senal 5m NO bloquea 15m ni 1h.
 # 15m queda como anchor con valores identicos al regimen pre-refactor.
 TF_PROFILES = {
+    # FQ v5.2: nuevo perfil intradia corto. Opt-in via FQ_INCLUDE_3M=1.
+    # PMASTER_MIN mas alto que 5m porque el ruido en 3m exige mejor confluencia.
+    # RR_MIN_TP3 corto (1.50) porque TP3 estructural casi nunca se alcanza en
+    # operativas intradia. Cooldown 10min para dar pulso sin spam.
+    "3m": {
+        "label":                  "SCALP_INTRA",
+        "INTRA_CANDLE_MINUTES":   1,
+        "SIGNAL_COOLDOWN_MINUTES": 10,
+        "PULLBACK_VOL_MULT":      1.7,
+        "BREAKOUT_VOL_MULT":      1.9,
+        "PMASTER_MIN":            2.05,
+        "context_mid":            "15m",
+        "context_high":           "1h",
+        "sub_tf":                 "1m",
+        "PHASE_E_N_PATHS":        150,
+        "PHASE_E_COOLDOWN_MIN":   10,
+        "RR_MIN_TP3":             1.50,    # FQ v5.2: TP3 corto para intradia
+    },
     "5m": {
         "label":                  "INTRADIA",
         "INTRA_CANDLE_MINUTES":   2,
@@ -205,13 +231,17 @@ TF_PROFILES = {
 # Orden de evaluacion en el main loop (secuencial).
 # Default: 5m+15m (intradia/scalping). 1h SWING opt-in via FQ_INCLUDE_1H=1.
 # Override completo con FQ_TIMEFRAMES="5m,15m" (CSV).
+# FQ v5.2: 3m opt-in via FQ_INCLUDE_3M=1 (scalp intradia corto).
 def _resolve_timeframes():
     raw = os.environ.get("FQ_TIMEFRAMES", "").strip()
     if raw:
         tfs = tuple(t.strip() for t in raw.split(",") if t.strip() in TF_PROFILES)
         if tfs:
             return tfs
-    tfs = ["5m", "15m"]
+    tfs = []
+    if os.environ.get("FQ_INCLUDE_3M", "").strip() in ("1", "true", "yes"):
+        tfs.append("3m")
+    tfs += ["5m", "15m"]
     if os.environ.get("FQ_INCLUDE_1H", "").strip() in ("1", "true", "yes"):
         tfs.append("1h")
     return tuple(tfs)
@@ -243,6 +273,12 @@ _VIP_ANALISIS_LAST = {}  # chat_id (str) -> epoch seconds del ultimo /analisis
 RADAR_ENABLED      = os.environ.get("FQ_RADAR_ENABLED", "1").strip() in ("1", "true", "yes")
 RADAR_COOLDOWN_SEC = int(os.environ.get("FQ_RADAR_COOLDOWN_MIN", "90")) * 60
 _RADAR_LAST = {"ts": 0.0, "verdict": None, "direction": None}
+
+# ALERTA TACTICA al VIP (FQ v5.2): cuando RADAR encuentra setup operable +
+# volumen real >= 0.85 + no franja muerta + edge robusto, se difunde al VIP
+# como ALERTA TACTICA FQ con TPs cortos (1R/1.5R/2.2R). En caso contrario se
+# mantiene el envio admin-only del RADAR legacy. Opt-in para rollout seguro.
+TACTICAL_VIP_ENABLED = os.environ.get("FQ_TACTICAL_VIP_ENABLED", "0").strip() in ("1", "true", "yes")
 
 # ============================================================
 # FEATURE FLAGS v4.1.1 - ICT/SMC Refactor
@@ -2413,6 +2449,9 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
     ctx_mid = profile["context_mid"]
     ctx_high = profile["context_high"]
     sub_tf = profile["sub_tf"]
+    # FQ v5.2: RR_MIN_TP3 puede ser por-TF (3m=1.50 para intradia corto).
+    # Si el perfil no lo trae, cae al global RR_MIN_TP_DIVINO=1.8.
+    tf_rr_min = profile.get("RR_MIN_TP3", RR_MIN_TP_DIVINO)
     try:
         # 1. Fetch multi-TF segun perfil
         df_primary = fetch_ohlcv(exchange, SYMBOL, tf_id, limit=200)
@@ -2444,7 +2483,7 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
         config = {
             "PHI":              PHI,
             "PMASTER_MIN":      tf_pmin,
-            "RR_MIN_TP_DIVINO": RR_MIN_TP_DIVINO,
+            "RR_MIN_TP_DIVINO": tf_rr_min,  # FQ v5.2: por-TF (3m corre con 1.50)
             "TF_ID":            tf_id,
             "TF_LABEL":         tf_label,
             "PULLBACK_VOL_MULT": profile["PULLBACK_VOL_MULT"],
@@ -2832,12 +2871,80 @@ def _battle_snapshot(plan):
     return out
 
 
+def _compute_tactical_tps(direction, entry, sl):
+    """
+    FQ v5.2: calcula los 3 TPs cortos para la ALERTA TACTICA.
+    RR=1.0/1.5/2.2 con cierres 40/35/25 (lo que la practica demostro alcanzable).
+    Devuelve lista de dicts [{price, rr, weight_pct}].
+    """
+    risk = abs(entry - sl)
+    if risk <= 0:
+        return []
+    sign = 1.0 if direction == "long" else -1.0
+    rrs = [(1.0, 40), (1.5, 35), (2.2, 25)]
+    out = []
+    for rr, wp in rrs:
+        price = entry + sign * risk * rr
+        out.append({"price": round(price, 4), "rr": rr, "weight_pct": wp})
+    return out
+
+
+def _should_promote_tactical_to_vip(plan, vol_data, killzone_name):
+    """
+    Decide si la alerta tactica se difunde al VIP (o solo al admin como antes).
+
+    Criterios (todos AND, conservadores):
+      - vol_score >= 0.85 (volumen real respaldando el setup)
+      - NO estamos en franja muerta (15-16 CDMX / viernes >=14 CDMX)
+      - El edge condicional supera umbrales decentes:
+          EJECUTAR_AHORA: market.ev >= 0.70 y market.p_sl <= 0.40
+          ACUMULAR:       zone.ev_cond >= 1.0 y zone.reach_prob >= 0.35
+      - Flag FQ_TACTICAL_VIP_ENABLED=1 (opt-in para rollout seguro)
+    """
+    if not TACTICAL_VIP_ENABLED:
+        return False, "TACTICAL_VIP flag off"
+
+    if vol_data is not None:
+        vs = vol_data.get("score", 1.0)
+        if vs < 0.85:
+            return False, "vol_score={:.2f}<0.85".format(vs)
+
+    if VOLUME_QUALITY_AVAILABLE and volume_quality is not None:
+        if volume_quality.is_dead_window():
+            return False, "dead window: " + (
+                volume_quality.dead_window_label() or "?")
+
+    v = plan.get("verdict")
+    mkt = plan.get("market") or {}
+    if v == "EJECUTAR_AHORA":
+        if (mkt.get("ev") or 0) < 0.70:
+            return False, "market.ev<0.70"
+        if (mkt.get("p_sl") or 1.0) > 0.40:
+            return False, "market.p_sl>0.40"
+    elif v == "ACUMULAR_EN_ZONA":
+        z = plan.get("primary_zone") or {}
+        if (z.get("ev_cond") or 0) < 1.0:
+            return False, "zone.ev_cond<1.0"
+        if (z.get("reach_prob") or 0) < 0.35:
+            return False, "zone.reach_prob<0.35"
+    else:
+        return False, "verdict not tactical-eligible"
+
+    return True, "promote: vol+edge OK"
+
+
 def radar_check(exchange, tf_id="15m"):
     """
-    RADAR proactivo: en vela nueva, si el battle planner ve un setup OPERABLE
-    (EJECUTAR_AHORA / ACUMULAR_EN_ZONA con buena ventaja) y no acabamos de
-    disparar senal, avisa al admin. NO afloja el gate automatico - es
-    inteligencia anticipada para estar listo, no una orden de entrada.
+    RADAR proactivo + ALERTA TACTICA (FQ v5.2):
+
+    Hasta v5.1: en vela nueva, si battle_planner ve setup OPERABLE
+    (EJECUTAR_AHORA / ACUMULAR_EN_ZONA) avisa SOLO al admin como
+    "inteligencia anticipada, no es senal automatica".
+
+    Desde v5.2: cuando ademas vol_score>=0.85, NO estamos en franja muerta,
+    y el edge es robusto, el mismo evento se promueve a VIP como ALERTA
+    TACTICA FQ con TPs cortos (1R/1.5R/2.2R) usando build_tactical_alert.
+    En caso contrario se mantiene el envio admin-only original.
     """
     if not (RADAR_ENABLED and QTE_AVAILABLE and qt is not None
             and BATTLE_PLANNER_AVAILABLE and battle_planner is not None
@@ -2897,13 +3004,68 @@ def radar_check(exchange, tf_id="15m"):
 
         _RADAR_LAST.update({"ts": now_s, "verdict": plan["verdict"],
                             "direction": direction})
+
+        # FQ v5.2: calcular calidad de volumen del TF para decidir promocion a VIP
+        vol_data = None
+        if VOLUME_QUALITY_AVAILABLE and volume_quality is not None:
+            try:
+                vol_data = volume_quality.volume_score(df)
+            except Exception as e:
+                log.warning("radar_check: volume_score error: {}".format(e))
+
+        # Killzone activa para el header
+        kz_name = None
+        try:
+            if ICT_MODULES_AVAILABLE:
+                kz_info = killzones_pd.current_killzone()
+                kz_name = kz_info.get("name")
+        except Exception:
+            pass
+
+        # Decidir destino: VIP (con tactical alert) vs admin-only (RADAR legacy)
+        promote, reason = _should_promote_tactical_to_vip(plan, vol_data, kz_name)
+
+        if promote:
+            # === ALERTA TACTICA al VIP con TPs cortos ===
+            # Entry y SL: depende del veredicto.
+            if plan["verdict"] == "EJECUTAR_AHORA":
+                t_entry = float(plan["market"]["entry"])
+                t_sl = float(plan["invalidation"])
+            else:  # ACUMULAR_EN_ZONA
+                z = plan["primary_zone"]
+                # Entrada ponderada de la zona (40/35/25 desde refs del battle_planner)
+                accs = z.get("accumulate") or []
+                if accs:
+                    total_w = sum(a.get("weight_pct", 0) for a in accs) or 100.0
+                    t_entry = sum(a["price"] * a.get("weight_pct", 0)
+                                  for a in accs) / total_w
+                else:
+                    t_entry = float(z["ref"])
+                t_sl = float(plan["invalidation"])
+
+            tps_short = _compute_tactical_tps(direction, t_entry, t_sl)
+            vol_label = (volume_quality.volume_quality_label(vol_data["score"])
+                         if vol_data else None)
+            msg = vip_format.build_tactical_alert(plan, tps_short,
+                                                  vol_label=vol_label,
+                                                  killzone_name=kz_name)
+            sent, failed = broadcast_to_subscribers(msg, tiers=["vip", "admin"])
+            log.info("TACTICAL ALERT VIP enviada: %s %s sent=%d failed=%d (vol=%s, kz=%s)",
+                     plan["verdict"], direction, sent, failed,
+                     vol_label or "?", kz_name or "?")
+            return
+
+        # === RADAR legacy admin-only (sin promocion) ===
         body = vip_format.build_battle_block(plan)
+        suffix = "\n<i>El gate automatico sigue intacto. Confirma con /analisis.</i>"
+        if reason:
+            suffix += "\n<i>(no promovida: {})</i>".format(reason)
         msg = ("<b>📡 RADAR FQ — setup armandose</b>\n"
                "<i>No es senal automatica. Inteligencia anticipada.</i>\n\n"
-               + body +
-               "\n<i>El gate automatico sigue intacto. Confirma con /analisis.</i>")
+               + body + suffix)
         telegram_send(msg, TELEGRAM_CHAT_ID)
-        log.info("RADAR enviado: %s %s", plan["verdict"], direction)
+        log.info("RADAR enviado (admin-only): %s %s motivo=%s",
+                 plan["verdict"], direction, reason)
     except Exception as e:
         log.warning("radar_check error: {}".format(e))
 
