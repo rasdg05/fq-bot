@@ -280,9 +280,55 @@ _VIP_ANALISIS_LAST = {}  # chat_id (str) -> epoch seconds del ultimo /analisis
 RADAR_ENABLED      = os.environ.get("FQ_RADAR_ENABLED", "1").strip() in ("1", "true", "yes")
 RADAR_COOLDOWN_SEC = int(os.environ.get("FQ_RADAR_COOLDOWN_MIN", "90")) * 60
 # v5.2: cooldown por-TF (1m/3m/15m corren independientes)
-_RADAR_LAST_TF = {}  # tf_id -> {"ts","verdict","direction"}
+_RADAR_LAST_TF = {}  # tf_id -> {"ts","verdict","direction","ev","p_sl"}
 # Cooldown especifico para field-TFs cortos (1m/3m son mas frecuentes)
 RADAR_COOLDOWN_FIELD_SEC = int(os.environ.get("FQ_RADAR_FIELD_COOLDOWN_MIN", "15")) * 60
+# Anti-flip por fuerza relativa: dentro del cooldown del TF, un cambio de
+# direccion (long<->short) solo se emite si el EV nuevo supera al previo por
+# RATIO, cumple un EV minimo absoluto y un P(SL) maximo. Evita el caso
+# LONG@01:56 -> SHORT@02:09 cuando el bias del 3m oscila.
+RADAR_FLIP_EV_RATIO = float(os.environ.get("FQ_RADAR_FLIP_EV_RATIO", "1.3"))
+RADAR_FLIP_EV_MIN   = float(os.environ.get("FQ_RADAR_FLIP_EV_MIN",   "1.0"))
+RADAR_FLIP_MAX_PSL  = float(os.environ.get("FQ_RADAR_FLIP_MAX_PSL",  "0.45"))
+
+
+def _radar_emit_decision(last_radar, now_s, direction, new_ev, new_psl,
+                          cooldown_sec,
+                          flip_ev_ratio=None, flip_ev_min=None, flip_max_psl=None):
+    """Decide si el RADAR debe emitir o saltarse dado el estado previo del TF.
+
+    Returns ``(action, flip_replace)``:
+      - ``("emit", False)``: emite normal (fuera de cooldown o sin previo).
+      - ``("emit", True)``:  emite como FLIP de reemplazo (direccion opuesta
+        dentro del cooldown pero con edge claramente mayor).
+      - ``("skip", False)``: NO emite (misma direccion en cooldown, o flip
+        sin fuerza suficiente).
+
+    Argumentos:
+      last_radar:   ultimo estado del TF (dict con ts/direction/ev/p_sl) o None/{}
+      now_s:        timestamp actual (segundos epoch)
+      direction:    "long" o "short" del setup candidato
+      new_ev, new_psl: EV (en R) y P(SL) del setup candidato
+      cooldown_sec: ventana de cooldown del TF
+      flip_*: umbrales para aceptar un flip (default = constantes del modulo)
+    """
+    ratio   = RADAR_FLIP_EV_RATIO if flip_ev_ratio is None else flip_ev_ratio
+    min_ev  = RADAR_FLIP_EV_MIN   if flip_ev_min   is None else flip_ev_min
+    max_psl = RADAR_FLIP_MAX_PSL  if flip_max_psl  is None else flip_max_psl
+    last_radar = last_radar or {}
+    elapsed_s = now_s - (last_radar.get("ts") or 0)
+    within_cd = bool(last_radar.get("ts")) and elapsed_s < cooldown_sec
+    if not within_cd:
+        return ("emit", False)
+    if last_radar.get("direction") == direction:
+        return ("skip", False)
+    prev_ev = float(last_radar.get("ev") or 0.0)
+    strong_enough = (
+        new_ev >= prev_ev * ratio
+        and new_ev >= min_ev
+        and new_psl <= max_psl
+    )
+    return ("emit", True) if strong_enough else ("skip", False)
 
 # ALERTA TACTICA al VIP (FQ v5.2): cuando RADAR encuentra setup operable +
 # volumen real >= 0.85 + no franja muerta + edge robusto, se difunde al VIP
@@ -3114,14 +3160,29 @@ def radar_check(exchange, tf_id="15m"):
             if not z or z["reach_prob"] < 0.30 or z["ev_cond"] < 1.0:
                 return
 
-        # Cooldown PER-TF: no repetir misma direccion+verdict en el mismo TF
-        # dentro de la ventana. 1m/3m usan cooldown corto; 15m largo.
+        # Cooldown PER-TF con anti-flip por fuerza relativa (ver _radar_emit_decision).
         last_radar = _RADAR_LAST_TF.get(tf_id) or {}
         cd = RADAR_COOLDOWN_FIELD_SEC if tf_id in ("1m", "3m") else RADAR_COOLDOWN_SEC
-        same = (last_radar.get("direction") == direction and
-                last_radar.get("verdict") == plan["verdict"])
-        if same and (now_s - (last_radar.get("ts") or 0)) < cd:
+        new_ev  = float((plan.get("market") or {}).get("ev")   or 0.0)
+        new_psl = float((plan.get("market") or {}).get("p_sl") or 1.0)
+        action, flip_replace = _radar_emit_decision(
+            last_radar, now_s, direction, new_ev, new_psl, cd)
+        if action == "skip":
+            if last_radar.get("direction") != direction:
+                log.info("RADAR flip suprimido [%s]: prev_dir=%s prev_ev=%.2f -> "
+                         "new_dir=%s new_ev=%.2f new_psl=%.2f (no supera umbral "
+                         "ratio=%.2f min_ev=%.2f max_psl=%.2f)",
+                         tf_id, last_radar.get("direction"),
+                         float(last_radar.get("ev") or 0.0),
+                         direction, new_ev, new_psl,
+                         RADAR_FLIP_EV_RATIO, RADAR_FLIP_EV_MIN, RADAR_FLIP_MAX_PSL)
             return
+        if flip_replace:
+            log.info("RADAR flip ACEPTADO [%s]: prev_dir=%s prev_ev=%.2f -> "
+                     "new_dir=%s new_ev=%.2f (reemplaza anterior)",
+                     tf_id, last_radar.get("direction"),
+                     float(last_radar.get("ev") or 0.0),
+                     direction, new_ev)
 
         # No duplicar si una senal automatica disparo hace poco en este TF
         last_sig = STATE.last_signal_ts_tf.get(tf_id)
@@ -3137,7 +3198,8 @@ def radar_check(exchange, tf_id="15m"):
                 pass
 
         _RADAR_LAST_TF[tf_id] = {"ts": now_s, "verdict": plan["verdict"],
-                                  "direction": direction}
+                                  "direction": direction,
+                                  "ev": new_ev, "p_sl": new_psl}
 
         # FQ v5.2: calcular calidad de volumen del TF para decidir promocion a VIP
         vol_data = None
@@ -3188,13 +3250,19 @@ def radar_check(exchange, tf_id="15m"):
                                                   vol_label=vol_label,
                                                   killzone_name=kz_name,
                                                   tf_label=tf_label)
+            if flip_replace:
+                msg = ("<b>⚠️ FLIP — REEMPLAZA anterior {}</b>\n"
+                       "<i>El radar previo del {} queda invalidado por mayor edge.</i>\n\n").format(
+                    "LONG→SHORT" if direction == "short" else "SHORT→LONG",
+                    tf_id) + msg
             # FQ v5.2: incluye trial igual que las senales clasicas
             sent, failed = broadcast_to_subscribers(
                 msg, tiers=["vip", "trial", "admin"])
-            log.info("TACTICAL ALERT [%s] enviada: %s %s sent=%d failed=%d (vol=%s, kz=%s, ext_tps=%s)",
+            log.info("TACTICAL ALERT [%s] enviada: %s %s sent=%d failed=%d (vol=%s, kz=%s, ext_tps=%s, flip=%s)",
                      tf_id, plan["verdict"], direction, sent, failed,
                      vol_label or "?", kz_name or "?",
-                     [(t["rr"], t["kind"]) for t in tps_short])
+                     [(t["rr"], t["kind"]) for t in tps_short],
+                     flip_replace)
             return
 
         # === RADAR legacy admin-only (sin promocion) ===
@@ -3204,17 +3272,19 @@ def radar_check(exchange, tf_id="15m"):
             suffix += "\n<i>(no promovida: {})</i>".format(reason)
         # En TFs cortos (1m/3m) etiqueta el RADAR con el TF para no confundir
         tf_tag = " [{}]".format(tf_id) if tf_id in ("1m", "3m") else ""
-        msg = ("<b>📡 RADAR FQ{} — setup armandose</b>\n"
-               "<i>No es senal automatica. Inteligencia anticipada.</i>\n\n"
-               + body + suffix).format(tf_tag)
-        # Nota: format() arriba colapsa la primera linea; pero ya estamos
-        # construyendo con strings concatenados, asi que reformulo:
-        msg = ("<b>📡 RADAR FQ{tf} — setup armandose</b>\n"
+        flip_header = ""
+        if flip_replace:
+            flip_header = ("<b>⚠️ FLIP — REEMPLAZA anterior {}</b>\n"
+                           "<i>El radar previo del {} queda invalidado por mayor edge.</i>\n\n").format(
+                "LONG→SHORT" if direction == "short" else "SHORT→LONG",
+                tf_id)
+        msg = (flip_header +
+               "<b>📡 RADAR FQ{tf} — setup armandose</b>\n"
                "<i>No es senal automatica. Inteligencia anticipada.</i>\n\n"
                "{body}{suffix}").format(tf=tf_tag, body=body, suffix=suffix)
         telegram_send(msg, TELEGRAM_CHAT_ID)
-        log.info("RADAR enviado (admin-only) [%s]: %s %s motivo=%s",
-                 tf_id, plan["verdict"], direction, reason)
+        log.info("RADAR enviado (admin-only) [%s]: %s %s motivo=%s flip=%s",
+                 tf_id, plan["verdict"], direction, reason, flip_replace)
     except Exception as e:
         log.warning("radar_check error [{}]: {}".format(tf_id, e))
 

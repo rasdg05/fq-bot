@@ -439,3 +439,101 @@ def test_tactical_alert_header_includes_tf():
     msg = vf.build_tactical_alert(plan, tps, vol_label="Alto",
                                    killzone_name="asia_open", tf_label="3m")
     assert "— 3m" in msg, "header debe llevar TF"
+
+
+# ===========================================
+# 10. ANTI-FLIP RADAR (LONG -> SHORT en cooldown)
+# ===========================================
+# Reproducen el caso del 02/06 02:09 AM: el bias del 3m flipea de long->short
+# 13 min despues del primer radar. Antes del fix, el cooldown solo bloqueaba
+# misma direccion; el flip pasaba sin freno. Ahora exige fuerza relativa.
+
+def test_radar_no_previous_emits_normal():
+    import fq_bot_v3_2 as b
+    action, flip = b._radar_emit_decision(
+        last_radar={}, now_s=1000.0, direction="long",
+        new_ev=1.2, new_psl=0.30, cooldown_sec=900)
+    assert action == "emit"
+    assert flip is False
+
+
+def test_radar_same_direction_in_cooldown_skips():
+    import fq_bot_v3_2 as b
+    last = {"ts": 1000.0, "direction": "long", "ev": 1.2, "p_sl": 0.30}
+    action, flip = b._radar_emit_decision(
+        last_radar=last, now_s=1000.0 + 300, direction="long",
+        new_ev=1.3, new_psl=0.28, cooldown_sec=900)
+    assert action == "skip"
+    assert flip is False
+
+
+def test_radar_weak_flip_in_cooldown_skips():
+    """LONG@ev=1.40 seguido por SHORT@ev=1.45 dentro de 13min: el SHORT no
+    supera el ratio 1.3 (necesitaria >=1.82), debe descartarse."""
+    import fq_bot_v3_2 as b
+    last = {"ts": 1000.0, "direction": "long", "ev": 1.40, "p_sl": 0.30}
+    action, flip = b._radar_emit_decision(
+        last_radar=last, now_s=1000.0 + 13 * 60, direction="short",
+        new_ev=1.45, new_psl=0.30, cooldown_sec=15 * 60)
+    assert action == "skip"
+    assert flip is False
+
+
+def test_radar_strong_flip_in_cooldown_replaces():
+    """LONG@ev=1.00 seguido por SHORT@ev=1.60 (1.6x > 1.3x ratio, EV>=1.0,
+    P(SL)<=0.45): debe pasar y marcarse como reemplazo."""
+    import fq_bot_v3_2 as b
+    last = {"ts": 1000.0, "direction": "long", "ev": 1.00, "p_sl": 0.35}
+    action, flip = b._radar_emit_decision(
+        last_radar=last, now_s=1000.0 + 13 * 60, direction="short",
+        new_ev=1.60, new_psl=0.30, cooldown_sec=15 * 60)
+    assert action == "emit"
+    assert flip is True
+
+
+def test_radar_flip_fails_min_ev_floor():
+    """Aunque el ratio se cumpla (0.5 -> 0.80 = 1.6x), si el EV nuevo no
+    alcanza el minimo absoluto 1.0 la senal sigue siendo debil, descartar."""
+    import fq_bot_v3_2 as b
+    last = {"ts": 1000.0, "direction": "long", "ev": 0.50, "p_sl": 0.40}
+    action, flip = b._radar_emit_decision(
+        last_radar=last, now_s=1000.0 + 60, direction="short",
+        new_ev=0.80, new_psl=0.30, cooldown_sec=15 * 60)
+    assert action == "skip"
+
+
+def test_radar_flip_fails_high_psl():
+    """EV nuevo fuerte pero P(SL) > 0.45: no es lo suficientemente seguro
+    para reemplazar al previo."""
+    import fq_bot_v3_2 as b
+    last = {"ts": 1000.0, "direction": "long", "ev": 1.00, "p_sl": 0.30}
+    action, flip = b._radar_emit_decision(
+        last_radar=last, now_s=1000.0 + 60, direction="short",
+        new_ev=1.80, new_psl=0.55, cooldown_sec=15 * 60)
+    assert action == "skip"
+
+
+def test_radar_flip_after_cooldown_emits_normal():
+    """Pasado el cooldown, el flip se emite normal (sin marca de reemplazo)."""
+    import fq_bot_v3_2 as b
+    last = {"ts": 1000.0, "direction": "long", "ev": 1.40, "p_sl": 0.30}
+    action, flip = b._radar_emit_decision(
+        last_radar=last, now_s=1000.0 + 20 * 60, direction="short",
+        new_ev=1.45, new_psl=0.30, cooldown_sec=15 * 60)
+    assert action == "emit"
+    assert flip is False, "fuera de cooldown no se marca como reemplazo"
+
+
+def test_radar_real_case_long_158_to_short_165_suppressed():
+    """Caso real 02/06: LONG entry 79.78 invalida 79.24 -> SHORT entry 79.57
+    invalida 80.01, 13 min despues. Supuesto: EV_long ~ 1.10 (Edge), EV_short
+    ~ 1.55 (Edge fuerte). 1.55 / 1.10 = 1.41 > 1.3 -> el SHORT SI debe pasar
+    como reemplazo (acierta con la senal mas fuerte segun la propia etiqueta
+    del bot)."""
+    import fq_bot_v3_2 as b
+    last = {"ts": 1000.0, "direction": "long", "ev": 1.10, "p_sl": 0.32}
+    action, flip = b._radar_emit_decision(
+        last_radar=last, now_s=1000.0 + 13 * 60, direction="short",
+        new_ev=1.55, new_psl=0.28, cooldown_sec=15 * 60)
+    assert action == "emit"
+    assert flip is True
