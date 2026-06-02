@@ -305,12 +305,15 @@ def test_classical_tf_profiles_unchanged():
 
 
 def test_field_timeframes_default():
+    """v5.3: default = 5m afinado + 15m original. 3m ya NO entra por defecto
+    (sangraba la cuenta con falsos positivos / senales encimadas)."""
     import importlib
     os.environ.pop("FQ_FIELD_TIMEFRAMES", None)
     os.environ.pop("FQ_FIELD_INCLUDE_1M", None)
     import fq_bot_v3_2 as b
     importlib.reload(b)
-    assert b.FIELD_TIMEFRAMES == ("3m", "15m")
+    assert b.FIELD_TIMEFRAMES == ("5m", "15m")
+    assert "3m" not in b.FIELD_TIMEFRAMES, "3m no debe estar por defecto"
 
 
 def test_field_timeframes_with_1m_opt_in():
@@ -331,6 +334,88 @@ def test_field_timeframes_csv_override():
     importlib.reload(b)
     assert b.FIELD_TIMEFRAMES == ("1m", "3m")
     os.environ.pop("FQ_FIELD_TIMEFRAMES", None)
+
+
+# ===========================================
+# 6.b GATE DE CONVICCION DEL RADAR (FQ v5.3)
+#     "no me des lectura de campo sin conviccion, de ser asi mejor nada"
+# ===========================================
+def test_conviction_field_strong_edge_passes():
+    """5m con Edge fuerte (ev>=1.5) y P(SL) bajo -> emite."""
+    import fq_bot_v3_2 as b
+    plan = {"verdict": "EJECUTAR_AHORA",
+            "market": {"entry": 79.0, "p_sl": 0.30, "ev": 1.60}}
+    ok, _ = b._radar_has_conviction(plan, "5m")
+    assert ok is True
+
+
+def test_conviction_field_medium_edge_blocked():
+    """5m con 'Edge - probabilidad media' (ev 1.0-1.5) -> NO emite (ruido)."""
+    import fq_bot_v3_2 as b
+    plan = {"verdict": "EJECUTAR_AHORA",
+            "market": {"entry": 79.0, "p_sl": 0.35, "ev": 1.20}}
+    ok, reason = b._radar_has_conviction(plan, "5m")
+    assert ok is False
+    assert "ev=" in reason
+
+
+def test_conviction_field_high_psl_blocked():
+    """Edge fuerte pero P(SL) alto -> NO emite."""
+    import fq_bot_v3_2 as b
+    plan = {"verdict": "EJECUTAR_AHORA",
+            "market": {"entry": 79.0, "p_sl": 0.55, "ev": 1.80}}
+    ok, reason = b._radar_has_conviction(plan, "5m")
+    assert ok is False
+    assert "p_sl=" in reason
+
+
+def test_conviction_3m_uses_field_floor():
+    """Si alguien fuerza 3m por override, sigue exigiendo Edge fuerte."""
+    import fq_bot_v3_2 as b
+    plan = {"verdict": "EJECUTAR_AHORA",
+            "market": {"entry": 79.0, "p_sl": 0.30, "ev": 1.20}}
+    ok, _ = b._radar_has_conviction(plan, "3m")
+    assert ok is False
+
+
+def test_conviction_15m_softer_floor():
+    """El 15m original mantiene un piso mas suave (ev>=1.2): un setup que el
+    canal de campo descarta, el 15m si lo emite."""
+    import fq_bot_v3_2 as b
+    plan = {"verdict": "EJECUTAR_AHORA",
+            "market": {"entry": 79.0, "p_sl": 0.30, "ev": 1.25}}
+    assert b._radar_has_conviction(plan, "5m")[0] is False
+    assert b._radar_has_conviction(plan, "15m")[0] is True
+
+
+def test_conviction_accumulate_checks_zone():
+    import fq_bot_v3_2 as b
+    strong = {"verdict": "ACUMULAR_EN_ZONA",
+              "primary_zone": {"ev_cond": 1.6, "reach_prob": 0.40}}
+    assert b._radar_has_conviction(strong, "5m")[0] is True
+    weak_reach = {"verdict": "ACUMULAR_EN_ZONA",
+                  "primary_zone": {"ev_cond": 1.6, "reach_prob": 0.20}}
+    assert b._radar_has_conviction(weak_reach, "5m")[0] is False
+    weak_ev = {"verdict": "ACUMULAR_EN_ZONA",
+               "primary_zone": {"ev_cond": 1.1, "reach_prob": 0.50}}
+    assert b._radar_has_conviction(weak_ev, "5m")[0] is False
+
+
+def test_conviction_non_operable_verdict_blocked():
+    import fq_bot_v3_2 as b
+    for v in ("ESPERAR_GATILLO", "STAND_DOWN"):
+        ok, _ = b._radar_has_conviction({"verdict": v}, "5m")
+        assert ok is False
+
+
+def test_radar_cooldown_per_tf():
+    """5m tiene su propia ventana (30 min default), distinta de 1m/3m (15 min)
+    y del 15m (90 min)."""
+    import fq_bot_v3_2 as b
+    assert b._radar_cooldown_for("5m") == b.RADAR_COOLDOWN_5M_SEC
+    assert b._radar_cooldown_for("3m") == b.RADAR_COOLDOWN_FIELD_SEC
+    assert b._radar_cooldown_for("1m") == b.RADAR_COOLDOWN_FIELD_SEC
+    assert b._radar_cooldown_for("15m") == b.RADAR_COOLDOWN_SEC
 
 
 # ===========================================
