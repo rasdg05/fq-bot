@@ -3082,6 +3082,14 @@ def _should_promote_tactical_to_vip(plan, vol_data, killzone_name):
             return False, "zone.ev_cond<1.0"
         if (z.get("reach_prob") or 0) < 0.35:
             return False, "zone.reach_prob<0.35"
+        # CLAVE (v5.3, peticion RasDG): respetar la probabilidad condicional
+        # DESDE la zona. reach_prob solo dice que el precio regresa a la zona;
+        # p_sl_cond dice que tan probable es palmar el SL una vez dentro. El bot
+        # ya la calcula y la muestra ("Desde zona · prob. baja"), pero el gate la
+        # ignoraba -> promovia ACUMULAs de baja probabilidad que terminaban en
+        # SL. Mismo bar que EJECUTAR: se permite hasta "media", se corta "baja".
+        if (z.get("p_sl_cond") or 1.0) > TACTICAL_PROMOTE_MAX_PSL:
+            return False, "zone.p_sl_cond>{:.2f}".format(TACTICAL_PROMOTE_MAX_PSL)
     else:
         return False, "verdict not tactical-eligible"
 
