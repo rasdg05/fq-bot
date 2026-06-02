@@ -51,6 +51,7 @@
 """
 import os
 import sys
+import re
 import time
 import logging
 import threading
@@ -413,6 +414,19 @@ log = logging.getLogger("fq_bot_v3")
 # ============================================================
 # TELEGRAM
 # ============================================================
+def _html_escape(s):
+    """Escapa &,<,> para incrustar texto dinamico (p.ej. el reason del gate,
+    "vol_score=0.78<0.85") en mensajes HTML de Telegram sin romper el parse."""
+    return (s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+
+
+def _strip_html_tags(s):
+    """Quita tags HTML simples (los que empiezan con letra: <b>, </i>, <a ...>)
+    dejando intacto texto tipo "<0.85". Para el fallback a texto plano sin
+    parse_mode, donde los tags se verian crudos."""
+    return re.sub(r"</?[a-zA-Z][^>]*>", "", s)
+
+
 def telegram_send(text, chat_id=None):
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
         log.error("Missing TELEGRAM_TOKEN or TELEGRAM_CHAT_ID")
@@ -445,8 +459,9 @@ def telegram_send(text, chat_id=None):
     if r is not None and r.status_code == 400 and "can't parse entities" in r.text:
         log.info("Telegram HTML parse fallo, reintentando como texto plano...")
         payload.pop("parse_mode", None)
-        # Escapar los chars que parecian HTML para que se vean limpios
-        payload["text"] = text.replace("<", "&lt;").replace(">", "&gt;") if False else text
+        # Sin parse_mode los tags se verian crudos (<b>, <i>...). Quitarlos
+        # para dejar texto limpio (preserva "<0.85").
+        payload["text"] = _strip_html_tags(text)
         r2 = _post(payload)
         if r2 is not None and r2.status_code == 200:
             return True
@@ -3233,7 +3248,10 @@ def radar_check(exchange, tf_id="15m"):
         body = vip_format.build_battle_block(plan)
         suffix = "\n<i>El gate automatico sigue intacto. Confirma con /analisis.</i>"
         if reason:
-            suffix += "\n<i>(no promovida: {})</i>".format(reason)
+            # El reason del gate puede traer '<'/'>' (p.ej. "vol_score=0.78<0.85"
+            # o "market.p_sl>0.55") que rompen el parse HTML de Telegram y harian
+            # caer el mensaje a texto plano con los tags crudos. Escaparlos.
+            suffix += "\n<i>(no promovida: {})</i>".format(_html_escape(reason))
         # En TFs de campo (1m/3m/5m) etiqueta el RADAR con el TF para no confundir
         # con el 15m original.
         tf_tag = " [{}]".format(tf_id) if tf_id in _FIELD_FAST_TFS else ""
