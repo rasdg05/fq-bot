@@ -284,129 +284,39 @@ _VIP_ANALISIS_LAST = {}  # chat_id (str) -> epoch seconds del ultimo /analisis
 # automatico - es inteligencia anticipada. Admin-only por defecto (blast radius).
 # Set FQ_RADAR_ENABLED=0 para desactivar; FQ_RADAR_COOLDOWN_MIN controla el spam.
 RADAR_ENABLED      = os.environ.get("FQ_RADAR_ENABLED", "1").strip() in ("1", "true", "yes")
-RADAR_COOLDOWN_SEC = int(os.environ.get("FQ_RADAR_COOLDOWN_MIN", "90")) * 60
 # v5.2: cooldown por-TF (1m/3m/15m corren independientes)
 _RADAR_LAST_TF = {}  # tf_id -> {"ts","verdict","direction","ev","p_sl"}
-# Cooldown especifico para field-TFs cortos (1m/3m son mas frecuentes)
-RADAR_COOLDOWN_FIELD_SEC = int(os.environ.get("FQ_RADAR_FIELD_COOLDOWN_MIN", "15")) * 60
-# Anti-flip por fuerza relativa: dentro del cooldown del TF, un cambio de
-# direccion (long<->short) solo se emite si el EV nuevo supera al previo por
-# RATIO, cumple un EV minimo absoluto y un P(SL) maximo. Evita el caso
-# LONG@01:56 -> SHORT@02:09 cuando el bias del 3m oscila.
-RADAR_FLIP_EV_RATIO = float(os.environ.get("FQ_RADAR_FLIP_EV_RATIO", "1.3"))
-RADAR_FLIP_EV_MIN   = float(os.environ.get("FQ_RADAR_FLIP_EV_MIN",   "1.0"))
-RADAR_FLIP_MAX_PSL  = float(os.environ.get("FQ_RADAR_FLIP_MAX_PSL",  "0.45"))
 
-# TFs de campo "rapidos" (intradia): comparten cooldown corto, menos paths en
-# la simulacion y etiqueta [tf] en el header para no confundirse con el 15m.
-_FIELD_FAST_TFS = ("1m", "3m", "5m")
+# v5.3: la logica PURA del radar (cooldowns por TF, gate de conviccion y
+# anti-flip por fuerza relativa) vive en fq_radar.py - primera tajada de la
+# migracion del monolito (ver ARCHITECTURE.md). Aqui solo quedan el feature
+# flag y el estado mutable del loop. Reexportamos los simbolos para no romper
+# referencias/tests que aun apuntan a fq_bot_v3_2.*
+import fq_radar
+from fq_radar import (
+    RADAR_COOLDOWN_SEC, RADAR_COOLDOWN_FIELD_SEC, RADAR_COOLDOWN_5M_SEC,
+    RADAR_FLIP_EV_RATIO, RADAR_FLIP_EV_MIN, RADAR_FLIP_MAX_PSL,
+    RADAR_MIN_EV_FIELD, RADAR_MIN_EV_15M, RADAR_MAX_PSL, RADAR_MIN_REACH,
+    _FIELD_FAST_TFS,
+    _radar_cooldown_for, _radar_has_conviction, _radar_emit_decision,
+)
 
-# Cooldown dedicado del 5m (canal de campo afinado v5.3). 5m cierra cada 5 min;
-# 30 min = ~6 velas evita senales encimadas sin matar la reactividad.
-RADAR_COOLDOWN_5M_SEC = int(os.environ.get("FQ_RADAR_5M_COOLDOWN_MIN", "30")) * 60
-
-
-def _radar_cooldown_for(tf_id):
-    """Cooldown del RADAR segun el TF (5m tiene su propia ventana)."""
-    if tf_id == "5m":
-        return RADAR_COOLDOWN_5M_SEC
-    if tf_id in ("1m", "3m"):
-        return RADAR_COOLDOWN_FIELD_SEC
-    return RADAR_COOLDOWN_SEC
-
-# ============================================================
-# GATE DE CONVICCION DEL RADAR / LECTURA DE CAMPO (FQ v5.3)
-# ------------------------------------------------------------
-# Peticion RasDG (jun-2026): "no me des lectura de campo sin una conviccion de
-# senal, de ser asi mejor nada". Hasta v5.2 el RADAR emitia ante CUALQUIER
-# veredicto operable (EJECUTAR/ACUMULAR) sin importar la fuerza del edge, lo
-# que producia ruido tipo "Edge - probabilidad media". v5.3 exige edge claro
-# ANTES de emitir nada:
-#   - TFs de campo (5m y menores): EV >= 1.5 (Edge fuerte) y P(SL) <= 0.40.
-#   - 15m (RADAR original): piso de EV >= 1.2 para recortar lo marginal sin
-#     romper lo que ya funcionaba.
-#   - ACUMULAR: ev_cond y reach_prob deben superar los mismos pisos.
-# Todo override-able por env para tuning fino.
-# ============================================================
-RADAR_MIN_EV_FIELD = float(os.environ.get("FQ_RADAR_FIELD_MIN_EV", "1.5"))
-RADAR_MIN_EV_15M   = float(os.environ.get("FQ_RADAR_MIN_EV",       "1.2"))
-RADAR_MAX_PSL      = float(os.environ.get("FQ_RADAR_MAX_PSL",      "0.40"))
-RADAR_MIN_REACH    = float(os.environ.get("FQ_RADAR_MIN_REACH",    "0.35"))
-
-
-def _radar_has_conviction(plan, tf_id):
-    """Gate de conviccion: sin edge claro, NO se emite RADAR/lectura de campo.
-
-    Returns ``(ok, reason)``. ``ok=False`` -> "mejor nada" que ruido de baja
-    conviccion. Los TFs de campo (5m y menores) exigen Edge fuerte; el 15m
-    mantiene un piso mas suave para preservar el RADAR original.
-    """
-    min_ev = RADAR_MIN_EV_FIELD if tf_id in _FIELD_FAST_TFS else RADAR_MIN_EV_15M
-    v = plan.get("verdict")
-    if v == "EJECUTAR_AHORA":
-        mkt = plan.get("market") or {}
-        ev  = float(mkt.get("ev")   or 0.0)
-        psl = float(mkt.get("p_sl") or 1.0)
-        if ev < min_ev:
-            return False, "ev={:.2f}<{:.2f}".format(ev, min_ev)
-        if psl > RADAR_MAX_PSL:
-            return False, "p_sl={:.2f}>{:.2f}".format(psl, RADAR_MAX_PSL)
-        return True, "edge OK (ev={:.2f}, p_sl={:.2f})".format(ev, psl)
-    if v == "ACUMULAR_EN_ZONA":
-        z     = plan.get("primary_zone") or {}
-        ev    = float(z.get("ev_cond")    or 0.0)
-        reach = float(z.get("reach_prob") or 0.0)
-        if ev < min_ev:
-            return False, "zone.ev_cond={:.2f}<{:.2f}".format(ev, min_ev)
-        if reach < RADAR_MIN_REACH:
-            return False, "zone.reach={:.2f}<{:.2f}".format(reach, RADAR_MIN_REACH)
-        return True, "zone edge OK (ev={:.2f}, reach={:.2f})".format(ev, reach)
-    return False, "verdict not eligible"
-
-
-def _radar_emit_decision(last_radar, now_s, direction, new_ev, new_psl,
-                          cooldown_sec,
-                          flip_ev_ratio=None, flip_ev_min=None, flip_max_psl=None):
-    """Decide si el RADAR debe emitir o saltarse dado el estado previo del TF.
-
-    Returns ``(action, flip_replace)``:
-      - ``("emit", False)``: emite normal (fuera de cooldown o sin previo).
-      - ``("emit", True)``:  emite como FLIP de reemplazo (direccion opuesta
-        dentro del cooldown pero con edge claramente mayor).
-      - ``("skip", False)``: NO emite (misma direccion en cooldown, o flip
-        sin fuerza suficiente).
-
-    Argumentos:
-      last_radar:   ultimo estado del TF (dict con ts/direction/ev/p_sl) o None/{}
-      now_s:        timestamp actual (segundos epoch)
-      direction:    "long" o "short" del setup candidato
-      new_ev, new_psl: EV (en R) y P(SL) del setup candidato
-      cooldown_sec: ventana de cooldown del TF
-      flip_*: umbrales para aceptar un flip (default = constantes del modulo)
-    """
-    ratio   = RADAR_FLIP_EV_RATIO if flip_ev_ratio is None else flip_ev_ratio
-    min_ev  = RADAR_FLIP_EV_MIN   if flip_ev_min   is None else flip_ev_min
-    max_psl = RADAR_FLIP_MAX_PSL  if flip_max_psl  is None else flip_max_psl
-    last_radar = last_radar or {}
-    elapsed_s = now_s - (last_radar.get("ts") or 0)
-    within_cd = bool(last_radar.get("ts")) and elapsed_s < cooldown_sec
-    if not within_cd:
-        return ("emit", False)
-    if last_radar.get("direction") == direction:
-        return ("skip", False)
-    prev_ev = float(last_radar.get("ev") or 0.0)
-    strong_enough = (
-        new_ev >= prev_ev * ratio
-        and new_ev >= min_ev
-        and new_psl <= max_psl
-    )
-    return ("emit", True) if strong_enough else ("skip", False)
-
-# ALERTA TACTICA al VIP (FQ v5.2): cuando RADAR encuentra setup operable +
-# volumen real >= 0.85 + no franja muerta + edge robusto, se difunde al VIP
-# como ALERTA TACTICA FQ con TPs cortos (1R/1.5R/2.2R). En caso contrario se
-# mantiene el envio admin-only del RADAR legacy. Opt-in para rollout seguro.
-TACTICAL_VIP_ENABLED = os.environ.get("FQ_TACTICAL_VIP_ENABLED", "0").strip() in ("1", "true", "yes")
+# ALERTA TACTICA al VIP (FQ v5.2 -> ACTIVADA por defecto en v5.3): cuando el
+# RADAR encuentra un setup operable + convicción (gate fq_radar) + volumen real
+# >= 0.85 + no franja muerta + edge robusto, se difunde al VIP/trial como ALERTA
+# TACTICA FQ con TPs INTELIGENTES. En caso contrario se mantiene el envío
+# admin-only del RADAR legacy.
+#
+# v5.3 (peticion RasDG, jun-2026): con el canal 5m afinado y el gate de
+# convicción en su sitio, se activa por defecto para que las señales lleguen al
+# VIP. Se puede desactivar con FQ_TACTICAL_VIP_ENABLED=0.
+TACTICAL_VIP_ENABLED = os.environ.get("FQ_TACTICAL_VIP_ENABLED", "1").strip() in ("1", "true", "yes")
+# Bar de promocion a VIP: la CONVICCION la define el edge (ya filtrado por el
+# gate de convicción del radar). Para la probabilidad se permite hasta "media"
+# (P(SL) <= 0.55), alineado con RADAR_MAX_PSL, para no excluir señales utiles
+# tipo "Edge fuerte · probabilidad media". Override: FQ_TACTICAL_MAX_PSL.
+TACTICAL_PROMOTE_MAX_PSL = float(os.environ.get("FQ_TACTICAL_MAX_PSL", "0.55"))
+TACTICAL_PROMOTE_MIN_EV  = float(os.environ.get("FQ_TACTICAL_MIN_EV",  "0.70"))
 
 # ============================================================
 # FEATURE FLAGS v4.1.1 - ICT/SMC Refactor
@@ -3159,10 +3069,10 @@ def _should_promote_tactical_to_vip(plan, vol_data, killzone_name):
     v = plan.get("verdict")
     mkt = plan.get("market") or {}
     if v == "EJECUTAR_AHORA":
-        if (mkt.get("ev") or 0) < 0.70:
-            return False, "market.ev<0.70"
-        if (mkt.get("p_sl") or 1.0) > 0.40:
-            return False, "market.p_sl>0.40"
+        if (mkt.get("ev") or 0) < TACTICAL_PROMOTE_MIN_EV:
+            return False, "market.ev<{:.2f}".format(TACTICAL_PROMOTE_MIN_EV)
+        if (mkt.get("p_sl") or 1.0) > TACTICAL_PROMOTE_MAX_PSL:
+            return False, "market.p_sl>{:.2f}".format(TACTICAL_PROMOTE_MAX_PSL)
     elif v == "ACUMULAR_EN_ZONA":
         z = plan.get("primary_zone") or {}
         if (z.get("ev_cond") or 0) < 1.0:
@@ -4563,12 +4473,21 @@ def evolution_periodic_hook(exchange):
                     for sig in ev.get_open_signals():
                         events = spt.check_progress_events(sig, df_open)
                         for kind, price in events:
-                            if spt.mark_progress_event(sig["id"], kind, price):
+                            if not spt.mark_progress_event(sig["id"], kind, price):
+                                continue
+                            # TP3 de una senal REAL -> celebracion a TODOS (animo).
+                            # El resto de eventos (tp1/tp2/be/parcial) son guia
+                            # operativa: solo vip+admin.
+                            if kind == "tp3_hit":
+                                msg = spt.build_tp3_celebration(sig, price)
+                                event_tiers = ["vip", "trial", "admin"]
+                            else:
                                 msg = spt.build_progress_alert(sig, kind, price)
-                                try:
-                                    broadcast_to_subscribers(msg, tiers=["vip", "admin"])
-                                except Exception as be:
-                                    log.error("progress broadcast error: {}".format(be))
+                                event_tiers = ["vip", "admin"]
+                            try:
+                                broadcast_to_subscribers(msg, tiers=event_tiers)
+                            except Exception as be:
+                                log.error("progress broadcast error: {}".format(be))
                 except Exception as e:
                     log.error("progress check [{}]: {}".format(tf_id, e))
 

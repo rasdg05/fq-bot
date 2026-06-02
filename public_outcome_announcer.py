@@ -47,8 +47,14 @@ def _resolve_public_db_path():
 
 VIP_DB_PATH    = _resolve_vip_db_path()
 PUBLIC_DB_PATH = _resolve_public_db_path()
-MIN_PNL_R_TO_ANNOUNCE = 1.0
 ANNOUNCE_LOOKBACK_HOURS = 48   # solo anuncia cierres recientes (no historicos)
+# v5.3 (peticion RasDG): transparencia total. Se anuncian wins Y losses (mismo
+# trato) para un track record honesto = confianza. Outcomes definitivos:
+ANNOUNCE_OUTCOMES = ("tp1", "tp2", "tp3", "tp4", "sl")
+
+# Celebraciones de TP3 (animo): se leen de la tabla signal_progress del ledger
+# VIP (read-only). Solo TP3 recientes para evitar festejos historicos.
+TP3_LOOKBACK_HOURS = 12
 
 # Para teasers de senales nuevas (sin niveles)
 NEW_SIGNAL_LOOKBACK_MIN = 30   # solo senales emitidas en los ultimos N min
@@ -81,6 +87,13 @@ CREATE TABLE IF NOT EXISTS announced_new_signals (
     ts_announced   TEXT NOT NULL,
     direction      TEXT,
     tier           TEXT
+);
+
+CREATE TABLE IF NOT EXISTS announced_tp3 (
+    vip_signal_id  INTEGER PRIMARY KEY,
+    ts_announced   TEXT NOT NULL,
+    direction      TEXT,
+    hit_price      REAL
 );
 
 CREATE TABLE IF NOT EXISTS public_content_log (
@@ -186,8 +199,10 @@ def count_subscribers():
 # ============================================================
 def get_new_closures_to_announce():
     """
-    Devuelve lista de signals cerrados con pnl_r >= MIN que NO han sido anunciados.
-    Solo mira las ultimas ANNOUNCE_LOOKBACK_HOURS para evitar spam historico.
+    Devuelve lista de signals cerrados (wins Y losses) que NO han sido
+    anunciados. Transparencia total: se anuncian todos los outcomes
+    definitivos (tp1-4 y sl), no solo los ganadores. Solo mira las ultimas
+    ANNOUNCE_LOOKBACK_HOURS para evitar spam historico.
     """
     vip_conn = _connect_vip_readonly()
     if vip_conn is None:
@@ -207,15 +222,15 @@ def get_new_closures_to_announce():
             finally:
                 pub_conn.close()
 
+        placeholders = ",".join("?" * len(ANNOUNCE_OUTCOMES))
         cur = vip_conn.execute("""
             SELECT id, direction, entry_price, sl, tp1, tp2, tp3, tp4,
                    ts_emitted, ts_closed, outcome, exit_price, pnl_r, minutes_open
             FROM signals
-            WHERE outcome IS NOT NULL
-              AND pnl_r >= ?
+            WHERE outcome IN ({})
               AND ts_closed >= ?
             ORDER BY ts_closed ASC
-        """, (MIN_PNL_R_TO_ANNOUNCE, cutoff))
+        """.format(placeholders), tuple(ANNOUNCE_OUTCOMES) + (cutoff,))
         candidates = [dict(r) for r in cur.fetchall()]
     finally:
         vip_conn.close()
@@ -289,6 +304,70 @@ def mark_new_announced(vip_signal_id, direction=None, tier=None):
             """, (int(vip_signal_id),
                   datetime.now(timezone.utc).isoformat(),
                   direction, tier))
+            conn.commit()
+        finally:
+            conn.close()
+
+# ============================================================
+# CELEBRACIONES DE TP3 (animo para los usuarios)
+# ============================================================
+def get_new_tp3_to_announce():
+    """
+    Devuelve las senales que alcanzaron TP3 (evento 'tp3_hit' en la tabla
+    signal_progress del ledger VIP) y que el bot publico aun NO ha celebrado.
+
+    signal_progress vive en el MISMO archivo que el ledger VIP, asi que se lee
+    read-only por la misma via. Solo las ultimas TP3_LOOKBACK_HOURS para no
+    festejar corridas historicas al reiniciar.
+    """
+    vip_conn = _connect_vip_readonly()
+    if vip_conn is None:
+        return []
+
+    cutoff = (datetime.now(timezone.utc) -
+              timedelta(hours=TP3_LOOKBACK_HOURS)).isoformat()
+    try:
+        with _lock:
+            pub_conn = _connect_public()
+            try:
+                already_rows = pub_conn.execute(
+                    "SELECT vip_signal_id FROM announced_tp3"
+                ).fetchall()
+                already_ids = set(r["vip_signal_id"] for r in already_rows)
+            finally:
+                pub_conn.close()
+
+        try:
+            cur = vip_conn.execute("""
+                SELECT s.id, s.direction, s.entry_price, s.tp3,
+                       s.ts_emitted, p.ts_event, p.price AS hit_price
+                FROM signal_progress p
+                JOIN signals s ON s.id = p.signal_id
+                WHERE p.event = 'tp3_hit'
+                  AND p.ts_event >= ?
+                ORDER BY p.ts_event ASC
+            """, (cutoff,))
+            candidates = [dict(r) for r in cur.fetchall()]
+        except sqlite3.OperationalError as e:
+            # ledger viejo sin tabla signal_progress -> nada que celebrar
+            log.warning("get_new_tp3_to_announce: {}".format(e))
+            candidates = []
+    finally:
+        vip_conn.close()
+
+    return [c for c in candidates if c["id"] not in already_ids]
+
+def mark_tp3_announced(vip_signal_id, direction=None, hit_price=None):
+    with _lock:
+        conn = _connect_public()
+        try:
+            conn.execute("""
+                INSERT OR IGNORE INTO announced_tp3
+                    (vip_signal_id, ts_announced, direction, hit_price)
+                VALUES (?, ?, ?, ?)
+            """, (int(vip_signal_id),
+                  datetime.now(timezone.utc).isoformat(),
+                  direction, hit_price))
             conn.commit()
         finally:
             conn.close()

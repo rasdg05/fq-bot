@@ -204,6 +204,9 @@ def build_progress_alert(sig, event, price):
             _G["rule"],
         ])
 
+    if event == "tp3_celebration":
+        return build_tp3_celebration(sig, price)
+
     if event == "be_suggested":
         return "\n".join([
             _G["rule"],
@@ -233,3 +236,28 @@ def build_progress_alert(sig, event, price):
         ])
 
     return "Progress event #{}: {} @ ${:.4f}".format(sid, event, price)
+
+
+def build_tp3_celebration(sig, price):
+    """Mensaje CELEBRATORIO de TP3, con fines de animo para los usuarios.
+
+    Distinto del progress alert operativo (build_progress_alert tp3_hit, que
+    sugiere trailing): aqui el tono es de festejo. Se difunde a TODOS los
+    suscriptores cuando una senal real corre sus tres objetivos.
+    """
+    sid = sig["id"]
+    side = _side(sig.get("direction"))
+    price_str = "${:.4f}".format(price) if price is not None else "-"
+    return "\n".join([
+        _G["rule"],
+        "  \U0001F973 TP3 ALCANZADO · Senal #{}".format(sid),
+        _G["rule"],
+        "  {} Direccion   {}".format(_G["act"], side),
+        "  {} Precio      {}".format(_G["act"], price_str),
+        "  {} Corrida     +3.00R confirmados \U0001F3AF".format(_G["act"]),
+        "",
+        "  Tercer objetivo tocado. Disciplina",
+        "  sistematica, no suerte. \U0001F64C",
+        "  Felicidades a quienes la tomaron.",
+        _G["rule"],
+    ])
