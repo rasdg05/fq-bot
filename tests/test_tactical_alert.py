@@ -301,15 +301,41 @@ def test_promote_accumulate_checks_zone_edge():
         pytest.skip("franja muerta")
     plan = {"verdict": "ACUMULAR_EN_ZONA", "direction": "long",
             "market": {"entry": 80.91, "p_sl": 0.5, "ev": 0.3},
-            "primary_zone": {"ev_cond": 1.2, "reach_prob": 0.4}}
+            "primary_zone": {"ev_cond": 1.2, "reach_prob": 0.4, "p_sl_cond": 0.40}}
     ok, _ = b._should_promote_tactical_to_vip(plan, {"score": 1.0}, "asia_open")
     assert ok is True
 
     # Zona con poca reach -> no promove
     plan2 = dict(plan)
-    plan2["primary_zone"] = {"ev_cond": 1.2, "reach_prob": 0.20}
+    plan2["primary_zone"] = {"ev_cond": 1.2, "reach_prob": 0.20, "p_sl_cond": 0.40}
     ok2, _ = b._should_promote_tactical_to_vip(plan2, {"score": 1.0}, "asia_open")
     assert ok2 is False
+
+
+def test_promote_accumulate_rejects_low_zone_probability():
+    """v5.3: el ACUMULA 'Desde zona · prob. baja' (p_sl_cond alto) NO se
+    promueve aunque el R:R (ev_cond) sea bueno. Es el caso del SHORT $76.90
+    que toco SL: reach alta pero probabilidad condicional baja."""
+    b = _reload_with_flag("1")
+    import volume_quality as vq
+    if vq.is_dead_window():
+        import pytest
+        pytest.skip("franja muerta")
+    base = {"verdict": "ACUMULAR_EN_ZONA", "direction": "short",
+            "primary_zone": {"ev_cond": 1.6, "reach_prob": 0.7}}
+
+    # prob. baja desde zona (p_sl_cond=0.60) -> bloquea
+    low = dict(base)
+    low["primary_zone"] = dict(base["primary_zone"], p_sl_cond=0.60)
+    ok_low, reason = b._should_promote_tactical_to_vip(low, {"score": 0.9}, "ny")
+    assert ok_low is False
+    assert "p_sl_cond" in reason
+
+    # prob. media desde zona (p_sl_cond=0.45) -> SI promueve
+    med = dict(base)
+    med["primary_zone"] = dict(base["primary_zone"], p_sl_cond=0.45)
+    ok_med, _ = b._should_promote_tactical_to_vip(med, {"score": 0.9}, "ny")
+    assert ok_med is True
 
 
 def test_promote_volume_gate_by_type():
@@ -324,7 +350,7 @@ def test_promote_volume_gate_by_type():
 
     # ACUMULA con vol 0.78 (antes <0.85 lo bloqueaba) -> ahora SI promueve
     acum = {"verdict": "ACUMULAR_EN_ZONA", "direction": "short",
-            "primary_zone": {"ev_cond": 1.2, "reach_prob": 0.5}}
+            "primary_zone": {"ev_cond": 1.2, "reach_prob": 0.5, "p_sl_cond": 0.45}}
     ok, reason = b._should_promote_tactical_to_vip(acum, {"score": 0.78}, "ny")
     assert ok is True, reason
 
