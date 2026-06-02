@@ -367,6 +367,34 @@ def _market_tone(qa, direction):
     return verdict["tone"] if verdict else None
 
 
+def _quality_note(qa):
+    """Nota de certeza: evita presentar niveles con falsa confianza cuando el
+    QTE no esta disponible o las timelines estan muy dispersas."""
+    if qa is None:
+        return "Lectura probabilistica no disponible · opera con cautela"
+    coh = qa.get("coherence", 0) or 0
+    if coh < 0.35:
+        return "Baja certeza · escenario muy disperso"
+    return None
+
+
+def _decision_hint(qa, direction):
+    """Una linea de 'que hacer ahora' derivada del veredicto, para cuando NO
+    hay plan de batalla que lidere (el battle block ya trae su propia accion)."""
+    if not qa:
+        return None
+    v = qa.get("verdict") or qte_verdict.compute(qa, direction)
+    if not v:
+        return None
+    side = "LONG" if direction == "long" else "SHORT"
+    return {
+        "favorable": "Buscar entrada {} a favor".format(side),
+        "moderado":  "Entrada {} selectiva · tamano reducido".format(side),
+        "adverso":   "Sin edge ahora · mejor esperar",
+        "neutro":    "Esperar confirmacion antes de entrar",
+    }.get(v["grade"])
+
+
 def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None, plan=None):
     """
     /analisis VIP. Una pantalla, sin formulas, sin score numerico.
@@ -401,11 +429,24 @@ def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None, plan=None
                     n=i, p=p, rr=rr))
     tps_block = "\n".join(tp_lines)
 
+    # Bloque cualitativo: tono + horizonte + nota de certeza (sin numeros crudos)
     tone = _market_tone(qa, direction)
-    tone_block = "  ◆ {}\n{}\n".format(tone, RULE) if tone else ""
+    horizon_h = qa.get("horizon_hours") if qa else None
+    quality = _quality_note(qa)
+    tbits = []
+    if tone:
+        tbits.append("  ◆ {}".format(tone))
+    if horizon_h:
+        tbits.append("  ◆ Horizonte ~{:.0f}h".format(horizon_h))
+    if quality:
+        tbits.append("  ◆ {}".format(quality))
+    tone_block = ("\n".join(tbits) + "\n{}\n".format(RULE)) if tbits else ""
 
     battle = build_battle_block(plan)
     detalle_hdr = "  ▰ Detalle" if battle else "  ▰ Analisis · {}".format(PAIR)
+    # Si no hay plan que lidere, una linea de accion clara desde el veredicto.
+    hint = None if battle else _decision_hint(qa, direction)
+    decision_line = "  → {}\n".format(hint) if hint else ""
 
     return battle + (
         "{rule}\n"
@@ -413,9 +454,10 @@ def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None, plan=None
         "  {when}    ${px:.2f}\n"
         "{rule}\n"
         "  {arrow} Sesgo {side}     Conviccion {conv}\n"
+        "{decision}"
         "\n"
         "  ▸ Entry   ${entry:.2f}\n"
-        "  ▸ Stop    ${sl:.2f}   Riesgo {risk}\n"
+        "  ▸ Stop    ${sl:.2f}   Riesgo {risk} ({riskpct:.1f}% al stop)\n"
         "    anclado a {sla}\n"
         "\n"
         "{tps}\n"
@@ -427,6 +469,7 @@ def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None, plan=None
         "  {tags}"
     ).format(
         rule=RULE, dhdr=detalle_hdr, when=when, px=float(last["close"]),
+        decision=decision_line, riskpct=risk_pct,
         arrow=arrow, side=side, conv=conviction, risk=risk_lbl,
         entry=entry, sl=sl, sla=sla_lbl,
         tps=tps_block, tone=tone_block, tags=HASHTAGS_SIGNAL,

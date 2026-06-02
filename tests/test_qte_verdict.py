@@ -84,3 +84,43 @@ def test_optimizer_note_escala_con_delta():
     nulo = qt._optimizer_note({"delta_R": 0.0})
     assert fuerte != marginal != nulo
     assert "<" not in (fuerte + marginal + nulo)
+
+
+# ----------------------------------------------------------------------------
+# P2: claridad de decision en /analisis VIP
+# ----------------------------------------------------------------------------
+_LEVELS = {
+    "entry": 145.0, "sl": 142.0, "risk": 3.0,
+    "tp1": 148.0, "rr_tp1": 1.0, "tp2": 151.0, "rr_tp2": 2.0,
+    "tp3": 154.0, "rr_tp3": 3.0, "sl_anchor": "OB_bullish",
+}
+_LAST = {"close": 145.0}
+
+
+def test_quality_note_guards():
+    assert "no disponible" in vip_format._quality_note(None)
+    assert "Baja certeza" in vip_format._quality_note(_qa(0.4, 0.5, coh=0.20))
+    assert vip_format._quality_note(_qa(0.3, 1.2, coh=0.70)) is None
+
+
+def test_decision_hint_por_grade():
+    assert "a favor" in vip_format._decision_hint(_qa(0.2, 1.5), "long")
+    assert "esperar" in vip_format._decision_hint(_qa(1.0, -1.0), "long")
+    assert vip_format._decision_hint(None, "long") is None
+
+
+def test_vip_analisis_sin_plan_lidera_con_accion_y_distancia():
+    qa = _qa(0.22, 1.4, coh=0.70)
+    out = vip_format.build_vip_analisis(
+        "long", dict(_LEVELS), "alcista", 3.0, _LAST, qa=qa, plan=None)
+    assert "→" in out                  # linea de accion presente
+    assert "al stop" in out            # distancia a invalidacion
+    assert "Horizonte" not in out or "~" in out  # horizonte solo si qa lo trae
+    assert "<" not in out              # sin HTML roto
+
+
+def test_vip_analisis_qte_caido_avisa_cautela():
+    out = vip_format.build_vip_analisis(
+        "long", dict(_LEVELS), "alcista", 3.0, _LAST, qa=None, plan=None)
+    assert "cautela" in out
+    assert "<" not in out
