@@ -418,6 +418,20 @@ def test_radar_cooldown_per_tf():
     assert b._radar_cooldown_for("15m") == b.RADAR_COOLDOWN_SEC
 
 
+def test_radar_module_is_source_of_truth():
+    """v5.3: la logica pura del radar vive en fq_radar; el monolito reexporta.
+    Garantiza que ambos apuntan al mismo objeto (no copias divergentes)."""
+    import fq_radar
+    import fq_bot_v3_2 as b
+    assert b._radar_has_conviction is fq_radar._radar_has_conviction
+    assert b._radar_emit_decision is fq_radar._radar_emit_decision
+    assert b._radar_cooldown_for is fq_radar._radar_cooldown_for
+    # fq_radar es importable sin arrastrar el runtime del bot (ccxt, etc.)
+    assert fq_radar._radar_has_conviction(
+        {"verdict": "EJECUTAR_AHORA", "market": {"ev": 1.6, "p_sl": 0.30}}, "5m"
+    )[0] is True
+
+
 # ===========================================
 # 7. SMART TP PICKER (contextual)
 # ===========================================
