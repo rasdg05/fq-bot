@@ -9,6 +9,7 @@ Modulo inerte: no envia, no consulta DB.
 from datetime import datetime, timezone, timedelta
 
 from branding import PRODUCT, PAIR, HASHTAGS_SIGNAL, RULE, GLYPHS, DISCLAIMER
+import qte_verdict  # veredicto canonico compartido con el bloque QTE admin
 
 CDMX_TZ = timezone(timedelta(hours=-6))
 
@@ -353,31 +354,45 @@ def build_tactical_alert(plan, tps_short, vol_label=None, killzone_name=None,
 
 def _market_tone(qa, direction):
     """
-    Compacta el resultado del QTE en UNA linea cualitativa que el VIP
-    puede leer sin tocar formulas. Cero numeros crudos en la superficie.
+    Compacta el resultado del QTE en UNA linea cualitativa que el VIP puede
+    leer sin tocar formulas. Cero numeros crudos en la superficie.
+
+    Delega en qte_verdict.compute() - la MISMA fuente que usa el bloque admin -
+    para que VIP y admin nunca cuenten historias distintas del mismo setup.
+    Prefiere el veredicto ya horneado en qa["verdict"]; recomputa si falta.
     """
     if qa is None:
         return None
-    probs = qa.get("probabilities") or {}
-    regs  = qa.get("regimes") or {}
-    p_tp1 = probs.get("p_reach_tp1", probs.get("p_tp1", 0)) or 0
-    p_sl  = probs.get("p_sl", 0) or 0
-    ev    = probs.get("expected_R", 0) or 0
-    coh   = qa.get("coherence", 0) or 0
+    verdict = qa.get("verdict") or qte_verdict.compute(qa, direction)
+    return verdict["tone"] if verdict else None
 
-    bull = regs.get("bull_continuation", 0) or 0
-    bear = regs.get("bear_reversal", 0) or 0
-    fav = bull if direction == "long" else bear
 
-    if ev >= 1.2 and p_sl <= 0.30 and fav >= 0.40 and coh >= 0.55:
-        return "Sesgo dominante a favor · confluencia alta"
-    if ev >= 1.0 and p_sl <= 0.35:
-        return "Confluencia confirmada"
-    if ev >= 0.5:
-        return "Confluencia media · ejecutar con disciplina"
-    if p_tp1 < 0.40:
-        return "Campo neutro · esperar confirmacion"
-    return "Confluencia limitada"
+def _quality_note(qa):
+    """Nota de certeza: evita presentar niveles con falsa confianza cuando el
+    QTE no esta disponible o las timelines estan muy dispersas."""
+    if qa is None:
+        return "Lectura probabilistica no disponible · opera con cautela"
+    coh = qa.get("coherence", 0) or 0
+    if coh < 0.35:
+        return "Baja certeza · escenario muy disperso"
+    return None
+
+
+def _decision_hint(qa, direction):
+    """Una linea de 'que hacer ahora' derivada del veredicto, para cuando NO
+    hay plan de batalla que lidere (el battle block ya trae su propia accion)."""
+    if not qa:
+        return None
+    v = qa.get("verdict") or qte_verdict.compute(qa, direction)
+    if not v:
+        return None
+    side = "LONG" if direction == "long" else "SHORT"
+    return {
+        "favorable": "Buscar entrada {} a favor".format(side),
+        "moderado":  "Entrada {} selectiva · tamano reducido".format(side),
+        "adverso":   "Sin edge ahora · mejor esperar",
+        "neutro":    "Esperar confirmacion antes de entrar",
+    }.get(v["grade"])
 
 
 def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None, plan=None):
@@ -414,11 +429,24 @@ def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None, plan=None
                     n=i, p=p, rr=rr))
     tps_block = "\n".join(tp_lines)
 
+    # Bloque cualitativo: tono + horizonte + nota de certeza (sin numeros crudos)
     tone = _market_tone(qa, direction)
-    tone_block = "  ◆ {}\n{}\n".format(tone, RULE) if tone else ""
+    horizon_h = qa.get("horizon_hours") if qa else None
+    quality = _quality_note(qa)
+    tbits = []
+    if tone:
+        tbits.append("  ◆ {}".format(tone))
+    if horizon_h:
+        tbits.append("  ◆ Horizonte ~{:.0f}h".format(horizon_h))
+    if quality:
+        tbits.append("  ◆ {}".format(quality))
+    tone_block = ("\n".join(tbits) + "\n{}\n".format(RULE)) if tbits else ""
 
     battle = build_battle_block(plan)
     detalle_hdr = "  ▰ Detalle" if battle else "  ▰ Analisis · {}".format(PAIR)
+    # Si no hay plan que lidere, una linea de accion clara desde el veredicto.
+    hint = None if battle else _decision_hint(qa, direction)
+    decision_line = "  → {}\n".format(hint) if hint else ""
 
     return battle + (
         "{rule}\n"
@@ -426,9 +454,10 @@ def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None, plan=None
         "  {when}    ${px:.2f}\n"
         "{rule}\n"
         "  {arrow} Sesgo {side}     Conviccion {conv}\n"
+        "{decision}"
         "\n"
         "  ▸ Entry   ${entry:.2f}\n"
-        "  ▸ Stop    ${sl:.2f}   Riesgo {risk}\n"
+        "  ▸ Stop    ${sl:.2f}   Riesgo {risk} ({riskpct:.1f}% al stop)\n"
         "    anclado a {sla}\n"
         "\n"
         "{tps}\n"
@@ -440,6 +469,7 @@ def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None, plan=None
         "  {tags}"
     ).format(
         rule=RULE, dhdr=detalle_hdr, when=when, px=float(last["close"]),
+        decision=decision_line, riskpct=risk_pct,
         arrow=arrow, side=side, conv=conviction, risk=risk_lbl,
         entry=entry, sl=sl, sla=sla_lbl,
         tps=tps_block, tone=tone_block, tags=HASHTAGS_SIGNAL,
@@ -581,7 +611,7 @@ def build_about_admin():
         "  f_ict = 1.0 + n_concepts * 0.04   (cap 4)\n"
         "\n"
         "  GATE FINAL:\n"
-        "  EMIT iff P(SL) <= 0.35 AND EV >= 1.0R\n"
+        "  EMIT iff P(SL) ≤ 0.35 AND EV ≥ 1.0R\n"
         "\n"
         "  TIMELINES:\n"
         "  paths      500 (admin 2000)\n"

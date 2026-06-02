@@ -28,6 +28,8 @@ import pandas as pd
 import logging
 import time
 
+import qte_verdict  # veredicto canonico compartido con la superficie VIP
+
 log = logging.getLogger("quantum_timelines")
 
 # ============================================================
@@ -801,6 +803,11 @@ def quantum_analysis(df_15m, df_1h=None, df_4h=None, direction=None,
         "dominant_regime": dominant_regime,
         "dominant_regime_pct": dominant_pct,
         "coherence": coherence,
+        # Veredicto canonico horneado aqui (direction conocida) para que admin,
+        # VIP y la lectura de Claude lean la MISMA interpretacion del setup.
+        "verdict": qte_verdict.compute(
+            {"probabilities": probs, "regimes": regimes, "coherence": coherence},
+            direction),
         "optimized_levels": optimized,
         "vs_baseline": vs_baseline,
         "anchors": meta["anchors"],
@@ -900,46 +907,71 @@ def build_qte_block_vip(qa):
     )
 
 
-def build_qte_block_admin(qa):
-    """Bloque detallado admin con regimenes + comparativa baseline vs optimized."""
+def build_qte_block_admin(qa, direction=None):
+    """Bloque detallado admin con probabilidades, regimenes y veredicto.
+
+    El veredicto sale de qte_verdict.compute() (misma fuente que la superficie
+    VIP), preferentemente el horneado en qa["verdict"]; cae a recomputar si el
+    qa no lo trae (p.ej. dicts sinteticos de test).
+
+    NOTA: no usar el caracter '<' en este bloque. El mensaje se envia con
+    parse_mode=HTML en Telegram y un '<' suelto (p.ej. 'P(TP2<SL)') se
+    interpreta como apertura de tag y se traga todo el texto hasta el
+    siguiente '>', corrompiendo el analisis completo.
+    """
     probs = qa["probabilities"]
-    regs_str = "\n".join(
-        "  {:18s} {:.1%}".format(k, v) for k, v in qa["regimes"].items()
-    )
+    regs_str = regimes_short_label(qa["regimes"])
+    verdict = qa.get("verdict") or qte_verdict.compute(qa, direction)
     lines = [
         "QUANTUM TIMELINES ENGINE (QTE)",
         "  paths        {}".format(qa["n_paths"]),
         "  horizon      {} velas ({:.0f}h)".format(
             qa["horizon_candles"], qa["horizon_hours"]),
         "  elapsed      {:.0f} ms".format(qa["elapsed_ms"]),
-        "  coherence    {:.0%}".format(qa["coherence"]),
+        "  coherencia   {:.0%}  ({})".format(
+            qa["coherence"], qte_verdict.coherence_label(qa["coherence"])),
         "",
-        "PROBABILIDADES (niveles F1):",
-        "  P(SL)        {:.1%}".format(probs["p_sl"]),
-        "  P(TP1)       {:.1%}".format(probs["p_tp1"]),
-        "  P(TP2<SL)    {:.1%}".format(probs.get("p_reach_tp2", probs["p_tp2"])),
-        "  P(TP3<SL)    {:.1%}".format(probs.get("p_reach_tp3", probs["p_tp3"])),
-        "  P(timeout)   {:.1%}".format(probs["p_timeout"]),
-        "  EV en R      {:+.2f}".format(probs["expected_R"]),
-        "  Win rate     {:.1%}".format(probs["win_rate"]),
+        "PROBABILIDADES (sobre niveles propuestos):",
+        "  {:<22s}{:>6.1%}".format("Toca SL primero", probs["p_sl"]),
+        "  {:<22s}{:>6.1%}".format("Toca TP1 antes que SL", probs.get("p_reach_tp1", probs["p_tp1"])),
+        "  {:<22s}{:>6.1%}".format("Toca TP2 antes que SL", probs.get("p_reach_tp2", probs["p_tp2"])),
+        "  {:<22s}{:>6.1%}".format("Toca TP3 antes que SL", probs.get("p_reach_tp3", probs["p_tp3"])),
+        "  {:<22s}{:>6.1%}  (timeout)".format("Cierra sin tocar", probs["p_timeout"]),
+        "  {:<22s}{:>+6.2f} R".format("Valor esperado", probs["expected_R"]),
+        "  {:<22s}{:>6.1%}".format("Win rate (TP1)", probs["win_rate"]),
         "",
-        "REGIMENES:",
-        regs_str,
-        "",
-        "DOMINANTE: {} ({:.0%})".format(qa["dominant_regime"], qa["dominant_regime_pct"]),
+        "REGIMENES (24h simuladas):",
+        "  {}".format(regs_str),
+        "  dominante: {} ({:.0%})".format(qa["dominant_regime"], qa["dominant_regime_pct"]),
     ]
     if qa.get("vs_baseline"):
         vb = qa["vs_baseline"]
         lines.extend([
             "",
             "OPTIMIZER (QAOA-inspired):",
-            "  baseline P(SL)  {:.1%}".format(vb["baseline_p_sl"]),
-            "  optim P(SL)     {:.1%}".format(vb["optimized_p_sl"]),
-            "  baseline EV     {:+.2f}R".format(vb["baseline_ev_R"]),
-            "  optim EV        {:+.2f}R".format(vb["optimized_ev_R"]),
-            "  delta EV        {:+.2f}R".format(vb["delta_R"]),
+            "  P(SL)  {:.1%} -> {:.1%}".format(vb["baseline_p_sl"], vb["optimized_p_sl"]),
+            "  EV     {:+.2f}R -> {:+.2f}R  (delta {:+.2f}R)".format(
+                vb["baseline_ev_R"], vb["optimized_ev_R"], vb["delta_R"]),
+            "  {}".format(_optimizer_note(vb)),
+        ])
+    if verdict:
+        lines.extend([
+            "",
+            "VEREDICTO QTE: {}".format(verdict["label"]),
+            "  {}".format(verdict["admin_body"]),
         ])
     return "\n".join(lines)
+
+
+def _optimizer_note(vb):
+    """Interpreta el delta del optimizer en una frase (conecta el ajuste de
+    niveles con el veredicto en vez de dejar dos lineas de numeros sueltas)."""
+    delta = vb.get("delta_R", 0.0) or 0.0
+    if delta >= 0.5:
+        return "el motor mejora el EV ajustando SL/TP (vale la pena)"
+    if delta >= 0.1:
+        return "ajuste marginal de SL/TP"
+    return "los niveles propuestos ya son cercanos al optimo"
 
 
 # ============================================================

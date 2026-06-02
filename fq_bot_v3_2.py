@@ -430,6 +430,17 @@ def _html_escape(s):
     return (s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
 
 
+def _escape_claude(reading):
+    """Escapa el texto libre de Claude antes de incrustarlo en un mensaje HTML
+    de Telegram. Claude responde en texto plano (sin tags), asi que un '<', '>'
+    o '&' suelto en su prosa (p.ej. 'RSI >45', 'P(SL) < 0.3', 'R&D') rompe el
+    parse de Telegram; el fallback reenvia sin parse_mode y borra TODO el
+    formato <b>/<i> del mensaje. Escapar aqui preserva el formato del template
+    (sus tags no pasan por esta funcion). Devuelve '' si reading es falsy, lo
+    que mantiene intactos los guards 'if reading:' / 'if not reading:'."""
+    return _html_escape(reading) if reading else ""
+
+
 def _strip_html_tags(s):
     """Quita tags HTML simples (los que empiezan con letra: <b>, </i>, <a ...>)
     dejando intacto texto tipo "<0.85". Para el fallback a texto plano sin
@@ -2444,7 +2455,7 @@ def evaluate_setup(exchange, tf_id="15m", intra=False):
                     "price":        levels["entry"],
                 }
                 snapshot = mctx.snapshot_for_signal(df, signal_data, decoh)
-                opus_reading = claude_ai.signal_copilot(snapshot)
+                opus_reading = _escape_claude(claude_ai.signal_copilot(snapshot))
                 if opus_reading:
                     opus_msg = (
                         "<b>OPUS 4.6 - REVISION FINAL DE SENAL</b>\n"
@@ -2704,7 +2715,7 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
                             "liquidez": {"rsi6": 0, "rsi12": 0, "rsi24": 0},
                         }
                         snapshot = mctx.snapshot_for_signal(df_primary, signal_data, decoh)
-                        opus_reading = claude_ai.signal_copilot(snapshot)
+                        opus_reading = _escape_claude(claude_ai.signal_copilot(snapshot))
                         if opus_reading:
                             opus_msg = (
                                 "<b>OPUS 4.6 — REVISION v4.1.1</b>\n"
@@ -2786,7 +2797,7 @@ def cmd_claude(exchange):
         }
 
         snapshot = mctx.snapshot_for_general(df, basic_state)
-        reading = claude_ai.tactical_general(snapshot)
+        reading = _escape_claude(claude_ai.tactical_general(snapshot))
 
         return (
             "<b>CLAUDE - LECTURA TACTICA</b>\n"
@@ -2871,7 +2882,7 @@ def claude_followup_general(exchange):
             "macd": float(last.get("macd") or 0),
         }
         snapshot = mctx.snapshot_for_general(df, basic_state)
-        reading = claude_ai.tactical_general(snapshot)
+        reading = _escape_claude(claude_ai.tactical_general(snapshot))
         return (
             "<b>CLAUDE - Lectura tactica del analisis</b>\n"
             "{thin}\n\n{r}\n\n"
@@ -3411,6 +3422,12 @@ def claude_followup_analisis_vip(exchange, ctx=None):
                 "qte_coherence":   qa.get("coherence"),
                 "qte_regimes_top3": list(qa["regimes"].items())[:3],
             })
+            # Veredicto canonico (misma fuente que VIP/admin) para alinear la
+            # lectura de Claude con el resto de superficies.
+            _v = qa.get("verdict")
+            if _v:
+                snapshot["qte_verdict_label"] = _v["label"]
+                snapshot["qte_verdict_grade"] = _v["grade"]
             # Alternativa del optimizer (advisory) si el QAOA hallo niveles
             opt = qa.get("optimized_levels")
             vb = qa.get("vs_baseline")
@@ -3448,7 +3465,7 @@ def claude_followup_analisis_vip(exchange, ctx=None):
                 "phase_e_cooldown_min": phase_e["cooldown_min"],
             })
 
-        reading = claude_ai.tactical_analisis_vip(snapshot)
+        reading = _escape_claude(claude_ai.tactical_analisis_vip(snapshot))
         if not reading:
             return None
         rule = "━" * 30
@@ -3483,7 +3500,7 @@ def claude_followup_pspace(exchange):
             "curvature_balance": curv_balance,
         }
         snapshot = mctx.snapshot_for_pspace(df, basic_state, ps)
-        reading = claude_ai.tactical_pspace(snapshot)
+        reading = _escape_claude(claude_ai.tactical_pspace(snapshot))
         return (
             "<b>CLAUDE - Lectura P-Space + libro</b>\n"
             "{thin}\n\n{r}\n\n"
@@ -3520,7 +3537,7 @@ def claude_followup_niveles(exchange):
             "plan_sl": levels["sl"], "plan_tp3": levels["tp3"],
         }
         snapshot = mctx.snapshot_for_niveles(df, basic_state, plan_primary, plan_secondary)
-        reading = claude_ai.tactical_niveles(snapshot)
+        reading = _escape_claude(claude_ai.tactical_niveles(snapshot))
         return (
             "<b>CLAUDE - Afinacion del plan</b>\n"
             "{thin}\n\n{r}\n\n"
@@ -4267,7 +4284,7 @@ def cmd_lectura(exchange):
                     "macd": float(last_a.get("macd") or 0),
                 }
                 snapshot = mctx.snapshot_for_general(anchor_df, basic_state)
-                reading = claude_ai.tactical_general(snapshot)
+                reading = _escape_claude(claude_ai.tactical_general(snapshot))
                 if reading:
                     claude_block = (
                         "\n{thin}\n"

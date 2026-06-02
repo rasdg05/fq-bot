@@ -369,6 +369,10 @@ def build_analisis_vip_prompt(s):
             coh=s.get("qte_coherence", 0) or 0,
             regdist=reg_dist,
         )
+        # Veredicto canonico del motor (misma fuente que VIP/admin). Es input
+        # para que tu lectura no contradiga la del motor; confirmalo o corrigelo.
+        if s.get("qte_verdict_label"):
+            qte_block += "  Veredicto del motor: {}\n\n".format(s["qte_verdict_label"])
 
     # Alternativa del optimizer QAOA (advisory). Solo si el QAOA hallo niveles
     # que cumplen constraints (P_SL<=35%, EV>=1R sobre los 2000 paths).
