@@ -317,6 +317,16 @@ TACTICAL_VIP_ENABLED = os.environ.get("FQ_TACTICAL_VIP_ENABLED", "1").strip() in
 # tipo "Edge fuerte · probabilidad media". Override: FQ_TACTICAL_MAX_PSL.
 TACTICAL_PROMOTE_MAX_PSL = float(os.environ.get("FQ_TACTICAL_MAX_PSL", "0.55"))
 TACTICAL_PROMOTE_MIN_EV  = float(os.environ.get("FQ_TACTICAL_MIN_EV",  "0.70"))
+# Gate de volumen POR TIPO de senal (v5.3, peticion RasDG, jun-2026):
+#  - EJECUTAR_AHORA (entrada a mercado YA): exige confirmacion de volumen /
+#    momentum en la vela del setup.
+#  - ACUMULAR_EN_ZONA (limite esperando regreso a la zona/FVG): la vela del
+#    setup es un pullback de bajo volumen POR NATURALEZA; exigirle momentum
+#    medía lo que no importa y descartaba buenas señales (sobre todo en verano
+#    / horas de menor liquidez). Basta un piso que descarte tape muerto; la
+#    calidad la dan reach_prob + ev_cond + no-franja-muerta.
+TACTICAL_VOL_MIN_EXECUTE  = float(os.environ.get("FQ_TACTICAL_VOL_MIN",      "0.85"))
+TACTICAL_VOL_MIN_ACUMULA  = float(os.environ.get("FQ_TACTICAL_VOL_MIN_ACUM", "0.60"))
 
 # ============================================================
 # FEATURE FLAGS v4.1.1 - ICT/SMC Refactor
@@ -3033,27 +3043,33 @@ def _should_promote_tactical_to_vip(plan, vol_data, killzone_name):
     Decide si la alerta tactica se difunde al VIP (o solo al admin como antes).
 
     Criterios (todos AND, conservadores):
-      - vol_score >= 0.85 (volumen real respaldando el setup)
+      - Volumen POR TIPO: EJECUTAR exige >= TACTICAL_VOL_MIN_EXECUTE (0.85);
+        ACUMULAR solo un piso TACTICAL_VOL_MIN_ACUMULA (0.60) - la vela de zona
+        es de bajo volumen por naturaleza.
       - NO estamos en franja muerta (15-16 CDMX / viernes >=14 CDMX)
       - El edge condicional supera umbrales decentes:
-          EJECUTAR_AHORA: market.ev >= 0.70 y market.p_sl <= 0.40
+          EJECUTAR_AHORA: market.ev >= 0.70 y market.p_sl <= 0.55
           ACUMULAR:       zone.ev_cond >= 1.0 y zone.reach_prob >= 0.35
-      - Flag FQ_TACTICAL_VIP_ENABLED=1 (opt-in para rollout seguro)
+      - Flag FQ_TACTICAL_VIP_ENABLED=1
     """
     if not TACTICAL_VIP_ENABLED:
         return False, "TACTICAL_VIP flag off"
 
+    v = plan.get("verdict")
+
+    # Gate de volumen segun el tipo de senal (ver constantes arriba).
+    vol_min = (TACTICAL_VOL_MIN_ACUMULA if v == "ACUMULAR_EN_ZONA"
+               else TACTICAL_VOL_MIN_EXECUTE)
     if vol_data is not None:
         vs = vol_data.get("score", 1.0)
-        if vs < 0.85:
-            return False, "vol_score={:.2f}<0.85".format(vs)
+        if vs < vol_min:
+            return False, "vol_score={:.2f}<{:.2f}".format(vs, vol_min)
 
     if VOLUME_QUALITY_AVAILABLE and volume_quality is not None:
         if volume_quality.is_dead_window():
             return False, "dead window: " + (
                 volume_quality.dead_window_label() or "?")
 
-    v = plan.get("verdict")
     mkt = plan.get("market") or {}
     if v == "EJECUTAR_AHORA":
         if (mkt.get("ev") or 0) < TACTICAL_PROMOTE_MIN_EV:
