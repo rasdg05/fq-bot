@@ -900,45 +900,95 @@ def build_qte_block_vip(qa):
     )
 
 
-def build_qte_block_admin(qa):
-    """Bloque detallado admin con regimenes + comparativa baseline vs optimized."""
+def coherence_label(coh):
+    """Traduce la coherencia (0-1) a una etiqueta legible sobre la dispersion
+    de las timelines simuladas."""
+    if coh >= 0.66:
+        return "timelines convergentes, escenario definido"
+    if coh >= 0.40:
+        return "dispersion media, escenario abierto"
+    return "timelines dispersas, alta incertidumbre"
+
+
+def qte_verdict(qa):
+    """
+    Sintetiza el QTE en un veredicto accionable en lenguaje natural.
+
+    Convierte numeros crudos (P(SL), EV en R, alcance de TPs) en una lectura
+    clara: hay edge o no, en que direccion, y que hacer. Evita que el bloque
+    se vea como un volcado de formulas sin interpretacion.
+    """
     probs = qa["probabilities"]
-    regs_str = "\n".join(
-        "  {:18s} {:.1%}".format(k, v) for k, v in qa["regimes"].items()
-    )
+    p_sl = probs["p_sl"]
+    ev = probs["expected_R"]
+    p_tp1 = probs.get("p_reach_tp1", probs.get("p_tp1", 0.0))
+
+    if ev >= 1.0 and p_sl <= 0.35:
+        head = "EDGE FAVORABLE"
+        body = ("La mayoria de timelines alcanza TP antes que SL "
+                "(EV {:+.2f}R, P(SL) {:.0%}). Setup con ventaja estadistica.").format(ev, p_sl)
+    elif ev >= 0.3 and p_sl <= 0.55:
+        head = "EDGE MODERADO"
+        body = ("Balance inclinado a favor pero con riesgo real "
+                "(EV {:+.2f}R, P(SL) {:.0%}). Considerar tamano reducido.").format(ev, p_sl)
+    elif p_sl >= 0.80 or ev <= -0.6:
+        head = "ESCENARIO ADVERSO"
+        body = ("Casi todas las timelines tocan SL antes que cualquier TP "
+                "(EV {:+.2f}R, P(SL) {:.0%}). Sin edge: manos quietas.").format(ev, p_sl)
+    else:
+        head = "SIN EDGE CLARO"
+        body = ("Probabilidades mixtas, ninguna direccion domina "
+                "(EV {:+.2f}R, P(SL) {:.0%}, TP1 {:.0%}). Esperar confirmacion.").format(
+                    ev, p_sl, p_tp1)
+    return head, body
+
+
+def build_qte_block_admin(qa):
+    """Bloque detallado admin con probabilidades, regimenes y veredicto.
+
+    NOTA: no usar el caracter '<' en este bloque. El mensaje se envia con
+    parse_mode=HTML en Telegram y un '<' suelto (p.ej. 'P(TP2<SL)') se
+    interpreta como apertura de tag y se traga todo el texto hasta el
+    siguiente '>', corrompiendo el analisis completo.
+    """
+    probs = qa["probabilities"]
+    regs_str = regimes_short_label(qa["regimes"])
+    head, body = qte_verdict(qa)
     lines = [
         "QUANTUM TIMELINES ENGINE (QTE)",
         "  paths        {}".format(qa["n_paths"]),
         "  horizon      {} velas ({:.0f}h)".format(
             qa["horizon_candles"], qa["horizon_hours"]),
         "  elapsed      {:.0f} ms".format(qa["elapsed_ms"]),
-        "  coherence    {:.0%}".format(qa["coherence"]),
+        "  coherencia   {:.0%}  ({})".format(qa["coherence"], coherence_label(qa["coherence"])),
         "",
-        "PROBABILIDADES (niveles F1):",
-        "  P(SL)        {:.1%}".format(probs["p_sl"]),
-        "  P(TP1)       {:.1%}".format(probs["p_tp1"]),
-        "  P(TP2<SL)    {:.1%}".format(probs.get("p_reach_tp2", probs["p_tp2"])),
-        "  P(TP3<SL)    {:.1%}".format(probs.get("p_reach_tp3", probs["p_tp3"])),
-        "  P(timeout)   {:.1%}".format(probs["p_timeout"]),
-        "  EV en R      {:+.2f}".format(probs["expected_R"]),
-        "  Win rate     {:.1%}".format(probs["win_rate"]),
+        "PROBABILIDADES (sobre niveles propuestos):",
+        "  {:<22s}{:>6.1%}".format("Toca SL primero", probs["p_sl"]),
+        "  {:<22s}{:>6.1%}".format("Toca TP1 antes que SL", probs.get("p_reach_tp1", probs["p_tp1"])),
+        "  {:<22s}{:>6.1%}".format("Toca TP2 antes que SL", probs.get("p_reach_tp2", probs["p_tp2"])),
+        "  {:<22s}{:>6.1%}".format("Toca TP3 antes que SL", probs.get("p_reach_tp3", probs["p_tp3"])),
+        "  {:<22s}{:>6.1%}  (timeout)".format("Cierra sin tocar", probs["p_timeout"]),
+        "  {:<22s}{:>+6.2f} R".format("Valor esperado", probs["expected_R"]),
+        "  {:<22s}{:>6.1%}".format("Win rate (TP1)", probs["win_rate"]),
         "",
-        "REGIMENES:",
-        regs_str,
-        "",
-        "DOMINANTE: {} ({:.0%})".format(qa["dominant_regime"], qa["dominant_regime_pct"]),
+        "REGIMENES (24h simuladas):",
+        "  {}".format(regs_str),
+        "  dominante: {} ({:.0%})".format(qa["dominant_regime"], qa["dominant_regime_pct"]),
     ]
     if qa.get("vs_baseline"):
         vb = qa["vs_baseline"]
         lines.extend([
             "",
             "OPTIMIZER (QAOA-inspired):",
-            "  baseline P(SL)  {:.1%}".format(vb["baseline_p_sl"]),
-            "  optim P(SL)     {:.1%}".format(vb["optimized_p_sl"]),
-            "  baseline EV     {:+.2f}R".format(vb["baseline_ev_R"]),
-            "  optim EV        {:+.2f}R".format(vb["optimized_ev_R"]),
-            "  delta EV        {:+.2f}R".format(vb["delta_R"]),
+            "  P(SL)  {:.1%} -> {:.1%}".format(vb["baseline_p_sl"], vb["optimized_p_sl"]),
+            "  EV     {:+.2f}R -> {:+.2f}R  (delta {:+.2f}R)".format(
+                vb["baseline_ev_R"], vb["optimized_ev_R"], vb["delta_R"]),
         ])
+    lines.extend([
+        "",
+        "VEREDICTO QTE: {}".format(head),
+        "  {}".format(body),
+    ])
     return "\n".join(lines)
 
 

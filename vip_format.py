@@ -581,7 +581,7 @@ def build_about_admin():
         "  f_ict = 1.0 + n_concepts * 0.04   (cap 4)\n"
         "\n"
         "  GATE FINAL:\n"
-        "  EMIT iff P(SL) <= 0.35 AND EV >= 1.0R\n"
+        "  EMIT iff P(SL) ≤ 0.35 AND EV ≥ 1.0R\n"
         "\n"
         "  TIMELINES:\n"
         "  paths      500 (admin 2000)\n"
