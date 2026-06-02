@@ -231,13 +231,18 @@ def _resolve_timeframes():
 
 
 # ============================================================
-# FIELD SIGNAL TIMEFRAMES (FQ v5.2)
+# FIELD SIGNAL TIMEFRAMES (FQ v5.2 -> v5.3)
 # Canal independiente: radar/battle_planner corre sobre estas velas y
 # promueve al VIP como ALERTA TACTICA. NO toca el gate clasico.
 #  - 15m: ya existia (RADAR original). Sigue ahi.
-#  - 3m:  nuevo, scalp intradia.
+#  - 5m:  canal de campo afinado (v5.3). Reemplaza al 3m como TF intradia
+#         por defecto: menos ruido, setups con mas cuerpo.
+#  - 3m:  RETIRADO del default (v5.3). Abrir el edge a 3m generaba demasiados
+#         falsos positivos y senales encimadas que sangraban la cuenta. Sigue
+#         disponible solo via override explicito FQ_FIELD_TIMEFRAMES para
+#         experimentar, nunca por defecto.
 #  - 1m:  opt-in via FQ_FIELD_INCLUDE_1M=1 (mas agresivo, mas ruido).
-# Override CSV: FQ_FIELD_TIMEFRAMES="1m,3m,15m"
+# Override CSV: FQ_FIELD_TIMEFRAMES="5m,15m"
 # ============================================================
 _VALID_FIELD_TFS = ("1m", "3m", "5m", "15m", "1h")
 def _resolve_field_timeframes():
@@ -246,7 +251,8 @@ def _resolve_field_timeframes():
         tfs = tuple(t.strip() for t in raw.split(",") if t.strip() in _VALID_FIELD_TFS)
         if tfs:
             return tfs
-    tfs = ["3m", "15m"]
+    # v5.3: default = 5m afinado + 15m original. 3m ya NO entra por defecto.
+    tfs = ["5m", "15m"]
     if os.environ.get("FQ_FIELD_INCLUDE_1M", "").strip() in ("1", "true", "yes"):
         tfs.insert(0, "1m")
     return tuple(tfs)
@@ -290,6 +296,72 @@ RADAR_COOLDOWN_FIELD_SEC = int(os.environ.get("FQ_RADAR_FIELD_COOLDOWN_MIN", "15
 RADAR_FLIP_EV_RATIO = float(os.environ.get("FQ_RADAR_FLIP_EV_RATIO", "1.3"))
 RADAR_FLIP_EV_MIN   = float(os.environ.get("FQ_RADAR_FLIP_EV_MIN",   "1.0"))
 RADAR_FLIP_MAX_PSL  = float(os.environ.get("FQ_RADAR_FLIP_MAX_PSL",  "0.45"))
+
+# TFs de campo "rapidos" (intradia): comparten cooldown corto, menos paths en
+# la simulacion y etiqueta [tf] en el header para no confundirse con el 15m.
+_FIELD_FAST_TFS = ("1m", "3m", "5m")
+
+# Cooldown dedicado del 5m (canal de campo afinado v5.3). 5m cierra cada 5 min;
+# 30 min = ~6 velas evita senales encimadas sin matar la reactividad.
+RADAR_COOLDOWN_5M_SEC = int(os.environ.get("FQ_RADAR_5M_COOLDOWN_MIN", "30")) * 60
+
+
+def _radar_cooldown_for(tf_id):
+    """Cooldown del RADAR segun el TF (5m tiene su propia ventana)."""
+    if tf_id == "5m":
+        return RADAR_COOLDOWN_5M_SEC
+    if tf_id in ("1m", "3m"):
+        return RADAR_COOLDOWN_FIELD_SEC
+    return RADAR_COOLDOWN_SEC
+
+# ============================================================
+# GATE DE CONVICCION DEL RADAR / LECTURA DE CAMPO (FQ v5.3)
+# ------------------------------------------------------------
+# Peticion RasDG (jun-2026): "no me des lectura de campo sin una conviccion de
+# senal, de ser asi mejor nada". Hasta v5.2 el RADAR emitia ante CUALQUIER
+# veredicto operable (EJECUTAR/ACUMULAR) sin importar la fuerza del edge, lo
+# que producia ruido tipo "Edge - probabilidad media". v5.3 exige edge claro
+# ANTES de emitir nada:
+#   - TFs de campo (5m y menores): EV >= 1.5 (Edge fuerte) y P(SL) <= 0.40.
+#   - 15m (RADAR original): piso de EV >= 1.2 para recortar lo marginal sin
+#     romper lo que ya funcionaba.
+#   - ACUMULAR: ev_cond y reach_prob deben superar los mismos pisos.
+# Todo override-able por env para tuning fino.
+# ============================================================
+RADAR_MIN_EV_FIELD = float(os.environ.get("FQ_RADAR_FIELD_MIN_EV", "1.5"))
+RADAR_MIN_EV_15M   = float(os.environ.get("FQ_RADAR_MIN_EV",       "1.2"))
+RADAR_MAX_PSL      = float(os.environ.get("FQ_RADAR_MAX_PSL",      "0.40"))
+RADAR_MIN_REACH    = float(os.environ.get("FQ_RADAR_MIN_REACH",    "0.35"))
+
+
+def _radar_has_conviction(plan, tf_id):
+    """Gate de conviccion: sin edge claro, NO se emite RADAR/lectura de campo.
+
+    Returns ``(ok, reason)``. ``ok=False`` -> "mejor nada" que ruido de baja
+    conviccion. Los TFs de campo (5m y menores) exigen Edge fuerte; el 15m
+    mantiene un piso mas suave para preservar el RADAR original.
+    """
+    min_ev = RADAR_MIN_EV_FIELD if tf_id in _FIELD_FAST_TFS else RADAR_MIN_EV_15M
+    v = plan.get("verdict")
+    if v == "EJECUTAR_AHORA":
+        mkt = plan.get("market") or {}
+        ev  = float(mkt.get("ev")   or 0.0)
+        psl = float(mkt.get("p_sl") or 1.0)
+        if ev < min_ev:
+            return False, "ev={:.2f}<{:.2f}".format(ev, min_ev)
+        if psl > RADAR_MAX_PSL:
+            return False, "p_sl={:.2f}>{:.2f}".format(psl, RADAR_MAX_PSL)
+        return True, "edge OK (ev={:.2f}, p_sl={:.2f})".format(ev, psl)
+    if v == "ACUMULAR_EN_ZONA":
+        z     = plan.get("primary_zone") or {}
+        ev    = float(z.get("ev_cond")    or 0.0)
+        reach = float(z.get("reach_prob") or 0.0)
+        if ev < min_ev:
+            return False, "zone.ev_cond={:.2f}<{:.2f}".format(ev, min_ev)
+        if reach < RADAR_MIN_REACH:
+            return False, "zone.reach={:.2f}<{:.2f}".format(reach, RADAR_MIN_REACH)
+        return True, "zone edge OK (ev={:.2f}, reach={:.2f})".format(ev, reach)
+    return False, "verdict not eligible"
 
 
 def _radar_emit_decision(last_radar, now_s, direction, new_ev, new_psl,
@@ -3105,16 +3177,21 @@ def _should_promote_tactical_to_vip(plan, vol_data, killzone_name):
 
 def radar_check(exchange, tf_id="15m"):
     """
-    RADAR proactivo + ALERTA TACTICA (FQ v5.2):
+    RADAR proactivo + ALERTA TACTICA (FQ v5.3):
 
     Hasta v5.1: en vela nueva 15m, si battle_planner veia setup OPERABLE
     (EJECUTAR_AHORA / ACUMULAR_EN_ZONA) avisaba SOLO al admin como
     "inteligencia anticipada, no es senal automatica".
 
-    Desde v5.2:
-      - Corre en multi-TF (1m/3m/15m via FIELD_TIMEFRAMES). 1m/3m son
-        intradia, 15m mantiene el comportamiento original.
-      - Cooldown PER-TF (1m/3m pulsan mas seguido sin pisarse).
+    Desde v5.3:
+      - Corre en FIELD_TIMEFRAMES (default 5m+15m; 3m retirado, 1m opt-in).
+        El 5m es el canal de campo afinado; el 15m mantiene el comportamiento
+        original.
+      - Gate de CONVICCION: sin edge claro no emite NADA (ver
+        _radar_has_conviction). Mata el ruido de baja conviccion que sangraba
+        la cuenta con 3m (falsos positivos + senales encimadas).
+      - Cooldown PER-TF (ver _radar_cooldown_for) con anti-flip por fuerza
+        relativa.
       - Cuando vol_score>=0.85, NO franja muerta y edge robusto -> promueve
         al VIP+trial como ALERTA TACTICA FQ con TPs INTELIGENTES que mezclan
         estructurales lejanos cuando el contexto lo justifica (1:6 si la
@@ -3155,14 +3232,19 @@ def radar_check(exchange, tf_id="15m"):
         # Solo avisar de setups realmente operables
         if plan["verdict"] not in ("EJECUTAR_AHORA", "ACUMULAR_EN_ZONA"):
             return
-        if plan["verdict"] == "ACUMULAR_EN_ZONA":
-            z = plan.get("primary_zone")
-            if not z or z["reach_prob"] < 0.30 or z["ev_cond"] < 1.0:
-                return
+
+        # Gate de CONVICCION (v5.3, peticion RasDG): sin edge claro, mejor nada.
+        # Mata el ruido de "Edge - probabilidad media" en TFs de campo antes de
+        # gastar cooldown/volumen/promocion.
+        has_conv, conv_reason = _radar_has_conviction(plan, tf_id)
+        if not has_conv:
+            log.info("RADAR descartado por baja conviccion [%s]: %s %s (%s)",
+                     tf_id, plan["verdict"], direction, conv_reason)
+            return
 
         # Cooldown PER-TF con anti-flip por fuerza relativa (ver _radar_emit_decision).
         last_radar = _RADAR_LAST_TF.get(tf_id) or {}
-        cd = RADAR_COOLDOWN_FIELD_SEC if tf_id in ("1m", "3m") else RADAR_COOLDOWN_SEC
+        cd = _radar_cooldown_for(tf_id)
         new_ev  = float((plan.get("market") or {}).get("ev")   or 0.0)
         new_psl = float((plan.get("market") or {}).get("p_sl") or 1.0)
         action, flip_replace = _radar_emit_decision(
@@ -3245,7 +3327,7 @@ def radar_check(exchange, tf_id="15m"):
 
             vol_label = (volume_quality.volume_quality_label(vol_data["score"])
                          if vol_data else None)
-            tf_label = "1m" if tf_id == "1m" else ("3m" if tf_id == "3m" else "15m")
+            tf_label = tf_id
             msg = vip_format.build_tactical_alert(plan, tps_short,
                                                   vol_label=vol_label,
                                                   killzone_name=kz_name,
@@ -3270,8 +3352,9 @@ def radar_check(exchange, tf_id="15m"):
         suffix = "\n<i>El gate automatico sigue intacto. Confirma con /analisis.</i>"
         if reason:
             suffix += "\n<i>(no promovida: {})</i>".format(reason)
-        # En TFs cortos (1m/3m) etiqueta el RADAR con el TF para no confundir
-        tf_tag = " [{}]".format(tf_id) if tf_id in ("1m", "3m") else ""
+        # En TFs de campo (1m/3m/5m) etiqueta el RADAR con el TF para no confundir
+        # con el 15m original.
+        tf_tag = " [{}]".format(tf_id) if tf_id in _FIELD_FAST_TFS else ""
         flip_header = ""
         if flip_replace:
             flip_header = ("<b>⚠️ FLIP — REEMPLAZA anterior {}</b>\n"
@@ -4734,14 +4817,16 @@ def main():
             if any_new_candle:
                 evolution_periodic_hook(exchange)
 
-            # RADAR proactivo / ALERTA TACTICA (FQ v5.2):
-            #   - Corre en FIELD_TIMEFRAMES (default 3m+15m; 1m opt-in).
+            # RADAR proactivo / ALERTA TACTICA (FQ v5.3):
+            #   - Corre en FIELD_TIMEFRAMES (default 5m+15m; 1m opt-in, 3m retirado).
             #   - 15m mantiene el comportamiento original (admin-only).
-            #   - 1m/3m son la via "señal de campo" que el motor clasico no atiende;
-            #     promueve al VIP cuando volumen+edge cumplen, en caso contrario
-            #     queda admin-only.
-            # Para 1m/3m: si la vela cerro O si han pasado >=1 min desde el ultimo
-            # check (las velas 1m son rapidas y a veces se pierden por jitter del loop).
+            #   - 5m es el canal de campo afinado: cierra junto con el motor clasico
+            #     (esta en TIMEFRAMES) y el RADAR corre en su vela nueva con un gate
+            #     de conviccion fuerte. Si una senal clasica disparo en 5m hace poco,
+            #     radar_check se autodescarta (no encima senales).
+            #   - 1m/3m (solo si se opta in) son via "señal de campo" pura que el
+            #     motor clasico no atiende; se chequean cada iteracion con su propio
+            #     cooldown porque sus velas son rapidas y el loop no las trackea.
             for field_tf in FIELD_TIMEFRAMES:
                 try:
                     if field_tf in new_candle_tfs:
