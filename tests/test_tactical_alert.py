@@ -190,25 +190,26 @@ def test_build_tactical_alert_handles_empty():
 # ===========================================
 # 4. TPS CORTOS
 # ===========================================
-def test_compute_tactical_tps_short():
+def test_compute_tactical_tps_short_fallback():
+    """Sin structural, sin plan/qa: synthetic 1.0/1.8/2.5 con 40/35/25."""
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     import fq_bot_v3_2 as b
     tps = b._compute_tactical_tps("short", 100.0, 102.0)
     # risk = 2.0; short -> price = entry - risk*rr
     assert len(tps) == 3
     assert tps[0]["rr"] == 1.0 and tps[0]["weight_pct"] == 40
-    assert tps[1]["rr"] == 1.5 and tps[1]["weight_pct"] == 35
-    assert tps[2]["rr"] == 2.2 and tps[2]["weight_pct"] == 25
+    assert tps[1]["rr"] == 1.8 and tps[1]["weight_pct"] == 35   # synth midband
+    assert tps[2]["rr"] == 2.5 and tps[2]["weight_pct"] == 25   # cap conservador
     assert abs(tps[0]["price"] - (100.0 - 2.0 * 1.0)) < 1e-6
-    assert abs(tps[1]["price"] - (100.0 - 2.0 * 1.5)) < 1e-6
-    assert abs(tps[2]["price"] - (100.0 - 2.0 * 2.2)) < 1e-6
+    assert abs(tps[1]["price"] - (100.0 - 2.0 * 1.8)) < 1e-6
+    assert abs(tps[2]["price"] - (100.0 - 2.0 * 2.5)) < 1e-6
 
 
-def test_compute_tactical_tps_long():
+def test_compute_tactical_tps_long_fallback():
     import fq_bot_v3_2 as b
     tps = b._compute_tactical_tps("long", 100.0, 98.0)
     assert abs(tps[0]["price"] - (100.0 + 2.0 * 1.0)) < 1e-6
-    assert abs(tps[2]["price"] - (100.0 + 2.0 * 2.2)) < 1e-6
+    assert abs(tps[2]["price"] - (100.0 + 2.0 * 2.5)) < 1e-6
 
 
 def test_compute_tactical_tps_zero_risk():
@@ -292,25 +293,149 @@ def test_promote_accumulate_checks_zone_edge():
 
 
 # ===========================================
-# 6. 3M TIMEFRAME PROFILE
+# 6. FIELD TIMEFRAMES (RADAR/ALERTA TACTICA corre aqui)
 # ===========================================
-def test_3m_profile_exists():
+def test_classical_tf_profiles_unchanged():
+    """v5.2: el motor clasico vuelve a 5m/15m/1h (sin 3m).
+    Las senales intradia 1m/3m se canalizan via FIELD_TIMEFRAMES."""
     import fq_bot_v3_2 as b
-    assert "3m" in b.TF_PROFILES
-    p3 = b.TF_PROFILES["3m"]
-    assert p3["label"] == "SCALP_INTRA"
-    assert p3["RR_MIN_TP3"] == 1.50    # TP3 corto para intradia
-    assert p3["PMASTER_MIN"] == 2.05   # mas exigente que 5m
-    assert p3["SIGNAL_COOLDOWN_MINUTES"] == 10
+    assert "3m" not in b.TF_PROFILES, "3m no debe estar en motor clasico"
+    assert "1m" not in b.TF_PROFILES, "1m no debe estar en motor clasico"
+    assert set(b.TF_PROFILES.keys()) == {"5m", "15m", "1h"}
 
 
-def test_3m_opt_in_via_env():
+def test_field_timeframes_default():
     import importlib
-    os.environ["FQ_INCLUDE_3M"] = "1"
+    os.environ.pop("FQ_FIELD_TIMEFRAMES", None)
+    os.environ.pop("FQ_FIELD_INCLUDE_1M", None)
     import fq_bot_v3_2 as b
     importlib.reload(b)
-    assert "3m" in b.TIMEFRAMES
-    # Sin flag, no se incluye
-    os.environ["FQ_INCLUDE_3M"] = "0"
+    assert b.FIELD_TIMEFRAMES == ("3m", "15m")
+
+
+def test_field_timeframes_with_1m_opt_in():
+    import importlib
+    os.environ["FQ_FIELD_INCLUDE_1M"] = "1"
+    import fq_bot_v3_2 as b
     importlib.reload(b)
-    assert "3m" not in b.TIMEFRAMES
+    assert "1m" in b.FIELD_TIMEFRAMES
+    os.environ["FQ_FIELD_INCLUDE_1M"] = "0"
+    importlib.reload(b)
+    assert "1m" not in b.FIELD_TIMEFRAMES
+
+
+def test_field_timeframes_csv_override():
+    import importlib
+    os.environ["FQ_FIELD_TIMEFRAMES"] = "1m,3m"
+    import fq_bot_v3_2 as b
+    importlib.reload(b)
+    assert b.FIELD_TIMEFRAMES == ("1m", "3m")
+    os.environ.pop("FQ_FIELD_TIMEFRAMES", None)
+
+
+# ===========================================
+# 7. SMART TP PICKER (contextual)
+# ===========================================
+def test_extension_score_high():
+    import fq_bot_v3_2 as b
+    plan = {"market": {"ev": 1.6}, "regime_pct": 0.60}
+    qa = {"coherence": 0.70}
+    assert b._extension_score(plan, qa) >= 0.95
+
+
+def test_extension_score_low():
+    import fq_bot_v3_2 as b
+    plan = {"market": {"ev": 0.2}, "regime_pct": 0.30}
+    qa = {"coherence": 0.20}
+    assert b._extension_score(plan, qa) <= 0.10
+
+
+def test_tp_picker_uses_structural_when_in_band():
+    import fq_bot_v3_2 as b
+    structural = [{"price": 82.00, "kind": "fib_1272"}]  # 1.54R aprox
+    tps = b._compute_tactical_tps("long", 80.91, 80.20,
+                                  structural_tps=structural,
+                                  plan={"market": {"ev": 1.0}, "regime_pct": 0.5},
+                                  qa={"coherence": 0.55})
+    # TP2 deberia ser el structural (no synthetic)
+    assert any(t["kind"] == "fib_1272" for t in tps)
+
+
+def test_tp_picker_stretches_with_high_extension():
+    """Con extension alta y un structural en 1:6+, TP3 lo usa (no se cap a 2.5R)."""
+    import fq_bot_v3_2 as b
+    structural = [
+        {"price": 82.00, "kind": "fib_1272"},
+        {"price": 85.50, "kind": "pspace_R"},  # ~6.5R desde 80.91/80.20
+    ]
+    tps_high = b._compute_tactical_tps("long", 80.91, 80.20,
+                                       structural_tps=structural,
+                                       plan={"market": {"ev": 1.6}, "regime_pct": 0.60},
+                                       qa={"coherence": 0.70})
+    assert tps_high[-1]["rr"] > 4.0, "ext alto deberia estirar TP3"
+
+
+def test_tp_picker_caps_low_extension_at_2_5R():
+    """Con extension baja, TP3 se cap en 2.5R aunque haya estructural lejano."""
+    import fq_bot_v3_2 as b
+    structural = [{"price": 85.50, "kind": "pspace_R"}]  # ~6.5R
+    tps_low = b._compute_tactical_tps("long", 80.91, 80.20,
+                                      structural_tps=structural,
+                                      plan={"market": {"ev": 0.2}, "regime_pct": 0.30},
+                                      qa={"coherence": 0.30})
+    assert tps_low[-1]["rr"] <= 2.5 + 1e-6
+    assert tps_low[-1]["kind"] == "synthetic"
+
+
+def test_tp_picker_no_structural_fallback():
+    """Sin structural_tps: synth 1.0/1.8/2.5 con cierres 40/35/25."""
+    import fq_bot_v3_2 as b
+    tps = b._compute_tactical_tps("short", 100.0, 102.0)
+    assert len(tps) == 3
+    assert tps[0]["rr"] == 1.0 and tps[0]["weight_pct"] == 40
+    assert tps[2]["weight_pct"] == 25
+
+
+def test_tp_picker_monotonic():
+    """TPs ordenados por R creciente."""
+    import fq_bot_v3_2 as b
+    structural = [
+        {"price": 82.00, "kind": "fib_1272"},
+        {"price": 83.50, "kind": "fib_1618"},
+        {"price": 85.50, "kind": "pspace_R"},
+    ]
+    tps = b._compute_tactical_tps("long", 80.91, 80.20,
+                                  structural_tps=structural,
+                                  plan={"market": {"ev": 1.6}, "regime_pct": 0.60},
+                                  qa={"coherence": 0.70})
+    rrs = [t["rr"] for t in tps]
+    assert rrs == sorted(rrs), "TPs deben estar ordenados por R"
+
+
+# ===========================================
+# 8. TIERS: VIP + TRIAL + ADMIN (no solo VIP)
+# ===========================================
+def test_tactical_alert_broadcasts_to_trial_too():
+    """v5.2: la alerta tactica va a vip+trial+admin (no excluye trial)."""
+    # Verificamos por inspeccion del codigo fuente que radar_check usa los 3 tiers
+    import inspect
+    import fq_bot_v3_2 as b
+    src = inspect.getsource(b.radar_check)
+    assert 'tiers=["vip", "trial", "admin"]' in src, \
+        "radar_check debe difundir a vip+trial+admin"
+
+
+# ===========================================
+# 9. TF LABEL EN HEADER (3m/15m visible)
+# ===========================================
+def test_tactical_alert_header_includes_tf():
+    import vip_format as vf
+    plan = {"verdict": "EJECUTAR_AHORA", "direction": "short",
+            "market": {"entry": 80.91, "p_sl": 0.28, "ev": 1.30},
+            "primary_zone": None, "invalidation": 81.36}
+    tps = [{"price": 80.46, "rr": 1.0, "weight_pct": 40, "kind": "synthetic"},
+           {"price": 80.23, "rr": 1.5, "weight_pct": 35, "kind": "synthetic"},
+           {"price": 79.92, "rr": 2.2, "weight_pct": 25, "kind": "synthetic"}]
+    msg = vf.build_tactical_alert(plan, tps, vol_label="Alto",
+                                   killzone_name="asia_open", tf_label="3m")
+    assert "— 3m" in msg, "header debe llevar TF"

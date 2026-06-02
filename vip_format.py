@@ -238,17 +238,19 @@ def build_battle_block(plan):
 # que la practica demostro alcanzables (RR 1.0 / 1.5 / 2.2 en vez de
 # estructurales lejanos donde TP3 ~1:6 casi nunca se llega en intradia).
 # ============================================================
-def build_tactical_alert(plan, tps_short, vol_label=None, killzone_name=None):
+def build_tactical_alert(plan, tps_short, vol_label=None, killzone_name=None,
+                         tf_label=None):
     """
     Render de la ALERTA TACTICA FQ para el VIP.
 
     Args:
         plan: dict del battle_planner.build_battle_plan
               (verdict, headline, market, primary_zone, invalidation, direction)
-        tps_short: lista de 3 dicts [{"price","rr","weight_pct"}, ...]
-                   con TPs cortos (1R/1.5R/2.2R) en vez de los estructurales.
+        tps_short: lista de 3 dicts [{"price","rr","weight_pct","kind"}, ...]
+                   con TPs (mezcla de estructurales + sinteticos segun contexto).
         vol_label: etiqueta de volumen ("Alto"/"Normal"/"Bajo"/...) opcional.
         killzone_name: nombre de la killzone activa para contexto.
+        tf_label: timeframe del setup ("1m"/"3m"/"15m") para etiquetar en header.
 
     El mensaje NO sustituye la senal automatica - la frase final lo hace
     explicito para no diluir la marca de la senal clasica.
@@ -296,8 +298,13 @@ def build_tactical_alert(plan, tps_short, vol_label=None, killzone_name=None):
         ctx_bits.append("Volumen {}".format(vol_label.lower()))
     ctx_line = " · ".join(ctx_bits)
 
+    header = "⚡ ALERTA TACTICA FQ"
+    if tf_label:
+        header += " — {}".format(tf_label)
+    else:
+        header += " — intradia"
     lines = [
-        "<b>⚡ ALERTA TACTICA FQ — intradia</b>",
+        "<b>{}</b>".format(header),
     ]
     if ctx_line:
         lines.append("<i>{}</i>".format(ctx_line))

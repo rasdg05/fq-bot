@@ -168,24 +168,6 @@ RR_MIN_TP_DIVINO    = 1.8
 # Cooldowns independientes por TF: una senal 5m NO bloquea 15m ni 1h.
 # 15m queda como anchor con valores identicos al regimen pre-refactor.
 TF_PROFILES = {
-    # FQ v5.2: nuevo perfil intradia corto. Opt-in via FQ_INCLUDE_3M=1.
-    # PMASTER_MIN mas alto que 5m porque el ruido en 3m exige mejor confluencia.
-    # RR_MIN_TP3 corto (1.50) porque TP3 estructural casi nunca se alcanza en
-    # operativas intradia. Cooldown 10min para dar pulso sin spam.
-    "3m": {
-        "label":                  "SCALP_INTRA",
-        "INTRA_CANDLE_MINUTES":   1,
-        "SIGNAL_COOLDOWN_MINUTES": 10,
-        "PULLBACK_VOL_MULT":      1.7,
-        "BREAKOUT_VOL_MULT":      1.9,
-        "PMASTER_MIN":            2.05,
-        "context_mid":            "15m",
-        "context_high":           "1h",
-        "sub_tf":                 "1m",
-        "PHASE_E_N_PATHS":        150,
-        "PHASE_E_COOLDOWN_MIN":   10,
-        "RR_MIN_TP3":             1.50,    # FQ v5.2: TP3 corto para intradia
-    },
     "5m": {
         "label":                  "INTRADIA",
         "INTRA_CANDLE_MINUTES":   2,
@@ -231,20 +213,45 @@ TF_PROFILES = {
 # Orden de evaluacion en el main loop (secuencial).
 # Default: 5m+15m (intradia/scalping). 1h SWING opt-in via FQ_INCLUDE_1H=1.
 # Override completo con FQ_TIMEFRAMES="5m,15m" (CSV).
-# FQ v5.2: 3m opt-in via FQ_INCLUDE_3M=1 (scalp intradia corto).
+#
+# FQ v5.2: la operativa intradia 1m/3m NO se canaliza via el motor clasico
+# (preserva 5m/15m/1h calibrados). Se sirve desde la via "field signal"
+# (radar/battle_planner) en FIELD_TIMEFRAMES (mas abajo), con TPs cortos y
+# promocion a VIP cuando volumen + edge cumplen.
 def _resolve_timeframes():
     raw = os.environ.get("FQ_TIMEFRAMES", "").strip()
     if raw:
         tfs = tuple(t.strip() for t in raw.split(",") if t.strip() in TF_PROFILES)
         if tfs:
             return tfs
-    tfs = []
-    if os.environ.get("FQ_INCLUDE_3M", "").strip() in ("1", "true", "yes"):
-        tfs.append("3m")
-    tfs += ["5m", "15m"]
+    tfs = ["5m", "15m"]
     if os.environ.get("FQ_INCLUDE_1H", "").strip() in ("1", "true", "yes"):
         tfs.append("1h")
     return tuple(tfs)
+
+
+# ============================================================
+# FIELD SIGNAL TIMEFRAMES (FQ v5.2)
+# Canal independiente: radar/battle_planner corre sobre estas velas y
+# promueve al VIP como ALERTA TACTICA. NO toca el gate clasico.
+#  - 15m: ya existia (RADAR original). Sigue ahi.
+#  - 3m:  nuevo, scalp intradia.
+#  - 1m:  opt-in via FQ_FIELD_INCLUDE_1M=1 (mas agresivo, mas ruido).
+# Override CSV: FQ_FIELD_TIMEFRAMES="1m,3m,15m"
+# ============================================================
+_VALID_FIELD_TFS = ("1m", "3m", "5m", "15m", "1h")
+def _resolve_field_timeframes():
+    raw = os.environ.get("FQ_FIELD_TIMEFRAMES", "").strip()
+    if raw:
+        tfs = tuple(t.strip() for t in raw.split(",") if t.strip() in _VALID_FIELD_TFS)
+        if tfs:
+            return tfs
+    tfs = ["3m", "15m"]
+    if os.environ.get("FQ_FIELD_INCLUDE_1M", "").strip() in ("1", "true", "yes"):
+        tfs.insert(0, "1m")
+    return tuple(tfs)
+
+FIELD_TIMEFRAMES = _resolve_field_timeframes()
 
 TIMEFRAMES = _resolve_timeframes()
 
@@ -272,7 +279,10 @@ _VIP_ANALISIS_LAST = {}  # chat_id (str) -> epoch seconds del ultimo /analisis
 # Set FQ_RADAR_ENABLED=0 para desactivar; FQ_RADAR_COOLDOWN_MIN controla el spam.
 RADAR_ENABLED      = os.environ.get("FQ_RADAR_ENABLED", "1").strip() in ("1", "true", "yes")
 RADAR_COOLDOWN_SEC = int(os.environ.get("FQ_RADAR_COOLDOWN_MIN", "90")) * 60
-_RADAR_LAST = {"ts": 0.0, "verdict": None, "direction": None}
+# v5.2: cooldown por-TF (1m/3m/15m corren independientes)
+_RADAR_LAST_TF = {}  # tf_id -> {"ts","verdict","direction"}
+# Cooldown especifico para field-TFs cortos (1m/3m son mas frecuentes)
+RADAR_COOLDOWN_FIELD_SEC = int(os.environ.get("FQ_RADAR_FIELD_COOLDOWN_MIN", "15")) * 60
 
 # ALERTA TACTICA al VIP (FQ v5.2): cuando RADAR encuentra setup operable +
 # volumen real >= 0.85 + no franja muerta + edge robusto, se difunde al VIP
@@ -2871,21 +2881,135 @@ def _battle_snapshot(plan):
     return out
 
 
-def _compute_tactical_tps(direction, entry, sl):
+def _extension_score(plan, qa):
     """
-    FQ v5.2: calcula los 3 TPs cortos para la ALERTA TACTICA.
-    RR=1.0/1.5/2.2 con cierres 40/35/25 (lo que la practica demostro alcanzable).
-    Devuelve lista de dicts [{price, rr, weight_pct}].
+    FQ v5.2: estima cuanta confianza tenemos en que el precio se extienda
+    mucho mas alla del TP1/TP2. Devuelve [0,1].
+
+    Combina 3 factores:
+      - coherencia QTE (que tan ordenadas estan las trayectorias simuladas)
+      - dominio del regimen (cuan dominante es bull_continuation o bear_reversal)
+      - EV de mercado (cuanto premio condicional hay)
+
+    Mayor score -> TP3 puede estirarse a estructural lejano (1:6 si esta).
+    Menor score -> TP3 cap conservador (~2.5R).
+    """
+    if not plan or not qa:
+        return 0.0
+    coh = float(qa.get("coherence", 0.0) or 0.0)
+    regime_pct = float(plan.get("regime_pct", qa.get("dominant_regime_pct", 0.0)) or 0.0)
+    ev = float((plan.get("market") or {}).get("ev", 0.0) or 0.0)
+
+    ext = 0.0
+    if coh >= 0.65:   ext += 0.4
+    elif coh >= 0.50: ext += 0.2
+    if regime_pct >= 0.55: ext += 0.3
+    elif regime_pct >= 0.45: ext += 0.15
+    if ev >= 1.5:   ext += 0.3
+    elif ev >= 1.0: ext += 0.15
+    return min(ext, 1.0)
+
+
+def _pick_structural_in_rr_band(structural_tps, entry, sl, direction, rr_min, rr_max):
+    """Elige el mejor structural TP en banda [rr_min, rr_max]. None si no hay."""
+    risk = abs(entry - sl)
+    if risk <= 0 or not structural_tps:
+        return None
+    is_long = direction == "long"
+    candidates = []
+    for tp in structural_tps:
+        price = tp.get("price") if isinstance(tp, dict) else None
+        if price is None:
+            continue
+        try:
+            price = float(price)
+        except (TypeError, ValueError):
+            continue
+        if is_long and price <= entry:
+            continue
+        if (not is_long) and price >= entry:
+            continue
+        rr_val = abs(price - entry) / risk
+        if rr_min <= rr_val <= rr_max:
+            candidates.append({"price": price, "rr": rr_val,
+                                "kind": tp.get("kind", "structural")})
+    if not candidates:
+        return None
+    # Preferir el de mayor R (deja mas espacio) si en banda alta;
+    # menor R si banda baja (mas conservador). Banda media: el mas centrado.
+    mid = (rr_min + rr_max) / 2
+    candidates.sort(key=lambda c: abs(c["rr"] - mid))
+    return candidates[0]
+
+
+def _synth_tp(entry, sl, direction, rr):
+    risk = abs(entry - sl)
+    sign = 1.0 if direction == "long" else -1.0
+    return {"price": round(entry + sign * risk * rr, 4),
+            "rr": rr, "kind": "synthetic"}
+
+
+def _compute_tactical_tps(direction, entry, sl, structural_tps=None, plan=None, qa=None):
+    """
+    FQ v5.2 TP PICKER CONTEXTUAL.
+
+    Filosofia: TP1 siempre cercano (asegura el dia), TP2 en banda media
+    (donde la practica demostro alcanzable), TP3 adaptado al contexto:
+      - extension_score alto -> deja correr a estructural lejano (hasta ~6R)
+      - extension_score medio -> cap [2.5R, 4R]
+      - extension_score bajo -> cap 2.5R
+
+    Cierres parciales fijos (40/35/25) calibrados sobre las dos ganadoras
+    historicas que cerraron en TP2. Si structural_tps esta vacio o plan/qa
+    son None, hace fallback a 1.0R/1.5R/2.2R.
+
+    Args:
+        direction: "long"|"short"
+        entry: precio de entrada
+        sl: precio de stop
+        structural_tps: list opcional de {"price","kind"} desde levels["tp_meta"]
+        plan: dict opcional del battle_planner (regime_pct, market.ev)
+        qa: dict opcional del QTE (coherence, dominant_regime_pct)
+
+    Returns: lista de 3 dicts [{price, rr, weight_pct, kind}].
     """
     risk = abs(entry - sl)
     if risk <= 0:
         return []
-    sign = 1.0 if direction == "long" else -1.0
-    rrs = [(1.0, 40), (1.5, 35), (2.2, 25)]
+    ext = _extension_score(plan, qa) if (plan or qa) else 0.0
+
+    # TP1: 1.0R-1.5R. Prefiere estructural si esta en banda; sino synth 1.0R.
+    tp1 = _pick_structural_in_rr_band(structural_tps, entry, sl, direction, 1.0, 1.5) \
+        or _synth_tp(entry, sl, direction, 1.0)
+
+    # TP2: 1.5R-2.5R. Prefiere estructural; sino synth 1.8R.
+    tp2 = _pick_structural_in_rr_band(structural_tps, entry, sl, direction, 1.5, 2.5) \
+        or _synth_tp(entry, sl, direction, 1.8)
+
+    # TP3: depende de extension_score (contexto en tiempo real)
+    if ext >= 0.70:
+        # contexto favorable -> deja correr al estructural mas lejano operable.
+        # Banda [2.5R, 8.0R]: cubre Fib 1.618 (~3-4R) y pspace targets (~5-7R).
+        # Si no hay estructural en banda, synth 3.0R (mejor que un cap timido).
+        tp3 = _pick_structural_in_rr_band(structural_tps, entry, sl, direction, 2.5, 8.0) \
+            or _synth_tp(entry, sl, direction, 3.0)
+    elif ext >= 0.40:
+        # contexto medio -> banda [2.5R, 4.0R]. Estructural si esta; sino 2.5R.
+        tp3 = _pick_structural_in_rr_band(structural_tps, entry, sl, direction, 2.5, 4.0) \
+            or _synth_tp(entry, sl, direction, 2.5)
+    else:
+        # contexto debil -> cap conservador a 2.5R. No regalamos R:R.
+        tp3 = _synth_tp(entry, sl, direction, 2.5)
+
+    # Garantizar orden monotono (TP2 > TP1, TP3 > TP2 en distancia R)
+    tps_sorted = sorted([tp1, tp2, tp3], key=lambda t: t["rr"])
+    weights = [40, 35, 25]
     out = []
-    for rr, wp in rrs:
-        price = entry + sign * risk * rr
-        out.append({"price": round(price, 4), "rr": rr, "weight_pct": wp})
+    for tp, w in zip(tps_sorted, weights):
+        out.append({"price": round(tp["price"], 4),
+                    "rr": round(tp["rr"], 2),
+                    "weight_pct": w,
+                    "kind": tp.get("kind", "synthetic")})
     return out
 
 
@@ -2937,14 +3061,19 @@ def radar_check(exchange, tf_id="15m"):
     """
     RADAR proactivo + ALERTA TACTICA (FQ v5.2):
 
-    Hasta v5.1: en vela nueva, si battle_planner ve setup OPERABLE
-    (EJECUTAR_AHORA / ACUMULAR_EN_ZONA) avisa SOLO al admin como
+    Hasta v5.1: en vela nueva 15m, si battle_planner veia setup OPERABLE
+    (EJECUTAR_AHORA / ACUMULAR_EN_ZONA) avisaba SOLO al admin como
     "inteligencia anticipada, no es senal automatica".
 
-    Desde v5.2: cuando ademas vol_score>=0.85, NO estamos en franja muerta,
-    y el edge es robusto, el mismo evento se promueve a VIP como ALERTA
-    TACTICA FQ con TPs cortos (1R/1.5R/2.2R) usando build_tactical_alert.
-    En caso contrario se mantiene el envio admin-only original.
+    Desde v5.2:
+      - Corre en multi-TF (1m/3m/15m via FIELD_TIMEFRAMES). 1m/3m son
+        intradia, 15m mantiene el comportamiento original.
+      - Cooldown PER-TF (1m/3m pulsan mas seguido sin pisarse).
+      - Cuando vol_score>=0.85, NO franja muerta y edge robusto -> promueve
+        al VIP+trial como ALERTA TACTICA FQ con TPs INTELIGENTES que mezclan
+        estructurales lejanos cuando el contexto lo justifica (1:6 si la
+        oportunidad esta) con cap conservador cuando no.
+      - En caso contrario, RADAR admin-only original.
     """
     if not (RADAR_ENABLED and QTE_AVAILABLE and qt is not None
             and BATTLE_PLANNER_AVAILABLE and battle_planner is not None
@@ -2964,10 +3093,12 @@ def radar_check(exchange, tf_id="15m"):
         levels = calculate_levels_v2(df, direction, pspace=masses)
         qte_levels = {"entry": levels["entry"], "sl": levels["sl"],
                       "tp1": levels["tp1"], "tp2": levels["tp2"], "tp3": levels["tp3"]}
+        # 1m/3m -> menos paths para latencia; 15m -> mantiene 2000
+        n_paths_tf = 800 if tf_id in ("1m", "3m") else 2000
         qa = qt.quantum_analysis(
             df, direction=direction, levels=qte_levels,
             ict_module=ict_smc if ICT_MODULES_AVAILABLE else None,
-            n_paths=2000, run_optimizer=False, return_paths=True)
+            n_paths=n_paths_tf, run_optimizer=False, return_paths=True)
         if qa.get("paths") is None:
             return
         fd = _build_field_data_standalone(df, None, None)
@@ -2983,10 +3114,13 @@ def radar_check(exchange, tf_id="15m"):
             if not z or z["reach_prob"] < 0.30 or z["ev_cond"] < 1.0:
                 return
 
-        # Cooldown: no repetir misma direccion+verdict dentro de la ventana
-        same = (_RADAR_LAST["direction"] == direction and
-                _RADAR_LAST["verdict"] == plan["verdict"])
-        if same and (now_s - _RADAR_LAST["ts"]) < RADAR_COOLDOWN_SEC:
+        # Cooldown PER-TF: no repetir misma direccion+verdict en el mismo TF
+        # dentro de la ventana. 1m/3m usan cooldown corto; 15m largo.
+        last_radar = _RADAR_LAST_TF.get(tf_id) or {}
+        cd = RADAR_COOLDOWN_FIELD_SEC if tf_id in ("1m", "3m") else RADAR_COOLDOWN_SEC
+        same = (last_radar.get("direction") == direction and
+                last_radar.get("verdict") == plan["verdict"])
+        if same and (now_s - (last_radar.get("ts") or 0)) < cd:
             return
 
         # No duplicar si una senal automatica disparo hace poco en este TF
@@ -3002,8 +3136,8 @@ def radar_check(exchange, tf_id="15m"):
             except Exception:
                 pass
 
-        _RADAR_LAST.update({"ts": now_s, "verdict": plan["verdict"],
-                            "direction": direction})
+        _RADAR_LAST_TF[tf_id] = {"ts": now_s, "verdict": plan["verdict"],
+                                  "direction": direction}
 
         # FQ v5.2: calcular calidad de volumen del TF para decidir promocion a VIP
         vol_data = None
@@ -3026,14 +3160,12 @@ def radar_check(exchange, tf_id="15m"):
         promote, reason = _should_promote_tactical_to_vip(plan, vol_data, kz_name)
 
         if promote:
-            # === ALERTA TACTICA al VIP con TPs cortos ===
-            # Entry y SL: depende del veredicto.
+            # === ALERTA TACTICA al VIP+trial+admin con TPs INTELIGENTES ===
             if plan["verdict"] == "EJECUTAR_AHORA":
                 t_entry = float(plan["market"]["entry"])
                 t_sl = float(plan["invalidation"])
             else:  # ACUMULAR_EN_ZONA
                 z = plan["primary_zone"]
-                # Entrada ponderada de la zona (40/35/25 desde refs del battle_planner)
                 accs = z.get("accumulate") or []
                 if accs:
                     total_w = sum(a.get("weight_pct", 0) for a in accs) or 100.0
@@ -3043,16 +3175,26 @@ def radar_check(exchange, tf_id="15m"):
                     t_entry = float(z["ref"])
                 t_sl = float(plan["invalidation"])
 
-            tps_short = _compute_tactical_tps(direction, t_entry, t_sl)
+            # TP picker contextual: structural_tps de levels + plan + qa
+            structural_tps = levels.get("tp_meta") or []
+            tps_short = _compute_tactical_tps(
+                direction, t_entry, t_sl,
+                structural_tps=structural_tps, plan=plan, qa=qa)
+
             vol_label = (volume_quality.volume_quality_label(vol_data["score"])
                          if vol_data else None)
+            tf_label = "1m" if tf_id == "1m" else ("3m" if tf_id == "3m" else "15m")
             msg = vip_format.build_tactical_alert(plan, tps_short,
                                                   vol_label=vol_label,
-                                                  killzone_name=kz_name)
-            sent, failed = broadcast_to_subscribers(msg, tiers=["vip", "admin"])
-            log.info("TACTICAL ALERT VIP enviada: %s %s sent=%d failed=%d (vol=%s, kz=%s)",
-                     plan["verdict"], direction, sent, failed,
-                     vol_label or "?", kz_name or "?")
+                                                  killzone_name=kz_name,
+                                                  tf_label=tf_label)
+            # FQ v5.2: incluye trial igual que las senales clasicas
+            sent, failed = broadcast_to_subscribers(
+                msg, tiers=["vip", "trial", "admin"])
+            log.info("TACTICAL ALERT [%s] enviada: %s %s sent=%d failed=%d (vol=%s, kz=%s, ext_tps=%s)",
+                     tf_id, plan["verdict"], direction, sent, failed,
+                     vol_label or "?", kz_name or "?",
+                     [(t["rr"], t["kind"]) for t in tps_short])
             return
 
         # === RADAR legacy admin-only (sin promocion) ===
@@ -3060,14 +3202,21 @@ def radar_check(exchange, tf_id="15m"):
         suffix = "\n<i>El gate automatico sigue intacto. Confirma con /analisis.</i>"
         if reason:
             suffix += "\n<i>(no promovida: {})</i>".format(reason)
-        msg = ("<b>📡 RADAR FQ — setup armandose</b>\n"
+        # En TFs cortos (1m/3m) etiqueta el RADAR con el TF para no confundir
+        tf_tag = " [{}]".format(tf_id) if tf_id in ("1m", "3m") else ""
+        msg = ("<b>📡 RADAR FQ{} — setup armandose</b>\n"
                "<i>No es senal automatica. Inteligencia anticipada.</i>\n\n"
-               + body + suffix)
+               + body + suffix).format(tf_tag)
+        # Nota: format() arriba colapsa la primera linea; pero ya estamos
+        # construyendo con strings concatenados, asi que reformulo:
+        msg = ("<b>📡 RADAR FQ{tf} — setup armandose</b>\n"
+               "<i>No es senal automatica. Inteligencia anticipada.</i>\n\n"
+               "{body}{suffix}").format(tf=tf_tag, body=body, suffix=suffix)
         telegram_send(msg, TELEGRAM_CHAT_ID)
-        log.info("RADAR enviado (admin-only): %s %s motivo=%s",
-                 plan["verdict"], direction, reason)
+        log.info("RADAR enviado (admin-only) [%s]: %s %s motivo=%s",
+                 tf_id, plan["verdict"], direction, reason)
     except Exception as e:
-        log.warning("radar_check error: {}".format(e))
+        log.warning("radar_check error [{}]: {}".format(tf_id, e))
 
 
 def build_analisis_context(exchange):
@@ -4515,10 +4664,26 @@ def main():
             if any_new_candle:
                 evolution_periodic_hook(exchange)
 
-            # RADAR proactivo: en vela nueva 15m, avisa de setups operables que
-            # no dispararon senal auto (no afloja el gate). Admin-only, con cooldown.
-            if "15m" in new_candle_tfs:
-                radar_check(exchange, "15m")
+            # RADAR proactivo / ALERTA TACTICA (FQ v5.2):
+            #   - Corre en FIELD_TIMEFRAMES (default 3m+15m; 1m opt-in).
+            #   - 15m mantiene el comportamiento original (admin-only).
+            #   - 1m/3m son la via "señal de campo" que el motor clasico no atiende;
+            #     promueve al VIP cuando volumen+edge cumplen, en caso contrario
+            #     queda admin-only.
+            # Para 1m/3m: si la vela cerro O si han pasado >=1 min desde el ultimo
+            # check (las velas 1m son rapidas y a veces se pierden por jitter del loop).
+            for field_tf in FIELD_TIMEFRAMES:
+                try:
+                    if field_tf in new_candle_tfs:
+                        radar_check(exchange, field_tf)
+                        continue
+                    # Para 1m/3m que NO estan en TIMEFRAMES (motor clasico), el loop
+                    # no actualiza last_candle_ts; chequeamos directo cada iteracion
+                    # con su propio cooldown interno (RADAR_LAST_TF).
+                    if field_tf not in TIMEFRAMES and field_tf in ("1m", "3m"):
+                        radar_check(exchange, field_tf)
+                except Exception as rad_e:
+                    log.warning("radar_check loop [{}]: {}".format(field_tf, rad_e))
 
             # Reset diario de signals_today
             today = cdmx_now().date()
