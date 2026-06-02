@@ -119,6 +119,9 @@ def _client_surfaces():
         ("pub.teaser", public_format.build_new_signal_teaser(
             {"direction": "short", "session": "ny", "p_master_final": 3.0,
              "ts_emitted": "2026-06-01T16:00:00Z"})),
+        ("pub.tp3", public_format.build_tp3_celebration(
+            {"direction": "long", "ts_emitted": "2026-06-01T13:00:00Z",
+             "hit_price": 152.30, "tp3": 152.30})),
         ("pub.weekly", public_format.build_weekly_stats(
             {"n_closed_7d": 4, "win_rate": 0.75, "expectancy": 1.1,
              "profit_factor": 3.0, "best_pnl": 2.5})),

@@ -91,6 +91,34 @@ def build_closure_announcement(signal_row, stats_7d=None):
     return "\n".join(lines)
 
 # ============================================================
+# CELEBRACION DE TP3 (animo) - se difunde a todo el publico
+# ============================================================
+def build_tp3_celebration(signal_row):
+    """Anuncio festivo cuando una senal real corre hasta su tercer objetivo.
+
+    No expone niveles del VIP; tono de animo + prueba social. signal_row:
+    dict con direction, ts_emitted (y opcionalmente hit_price/tp3).
+    """
+    direction = (signal_row.get("direction") or "").lower()
+    side_glyph = G["long"] if direction == "long" else G["short"]
+    side_label = direction.upper() or "?"
+    ts_emit = _fmt_dt(signal_row.get("ts_emitted"))
+
+    return "\n".join([
+        RULE,
+        "  \U0001F973 {} · TP3 ALCANZADO".format(PRODUCT),
+        RULE,
+        "  {} {} {}".format(side_glyph, side_label, PAIR),
+        "  {} Disparada    {}".format(G["bullet_act"], ts_emit),
+        "  {} Corrida      +3R confirmados \U0001F3AF".format(G["bullet_act"]),
+        RULE,
+        "  Tercer objetivo tocado.",
+        "  Asi se ve la disciplina sistematica.",
+        "",
+        "  {} Toma las proximas en vivo   /unirme".format(G["bullet_act"]),
+    ])
+
+# ============================================================
 # TEASER DE SENAL NUEVA - sin niveles, solo direccion/sesion/conviccion
 # ============================================================
 SESSION_LABELS = {

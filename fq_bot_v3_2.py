@@ -4563,12 +4563,21 @@ def evolution_periodic_hook(exchange):
                     for sig in ev.get_open_signals():
                         events = spt.check_progress_events(sig, df_open)
                         for kind, price in events:
-                            if spt.mark_progress_event(sig["id"], kind, price):
+                            if not spt.mark_progress_event(sig["id"], kind, price):
+                                continue
+                            # TP3 de una senal REAL -> celebracion a TODOS (animo).
+                            # El resto de eventos (tp1/tp2/be/parcial) son guia
+                            # operativa: solo vip+admin.
+                            if kind == "tp3_hit":
+                                msg = spt.build_tp3_celebration(sig, price)
+                                event_tiers = ["vip", "trial", "admin"]
+                            else:
                                 msg = spt.build_progress_alert(sig, kind, price)
-                                try:
-                                    broadcast_to_subscribers(msg, tiers=["vip", "admin"])
-                                except Exception as be:
-                                    log.error("progress broadcast error: {}".format(be))
+                                event_tiers = ["vip", "admin"]
+                            try:
+                                broadcast_to_subscribers(msg, tiers=event_tiers)
+                            except Exception as be:
+                                log.error("progress broadcast error: {}".format(be))
                 except Exception as e:
                     log.error("progress check [{}]: {}".format(tf_id, e))
 

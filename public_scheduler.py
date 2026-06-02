@@ -51,6 +51,7 @@ SLOT_STATS_SEMANAL = (6, 18, 0)  # (weekday, hour, minute)
 
 CLOSURE_POLL_MIN = 8        # poll cierres cada 8 min
 NEW_SIG_POLL_MIN = 2        # poll senales nuevas cada 2 min (FOMO inmediato)
+TP3_POLL_MIN     = 3        # poll celebraciones TP3 cada 3 min (animo fresco)
 SLOT_TOLERANCE_MIN = 6      # disparar slot dentro de +-6 min de la hora exacta
 
 # ============================================================
@@ -64,6 +65,7 @@ class SchedulerState:
         self.last_weekly_stats_key   = None     # "YYYY-WW"
         self.last_closure_check_ts   = None
         self.last_new_sig_check_ts   = None
+        self.last_tp3_check_ts       = None
         self.cta_rotation_idx        = 0
         self.lock                    = threading.Lock()
 
@@ -95,6 +97,7 @@ def scheduler_tick(state, send_callback):
     try:
         _check_closures(state, send_callback)
         _check_new_signals(state, send_callback)
+        _check_tp3_celebrations(state, send_callback)
         _check_lecturas(state, send_callback)
         _check_ctas(state, send_callback)
         _check_mantras(state, send_callback)
@@ -150,6 +153,30 @@ def _check_new_signals(state, send_callback):
             log.info("Teaser senal nueva #{} enviado a {} chats".format(s["id"], sent or 0))
         except Exception as e:
             log.error("new signal teaser error #{}: {}".format(s.get("id"), e))
+
+# ============================================================
+# 1C. CELEBRACIONES DE TP3 (animo para los usuarios)
+# ============================================================
+def _check_tp3_celebrations(state, send_callback):
+    now = datetime.now(timezone.utc)
+    if state.last_tp3_check_ts and (now - state.last_tp3_check_ts).total_seconds() < TP3_POLL_MIN * 60:
+        return
+    state.last_tp3_check_ts = now
+
+    tp3s = poa.get_new_tp3_to_announce()
+    if not tp3s:
+        return
+    log.info("TP3 celebrations to announce: {}".format(len(tp3s)))
+    for t in tp3s:
+        try:
+            msg = fmt.build_tp3_celebration(t)
+            sent = send_callback(msg, kind="tp3",
+                                  title="#{} {}".format(t["id"], t.get("direction", "?")))
+            poa.mark_tp3_announced(t["id"], direction=t.get("direction"),
+                                   hit_price=t.get("hit_price"))
+            log.info("TP3 #{} celebrado a {} chats".format(t["id"], sent or 0))
+        except Exception as e:
+            log.error("tp3 celebration error #{}: {}".format(t.get("id"), e))
 
 # ============================================================
 # 2. LECTURAS DEL DIA (Sonnet 1-2 al dia)
