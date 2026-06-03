@@ -157,6 +157,35 @@ CREATE TABLE IF NOT EXISTS signal_progress (
 );
 
 CREATE INDEX IF NOT EXISTS idx_progress_sig ON signal_progress(signal_id);
+
+-- ALERTAS TACTICAS (v5.4): el RADAR/alerta tactica no entra a 'signals' (no es
+-- senal automatica del ledger). Se persiste aparte para seguirla en vivo y
+-- emitir guia operativa (SL a BE en TP1, parcial en TP2, trailing en TP3) sin
+-- tocar el ledger ni las metricas del motor.
+CREATE TABLE IF NOT EXISTS tactical_signals (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    tf          TEXT,
+    direction   TEXT NOT NULL,
+    entry       REAL NOT NULL,
+    sl          REAL,
+    tp1         REAL,
+    tp2         REAL,
+    tp3         REAL,
+    ts_emitted  TEXT NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'open'   -- 'open' | 'closed:tp3|sl|expiry'
+);
+
+CREATE TABLE IF NOT EXISTS tactical_progress (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    tactical_id INTEGER NOT NULL,
+    event       TEXT NOT NULL,        -- 'tp1_hit','tp2_hit','tp3_hit','be_suggested','partial_suggested'
+    ts_event    TEXT NOT NULL,
+    price       REAL,
+    UNIQUE(tactical_id, event)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tactical_status ON tactical_signals(status);
+CREATE INDEX IF NOT EXISTS idx_tactical_prog   ON tactical_progress(tactical_id);
 """
 
 # ============================================================

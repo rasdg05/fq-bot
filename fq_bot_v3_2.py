@@ -79,6 +79,15 @@ except ImportError:
     PROGRESS_TRACKER_AVAILABLE = False
     spt = None
 
+# Tactical tracker (v5.4) - mismo progress (SL a BE en TP1, etc.) pero para las
+# ALERTAS TACTICAS del VIP, que NO viven en el ledger.
+try:
+    import tactical_tracker
+    TACTICAL_TRACKER_AVAILABLE = True
+except ImportError:
+    TACTICAL_TRACKER_AVAILABLE = False
+    tactical_tracker = None
+
 # Modulos FQ v4.1.1 (ICT/SMC Refactor) - cargan solo si flag ON
 try:
     import ict_smc
@@ -3283,6 +3292,21 @@ def radar_check(exchange, tf_id="15m"):
             # FQ v5.2: incluye trial igual que las senales clasicas
             sent, failed = broadcast_to_subscribers(
                 msg, tiers=["vip", "trial", "admin"])
+
+            # FQ v5.4: persistir la tactica para seguirla en vivo (SL a BE en
+            # TP1, parcial en TP2, trailing en TP3). No toca el ledger.
+            if TACTICAL_TRACKER_AVAILABLE and tactical_tracker is not None:
+                try:
+                    tp_prices = [t.get("price") for t in tps_short]
+                    while len(tp_prices) < 3:
+                        tp_prices.append(None)
+                    tactical_tracker.record_tactical(
+                        tf=tf_id, direction=direction,
+                        entry=t_entry, sl=t_sl,
+                        tp1=tp_prices[0], tp2=tp_prices[1], tp3=tp_prices[2])
+                except Exception as te:
+                    log.warning("record_tactical error [%s]: %s", tf_id, te)
+
             log.info("TACTICAL ALERT [%s] enviada: %s %s sent=%d failed=%d (vol=%s, kz=%s, ext_tps=%s, flip=%s)",
                      tf_id, plan["verdict"], direction, sent, failed,
                      vol_label or "?", kz_name or "?",
@@ -4532,6 +4556,24 @@ def evolution_periodic_hook(exchange):
                                 log.error("progress broadcast error: {}".format(be))
                 except Exception as e:
                     log.error("progress check [{}]: {}".format(tf_id, e))
+
+        # Progress de ALERTAS TACTICAS (VIP): no estan en el ledger, se siguen
+        # aparte. Mismo mensaje operativo (SL a BE en TP1, parcial, trailing).
+        # Se chequea contra velas 5m (mas granular -> detecta el toque antes);
+        # limit alto para cubrir el horizonte de seguimiento de la tactica.
+        if (TACTICAL_TRACKER_AVAILABLE and tactical_tracker is not None
+                and PROGRESS_TRACKER_AVAILABLE and spt is not None):
+            try:
+                df_tac = fetch_ohlcv(exchange, SYMBOL, "5m", limit=200)
+                for display, kind, price in tactical_tracker.check_tactical_progress(df_tac):
+                    msg = spt.build_progress_alert(display, kind, price,
+                                                   label=tactical_tracker.LABEL)
+                    try:
+                        broadcast_to_subscribers(msg, tiers=["vip", "trial", "admin"])
+                    except Exception as be:
+                        log.error("tactical progress broadcast error: {}".format(be))
+            except Exception as e:
+                log.error("tactical progress check: {}".format(e))
 
         closed = []
         # Reconciliar por TF: cada outcome se resuelve contra las velas del TF
