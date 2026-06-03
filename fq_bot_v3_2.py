@@ -2625,10 +2625,18 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
 
         # 5. Disparo (los reportes-campo automaticos estan apagados; /campo sigue manual)
         if fire:
-            # SENAL ALINEADA — broadcast con plantilla Capa 5 etiquetada por TF
-            msg = field_reports.build_signal_report(
-                field, report, tf_label=tf_label, tf_id=tf_id, pmin=tf_pmin
-            )
+            # SENAL ALINEADA — formato unico LIMPIO para admin y VIP (peticion
+            # RasDG, jun-2026): encabezado iconico "🎯 Senal FQ VIP" + insignia
+            # de CALIDAD, sin la jerga/matematica del reporte tecnico. El
+            # FieldState completo se sigue persistiendo en el ledger (paso 6),
+            # asi que el detalle tecnico no se pierde. Fallback al reporte Capa 5
+            # si vip_format no esta disponible.
+            if VIP_FORMAT_AVAILABLE and vip_format is not None:
+                msg = vip_format.build_vip_signal(
+                    field, report, tf_label=tf_label, tf_id=tf_id)
+            else:
+                msg = field_reports.build_signal_report(
+                    field, report, tf_label=tf_label, tf_id=tf_id, pmin=tf_pmin)
             bsent, _ = broadcast_to_subscribers(msg)
             if bsent > 0:
                 pm_data = report["p_master_data"]

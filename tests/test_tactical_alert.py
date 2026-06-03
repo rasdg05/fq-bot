@@ -661,7 +661,9 @@ def test_tactical_alert_header_includes_tf():
            {"price": 79.92, "rr": 2.2, "weight_pct": 25, "kind": "synthetic"}]
     msg = vf.build_tactical_alert(plan, tps, vol_label="Alto",
                                    killzone_name="asia_open", tf_label="3m")
-    assert "— 3m" in msg, "header debe llevar TF"
+    # Formato premium (v5.5): el TF viaja en la linea de contexto del header
+    # (Killzone · Volumen · <TF> · hora), no ya como sufijo "— 3m".
+    assert "3m" in msg, "header debe llevar TF"
 
 
 # ===========================================
