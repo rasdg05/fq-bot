@@ -89,6 +89,22 @@ class FVG:
     filled_pct:    float = 0.0
 
 @dataclass
+class IFVG:
+    """Inverse FVG: un FVG que el precio INVALIDA (cierra al otro lado del gap)
+    se 'invierte' y pasa a actuar como S/R opuesto.
+      - FVG bajista (resistencia) roto al alza  -> IFVG alcista (soporte)     -> sesgo LONG
+      - FVG alcista (soporte)     roto a la baja -> IFVG bajista (resistencia) -> sesgo SHORT
+    `direction` es ya el sesgo INVERTIDO (lo que opera); `origin` es el FVG
+    original que se invirtio. `retested` = el precio regreso a la zona tras
+    invertirse (gatillo de entrada mas limpio)."""
+    top:           float
+    bottom:        float
+    ts:            Any
+    direction:     str       # "bullish" (soporte/LONG) o "bearish" (resistencia/SHORT)
+    origin:        str       # FVG original invertido: "bearish"->bullish, "bullish"->bearish
+    retested:      bool = False
+
+@dataclass
 class CRTSignal:
     confirmed:       bool
     crt_type:        Optional[str] = None    # "bullish_crt" o "bearish_crt"
@@ -148,6 +164,7 @@ class FieldState:
     order_blocks:      Dict[str, Optional[OrderBlock]] = field(
                            default_factory=lambda: {"bullish": None, "bearish": None})
     fvgs:              List[FVG] = field(default_factory=list)
+    ifvgs:             List[IFVG] = field(default_factory=list)
     breaker:           Optional[OrderBlock] = None
     fib_levels:        Dict[str, float] = field(default_factory=dict)
     current_node:      Optional[float] = None
@@ -515,6 +532,73 @@ def detect_fvgs(df, lookback=FVG_LOOKBACK, max_return=5):
     open_fvgs = [f for f in fvgs if f.filled_pct < 0.5]
     return open_fvgs[-max_return:]
 
+def detect_ifvgs(df, lookback=FVG_LOOKBACK, max_return=3):
+    """IFVG (Inverse Fair Value Gap): detecta FVGs que el precio INVALIDO
+    cerrando al otro lado del gap. Ese FVG se 'invierte' y pasa a actuar como
+    soporte/resistencia opuesto:
+      - FVG bajista roto al alza  -> IFVG alcista (soporte)     -> gatillo LONG
+      - FVG alcista roto a la baja -> IFVG bajista (resistencia) -> gatillo SHORT
+    Solo devolvemos IFVGs aun VIGENTES: descartamos los re-invalidados (el precio
+    volvio a cerrar al lado original). `retested` marca los que el precio ya
+    volvio a tocar tras invertirse."""
+    if df is None or len(df) < 5:
+        return []
+    ifvgs = []
+    end = len(df) - 1
+    start = max(2, end - lookback)
+    for i in range(start, end):
+        c_prev = df.iloc[i-1]
+        c_next = df.iloc[i+1] if i+1 < len(df) else None
+        if c_next is None:
+            continue
+        ph, pl = float(c_prev["high"]), float(c_prev["low"])
+        nh, nl = float(c_next["high"]), float(c_next["low"])
+        # Bullish FVG: prev_high < next_low (gap arriba, soporte)
+        if ph < nl:
+            top, bottom, orig = nl, ph, "bullish"
+            inv_dir = "bearish"          # roto a la baja -> resistencia (SHORT)
+        # Bearish FVG: prev_low > next_high (gap abajo, resistencia)
+        elif pl > nh:
+            top, bottom, orig = pl, nh, "bearish"
+            inv_dir = "bullish"          # roto al alza -> soporte (LONG)
+        else:
+            continue
+        # Buscar la INVALIDACION: una vela posterior que CIERRA al otro lado del gap.
+        post = df.iloc[i+2:]
+        viol_idx = None
+        for j in range(len(post)):
+            cl = float(post.iloc[j]["close"])
+            if orig == "bullish" and cl < bottom:      # FVG alcista invalidado a la baja
+                viol_idx = j
+                break
+            if orig == "bearish" and cl > top:         # FVG bajista invalidado al alza
+                viol_idx = j
+                break
+        if viol_idx is None:
+            continue
+        # Tras invertirse, sigue vigente solo si el precio NO volvio a cerrar de
+        # regreso al lado original (re-invalidacion). De paso medimos el retest.
+        after = post.iloc[viol_idx+1:]
+        re_invalidated = False
+        retested = False
+        for k in range(len(after)):
+            ck = after.iloc[k]
+            hk, lk, clk = float(ck["high"]), float(ck["low"]), float(ck["close"])
+            if lk <= top and hk >= bottom:             # el precio vuelve a la zona
+                retested = True
+            if inv_dir == "bullish" and clk < bottom:  # cierre de vuelta abajo
+                re_invalidated = True
+                break
+            if inv_dir == "bearish" and clk > top:     # cierre de vuelta arriba
+                re_invalidated = True
+                break
+        if re_invalidated:
+            continue
+        ts = c_next.get("timestamp", i+1) if hasattr(c_next, "get") else i+1
+        ifvgs.append(IFVG(top=top, bottom=bottom, ts=ts,
+                          direction=inv_dir, origin=orig, retested=retested))
+    return ifvgs[-max_return:]
+
 # ============================================================
 # FIB LEVELS
 # ============================================================
@@ -595,6 +679,12 @@ def build_confluence(price, field, atr_proxy):
                 conf.append("fvg_" + fvg.direction)
                 break
 
+    # IFVGs cercanos (FVG invertido actuando como S/R; gatillo de direccion)
+    for ifvg in getattr(field, "ifvgs", []) or []:
+        if ifvg.bottom - near <= price <= ifvg.top + near:
+            conf.append("ifvg_" + ifvg.direction)
+            break
+
     # Sweep reciente
     if field.recent_sweep and field.recent_sweep.get("reaction"):
         conf.append("recent_sweep_" + field.recent_sweep["direction"])
@@ -614,7 +704,8 @@ def compute_pd_hierarchy(confluence_list, pd_zone):
     if pd_zone == "equilibrium":
         return "nula"
     has_ob = any(c.endswith("_ob") for c in confluence_list)
-    has_fvg = any(c.startswith("fvg_") for c in confluence_list)
+    # IFVG cuenta como PD array de clase FVG para la jerarquia (FVG invertido).
+    has_fvg = any(c.startswith("fvg_") or c.startswith("ifvg_") for c in confluence_list)
     has_fib = any(c.startswith("fib_") for c in confluence_list)
     if has_ob and has_fvg and has_fib:
         return "maxima"
@@ -692,6 +783,7 @@ def read_field(df_15m, df_1h, df_4h, df_1m, masses, lap):
     # === FASE C: confluencia ICT ===
     f.order_blocks = detect_order_blocks(df_15m)
     f.fvgs = detect_fvgs(df_15m)
+    f.ifvgs = detect_ifvgs(df_15m)
     # current_node: Fib level mas cercano
     if f.fib_levels:
         f.current_node = min(f.fib_levels.values(), key=lambda lvl: abs(lvl - f.price))
