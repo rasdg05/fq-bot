@@ -3215,11 +3215,22 @@ def radar_check(exchange, tf_id="15m"):
                                   "direction": direction,
                                   "ev": new_ev, "p_sl": new_psl}
 
-        # FQ v5.2: calcular calidad de volumen del TF para decidir promocion a VIP
+        # FQ v5.2: calcular calidad de volumen del TF para decidir promocion a VIP.
+        #
+        # FIX (jun-2026, RasDG): radar_check corre al DETECTAR vela nueva (ver loop
+        # principal: solo dispara cuando el TF esta en new_candle_tfs). En ese
+        # instante df.iloc[-1] es la vela RECIEN ABIERTA (0-LOOP_SECONDS de vida),
+        # con volumen parcial casi nulo. volume_score = vol_last/MA(20) sobre esa
+        # vela daba ratios artificialmente bajos (p.ej. vol_score=0.11 en pleno
+        # horario de Asia) que jamas superaban el gate de EJECUTAR (>=0.85), de
+        # modo que setups de edge fuerte casi nunca se promovian al VIP. El volumen
+        # del setup solo es medible una vez que la vela CIERRA: usamos la ultima
+        # vela cerrada (df sin la vela en formacion).
         vol_data = None
         if VOLUME_QUALITY_AVAILABLE and volume_quality is not None:
             try:
-                vol_data = volume_quality.volume_score(df)
+                df_closed = df.iloc[:-1] if len(df) > 1 else df
+                vol_data = volume_quality.volume_score(df_closed)
             except Exception as e:
                 log.warning("radar_check: volume_score error: {}".format(e))
 
