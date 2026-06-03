@@ -45,6 +45,20 @@ DRIFT_EMA50_GAIN      = 0.03    # mean-reversion a EMA50 por paso
 DRIFT_EMA200_GAIN     = 0.01    # drift secundario a EMA200
 MIN_PATHS_FOR_OPTIM   = 200     # bajo eso, no optimizar
 
+# Ventana de tiempo emergente (horizonte adaptativo) ---------------------------
+# El horizonte deja de ser un 24h fijo: se sustenta en estructura real (cuanto
+# tarda el precio en recorrer la distancia hasta el TP mas lejano a la velocidad
+# tipica del ATR) y se modula por el tiempo universal del momento (killzone /
+# sesion activa). Asi la ventana mostrada al VIP refleja el contexto real y no
+# una promesa hardcodeada que se evapora cuando cambia el momentum.
+HORIZON_MIN_CANDLES     = 24      # 6h  piso: no proyectar ventanas absurdamente cortas
+HORIZON_MAX_CANDLES     = 160     # 40h techo: no prometer ventanas multi-dia
+HORIZON_PATH_EFFICIENCY = 0.40    # avance neto direccional como fraccion del ATR/vela
+HORIZON_MEANDER_MARGIN  = 1.30    # colchon: el precio rara vez avanza en linea recta
+HORIZON_SESSION_REF_W   = 1.00    # peso killzone de referencia (neutro)
+HORIZON_SESSION_FMIN    = 0.70    # killzone fuerte (Silver Bullet) -> ventana mas corta
+HORIZON_SESSION_FMAX    = 1.50    # asia / fuera de KZ -> ventana mas larga
+
 # Constraints del optimizer (heredados del plan)
 OPT_MAX_P_SL          = 0.35    # rechazar setups con >35% prob de SL primero
 OPT_MIN_EV_R          = 1.0     # rechazar setups con EV<1R
@@ -719,12 +733,89 @@ def compute_coherence(paths):
 
 
 # ============================================================
+# VENTANA DE TIEMPO EMERGENTE - HORIZONTE ADAPTATIVO
+# ============================================================
+def _current_session_weight():
+    """Peso de la killzone activa AHORA (tiempo universal). Import perezoso para
+    no acoplar quantum_timelines a killzones_pd (self-tests siguen aislados)."""
+    try:
+        import killzones_pd
+        kz = killzones_pd.current_killzone()
+        w = _safe_float(kz.get("w_kz"), HORIZON_SESSION_REF_W)
+        return w if w > 0 else HORIZON_SESSION_REF_W
+    except Exception:
+        return HORIZON_SESSION_REF_W
+
+
+def adaptive_horizon(entry, atr, tp_far, session_w=None, default=DEFAULT_HORIZON):
+    """
+    Horizonte (velas 15m) sustentado en estructura real + tiempo universal.
+
+    1) Estructura: cuantas velas toma recorrer la distancia entry -> TP mas
+       lejano a la velocidad neta tipica (ATR * eficiencia), con un colchon
+       por el zigzag natural del precio.
+    2) Tiempo universal: la killzone/sesion activa AHORA modula la urgencia.
+       Killzone fuerte (Silver Bullet/London/NY open) -> momentum rapido ->
+       ventana mas corta; Asia/fuera de KZ -> ventana mas larga.
+
+    Devuelve int de velas acotado a [HORIZON_MIN_CANDLES, HORIZON_MAX_CANDLES].
+    Si faltan datos, cae al default (96 = 24h) sin romper.
+    """
+    atr_v = _safe_float(atr, 0.0)
+    entry_v = _safe_float(entry, 0.0)
+    tp_v = _safe_float(tp_far, 0.0)
+    if atr_v <= 0 or entry_v <= 0 or tp_v <= 0:
+        return default
+
+    distance = abs(tp_v - entry_v)
+    net_vel = atr_v * HORIZON_PATH_EFFICIENCY
+    if distance <= 0 or net_vel <= 0:
+        return default
+
+    candles = (distance / net_vel) * HORIZON_MEANDER_MARGIN
+
+    if session_w is None:
+        session_w = _current_session_weight()
+    sw = _safe_float(session_w, HORIZON_SESSION_REF_W)
+    if sw > 0:
+        factor = HORIZON_SESSION_REF_W / sw
+        factor = max(HORIZON_SESSION_FMIN, min(HORIZON_SESSION_FMAX, factor))
+        candles *= factor
+
+    candles = max(HORIZON_MIN_CANDLES, min(HORIZON_MAX_CANDLES, candles))
+    return int(round(candles))
+
+
+def _farthest_tp(levels, entry, direction):
+    """Distancia/precio del TP mas lejano declarado en levels (tp1..tp4)."""
+    if not levels:
+        return None
+    far = None
+    for k in ("tp1", "tp2", "tp3", "tp4"):
+        v = levels.get(k)
+        if v is None:
+            continue
+        try:
+            v = float(v)
+        except (TypeError, ValueError):
+            continue
+        if direction == "short":
+            if v < entry and (far is None or v < far):
+                far = v
+        else:
+            if v > entry and (far is None or v > far):
+                far = v
+    return far
+
+
+# ============================================================
 # ORQUESTADOR PRINCIPAL
 # ============================================================
 def quantum_analysis(df_15m, df_1h=None, df_4h=None, direction=None,
                      pspace=None, levels=None, ict_module=None,
                      n_paths=DEFAULT_N_PATHS_VIP, horizon=DEFAULT_HORIZON,
-                     seed=42, run_optimizer=True, return_paths=False):
+                     seed=42, run_optimizer=True, return_paths=False,
+                     adaptive=False):
     """
     Funcion publica principal del QTE.
 
@@ -738,6 +829,18 @@ def quantum_analysis(df_15m, df_1h=None, df_4h=None, direction=None,
 
     if direction is None:
         direction = "long"
+
+    # Ventana de tiempo emergente: si se pide, el horizonte se sustenta en
+    # estructura real (distancia al TP mas lejano / velocidad ATR) y en el
+    # tiempo universal del momento (killzone activa), en vez del 24h fijo.
+    if adaptive and levels:
+        try:
+            feat = _extract_market_features(df_15m)
+            tp_far = _farthest_tp(levels, feat["price"], direction)
+            horizon = adaptive_horizon(feat["price"], feat["atr"], tp_far)
+        except Exception as e:
+            log.warning("adaptive_horizon fallo, uso default {}: {}".format(
+                horizon, e))
 
     paths, meta = generate_paths(df_15m, n_paths=n_paths, horizon=horizon,
                                  ict_module=ict_module, seed=seed)

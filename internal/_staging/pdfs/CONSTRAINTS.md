@@ -97,10 +97,32 @@ Donde:
 
 ## 6. TPs
 
+**Modelo legacy (rango-Fib, DEPRECADO v5.5):**
 - TP1 = entry × (1 + fib × φ⁻¹)  · 30% size
 - TP2 = entry × (1 + fib × φ)     · 30% size
 - TP3 = entry × (1 + fib × φ²)    · 25% size
 - TP4 = entry × (1 + fib × φ³)    · 15% size
+
+> Problema detectado: TP2≈TP3 (misma φ⁻¹ por la forma price-ratio) y TP4 a 1×
+> rango/φ³ se sobre-extendía sin anclaje a liquidez real ("humo"). Reemplazado.
+
+**Modelo v5.5 — TPs anclados a estructura + longitud de onda por TF
+(`_compute_tps_v2`, `_compute_tactical_tps`):**
+
+- Cada TP se ancla a estructura/liquidez REAL en una banda R:R: pools no
+  barridos (BSL/SSL), Order Blocks opuestos, FVG, fib 1.272/1.618, P-Space.
+  Si no hay estructura en banda se expande ±20% buscando anclaje real antes de
+  proyectar un objetivo sintético (R honesto, no liquidez inventada).
+- **Cap anti-sobre-extensión** (baseline 15m): TP1 1.2–2.0R, TP2 2.0–3.5R,
+  **TP3 ≤ 5R**, **TP4 ≤ 6.5R**. Antes TP3/TP4 tenían techo abierto (5R..∞) y
+  preferían siempre la extensión Fib más lejana → no llegaban / tardaban horas.
+- **Longitud de onda por TF** (`TP_WAVELENGTH_FACTORS`): las bandas se escalan
+  por timeframe (1m 1.50 · 3m 1.35 · 5m 1.20 · 15m 1.00 · 1h 1.00) para que las
+  señales de campo rápidas no ejecuten los 3 TPs en minutos (onda demasiado
+  corta) y 15m no se sobre-extienda.
+- Monotonía estricta garantizada (`_enforce_tp_monotonic`).
+- El motor clásico (`evaluate_setup`) reancla sus TPs a este modelo MANTENIENDO
+  el SL/entry/risk legacy (no toca los gates de riesgo).
 
 ## 7. Memoria autoevolutiva (v4.2+)
 
@@ -173,6 +195,15 @@ Cuando se proponga incorporar contenido de los PDFs:
 - **Output en probabilidades** — el reporte VIP muestra P(TP_i), P(SL), EV en R,
   régimen dominante y coherencia (1 - uncertainty). NO se exponen formulas internas
   de generación de paths (gain de magnetic_pull, vol_normalization, sweep_bias_radius).
+- **Ventana de tiempo emergente (horizonte adaptativo, v5.5)** — el horizonte
+  de simulación deja de ser un 24h fijo en las superficies VIP (`adaptive=True`
+  en señales de campo y `/analisis`). Se sustenta en estructura real (distancia
+  al TP más lejano / velocidad neta del ATR) y en el tiempo universal del
+  momento (peso de la killzone activa modula la urgencia: killzone fuerte →
+  ventana más corta; Asia/fuera de KZ → más larga). Acotado a [6h, 40h]; cae al
+  default 24h si faltan datos. El QTE de gating (Phase E / veto) conserva el
+  horizonte fijo para no alterar la frecuencia de emisión. `/timelines` (admin)
+  mantiene el horizonte fijo de referencia.
 - **QAOA-inspired optimization** — admin puede correr `/timelines` con 2000 paths
   y ver la combinación óptima de niveles dentro de los candidatos estructurales.
 - **Capa aditiva** — QTE NO reemplaza P_master ni Θ(D). Se aplica DESPUÉS de que
