@@ -74,26 +74,49 @@ def mark_progress_event(signal_id, event, price):
 # ============================================================
 # DETECCION DE EVENTOS CONTRA VELAS
 # ============================================================
-def check_progress_events(signal_row, df):
+def post_emission_candles(df, ts_emitted_str):
+    """Subset de velas posteriores a la emision de la senal.
+
+    Robusto a zona horaria: fetch_ohlcv produce timestamps NAIVE (UTC), pero
+    ts_emitted suele venir con offset (+00:00). Comparar naive vs tz-aware lanza
+    TypeError en pandas 2.x (y el aviso de progreso se perdia en silencio). Aqui
+    alineamos la tz del corte a la de la columna antes de filtrar.
+    """
+    if pd is None or df is None or len(df) == 0:
+        return None
+    try:
+        ts_em = datetime.fromisoformat(ts_emitted_str)
+    except Exception:
+        return None
+    ts_ts = pd.Timestamp(ts_em)
+    col = df["timestamp"]
+    col_tz = getattr(col.dtype, "tz", None)
+    if col_tz is not None:
+        # Columna tz-aware -> corte tz-aware en UTC.
+        ts_ts = (ts_ts.tz_localize("UTC") if ts_ts.tzinfo is None
+                 else ts_ts.tz_convert("UTC"))
+    else:
+        # Columna naive (UTC) -> corte naive (descartar tz tras normalizar a UTC).
+        if ts_ts.tzinfo is not None:
+            ts_ts = ts_ts.tz_convert("UTC").tz_localize(None)
+    return df[col > ts_ts]
+
+
+def check_progress_events(signal_row, df, sent=None):
     """
     Dado una senal abierta y df reciente, devuelve lista de eventos NUEVOS no enviados.
     Cada evento: (kind, price).
 
     No modifica el ledger ni cierra la senal - eso lo hace reconcile_outcomes.
     Solo TPs intermedios (no TP4, que ya implica cierre via outcome tracker).
+
+    ``sent``: conjunto de eventos ya emitidos. Si es None se consulta la tabla
+    signal_progress por signal_id (comportamiento clasico del ledger). El
+    tactical_tracker pasa su propio set para reusar esta deteccion sin tocar
+    la tabla del ledger.
     """
-    if pd is None or df is None or len(df) == 0:
-        return []
-
-    try:
-        ts_emitted = datetime.fromisoformat(signal_row["ts_emitted"])
-    except Exception:
-        return []
-    if ts_emitted.tzinfo is None:
-        ts_emitted = ts_emitted.replace(tzinfo=timezone.utc)
-
-    df_post = df[df["timestamp"] > pd.Timestamp(ts_emitted)]
-    if len(df_post) == 0:
+    df_post = post_emission_candles(df, signal_row["ts_emitted"])
+    if df_post is None or len(df_post) == 0:
         return []
 
     direction = signal_row["direction"]
@@ -101,7 +124,8 @@ def check_progress_events(signal_row, df):
     tp2 = signal_row["tp2"]
     tp3 = signal_row["tp3"]
 
-    sent = get_sent_events(signal_row["id"])
+    if sent is None:
+        sent = get_sent_events(signal_row["id"])
     events = []
 
     # Buscamos en TODAS las velas post-emision el primer toque de cada TP
@@ -155,14 +179,14 @@ def _side(direction):
     d = (direction or "").lower()
     return (_G["long"] if d == "long" else _G["short"]) + " " + d.upper()
 
-def build_progress_alert(sig, event, price):
+def build_progress_alert(sig, event, price, label="Senal"):
     sid = sig["id"]
     side = _side(sig.get("direction"))
 
     if event == "tp1_hit":
         return "\n".join([
             _G["rule"],
-            "  {} Senal #{} · TP1 alcanzado".format(_G["event"], sid),
+            "  {} {} #{} · TP1 alcanzado".format(_G["event"], label, sid),
             _G["rule"],
             "  {} Direccion   {}".format(_G["act"], side),
             "  {} Precio      ${:.4f}".format(_G["act"], price),
@@ -177,7 +201,7 @@ def build_progress_alert(sig, event, price):
     if event == "tp2_hit":
         return "\n".join([
             _G["rule"],
-            "  {} Senal #{} · TP2 alcanzado".format(_G["event"], sid),
+            "  {} {} #{} · TP2 alcanzado".format(_G["event"], label, sid),
             _G["rule"],
             "  {} Direccion   {}".format(_G["act"], side),
             "  {} Precio      ${:.4f}".format(_G["act"], price),
@@ -192,7 +216,7 @@ def build_progress_alert(sig, event, price):
     if event == "tp3_hit":
         return "\n".join([
             _G["rule"],
-            "  {} Senal #{} · TP3 alcanzado".format(_G["event"], sid),
+            "  {} {} #{} · TP3 alcanzado".format(_G["event"], label, sid),
             _G["rule"],
             "  {} Direccion   {}".format(_G["act"], side),
             "  {} Precio      ${:.4f}".format(_G["act"], price),
@@ -210,7 +234,7 @@ def build_progress_alert(sig, event, price):
     if event == "be_suggested":
         return "\n".join([
             _G["rule"],
-            "  {} Senal #{} · SL a break-even".format(_G["event"], sid),
+            "  {} {} #{} · SL a break-even".format(_G["event"], label, sid),
             _G["rule"],
             "  {} Direccion   {}".format(_G["act"], side),
             "  TP1 confirmado.",
@@ -224,7 +248,7 @@ def build_progress_alert(sig, event, price):
     if event == "partial_suggested":
         return "\n".join([
             _G["rule"],
-            "  {} Senal #{} · Tomar parcial".format(_G["event"], sid),
+            "  {} {} #{} · Tomar parcial".format(_G["event"], label, sid),
             _G["rule"],
             "  {} Direccion   {}".format(_G["act"], side),
             "  TP2 tocado. Recomendacion:",
