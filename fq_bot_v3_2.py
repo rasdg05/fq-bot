@@ -379,19 +379,23 @@ SESSION_WEIGHTS = {
     "overlap": 1.20,
 }
 
-# Glyphs UI - jerarquia profesional
+# Glyphs UI - jerarquia profesional.
+# Separadores, bullets y flechas beben del design line canonico (branding) para
+# que TODA superficie del bot comparta la misma linea visual. Los markers de
+# estado [OK]/[--]/[!] se mantienen por legibilidad en lecturas tecnicas admin.
+import branding as _brand
 G = {
     "ok":    "[OK]",
     "fail":  "[--]",
     "warn":  "[!]",
-    "long":  "[LONG]",
-    "short": "[SHORT]",
+    "long":  _brand.GLYPHS["long"],
+    "short": _brand.GLYPHS["short"],
     "phi":   "phi",
     "div":   "*",
-    "bullet": "-",
+    "bullet": _brand.GLYPHS["bullet_act"],
     "arrow": "->",
-    "fence": "================================",
-    "thin":  "--------------------------------",
+    "fence": _brand.RULE,
+    "thin":  "─" * 30,
 }
 
 # ============================================================
@@ -3714,7 +3718,7 @@ def command_listener(exchange):
                             ok, msg_r, days = vip.redeem_code(code, chat_id, username)
                             if ok:
                                 telegram_send(
-                                    "<b>Codigo aplicado</b>\n================================\n\n"
+                                    "<b>Codigo aplicado</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
                                     "{m}\n\nAcceso VIP activo. Usa /help para comandos.".format(m=msg_r),
                                     chat_id)
                             else:
@@ -3752,11 +3756,11 @@ def command_listener(exchange):
                         if tier not in ("vip", "trial", "admin"):
                             telegram_send(
                                 "<b>Acceso VIP requerido</b>\n"
-                                "================================\n\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
                                 "El comando {} requiere suscripcion VIP.\n\n"
-                                "- /precio para ver planes\n"
-                                "- /codigo XXXX para canjear codigo\n"
-                                "- /vip para adquirir acceso".format(cmd_name), chat_id)
+                                "▸ /precio para ver planes\n"
+                                "▸ /codigo XXXX para canjear codigo\n"
+                                "▸ /vip para adquirir acceso".format(cmd_name), chat_id)
                             continue
                 else:
                     # Sin VIP system: solo admin (chat_id original)
@@ -3812,7 +3816,7 @@ def command_listener(exchange):
                             secs = int(remaining % 60)
                             telegram_send(
                                 "<b>/analisis en cooldown</b>\n"
-                                "================================\n\n"
+                                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
                                 "Espera <b>{}m {:02d}s</b> antes del siguiente analisis.\n\n"
                                 "Cooldown VIP = {} min por usuario. Protege la API y\n"
                                 "asegura que cada lectura que pidas sea fresca.\n\n"
@@ -3906,7 +3910,7 @@ def _cmd_vip_flow(exchange, chat_id, args):
     if not args:
         msg = (
             "<b>ADQUIRIR VIP</b>\n"
-            "================================\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         )
         for pid, info in vip.PLAN_PRICES.items():
             if pid == "trial_7d":
@@ -3950,7 +3954,7 @@ def _cmd_vip_flow(exchange, chat_id, args):
             return
         telegram_send(
             "<b>{}</b> - USDT-{}\n"
-            "================================\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
             "Monto exacto: <code>{:.4f}</code> USDT\n\n"
             "<b>Wallet:</b>\n<code>{}</code>\n\n"
             "Ref: {}\nExpira en {} horas.\n\n"
@@ -3985,7 +3989,7 @@ def _cmd_admin_gencode(admin_cid, args):
     code = vip.generate_code(duration_days=days, plan=plan, kind=kind,
                              created_by=admin_cid, note=note)
     telegram_send(
-        "<b>Codigo generado</b>\n================================\n\n"
+        "<b>Codigo generado</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         "Codigo: <code>{code}</code>\n"
         "Duracion: {d} dias | Plan: {p}\n"
         "{note}\n"
@@ -4033,7 +4037,7 @@ def _cmd_admin_broadcast(admin_cid, raw_args):
     sent = failed = 0
     for u in users:
         ok = telegram_send(
-            "<b>RasDG_Sol</b>\n================================\n\n{}".format(message),
+            "<b>RasDG_Sol</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n{}".format(message),
             u["chat_id"])
         if ok: sent += 1
         else:  failed += 1

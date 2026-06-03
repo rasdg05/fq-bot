@@ -118,7 +118,7 @@ def build_signal_report(field, decision_report, tf_label="SCALPING", tf_id="15m"
 
     msg = (
         "<b>FQ — [{tf_label} {tf_id}] LECTURA DE CAMPO</b>\n"
-        "================================\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         "{when} | Killzone: <b>{kz}</b>\n"
         "SOL/USDT | TFs: {tf_ctx}\n\n"
         "<b>━━ ESTADO DEL CAMPO ━━</b>\n"
@@ -228,7 +228,7 @@ def build_field_only_report(field, decision_report):
 
     msg = (
         "<b>FQ — REPORTE DE CAMPO</b>\n"
-        "================================\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         "{when} | Killzone: {kz}\n\n"
         "<b>━━ ESTADO ━━</b>\n"
         "Sesgo 4H: {b4} | 1H: {b1} | Align: {al}\n"

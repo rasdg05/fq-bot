@@ -426,8 +426,8 @@ def check_access(chat_id, command):
             "{b} Co-pilot Opus 4.6 en setups de alta conviccion\n"
             "{b} Metricas evolutivas y self-audit\n"
         ).format(
-            fence="================================",
-            cmd=cmd, b="-",
+            fence="━" * 30,
+            cmd=cmd, b="▸",
         )
     elif tier in (TIER_VIP, TIER_TRIAL) and days_left is not None and days_left <= 0:
         msg = (
@@ -540,7 +540,7 @@ def format_user_status(chat_id):
 
     lines = [
         "<b>MI ESTADO</b>",
-        "================================",
+        "━" * 30,
         "",
         "Usuario: {}".format(u.get("username") or u.get("first_name") or "anonimo"),
         "Tier:    <b>{}</b>".format(tier.upper()),
@@ -559,7 +559,7 @@ def format_user_status(chat_id):
     lines.extend([
         "Desde:   {}".format(u["created_at"][:10]),
         "",
-        "================================",
+        "━" * 30,
     ])
     if tier == TIER_FREE:
         lines.append("Sin acceso VIP. Usa /precio o /vip.")
@@ -575,7 +575,7 @@ def format_admin_stats():
     s = get_stats()
     return (
         "<b>ADMIN STATS</b>\n"
-        "================================\n\n"
+        + ("━" * 30) + "\n\n"
         "<b>USUARIOS:</b>\n"
         "Total:        {ut}\n"
         "Free:         {uf}\n"
@@ -602,7 +602,7 @@ def format_users_list(limit=20):
     users = get_all_users(limit=limit)
     if not users:
         return "Sin usuarios aun."
-    lines = ["<b>USUARIOS RECIENTES (top {})</b>".format(limit), "================================", ""]
+    lines = ["<b>USUARIOS RECIENTES (top {})</b>".format(limit), "━" * 30, ""]
     for u in users:
         days = "-"
         if u.get("expires_at"):
