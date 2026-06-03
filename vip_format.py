@@ -47,13 +47,18 @@ def leverage_for_tier(p_master):
 # ============================================================
 # SENAL VIP - simplificada, ejecutable sin exponer motor
 # ============================================================
-def build_vip_signal(field, decision_report):
+def build_vip_signal(field, decision_report, tf_label=None, tf_id=None):
     """
     Senal lista para copy-paste. NO expone P_master, kappa_evo, Theta(D),
     f_confluencia ni constantes phi/alpha. Solo lo que el VIP necesita ejecutar.
 
     Las 3 abstracciones (Estructura/Liquidez/Momentum) mapean internamente a
     pilares del motor, pero el usuario VIP no ve la fuente.
+
+    Este ES el formato unico de la SENAL real gateada: admin y VIP reciben lo
+    mismo (limpio). El encabezado iconico (🎯 Senal FQ VIP ◆) + la insignia de
+    CALIDAD la distinguen de un vistazo de las alertas tacticas y las lecturas
+    de campo. tf_label/tf_id son opcionales (contexto en el header).
     """
     direction = decision_report["direction"]
     pm     = decision_report["p_master_data"]
@@ -79,14 +84,25 @@ def build_vip_signal(field, decision_report):
     ])
 
     when = datetime.now(CDMX_TZ).strftime("%H:%M CDMX")
+    # Contexto del header: TF (si se pasa) + hora.
+    tf_str = " ".join(x for x in (tf_label, tf_id) if x).strip()
+    ctx_line = (tf_str + " · " + when) if tf_str else when
+    # Insignia de CALIDAD: distingue las TOP entre las reales de un vistazo
+    # (jerarquia PD + tipo de nodo + numero de confluencias). getattr defensivo
+    # para no romper si llega un field minimo.
+    hier = (getattr(field, "pd_hierarchy", "") or "").upper() or "BASE"
+    node = (getattr(field, "node_type", "") or "").upper() or "—"
+    cc   = getattr(field, "confluence_count", 0)
+    quality = "CALIDAD {} · {} · {} confluencias".format(hier, node, cc)
 
     risk_pct = (levels["risk"] / levels["entry"]) * 100 if levels.get("risk") else 0
     risk_lbl = risk_band(risk_pct)
 
     return (
         "{rule}\n"
-        "  ▰ Senal {product} · {pair}\n"
-        "  {when}\n"
+        "  🎯 Senal {product} VIP ◆ {pair}\n"
+        "  {quality}\n"
+        "  {ctx}\n"
         "{rule}\n"
         "  {arrow} {side}        Conviccion {conv}\n"
         "\n"
@@ -105,8 +121,8 @@ def build_vip_signal(field, decision_report):
         "\n"
         "  {tags} #{side}"
     ).format(
-        rule=RULE, product=PRODUCT, pair=PAIR, when=when, arrow=arrow,
-        side=side, conv=conviction, risk=risk_lbl,
+        rule=RULE, product=PRODUCT, pair=PAIR, quality=quality, ctx=ctx_line,
+        arrow=arrow, side=side, conv=conviction, risk=risk_lbl,
         entry=levels["entry"], sl=levels["sl"],
         tp1=levels["tp1"], rr1=levels.get("rr_tp1", 0),
         tp2=levels["tp2"], rr2=levels.get("rr_tp2", 0),
@@ -291,29 +307,27 @@ def build_tactical_alert(plan, tps_short, vol_label=None, killzone_name=None,
         headline = plan.get("headline", "ALERTA TACTICA")
         entry_str = "${:.2f}".format(mkt.get("entry") or 0)
 
-    # Header con contexto (killzone + volumen). Si no hay info, omitir limpio.
+    # Contexto: killzone + volumen + TF + hora. Omite limpio lo ausente.
     ctx_bits = []
     if killzone_name and killzone_name != "fuera":
         ctx_bits.append("Killzone {}".format(killzone_name))
     if vol_label:
         ctx_bits.append("Volumen {}".format(vol_label.lower()))
+    ctx_bits.append(tf_label or "intradia")
+    ctx_bits.append(datetime.now(CDMX_TZ).strftime("%H:%M CDMX"))
     ctx_line = " · ".join(ctx_bits)
 
-    header = "⚡ ALERTA TACTICA FQ"
-    if tf_label:
-        header += " — {}".format(tf_label)
-    else:
-        header += " — intradia"
+    arrow = GLYPHS["long"] if plan["direction"] == "long" else GLYPHS["short"]
+
+    # Mismo acabado premium que la senal FQ VIP, con CLASE propia (⚡ TACTICA):
+    # encabezado iconico, regla, flecha de lado. Sin tags ni jerga.
     lines = [
-        "<b>{}</b>".format(header),
-    ]
-    if ctx_line:
-        lines.append("<i>{}</i>".format(ctx_line))
-    lines += [
         RULE,
-        "  ▰ Plan tactico · {}".format(PAIR),
+        "  ⚡ ALERTA TACTICA FQ ◆ {}".format(PAIR),
+        "  {} {}".format(emoji_head, headline),
+        "  {}".format(ctx_line),
         RULE,
-        "  {} <b>{}</b>".format(emoji_head, headline),
+        "  {} {}".format(arrow, side),
         "",
     ]
 
@@ -342,12 +356,11 @@ def build_tactical_alert(plan, tps_short, vol_label=None, killzone_name=None,
     summary_bits = [ev_label_str, "prob. {}".format(p_label.lower())]
     if vol_label:
         summary_bits.append("volumen {}".format(vol_label.lower()))
-    lines.append("")
+    lines.append(RULE)
     lines.append("  ◆ " + " · ".join(summary_bits))
-    lines.append("")
-    lines.append("<i>(no sustituye la senal automatica)</i>")
-    lines.append("")
-    lines.append("#FQ #SOLUSDT #Tactica #{}".format(side))
+    lines.append("  Tactica rapida · no sustituye la senal FQ VIP.")
+    lines.append(RULE)
+    lines.append("  #FQ #SOLUSDT #Tactica #{}".format(side))
 
     return "\n".join(lines)
 
