@@ -71,6 +71,46 @@ def test_volume_quality_labels():
     assert vq.volume_quality_label(None) == "—"
 
 
+def test_volume_score_forming_candle_is_misleading():
+    """Reproduce el bug del RADAR: si se mide el volumen incluyendo la vela
+    RECIEN ABIERTA (en formacion), vol_last es parcial y el score sale
+    artificialmente bajo (el caso real vol_score=0.11 en pleno horario de Asia).
+    Medir sobre la ultima vela CERRADA (df.iloc[:-1]) recupera el score real.
+    """
+    import pandas as pd
+    import volume_quality as vq
+
+    # 21 velas CERRADAS con volumen normal (=100) + 1 vela en formacion (=11,
+    # ~11% del promedio porque acaba de abrir). Misma forma OHLC en todas.
+    n_closed = 21
+    rows = []
+    for _ in range(n_closed):
+        rows.append({"open": 10.0, "high": 11.0, "low": 10.0, "close": 10.5,
+                     "volume": 100.0})
+    rows.append({"open": 10.0, "high": 11.0, "low": 10.0, "close": 10.5,
+                 "volume": 11.0})  # vela recien abierta
+    df = pd.DataFrame(rows)
+
+    # Incluyendo la vela en formacion -> score enganoso ~0.11 (< gate 0.85)
+    vs_forming = vq.volume_score(df)
+    assert abs(vs_forming["score"] - 0.11) < 1e-6
+
+    # Sobre la ultima vela CERRADA (lo que hace el fix) -> score real ~1.0
+    vs_closed = vq.volume_score(df.iloc[:-1])
+    assert abs(vs_closed["score"] - 1.0) < 1e-6
+
+
+def test_radar_check_uses_closed_candle_for_volume():
+    """Guardia de regresion: radar_check debe medir el volumen sobre la vela
+    cerrada (df.iloc[:-1]), no sobre la vela en formacion. radar_check corre al
+    detectar vela nueva, asi que df.iloc[-1] esta recien abierta."""
+    import inspect
+    import fq_bot_v3_2 as b
+    src = inspect.getsource(b.radar_check)
+    assert "df.iloc[:-1]" in src, \
+        "radar_check debe calcular vol_score sobre la vela cerrada, no la en formacion"
+
+
 # ===========================================
 # 2. KILLZONES (mapa v5.2)
 # ===========================================
