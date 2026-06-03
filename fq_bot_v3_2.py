@@ -978,6 +978,36 @@ TP_KIND_LABELS = {
     "fib_fallback":   "extension Fib",
 }
 
+# ============================================================
+# LONGITUD DE ONDA DE TPs POR TIMEFRAME (FQ v5.5)
+# ============================================================
+# Las bandas R:R de los TPs son relativas al riesgo (distancia al SL). En TFs
+# rapidos (5m/3m/1m) el SL es ajustado y el precio recorre esa distancia en
+# pocas velas -> los 3 TPs se ejecutaban "demasiado rapido" (onda corta). En
+# 15m el problema opuesto: TP3/TP4 se sobre-extendian y el momentum se evaporaba
+# antes de llegar. Este factor escala las bandas por TF para que el espaciado de
+# los objetivos tenga sentido TEMPORAL en cada marco, sin inventar precios:
+#   >1  alarga la onda (mas espacio entre TPs)  -> TFs rapidos
+#   =1  baseline 15m (con cap anti-sobre-extension)
+# Cada TP sigue anclado a estructura real (pools/OB/FVG/fib/pspace); el factor
+# solo mueve la BANDA donde se busca ese anclaje.
+TP_WAVELENGTH_FACTORS = {
+    "1m":  1.50,
+    "3m":  1.35,
+    "5m":  1.20,
+    "15m": 1.00,
+    "1h":  1.00,
+    "4h":  1.00,
+}
+
+def _tf_wavelength_factor(tf):
+    """Factor de longitud de onda de los TPs para el timeframe dado. 1.0 si
+    el TF no esta mapeado (no altera el comportamiento baseline)."""
+    try:
+        return float(TP_WAVELENGTH_FACTORS.get(tf, 1.0))
+    except (TypeError, ValueError):
+        return 1.0
+
 def _safe_atr(last, entry):
     """ATR seguro: usa atr14 si existe, sino 0.5% del entry."""
     atr = last.get("atr14")
@@ -1221,39 +1251,73 @@ def _pick_tp_in_band(targets, entry, risk, rr_min, rr_max, prefer_kinds, directi
         return min(pool, key=lambda t: -t["weight"] * 1000 + t["price"])
     return min(pool, key=lambda t: -t["weight"] * 1000 - t["price"])
 
-def _compute_tps_v2(entry, sl, direction, field_data, pspace):
+def _compute_tps_v2(entry, sl, direction, field_data, pspace, tf=None):
     """
     Calcula TPs anclados a liquidez/estructura real.
     Devuelve list de 4 dicts: [{price, kind, rr}, ...]
+
+    FQ v5.5:
+      - Bandas R:R con CAP anti-sobre-extension: TP3 <= 5R y TP4 <= 6.5R
+        (baseline 15m) en vez de techo abierto. Antes TP4 podia caer en 5R..inf
+        prefiriendo siempre la extension Fib mas lejana -> "no llegaba / tardaba
+        demasiadas horas".
+      - Escala las bandas por timeframe (`tf`) via _tf_wavelength_factor para
+        que la longitud de onda sea coherente con el marco (5m no ejecuta los
+        TPs en minutos; 15m no se sobre-extiende).
+      - Anclaje tecnico reforzado: si no hay estructural en la banda exacta,
+        expande +-20% buscando liquidez/estructura REAL antes de proyectar un
+        objetivo sintetico (menos "humo").
     """
     risk = abs(entry - sl)
     if risk <= 0:
         return []
 
+    wf = _tf_wavelength_factor(tf)
     targets = _collect_tp_targets(entry, direction, field_data, pspace)
     tps = []
 
-    bands = [
+    # Bandas base 15m (lo, hi en R) con cap anti-sobre-extension. Se escalan
+    # por TF: en marcos rapidos la onda se alarga; en 15m queda baseline.
+    base_bands = [
         (1.2, 2.0, ["BSL_target", "SSL_target", "pspace_R", "pspace_S", "OB_bear", "OB_bull"]),
         (2.0, 3.5, ["BSL_target", "SSL_target", "fib_1272", "pspace_R", "pspace_S"]),
-        (3.5, 100, ["fib_1618", "fib_1272", "pspace_R", "pspace_S"]),
-        (5.0, 100, ["fib_1618", "fib_1272"]),
+        (3.5, 5.0, ["fib_1618", "fib_1272", "pspace_R", "pspace_S", "BSL_target", "SSL_target"]),
+        (5.0, 6.5, ["fib_1618", "fib_1272", "pspace_R", "pspace_S"]),
     ]
+    sign = 1.0 if direction == "long" else -1.0
 
-    for rr_min, rr_max, prefer in bands:
-        tp = _pick_tp_in_band(targets, entry, risk, rr_min, rr_max, prefer, direction)
+    for rr_min, rr_max, prefer in base_bands:
+        lo, hi = rr_min * wf, rr_max * wf
+        # 1) estructura preferida dentro de la banda
+        tp = _pick_tp_in_band(targets, entry, risk, lo, hi, prefer, direction)
+        # 2) cualquier estructura real cercana (banda expandida) antes que humo
         if tp is None:
-            # Fallback: Fib sintetico
-            rr_target = (rr_min + min(rr_max, rr_min + 1.0)) / 2
-            if direction == "long":
-                tp = {"price": entry + risk * rr_target, "kind": "fib_fallback",
-                      "weight": 0.5}
-            else:
-                tp = {"price": entry - risk * rr_target, "kind": "fib_fallback",
-                      "weight": 0.5}
+            tp = _pick_tp_in_band(targets, entry, risk, lo * 0.8, hi * 1.2,
+                                  [], direction)
+        # 3) ultimo recurso: proyeccion R honesta (no liquidez inventada)
+        if tp is None:
+            rr_target = (lo + min(hi, lo + 1.0 * wf)) / 2.0
+            tp = {"price": entry + sign * risk * rr_target,
+                  "kind": "fib_fallback", "weight": 0.5}
         rr = abs(tp["price"] - entry) / risk
         tps.append({"price": tp["price"], "kind": tp["kind"], "rr": rr})
 
+    return _enforce_tp_monotonic(tps, entry, risk, direction)
+
+
+def _enforce_tp_monotonic(tps, entry, risk, direction, min_step_r=0.25):
+    """Garantiza R estrictamente creciente entre TPs. Las bandas escaladas por
+    TF pueden, en bordes, devolver un TP_{n+1} no mas lejano que TP_n; en ese
+    caso se empuja el siguiente min_step_r por encima del previo (precio
+    derivado del R, sigue siendo tecnico)."""
+    sign = 1.0 if direction == "long" else -1.0
+    prev_rr = 0.0
+    for t in tps:
+        if t["rr"] <= prev_rr:
+            new_rr = prev_rr + min_step_r
+            t["rr"] = round(new_rr, 4)
+            t["price"] = round(entry + sign * risk * new_rr, 6)
+        prev_rr = t["rr"]
     return tps
 
 def _build_field_data_standalone(df_15m, df_1h, df_4h):
@@ -1294,11 +1358,15 @@ def _build_field_data_standalone(df_15m, df_1h, df_4h):
 
     return fd
 
-def calculate_levels_v2(df, direction, df_1h=None, df_4h=None, df_1m=None, pspace=None):
+def calculate_levels_v2(df, direction, df_1h=None, df_4h=None, df_1m=None,
+                        pspace=None, tf=None):
     """
     Nueva calculadora de niveles con SL anclado a estructura ICT y TPs
     anclados a liquidez real. Compatible con calculate_levels (devuelve
     mismas keys) + extra: sl_anchor, tp_meta, atr.
+
+    `tf`: timeframe de la senal (5m/15m/1h...). Ajusta la longitud de onda de
+    los TPs para que el espaciado sea coherente con el marco (v5.5).
     """
     last = df.iloc[-1]
     entry = float(last["close"])
@@ -1307,7 +1375,7 @@ def calculate_levels_v2(df, direction, df_1h=None, df_4h=None, df_1m=None, pspac
     field_data = _build_field_data_standalone(df, df_1h, df_4h)
 
     sl, anchor = _compute_sl_v2(entry, atr, direction, field_data)
-    tps = _compute_tps_v2(entry, sl, direction, field_data, pspace)
+    tps = _compute_tps_v2(entry, sl, direction, field_data, pspace, tf=tf)
 
     risk = abs(entry - sl)
     result = {
@@ -2384,6 +2452,21 @@ def evaluate_setup(exchange, tf_id="15m", intra=False):
         return False
 
     levels = calculate_levels(df, direction)
+    # FQ v5.5: los TPs del motor clasico eran rango-Fib puro (TP2==TP3, TP4 a 1x
+    # rango), sin anclaje a liquidez real -> "humo". Reanclamos TP1..TP4 a
+    # estructura real (pools/OB/FVG/fib/pspace) con longitud de onda por TF,
+    # MANTENIENDO el SL/entry/risk legacy intactos (no toca gates 1-4 ni el SL).
+    try:
+        _fd = _build_field_data_standalone(df, None, None)
+        _stps = _compute_tps_v2(levels["entry"], levels["sl"], direction,
+                                _fd, masses, tf=tf_id)
+        if _stps:
+            for _i, _t in enumerate(_stps[:4]):
+                levels["tp{}".format(_i + 1)] = _t["price"]
+                levels["rr_tp{}".format(_i + 1)] = _t["rr"]
+            levels["tp_meta"] = _stps
+    except Exception as _e:
+        log.warning("TPs estructurales (evaluate_setup) fallo, uso legacy: {}".format(_e))
     if levels["rr_tp3"] < RR_MIN_TP_DIVINO:
         msg = "R:R TP divino {:.2f} < {:.2f}".format(levels["rr_tp3"], RR_MIN_TP_DIVINO)
         log.info(msg)
@@ -3021,19 +3104,27 @@ def _synth_tp(entry, sl, direction, rr):
             "rr": rr, "kind": "synthetic"}
 
 
-def _compute_tactical_tps(direction, entry, sl, structural_tps=None, plan=None, qa=None):
+def _compute_tactical_tps(direction, entry, sl, structural_tps=None, plan=None,
+                          qa=None, tf=None):
     """
     FQ v5.2 TP PICKER CONTEXTUAL.
 
     Filosofia: TP1 siempre cercano (asegura el dia), TP2 en banda media
     (donde la practica demostro alcanzable), TP3 adaptado al contexto:
-      - extension_score alto -> deja correr a estructural lejano (hasta ~6R)
+      - extension_score alto -> deja correr a estructural lejano (hasta ~6.5R)
       - extension_score medio -> cap [2.5R, 4R]
       - extension_score bajo -> cap 2.5R
 
     Cierres parciales fijos (40/35/25) calibrados sobre las dos ganadoras
     historicas que cerraron en TP2. Si structural_tps esta vacio o plan/qa
-    son None, hace fallback a 1.0R/1.5R/2.2R.
+    son None, hace fallback a 1.0R/1.8R/2.5R.
+
+    FQ v5.5:
+      - Cap anti-sobre-extension en contexto favorable: 8.0R -> 6.5R, para que
+        TP3 de maxima calidad siga llegando antes de que el momentum se evapore.
+      - Longitud de onda por timeframe (`tf`): las bandas y los synth se escalan
+        por _tf_wavelength_factor para que las senales de campo de 5m no
+        ejecuten los 3 TPs en minutos (onda demasiado corta).
 
     Args:
         direction: "long"|"short"
@@ -3042,6 +3133,7 @@ def _compute_tactical_tps(direction, entry, sl, structural_tps=None, plan=None, 
         structural_tps: list opcional de {"price","kind"} desde levels["tp_meta"]
         plan: dict opcional del battle_planner (regime_pct, market.ev)
         qa: dict opcional del QTE (coherence, dominant_regime_pct)
+        tf: timeframe de la senal (escala la longitud de onda)
 
     Returns: lista de 3 dicts [{price, rr, weight_pct, kind}].
     """
@@ -3049,29 +3141,30 @@ def _compute_tactical_tps(direction, entry, sl, structural_tps=None, plan=None, 
     if risk <= 0:
         return []
     ext = _extension_score(plan, qa) if (plan or qa) else 0.0
+    wf = _tf_wavelength_factor(tf)
 
     # TP1: 1.0R-1.5R. Prefiere estructural si esta en banda; sino synth 1.0R.
-    tp1 = _pick_structural_in_rr_band(structural_tps, entry, sl, direction, 1.0, 1.5) \
-        or _synth_tp(entry, sl, direction, 1.0)
+    tp1 = _pick_structural_in_rr_band(structural_tps, entry, sl, direction, 1.0 * wf, 1.5 * wf) \
+        or _synth_tp(entry, sl, direction, 1.0 * wf)
 
     # TP2: 1.5R-2.5R. Prefiere estructural; sino synth 1.8R.
-    tp2 = _pick_structural_in_rr_band(structural_tps, entry, sl, direction, 1.5, 2.5) \
-        or _synth_tp(entry, sl, direction, 1.8)
+    tp2 = _pick_structural_in_rr_band(structural_tps, entry, sl, direction, 1.5 * wf, 2.5 * wf) \
+        or _synth_tp(entry, sl, direction, 1.8 * wf)
 
     # TP3: depende de extension_score (contexto en tiempo real)
     if ext >= 0.70:
         # contexto favorable -> deja correr al estructural mas lejano operable.
-        # Banda [2.5R, 8.0R]: cubre Fib 1.618 (~3-4R) y pspace targets (~5-7R).
-        # Si no hay estructural en banda, synth 3.0R (mejor que un cap timido).
-        tp3 = _pick_structural_in_rr_band(structural_tps, entry, sl, direction, 2.5, 8.0) \
-            or _synth_tp(entry, sl, direction, 3.0)
+        # Banda [2.5R, 6.5R]: cubre Fib 1.618 (~3-4R) y pspace targets (~5-6R)
+        # sin sobre-extender. Si no hay estructural en banda, synth 3.0R.
+        tp3 = _pick_structural_in_rr_band(structural_tps, entry, sl, direction, 2.5 * wf, 6.5 * wf) \
+            or _synth_tp(entry, sl, direction, 3.0 * wf)
     elif ext >= 0.40:
         # contexto medio -> banda [2.5R, 4.0R]. Estructural si esta; sino 2.5R.
-        tp3 = _pick_structural_in_rr_band(structural_tps, entry, sl, direction, 2.5, 4.0) \
-            or _synth_tp(entry, sl, direction, 2.5)
+        tp3 = _pick_structural_in_rr_band(structural_tps, entry, sl, direction, 2.5 * wf, 4.0 * wf) \
+            or _synth_tp(entry, sl, direction, 2.5 * wf)
     else:
         # contexto debil -> cap conservador a 2.5R. No regalamos R:R.
-        tp3 = _synth_tp(entry, sl, direction, 2.5)
+        tp3 = _synth_tp(entry, sl, direction, 2.5 * wf)
 
     # Garantizar orden monotono (TP2 > TP1, TP3 > TP2 en distancia R)
     tps_sorted = sorted([tp1, tp2, tp3], key=lambda t: t["rr"])
@@ -3181,15 +3274,17 @@ def radar_check(exchange, tf_id="15m"):
         masses = detect_pspace(df)
         direction = "long" if "alcista" in bias["bias"] else (
             "short" if "bajista" in bias["bias"] else "long")
-        levels = calculate_levels_v2(df, direction, pspace=masses)
+        levels = calculate_levels_v2(df, direction, pspace=masses, tf=tf_id)
         qte_levels = {"entry": levels["entry"], "sl": levels["sl"],
-                      "tp1": levels["tp1"], "tp2": levels["tp2"], "tp3": levels["tp3"]}
+                      "tp1": levels["tp1"], "tp2": levels["tp2"],
+                      "tp3": levels["tp3"], "tp4": levels["tp4"]}
         # 1m/3m -> menos paths para latencia; 15m -> mantiene 2000
         n_paths_tf = 800 if tf_id in ("1m", "3m") else 2000
         qa = qt.quantum_analysis(
             df, direction=direction, levels=qte_levels,
             ict_module=ict_smc if ICT_MODULES_AVAILABLE else None,
-            n_paths=n_paths_tf, run_optimizer=False, return_paths=True)
+            n_paths=n_paths_tf, run_optimizer=False, return_paths=True,
+            adaptive=True)
         if qa.get("paths") is None:
             return
         fd = _build_field_data_standalone(df, None, None)
@@ -3302,7 +3397,7 @@ def radar_check(exchange, tf_id="15m"):
             structural_tps = levels.get("tp_meta") or []
             tps_short = _compute_tactical_tps(
                 direction, t_entry, t_sl,
-                structural_tps=structural_tps, plan=plan, qa=qa)
+                structural_tps=structural_tps, plan=plan, qa=qa, tf=tf_id)
 
             vol_label = (volume_quality.volume_quality_label(vol_data["score"])
                          if vol_data else None)
@@ -3405,7 +3500,7 @@ def build_analisis_context(exchange):
     h_factor = 1.0 if lap["active"] else 0.7
     pm_est = PHI * w_clock * h_factor * (1 + max(0, masses["count"] - 2) * 0.15)
 
-    levels = calculate_levels_v2(df, direction, pspace=masses)
+    levels = calculate_levels_v2(df, direction, pspace=masses, tf="15m")
 
     # QTE: una sola corrida 2000 paths + optimizer + paths. Sirve al mensaje
     # curado, al battle plan y a la lectura de Claude (incl. bloque optimizer).
@@ -3414,11 +3509,12 @@ def build_analisis_context(exchange):
         try:
             qte_levels = {"entry": levels["entry"], "sl": levels["sl"],
                           "tp1": levels["tp1"], "tp2": levels["tp2"],
-                          "tp3": levels["tp3"]}
+                          "tp3": levels["tp3"], "tp4": levels["tp4"]}
             qa = qt.quantum_analysis(
                 df, direction=direction, levels=qte_levels,
                 ict_module=ict_smc if ICT_MODULES_AVAILABLE else None,
-                n_paths=2000, run_optimizer=True, return_paths=True)
+                n_paths=2000, run_optimizer=True, return_paths=True,
+                adaptive=True)
         except Exception as ex:
             log.warning("QTE en build_analisis_context fallo: {}".format(ex))
 
@@ -4245,7 +4341,7 @@ def cmd_lectura(exchange):
                 dir_glyph = G["long"] if direction == "long" else G["short"]
 
                 # F1 v5.0: niveles anti-stop-hunt con anclaje estructural ICT
-                levels = calculate_levels_v2(df, direction, pspace=masses)
+                levels = calculate_levels_v2(df, direction, pspace=masses, tf=tf_id)
 
                 h_factor = 1.0 if lap["active"] else 0.7
                 pm_est = PHI * w_clock * h_factor * (1 + max(0, masses["count"] - 2) * 0.15)
@@ -4432,7 +4528,7 @@ def cmd_timelines(exchange):
         direction = "long" if "alcista" in bias["bias"] else (
             "short" if "bajista" in bias["bias"] else "long")
 
-        levels = calculate_levels_v2(df_15m, direction, pspace=masses)
+        levels = calculate_levels_v2(df_15m, direction, pspace=masses, tf="15m")
         qte_levels = {"entry": levels["entry"], "sl": levels["sl"],
                       "tp1": levels["tp1"], "tp2": levels["tp2"],
                       "tp3": levels["tp3"]}
