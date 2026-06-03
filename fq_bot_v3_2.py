@@ -293,6 +293,13 @@ _VIP_ANALISIS_LAST = {}  # chat_id (str) -> epoch seconds del ultimo /analisis
 # automatico - es inteligencia anticipada. Admin-only por defecto (blast radius).
 # Set FQ_RADAR_ENABLED=0 para desactivar; FQ_RADAR_COOLDOWN_MIN controla el spam.
 RADAR_ENABLED      = os.environ.get("FQ_RADAR_ENABLED", "1").strip() in ("1", "true", "yes")
+# v5.4 (peticion RasDG, jun-2026): el RADAR sigue CORRIENDO (de el cuelga la
+# promocion a ALERTA TACTICA del VIP), pero su lectura admin-only entre senales
+# -la "inteligencia anticipada"- se APAGA por defecto: era ruido que solo hacia
+# perder dinero. Solo interesan las alertas tacticas. El comando manual /campo
+# sigue vivo bajo demanda. Override: FQ_RADAR_ADMIN_READOUT=1 para reactivarla.
+RADAR_ADMIN_READOUT_ENABLED = os.environ.get(
+    "FQ_RADAR_ADMIN_READOUT", "0").strip() in ("1", "true", "yes")
 # v5.2: cooldown por-TF (1m/3m/15m corren independientes)
 _RADAR_LAST_TF = {}  # tf_id -> {"ts","verdict","direction","ev","p_sl"}
 
@@ -336,6 +343,14 @@ TACTICAL_PROMOTE_MIN_EV  = float(os.environ.get("FQ_TACTICAL_MIN_EV",  "0.70"))
 #    calidad la dan reach_prob + ev_cond + no-franja-muerta.
 TACTICAL_VOL_MIN_EXECUTE  = float(os.environ.get("FQ_TACTICAL_VOL_MIN",      "0.85"))
 TACTICAL_VOL_MIN_ACUMULA  = float(os.environ.get("FQ_TACTICAL_VOL_MIN_ACUM", "0.60"))
+
+# Seguimiento EN VIVO de las ALERTAS TACTICAS (v5.4: SL a BE en TP1, parcial en
+# TP2, trailing en TP3). Peticion RasDG (jun-2026): DESACTIVADO por defecto - el
+# goteo de mensajes de seguimiento de las tacticas era ruido. La ALERTA TACTICA
+# de ENTRADA se sigue enviando, y el progreso de las senales del LEDGER no se
+# toca. Override: FQ_TACTICAL_TRACKING_ENABLED=1 para reactivar el seguimiento.
+TACTICAL_TRACKING_ENABLED = os.environ.get(
+    "FQ_TACTICAL_TRACKING_ENABLED", "0").strip() in ("1", "true", "yes")
 
 # ============================================================
 # FEATURE FLAGS v4.1.1 - ICT/SMC Refactor
@@ -3295,7 +3310,10 @@ def radar_check(exchange, tf_id="15m"):
 
             # FQ v5.4: persistir la tactica para seguirla en vivo (SL a BE en
             # TP1, parcial en TP2, trailing en TP3). No toca el ledger.
-            if TACTICAL_TRACKER_AVAILABLE and tactical_tracker is not None:
+            # Solo si el seguimiento esta activo (off por defecto: sin
+            # seguimiento no tiene sentido persistir la tactica).
+            if (TACTICAL_TRACKING_ENABLED
+                    and TACTICAL_TRACKER_AVAILABLE and tactical_tracker is not None):
                 try:
                     tp_prices = [t.get("price") for t in tps_short]
                     while len(tp_prices) < 3:
@@ -3315,6 +3333,14 @@ def radar_check(exchange, tf_id="15m"):
             return
 
         # === RADAR legacy admin-only (sin promocion) ===
+        # v5.4: la "inteligencia anticipada" al admin esta apagada por defecto
+        # (ver RADAR_ADMIN_READOUT_ENABLED). Si no se promovio a tactica, no se
+        # emite NADA: menos ruido. /campo sigue disponible bajo demanda.
+        if not RADAR_ADMIN_READOUT_ENABLED:
+            log.info("RADAR admin-only suprimido (inteligencia anticipada off) "
+                     "[%s]: %s %s motivo=%s flip=%s",
+                     tf_id, plan["verdict"], direction, reason, flip_replace)
+            return
         body = vip_format.build_battle_block(plan)
         suffix = "\n<i>El gate automatico sigue intacto. Confirma con /analisis.</i>"
         if reason:
@@ -4561,7 +4587,8 @@ def evolution_periodic_hook(exchange):
         # aparte. Mismo mensaje operativo (SL a BE en TP1, parcial, trailing).
         # Se chequea contra velas 5m (mas granular -> detecta el toque antes);
         # limit alto para cubrir el horizonte de seguimiento de la tactica.
-        if (TACTICAL_TRACKER_AVAILABLE and tactical_tracker is not None
+        if (TACTICAL_TRACKING_ENABLED
+                and TACTICAL_TRACKER_AVAILABLE and tactical_tracker is not None
                 and PROGRESS_TRACKER_AVAILABLE and spt is not None):
             try:
                 df_tac = fetch_ohlcv(exchange, SYMBOL, "5m", limit=200)
