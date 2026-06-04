@@ -62,6 +62,30 @@ def test_volume_veto_only_with_AND():
     assert v is True
 
 
+def test_dead_window_2pm_manipulation():
+    """La hora 2PM CDMX (14:00-15:00) es franja muerta diaria por manipulacion.
+
+    Reproduce el caso real: ALERTA TACTICA SHORT @14:50 CDMX (lunes) que termino
+    en SL. Antes 14:50 caia justo antes de la franja muerta (15:00-16:00) y no se
+    filtraba; ahora is_dead_window la marca y dead_window_label la etiqueta.
+    """
+    import volume_quality as vq
+    from datetime import datetime, timezone, timedelta
+    CDMX = timezone(timedelta(hours=-6))
+
+    manip_2pm = datetime(2026, 6, 1, 14, 50, tzinfo=CDMX)  # lunes 14:50 (caso real)
+    just_after = datetime(2026, 6, 1, 13, 30, tzinfo=CDMX)  # 1:30 PM aun activo
+    boundary = datetime(2026, 6, 1, 15, 0, tzinfo=CDMX)     # 15:00 -> ya NY close
+
+    assert vq.is_dead_window(manip_2pm) is True
+    assert vq.dead_window_label(manip_2pm) == "manipulacion 2PM"
+    assert vq.is_dead_window(just_after) is False, "13:30 CDMX sigue activo"
+    assert vq.is_dead_window(boundary) is True, "15:00 cae en ultima hora NY"
+    # vol bajo en 2PM -> veto (gate AND se cumple)
+    v, _ = vq.volume_veto(0.4, now_cdmx=manip_2pm)
+    assert v is True
+
+
 def test_volume_quality_labels():
     import volume_quality as vq
     assert vq.volume_quality_label(0.5) == "Muy bajo"

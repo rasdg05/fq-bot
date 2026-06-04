@@ -616,7 +616,8 @@ def evaluate_signal(
                 vol_data = None
 
         # Veto duro: SOLO cuando coinciden franja muerta + baja liquidez.
-        # is_dead_window() ya marca: 15:00-16:00 CDMX y viernes >=14:00 CDMX.
+        # is_dead_window() ya marca: 14:00-15:00 (manipulacion 2PM), 15:00-16:00
+        # CDMX (ultima hora NY) y viernes >=14:00 CDMX.
         # El veto absoluto de fin de semana ya fue chequeado al inicio.
         if vol_data is not None and _VOL_QUALITY_AVAILABLE:
             vetoed, vreason = volq.volume_veto(vol_data["score"])
