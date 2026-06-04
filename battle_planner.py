@@ -51,10 +51,12 @@ SWEEP_BUFFER_ATR    = 0.50   # colchon extra para entradas post-barrida
 # zona baja y pegaba el SL.
 #   - reach_prob queda como GATE (MIN_REACH_PROB_ZONE), no como sesgo dominante.
 #   - ZONE_REACH_BIAS atenua cuanto pesa reach_prob en el score (0 = ignora la
-#     cercania y rankea puro por edge; 0.5 = comportamiento legacy).
+#     cercania y rankea puro por edge; 0.5 = comportamiento legacy). Default 0.35
+#     = punto medio: corrige el sesgo a la zona baja sin premiar zonas lejanas
+#     poco alcanzables.
 #   - con empate de edge, gana el FVG mas FRESCO (ts mas reciente), no el mas
 #     cercano.
-ZONE_REACH_BIAS     = float(os.environ.get("FQ_ZONE_REACH_BIAS", "0.25"))
+ZONE_REACH_BIAS     = float(os.environ.get("FQ_ZONE_REACH_BIAS", "0.35"))
 ZONE_FRESH_TIEBREAK = os.environ.get("FQ_ZONE_FRESH_TIEBREAK", "1").strip() in ("1", "true", "yes")
 
 
