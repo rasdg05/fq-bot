@@ -37,6 +37,15 @@ CDMX_TZ = timezone(timedelta(hours=-6))
 VOL_GATE_ENABLED      = os.environ.get("FQ_VOL_GATE_ENABLED", "1").strip() in ("1", "true", "yes")
 VOL_VETO_DEAD_HOURS   = os.environ.get("FQ_VOL_VETO_DEAD_HOURS", "1").strip() in ("1", "true", "yes")
 
+# Franja de manipulacion 2 PM (peticion RasDG, jun-2026): la hora de las 2 PM
+# CDMX (14:00-15:00) es una franja fuerte de manipulacion que historicamente
+# sangraba la cuenta (ej: ALERTA TACTICA SHORT @14:50 -> SL). Se trata como
+# franja muerta DIARIA: bloquea promocion de tacticas al VIP y veta señales VIP
+# de bajo volumen. El penalty de killzone 15:00-16:00 sigue aparte.
+DEAD_2PM_MANIP        = os.environ.get("FQ_DEAD_2PM_MANIP", "1").strip() in ("1", "true", "yes")
+DEAD_2PM_START        = float(os.environ.get("FQ_DEAD_2PM_START", "14.0"))
+DEAD_2PM_END          = float(os.environ.get("FQ_DEAD_2PM_END", "15.0"))
+
 # Umbrales (calibrables via env sin tocar codigo)
 VOL_SCORE_LOW         = float(os.environ.get("FQ_VOL_SCORE_LOW", "0.60"))     # bajo umbral
 VOL_SCORE_NORMAL      = float(os.environ.get("FQ_VOL_SCORE_NORMAL", "0.85"))  # normal
@@ -162,17 +171,22 @@ def is_dead_window(now_cdmx=None):
     """
     True si la hora actual cae en franja muerta donde el bot historicamente
     da falsos positivos:
+      - 14:00-15:00 CDMX (manipulacion 2 PM, sesgo de barrido pre-NY-close)
       - 15:00-16:00 CDMX (ultima hora de NY, post-Silver Bullet PM)
       - viernes >= 14:00 CDMX (corren las ultimas horas de la semana)
 
     El veto absoluto de fin de semana sigue en killzones_pd.is_weekend_closed;
     aqui solo cubrimos las franjas DONDE EL MERCADO ESTA ABIERTO pero la
-    liquidez se evapora.
+    liquidez se evapora o la manipulacion domina.
     """
     if now_cdmx is None:
         now_cdmx = datetime.now(CDMX_TZ)
     weekday = now_cdmx.weekday()  # 0=Mon ... 6=Sun
     h = now_cdmx.hour + now_cdmx.minute / 60.0
+
+    # Manipulacion 2 PM (diaria): hora fuerte de barridos antes del cierre NY.
+    if DEAD_2PM_MANIP and DEAD_2PM_START <= h < DEAD_2PM_END:
+        return True
 
     # Ultima hora NY (lun-jue + vie temprano)
     if 15.0 <= h < 16.0:
@@ -191,6 +205,8 @@ def dead_window_label(now_cdmx=None):
         now_cdmx = datetime.now(CDMX_TZ)
     weekday = now_cdmx.weekday()
     h = now_cdmx.hour + now_cdmx.minute / 60.0
+    if DEAD_2PM_MANIP and DEAD_2PM_START <= h < DEAD_2PM_END:
+        return "manipulacion 2PM"
     if 15.0 <= h < 16.0:
         return "ultima hora NY"
     if weekday == 4 and h >= 14.0:
@@ -263,10 +279,13 @@ def _run_self_tests():
     # Test 1: dead window detection
     morning_cdmx = datetime(2026, 6, 1, 9, 0, tzinfo=CDMX_TZ)  # lunes mañana
     late_ny_cdmx = datetime(2026, 6, 1, 15, 30, tzinfo=CDMX_TZ)
+    manip_2pm_cdmx = datetime(2026, 6, 1, 14, 50, tzinfo=CDMX_TZ)  # lunes 2PM (manipulacion)
     fri_late_cdmx = datetime(2026, 6, 5, 14, 30, tzinfo=CDMX_TZ)  # viernes
     sat_cdmx = datetime(2026, 6, 6, 9, 0, tzinfo=CDMX_TZ)         # sabado (no dead aqui)
     assert is_dead_window(morning_cdmx) is False
     assert is_dead_window(late_ny_cdmx) is True, "15:30 CDMX deberia ser dead window"
+    assert is_dead_window(manip_2pm_cdmx) is True, "14:50 CDMX (2PM) deberia ser dead window"
+    assert dead_window_label(manip_2pm_cdmx) == "manipulacion 2PM"
     assert is_dead_window(fri_late_cdmx) is True, "viernes 14:30 CDMX deberia ser dead window"
     # sabado no se cubre aqui (es_weekend_closed lo veta en otro lado)
     assert is_dead_window(sat_cdmx) is False

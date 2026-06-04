@@ -3093,7 +3093,8 @@ def _should_promote_tactical_to_vip(plan, vol_data, killzone_name):
       - Volumen POR TIPO: EJECUTAR exige >= TACTICAL_VOL_MIN_EXECUTE (0.85);
         ACUMULAR solo un piso TACTICAL_VOL_MIN_ACUMULA (0.60) - la vela de zona
         es de bajo volumen por naturaleza.
-      - NO estamos en franja muerta (15-16 CDMX / viernes >=14 CDMX)
+      - NO estamos en franja muerta (14-15 manipulacion 2PM / 15-16 CDMX /
+        viernes >=14 CDMX)
       - El edge condicional supera umbrales decentes:
           EJECUTAR_AHORA: market.ev >= 0.70 y market.p_sl <= 0.55
           ACUMULAR:       zone.ev_cond >= 1.0 y zone.reach_prob >= 0.35
