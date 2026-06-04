@@ -24,6 +24,7 @@
 ================================================================================
 """
 import logging
+import os
 import numpy as np
 
 import quantum_timelines as qt
@@ -43,6 +44,19 @@ CHOP_DOMINANT_PCT   = 0.45   # chop dominante >= esto -> stand down
 SL_BUFFER_ATR       = 0.30   # colchon anti stop-hunt bajo/sobre la zona
 SWEEP_BUFFER_ATR    = 0.50   # colchon extra para entradas post-barrida
 
+# Seleccion de zona (peticion RasDG, jun-2026): "el FVG me lo dio muy abajo".
+# Causa: el score multiplicaba por reach_prob, y entre dos FVG en la direccion el
+# MAS CERCANO al precio siempre tiene mayor reach_prob -> ganaba el mas bajo (un
+# FVG viejo) en vez del FRESCO del ultimo displacement. El precio atravesaba la
+# zona baja y pegaba el SL.
+#   - reach_prob queda como GATE (MIN_REACH_PROB_ZONE), no como sesgo dominante.
+#   - ZONE_REACH_BIAS atenua cuanto pesa reach_prob en el score (0 = ignora la
+#     cercania y rankea puro por edge; 0.5 = comportamiento legacy).
+#   - con empate de edge, gana el FVG mas FRESCO (ts mas reciente), no el mas
+#     cercano.
+ZONE_REACH_BIAS     = float(os.environ.get("FQ_ZONE_REACH_BIAS", "0.25"))
+ZONE_FRESH_TIEBREAK = os.environ.get("FQ_ZONE_FRESH_TIEBREAK", "1").strip() in ("1", "true", "yes")
+
 
 def _attr(obj, name, default=None):
     """getattr defensivo + float, tolerante a None."""
@@ -53,6 +67,24 @@ def _attr(obj, name, default=None):
         return float(v)
     except (TypeError, ValueError):
         return v
+
+
+def _zone_ts(ts):
+    """Normaliza el ts de una zona a float comparable (recencia). 0.0 si no hay.
+
+    Tolera epoch (int/float), pandas Timestamp/datetime, o None. Solo se usa como
+    desempate de RECENCIA entre zonas del mismo tipo (FVGs), nunca como filtro.
+    """
+    if ts is None:
+        return 0.0
+    try:
+        return float(ts)
+    except (TypeError, ValueError):
+        pass
+    try:
+        return float(ts.timestamp())
+    except Exception:
+        return 0.0
 
 
 # ============================================================
@@ -71,7 +103,7 @@ def extract_candidate_zones(direction, current_price, field_data, atr):
     zones = []
     fd = field_data or {}
 
-    def add(label, kind, low, high, needs_sweep=False):
+    def add(label, kind, low, high, needs_sweep=False, ts=None):
         if low is None or high is None or low <= 0 or high <= 0:
             return
         low, high = float(min(low, high)), float(max(low, high))
@@ -91,7 +123,8 @@ def extract_candidate_zones(direction, current_price, field_data, atr):
             if needs_sweep:
                 sl = high + SWEEP_BUFFER_ATR * atr
         zones.append({"label": label, "kind": kind, "low": low, "high": high,
-                      "ref": float(ref), "sl": float(sl), "needs_sweep": needs_sweep})
+                      "ref": float(ref), "sl": float(sl), "needs_sweep": needs_sweep,
+                      "ts": _zone_ts(ts)})
 
     # Order Block en la direccion (acumulacion prime, doctrina ICT)
     if is_long:
@@ -116,9 +149,11 @@ def extract_candidate_zones(direction, current_price, field_data, atr):
     for f in (fd.get("fvgs") or []):
         fdir = getattr(f, "direction", None)
         if is_long and fdir == "bullish":
-            add("FVG alcista", "FVG", _attr(f, "bottom"), _attr(f, "top"))
+            add("FVG alcista", "FVG", _attr(f, "bottom"), _attr(f, "top"),
+                ts=getattr(f, "ts", None))
         elif (not is_long) and fdir == "bearish":
-            add("FVG bajista", "FVG", _attr(f, "bottom"), _attr(f, "top"))
+            add("FVG bajista", "FVG", _attr(f, "bottom"), _attr(f, "top"),
+                ts=getattr(f, "ts", None))
 
     # EMA50 dinamica (si esta en el lado favorable)
     ema50 = fd.get("ema50")
@@ -148,6 +183,34 @@ def _accumulation_levels(zone, direction):
         return [{"price": round(low, 4),             "weight_pct": 40},
                 {"price": round((high + low) / 2, 4), "weight_pct": 35},
                 {"price": round(high, 4),             "weight_pct": 25}]
+
+
+# ============================================================
+# SCORING + RANKING DE ZONAS  (puro y testeable)
+# ============================================================
+def _zone_score(ez):
+    """Calidad compuesta de una zona: EV condicional penalizado por P(SL).
+
+    reach_prob entra ATENUADO por ZONE_REACH_BIAS para NO sesgar a la zona mas
+    cercana: antes (bias=0.5 implicito), entre dos FVG en la direccion el mas
+    bajo (mayor reach_prob) le ganaba al FVG fresco del ultimo displacement. La
+    alcanzabilidad real se filtra aparte con MIN_REACH_PROB_ZONE (gate).
+    """
+    edge = ez["ev_cond"] - ez["p_sl_cond"]
+    return edge * ((1.0 - ZONE_REACH_BIAS) + ZONE_REACH_BIAS * ez["reach_prob"])
+
+
+def _rank_zones(scored):
+    """Ordena zonas por score y devuelve solo las alcanzables (gate de reach).
+
+    Empate de score -> gana la mas FRESCA (ts reciente = ultimo displacement),
+    NO la mas cercana. reach_prob queda como ultimo desempate.
+    """
+    if ZONE_FRESH_TIEBREAK:
+        scored.sort(key=lambda z: (-z["score"], -z.get("ts", 0.0), -z["reach_prob"]))
+    else:
+        scored.sort(key=lambda z: (-z["score"], -z["reach_prob"]))
+    return [z for z in scored if z["reach_prob"] >= MIN_REACH_PROB_ZONE]
 
 
 # ============================================================
@@ -194,13 +257,10 @@ def build_battle_plan(direction, current_price, field_data, levels, paths, qa,
             continue
         z2 = dict(z)
         z2.update(ez)
-        # calidad compuesta: EV condicional penalizado por P(SL), ponderado por
-        # que tan alcanzable es la zona.
-        z2["score"] = (ez["ev_cond"] - ez["p_sl_cond"]) * (0.5 + 0.5 * ez["reach_prob"])
+        z2["score"] = _zone_score(ez)
         z2["accumulate"] = _accumulation_levels(z, direction)
         scored.append(z2)
-    scored.sort(key=lambda z: (-z["score"], -z["reach_prob"]))
-    reachable = [z for z in scored if z["reach_prob"] >= MIN_REACH_PROB_ZONE]
+    reachable = _rank_zones(scored)
     best = reachable[0] if reachable else None
 
     # --- Contexto de regimen ---
@@ -300,8 +360,9 @@ class _FakePool:
         self.price, self.swept = price, swept
 
 class _FakeFVG:
-    def __init__(self, direction, bottom, top):
+    def __init__(self, direction, bottom, top, ts=0):
         self.direction, self.bottom, self.top = direction, bottom, top
+        self.ts = ts
 
 
 def _trending_paths(seed, drift, n=2000, H=qt.DEFAULT_HORIZON, p0=100.0, vol=0.004):
@@ -365,6 +426,46 @@ def _run_self_tests():
     acc = _accumulation_levels(z, "long")
     assert sum(a["weight_pct"] for a in acc) == 100
     print("  [OK] acumulacion suma 100%")
+
+    # Caso 5: REGRESION FVG "muy abajo" (peticion RasDG). Dos FVG bajistas arriba:
+    # uno FRESCO mas alto (ult. displacement) y uno VIEJO mas bajo/cercano. El
+    # scoring legacy (bias 0.5) premiaba al bajo por mayor reach_prob; el fix lo
+    # corrige. Numeros elegidos para que el legacy elija MAL y el nuevo bien.
+    fresh_high = {"label": "FVG bajista", "kind": "FVG", "low": 102.0, "high": 103.0,
+                  "ref": 102.0, "ts": 2000.0, "ev_cond": 2.00, "p_sl_cond": 0.40,
+                  "reach_prob": 0.35}
+    old_low    = {"label": "FVG bajista", "kind": "FVG", "low": 100.5, "high": 101.0,
+                  "ref": 100.5, "ts": 1000.0, "ev_cond": 1.70, "p_sl_cond": 0.45,
+                  "reach_prob": 0.75}
+    # Comprobar que el legacy SI elegiria el bajo (demuestra que el caso es valido)
+    def _legacy_score(ez):
+        return (ez["ev_cond"] - ez["p_sl_cond"]) * (0.5 + 0.5 * ez["reach_prob"])
+    assert _legacy_score(old_low) > _legacy_score(fresh_high), \
+        "el caso debe reproducir el bug: legacy premia el FVG bajo"
+    # Con el fix, el FVG fresco/alto gana
+    scored = []
+    for zc in (fresh_high, old_low):
+        z2 = dict(zc); z2["score"] = _zone_score(zc); scored.append(z2)
+    best = _rank_zones(scored)[0]
+    assert best["ref"] == 102.0, \
+        "fix debe elegir el FVG fresco/alto (ref=102), no el bajo. got ref={}".format(best["ref"])
+    print("  [OK] FVG: fix elige el fresco/alto, no el mas cercano/bajo")
+
+    # Caso 6: empate de score -> gana el mas FRESCO, no el de mayor reach
+    a = {"label": "FVG bajista", "kind": "FVG", "ref": 105.0, "ts": 100.0,
+         "score": 1.0, "reach_prob": 0.90}
+    b = {"label": "FVG bajista", "kind": "FVG", "ref": 110.0, "ts": 500.0,
+         "score": 1.0, "reach_prob": 0.40}
+    best_tie = _rank_zones([a, b])[0]
+    assert best_tie["ref"] == 110.0, "empate de score -> gana el ts mas reciente"
+    print("  [OK] desempate por frescura (ts), no por cercania")
+
+    # Caso 7: extract_candidate_zones propaga el ts del FVG
+    field_ts = {"fvgs": [_FakeFVG("bearish", 102.0, 103.0, ts=12345.0)]}
+    zs_ts = extract_candidate_zones("short", 100.0, field_ts, 1.0)
+    fvg_zone = next(z for z in zs_ts if z["kind"] == "FVG")
+    assert fvg_zone["ts"] == 12345.0, "la zona FVG debe llevar su ts. got {}".format(fvg_zone["ts"])
+    print("  [OK] extract_candidate_zones propaga ts del FVG")
 
     print("\nALL TESTS PASSED")
 
