@@ -3188,6 +3188,8 @@ def _should_promote_tactical_to_vip(plan, vol_data, killzone_name):
         es de bajo volumen por naturaleza.
       - NO estamos en franja muerta (14-15 manipulacion 2PM / 15-16 CDMX /
         viernes >=14 CDMX)
+      - NO es un LONG de bajo volumen en la apertura asiatica (asia_open):
+        bull-fakeout guard, ver volume_quality.asia_open_fakeout_veto.
       - El edge condicional supera umbrales decentes:
           EJECUTAR_AHORA: market.ev >= 0.70 y market.p_sl <= 0.55
           ACUMULAR:       zone.ev_cond >= 1.0 y zone.reach_prob >= 0.35
@@ -3210,6 +3212,17 @@ def _should_promote_tactical_to_vip(plan, vol_data, killzone_name):
         if volume_quality.is_dead_window():
             return False, "dead window: " + (
                 volume_quality.dead_window_label() or "?")
+
+        # Asia-open bull-fakeout guard (peticion RasDG, jun-2026): la apertura
+        # asiatica abre con barridos alcistas en liquidez delgada. Un LONG
+        # tactico de bajo volumen ahi (sobre todo ACUMULAR, que usa piso de vol
+        # relajado) es la trampa que deja un FVG alcista y revierte -> SL en
+        # minutos. Exige volumen genuino para promover longs en asia_open.
+        vs_guard = (vol_data.get("score", 1.0) if vol_data is not None else 1.0)
+        fk_veto, fk_reason = volume_quality.asia_open_fakeout_veto(
+            plan.get("direction"), vs_guard, killzone_name)
+        if fk_veto:
+            return False, fk_reason
 
     mkt = plan.get("market") or {}
     if v == "EJECUTAR_AHORA":
