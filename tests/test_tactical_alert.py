@@ -402,6 +402,51 @@ def test_promote_accumulate_rejects_low_zone_probability():
     assert ok_med is True
 
 
+def test_asia_open_fakeout_veto_unit():
+    """Guard puro: solo veta el patron asia_open + LONG + bajo volumen."""
+    import volume_quality as vq
+    # long de bajo volumen en asia_open -> veta (el bull fakeout)
+    v, reason = vq.asia_open_fakeout_veto("long", 0.70, "asia_open")
+    assert v is True
+    assert "fakeout" in reason
+    # long con volumen genuino (>= 0.85) -> pasa (displacement real)
+    assert vq.asia_open_fakeout_veto("long", 1.00, "asia_open")[0] is False
+    # short en asia_open -> no se toca (el fakeout es alcista)
+    assert vq.asia_open_fakeout_veto("short", 0.40, "asia_open")[0] is False
+    # mismo long bajo volumen pero en otra killzone -> no aplica
+    assert vq.asia_open_fakeout_veto("long", 0.40, "ny_am_kz")[0] is False
+
+
+def test_promote_blocked_asia_open_long_low_volume():
+    """Caso real del screenshot: ACUMULA LONG en FVG alcista, asia_open,
+    'Volumen bajo' (~0.78). Antes pasaba el piso relajado de ACUMULAR (0.60) y
+    salia al VIP; ahora el bull-fakeout guard lo bloquea."""
+    b = _reload_with_flag("1")
+    import volume_quality as vq
+    if vq.is_dead_window():
+        import pytest
+        pytest.skip("franja muerta")
+    plan = {"verdict": "ACUMULAR_EN_ZONA", "direction": "long",
+            "market": {"entry": 68.75, "p_sl": 0.45, "ev": 0.30},
+            "primary_zone": {"ev_cond": 1.4, "reach_prob": 0.5, "p_sl_cond": 0.40}}
+    ok, reason = b._should_promote_tactical_to_vip(plan, {"score": 0.78}, "asia_open")
+    assert ok is False
+    assert "asia_open" in reason and "fakeout" in reason
+
+    # El mismo setup con volumen genuino (Normal+) si se promueve.
+    ok_vol, _ = b._should_promote_tactical_to_vip(plan, {"score": 1.00}, "asia_open")
+    assert ok_vol is True
+
+    # Y un SHORT de bajo volumen en asia_open no lo bloquea este guard (el
+    # fakeout es alcista); lo filtran los otros gates si aplica.
+    plan_short = {"verdict": "ACUMULAR_EN_ZONA", "direction": "short",
+                  "market": {"entry": 68.75, "p_sl": 0.45, "ev": 0.30},
+                  "primary_zone": {"ev_cond": 1.4, "reach_prob": 0.5, "p_sl_cond": 0.40}}
+    ok_short, reason_short = b._should_promote_tactical_to_vip(
+        plan_short, {"score": 0.78}, "asia_open")
+    assert "fakeout" not in reason_short
+
+
 def test_promote_volume_gate_by_type():
     """v5.3: ACUMULA usa un piso de volumen bajo (~0.60); EJECUTAR mantiene
     la confirmacion (0.85). Rescata señales tipo el ACUMULA SHORT $76.90 que

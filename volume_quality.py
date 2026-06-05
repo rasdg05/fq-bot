@@ -46,6 +46,23 @@ DEAD_2PM_MANIP        = os.environ.get("FQ_DEAD_2PM_MANIP", "1").strip() in ("1"
 DEAD_2PM_START        = float(os.environ.get("FQ_DEAD_2PM_START", "14.0"))
 DEAD_2PM_END          = float(os.environ.get("FQ_DEAD_2PM_END", "15.0"))
 
+# Asia-open bull-fakeout guard (peticion RasDG, jun-2026).
+# La apertura asiatica (killzone asia_open, 17:00-18:30 CDMX) suele ABRIR con un
+# BULL FAKEOUT: un empuje alcista en liquidez delgada que barre buy-stops /
+# induce longs, deja un FVG alcista, y luego REVIERTE. Acumular un LONG dentro de
+# ese FVG con volumen bajo es justo la trampa. Caso real: ALERTA TACTICA ACUMULA
+# LONG SOL/USDT @17:55 CDMX (asia_open, "Volumen bajo") -> SL en los primeros 5
+# min. El gate de ACUMULAR usa un piso de volumen relajado (0.60) "porque la vela
+# de zona es de bajo volumen por naturaleza", pero en la apertura asiatica ESE es
+# el sintoma del fakeout, no de un pullback sano.
+#   Guard: un LONG tactico solo se promueve en asia_open si trae volumen genuino
+#   (>= ASIA_FAKEOUT_VOL_MIN, "Normal"). Asi un displacement alcista real con
+#   volumen sigue pasando; el barrido de baja liquidez queda fuera. No toca los
+#   shorts (el fakeout es alcista) ni el resto de killzones.
+ASIA_FAKEOUT_GUARD    = os.environ.get("FQ_ASIA_FAKEOUT_GUARD", "1").strip() in ("1", "true", "yes")
+ASIA_FAKEOUT_VOL_MIN  = float(os.environ.get("FQ_ASIA_FAKEOUT_VOL_MIN", "0.85"))
+ASIA_OPEN_KZ_NAME     = os.environ.get("FQ_ASIA_OPEN_KZ_NAME", "asia_open").strip()
+
 # Umbrales (calibrables via env sin tocar codigo)
 VOL_SCORE_LOW         = float(os.environ.get("FQ_VOL_SCORE_LOW", "0.60"))     # bajo umbral
 VOL_SCORE_NORMAL      = float(os.environ.get("FQ_VOL_SCORE_NORMAL", "0.85"))  # normal
@@ -253,6 +270,41 @@ def volume_veto(vol_score_value, is_dead=None, now_cdmx=None):
 
 
 # ============================================================
+# 4.b) ASIA-OPEN BULL-FAKEOUT GUARD
+# ============================================================
+def asia_open_fakeout_veto(direction, vol_score_value, killzone_name):
+    """Veta LONGs tacticos de bajo volumen en la apertura asiatica (bull fakeout).
+
+    Args:
+        direction:     "long" / "short" del setup.
+        vol_score_value: score crudo de volume_score().score (vela CERRADA).
+        killzone_name: nombre de la killzone activa (killzones_pd.current_killzone).
+
+    Returns:
+        (vetoed: bool, reason: str)
+
+    Politica: solo dispara cuando coinciden las tres condiciones del patron
+    (asia_open + LONG + volumen por debajo de "Normal"). Un displacement alcista
+    genuino con volumen >= ASIA_FAKEOUT_VOL_MIN pasa; los shorts y las demas
+    killzones no se tocan. Override total con FQ_ASIA_FAKEOUT_GUARD=0.
+    """
+    if not ASIA_FAKEOUT_GUARD:
+        return False, ""
+    if killzone_name != ASIA_OPEN_KZ_NAME:
+        return False, ""
+    if str(direction).lower() != "long":
+        return False, ""
+    try:
+        s = float(vol_score_value)
+    except (TypeError, ValueError):
+        return False, ""
+    if s < ASIA_FAKEOUT_VOL_MIN:
+        return True, "asia_open bull fakeout: long vol={:.2f}<{:.2f}".format(
+            s, ASIA_FAKEOUT_VOL_MIN)
+    return False, ""
+
+
+# ============================================================
 # 5) LABELS HUMANOS (para los reportes)
 # ============================================================
 def volume_quality_label(vol_score_value):
@@ -367,6 +419,17 @@ def _run_self_tests():
     vs_short = volume_score(short_df)
     assert vs_short["score"] == 1.0, "df corto -> score neutral 1.0"
     print("  [OK] volume_score con df corto (neutral 1.0)")
+
+    # Test 5.b: asia-open bull-fakeout guard
+    v_long_lowvol, _ = asia_open_fakeout_veto("long", 0.70, "asia_open")
+    assert v_long_lowvol is True, "long de bajo vol en asia_open -> veto (fakeout)"
+    v_long_vol, _ = asia_open_fakeout_veto("long", 1.00, "asia_open")
+    assert v_long_vol is False, "long con volumen genuino en asia_open -> pasa"
+    v_short, _ = asia_open_fakeout_veto("short", 0.40, "asia_open")
+    assert v_short is False, "el fakeout es alcista; los shorts no se tocan"
+    v_other_kz, _ = asia_open_fakeout_veto("long", 0.40, "ny_am_kz")
+    assert v_other_kz is False, "guard solo aplica a asia_open"
+    print("  [OK] asia_open_fakeout_veto (long bajo vol en asia_open)")
 
     # Test 6: labels cualitativos
     assert volume_quality_label(0.5) == "Muy bajo"
