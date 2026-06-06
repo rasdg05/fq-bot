@@ -102,6 +102,25 @@ def _run_replay(tfs, env_overrides=None, **replay_kwargs):
     )
 
 
+def _init_ledger():
+    """Crea el esquema del ledger (tabla 'signals' y demas) en FQ_LEDGER_PATH.
+
+    Sin esto, evaluate_signal truena en cada vela al leer la memoria de buckets
+    sobre una DB vacia ('no such table: signals') y NO dispara ninguna senal.
+    init_db() corre el SCHEMA_SQL con IF NOT EXISTS; las migraciones son
+    best-effort (idempotentes sobre una DB recien creada).
+    """
+    import entropy_cognition as ev
+    ev.init_db()
+    for mig in ("migrate_schema_v2", "migrate_schema_v3", "migrate_schema_v4"):
+        fn = getattr(ev, mig, None)
+        if fn:
+            try:
+                fn()
+            except Exception:
+                pass
+
+
 def _label_and_fold(events, df15, max_bars, n_splits, embargo):
     labeled = lb.label_events(df15, events.to_dict("records"), max_bars=max_bars)
     folds, valid_index = wf.folds_from_labeled(
@@ -150,6 +169,9 @@ def main():
     cost = eng.CostModel()   # defaults Binance USDT-perp
     sim_kwargs = {"equity0": args.equity0, "risk_frac": args.risk_frac,
                   "bar_minutes": bar_minutes, "cost": cost}
+
+    # --- Inicializar el ledger (esquema) para que el motor lea memoria ---
+    _init_ledger()
 
     # --- BASELINE: replay con todos los modulos ---
     print("\n[1/4] replay del motor (baseline, todos los modulos)...")
