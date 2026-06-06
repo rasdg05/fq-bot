@@ -46,6 +46,10 @@ acoplamiento de código entre procesos.
 - `ict_smc.py`, `market_context.py`, `regime_detector.py`, `volume_quality.py`,
   `killzones_pd.py`, `emergent_time.py`, `entropy_cognition.py` — features y
   estado de mercado / ledger.
+- `session_bias.py` — **(v5.4)** modulador suave London/NY/Asia condicionado al
+  sesgo diario (HTF). London es fake cuando barre contra el sesgo, real cuando
+  corre con el; NY resuelve hacia el sesgo; Asia es rango. Puro, acotado, sin
+  I/O. Lo consume `fusion_engine` como multiplicador (no veta).
 
 ### Presentación (cara al cliente)
 - `vip_format.py`, `public_format.py`, `field_reports.py`, `branding.py`,

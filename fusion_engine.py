@@ -24,6 +24,13 @@ except Exception as _e:
     volq = None
     _VOL_QUALITY_AVAILABLE = False
 
+try:
+    import session_bias as sb
+    _SESSION_BIAS_AVAILABLE = True
+except Exception as _e:
+    sb = None
+    _SESSION_BIAS_AVAILABLE = False
+
 log = logging.getLogger("fq_fusion")
 
 PHI = 1.6180339887
@@ -55,6 +62,11 @@ ENFORCE_HIGH_GATE = os.environ.get("FQ_ENFORCE_HIGH_GATE", "0") == "1"
 # Capa ML (FQ v4.3) - scorer + regime, todo additivo
 USE_SCORER        = os.environ.get("FQ_USE_SCORER", "1") == "1"
 USE_REGIME        = os.environ.get("FQ_USE_REGIME", "1") == "1"
+
+# Session bias (FQ v5.4) - modulador suave London/NY/Asia condicionado al
+# sesgo diario. London es fake cuando barre contra el sesgo, real cuando corre
+# con el; NY continua hacia el sesgo. Pondera, no veta. Acotado en session_bias.
+USE_SESSION_BIAS  = os.environ.get("FQ_SESSION_BIAS", "1") == "1"
 
 # Phase E - postulado tau(t) emergente (FQ v5.1)
 EMERGENT_TIME_ENABLED = os.environ.get("FQ_EMERGENT_TIME_ENABLED", "0").strip() in ("1", "true", "yes")
@@ -420,7 +432,25 @@ def _compute_p_master_refined(field, direction, masses, lap, config, phase_e_dat
         except Exception as e:
             log.warning("volume_modulator error: {}".format(e))
 
+    # === SESSION BIAS MODULATOR (FQ v5.4) ===
+    # Modulador suave London/NY/Asia condicionado al sesgo diario (field.bias_4h)
+    # + barrido reciente (field.recent_sweep) + zona PD. Pondera, no veta; el
+    # multiplicador viene acotado por session_bias (W_MIN..W_MAX).
+    sb_mult = 1.0
+    sb_label = None
+    sb_detail = None
+    if USE_SESSION_BIAS and _SESSION_BIAS_AVAILABLE:
+        try:
+            sb_mult, sb_label, sb_detail = sb.session_bias_weight_from_field(
+                field, direction)
+            p_master = p_master * sb_mult
+        except Exception as e:
+            log.warning("session_bias modulator error: {}".format(e))
+
     return {
+        "session_bias_mult":  sb_mult,
+        "session_bias_label": sb_label,
+        "session_bias_detail": sb_detail,
         "p_master_raw":   p_master_raw,
         "p_master":       p_master,
         "p_master_pre_vol": p_master_before_vol,
