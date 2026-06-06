@@ -121,3 +121,47 @@ jobs:
           name: research-report
           path: research_out/
           retention-days: 90
+
+  # Si el job 'research' falla en rojo (infra o regresion real de la suite, ya
+  # que los pasos de datos/run real son continue-on-error), abre/actualiza un
+  # Issue con el link al run. Asi el fallo del run semanal NUNCA es silencioso y
+  # queda como notificacion permanente de GitHub para revisarlo (o pedirle a
+  # Claude que lo diagnostique con las tools de Actions).
+  notify-failure:
+    needs: research
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Abrir/actualizar Issue de fallo
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = "Research run fallo";
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              `El workflow **Research** fallo en rojo.`,
+              ``,
+              `- Run: ${runUrl}`,
+              `- Trigger: \`${context.eventName}\``,
+              `- Commit: \`${context.sha}\``,
+              ``,
+              `Revisa los logs del run y el artefacto \`research-report\`.`,
+            ].join("\n");
+            const open = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo, state: "open",
+              per_page: 100,
+            });
+            const existing = open.data.find(i => i.title.includes(marker));
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: existing.number, body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title: `⚠️ ${marker} (${context.eventName})`, body,
+              });
+            }
