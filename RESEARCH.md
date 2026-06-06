@@ -1,9 +1,9 @@
 # FQ — Harness de research (backtest / walk-forward / entrenamiento)
 
-> Estado: **piezas puras y testeadas** (68 tests). Corren sin red. El paso que
-> falta es de **integracion**: enchufar datos historicos reales y el pipeline de
-> features real del motor. Hasta entonces, el harness se valida con datos
-> sinteticos (ver `tools/research_demo.py`).
+> Estado: **piezas puras y testeadas** (77 tests, sin red). La integracion con
+> el motor real esta cableada (`bt_features` + `tools/run_research_real.py`):
+> corre el MISMO `fusion_engine.evaluate_signal` del bot sobre el histgrico. Solo
+> falta EJECUTARLO en el entorno del bot (Railway/local) con datos reales.
 
 ## Por que existe
 
@@ -30,9 +30,11 @@ riesgo. No son cuatro proyectos: es uno.
 | `bt_metrics.py` | 5 | Sharpe, Sortino, Calmar, max drawdown, profit factor, CAGR. Extiende `ledger_stats`. |
 | `bt_train.py` | 6 | LightGBM sobre el walk-forward (OOS), AUC, importancia, expectancy por umbral. |
 | `bt_ablation.py` | — | Poda de modulos por **supervivencia OOS**: baseline vs sin_M -> VIVE/MATAR. |
+| `bt_features.py` | int | **Capa de integracion**: replay del motor REAL (fusion_engine.evaluate_signal) sobre el histgrico -> eventos + features que ve el bot. |
 
 CLI: `tools/build_dataset.py` (descarga), `tools/research_demo.py` (pipeline
-completo sintetico, plantilla de integracion).
+sintetico, plantilla), `tools/run_research_real.py` (**runner REAL**: cablea el
+motor de produccion + ablacion por toggles de entorno).
 
 ## Flujo
 
@@ -42,23 +44,35 @@ bt_data → bt_labeler → bt_walkforward → bt_engine → bt_metrics
                                    ↘  bt_ablation (poda de modulos)
 ```
 
-## Como pasar de sintetico a REAL (integracion pendiente)
+## Como correrlo con datos REALES (ya cableado)
 
-1. **Datos** (gratis): `python tools/build_dataset.py --symbol SOL/USDT
-   --timeframe 1m --market swap --years 2 --exchanges binance,bybit`. Fuente
-   recomendada para histgrico completo: Binance Data Portal (data.binance.vision).
-2. **Features**: reutilizar `fq_market_data.add_indicators` + `ict_smc` sobre las
-   velas historicas para construir, por cada vela candidata, el mismo vector de
-   features que el motor ve en vivo.
-3. **Eventos**: definir las senales candidatas (cuando el motor dispararia) con
-   su `entry_index`, `entry_price`, `stop_price`, `target_price`, `direction`.
-4. **Etiquetar** con `bt_labeler.label_events` sobre las velas futuras.
-5. **Folds** con `bt_walkforward.folds_from_labeled`.
-6. **Backtest/metricas** con `bt_engine.simulate` + `bt_metrics`.
-7. **Modelo** con `bt_train.train_walk_forward` (features reales).
-8. **Poda**: expresar cada modulo del motor (`session_bias`, `regime_detector`,
-   QTE, `volume_quality`, ...) como una mascara `df -> bool` y correr
-   `bt_ablation.run_ablation`. Matar lo que no sobrevive OOS.
+La integracion esta hecha: `bt_features.replay_events` recorre el histgrico y
+llama al MISMO `fusion_engine.evaluate_signal` del bot, registrando cada disparo
+con sus niveles y features. `tools/run_research_real.py` orquesta todo. Corre en
+el entorno del bot (Railway/local), donde estan los datos y las dependencias —
+NO en un sandbox sin red.
+
+```
+# 1) datos (gratis; Binance Data Portal / ccxt). Una vez por TF.
+python tools/build_dataset.py --symbol SOL/USDT --timeframe 15m --market swap --years 2 --exchanges binance
+python tools/build_dataset.py --symbol SOL/USDT --timeframe 1h  --market swap --years 2 --exchanges binance
+python tools/build_dataset.py --symbol SOL/USDT --timeframe 4h  --market swap --years 2 --exchanges binance
+python tools/build_dataset.py --symbol SOL/USDT --timeframe 1m  --market swap --years 2 --exchanges binance
+
+# 2) research completo: metricas OOS + modelo + poda de modulos
+python tools/run_research_real.py --exchange binance --symbol SOL/USDT \
+    --max-bars 96 --n-splits 8 --embargo 8
+```
+
+El runner produce: senales disparadas, etiquetado triple-barrier, metricas OOS
+con costes, modelo LightGBM sobre walk-forward (AUC + importancia + expectancy
+por umbral) y la poda de modulos. La **poda** re-corre el motor con cada modulo
+apagado por env (`FQ_USE_SCORER=0`, `FQ_USE_REGIME=0`, `FQ_SESSION_BIAS=0`) y
+compara la expectancy OOS: si apagarlo no empeora, el modulo es peso muerto.
+
+Bloques internos (por si quieres armar tu propio script): replay (`bt_features`)
+-> etiquetar (`bt_labeler.label_events`) -> folds (`bt_walkforward`) ->
+backtest/metricas (`bt_engine`+`bt_metrics`) -> modelo (`bt_train`).
 
 ## Validacion contra el ledger
 
