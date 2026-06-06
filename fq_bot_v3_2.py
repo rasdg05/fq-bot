@@ -4920,11 +4920,13 @@ def main():
 
     claude_status = "ACTIVO" if claude_ai.is_available() else "INACTIVO"
     telegram_send(
-        "<b>FQ · Bot online</b>\n"
-        "{fence}\n"
-        "SOL/USDT · OKX · eval cada 15 min\n"
-        "Claude: <b>{cs}</b>".format(
-            fence=G["fence"], cs=claude_status)
+        "{header}\n"
+        "\n"
+        "  Motor en pista · eval cada 15 min\n"
+        "  SOL/USDT · OKX\n"
+        "  Claude: <b>{cs}</b>".format(
+            header=_brand.lux_header("FQ · Bot online", "Luces verdes"),
+            cs=claude_status)
     )
 
     t = threading.Thread(target=command_listener, args=(exchange,), daemon=True)
