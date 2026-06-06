@@ -71,9 +71,20 @@ def extract_features(field, report):
 
     score = report.get("score") or {}
     f["scorer_total"] = score.get("total_score")
-    breakdown = score.get("breakdown") or {}
+    # breakdown de signal_scorer.evaluate es una LISTA de dicts
+    # {"name","score","weight","contribution","detail"}. Tambien aceptamos un
+    # dict {name: score} por robustez.
+    breakdown = score.get("breakdown") or []
+    by_name = {}
+    if isinstance(breakdown, dict):
+        by_name = breakdown
+    else:
+        for item in breakdown:
+            if isinstance(item, dict) and "name" in item:
+                by_name[item["name"]] = item.get("score")
     for k in ("volume", "structure", "liquidity", "concept_stack", "history"):
-        f["scorer_" + k] = breakdown.get(k)
+        v = by_name.get(k)
+        f["scorer_" + k] = v.get("score") if isinstance(v, dict) else v
 
     regime = report.get("regime") or {}
     f["regime_state"] = regime.get("state")

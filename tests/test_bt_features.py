@@ -32,9 +32,14 @@ def _fire_report(direction="long", entry=100.0, sl=95.0, tp1=105.0, tp3=115.0):
         "p_master_data": {"p_master": 3.1, "p_master_raw": 3.0,
                           "p_master_pre_vol": 3.05},
         "score": {"total_score": 0.72,
-                  "breakdown": {"volume": 0.8, "structure": 0.7,
-                                "liquidity": 0.6, "concept_stack": 0.75,
-                                "history": 0.65}},
+                  # forma REAL de signal_scorer.evaluate: lista de dicts
+                  "breakdown": [
+                      {"name": "volume", "score": 0.8, "weight": 0.2},
+                      {"name": "structure", "score": 0.7, "weight": 0.2},
+                      {"name": "liquidity", "score": 0.6, "weight": 0.2},
+                      {"name": "concept_stack", "score": 0.75, "weight": 0.2},
+                      {"name": "history", "score": 0.65, "weight": 0.2},
+                  ]},
         "regime": {"state": "tendencia", "score": 0.9},
     }
 
