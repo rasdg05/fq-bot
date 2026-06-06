@@ -362,6 +362,11 @@ ENABLE_ICT_LAYER     = os.environ.get("FQ_ENABLE_ICT", _ict_default) == "1"
 # "no hubo senal" se vuelven ruido. El comando /campo sigue disponible bajo demanda.
 ENABLE_FIELD_REPORTS = False
 WEEKEND_VETO_LEGACY  = os.environ.get("FQ_WEEKEND_VETO", "1") == "1"
+# WEEKEND_ADMIN_ONLY: cuando ON, el veto de fin de semana se "apaga" SOLO para
+# el admin: el motor sigue generando senales en finde (no se corta la evaluacion)
+# pero broadcast_to_subscribers las entrega UNICAMENTE al admin. VIP/trial/free
+# siguen sin recibir nada hasta la reapertura (domingo 22:00 UTC).
+WEEKEND_ADMIN_ONLY   = os.environ.get("FQ_WEEKEND_ADMIN_ONLY", "1") == "1"
 # Cuando ENABLE_ICT_LAYER=1, evaluate_setup delega a fusion_engine.evaluate_signal
 
 # FQ constants
@@ -544,6 +549,17 @@ def broadcast_to_subscribers(text, include_admin=True, tiers=None):
     """
     if tiers is None:
         tiers = ["vip", "trial", "admin"]
+
+    # WEEKEND ADMIN-ONLY GATE: con el mercado cerrado (finde) y el bypass admin
+    # activo, el motor sigue generando pero la entrega se restringe al admin.
+    # VIP/trial/free no reciben senales/anuncios hasta la reapertura.
+    if WEEKEND_ADMIN_ONLY and ICT_MODULES_AVAILABLE:
+        try:
+            if killzones_pd.is_weekend_closed():
+                tiers = ["admin"]
+                include_admin = True
+        except Exception:
+            pass
 
     sent = 0
     failed = 0
@@ -2342,7 +2358,10 @@ def evaluate_setup(exchange, tf_id="15m", intra=False):
     # ============================================================
     # WEEKEND VETO - aplica a ambos flujos
     # ============================================================
-    if WEEKEND_VETO_LEGACY and ICT_MODULES_AVAILABLE:
+    # Si WEEKEND_ADMIN_ONLY esta ON, NO cortamos la generacion en finde: dejamos
+    # que el motor evalue y la senal se genere; el filtrado a admin-only ocurre
+    # luego en broadcast_to_subscribers (entrega), no aqui (generacion).
+    if WEEKEND_VETO_LEGACY and not WEEKEND_ADMIN_ONLY and ICT_MODULES_AVAILABLE:
         try:
             if killzones_pd.is_weekend_closed():
                 wk = killzones_pd.weekend_status()
@@ -4839,7 +4858,9 @@ def main():
             log.warning("migrate_schema_v4: {}".format(e))
     log.info("Evolution ledger: {}".format(ev.DB_PATH))
     log.info("ICT layer:    {}".format("ON" if (ENABLE_ICT_LAYER and ICT_MODULES_AVAILABLE) else "OFF"))
-    log.info("Weekend veto: {}".format("ON" if WEEKEND_VETO_LEGACY else "OFF"))
+    log.info("Weekend veto: {}{}".format(
+        "ON" if WEEKEND_VETO_LEGACY else "OFF",
+        " (admin-only: genera en finde, entrega solo admin)" if WEEKEND_ADMIN_ONLY else ""))
 
     # Inicializar sistema VIP
     if VIP_ENABLED:
