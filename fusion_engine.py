@@ -33,6 +33,10 @@ HYBRID_DECAY_N = 50
 # Toggles (env) - todos default ON para "fase final beta" (CONSTRAINTS-compliant)
 USE_THOMPSON_KAPPA = os.environ.get("FQ_USE_THOMPSON", "1") == "1"
 WEEKEND_VETO       = os.environ.get("FQ_WEEKEND_VETO", "1") == "1"
+# Cuando ON, el veto de generacion de finde se desactiva: el motor evalua y
+# genera senales tambien en fin de semana. El filtrado de entrega a admin-only
+# lo hace el broadcast del bot (fq_bot_v3_2.broadcast_to_subscribers), no aqui.
+WEEKEND_ADMIN_ONLY = os.environ.get("FQ_WEEKEND_ADMIN_ONLY", "1") == "1"
 REQUIRE_OTE_STRICT = os.environ.get("FQ_REQUIRE_OTE", "0") == "1"
 ICT_CONCEPT_BONUS  = 0.04   # +4% por concepto ICT activo
 ICT_BONUS_MAX_CONCEPTS = 4  # cap a 4 bonus = +16% max
@@ -475,7 +479,9 @@ def evaluate_signal(
     """
     try:
         # 0. WEEKEND VETO (PRE-CHECK ABSOLUTO)
-        if WEEKEND_VETO and kzpd.is_weekend_closed():
+        #    Con WEEKEND_ADMIN_ONLY ON, no vetamos la generacion: el motor evalua
+        #    y la entrega queda restringida a admin en el broadcast del bot.
+        if WEEKEND_VETO and not WEEKEND_ADMIN_ONLY and kzpd.is_weekend_closed():
             wk = kzpd.weekend_status()
             empty_field = ict.FieldState()
             return False, empty_field, _build_report(
