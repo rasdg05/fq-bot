@@ -1,0 +1,122 @@
+name: Research (backtest / walk-forward / poda)
+
+# Corre el harness de research y publica el reporte como artefacto.
+#
+# - Manual (workflow_dispatch): elige exchange, ventana y parametros.
+# - Semanal (schedule): regenera el track record OOS solo.
+#
+# Datos: OHLCV publico via ccxt (NO requiere secretos/API keys). Binance suele
+# bloquear los runners de GitHub (HTTP 451), por eso el default es Bybit.
+#
+# El job NUNCA falla por el run real: el demo sintetico es la red de seguridad
+# verde y siempre deja un artefacto. El run real corre con continue-on-error y
+# vuelca su salida (y cualquier traceback) al mismo artefacto para diagnostico.
+
+on:
+  workflow_dispatch:
+    inputs:
+      exchange:
+        description: "Exchange ccxt (bybit/binance/okx)"
+        default: "bybit"
+        type: string
+      symbol:
+        description: "Simbolo"
+        default: "SOL/USDT"
+        type: string
+      months:
+        description: "Meses de histgrico a descargar"
+        default: "3"
+        type: string
+      step:
+        description: "Evaluar 1 de cada N velas (subsampleo, acelera CI)"
+        default: "2"
+        type: string
+      max_bars:
+        description: "Horizonte de la barrera vertical (velas 15m)"
+        default: "96"
+        type: string
+  schedule:
+    - cron: "17 6 * * 1"   # lunes 06:17 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      # Defaults benignos para que el monolito importe sin secretos reales.
+      TELEGRAM_TOKEN: "ci-dummy"
+      TELEGRAM_TOKEN_PUBLIC: "ci-dummy"
+      TELEGRAM_CHAT_ID: "0"
+      ANTHROPIC_API_KEY: "ci-dummy"
+      FQ_LEDGER_PATH: "/tmp/fq_ledger_ci.db"
+      EX: ${{ github.event.inputs.exchange || 'bybit' }}
+      SYM: ${{ github.event.inputs.symbol || 'SOL/USDT' }}
+      MONTHS: ${{ github.event.inputs.months || '3' }}
+      STEP: ${{ github.event.inputs.step || '2' }}
+      MAXBARS: ${{ github.event.inputs.max_bars || '96' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest lightgbm
+
+      - name: Sanity — suite de research
+        run: pytest tests/test_bt_*.py -q
+
+      - name: Demo sintetico (red de seguridad, siempre verde)
+        run: |
+          mkdir -p research_out
+          python tools/research_demo.py | tee research_out/demo_synthetic.txt
+
+      - name: Descargar histgrico real (OHLCV publico)
+        id: download
+        continue-on-error: true
+        run: |
+          YEARS=$(python -c "print(round(${MONTHS}/12.0, 4))")
+          for TF in 15m 1h 4h; do
+            echo "== descargando ${SYM} ${TF} (${MONTHS} meses, ${EX}) =="
+            python tools/build_dataset.py --symbol "${SYM}" --timeframe "${TF}" \
+              --market swap --years "${YEARS}" --exchanges "${EX}" \
+              2>&1 | tee -a research_out/download.txt
+          done
+
+      - name: Research real (motor de produccion)
+        continue-on-error: true
+        run: |
+          python tools/run_research_real.py --exchange "${EX}" --symbol "${SYM}" \
+            --step "${STEP}" --max-bars "${MAXBARS}" --n-splits 8 --embargo 8 \
+            2>&1 | tee research_out/research_real.txt
+
+      - name: Empaquetar reporte
+        if: always()
+        run: |
+          {
+            echo "# Reporte de research FQ"
+            echo "fecha: $(date -u +%FT%TZ)  exchange: ${EX}  symbol: ${SYM}  meses: ${MONTHS}"
+            echo ""
+            echo "## Real (motor de produccion)"; echo '```'
+            cat research_out/research_real.txt 2>/dev/null || echo "(no disponible — ver download.txt)"
+            echo '```'
+            echo "## Demo sintetico (sanity)"; echo '```'
+            cat research_out/demo_synthetic.txt 2>/dev/null || echo "(no disponible)"
+            echo '```'
+          } > research_out/REPORTE.md
+
+      - name: Subir artefacto
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: research-report
+          path: research_out/
+          retention-days: 90
