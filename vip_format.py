@@ -8,7 +8,10 @@ Modulo inerte: no envia, no consulta DB.
 """
 from datetime import datetime, timezone, timedelta
 
-from branding import PRODUCT, PAIR, HASHTAGS_SIGNAL, RULE, GLYPHS, DISCLAIMER
+from branding import (
+    PRODUCT, PAIR, SCUDERIA, HASHTAGS_SIGNAL, RULE, LUX_RULE, GLYPHS, DISCLAIMER,
+    FERRARI, lux_header, lux_block, lux_item, lux_check, lux_footer,
+)
 import qte_verdict  # veredicto canonico compartido con el bloque QTE admin
 
 CDMX_TZ = timezone(timedelta(hours=-6))
@@ -531,160 +534,145 @@ def build_resultados(summary):
 # /help y /about
 # ============================================================
 def build_help_vip():
-    return (
-        "{rule}\n"
-        "  ◆ {product} · Comandos\n"
-        "{rule}\n"
-        "  ▸ /status      Estado del sistema\n"
-        "  ▸ /lectura     Analisis on-demand\n"
-        "  ▸ /miestado    Tu cuenta\n"
-        "  ▸ /renovar     Renovar acceso\n"
-        "  ▸ /about       Sobre el sistema\n"
-        "  ▸ /legal       Aviso de riesgo\n"
-        "{rule}\n"
-        "  Calidad sobre cantidad."
-    ).format(rule=RULE, product=PRODUCT)
+    return "\n".join([
+        lux_header("{} · Tablero".format(PRODUCT), "Comandos VIP"),
+        "",
+        lux_item("/status", "Estado del sistema"),
+        lux_item("/lectura", "Analisis on-demand"),
+        lux_item("/miestado", "Tu cuenta"),
+        lux_item("/renovar", "Renovar acceso"),
+        lux_item("/about", "El sistema"),
+        lux_item("/legal", "Aviso de riesgo"),
+        LUX_RULE,
+        lux_block("Calidad sobre cantidad."),
+    ])
 
 def build_help_admin():
-    return (
-        "{rule}\n"
-        "  ◆ {product} · Comandos (admin)\n"
-        "{rule}\n"
-        "  Cliente:\n"
-        "  ▸ /status /lectura /miestado /renovar /about /legal\n"
-        "\n"
-        "  Alias:\n"
-        "  ▸ /analisis /niveles /pspace /claude /ia → /lectura\n"
-        "  ▸ /sesion /macro → /status\n"
-        "\n"
-        "  Admin:\n"
-        "  ▸ /audit       Self-audit\n"
-        "  ▸ /entropy     Drift\n"
-        "  ▸ /metrics     Win rate · expectancy · PF\n"
-        "  ▸ /ledger      Ultimas 10 senales\n"
-        "  ▸ /evolve      Buckets\n"
-        "  ▸ /concepts    Edge por concepto\n"
-        "  ▸ /weekend     Filtro fin de semana\n"
-        "  ▸ /campo       FieldState on-demand\n"
-        "  ▸ /gencode /grant /broadcast\n"
-        "{rule}"
-    ).format(rule=RULE, product=PRODUCT)
+    return "\n".join([
+        lux_header("{} · Tablero".format(PRODUCT), "Comandos (admin)"),
+        "",
+        lux_block("Cliente:"),
+        "   /status /lectura /miestado /renovar /about /legal",
+        "",
+        lux_block("Alias:"),
+        "   /analisis /niveles /pspace /claude /ia → /lectura",
+        "   /sesion /macro → /status",
+        "",
+        lux_block("Admin:"),
+        lux_item("/audit", "Self-audit"),
+        lux_item("/entropy", "Drift"),
+        lux_item("/metrics", "Win rate · expectancy · PF"),
+        lux_item("/ledger", "Ultimas 10 senales"),
+        lux_item("/evolve", "Buckets"),
+        lux_item("/concepts", "Edge por concepto"),
+        lux_item("/weekend", "Filtro fin de semana"),
+        lux_item("/campo", "FieldState on-demand"),
+        lux_item("/gencode /grant /broadcast"),
+        LUX_RULE,
+    ])
 
 def build_help_free():
-    return (
-        "{rule}\n"
-        "  ◆ {product} · Acceso\n"
-        "{rule}\n"
-        "  ▸ /precio      Tarifas\n"
-        "  ▸ /vip         Activar acceso\n"
-        "  ▸ /codigo XXXX Canjear codigo\n"
-        "  ▸ /miestado    Tu estado\n"
-        "  ▸ /about       Sobre el sistema\n"
-        "{rule}"
-    ).format(rule=RULE, product=PRODUCT)
+    return "\n".join([
+        lux_header("{} · Acceso".format(PRODUCT), "Sube a la parrilla"),
+        "",
+        lux_item("/precio", "Tarifas"),
+        lux_item("/vip", "Activar acceso"),
+        lux_item("/codigo XXXX", "Canjear codigo"),
+        lux_item("/miestado", "Tu estado"),
+        lux_item("/about", "El sistema"),
+        LUX_RULE,
+    ])
 
 def build_about_vip():
     """About VIP. Una pantalla, sin mecanica interna, sin versionado."""
-    return (
-        "{rule}\n"
-        "  ◆ {product}\n"
-        "{rule}\n"
-        "\n"
-        "  Senales {pair} con disciplina\n"
-        "  sistematica.\n"
-        "\n"
-        "  Cuando hay edge, dispara.\n"
-        "  Cuando no, calla.\n"
-        "\n"
-        "  ▪ SL anclado a estructura\n"
-        "  ▪ TPs en liquidez real\n"
-        "  ▪ Resultados auditables\n"
-        "  ▪ Veto fin de semana\n"
-        "\n"
-        "  Par         {pair}\n"
-        "  Exchange    OKX\n"
-        "  Ventana     24/5 (lun-vie)\n"
-        "{rule}\n"
-        "  {disclaimer}"
-    ).format(rule=RULE, product=PRODUCT, pair=PAIR, disclaimer=DISCLAIMER)
+    return "\n".join([
+        lux_header("{} · {}".format(PRODUCT, SCUDERIA),
+                   "Senales {} con precision de pista".format(PAIR)),
+        "",
+        lux_block(
+            "Cuando hay edge, acelera.",
+            "Cuando no, frena.",
+        ),
+        "",
+        lux_check("SL anclado a estructura"),
+        lux_check("TPs en liquidez real"),
+        lux_check("Resultados auditables"),
+        lux_check("Sin operar fines de semana"),
+        "",
+        lux_block(
+            "Par         {}".format(PAIR),
+            "Exchange    OKX",
+            "Ventana     24/5 (lun-vie)",
+        ),
+        LUX_RULE,
+        lux_block(DISCLAIMER),
+    ])
 
 def build_about_admin():
-    """Vista admin con sustrato matematico. NO se expone a clientes."""
-    return (
-        "{rule}\n"
-        "  ◆ {product} · admin\n"
-        "{rule}\n"
-        "\n"
-        "  MASTER EQUATION:\n"
-        "  P_master = Theta(D) * kappa_evo * phi *\n"
-        "             W_eff * H_lap * f_conf * f_ict\n"
-        "\n"
-        "  W_eff = w_clock * alpha + w_kz * (1-alpha)\n"
-        "  alpha = max(0, 1 - n_closed / 50)\n"
-        "  f_ict = 1.0 + n_concepts * 0.04   (cap 4)\n"
-        "\n"
-        "  GATE FINAL:\n"
-        "  EMIT iff P(SL) ≤ 0.35 AND EV ≥ 1.0R\n"
-        "\n"
-        "  TIMELINES:\n"
-        "  paths      500 (admin 2000)\n"
-        "  horizon    96 velas (24h / 15m)\n"
-        "  optimizer  grid QAOA-inspired\n"
-        "\n"
-        "  CONSTANTES:\n"
-        "  phi    = 1.6180339887\n"
-        "  phi^2  = 2.6180\n"
-        "  phi^3  = 4.2360\n"
-        "  alpha  = 1/137.507\n"
-        "\n"
-        "  THRESHOLDS:\n"
-        "  PMASTER_MIN     = 1.80\n"
-        "  RR_MIN_TP3      = 1.80\n"
-        "  CONFLUENCE_MIN  = 3\n"
-        "  KAPPA cap       = +-15%\n"
-        "  QTE_MAX_P_SL    = 0.35\n"
-        "  QTE_MIN_EV_R    = 1.00\n"
-        "  Cooldown        = 1h\n"
-        "{rule}"
-    ).format(rule=RULE, product=PRODUCT)
+    """Vista admin: resumen operativo del pipeline, sin volcar formulas
+    ni constantes crudas. El detalle matematico vive en el codigo y en
+    los comandos de auditoria (/audit, /metrics, /entropy)."""
+    return "\n".join([
+        lux_header("{} · admin".format(PRODUCT), "Resumen operativo"),
+        "",
+        lux_block("PIPELINE DE DECISION:"),
+        lux_check("Contexto    sesgo, sesion y macro"),
+        lux_check("Estructura  zonas, liquidez y confluencias"),
+        lux_check("Conviccion  score compuesto del setup"),
+        lux_check("Veredicto   proyeccion de escenarios"),
+        "",
+        lux_block("GATE DE EMISION:"),
+        lux_check("Riesgo al stop acotado"),
+        lux_check("Esperanza matematica positiva"),
+        lux_check("Confluencias y R:R minimos"),
+        lux_check("Cooldown y veto de fin de semana"),
+        "",
+        lux_block("AUDITORIA EN VIVO:"),
+        "   /audit /metrics /entropy /ledger /evolve",
+        LUX_RULE,
+        lux_block("Parametros y formulas: en codigo."),
+    ])
 
 # ============================================================
 # WELCOME
 # ============================================================
 def build_welcome():
-    return (
-        "{rule}\n"
-        "  ◆ {product}\n"
-        "{rule}\n"
-        "\n"
-        "  Senales {pair} con disciplina\n"
-        "  sistematica.\n"
-        "\n"
-        "  Cuando hay edge, dispara.\n"
-        "  Cuando no, calla.\n"
-        "\n"
-        "  ▸ /precio      Tarifas\n"
-        "  ▸ /codigo XXXX Canjear codigo\n"
-        "  ▸ /miestado    Tu estado\n"
-        "  ▸ /about       Sobre el sistema\n"
-        "{rule}\n"
-        "  {disclaimer}"
-    ).format(rule=RULE, product=PRODUCT, pair=PAIR, disclaimer=DISCLAIMER)
+    return "\n".join([
+        lux_header("{} · {}".format(PRODUCT, SCUDERIA),
+                   "Senales {}".format(PAIR)),
+        "",
+        lux_block(
+            "Bienvenido al box.",
+            "",
+            "Cuando hay edge, acelera.",
+            "Cuando no, frena.",
+        ),
+        "",
+        lux_footer(
+            "/precio      Tarifas",
+            "/codigo XXXX Canjear codigo",
+            "/miestado    Tu estado",
+            "/about       El sistema",
+        ),
+        "",
+        lux_block(DISCLAIMER),
+    ])
 
 def build_welcome_for_tier(tier):
     if tier in ("vip", "admin", "trial"):
-        return (
-            "{rule}\n"
-            "  ◆ {product} · Acceso activo\n"
-            "{rule}\n"
-            "  Tu canal de senales esta activo.\n"
-            "\n"
-            "  ▸ /status      Estado\n"
-            "  ▸ /lectura     Analisis\n"
-            "  ▸ /miestado    Tu cuenta\n"
-            "  ▸ /help        Comandos\n"
-            "{rule}"
-        ).format(rule=RULE, product=PRODUCT)
+        return "\n".join([
+            lux_header("{} · Acceso activo".format(PRODUCT),
+                       "{} en pista".format(FERRARI["rosso"])),
+            "",
+            lux_block("Tu canal de senales esta encendido."),
+            "",
+            lux_footer(
+                "/status      Estado",
+                "/lectura     Analisis",
+                "/miestado    Tu cuenta",
+                "/help        Comandos",
+            ),
+        ])
     return build_welcome()
 
 # ============================================================

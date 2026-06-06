@@ -5,7 +5,10 @@ Sin versiones, sin formulas, sin jerga de motor.
 """
 from datetime import datetime, timezone, timedelta
 
-from branding import PRODUCT, PAIR, GLYPHS, RULE, DISCLAIMER
+from branding import (
+    PRODUCT, PAIR, SCUDERIA, GLYPHS, RULE, LUX_RULE, DISCLAIMER,
+    lux_header, lux_block, lux_item, lux_check, lux_footer,
+)
 
 CDMX_TZ = timezone(timedelta(hours=-6))
 
@@ -185,28 +188,29 @@ PRICE_TIERS = [
 
 def build_pricing():
     lines = [
-        RULE,
-        "  {} {} · VIP".format(G["title"], PRODUCT),
-        RULE,
+        lux_header("{} · Pase VIP".format(PRODUCT), "Tu lugar en la parrilla"),
+        "",
     ]
     for label, price, off in PRICE_TIERS:
         if off:
-            lines.append("  {} {:<13} {:<10} {}".format(
+            lines.append("  {} {:<11} {:<9} {}".format(
                 G["bullet_act"], label, price, off))
         else:
-            lines.append("  {} {:<13} {}".format(
+            lines.append("  {} {:<11} {}".format(
                 G["bullet_act"], label, price))
     lines.extend([
-        RULE,
-        "  Incluye:",
-        "  {} Senales {} en vivo".format(G["bullet_chk"], PAIR),
-        "  {} Entry, SL y TPs exactos".format(G["bullet_chk"]),
-        "  {} Analisis on-demand".format(G["bullet_chk"]),
-        "  {} Resultados verificables".format(G["bullet_chk"]),
-        RULE,
-        "  {} Tarjeta    /stripe".format(G["bullet_act"]),
-        "  {} USDT       /crypto".format(G["bullet_act"]),
-        "  {} Codigo     /codigo XXXX".format(G["bullet_act"]),
+        "",
+        lux_block("Incluye:"),
+        lux_check("Senales {} en vivo".format(PAIR)),
+        lux_check("Entry, SL y TPs exactos"),
+        lux_check("Analisis on-demand"),
+        lux_check("Resultados verificables"),
+        "",
+        lux_footer(
+            "/stripe        Tarjeta",
+            "/crypto        USDT",
+            "/codigo XXXX   Canjear codigo",
+        ),
     ])
     return "\n".join(lines)
 
@@ -215,17 +219,23 @@ def build_pricing():
 # ============================================================
 def build_welcome():
     return "\n".join([
-        RULE,
-        "  {} {}".format(G["title"], PRODUCT),
-        RULE,
-        "  Canal publico de reportes y",
-        "  resultados verificables del VIP.",
+        lux_header("{} · {}".format(PRODUCT, SCUDERIA),
+                   "Senales {}".format(PAIR)),
         "",
-        "  {} /unirme      Activar VIP".format(G["bullet_act"]),
-        "  {} /precio      Tarifas".format(G["bullet_act"]),
-        "  {} /resultados  Track record".format(G["bullet_act"]),
-        "  {} /info        Sobre el sistema".format(G["bullet_act"]),
-        RULE,
+        lux_block(
+            "Bienvenido al box.",
+            "",
+            "Aqui se publican los cierres y el",
+            "track record verificable del VIP.",
+            "Las senales en vivo corren adentro.",
+        ),
+        "",
+        lux_footer(
+            "/unirme      Pase al VIP",
+            "/precio      Tarifas",
+            "/resultados  Track record",
+            "/info        El sistema",
+        ),
     ])
 
 def build_unknown():
@@ -381,20 +391,25 @@ def build_cta(variant_idx):
 # ============================================================
 def build_info():
     return "\n".join([
-        RULE,
-        "  {} {}".format(G["title"], PRODUCT),
-        RULE,
-        "  Senales {} con disciplina".format(PAIR),
-        "  sistematica.",
+        lux_header("{} · El sistema".format(PRODUCT),
+                   "Senales {} con precision de pista".format(PAIR)),
         "",
-        "  {} Entry, SL y TPs exactos".format(G["bullet_chk"]),
-        "  {} SL anclado a estructura".format(G["bullet_chk"]),
-        "  {} Resultados verificables".format(G["bullet_chk"]),
-        "  {} Veto fin de semana".format(G["bullet_chk"]),
-        RULE,
-        "  {} Tarifas       /precio".format(G["bullet_act"]),
-        "  {} Track record  /resultados".format(G["bullet_act"]),
-        "  {} VIP           /unirme".format(G["bullet_act"]),
+        lux_block(
+            "Un motor que escanea el mercado",
+            "sin pausa y solo abre boca cuando",
+            "hay ventaja real.",
+        ),
+        "",
+        lux_check("Entry, SL y TPs exactos"),
+        lux_check("SL anclado a estructura"),
+        lux_check("Resultados verificables"),
+        lux_check("Sin operar fines de semana"),
+        "",
+        lux_footer(
+            "/precio      Tarifas",
+            "/resultados  Track record",
+            "/unirme      Pase al VIP",
+        ),
     ])
 
 # ============================================================
@@ -434,15 +449,14 @@ def build_unirme(vip_bot_username):
     else:
         link = "@RasDG_Sol"
     return "\n".join([
-        RULE,
-        "  {} {} · Unirse al VIP".format(G["title"], PRODUCT),
-        RULE,
-        "  {} /stripe    Tarjeta".format(G["bullet_act"]),
-        "  {} /crypto    USDT".format(G["bullet_act"]),
-        "  {} /codigo    Codigo de acceso".format(G["bullet_act"]),
+        lux_header("{} · Pase al VIP".format(PRODUCT), "Sube al podio"),
         "",
-        "  Bot VIP: {}".format(link),
-        RULE,
+        lux_item("/stripe", "Tarjeta"),
+        lux_item("/crypto", "USDT"),
+        lux_item("/codigo", "Codigo de acceso"),
+        "",
+        lux_block("Bot VIP: {}".format(link)),
+        LUX_RULE,
     ])
 
 # ============================================================
