@@ -6,7 +6,8 @@ name: Research (backtest / walk-forward / poda)
 # - Semanal (schedule): regenera el track record OOS solo.
 #
 # Datos: OHLCV publico via ccxt (NO requiere secretos/API keys). Binance suele
-# bloquear los runners de GitHub (HTTP 451), por eso el default es Bybit.
+# bloquear los runners de GitHub (HTTP 451), por eso el default es OKX (mas
+# permisivo con runners cloud que Bybit).
 #
 # El job NUNCA falla por el run real: el demo sintetico es la red de seguridad
 # verde y siempre deja un artefacto. El run real corre con continue-on-error y
@@ -16,8 +17,8 @@ on:
   workflow_dispatch:
     inputs:
       exchange:
-        description: "Exchange ccxt (bybit/binance/okx)"
-        default: "bybit"
+        description: "Exchange ccxt (okx/bybit/binance)"
+        default: "okx"
         type: string
       symbol:
         description: "Simbolo"
@@ -52,7 +53,7 @@ jobs:
       TELEGRAM_CHAT_ID: "0"
       ANTHROPIC_API_KEY: "ci-dummy"
       FQ_LEDGER_PATH: "/tmp/fq_ledger_ci.db"
-      EX: ${{ github.event.inputs.exchange || 'bybit' }}
+      EX: ${{ github.event.inputs.exchange || 'okx' }}
       SYM: ${{ github.event.inputs.symbol || 'SOL/USDT' }}
       MONTHS: ${{ github.event.inputs.months || '3' }}
       STEP: ${{ github.event.inputs.step || '2' }}
