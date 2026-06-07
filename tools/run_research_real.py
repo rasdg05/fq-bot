@@ -173,6 +173,11 @@ def main():
                    help="barrera de GANANCIA del triple-barrier. tp1 (~1R) topa "
                         "el avg_win por construccion; tp3 (hard lock) mide la "
                         "expectancy contra el target completo")
+    p.add_argument("--horizon-sweep", default="",
+                   help="lista de horizontes (velas) separados por coma para la "
+                        "frontera TP, p.ej. '96,288,576'. El horizonte es "
+                        "post-replay: barrerlo NO re-replica. Vacio = solo "
+                        "--max-bars")
     p.add_argument("--n-splits", type=int, default=8)
     p.add_argument("--embargo", type=int, default=8)
     p.add_argument("--risk-frac", type=float, default=0.01)
@@ -236,7 +241,8 @@ def main():
               f"expectancy_r={summ['expectancy_r']:.3f} "
               f"total_r={summ['total_r']:+.2f}")
     _print_track_record(labeled)
-    _print_tp_frontier(df_primary, events, args.max_bars)
+    horizons = _parse_int_list(args.horizon_sweep) or [args.max_bars]
+    _print_tp_frontier(df_primary, events, horizons)
 
     # Guard de walk-forward: necesita una muestra minima para 8 folds. Con pocas
     # senales NO abortamos en rojo — ya mostramos el track record arriba; solo
@@ -318,19 +324,15 @@ def main():
                 os.environ[k] = "1"
 
 
-def _print_tp_frontier(df_primary, events, max_bars):
-    """Frontera TP desde UN SOLO replay: reetiqueta los mismos eventos en
-    tp1/tp2/tp3 y compara WR vs expectancy_r.
+def _parse_int_list(s):
+    """'96,288,576' -> [96, 288, 576]. Vacio/None -> []."""
+    if not s:
+        return []
+    return [int(x) for x in str(s).replace(" ", "").split(",") if x]
 
-    El replay (recorrer el historico disparando el motor) es lo caro; cambiar el
-    nivel de TP solo cambia el ETIQUETADO, que es barato. Asi medimos el
-    trade-off WR<->R de los tres targets sin re-replicar 3 veces. In-sample es
-    legitimo aqui: el TP es FIJO, no se ajusta ningun parametro -> no hay
-    sobreajuste que validar (eso es para el modelo/umbral, no para un TP fijo).
-    """
-    if events is None or len(events) == 0:
-        return
-    recs = events.to_dict("records")
+
+def _tp_frontier_rows(df_primary, recs, max_bars):
+    """Reetiqueta los mismos eventos en tp1/tp2/tp3 a UN horizonte y resume."""
     rows = []
     for lvl in ("tp1", "tp2", "tp3"):
         col = f"px_{lvl}"
@@ -348,12 +350,38 @@ def _print_tp_frontier(df_primary, events, max_bars):
             "W/L/T": f"{s['wins']}/{s['losses']}/{s['timeouts']}",
             "avg_MFE": round(s["avg_mfe_r"], 2), "avg_MAE": round(s["avg_mae_r"], 2),
         })
-    if not rows:
+    return rows
+
+
+def _print_tp_frontier(df_primary, events, horizons):
+    """Frontera TP x horizonte desde UN SOLO replay.
+
+    El replay (recorrer el historico disparando el motor) es el ~99% del costo;
+    TANTO el nivel de TP COMO el horizonte (barrera vertical) son post-replay y
+    solo cambian el ETIQUETADO (barato). Asi medimos el trade-off WR<->R de los
+    tres targets a varios horizontes sin re-replicar. In-sample es legitimo aqui:
+    TP y horizonte son FIJOS por celda, no se ajusta ningun parametro -> no hay
+    sobreajuste que validar (eso es para el modelo/umbral).
+    """
+    if events is None or len(events) == 0:
         return
-    print("\n[1.5/4] Frontera TP (mismo replay, reetiquetado tp1/tp2/tp3):")
-    print(pd.DataFrame(rows).to_string(index=False))
-    print("  WR baja y exp_R sube al alejar el TP: ese es el trade-off. "
-          "avg_MFE = recorrido tipico en R (si << rr del TP, el TP no se alcanza).")
+    recs = events.to_dict("records")
+    multi = len(horizons) > 1
+    suffix = f"; horizontes {horizons} velas" if multi else ""
+    print(f"\n[1.5/4] Frontera TP (mismo replay, reetiquetado tp1/tp2/tp3{suffix}):")
+    any_rows = False
+    for h in horizons:
+        rows = _tp_frontier_rows(df_primary, recs, h)
+        if not rows:
+            continue
+        any_rows = True
+        if multi:
+            print(f"\n  -- horizonte = {h} velas --")
+        print(pd.DataFrame(rows).to_string(index=False))
+    if any_rows:
+        print("  WR baja y exp_R sube al alejar el TP: ese es el trade-off. "
+              "avg_MFE = recorrido tipico en R (si << rr del TP, el TP no se "
+              "alcanza). Horizonte mas largo da mas chance al TP lejano.")
 
 
 def _print_track_record(labeled):
