@@ -40,6 +40,10 @@ on:
         description: "Folds walk-forward (guard pide n_splits*3 senales)"
         default: "7"
         type: string
+      ablation:
+        description: "Correr poda de modulos (3 re-replays, MUY lento; ruido con muestra chica)"
+        default: false
+        type: boolean
   schedule:
     - cron: "17 6 * * 1"   # lunes 06:17 UTC
 
@@ -49,7 +53,9 @@ permissions:
 jobs:
   research:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # Baseline (replay + OOS + modelo) cabe sobre. La poda triplica el tiempo
+    # (3 re-replays sobre ~70k velas), por eso es opt-in y el techo es holgado.
+    timeout-minutes: 180
     env:
       # Defaults benignos para que el monolito importe sin secretos reales.
       TELEGRAM_TOKEN: "ci-dummy"
@@ -63,6 +69,7 @@ jobs:
       STEP: ${{ github.event.inputs.step || '1' }}
       MAXBARS: ${{ github.event.inputs.max_bars || '96' }}
       NSPLITS: ${{ github.event.inputs.n_splits || '7' }}
+      ABLATION: ${{ github.event.inputs.ablation || false }}
     steps:
       - uses: actions/checkout@v4
 
@@ -100,9 +107,14 @@ jobs:
       - name: Research real (motor de produccion)
         continue-on-error: true
         run: |
+          # La poda (3 re-replays) es opt-in: por defecto se omite con
+          # --no-ablation para que el run quepa en tiempo y porque con muestra
+          # chica sus deltas son ruido.
+          ABLATION_FLAG="--no-ablation"
+          [ "${ABLATION}" = "true" ] && ABLATION_FLAG=""
           python tools/run_research_real.py --exchange "${EX}" --symbol "${SYM}" \
             --step "${STEP}" --max-bars "${MAXBARS}" \
-            --n-splits "${NSPLITS}" --embargo 8 \
+            --n-splits "${NSPLITS}" --embargo 8 ${ABLATION_FLAG} \
             2>&1 | tee research_out/research_real.txt
 
       - name: Empaquetar reporte
