@@ -29,12 +29,12 @@ on:
         default: "24"
         type: string
       step:
-        description: "Evaluar 1 de cada N velas (1 = cada vela, mas senales)"
-        default: "1"
+        description: "Evaluar 1 de cada N velas (con tf_id=5m: 2 para SOL ~24m, 3 para BTC ~48m; cabe en 180min)"
+        default: "2"
         type: string
       max_bars:
         description: "Horizonte de la barrera vertical (velas del TF primario; con tf_id=5m: 288=24h, 576=48h)"
-        default: "96"
+        default: "576"
         type: string
       n_splits:
         description: "Folds walk-forward (guard pide n_splits*3 senales)"
@@ -49,10 +49,10 @@ on:
         default: "42"
         type: string
       tf_id:
-        description: "TF primario del motor (5m sube volumen de senales; mas lento)"
-        default: "15m"
+        description: "TF primario del motor (5m = mas volumen de senales, recomendado para retrieval; 15m = mas rapido)"
+        default: "5m"
         type: choice
-        options: ["15m", "5m"]
+        options: ["5m", "15m"]
       target_level:
         description: "Barrera de ganancia = label de win (modelo + retrieval). tp1 = definicion del ledger (~1R, WR balanceado, sin descartar eventos). OJO tp3==tp2 en el motor; tp4 = unico target lejano real (entry+rng)."
         default: "tp1"
@@ -100,12 +100,12 @@ jobs:
       EX: ${{ github.event.inputs.exchange || 'okx' }}
       SYM: ${{ github.event.inputs.symbol || 'SOL/USDT' }}
       MONTHS: ${{ github.event.inputs.months || '24' }}
-      STEP: ${{ github.event.inputs.step || '1' }}
-      MAXBARS: ${{ github.event.inputs.max_bars || '96' }}
+      STEP: ${{ github.event.inputs.step || '2' }}
+      MAXBARS: ${{ github.event.inputs.max_bars || '576' }}
       NSPLITS: ${{ github.event.inputs.n_splits || '7' }}
       ABLATION: ${{ github.event.inputs.ablation || false }}
       SEED: ${{ github.event.inputs.seed || '42' }}
-      TFID: ${{ github.event.inputs.tf_id || '15m' }}
+      TFID: ${{ github.event.inputs.tf_id || '5m' }}
       TARGETLVL: ${{ github.event.inputs.target_level || 'tp1' }}
       HSWEEP: ${{ github.event.inputs.horizon_sweep || '' }}
       DATAONLY: ${{ github.event.inputs.data_only || false }}
