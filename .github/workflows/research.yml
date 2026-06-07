@@ -21,16 +21,16 @@ on:
         default: "okx"
         type: string
       symbol:
-        description: "Simbolo"
-        default: "SOL/USDT"
+        description: "Simbolo (default BTC; para SOL: SOL/USDT con months=24 step=2)"
+        default: "BTC/USDT"
         type: string
       months:
-        description: "Meses de histgrico a descargar"
-        default: "24"
+        description: "Meses de histgrico a descargar (BTC 48 = mas densidad; SOL 24)"
+        default: "48"
         type: string
       step:
-        description: "Evaluar 1 de cada N velas (con tf_id=5m: 2 para SOL ~24m, 3 para BTC ~48m; cabe en 180min)"
-        default: "2"
+        description: "Evaluar 1 de cada N velas (con tf_id=5m: 3 para BTC ~48m, 2 para SOL ~24m; cabe en 180min)"
+        default: "3"
         type: string
       max_bars:
         description: "Horizonte de la barrera vertical (velas del TF primario; con tf_id=5m: 288=24h, 576=48h)"
@@ -59,8 +59,8 @@ on:
         type: choice
         options: ["tp1", "tp2", "tp3", "tp4"]
       horizon_sweep:
-        description: "Frontera TP a varios horizontes (velas, coma). Post-replay: NO re-replica. Vacio = solo max_bars. p.ej. 96,288,576,864"
-        default: ""
+        description: "Frontera TP a varios horizontes (velas, coma). Post-replay: NO re-replica (gratis). Vacio = solo max_bars. 288=24h 576=48h 864=72h en 5m"
+        default: "288,576,864"
         type: string
       data_only:
         description: "Solo descargar histgrico (build_dataset) y omitir el replay. Para preparar/validar datos de un simbolo nuevo (p.ej. BTC). Sube el dataset como artefacto."
@@ -98,16 +98,16 @@ jobs:
       ANTHROPIC_API_KEY: "ci-dummy"
       FQ_LEDGER_PATH: "/tmp/fq_ledger_ci.db"
       EX: ${{ github.event.inputs.exchange || 'okx' }}
-      SYM: ${{ github.event.inputs.symbol || 'SOL/USDT' }}
-      MONTHS: ${{ github.event.inputs.months || '24' }}
-      STEP: ${{ github.event.inputs.step || '2' }}
+      SYM: ${{ github.event.inputs.symbol || 'BTC/USDT' }}
+      MONTHS: ${{ github.event.inputs.months || '48' }}
+      STEP: ${{ github.event.inputs.step || '3' }}
       MAXBARS: ${{ github.event.inputs.max_bars || '576' }}
       NSPLITS: ${{ github.event.inputs.n_splits || '7' }}
       ABLATION: ${{ github.event.inputs.ablation || false }}
       SEED: ${{ github.event.inputs.seed || '42' }}
       TFID: ${{ github.event.inputs.tf_id || '5m' }}
       TARGETLVL: ${{ github.event.inputs.target_level || 'tp1' }}
-      HSWEEP: ${{ github.event.inputs.horizon_sweep || '' }}
+      HSWEEP: ${{ github.event.inputs.horizon_sweep || '288,576,864' }}
       DATAONLY: ${{ github.event.inputs.data_only || false }}
       RETRIEVAL: ${{ github.event.inputs.retrieval || 'true' }}
       RBACKEND: ${{ github.event.inputs.retrieval_backend || 'exact' }}
