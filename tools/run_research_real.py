@@ -46,6 +46,17 @@ import bt_train as tr
 import bt_ablation as ab
 
 
+# Stack de TFs por TF primario: (primario, htf_mid, htf_high, sub). El motor
+# trata arg1 de evaluate_signal como el TF de analisis y arg2/3/4 como
+# contexto/sub, asi que cambiar de 15m a 5m es solo re-mapear el stack (no toca
+# el motor). El config lleva TF_ID -> conmuta PMASTER_MIN/n_paths del perfil.
+TF_STACK = {
+    "5m":  ("5m", "15m", "1h", "1m"),
+    "15m": ("15m", "1h", "4h", "1m"),
+}
+TF_MINUTES = {"1m": 1.0, "3m": 3.0, "5m": 5.0, "15m": 15.0, "1h": 60.0, "4h": 240.0}
+
+
 def _load_tf(exchange, symbol, tf, data_dir):
     """Carga un Parquet OHLCV y le aplica los indicadores del motor."""
     import fq_market_data as md
@@ -73,7 +84,7 @@ def _build_config(monolith, tf_id="15m"):
     }
 
 
-def _run_replay(tfs, env_overrides=None, seed=42, **replay_kwargs):
+def _run_replay(tfs, env_overrides=None, seed=42, tf_id="15m", **replay_kwargs):
     """Replay con (re)carga de fusion_engine bajo unos env overrides. Devuelve
     el DataFrame de eventos disparados por el motor.
 
@@ -98,7 +109,7 @@ def _run_replay(tfs, env_overrides=None, seed=42, **replay_kwargs):
     fusion_engine = importlib.import_module("fusion_engine")
 
     import fq_bot_v3_2 as b
-    config = _build_config(b)
+    config = _build_config(b, tf_id=tf_id)
     df15, df1h, df4h, df1m = tfs
     # Determinismo del replay: fija el RNG que consume el Thompson sampling del
     # gate (stdlib random) y cualquier np.random global.
@@ -152,10 +163,12 @@ def main():
     p.add_argument("--exchange", default="binance")
     p.add_argument("--symbol", default="SOL/USDT")
     p.add_argument("--data-dir", default="data")
+    p.add_argument("--tf-id", default="15m", choices=list(TF_STACK),
+                   help="TF primario del motor (5m sube volumen de senales)")
     p.add_argument("--min-lookback", type=int, default=300)
     p.add_argument("--step", type=int, default=1)
     p.add_argument("--max-bars", type=int, default=96,
-                   help="horizonte de la barrera vertical (velas de 15m)")
+                   help="horizonte de la barrera vertical (velas del TF primario)")
     p.add_argument("--n-splits", type=int, default=8)
     p.add_argument("--embargo", type=int, default=8)
     p.add_argument("--risk-frac", type=float, default=0.01)
@@ -173,17 +186,20 @@ def main():
     print("=" * 70)
 
     # --- datos ---
-    df15 = _load_tf(args.exchange, args.symbol, "15m", args.data_dir)
-    if df15 is None:
-        sys.exit("falta el dataset 15m; corre tools/build_dataset.py primero")
-    df1h = _load_tf(args.exchange, args.symbol, "1h", args.data_dir)
-    df4h = _load_tf(args.exchange, args.symbol, "4h", args.data_dir)
-    df1m = _load_tf(args.exchange, args.symbol, "1m", args.data_dir)
-    tfs = (df15, df1h, df4h, df1m)
-    print(f"\nvelas 15m: {len(df15)} | 1h: {_n(df1h)} | 4h: {_n(df4h)} | 1m: {_n(df1m)}")
+    prim_tf, mid_tf, high_tf, sub_tf = TF_STACK[args.tf_id]
+    df_primary = _load_tf(args.exchange, args.symbol, prim_tf, args.data_dir)
+    if df_primary is None:
+        sys.exit(f"falta el dataset {prim_tf}; corre tools/build_dataset.py primero")
+    df_mid = _load_tf(args.exchange, args.symbol, mid_tf, args.data_dir)
+    df_high = _load_tf(args.exchange, args.symbol, high_tf, args.data_dir)
+    df_sub = _load_tf(args.exchange, args.symbol, sub_tf, args.data_dir)
+    tfs = (df_primary, df_mid, df_high, df_sub)
+    print(f"\nTF primario={prim_tf} (mid={mid_tf} high={high_tf} sub={sub_tf})")
+    print(f"velas {prim_tf}: {len(df_primary)} | {mid_tf}: {_n(df_mid)} | "
+          f"{high_tf}: {_n(df_high)} | {sub_tf}: {_n(df_sub)}")
     print(f"seed={args.seed} (replay reproducible; el gate usa Thompson sampling)")
 
-    bar_minutes = 15.0
+    bar_minutes = TF_MINUTES.get(prim_tf, 15.0)
     cost = eng.CostModel()   # defaults Binance USDT-perp
     sim_kwargs = {"equity0": args.equity0, "risk_frac": args.risk_frac,
                   "bar_minutes": bar_minutes, "cost": cost}
@@ -194,7 +210,7 @@ def main():
     # --- BASELINE: replay con todos los modulos ---
     print("\n[1/4] replay del motor (baseline, todos los modulos)...")
     events = _run_replay(
-        tfs, env_overrides=None, seed=args.seed,
+        tfs, env_overrides=None, seed=args.seed, tf_id=args.tf_id,
         min_lookback=args.min_lookback, step=args.step,
         progress_every=2000,
     )
@@ -207,7 +223,7 @@ def main():
     # record crudo del motor (outcome + pnl_r por senal) y NO debe tirarse: es
     # el primer dato real del sistema, no un fallo.
     labeled = lb.label_events(
-        df15, events.to_dict("records"), max_bars=args.max_bars)
+        df_primary, events.to_dict("records"), max_bars=args.max_bars)
     summ = lb.label_summary(labeled)
     if summ is not None:
         print(f"  etiquetadas: n={summ['n']} win_rate={summ['win_rate']:.3f} "
@@ -274,9 +290,10 @@ def main():
     for name, env_off in toggles.items():
         try:
             ev2 = _run_replay(tfs, env_overrides=env_off, seed=args.seed,
+                              tf_id=args.tf_id,
                               min_lookback=args.min_lookback, step=args.step)
             lab2, fold2, vi2 = _label_and_fold(
-                ev2, df15, args.max_bars, args.n_splits, args.embargo)
+                ev2, df_primary, args.max_bars, args.n_splits, args.embargo)
             m2, _ = _oos_metrics(lab2, fold2, vi2, sim_kwargs, ppy)
             without = m2.get("expectancy_r")
             delta = (base_metric - without) if (base_metric is not None and

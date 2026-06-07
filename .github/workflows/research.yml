@@ -48,6 +48,11 @@ on:
         description: "Semilla del replay (gate = Thompson sampling). Fija = reproducible; variala para muestrear la distribucion"
         default: "42"
         type: string
+      tf_id:
+        description: "TF primario del motor (5m sube volumen de senales; mas lento)"
+        default: "15m"
+        type: choice
+        options: ["15m", "5m"]
   schedule:
     - cron: "17 6 * * 1"   # lunes 06:17 UTC
 
@@ -75,6 +80,7 @@ jobs:
       NSPLITS: ${{ github.event.inputs.n_splits || '7' }}
       ABLATION: ${{ github.event.inputs.ablation || false }}
       SEED: ${{ github.event.inputs.seed || '42' }}
+      TFID: ${{ github.event.inputs.tf_id || '15m' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -102,7 +108,9 @@ jobs:
         continue-on-error: true
         run: |
           YEARS=$(python -c "print(round(${MONTHS}/12.0, 4))")
-          for TF in 15m 1h 4h; do
+          # Stack de TFs a descargar segun el TF primario (ver TF_STACK en el runner).
+          if [ "${TFID}" = "5m" ]; then DL_TFS="5m 15m 1h"; else DL_TFS="15m 1h 4h"; fi
+          for TF in ${DL_TFS}; do
             echo "== descargando ${SYM} ${TF} (${MONTHS} meses, ${EX}) =="
             python tools/build_dataset.py --symbol "${SYM}" --timeframe "${TF}" \
               --market swap --years "${YEARS}" --exchanges "${EX}" \
@@ -118,8 +126,8 @@ jobs:
           ABLATION_FLAG="--no-ablation"
           [ "${ABLATION}" = "true" ] && ABLATION_FLAG=""
           python tools/run_research_real.py --exchange "${EX}" --symbol "${SYM}" \
-            --step "${STEP}" --max-bars "${MAXBARS}" --seed "${SEED}" \
-            --n-splits "${NSPLITS}" --embargo 8 ${ABLATION_FLAG} \
+            --tf-id "${TFID}" --step "${STEP}" --max-bars "${MAXBARS}" \
+            --seed "${SEED}" --n-splits "${NSPLITS}" --embargo 8 ${ABLATION_FLAG} \
             2>&1 | tee research_out/research_real.txt
 
       - name: Empaquetar reporte
