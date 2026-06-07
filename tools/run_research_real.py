@@ -28,6 +28,7 @@ import argparse
 import importlib
 import logging
 import os
+import random
 import sys
 
 import numpy as np
@@ -72,9 +73,17 @@ def _build_config(monolith, tf_id="15m"):
     }
 
 
-def _run_replay(tfs, env_overrides=None, **replay_kwargs):
+def _run_replay(tfs, env_overrides=None, seed=42, **replay_kwargs):
     """Replay con (re)carga de fusion_engine bajo unos env overrides. Devuelve
     el DataFrame de eventos disparados por el motor.
+
+    seed: el gate del motor usa Thompson sampling (random.betavariate sobre la
+    memoria de buckets, ver entropy_cognition.compute_kappa_thompson). En vivo
+    esa aleatoriedad es exploracion deliberada, pero en el replay hace que dos
+    corridas del MISMO codigo disparen conjuntos de senales distintos. Sembramos
+    random + numpy justo antes del replay para que la investigacion sea
+    reproducible y la comparacion entre ramas no quede contaminada por el azar.
+    Cada (re)replay reusa la misma semilla -> arranque identico para cada toggle.
     """
     if env_overrides:
         os.environ.update({k: str(v) for k, v in env_overrides.items()})
@@ -91,6 +100,10 @@ def _run_replay(tfs, env_overrides=None, **replay_kwargs):
     import fq_bot_v3_2 as b
     config = _build_config(b)
     df15, df1h, df4h, df1m = tfs
+    # Determinismo del replay: fija el RNG que consume el Thompson sampling del
+    # gate (stdlib random) y cualquier np.random global.
+    random.seed(seed)
+    np.random.seed(seed)
     return bf.replay_events(
         df15, df1h, df4h, df1m,
         evaluate_fn=fusion_engine.evaluate_signal,
@@ -148,6 +161,10 @@ def main():
     p.add_argument("--risk-frac", type=float, default=0.01)
     p.add_argument("--equity0", type=float, default=10_000)
     p.add_argument("--no-ablation", action="store_true")
+    p.add_argument("--seed", type=int, default=42,
+                   help="semilla del replay (Thompson sampling del gate); "
+                        "fija = reproducible. Varia la semilla para muestrear "
+                        "la distribucion de la politica estocastica")
     args = p.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -164,6 +181,7 @@ def main():
     df1m = _load_tf(args.exchange, args.symbol, "1m", args.data_dir)
     tfs = (df15, df1h, df4h, df1m)
     print(f"\nvelas 15m: {len(df15)} | 1h: {_n(df1h)} | 4h: {_n(df4h)} | 1m: {_n(df1m)}")
+    print(f"seed={args.seed} (replay reproducible; el gate usa Thompson sampling)")
 
     bar_minutes = 15.0
     cost = eng.CostModel()   # defaults Binance USDT-perp
@@ -176,7 +194,7 @@ def main():
     # --- BASELINE: replay con todos los modulos ---
     print("\n[1/4] replay del motor (baseline, todos los modulos)...")
     events = _run_replay(
-        tfs, env_overrides=None,
+        tfs, env_overrides=None, seed=args.seed,
         min_lookback=args.min_lookback, step=args.step,
         progress_every=2000,
     )
@@ -255,7 +273,7 @@ def main():
     print(f"  baseline expectancy_r={_f(base_metric)} (n_oos={n_pool})")
     for name, env_off in toggles.items():
         try:
-            ev2 = _run_replay(tfs, env_overrides=env_off,
+            ev2 = _run_replay(tfs, env_overrides=env_off, seed=args.seed,
                               min_lookback=args.min_lookback, step=args.step)
             lab2, fold2, vi2 = _label_and_fold(
                 ev2, df15, args.max_bars, args.n_splits, args.embargo)

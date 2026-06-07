@@ -44,6 +44,10 @@ on:
         description: "Correr poda de modulos (3 re-replays, MUY lento; ruido con muestra chica)"
         default: false
         type: boolean
+      seed:
+        description: "Semilla del replay (gate = Thompson sampling). Fija = reproducible; variala para muestrear la distribucion"
+        default: "42"
+        type: string
   schedule:
     - cron: "17 6 * * 1"   # lunes 06:17 UTC
 
@@ -70,6 +74,7 @@ jobs:
       MAXBARS: ${{ github.event.inputs.max_bars || '96' }}
       NSPLITS: ${{ github.event.inputs.n_splits || '7' }}
       ABLATION: ${{ github.event.inputs.ablation || false }}
+      SEED: ${{ github.event.inputs.seed || '42' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -113,7 +118,7 @@ jobs:
           ABLATION_FLAG="--no-ablation"
           [ "${ABLATION}" = "true" ] && ABLATION_FLAG=""
           python tools/run_research_real.py --exchange "${EX}" --symbol "${SYM}" \
-            --step "${STEP}" --max-bars "${MAXBARS}" \
+            --step "${STEP}" --max-bars "${MAXBARS}" --seed "${SEED}" \
             --n-splits "${NSPLITS}" --embargo 8 ${ABLATION_FLAG} \
             2>&1 | tee research_out/research_real.txt
 
