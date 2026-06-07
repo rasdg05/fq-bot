@@ -54,10 +54,10 @@ on:
         type: choice
         options: ["15m", "5m"]
       target_level:
-        description: "Barrera de ganancia (tp3 = hard lock contra el target completo; tp1 = conservador ~1R)"
-        default: "tp3"
+        description: "Barrera de ganancia = label de win (modelo + retrieval). tp1 = definicion del ledger (~1R, WR balanceado, sin descartar eventos). OJO tp3==tp2 en el motor; tp4 = unico target lejano real (entry+rng)."
+        default: "tp1"
         type: choice
-        options: ["tp3", "tp2", "tp1"]
+        options: ["tp1", "tp2", "tp3", "tp4"]
       horizon_sweep:
         description: "Frontera TP a varios horizontes (velas, coma). Post-replay: NO re-replica. Vacio = solo max_bars. p.ej. 96,288,576,864"
         default: ""
@@ -106,7 +106,7 @@ jobs:
       ABLATION: ${{ github.event.inputs.ablation || false }}
       SEED: ${{ github.event.inputs.seed || '42' }}
       TFID: ${{ github.event.inputs.tf_id || '15m' }}
-      TARGETLVL: ${{ github.event.inputs.target_level || 'tp3' }}
+      TARGETLVL: ${{ github.event.inputs.target_level || 'tp1' }}
       HSWEEP: ${{ github.event.inputs.horizon_sweep || '' }}
       DATAONLY: ${{ github.event.inputs.data_only || false }}
       RETRIEVAL: ${{ github.event.inputs.retrieval || 'true' }}
