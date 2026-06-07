@@ -236,6 +236,7 @@ def main():
               f"expectancy_r={summ['expectancy_r']:.3f} "
               f"total_r={summ['total_r']:+.2f}")
     _print_track_record(labeled)
+    _print_tp_frontier(df_primary, events, args.max_bars)
 
     # Guard de walk-forward: necesita una muestra minima para 8 folds. Con pocas
     # senales NO abortamos en rojo — ya mostramos el track record arriba; solo
@@ -315,6 +316,44 @@ def main():
             # restaura el toggle para no contaminar el siguiente
             for k in env_off:
                 os.environ[k] = "1"
+
+
+def _print_tp_frontier(df_primary, events, max_bars):
+    """Frontera TP desde UN SOLO replay: reetiqueta los mismos eventos en
+    tp1/tp2/tp3 y compara WR vs expectancy_r.
+
+    El replay (recorrer el historico disparando el motor) es lo caro; cambiar el
+    nivel de TP solo cambia el ETIQUETADO, que es barato. Asi medimos el
+    trade-off WR<->R de los tres targets sin re-replicar 3 veces. In-sample es
+    legitimo aqui: el TP es FIJO, no se ajusta ningun parametro -> no hay
+    sobreajuste que validar (eso es para el modelo/umbral, no para un TP fijo).
+    """
+    if events is None or len(events) == 0:
+        return
+    recs = events.to_dict("records")
+    rows = []
+    for lvl in ("tp1", "tp2", "tp3"):
+        col = f"px_{lvl}"
+        sub = [dict(r, target_price=r[col]) for r in recs
+               if r.get(col) is not None and not pd.isna(r.get(col))]
+        if not sub:
+            continue
+        lab = lb.label_events(df_primary, sub, max_bars=max_bars)
+        s = lb.label_summary(lab)
+        if s is None:
+            continue
+        rows.append({
+            "TP": lvl, "n": s["n"], "WR": round(s["win_rate"], 3),
+            "exp_R": round(s["expectancy_r"], 3), "total_R": round(s["total_r"], 1),
+            "W/L/T": f"{s['wins']}/{s['losses']}/{s['timeouts']}",
+            "avg_MFE": round(s["avg_mfe_r"], 2), "avg_MAE": round(s["avg_mae_r"], 2),
+        })
+    if not rows:
+        return
+    print("\n[1.5/4] Frontera TP (mismo replay, reetiquetado tp1/tp2/tp3):")
+    print(pd.DataFrame(rows).to_string(index=False))
+    print("  WR baja y exp_R sube al alejar el TP: ese es el trade-off. "
+          "avg_MFE = recorrido tipico en R (si << rr del TP, el TP no se alcanza).")
 
 
 def _print_track_record(labeled):

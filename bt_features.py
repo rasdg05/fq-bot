@@ -193,6 +193,11 @@ def replay_events(
             "direction": direction,
             "tp3": levels.get("tp3"),
             "rr_tp3": levels.get("rr_tp3"),
+            # Precios de los TRES targets: permiten reetiquetar tp1/tp2/tp3 desde
+            # un solo replay (el replay es lo caro; el TP solo cambia el label).
+            "px_tp1": levels.get("tp1"),
+            "px_tp2": levels.get("tp2"),
+            "px_tp3": levels.get("tp3"),
         }
         row.update(extract_features(field, report))
         if enrich_fn is not None:
