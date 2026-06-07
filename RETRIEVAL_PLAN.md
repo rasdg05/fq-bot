@@ -333,6 +333,49 @@ ingiriendo (o escalar a la Opción B del §3.0), **no migrar capital todavía**.
 
 ---
 
+## 6.4 Estado de implementacion (F0 + F1 CONSTRUIDOS)
+
+> Construido y verde en CI sintetico (89 tests). Falta el pase con datos reales
+> de mercado (lo dispara el dueno del repo: este entorno no llega a exchanges y
+> la integracion no tiene permiso de Actions:write).
+
+- **`bt_retrieval.py`** — backend enchufable `ExactBackend` (numpy, fuente de
+  verdad) / `TurbovecBackend` (IdMapIndex 2/4-bit, padding a multiplo de 8) tras
+  el mismo contrato; `StateVectorizer` (robusto + L2-norm, fit causal); estimador
+  de vecindario (expectancy/WR/dispersion/confianza/abstencion con recencia);
+  `retrieval_oos` (modos causal/oracle/placebo) + `retrieval_ablation`.
+- **`tests/test_bt_retrieval.py`** — TEST DE LEAKAGE como puerta (causal recupera
+  senal real; placebo colapsa; sin-senal no inventa edge; embargo estable) +
+  aproximacion turbovec≈exacto. 12 tests; suite total 89 verde.
+- **`tools/run_research_real.py`** — paso `[5]` retrieval read-only (no decide) +
+  `--seed` global + costos por simbolo (BTC slippage 0.4bps vs SOL 1.0) + volcado
+  `--retrieval-json`.
+- **`tools/compare_retrieval.py`** — tabla SOL-vs-BTC + criterio de migracion §6.3.
+- **`.github/workflows/research.yml`** — inputs `retrieval/_backend/_k`, cache de
+  Parquet por exchange+symbol+meses (descarga 48m una vez), instala turbovec.
+
+### Como correr F0+F1 (datos reales)
+
+**Via CI** (Actions -> "Research" -> Run workflow, branch
+`claude/turbovec-retrieval-planning-62SLU`):
+- SOL: exchange=okx, symbol=SOL/USDT, months=24, step=1, retrieval=true.
+- BTC: exchange=okx, symbol=BTC/USDT, months=48, step=2 (replay dentro de 90min).
+El artefacto `research-report` trae la tabla de ablacion + veredicto de leakage.
+
+**Via Railway/local** (sin timeout; recomendado para BTC 48m):
+```
+for TF in 15m 1h 4h; do
+  python tools/build_dataset.py --symbol BTC/USDT --timeframe $TF --market swap --years 4 --exchanges okx
+done
+python tools/run_research_real.py --exchange okx --symbol BTC/USDT \
+    --max-bars 96 --n-splits 7 --embargo 8 --seed 42 \
+    --retrieval --retrieval-k 50 --retrieval-json retrieval_BTC.json
+# idem SOL/USDT --years 2 -> retrieval_SOL.json
+python tools/compare_retrieval.py retrieval_SOL.json retrieval_BTC.json
+```
+
+---
+
 ## 7. Roadmap por fases
 
 ### F0 — Datos BTC + harness de índice causal + **test de leakage** (puerta)
