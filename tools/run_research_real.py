@@ -169,6 +169,10 @@ def main():
     p.add_argument("--step", type=int, default=1)
     p.add_argument("--max-bars", type=int, default=96,
                    help="horizonte de la barrera vertical (velas del TF primario)")
+    p.add_argument("--target-level", default="tp1", choices=["tp1", "tp2", "tp3"],
+                   help="barrera de GANANCIA del triple-barrier. tp1 (~1R) topa "
+                        "el avg_win por construccion; tp3 (hard lock) mide la "
+                        "expectancy contra el target completo")
     p.add_argument("--n-splits", type=int, default=8)
     p.add_argument("--embargo", type=int, default=8)
     p.add_argument("--risk-frac", type=float, default=0.01)
@@ -198,6 +202,8 @@ def main():
     print(f"velas {prim_tf}: {len(df_primary)} | {mid_tf}: {_n(df_mid)} | "
           f"{high_tf}: {_n(df_high)} | {sub_tf}: {_n(df_sub)}")
     print(f"seed={args.seed} (replay reproducible; el gate usa Thompson sampling)")
+    print(f"target_level={args.target_level} (barrera de ganancia del "
+          f"triple-barrier; tp3 = hard lock contra el target completo)")
 
     bar_minutes = TF_MINUTES.get(prim_tf, 15.0)
     cost = eng.CostModel()   # defaults Binance USDT-perp
@@ -212,7 +218,7 @@ def main():
     events = _run_replay(
         tfs, env_overrides=None, seed=args.seed, tf_id=args.tf_id,
         min_lookback=args.min_lookback, step=args.step,
-        progress_every=2000,
+        target_level=args.target_level, progress_every=2000,
     )
     print(f"  senales disparadas: {len(events)}")
     if len(events) == 0:
@@ -292,7 +298,7 @@ def main():
     for name, env_off in toggles.items():
         try:
             ev2 = _run_replay(tfs, env_overrides=env_off, seed=args.seed,
-                              tf_id=args.tf_id,
+                              tf_id=args.tf_id, target_level=args.target_level,
                               min_lookback=args.min_lookback, step=args.step)
             lab2, fold2, vi2 = _label_and_fold(
                 ev2, df_primary, args.max_bars, args.n_splits, args.embargo)
