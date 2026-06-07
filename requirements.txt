@@ -7,5 +7,9 @@ anthropic>=0.40.0
 flask>=3.0.0
 pyarrow>=15.0.0
 
+# Retrieval (capa k-NN). Opcional: el backend por defecto es exacto (numpy);
+# turbovec acelera en produccion (wheel manylinux, no requiere compilar Rust).
+turbovec>=0.7.0
+
 # Dev / test
 pytest>=8.0.0
