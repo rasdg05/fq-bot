@@ -170,10 +170,14 @@ def main():
     p.add_argument("--step", type=int, default=1)
     p.add_argument("--max-bars", type=int, default=96,
                    help="horizonte de la barrera vertical (velas del TF primario)")
-    p.add_argument("--target-level", default="tp1", choices=["tp1", "tp2", "tp3"],
-                   help="barrera de GANANCIA del triple-barrier. tp1 (~1R) topa "
-                        "el avg_win por construccion; tp3 (hard lock) mide la "
-                        "expectancy contra el target completo")
+    p.add_argument("--target-level", default="tp1",
+                   choices=["tp1", "tp2", "tp3", "tp4"],
+                   help="barrera de GANANCIA del triple-barrier (label de win que "
+                        "ve el modelo Y el retrieval). tp1 (~1R) = definicion de "
+                        "win del ledger, sin eventos descartados. OJO: tp3 == tp2 "
+                        "en el motor (calculate_levels), asi que el unico target "
+                        "LEJANO real es tp4 (entry+rng). tp4 puede descartar "
+                        "eventos viejos sin px_tp4.")
     p.add_argument("--horizon-sweep", default="",
                    help="lista de horizontes (velas) separados por coma para la "
                         "frontera TP, p.ej. '96,288,576'. El horizonte es "
