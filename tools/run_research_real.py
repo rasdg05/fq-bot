@@ -43,6 +43,7 @@ import bt_engine as eng
 import bt_metrics as met
 import bt_train as tr
 import bt_ablation as ab
+import bt_retrieval as rt
 
 
 def _load_tf(exchange, symbol, tf, data_dir):
@@ -148,6 +149,20 @@ def main():
     p.add_argument("--risk-frac", type=float, default=0.01)
     p.add_argument("--equity0", type=float, default=10_000)
     p.add_argument("--no-ablation", action="store_true")
+    p.add_argument("--seed", type=int, default=42,
+                   help="semilla global de reproducibilidad (retrieval/bootstrap)")
+    # --- retrieval (capa k-NN de expectancy por analogia; read-only en F1) ---
+    p.add_argument("--retrieval", action="store_true",
+                   help="activa el diagnostico read-only de retrieval (no decide)")
+    p.add_argument("--retrieval-backend", default="exact",
+                   choices=["exact", "turbovec"])
+    p.add_argument("--retrieval-k", type=int, default=50)
+    p.add_argument("--retrieval-bit", type=int, default=4)
+    p.add_argument("--retrieval-sim-floor", type=float, default=0.5)
+    p.add_argument("--retrieval-nfloor", type=int, default=None,
+                   help="minimo de vecinos en radio para no abstenerse (def: k/2)")
+    p.add_argument("--retrieval-decay-bars", type=int, default=None,
+                   help="half-life de recencia en velas (None=sin decaimiento)")
     args = p.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -166,9 +181,11 @@ def main():
     print(f"\nvelas 15m: {len(df15)} | 1h: {_n(df1h)} | 4h: {_n(df4h)} | 1m: {_n(df1m)}")
 
     bar_minutes = 15.0
-    cost = eng.CostModel()   # defaults Binance USDT-perp
+    cost = _cost_for_symbol(args.symbol)   # BTC mas fino que SOL
     sim_kwargs = {"equity0": args.equity0, "risk_frac": args.risk_frac,
                   "bar_minutes": bar_minutes, "cost": cost}
+    print(f"  costos: taker_fee={cost.taker_fee} slippage_bps={cost.slippage_bps} "
+          f"funding_8h={cost.funding_rate_8h}")
 
     # --- Inicializar el ledger (esquema) para que el motor lea memoria ---
     _init_ledger()
@@ -242,6 +259,10 @@ def main():
         print("  Expectancy por umbral del modelo:")
         print(thr.to_string(index=False))
 
+    # --- retrieval (read-only, no decide) ---
+    if args.retrieval:
+        _run_retrieval_diagnostic(labeled, folds, valid_index, args)
+
     # --- ablacion de modulos por toggles de entorno ---
     if args.no_ablation:
         return
@@ -272,6 +293,72 @@ def main():
             # restaura el toggle para no contaminar el siguiente
             for k in env_off:
                 os.environ[k] = "1"
+
+
+def _cost_for_symbol(symbol):
+    """Modelo de costos por simbolo. BTC es mas liquido (spread/slippage finos)
+    que SOL; funding tipico similar en USDT-perp. Re-tunear con datos reales.
+    """
+    sym = (symbol or "").upper().replace("-", "/").split(":")[0]
+    base = sym.split("/")[0]
+    if base in ("BTC", "XBT"):
+        return eng.CostModel(taker_fee=0.0005, slippage_bps=0.4,
+                             funding_rate_8h=0.0001, apply_funding=True)
+    # SOL y otros alts: slippage por defecto mas amplio.
+    return eng.CostModel(taker_fee=0.0005, slippage_bps=1.0,
+                         funding_rate_8h=0.0001, apply_funding=True)
+
+
+def _run_retrieval_diagnostic(labeled, folds, valid_index, args):
+    """[read-only] Expectancy por analogia (k-NN causal) + ablacion + leakage.
+
+    NO altera ninguna decision: solo mide si condicionar por la expectancy del
+    vecindario anade edge OOS, y corre la puerta de leakage (causal vs oracle vs
+    placebo) sobre los eventos REALES del motor.
+    """
+    print("\n[5] Retrieval (k-NN causal, READ-ONLY) — expectancy por analogia")
+    common = dict(backend=args.retrieval_backend, bit_width=args.retrieval_bit,
+                  k=args.retrieval_k, sim_floor=args.retrieval_sim_floor,
+                  n_floor=args.retrieval_nfloor, decay_bars=args.retrieval_decay_bars,
+                  seed=args.seed)
+    try:
+        oos = rt.retrieval_oos(labeled, folds, valid_index, mode="causal", **common)
+    except Exception as e:
+        print(f"  (retrieval no disponible: {e})")
+        return
+    if len(oos) == 0:
+        print("  (sin eventos OOS para retrieval)")
+        return
+    abl = rt.retrieval_ablation(oos, gate_threshold=0.0)
+    print(f"  backend={args.retrieval_backend} k={args.retrieval_k} "
+          f"sim_floor={args.retrieval_sim_floor} n_floor={common['n_floor'] or args.retrieval_k//2}")
+    _print_ablation_table(abl)
+    edge = abl.get("edge_vs_base_r")
+    print(f"  >> EDGE retrieval (gate_pass - base) = {_f(edge)} R/trade")
+
+    # Puerta de leakage: el edge causal debe sobrevivir, el placebo colapsar.
+    try:
+        oos_pl = rt.retrieval_oos(labeled, folds, valid_index, mode="placebo", **common)
+        edge_pl = rt.retrieval_ablation(oos_pl)["edge_vs_base_r"]
+        oos_or = rt.retrieval_oos(labeled, folds, valid_index, mode="oracle", **common)
+        edge_or = rt.retrieval_ablation(oos_or)["edge_vs_base_r"]
+        print(f"  [leakage] causal={_f(edge)}  placebo={_f(edge_pl)}  oracle={_f(edge_or)}")
+        if edge is not None and not (isinstance(edge, float) and np.isnan(edge)):
+            verdict = "OK" if (abs(edge_pl) < abs(edge) and edge > 0.02) else "REVISAR"
+            print(f"  [leakage] veredicto={verdict} "
+                  f"(placebo debe colapsar; causal no debe necesitar el oracle)")
+    except Exception as e:
+        print(f"  [leakage] no se pudo correr el barrido: {e}")
+
+
+def _print_ablation_table(abl):
+    cols = ["n", "expectancy_r", "wr", "pf", "total_r"]
+    rows = ["base", "confident", "gate_pass", "gate_block", "abstained"]
+    print(f"  {'subset':<12} {'n':>6} {'exp_r':>8} {'wr':>6} {'pf':>7} {'total_r':>9}")
+    for r in rows:
+        s = abl.get(r, {})
+        print(f"  {r:<12} {s.get('n',0):>6} {_f(s.get('expectancy_r')):>8} "
+              f"{_f(s.get('wr')):>6} {_f(s.get('pf')):>7} {_f(s.get('total_r')):>9}")
 
 
 def _print_track_record(labeled):
