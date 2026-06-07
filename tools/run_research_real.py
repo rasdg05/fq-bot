@@ -163,6 +163,8 @@ def main():
                    help="minimo de vecinos en radio para no abstenerse (def: k/2)")
     p.add_argument("--retrieval-decay-bars", type=int, default=None,
                    help="half-life de recencia en velas (None=sin decaimiento)")
+    p.add_argument("--retrieval-json", default=None,
+                   help="ruta para volcar resultados de retrieval en JSON (comparacion)")
     args = p.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -337,6 +339,8 @@ def _run_retrieval_diagnostic(labeled, folds, valid_index, args):
     print(f"  >> EDGE retrieval (gate_pass - base) = {_f(edge)} R/trade")
 
     # Puerta de leakage: el edge causal debe sobrevivir, el placebo colapsar.
+    edge_pl = edge_or = None
+    verdict = "n/a"
     try:
         oos_pl = rt.retrieval_oos(labeled, folds, valid_index, mode="placebo", **common)
         edge_pl = rt.retrieval_ablation(oos_pl)["edge_vs_base_r"]
@@ -349,6 +353,34 @@ def _run_retrieval_diagnostic(labeled, folds, valid_index, args):
                   f"(placebo debe colapsar; causal no debe necesitar el oracle)")
     except Exception as e:
         print(f"  [leakage] no se pudo correr el barrido: {e}")
+
+    if args.retrieval_json:
+        import json
+        payload = {
+            "symbol": args.symbol, "exchange": args.exchange,
+            "params": {"backend": args.retrieval_backend, "k": args.retrieval_k,
+                       "bit_width": args.retrieval_bit, "sim_floor": args.retrieval_sim_floor,
+                       "n_floor": common["n_floor"], "decay_bars": args.retrieval_decay_bars,
+                       "seed": args.seed},
+            "ablation": abl, "edge_causal_r": edge,
+            "edge_placebo_r": edge_pl, "edge_oracle_r": edge_or,
+            "leakage_verdict": verdict,
+        }
+        try:
+            with open(args.retrieval_json, "w") as fh:
+                json.dump(payload, fh, indent=2, default=_jsonable)
+            print(f"  [json] resultados -> {args.retrieval_json}")
+        except Exception as e:
+            print(f"  [json] no se pudo escribir: {e}")
+
+
+def _jsonable(o):
+    import numpy as _np
+    if isinstance(o, (_np.floating, _np.integer)):
+        return o.item()
+    if isinstance(o, _np.ndarray):
+        return o.tolist()
+    return str(o)
 
 
 def _print_ablation_table(abl):
