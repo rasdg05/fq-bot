@@ -40,12 +40,38 @@ on:
         description: "Folds walk-forward (guard pide n_splits*3 senales)"
         default: "7"
         type: string
+      ablation:
+        description: "Correr poda de modulos (3 re-replays, MUY lento; ruido con muestra chica)"
+        default: false
+        type: boolean
+      seed:
+        description: "Semilla del replay (gate = Thompson sampling). Fija = reproducible; variala para muestrear la distribucion"
+        default: "42"
+        type: string
+      tf_id:
+        description: "TF primario del motor (5m sube volumen de senales; mas lento)"
+        default: "15m"
+        type: choice
+        options: ["15m", "5m"]
+      target_level:
+        description: "Barrera de ganancia (tp3 = hard lock contra el target completo; tp1 = conservador ~1R)"
+        default: "tp3"
+        type: choice
+        options: ["tp3", "tp2", "tp1"]
+      horizon_sweep:
+        description: "Frontera TP a varios horizontes (velas, coma). Post-replay: NO re-replica. Vacio = solo max_bars. p.ej. 96,288,576,864"
+        default: ""
+        type: string
+      data_only:
+        description: "Solo descargar histgrico (build_dataset) y omitir el replay. Para preparar/validar datos de un simbolo nuevo (p.ej. BTC). Sube el dataset como artefacto."
+        default: false
+        type: boolean
       retrieval:
-        description: "Activar diagnostico read-only de retrieval (k-NN causal)"
+        description: "Activar diagnostico read-only de retrieval (k-NN causal de expectancy por analogia)"
         default: "true"
         type: string
       retrieval_backend:
-        description: "Backend de retrieval (exact/turbovec)"
+        description: "Backend de retrieval (exact = numpy fuente de verdad; turbovec = ANN 2/4-bit)"
         default: "exact"
         type: string
       retrieval_k:
@@ -61,7 +87,9 @@ permissions:
 jobs:
   research:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # Baseline (replay + OOS + modelo) cabe sobre. La poda triplica el tiempo
+    # (3 re-replays sobre ~70k velas), por eso es opt-in y el techo es holgado.
+    timeout-minutes: 180
     env:
       # Defaults benignos para que el monolito importe sin secretos reales.
       TELEGRAM_TOKEN: "ci-dummy"
@@ -75,6 +103,12 @@ jobs:
       STEP: ${{ github.event.inputs.step || '1' }}
       MAXBARS: ${{ github.event.inputs.max_bars || '96' }}
       NSPLITS: ${{ github.event.inputs.n_splits || '7' }}
+      ABLATION: ${{ github.event.inputs.ablation || false }}
+      SEED: ${{ github.event.inputs.seed || '42' }}
+      TFID: ${{ github.event.inputs.tf_id || '15m' }}
+      TARGETLVL: ${{ github.event.inputs.target_level || 'tp3' }}
+      HSWEEP: ${{ github.event.inputs.horizon_sweep || '' }}
+      DATAONLY: ${{ github.event.inputs.data_only || false }}
       RETRIEVAL: ${{ github.event.inputs.retrieval || 'true' }}
       RBACKEND: ${{ github.event.inputs.retrieval_backend || 'exact' }}
       RK: ${{ github.event.inputs.retrieval_k || '50' }}
@@ -88,9 +122,20 @@ jobs:
 
       - name: Install dependencies
         run: |
+          # libgomp1: runtime OpenMP que lightgbm necesita para importar.
+          sudo apt-get update && sudo apt-get install -y libgomp1
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest lightgbm turbovec
+          # scikit-learn: LGBMClassifier vive en lightgbm.sklearn y lo necesita.
+          # Sin el, 'import lightgbm' pasa (verde) pero make_lgbm_classifier truena
+          # y el modelo [3/4] se degrada en SILENCIO (run_research_real lo traga en
+          # su try/except). El assert de abajo construye el classifier para que un
+          # sklearn ausente sea rojo de install, no un reporte sin modelo.
+          # turbovec: backend ANN del retrieval (wheel manylinux; backend por
+          # defecto es exacto/numpy, asi que turbovec es opcional pero lo dejamos
+          # listo para el test de aproximacion).
+          pip install pytest lightgbm scikit-learn turbovec
+          python -c "import lightgbm, sklearn; from lightgbm import LGBMClassifier; LGBMClassifier(); print('lightgbm', lightgbm.__version__, 'sklearn', sklearn.__version__, 'OK')"
 
       - name: Sanity — suite de research (incluye test de leakage de retrieval)
         run: pytest tests/test_bt_*.py -q
@@ -113,23 +158,42 @@ jobs:
         continue-on-error: true
         run: |
           YEARS=$(python -c "print(round(${MONTHS}/12.0, 4))")
-          for TF in 15m 1h 4h; do
+          # Stack de TFs a descargar segun el TF primario (ver TF_STACK en el runner).
+          if [ "${TFID}" = "5m" ]; then DL_TFS="5m 15m 1h"; else DL_TFS="15m 1h 4h"; fi
+          for TF in ${DL_TFS}; do
             echo "== descargando ${SYM} ${TF} (${MONTHS} meses, ${EX}) =="
             python tools/build_dataset.py --symbol "${SYM}" --timeframe "${TF}" \
               --market swap --years "${YEARS}" --exchanges "${EX}" \
               2>&1 | tee -a research_out/download.txt
           done
 
+      - name: Subir dataset (solo modo data_only)
+        if: ${{ env.DATAONLY == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: dataset
+          path: data/
+          retention-days: 90
+
       - name: Research real (motor de produccion + retrieval read-only)
+        if: ${{ env.DATAONLY != 'true' }}
         continue-on-error: true
         run: |
+          # La poda (3 re-replays) es opt-in: por defecto se omite con
+          # --no-ablation para que el run quepa en tiempo y porque con muestra
+          # chica sus deltas son ruido.
+          ABLATION_FLAG="--no-ablation"
+          [ "${ABLATION}" = "true" ] && ABLATION_FLAG=""
+          # Retrieval read-only (no decide): expectancy por analogia + leakage.
           RFLAG=""
           if [ "${RETRIEVAL}" = "true" ]; then
-            RFLAG="--retrieval --retrieval-backend ${RBACKEND} --retrieval-k ${RK}"
+            RFLAG="--retrieval --retrieval-backend ${RBACKEND} --retrieval-k ${RK} --retrieval-json research_out/retrieval_${SYM//\//-}.json"
           fi
           python tools/run_research_real.py --exchange "${EX}" --symbol "${SYM}" \
+            --tf-id "${TFID}" --target-level "${TARGETLVL}" \
+            --horizon-sweep "${HSWEEP}" \
             --step "${STEP}" --max-bars "${MAXBARS}" \
-            --n-splits "${NSPLITS}" --embargo 8 --seed 42 ${RFLAG} \
+            --seed "${SEED}" --n-splits "${NSPLITS}" --embargo 8 ${ABLATION_FLAG} ${RFLAG} \
             2>&1 | tee research_out/research_real.txt
 
       - name: Empaquetar reporte

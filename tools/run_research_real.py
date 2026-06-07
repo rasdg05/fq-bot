@@ -28,6 +28,7 @@ import argparse
 import importlib
 import logging
 import os
+import random
 import sys
 
 import numpy as np
@@ -44,6 +45,17 @@ import bt_metrics as met
 import bt_train as tr
 import bt_ablation as ab
 import bt_retrieval as rt
+
+
+# Stack de TFs por TF primario: (primario, htf_mid, htf_high, sub). El motor
+# trata arg1 de evaluate_signal como el TF de analisis y arg2/3/4 como
+# contexto/sub, asi que cambiar de 15m a 5m es solo re-mapear el stack (no toca
+# el motor). El config lleva TF_ID -> conmuta PMASTER_MIN/n_paths del perfil.
+TF_STACK = {
+    "5m":  ("5m", "15m", "1h", "1m"),
+    "15m": ("15m", "1h", "4h", "1m"),
+}
+TF_MINUTES = {"1m": 1.0, "3m": 3.0, "5m": 5.0, "15m": 15.0, "1h": 60.0, "4h": 240.0}
 
 
 def _load_tf(exchange, symbol, tf, data_dir):
@@ -73,9 +85,17 @@ def _build_config(monolith, tf_id="15m"):
     }
 
 
-def _run_replay(tfs, env_overrides=None, **replay_kwargs):
+def _run_replay(tfs, env_overrides=None, seed=42, tf_id="15m", **replay_kwargs):
     """Replay con (re)carga de fusion_engine bajo unos env overrides. Devuelve
     el DataFrame de eventos disparados por el motor.
+
+    seed: el gate del motor usa Thompson sampling (random.betavariate sobre la
+    memoria de buckets, ver entropy_cognition.compute_kappa_thompson). En vivo
+    esa aleatoriedad es exploracion deliberada, pero en el replay hace que dos
+    corridas del MISMO codigo disparen conjuntos de senales distintos. Sembramos
+    random + numpy justo antes del replay para que la investigacion sea
+    reproducible y la comparacion entre ramas no quede contaminada por el azar.
+    Cada (re)replay reusa la misma semilla -> arranque identico para cada toggle.
     """
     if env_overrides:
         os.environ.update({k: str(v) for k, v in env_overrides.items()})
@@ -90,8 +110,12 @@ def _run_replay(tfs, env_overrides=None, **replay_kwargs):
     fusion_engine = importlib.import_module("fusion_engine")
 
     import fq_bot_v3_2 as b
-    config = _build_config(b)
+    config = _build_config(b, tf_id=tf_id)
     df15, df1h, df4h, df1m = tfs
+    # Determinismo del replay: fija el RNG que consume el Thompson sampling del
+    # gate (stdlib random) y cualquier np.random global.
+    random.seed(seed)
+    np.random.seed(seed)
     return bf.replay_events(
         df15, df1h, df4h, df1m,
         evaluate_fn=fusion_engine.evaluate_signal,
@@ -140,17 +164,30 @@ def main():
     p.add_argument("--exchange", default="binance")
     p.add_argument("--symbol", default="SOL/USDT")
     p.add_argument("--data-dir", default="data")
+    p.add_argument("--tf-id", default="15m", choices=list(TF_STACK),
+                   help="TF primario del motor (5m sube volumen de senales)")
     p.add_argument("--min-lookback", type=int, default=300)
     p.add_argument("--step", type=int, default=1)
     p.add_argument("--max-bars", type=int, default=96,
-                   help="horizonte de la barrera vertical (velas de 15m)")
+                   help="horizonte de la barrera vertical (velas del TF primario)")
+    p.add_argument("--target-level", default="tp1", choices=["tp1", "tp2", "tp3"],
+                   help="barrera de GANANCIA del triple-barrier. tp1 (~1R) topa "
+                        "el avg_win por construccion; tp3 (hard lock) mide la "
+                        "expectancy contra el target completo")
+    p.add_argument("--horizon-sweep", default="",
+                   help="lista de horizontes (velas) separados por coma para la "
+                        "frontera TP, p.ej. '96,288,576'. El horizonte es "
+                        "post-replay: barrerlo NO re-replica. Vacio = solo "
+                        "--max-bars")
     p.add_argument("--n-splits", type=int, default=8)
     p.add_argument("--embargo", type=int, default=8)
     p.add_argument("--risk-frac", type=float, default=0.01)
     p.add_argument("--equity0", type=float, default=10_000)
     p.add_argument("--no-ablation", action="store_true")
     p.add_argument("--seed", type=int, default=42,
-                   help="semilla global de reproducibilidad (retrieval/bootstrap)")
+                   help="semilla global: replay (Thompson sampling del gate) + "
+                        "retrieval/bootstrap. Fija = reproducible; variala para "
+                        "muestrear la distribucion de la politica estocastica")
     # --- retrieval (capa k-NN de expectancy por analogia; read-only en F1) ---
     p.add_argument("--retrieval", action="store_true",
                    help="activa el diagnostico read-only de retrieval (no decide)")
@@ -173,16 +210,22 @@ def main():
     print("=" * 70)
 
     # --- datos ---
-    df15 = _load_tf(args.exchange, args.symbol, "15m", args.data_dir)
-    if df15 is None:
-        sys.exit("falta el dataset 15m; corre tools/build_dataset.py primero")
-    df1h = _load_tf(args.exchange, args.symbol, "1h", args.data_dir)
-    df4h = _load_tf(args.exchange, args.symbol, "4h", args.data_dir)
-    df1m = _load_tf(args.exchange, args.symbol, "1m", args.data_dir)
-    tfs = (df15, df1h, df4h, df1m)
-    print(f"\nvelas 15m: {len(df15)} | 1h: {_n(df1h)} | 4h: {_n(df4h)} | 1m: {_n(df1m)}")
+    prim_tf, mid_tf, high_tf, sub_tf = TF_STACK[args.tf_id]
+    df_primary = _load_tf(args.exchange, args.symbol, prim_tf, args.data_dir)
+    if df_primary is None:
+        sys.exit(f"falta el dataset {prim_tf}; corre tools/build_dataset.py primero")
+    df_mid = _load_tf(args.exchange, args.symbol, mid_tf, args.data_dir)
+    df_high = _load_tf(args.exchange, args.symbol, high_tf, args.data_dir)
+    df_sub = _load_tf(args.exchange, args.symbol, sub_tf, args.data_dir)
+    tfs = (df_primary, df_mid, df_high, df_sub)
+    print(f"\nTF primario={prim_tf} (mid={mid_tf} high={high_tf} sub={sub_tf})")
+    print(f"velas {prim_tf}: {len(df_primary)} | {mid_tf}: {_n(df_mid)} | "
+          f"{high_tf}: {_n(df_high)} | {sub_tf}: {_n(df_sub)}")
+    print(f"seed={args.seed} (replay reproducible; el gate usa Thompson sampling)")
+    print(f"target_level={args.target_level} (barrera de ganancia del "
+          f"triple-barrier; tp3 = hard lock contra el target completo)")
 
-    bar_minutes = 15.0
+    bar_minutes = TF_MINUTES.get(prim_tf, 15.0)
     cost = _cost_for_symbol(args.symbol)   # BTC mas fino que SOL
     sim_kwargs = {"equity0": args.equity0, "risk_frac": args.risk_frac,
                   "bar_minutes": bar_minutes, "cost": cost}
@@ -195,9 +238,9 @@ def main():
     # --- BASELINE: replay con todos los modulos ---
     print("\n[1/4] replay del motor (baseline, todos los modulos)...")
     events = _run_replay(
-        tfs, env_overrides=None,
+        tfs, env_overrides=None, seed=args.seed, tf_id=args.tf_id,
         min_lookback=args.min_lookback, step=args.step,
-        progress_every=2000,
+        target_level=args.target_level, progress_every=2000,
     )
     print(f"  senales disparadas: {len(events)}")
     if len(events) == 0:
@@ -208,13 +251,15 @@ def main():
     # record crudo del motor (outcome + pnl_r por senal) y NO debe tirarse: es
     # el primer dato real del sistema, no un fallo.
     labeled = lb.label_events(
-        df15, events.to_dict("records"), max_bars=args.max_bars)
+        df_primary, events.to_dict("records"), max_bars=args.max_bars)
     summ = lb.label_summary(labeled)
     if summ is not None:
         print(f"  etiquetadas: n={summ['n']} win_rate={summ['win_rate']:.3f} "
               f"expectancy_r={summ['expectancy_r']:.3f} "
               f"total_r={summ['total_r']:+.2f}")
     _print_track_record(labeled)
+    horizons = _parse_int_list(args.horizon_sweep) or [args.max_bars]
+    _print_tp_frontier(df_primary, events, horizons)
 
     # Guard de walk-forward: necesita una muestra minima para 8 folds. Con pocas
     # senales NO abortamos en rojo — ya mostramos el track record arriba; solo
@@ -246,8 +291,10 @@ def main():
     try:
         est_factory = tr.make_lgbm_classifier
         est_factory()   # prueba que lightgbm exista
-    except Exception:
-        print("  (lightgbm no disponible; instala lightgbm para el modelo)")
+    except Exception as e:
+        # Muestra el error real (p.ej. 'libgomp.so.1: cannot open...') en vez de
+        # esconderlo: si el modelo no corre, queremos saber POR QUE.
+        print(f"  (lightgbm no disponible: {type(e).__name__}: {e})")
         est_factory = None
     if est_factory is not None:
         trained = tr.train_walk_forward(X, y, folds, estimator_factory=est_factory)
@@ -278,10 +325,11 @@ def main():
     print(f"  baseline expectancy_r={_f(base_metric)} (n_oos={n_pool})")
     for name, env_off in toggles.items():
         try:
-            ev2 = _run_replay(tfs, env_overrides=env_off,
+            ev2 = _run_replay(tfs, env_overrides=env_off, seed=args.seed,
+                              tf_id=args.tf_id, target_level=args.target_level,
                               min_lookback=args.min_lookback, step=args.step)
             lab2, fold2, vi2 = _label_and_fold(
-                ev2, df15, args.max_bars, args.n_splits, args.embargo)
+                ev2, df_primary, args.max_bars, args.n_splits, args.embargo)
             m2, _ = _oos_metrics(lab2, fold2, vi2, sim_kwargs, ppy)
             without = m2.get("expectancy_r")
             delta = (base_metric - without) if (base_metric is not None and
@@ -391,6 +439,73 @@ def _print_ablation_table(abl):
         s = abl.get(r, {})
         print(f"  {r:<12} {s.get('n',0):>6} {_f(s.get('expectancy_r')):>8} "
               f"{_f(s.get('wr')):>6} {_f(s.get('pf')):>7} {_f(s.get('total_r')):>9}")
+
+
+def _parse_int_list(s):
+    """'96,288,576' -> [96, 288, 576]. Vacio/None -> []."""
+    if not s:
+        return []
+    return [int(x) for x in str(s).replace(" ", "").split(",") if x]
+
+
+def _tp_frontier_rows(df_primary, recs, max_bars):
+    """Reetiqueta los mismos eventos en tp1..tp4 a UN horizonte y resume.
+
+    tp4 entra porque en el motor tp3 == tp2 (calculate_levels: tp3 = entry +
+    rng*PHI_INV, identico a tp2), asi que la fila tp3 NO aporta un target mas
+    lejano. tp4 (= entry + rng) es el unico target genuinamente distante para el
+    test de alcance (avg_MFE vs rr). Eventos viejos sin px_tp4 caen por el guard
+    de None de abajo (la fila tp4 sale vacia hasta el proximo replay).
+    """
+    rows = []
+    for lvl in ("tp1", "tp2", "tp3", "tp4"):
+        col = f"px_{lvl}"
+        sub = [dict(r, target_price=r[col]) for r in recs
+               if r.get(col) is not None and not pd.isna(r.get(col))]
+        if not sub:
+            continue
+        lab = lb.label_events(df_primary, sub, max_bars=max_bars)
+        s = lb.label_summary(lab)
+        if s is None:
+            continue
+        rows.append({
+            "TP": lvl, "n": s["n"], "WR": round(s["win_rate"], 3),
+            "exp_R": round(s["expectancy_r"], 3), "total_R": round(s["total_r"], 1),
+            "W/L/T": f"{s['wins']}/{s['losses']}/{s['timeouts']}",
+            "avg_MFE": round(s["avg_mfe_r"], 2), "avg_MAE": round(s["avg_mae_r"], 2),
+        })
+    return rows
+
+
+def _print_tp_frontier(df_primary, events, horizons):
+    """Frontera TP x horizonte desde UN SOLO replay.
+
+    El replay (recorrer el historico disparando el motor) es el ~99% del costo;
+    TANTO el nivel de TP COMO el horizonte (barrera vertical) son post-replay y
+    solo cambian el ETIQUETADO (barato). Asi medimos el trade-off WR<->R de los
+    tres targets a varios horizontes sin re-replicar. In-sample es legitimo aqui:
+    TP y horizonte son FIJOS por celda, no se ajusta ningun parametro -> no hay
+    sobreajuste que validar (eso es para el modelo/umbral).
+    """
+    if events is None or len(events) == 0:
+        return
+    recs = events.to_dict("records")
+    multi = len(horizons) > 1
+    suffix = f"; horizontes {horizons} velas" if multi else ""
+    print(f"\n[1.5/4] Frontera TP (mismo replay, reetiquetado tp1/tp2/tp3{suffix}):")
+    any_rows = False
+    for h in horizons:
+        rows = _tp_frontier_rows(df_primary, recs, h)
+        if not rows:
+            continue
+        any_rows = True
+        if multi:
+            print(f"\n  -- horizonte = {h} velas --")
+        print(pd.DataFrame(rows).to_string(index=False))
+    if any_rows:
+        print("  WR baja y exp_R sube al alejar el TP: ese es el trade-off. "
+              "avg_MFE = recorrido tipico en R (si << rr del TP, el TP no se "
+              "alcanza). Horizonte mas largo da mas chance al TP lejano.")
 
 
 def _print_track_record(labeled):
