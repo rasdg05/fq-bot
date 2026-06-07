@@ -37,7 +37,9 @@
    (calibración por muestreo, cualquier bootstrap, LightGBM con features extra).
 4. **Fricción del TF 5m con el motor**: `fusion_engine.evaluate_signal` espera
    `(df_15m, df_1h, df_4h, df_1m)` y está tuneado para disparar en 15m
-   (`TF_PROFILES`). Decisión a tomar en **F0** (spike), ver §3.0.
+   (`TF_PROFILES`). **Resuelto** (§3.0): se adopta la **Opción A** — motor en 15m
+   nativo, label/query snapeados a la rejilla 5m; Opción B (motor a cadencia 5m)
+   queda como respaldo si la densidad no alcanza.
 
 ---
 
@@ -63,8 +65,9 @@ done
   deduplica y audita gaps (`check_continuity`); **registrar el reporte de gaps**
   como artefacto (un gap no detectado en 5m corrompe la alineación causal HTF).
 - **Costo BTC**: re-tunear `CostModel` con spread/slippage/funding reales de BTC
-  (más finos). Propuesta de arranque a calibrar: `taker_fee` igual,
-  `slippage_bps≈0.3–0.5` (BTC más líquido), `funding` desde el histórico real.
+  (más finos). Defaults adoptados: `taker_fee = 5 bps` (igual), `slippage_bps = 0.4`
+  (BTC más líquido que el `1.0` de SOL), `funding_8h` desde el histórico real del
+  par. Sensibilidad a `slippage` hasta `2×` exigida en el criterio de migración (§6.3).
 
 ### 1.2 Convivencia de datasets
 
@@ -133,21 +136,25 @@ test. Se persiste el `scaler` del fold para reproducir la query exactamente.
 
 ## 3. Ciclo de vida del índice en walk-forward (ingest causal + embargo + evicción)
 
-### 3.0 Spike previo (F0): TF de señal 5m
+### 3.0 TF de señal 5m — decisión: **Opción A** (práctica recomendada)
 
-Bifurcación a resolver con un experimento corto antes de construir:
+Se adopta la **Opción A** como diseño por defecto y la B queda como experimento de
+respaldo, no como bloqueante:
 
-- **Opción A (recomendada de arranque)**: el motor sigue **disparando en 15m**
-  (su TF nativo, `TF_PROFILES` intactos), pero el **entry/label se resuelve en la
-  rejilla 5m** y la query del vector se **snapea al bar 5m** del fire → más
-  resolución temporal y densidad sin re-tunear el motor.
-- **Opción B**: re-correr el motor a **cadencia 5m** (pasar `df_5m` como primario).
-  Más señales/densidad pero exige **revisar `TF_PROFILES`** (`PMASTER_MIN`,
-  cooldowns) para 5m, y re-validar que el motor no se degrada.
+- **Opción A (ADOPTADA)**: el motor sigue **disparando en 15m** (su TF nativo,
+  `TF_PROFILES` intactos), pero el **entry/label se resuelve en la rejilla 5m** y
+  la query del vector se **snapea al bar 5m** del fire → más resolución temporal y
+  densidad **sin re-tunear el motor ni arriesgar regresión**. Es la opción de menor
+  letalidad y preserva la comparabilidad con el track SOL existente.
+- **Opción B (respaldo)**: re-correr el motor a **cadencia 5m** (pasar `df_5m` como
+  primario). Más señales pero exige **revisar `TF_PROFILES`** (`PMASTER_MIN`,
+  cooldowns) y re-validar que el motor no se degrada. Sólo se explora en F1 **si**
+  la densidad de A resulta insuficiente para BTC (riesgo #6).
 
-Criterio del spike: comparar nº de eventos, calidad de label y estabilidad de la
-expectancy base entre A y B en una ventana corta. Elegir con números. **Sin tocar
-`fusion_engine`** (sólo cómo lo alimenta `bt_features`).
+Racional: la densidad extra de B no compensa el riesgo de mover el TF nativo del
+motor antes de probar la tesis. Primero validamos retrieval con el motor intacto
+(A); si la densidad limita, escalamos a B. **Sin tocar `fusion_engine`** en ningún
+caso (sólo cómo lo alimenta `bt_features`).
 
 ### 3.1 Causalidad estricta (make-or-break)
 
@@ -188,11 +195,12 @@ extendiendo `bt_labeler` (ver §1, hueco #1).
 
 ### 3.3 No-estacionariedad: decaimiento + evicción (crítico con 48m)
 
-- **Ventana rodante + evicción dura**: `IdMapIndex.remove(id)` para `ids` más
-  viejos que `W` meses (arranque `W≈12–18`). Mantiene el índice en régimen vivo y
-  acota memoria.
-- **Decaimiento de recencia** en el estimador: el peso de cada vecino decae
-  `exp(-age/τ)` al promediar expectancy/WR (no en la distancia). `τ` calibrable.
+- **Ventana rodante + evicción dura** (default `W = 12 meses`): `IdMapIndex.remove(id)`
+  para `ids` más viejos que `W`. Mantiene el índice en régimen vivo y acota memoria.
+  Barrido `W ∈ {6, 12, 18, ∞}` como test #3.
+- **Decaimiento de recencia** en el estimador (default **half-life = 90 días**, i.e.
+  `τ ≈ 130 días`): el peso de cada vecino decae `exp(-age/τ)` al promediar
+  expectancy/WR (no en la distancia). Barrido de `τ` como test #3.
 - **Filtro de régimen** por allowlist: opción de recuperar sólo vecinos de
   `regime_state` compatible (ablación; cuidado con vaciar el vecindario en SOL).
 
@@ -209,8 +217,10 @@ confidence     = f(n_in_radius, dispersion)   # alta n + baja dispersión = alta
 best_tp, best_H= argmax sobre el cubo (TP×horizonte) del pnl_r del vecindario
 ```
 
-**Abstención** cuando `n_in_radius < piso` (SOL ralo): la capa **no opina** y deja
-pasar la decisión base del motor+LightGBM. Esto es clave para la comparabilidad.
+**Abstención** cuando el vecindario es ralo (default: `n_in_radius < k/2 = 25`
+vecinos con `coseno ≥ 0.6`): la capa **no opina** y deja pasar la decisión base del
+motor+LightGBM. Esto es clave para la comparabilidad y para SOL. El piso de
+similitud (`0.6`) y de conteo (`k/2`) se calibran en F1 (test #4).
 
 ### 3.5 Persistencia por símbolo
 
@@ -299,22 +309,27 @@ Una tabla con las mismas columnas para ambos símbolos, en ventanas OOS
 equivalentes (mismo nº de folds y equivalente en barras), incluyendo densidad
 (`mediana n_in_radius`, % abstención) y costes retuneados por símbolo.
 
-### 6.3 Criterio explícito de migración SOL→BTC (propuesta a calibrar)
+### 6.3 Criterio explícito de migración SOL→BTC (umbrales adoptados)
 
-Mover capital a BTC **sólo si TODO** se cumple OOS:
+Mover capital a BTC **sólo si TODO** se cumple OOS (umbrales por defecto; se
+re-anclan una sola vez tras F1 con la dispersión real observada):
 
-1. **Edge neto**: `expectancy_r(BTC, +todo)` ≥ `expectancy_r(SOL, +todo)` con
-   margen ≥ X (a fijar tras F1) **y** `PF(BTC) ≥ 1.3`.
-2. **Lift atribuible**: el IC bootstrap inferior del lift de retrieval sobre
-   motor+lightgbm en BTC es **> 0** (el edge viene de la capa, no del azar).
-3. **Densidad fiable**: `mediana n_in_radius(BTC) ≥ k/2` y `% abstención(BTC)` bajo
-   (la ventaja de densidad de BTC es **real**, no teórica) — riesgo #6.
-4. **Robustez a costes**: con `CostModel` de BTC retuneado (más fino) el edge neto
-   sobre-vive; sensibilidad a `slippage` dentro de banda.
-5. **Sin leakage**: BTC pasa los tests #1–#5 igual que SOL.
+1. **Edge neto**: `expectancy_r(BTC, +todo)` ≥ `expectancy_r(SOL, +todo)` **y**
+   `expectancy_r(BTC, +todo) ≥ +0.05 R` neto de costes **y** `PF(BTC) ≥ 1.3`.
+2. **Lift atribuible**: el límite **inferior del IC bootstrap al 90%** del lift de
+   retrieval sobre motor+lightgbm en BTC es **> 0** (el edge viene de la capa, no
+   del azar). Semilla fija (`--seed`), `n_boot ≥ 2000`.
+3. **Densidad fiable**: `mediana n_in_radius(BTC) ≥ k/2 = 25` **y**
+   `% abstención(BTC) < 30 %` (la ventaja de densidad de BTC es **real**, no
+   teórica) — riesgo #6.
+4. **Robustez a costes**: con `CostModel` de BTC retuneado (`slippage 0.4 bps`) el
+   edge neto sobre-vive a `2× slippage` (sigue cumpliendo el punto 1).
+5. **Sin leakage**: BTC pasa los tests #1–#5 igual que SOL (en particular, el
+   barrido de embargo no muestra decaimiento de expectancy).
 
-Si BTC gana en (1)–(2) pero falla densidad (3), la conclusión es "la tesis escala
-con datos pero aún no hay señal accionable" → seguir ingiriendo, no migrar capital.
+Resultado posible: si BTC gana en (1)–(2) pero **falla densidad (3)**, la
+conclusión es "la tesis escala con datos pero aún no hay señal accionable" → seguir
+ingiriendo (o escalar a la Opción B del §3.0), **no migrar capital todavía**.
 
 ---
 
@@ -322,7 +337,7 @@ con datos pero aún no hay señal accionable" → seguir ingiriendo, no migrar c
 
 ### F0 — Datos BTC + harness de índice causal + **test de leakage** (puerta)
 - Descargar BTC 48m en 5m/15m/1h/4h; reporte de gaps como artefacto.
-- Spike del TF 5m (§3.0): elegir Opción A/B con números.
+- Implementar la **Opción A** (§3.0): motor en 15m, label/query en rejilla 5m.
 - Esqueleto de `bt_retrieval.py`: vector, scaler causal, `StateIndex` sobre
   turbovec, ingest online en walk-forward, allowlist causal + embargo.
 - Extender `bt_labeler` al cubo `(TP × horizonte)` (necesario para side-table y F3).
