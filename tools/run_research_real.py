@@ -332,9 +332,16 @@ def _parse_int_list(s):
 
 
 def _tp_frontier_rows(df_primary, recs, max_bars):
-    """Reetiqueta los mismos eventos en tp1/tp2/tp3 a UN horizonte y resume."""
+    """Reetiqueta los mismos eventos en tp1..tp4 a UN horizonte y resume.
+
+    tp4 entra porque en el motor tp3 == tp2 (calculate_levels: tp3 = entry +
+    rng*PHI_INV, identico a tp2), asi que la fila tp3 NO aporta un target mas
+    lejano. tp4 (= entry + rng) es el unico target genuinamente distante para el
+    test de alcance (avg_MFE vs rr). Eventos viejos sin px_tp4 caen por el guard
+    de None de abajo (la fila tp4 sale vacia hasta el proximo replay).
+    """
     rows = []
-    for lvl in ("tp1", "tp2", "tp3"):
+    for lvl in ("tp1", "tp2", "tp3", "tp4"):
         col = f"px_{lvl}"
         sub = [dict(r, target_price=r[col]) for r in recs
                if r.get(col) is not None and not pd.isna(r.get(col))]

@@ -193,11 +193,16 @@ def replay_events(
             "direction": direction,
             "tp3": levels.get("tp3"),
             "rr_tp3": levels.get("rr_tp3"),
-            # Precios de los TRES targets: permiten reetiquetar tp1/tp2/tp3 desde
-            # un solo replay (el replay es lo caro; el TP solo cambia el label).
+            # Precios de los targets: permiten reetiquetar tp1..tp4 desde un solo
+            # replay (el replay es lo caro; el TP solo cambia el label). OJO: en el
+            # motor (calculate_levels) tp3 = entry + rng*PHI_INV, IDENTICO a tp2 ->
+            # px_tp3 == px_tp2 (la frontera lo refleja: filas tp2 y tp3 iguales).
+            # px_tp4 = entry + rng (rng/risk en R) es el unico target lejano REAL
+            # disponible para el test de alcance hasta que se corrija tp3 en el motor.
             "px_tp1": levels.get("tp1"),
             "px_tp2": levels.get("tp2"),
             "px_tp3": levels.get("tp3"),
+            "px_tp4": levels.get("tp4"),
         }
         row.update(extract_features(field, report))
         if enrich_fn is not None:

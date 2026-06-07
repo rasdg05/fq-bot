@@ -111,8 +111,13 @@ jobs:
           sudo apt-get update && sudo apt-get install -y libgomp1
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest lightgbm
-          python -c "import lightgbm; print('lightgbm', lightgbm.__version__, 'OK')"
+          # scikit-learn: LGBMClassifier vive en lightgbm.sklearn y lo necesita.
+          # Sin el, 'import lightgbm' pasa (verde) pero make_lgbm_classifier truena
+          # y el modelo [3/4] se degrada en SILENCIO (run_research_real lo traga en
+          # su try/except). El assert de abajo construye el classifier para que un
+          # sklearn ausente sea rojo de install, no un reporte sin modelo.
+          pip install pytest lightgbm scikit-learn
+          python -c "import lightgbm, sklearn; from lightgbm import LGBMClassifier; LGBMClassifier(); print('lightgbm', lightgbm.__version__, 'sklearn', sklearn.__version__, 'OK')"
 
       - name: Sanity — suite de research
         run: pytest tests/test_bt_*.py -q
