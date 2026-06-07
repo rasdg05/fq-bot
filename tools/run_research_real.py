@@ -181,14 +181,37 @@ def main():
         progress_every=2000,
     )
     print(f"  senales disparadas: {len(events)}")
-    if len(events) < args.n_splits * 3:
-        sys.exit("muy pocas senales para walk-forward; baja min_lookback / sube rango")
+    if len(events) == 0:
+        sys.exit("el motor no disparo ninguna senal en este rango; "
+                 "baja min_lookback / sube el rango historico (--years)")
 
-    labeled, folds, valid_index = _label_and_fold(
-        events, df15, args.max_bars, args.n_splits, args.embargo)
+    # Etiqueta SIEMPRE lo que haya. Aunque sean 2 senales, este es el track
+    # record crudo del motor (outcome + pnl_r por senal) y NO debe tirarse: es
+    # el primer dato real del sistema, no un fallo.
+    labeled = lb.label_events(
+        df15, events.to_dict("records"), max_bars=args.max_bars)
     summ = lb.label_summary(labeled)
-    print(f"  etiquetadas: n={summ['n']} win_rate={summ['win_rate']:.3f} "
-          f"expectancy_r={summ['expectancy_r']:.3f}")
+    if summ is not None:
+        print(f"  etiquetadas: n={summ['n']} win_rate={summ['win_rate']:.3f} "
+              f"expectancy_r={summ['expectancy_r']:.3f} "
+              f"total_r={summ['total_r']:+.2f}")
+    _print_track_record(labeled)
+
+    # Guard de walk-forward: necesita una muestra minima para 8 folds. Con pocas
+    # senales NO abortamos en rojo — ya mostramos el track record arriba; solo
+    # omitimos las metricas OOS / modelo / poda por muestra insuficiente.
+    min_for_wf = args.n_splits * 3
+    if len(events) < min_for_wf:
+        print(f"\n  [guard] {len(events)} senales < {min_for_wf} necesarias "
+              f"para walk-forward de {args.n_splits} folds.")
+        print("  Se omiten metricas OOS / modelo / poda (muestra insuficiente),")
+        print("  pero el track record crudo de arriba es valido.")
+        print("  Para subir el volumen: mas historia (build_dataset --years 2) "
+              "y --step 1.")
+        return
+
+    folds, valid_index = wf.folds_from_labeled(
+        labeled, n_splits=args.n_splits, embargo=args.embargo)
 
     ppy = _periods_per_year(labeled, bar_minutes)
     base_metrics, n_pool = _oos_metrics(labeled, folds, valid_index, sim_kwargs, ppy)
@@ -249,6 +272,39 @@ def main():
             # restaura el toggle para no contaminar el siguiente
             for k in env_off:
                 os.environ[k] = "1"
+
+
+def _print_track_record(labeled):
+    """Imprime cada senal etiquetada (su outcome y pnl_r) como track record crudo.
+
+    Se llama SIEMPRE, aunque haya 2 senales: con muestra pequena el walk-forward
+    no aplica, pero las senales individuales si son el primer dato real del motor.
+    """
+    if labeled is None or len(labeled) == 0:
+        return
+    dir_label = {1: "LONG", -1: "SHORT"}
+    print("\n  Track record crudo (cada senal etiquetada):")
+    header = (f"  {'#':>2}  {'entry_ts':<19}  {'dir':<5} {'entry':>10} "
+              f"{'stop':>10} {'target':>10}  {'outcome':<8} {'pnl_r':>7} {'bars':>4}")
+    print(header)
+    print("  " + "-" * (len(header) - 2))
+    for i, (_, r) in enumerate(labeled.iterrows(), start=1):
+        ts = r.get("entry_ts")
+        ts_s = "" if ts is None else str(pd.Timestamp(ts))[:19]
+        d = dir_label.get(r.get("direction"), str(r.get("direction")))
+        outcome = r.get("outcome")
+        outcome_s = "-" if outcome is None else str(outcome)
+        pnl = r.get("pnl_r")
+        pnl_s = "n/a" if pnl is None or pd.isna(pnl) else f"{float(pnl):+.2f}"
+        bars = r.get("bars_held")
+        bars_s = "" if bars is None else str(int(bars))
+        print(f"  {i:>2}  {ts_s:<19}  {d:<5} {_num(r.get('entry_price')):>10} "
+              f"{_num(r.get('stop_price')):>10} {_num(r.get('target_price')):>10}  "
+              f"{outcome_s:<8} {pnl_s:>7} {bars_s:>4}")
+
+
+def _num(v):
+    return "" if v is None or (isinstance(v, float) and pd.isna(v)) else f"{float(v):.4f}"
 
 
 def _n(df):

@@ -26,15 +26,19 @@ on:
         type: string
       months:
         description: "Meses de histgrico a descargar"
-        default: "3"
+        default: "24"
         type: string
       step:
-        description: "Evaluar 1 de cada N velas (subsampleo, acelera CI)"
-        default: "2"
+        description: "Evaluar 1 de cada N velas (1 = cada vela, mas senales)"
+        default: "1"
         type: string
       max_bars:
         description: "Horizonte de la barrera vertical (velas 15m)"
         default: "96"
+        type: string
+      n_splits:
+        description: "Folds walk-forward (guard pide n_splits*3 senales)"
+        default: "7"
         type: string
   schedule:
     - cron: "17 6 * * 1"   # lunes 06:17 UTC
@@ -55,9 +59,10 @@ jobs:
       FQ_LEDGER_PATH: "/tmp/fq_ledger_ci.db"
       EX: ${{ github.event.inputs.exchange || 'okx' }}
       SYM: ${{ github.event.inputs.symbol || 'SOL/USDT' }}
-      MONTHS: ${{ github.event.inputs.months || '3' }}
-      STEP: ${{ github.event.inputs.step || '2' }}
+      MONTHS: ${{ github.event.inputs.months || '24' }}
+      STEP: ${{ github.event.inputs.step || '1' }}
       MAXBARS: ${{ github.event.inputs.max_bars || '96' }}
+      NSPLITS: ${{ github.event.inputs.n_splits || '7' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -96,7 +101,8 @@ jobs:
         continue-on-error: true
         run: |
           python tools/run_research_real.py --exchange "${EX}" --symbol "${SYM}" \
-            --step "${STEP}" --max-bars "${MAXBARS}" --n-splits 8 --embargo 8 \
+            --step "${STEP}" --max-bars "${MAXBARS}" \
+            --n-splits "${NSPLITS}" --embargo 8 \
             2>&1 | tee research_out/research_real.txt
 
       - name: Empaquetar reporte
