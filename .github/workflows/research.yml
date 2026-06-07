@@ -62,6 +62,10 @@ on:
         description: "Frontera TP a varios horizontes (velas, coma). Post-replay: NO re-replica. Vacio = solo max_bars. p.ej. 96,288,576,864"
         default: ""
         type: string
+      data_only:
+        description: "Solo descargar histgrico (build_dataset) y omitir el replay. Para preparar/validar datos de un simbolo nuevo (p.ej. BTC). Sube el dataset como artefacto."
+        default: false
+        type: boolean
   schedule:
     - cron: "17 6 * * 1"   # lunes 06:17 UTC
 
@@ -92,6 +96,7 @@ jobs:
       TFID: ${{ github.event.inputs.tf_id || '15m' }}
       TARGETLVL: ${{ github.event.inputs.target_level || 'tp3' }}
       HSWEEP: ${{ github.event.inputs.horizon_sweep || '' }}
+      DATAONLY: ${{ github.event.inputs.data_only || false }}
     steps:
       - uses: actions/checkout@v4
 
@@ -131,7 +136,16 @@ jobs:
               2>&1 | tee -a research_out/download.txt
           done
 
+      - name: Subir dataset (solo modo data_only)
+        if: ${{ env.DATAONLY == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: dataset
+          path: data/
+          retention-days: 90
+
       - name: Research real (motor de produccion)
+        if: ${{ env.DATAONLY != 'true' }}
         continue-on-error: true
         run: |
           # La poda (3 re-replays) es opt-in: por defecto se omite con
