@@ -1,0 +1,367 @@
+# FQ — Plan de la capa de RETRIEVAL (expectancy por analogía sobre turbovec)
+
+> Estado: **planeación, sin código**. Documento de diseño para una capa de
+> recuperación k-NN (estimador LOCAL no-paramétrico) que se enchufa al harness
+> `bt_*` existente, symbol-agnóstica, evaluada en paralelo sobre **SOL/USDT** y
+> **BTC/USDT** para decidir con números una eventual migración de capital a BTC.
+>
+> Tesis a VALIDAR (no asumir): codificar cada estado de mercado como vector,
+> indexar el histórico con su desenlace forward adjunto, y en cada señal nueva
+> recuperar los `k` análogos → *expectancy* empírica + WR + dispersión +
+> confianza del vecindario. Complementa al LightGBM global. Si la expectancy OOS
+> **colapsa** al hacer el índice estrictamente causal, **la tesis es falsa** y se
+> mata la línea (eso es un resultado válido del F0, no un fracaso).
+
+---
+
+## 0. Decisiones de alcance cerradas
+
+| Decisión | Elección | Implicación de diseño |
+|---|---|---|
+| **TF del vector/labels** | **5m señal** + 15m/1h/4h como contexto **dentro** del vector | Más densidad para el k-NN; obliga a re-rejillar el replay y a alinear HTF de forma estrictamente causal (un bar 1h/4h sin cerrar = leakage). Cambia las unidades de la barrera vertical. |
+| **Historia BTC** | **48+ meses** | Máxima densidad pero mete régimen 2020–2022 → **obliga** a recencia/decaimiento/evicción agresivos. La no-estacionariedad pasa de "deseable" a "make-or-break secundario". |
+| **k / bit_width** | **Práctica recomendada** → arranque `k=50`, `4-bit`, con barrido de calibración | 4-bit por recall (~0.4–1 pt vs FAISS). `k=50` da estimación estable y a la vez sensible a la esparsidad de SOL (clave para abstención). Se calibra en F1, no se asume. |
+| **Topología del índice** | **Por-símbolo (separado)** | Un `IdMapIndex` por `símbolo/exchange`, persistido aparte. Código symbol-agnóstico; sólo cambia la ruta del artefacto. Encaja con "separación de datos, no de código". |
+
+### Huecos del enunciado vs. realidad del repo (declarados por honestidad)
+
+1. **No existe** un módulo de "frontera TP×horizonte" como artefacto. Hoy hay
+   una **escalera TP1–TP4** (`calculate_levels`) + **barrera vertical** `max_bars`
+   en `bt_labeler`. El "selector de TP/horizonte" (F3) requiere **construir
+   primero** ese cubo de desenlaces (extender `bt_labeler` a multi-TP × multi-horizonte).
+2. **El modelo de costos es estático**, no per-símbolo (`bt_engine.CostModel`:
+   `taker_fee=5bps`, `slippage=1bp`, `funding_8h=1bp`). Hay que **re-tunear por
+   símbolo** (BTC más fino que SOL) — es un parámetro, no código nuevo.
+3. **No hay `--seed` global**. `bt_train` fija `random_state=42`. La capa de
+   retrieval debe **hilar un `--seed`** por las partes con aleatoriedad
+   (calibración por muestreo, cualquier bootstrap, LightGBM con features extra).
+4. **Fricción del TF 5m con el motor**: `fusion_engine.evaluate_signal` espera
+   `(df_15m, df_1h, df_4h, df_1m)` y está tuneado para disparar en 15m
+   (`TF_PROFILES`). Decisión a tomar en **F0** (spike), ver §3.0.
+
+---
+
+## 1. Pipeline de datos BTC y convivencia multi-símbolo
+
+### 1.1 Descarga (reutiliza `bt_data` / `tools/build_dataset.py`)
+
+El layout en disco YA es por símbolo/exchange:
+`data/<exchange>/<symbol>_<tf>.parquet` (p.ej. `data/okx/BTC-USDT_5m.parquet`).
+No hay que tocar `bt_data`; sólo correr el descargador con `--symbol BTC/USDT`.
+
+```
+# BTC: 48 meses, mercado swap, en TFs 5m (señal) + 15m/1h/4h (contexto)
+for TF in 5m 15m 1h 4h; do
+  python tools/build_dataset.py --symbol BTC/USDT --timeframe $TF \
+      --market swap --years 4 --exchanges okx
+done
+```
+
+- **Exchange**: `okx` por defecto (Binance da HTTP 451 en runners; ya es el
+  default del workflow). BTC en swap perpetuo para casar funding con SOL.
+- **5m a 48 meses** es el dataset pesado (~500k velas). `bt_data` ya pagina,
+  deduplica y audita gaps (`check_continuity`); **registrar el reporte de gaps**
+  como artefacto (un gap no detectado en 5m corrompe la alineación causal HTF).
+- **Costo BTC**: re-tunear `CostModel` con spread/slippage/funding reales de BTC
+  (más finos). Propuesta de arranque a calibrar: `taker_fee` igual,
+  `slippage_bps≈0.3–0.5` (BTC más líquido), `funding` desde el histórico real.
+
+### 1.2 Convivencia de datasets
+
+- Los datos **nunca se mezclan**: cada símbolo vive en su carpeta de exchange.
+- Artefactos de retrieval **paralelos** a los datos (ver §4.4):
+  `retrieval/<exchange>/<symbol>/{index.turbo, scaler.pkl, outcomes.parquet, meta.json}`.
+- `.gitignore`: `data/` y `retrieval/` quedan fuera del repo (como hoy `data/`);
+  son artefactos locales/CI, no fuente.
+
+---
+
+## 2. Especificación del vector de estado (symbol-agnóstica)
+
+Objetivo: un vector que (a) capture el estado del motor en la vela de señal, (b)
+respete el **contexto/régimen** para que los vecinos sean comparables, y (c) sea
+**symbol-agnóstico** (las mismas features se computan idénticas en SOL y BTC).
+
+### 2.1 Bloques de features (todas ya emitidas por `evaluate_signal`)
+
+| Bloque | Features (claves reales del `report`/`field`) | Tipo |
+|---|---|---|
+| **Convicción motor** | `p_master`, `p_master_raw`, `kappa_evo`, `alpha_hybrid`, `w_effective`, `h_factor`, `f_confluence`, `f_ict`, `n_concepts` | continuo |
+| **Scorer ensemble** | `scorer_total`, `scorer_volume`, `scorer_structure`, `scorer_liquidity`, `scorer_concept_stack`, `scorer_history` | continuo |
+| **Régimen / volumen** | `regime_score`, `vol_score`, `session_bias_mult`, `sync_score`, `sigma_tau` | continuo |
+| **Estructura (field)** | `confluence_count`, `pd_pct` | continuo |
+| **Contexto HTF (nuevo, derivado de OHLCV)** | retornos y ATR-normalizados de 5m/15m/1h/4h, pendiente EMA50/EMA200, distancia a EMA, posición en rango | continuo |
+| **Categóricas** | `killzone`, `tier`, `direction`, `bias_4h`, `bias_1h`, `regime_state`, `node_type` | one-hot acotado |
+
+El **bloque HTF** es la clave para que la distancia "respete el régimen": sin él,
+dos estados con idéntico `p_master` pero en tendencia vs. rango caen como vecinos.
+Se computa en el replay 5m con los `htf_window` causales ya existentes.
+
+### 2.2 Escalado, whitening y normalización (anti-leakage)
+
+Orden de transformaciones, **ajustado SOLO con datos pasados** (rolling, por fold):
+
+1. **Robust-standardize** (mediana/IQR, no media/std → resistente a colas de cripto)
+   de los bloques continuos. `fit` sobre la ventana de entrenamiento del fold.
+2. **Categóricas** → one-hot con **escala fija pequeña** (p.ej. ±0.5) para que no
+   dominen el producto interno (un one-hot de norma 1 aplastaría a las continuas).
+3. **PCA/ZCA-whitening opcional** (decorrelaciona; muchas features del motor están
+   correlacionadas y se "doble-cuentan"). Se introduce como **ablación en F1**
+   (test #2), no por defecto. `fit` sobre pasado.
+4. **L2-normalize** del vector final → el producto interno de turbovec = **coseno**.
+
+**Regla dura de no-leakage por normalización**: el `scaler`/`PCA` se ajusta con
+las velas cuyo desenlace ya cerró antes del inicio del fold de test. Nunca con el
+test. Se persiste el `scaler` del fold para reproducir la query exactamente.
+
+### 2.3 Dimensión
+
+- Continuas (~25) + HTF (~12) + one-hot (~15) ≈ **~50 dims** crudas.
+- Con PCA-whitening → comprimir a **~32 dims** (ablación F1).
+- `IdMapIndex(dim=~32–52, bit_width=4)`. La dim se congela en `meta.json` por símbolo.
+
+### 2.4 ¿Régimen/tiempo dentro del vector?
+
+- **Régimen**: SÍ, vía el bloque HTF + `regime_state` one-hot (distancia consciente
+  de contexto).
+- **Tiempo absoluto**: **NO** en el vector (sesga la geometría y empuja a "el vecino
+  más reciente" por construcción). La no-estacionariedad se trata por **decaimiento
+  + evicción** en el estimador y el ciclo de vida del índice (§3), no metiendo `t`
+  en la distancia. (Se podrá testear una coordenada de régimen-coarse como ablación.)
+
+---
+
+## 3. Ciclo de vida del índice en walk-forward (ingest causal + embargo + evicción)
+
+### 3.0 Spike previo (F0): TF de señal 5m
+
+Bifurcación a resolver con un experimento corto antes de construir:
+
+- **Opción A (recomendada de arranque)**: el motor sigue **disparando en 15m**
+  (su TF nativo, `TF_PROFILES` intactos), pero el **entry/label se resuelve en la
+  rejilla 5m** y la query del vector se **snapea al bar 5m** del fire → más
+  resolución temporal y densidad sin re-tunear el motor.
+- **Opción B**: re-correr el motor a **cadencia 5m** (pasar `df_5m` como primario).
+  Más señales/densidad pero exige **revisar `TF_PROFILES`** (`PMASTER_MIN`,
+  cooldowns) para 5m, y re-validar que el motor no se degrada.
+
+Criterio del spike: comparar nº de eventos, calidad de label y estabilidad de la
+expectancy base entre A y B en una ventana corta. Elegir con números. **Sin tocar
+`fusion_engine`** (sólo cómo lo alimenta `bt_features`).
+
+### 3.1 Causalidad estricta (make-or-break)
+
+En la query del tiempo `t`, el índice **sólo** puede contener estados `s` cuyo
+desenlace **ya cerró** antes de `t`:
+
+```
+available_at(s) = exit_index(s) + embargo      # exit_index = bar real de
+                                               # resolución (TP/SL/timeout)
+condición de elegibilidad:  available_at(s) < t
+```
+
+- Se usa el **bar real de salida** (`exit_index`), no `max_bars`, porque el
+  desenlace ya es histórico y conocido — pero **siempre** con `embargo` de margen
+  contra autocorrelación/solape (consistente con `bt_walkforward` que ya purga +
+  embarga).
+- **Doble enforcement de causalidad**:
+  - **Grueso (por fold)**: el walk-forward **crece** el índice añadiendo sólo
+    eventos resueltos antes del inicio del fold de test menos embargo ("ingest
+    online", `add_with_ids`). El índice nunca se construye "de golpe".
+  - **Fino (por query)**: dentro del fold, la **allowlist** de `search` restringe a
+    los `ids` con `available_at < t` (y, opcionalmente, a régimen compatible).
+
+### 3.2 Desenlace forward adjunto (side-table)
+
+turbovec guarda **sólo** `(vector, id:uint64)`. El desenlace vive en una tabla
+lateral `outcomes.parquet` indexada por el mismo `id`:
+
+```
+id → { entry_index, exit_index, available_at, regime_state,
+       pnl_r@tp1, pnl_r@tp2, pnl_r@tp3,          # por nivel TP
+       pnl_r@h{H1,H2,H3} ,                        # por horizonte (barrido)
+       outcome, mfe_r, mae_r }
+```
+
+Este cubo `(TP × horizonte)` es el que **F3** consume y el que hay que construir
+extendiendo `bt_labeler` (ver §1, hueco #1).
+
+### 3.3 No-estacionariedad: decaimiento + evicción (crítico con 48m)
+
+- **Ventana rodante + evicción dura**: `IdMapIndex.remove(id)` para `ids` más
+  viejos que `W` meses (arranque `W≈12–18`). Mantiene el índice en régimen vivo y
+  acota memoria.
+- **Decaimiento de recencia** en el estimador: el peso de cada vecino decae
+  `exp(-age/τ)` al promediar expectancy/WR (no en la distancia). `τ` calibrable.
+- **Filtro de régimen** por allowlist: opción de recuperar sólo vecinos de
+  `regime_state` compatible (ablación; cuidado con vaciar el vecindario en SOL).
+
+### 3.4 Estimador del vecindario (lo que produce la query)
+
+Para cada señal en `t`: `scores, ids = index.search(q, k, allowlist)` →
+
+```
+expectancy_r   = Σ w_i · pnl_r_i / Σ w_i      # w_i = recencia × similitud
+wr             = Σ w_i · 1[win_i] / Σ w_i
+dispersion     = std ponderada de pnl_r_i
+n_in_radius    = nº de vecinos con score ≥ umbral de similitud
+confidence     = f(n_in_radius, dispersion)   # alta n + baja dispersión = alta
+best_tp, best_H= argmax sobre el cubo (TP×horizonte) del pnl_r del vecindario
+```
+
+**Abstención** cuando `n_in_radius < piso` (SOL ralo): la capa **no opina** y deja
+pasar la decisión base del motor+LightGBM. Esto es clave para la comparabilidad.
+
+### 3.5 Persistencia por símbolo
+
+`retrieval/<exchange>/<symbol>/`:
+- `index.turbo` — `IdMapIndex.write/.load` (estado final de producción).
+- `scaler.pkl` — scaler/PCA ajustado (por fold en research; final en producción).
+- `outcomes.parquet` — side-table id→desenlace.
+- `meta.json` — `dim`, `bit_width`, `k`, lista/orden de features, ventana de fit,
+  `W`, `τ`, versión del vector (para detectar drift de esquema).
+
+---
+
+## 4. Diseño de integración (empezar read-only) — módulo `bt_retrieval.py`
+
+Módulo **nuevo, symbol-agnóstico**, que envuelve turbovec y se enchufa al harness
+**sin tocar `fusion_engine`** ni el motor de producción.
+
+API conceptual (no código): `build_vector(field, report, htf_ctx) → vec`;
+`fit_scaler(past_df)`; clase `StateIndex(add, query_causal(vec, t, regime, k) →
+stats, persist/load)`. Se llama desde `run_research_real.py` tras `replay_events`.
+
+### Las 4 integraciones, en orden de menor letalidad (diagnóstico → decisión)
+
+| Uso | Qué hace | Cómo entra | Fase |
+|---|---|---|---|
+| **(d) FEATURE** | añade `expectancy_r/wr/dispersion/n/confidence` como columnas extra al `X` del LightGBM | columnas en `bt_train`; ablación mide lift de AUC/expectancy | F4 (read-only puro) |
+| **DIAGNÓSTICO** | loguea los stats del vecindario junto a cada evento; **no altera** fire/size/TP | columna extra en el DataFrame de eventos | **F1** |
+| **(a) GATE** | veta señales con `expectancy_r < umbral` **y** `confidence` suficiente; **abstiene** si ralo | filtro post-replay, pre-engine | F2 |
+| **(b) SIZING** | multiplicador kappa-like ∈ `[lo, hi]` desde expectancy/confianza | factor sobre `risk_frac` en la **capa de decisión** (no en el motor) | F2 |
+| **(c) SELECTOR TP/H** | elige `(TP, horizonte)` que pagó en estados similares | usa el cubo §3.2; requiere extender `bt_labeler` | F3 |
+
+**Principio**: nada decide hasta que el **diagnóstico read-only (F1)** demuestre
+edge condicional OOS. El gate/sizing (F2) sólo se activa si F1 es positivo y pasa
+los tests de leakage.
+
+### 4.5 CI (`research.yml`) — nuevos inputs
+
+Mismo flujo que SOL, se añaden inputs `workflow_dispatch` (con defaults benignos):
+`retrieval_enabled` (bool), `retrieval_mode` (`diagnostic|gate|sizing|selector|all`),
+`retrieval_k`, `retrieval_bit`, `retrieval_window_months` (`W`), `retrieval_decay`
+(`τ`), `seed`. El job corre **por símbolo** (matriz SOL/BTC) para la tabla comparativa.
+
+---
+
+## 5. Registro de riesgos — cada uno con el TEST que lo falsea
+
+| # | Riesgo (letalidad) | TEST que lo falsea | Señal de FALLO |
+|---|---|---|---|
+| **1** | **Leakage/causalidad** (make-or-break) | (a) **A/B oracle vs causal**: índice con futuro vs estrictamente causal → comparar expectancy OOS. (b) **Placebo de etiqueta**: barajar `id→outcome` → debe colapsar a ~breakeven. (c) **Barrido de embargo** 0→grande → expectancy estable, no decreciente. | Edge sólo existe en el oracle; placebo conserva edge (bug); expectancy decae al subir embargo. |
+| **2** | **Vector domina por varianza / coseno mal escalado** | Ablación de escalado: raw vs robust-standardize vs +PCA-whitening; medir expectancy OOS y "feature dominance" (varianza explicada por dim). | Una feature/one-hot acapara la similitud; whitening no cambia nada o empeora. |
+| **3** | **No-estacionariedad** (vecinos de régimen muerto) | Barrido de `W` (ventana) y `τ` (decaimiento): expectancy OOS vs tamaño de ventana. Comparar índice "todo el histórico" vs "rodante". | Expectancy mejor con ventana corta ⇒ los viejos contaminan; o monotonía rara que delata régimen. |
+| **4** | **Confianza/esparsidad** (clave en SOL) | Curva expectancy OOS vs `n_in_radius`; política de abstención con piso variable. Medir % de abstención por símbolo. | Expectancy plana respecto a confianza (el estimador no discrimina) o SOL abstiene ~siempre ⇒ capa inútil en SOL. |
+| **5** | **Aproximación de turbovec** | Comparar vecinos turbovec (4-bit / 2-bit) vs **exacto** (brute-force coseno / FAISS flat) en una muestra: recall@k y **Δexpectancy estimada**. | Δexpectancy fuera del ruido ⇒ la cuantización degrada la señal; bajar a 4-bit o subir dim. |
+| **6** | **Migración SOL→BTC sin densidad real** | Medir densidad efectiva (mediana `n_in_radius`) y volumen de señales por símbolo; condición de migración §6. | BTC no alcanza el piso de densidad ⇒ la ventaja teórica no se materializa. |
+
+El **test #1 es la puerta de F0**: si la expectancy OOS colapsa al hacer el índice
+estrictamente causal, **se documenta y se mata la tesis**. Es el resultado más
+valioso posible de la fase.
+
+---
+
+## 6. Evaluación, ablación y criterio de migración
+
+### 6.1 Ablación por símbolo (vara idéntica)
+
+Variantes, corridas con OOS y costes reales, **por símbolo**:
+
+```
+motor-solo
++ lightgbm
++ retrieval-feature        (d)
++ retrieval-gate           (a)
++ retrieval-sizing         (b)
++ retrieval-selector       (c)
++ todo
+```
+
+Métricas OOS **idénticas** (lenguaje de `bt_metrics`/`ledger_stats`):
+`expectancy_r, win_rate, profit_factor, Sharpe, Sortino, Calmar, maxDD, n_trades,
+turnover, % abstención, ruin`. Con **IC bootstrap** (semilla fija) sobre el lift
+de retrieval frente a motor+lightgbm.
+
+### 6.2 Tabla comparativa BTC vs SOL
+
+Una tabla con las mismas columnas para ambos símbolos, en ventanas OOS
+equivalentes (mismo nº de folds y equivalente en barras), incluyendo densidad
+(`mediana n_in_radius`, % abstención) y costes retuneados por símbolo.
+
+### 6.3 Criterio explícito de migración SOL→BTC (propuesta a calibrar)
+
+Mover capital a BTC **sólo si TODO** se cumple OOS:
+
+1. **Edge neto**: `expectancy_r(BTC, +todo)` ≥ `expectancy_r(SOL, +todo)` con
+   margen ≥ X (a fijar tras F1) **y** `PF(BTC) ≥ 1.3`.
+2. **Lift atribuible**: el IC bootstrap inferior del lift de retrieval sobre
+   motor+lightgbm en BTC es **> 0** (el edge viene de la capa, no del azar).
+3. **Densidad fiable**: `mediana n_in_radius(BTC) ≥ k/2` y `% abstención(BTC)` bajo
+   (la ventaja de densidad de BTC es **real**, no teórica) — riesgo #6.
+4. **Robustez a costes**: con `CostModel` de BTC retuneado (más fino) el edge neto
+   sobre-vive; sensibilidad a `slippage` dentro de banda.
+5. **Sin leakage**: BTC pasa los tests #1–#5 igual que SOL.
+
+Si BTC gana en (1)–(2) pero falla densidad (3), la conclusión es "la tesis escala
+con datos pero aún no hay señal accionable" → seguir ingiriendo, no migrar capital.
+
+---
+
+## 7. Roadmap por fases
+
+### F0 — Datos BTC + harness de índice causal + **test de leakage** (puerta)
+- Descargar BTC 48m en 5m/15m/1h/4h; reporte de gaps como artefacto.
+- Spike del TF 5m (§3.0): elegir Opción A/B con números.
+- Esqueleto de `bt_retrieval.py`: vector, scaler causal, `StateIndex` sobre
+  turbovec, ingest online en walk-forward, allowlist causal + embargo.
+- Extender `bt_labeler` al cubo `(TP × horizonte)` (necesario para side-table y F3).
+- **Ejecutar los tests #1 y #5** (leakage y aproximación). **Si #1 colapsa → STOP**
+  y documentar. Añadir `turbovec` a `requirements` (extra) y `--seed` global.
+
+### F1 — Expectancy de retrieval como **diagnóstico read-only** (SOL y BTC)
+- Loguear stats del vecindario por evento, sin decidir nada.
+- Calibrar `k`, `bit_width`, escalado (test #2), `W`/`τ` (test #3), confianza/
+  abstención (test #4).
+- Medir **edge condicional** OOS: ¿filtrar por `expectancy_r` del vecindario
+  mejora la expectancy vs incondicional? Tabla SOL vs BTC inicial.
+
+### F2 — **Gate** + **Sizing** (sólo si F1 positivo y tests verdes)
+- Activar (a) gate con abstención y (b) sizing kappa-like acotado.
+- Ablación: motor+lightgbm vs +gate vs +sizing vs +ambos, por símbolo.
+
+### F3 — **Selector de TP/horizonte**
+- Usar el cubo §3.2 para elegir `(TP, horizonte)` que pagó en estados similares.
+- Comparar contra la escalera TP1–TP4 fija y `max_bars` único.
+
+### F4 — Comparativa y **decisión de migración**
+- Ablación completa (`+todo`) y tabla BTC vs SOL con métricas idénticas.
+- Aplicar el criterio §6.3 → recomendación explícita: migrar / seguir ingiriendo /
+  matar. Persistir artefactos finales por símbolo.
+
+---
+
+## 8. Qué se reutiliza (sin tocar) y qué se añade
+
+**Se reutiliza tal cual**: `fusion_engine.evaluate_signal` (intacto), `bt_data`
+(descarga), `bt_features.replay_events` (replay causal — sólo cambia el primario a
+5m), `bt_walkforward` (purga+embargo), `bt_engine`/`bt_metrics` (costes+riesgo),
+`bt_train` (LightGBM), `bt_ablation` (poda OOS), `research.yml` (flujo CI).
+
+**Se añade**: `bt_retrieval.py` (nuevo, symbol-agnóstico), dependencia `turbovec`,
+extensión multi-TP×horizonte de `bt_labeler`, `CostModel` per-símbolo, `--seed`
+global, inputs de retrieval en `research.yml`, artefactos `retrieval/<ex>/<sym>/`.
+
+**Invariante**: la separación SOL/BTC es de **DATOS** (índice/scaler/outcomes/
+modelo en disco por símbolo), **no de código**. El mismo `bt_retrieval.py` corre
+en ambos; sólo cambia la ruta del artefacto.
