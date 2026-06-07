@@ -91,9 +91,12 @@ jobs:
 
       - name: Install dependencies
         run: |
+          # libgomp1: runtime OpenMP que lightgbm necesita para importar.
+          sudo apt-get update && sudo apt-get install -y libgomp1
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest lightgbm
+          python -c "import lightgbm; print('lightgbm', lightgbm.__version__, 'OK')"
 
       - name: Sanity — suite de research
         run: pytest tests/test_bt_*.py -q

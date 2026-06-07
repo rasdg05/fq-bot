@@ -261,8 +261,10 @@ def main():
     try:
         est_factory = tr.make_lgbm_classifier
         est_factory()   # prueba que lightgbm exista
-    except Exception:
-        print("  (lightgbm no disponible; instala lightgbm para el modelo)")
+    except Exception as e:
+        # Muestra el error real (p.ej. 'libgomp.so.1: cannot open...') en vez de
+        # esconderlo: si el modelo no corre, queremos saber POR QUE.
+        print(f"  (lightgbm no disponible: {type(e).__name__}: {e})")
         est_factory = None
     if est_factory is not None:
         trained = tr.train_walk_forward(X, y, folds, estimator_factory=est_factory)
