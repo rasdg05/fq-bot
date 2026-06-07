@@ -33,7 +33,7 @@ on:
         default: "1"
         type: string
       max_bars:
-        description: "Horizonte de la barrera vertical (velas 15m)"
+        description: "Horizonte de la barrera vertical (velas del TF primario; con tf_id=5m: 288=24h, 576=48h)"
         default: "96"
         type: string
       n_splits:
