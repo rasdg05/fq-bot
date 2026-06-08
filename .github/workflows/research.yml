@@ -41,7 +41,7 @@ on:
         default: "7"
         type: string
       ablation:
-        description: "Correr poda de modulos (3 re-replays, MUY lento; ruido con muestra chica)"
+        description: "OPT-IN: poda de modulos = 3 replays fires-only EXTRA (triplica el coste). El run normal hace UN solo replay (senales + retrieval denso). Enciende solo para el diagnostico periodico de que modulo paga su sitio."
         default: false
         type: boolean
       seed:
@@ -78,10 +78,6 @@ on:
         description: "k vecinos del retrieval"
         default: "50"
         type: string
-      dense:
-        description: "Retrieval DENSO (pivot): indexa el ESTADO de cada vela (no solo los ~decenas que disparan) con su retorno forward en ATR. Densidad real (100k+ estados) para probar la tesis desacoplada del gate francotirador."
-        default: true
-        type: boolean
       dense_horizon:
         description: "Velas forward para el label de retorno en ATR (denso). 288=24h en 5m"
         default: "288"
@@ -132,7 +128,6 @@ jobs:
       RETRIEVAL: ${{ github.event.inputs.retrieval || 'true' }}
       RBACKEND: ${{ github.event.inputs.retrieval_backend || 'exact' }}
       RK: ${{ github.event.inputs.retrieval_k || '50' }}
-      DENSE: ${{ github.event.inputs.dense || 'true' }}
       DHORIZON: ${{ github.event.inputs.dense_horizon || '288' }}
       DQSTEP: ${{ github.event.inputs.dense_query_step || '10' }}
     steps:
@@ -202,28 +197,22 @@ jobs:
         if: ${{ env.DATAONLY != 'true' }}
         continue-on-error: true
         run: |
-          # La poda (3 re-replays) es opt-in: por defecto se omite con
-          # --no-ablation para que el run quepa en tiempo y porque con muestra
-          # chica sus deltas son ruido.
-          ABLATION_FLAG="--no-ablation"
-          [ "${ABLATION}" = "true" ] && ABLATION_FLAG=""
-          # Retrieval read-only (no decide): expectancy por analogia + leakage.
+          # UNIFICADO: el replay es DENSO por defecto -> UN solo replay del motor
+          # alimenta el research de senales (subset fired: frontera + modelo) Y el
+          # retrieval denso (todas las velas). Antes eran dos replays del mismo
+          # motor sobre las mismas velas; ahora es uno (~mitad del coste de CI).
+          ABLATION_FLAG=""
+          [ "${ABLATION}" = "true" ] && ABLATION_FLAG="--ablation"   # opt-in: 3 replays extra
+          # Retrieval read-only (no decide). Denso -> turbovec + query_step (100k+ estados).
           RFLAG=""
           if [ "${RETRIEVAL}" = "true" ]; then
-            RFLAG="--retrieval --retrieval-backend ${RBACKEND} --retrieval-k ${RK} --retrieval-json research_out/retrieval_${SYM//\//-}.json"
-          fi
-          # Modo DENSO (pivot): indexa el estado de CADA vela (no solo los fires).
-          # turbovec + query_step porque son ~100k+ estados. Fuerza retrieval on.
-          DFLAG=""
-          if [ "${DENSE}" = "true" ]; then
-            DFLAG="--dense --dense-horizon ${DHORIZON} --retrieval-query-step ${DQSTEP}"
-            RFLAG="--retrieval --retrieval-backend turbovec --retrieval-k ${RK} --retrieval-json research_out/retrieval_${SYM//\//-}.json"
+            RFLAG="--retrieval --retrieval-backend turbovec --retrieval-k ${RK} --retrieval-query-step ${DQSTEP} --retrieval-json research_out/retrieval_${SYM//\//-}.json"
           fi
           python tools/run_research_real.py --exchange "${EX}" --symbol "${SYM}" \
             --tf-id "${TFID}" --target-level "${TARGETLVL}" \
-            --horizon-sweep "${HSWEEP}" \
+            --horizon-sweep "${HSWEEP}" --dense-horizon "${DHORIZON}" \
             --step "${STEP}" --max-bars "${MAXBARS}" \
-            --seed "${SEED}" --n-splits "${NSPLITS}" --embargo 8 ${ABLATION_FLAG} ${RFLAG} ${DFLAG} \
+            --seed "${SEED}" --n-splits "${NSPLITS}" --embargo 8 ${ABLATION_FLAG} ${RFLAG} \
             2>&1 | tee research_out/research_real.txt
 
       - name: Empaquetar reporte

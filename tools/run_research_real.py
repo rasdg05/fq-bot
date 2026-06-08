@@ -117,26 +117,56 @@ def _run_replay(tfs, env_overrides=None, seed=42, tf_id="15m", dense=False,
     # gate (stdlib random) y cualquier np.random global.
     random.seed(seed)
     np.random.seed(seed)
-    if dense:
-        # Replay DENSO: estado de cada vela + label forward en ATR (pivot de
-        # retrieval; desacopla del gate francotirador).
-        return bf.replay_states(
-            df15, df1h, df4h, df1m,
-            evaluate_fn=fusion_engine.evaluate_signal,
-            detect_pspace_fn=b.detect_pspace,
-            laplacian_check_fn=b.laplacian_check,
-            calculate_levels_fn=b.calculate_levels,
-            config=config, horizon_bars=horizon_bars,
-            **replay_kwargs,
-        )
-    return bf.replay_events(
-        df15, df1h, df4h, df1m,
+
+    # Reproducibilidad #2: inyectar la hora del BAR en los gates por reloj de
+    # pared. volume_quality.is_dead_window()/volume_veto() vetan por hora CDMX
+    # (14-16h, viernes tarde) via datetime.now(); en el replay eso juzga TODA la
+    # historia contra la hora REAL de ejecucion (un run a las 15:xx CDMX = "ultima
+    # hora NY" veta ~90% de las senales -> el conteo se volvia funcion de cuando
+    # le diste "Run"). Sustituimos datetime.now por la hora del bar en curso para
+    # que el veto se evalue al timestamp historico de cada vela: backtest = bot en
+    # vivo, e independiente de la hora de ejecucion. Se reaplica tras cada reload.
+    # Vale para AMBOS replays (denso y fires-only): replay_states tambien invoca
+    # on_bar, asi el denso es igual de fiel.
+    import volume_quality as _volq
+    _replay_clock = {"ts": None}
+    _RealDT = _volq.datetime
+
+    class _BarClockDatetime(_RealDT):
+        @classmethod
+        def now(cls, tz=None):
+            ts = _replay_clock["ts"]
+            if ts is None:
+                return _RealDT.now(tz)
+            t = pd.Timestamp(ts)
+            if t.tzinfo is None:
+                t = t.tz_localize("UTC")
+            d = t.to_pydatetime()
+            return d.astimezone(tz) if tz is not None else d
+
+    _volq.datetime = _BarClockDatetime
+
+    def _on_bar(ts):
+        _replay_clock["ts"] = ts
+
+    common_fns = dict(
         evaluate_fn=fusion_engine.evaluate_signal,
         detect_pspace_fn=b.detect_pspace,
         laplacian_check_fn=b.laplacian_check,
         calculate_levels_fn=b.calculate_levels,
-        config=config,
-        **replay_kwargs,
+        config=config, on_bar=_on_bar,
+    )
+    if dense:
+        # Replay DENSO (unificado): estado de CADA vela + label forward en ATR.
+        # Las filas fired=True llevan dirccion/niveles reales del motor -> son el
+        # track record de senales (frontera+modelo); todas las velas alimentan el
+        # retrieval denso. UN replay -> dos salidas.
+        return bf.replay_states(
+            df15, df1h, df4h, df1m,
+            horizon_bars=horizon_bars, **common_fns, **replay_kwargs,
+        )
+    return bf.replay_events(
+        df15, df1h, df4h, df1m, **common_fns, **replay_kwargs,
     )
 
 
@@ -200,7 +230,10 @@ def main():
     p.add_argument("--embargo", type=int, default=8)
     p.add_argument("--risk-frac", type=float, default=0.01)
     p.add_argument("--equity0", type=float, default=10_000)
-    p.add_argument("--no-ablation", action="store_true")
+    p.add_argument("--ablation", action="store_true",
+                   help="OPT-IN: corre la poda de modulos (3 replays fires-only "
+                        "extra). Por defecto OFF -> el run rutinario hace UN solo "
+                        "replay (frontera + modelo + retrieval denso)")
     p.add_argument("--seed", type=int, default=42,
                    help="semilla global: replay (Thompson sampling del gate) + "
                         "retrieval/bootstrap. Fija = reproducible; variala para "
@@ -221,11 +254,12 @@ def main():
                    help="ruta para volcar resultados de retrieval en JSON (comparacion)")
     p.add_argument("--retrieval-query-step", type=int, default=1,
                    help="subsamplea queries de test del retrieval (denso: usa >1)")
-    # --- modo DENSO (pivot): indexa el estado de CADA vela, no solo los fires ---
+    # --- replay DENSO unificado (default): UN replay alimenta senales + retrieval.
+    # --dense se mantiene por compatibilidad con el workflow, pero ya es implicito.
     p.add_argument("--dense", action="store_true",
-                   help="retrieval DENSO: replay de cada vela + label forward en "
-                        "ATR -> densidad real (decenas de miles de estados), "
-                        "desacoplado del gate francotirador")
+                   help="(implicito) el replay siempre es denso: un solo replay "
+                        "alimenta el research de senales (subset fired) y el "
+                        "retrieval denso (todas las velas)")
     p.add_argument("--dense-horizon", type=int, default=288,
                    help="velas forward para el label de retorno en ATR (denso)")
     args = p.parse_args()
@@ -261,98 +295,120 @@ def main():
     # --- Inicializar el ledger (esquema) para que el motor lea memoria ---
     _init_ledger()
 
-    # --- MODO DENSO (pivot de retrieval): estado de CADA vela ---
-    if args.dense:
-        _run_dense_mode(tfs, args, bar_minutes)
-        return
-
-    # --- BASELINE: replay con todos los modulos ---
-    print("\n[1/4] replay del motor (baseline, todos los modulos)...")
-    events = _run_replay(
+    # --- UNIFICADO: UN solo replay DENSO (estado de CADA vela) alimenta las DOS
+    # salidas: las filas fired=True son el track record de senales (frontera +
+    # modelo); TODAS las velas alimentan el retrieval denso. Antes eran dos replays
+    # del mismo motor sobre las mismas velas (fires-only + denso); ahora es UNO. ---
+    print("\n[1/4] replay DENSO del motor (estado de CADA vela; "
+          "un replay -> senales + retrieval denso)...")
+    states = _run_replay(
         tfs, env_overrides=None, seed=args.seed, tf_id=args.tf_id,
+        dense=True, horizon_bars=args.dense_horizon,
         min_lookback=args.min_lookback, step=args.step,
-        target_level=args.target_level, progress_every=2000,
+        target_level=args.target_level, progress_every=5000,
     )
-    print(f"  senales disparadas: {len(events)}")
-    if len(events) == 0:
-        sys.exit("el motor no disparo ninguna senal en este rango; "
-                 "baja min_lookback / sube el rango historico (--years)")
+    n_states = len(states)
+    if n_states == 0:
+        sys.exit("el replay no produjo ningun estado; baja min_lookback / sube el "
+                 "rango historico (--years) o revisa los datos")
+    events = (states[states["fired"]].reset_index(drop=True)
+              if "fired" in states.columns else states.iloc[0:0])
+    print(f"  estados densos: {n_states} | senales disparadas (fired): {len(events)}")
 
-    # Etiqueta SIEMPRE lo que haya. Aunque sean 2 senales, este es el track
-    # record crudo del motor (outcome + pnl_r por senal) y NO debe tirarse: es
-    # el primer dato real del sistema, no un fallo.
-    labeled = lb.label_events(
-        df_primary, events.to_dict("records"), max_bars=args.max_bars)
-    summ = lb.label_summary(labeled)
-    if summ is not None:
-        print(f"  etiquetadas: n={summ['n']} win_rate={summ['win_rate']:.3f} "
-              f"expectancy_r={summ['expectancy_r']:.3f} "
-              f"total_r={summ['total_r']:+.2f}")
-    _print_track_record(labeled)
-    horizons = _parse_int_list(args.horizon_sweep) or [args.max_bars]
-    _print_tp_frontier(df_primary, events, horizons)
-
-    # Guard de walk-forward: necesita una muestra minima para 8 folds. Con pocas
-    # senales NO abortamos en rojo — ya mostramos el track record arriba; solo
-    # omitimos las metricas OOS / modelo / poda por muestra insuficiente.
+    base_metric, n_pool, ppy = None, 0, None
     min_for_wf = args.n_splits * 3
-    if len(events) < min_for_wf:
-        print(f"\n  [guard] {len(events)} senales < {min_for_wf} necesarias "
-              f"para walk-forward de {args.n_splits} folds.")
-        print("  Se omiten metricas OOS / modelo / poda (muestra insuficiente),")
-        print("  pero el track record crudo de arriba es valido.")
-        print("  Para subir el volumen: mas historia (build_dataset --years 2) "
-              "y --step 1.")
-        return
 
-    folds, valid_index = wf.folds_from_labeled(
-        labeled, n_splits=args.n_splits, embargo=args.embargo)
+    # ===== SALIDA A: research de SENALES (subset fired) =====
+    if len(events) > 0:
+        # Etiqueta SIEMPRE lo que haya: aunque sean pocas, es el track record crudo
+        # del motor (outcome + pnl_r por senal) y no debe tirarse.
+        labeled = lb.label_events(
+            df_primary, events.to_dict("records"), max_bars=args.max_bars)
+        summ = lb.label_summary(labeled)
+        if summ is not None:
+            print(f"  etiquetadas: n={summ['n']} win_rate={summ['win_rate']:.3f} "
+                  f"expectancy_r={summ['expectancy_r']:.3f} "
+                  f"total_r={summ['total_r']:+.2f}")
+        _print_track_record(labeled)
+        horizons = _parse_int_list(args.horizon_sweep) or [args.max_bars]
+        _print_tp_frontier(df_primary, events, horizons)
+    else:
+        labeled = None
+        print("  (el motor no disparo ninguna senal valida; se omite el research de "
+              "senales, pero el retrieval denso sigue abajo)")
 
-    ppy = _periods_per_year(labeled, bar_minutes)
-    base_metrics, n_pool = _oos_metrics(labeled, folds, valid_index, sim_kwargs, ppy)
-    print("\n[2/4] Metricas OOS (con fees+slippage+funding):")
-    print(met.format_report(base_metrics))
+    if labeled is not None and len(events) >= min_for_wf:
+        folds, valid_index = wf.folds_from_labeled(
+            labeled, n_splits=args.n_splits, embargo=args.embargo)
+        ppy = _periods_per_year(labeled, bar_minutes)
+        base_metrics, n_pool = _oos_metrics(
+            labeled, folds, valid_index, sim_kwargs, ppy)
+        base_metric = base_metrics.get("expectancy_r")
+        print("\n[2/4] Metricas OOS de senales (con fees+slippage+funding):")
+        print(met.format_report(base_metrics))
 
-    # --- modelo entrenado sobre walk-forward ---
-    print("\n[3/4] Modelo (LightGBM si disponible) sobre walk-forward...")
-    feat_cols = bf._numeric_feature_columns(labeled)
-    valid = labeled.loc[valid_index]
-    X = valid[feat_cols].reset_index(drop=True).fillna(0.0)
-    y = (valid["outcome"] == lb.WIN).astype(int).to_numpy()
-    try:
-        est_factory = tr.make_lgbm_classifier
-        est_factory()   # prueba que lightgbm exista
-    except Exception as e:
-        # Muestra el error real (p.ej. 'libgomp.so.1: cannot open...') en vez de
-        # esconderlo: si el modelo no corre, queremos saber POR QUE.
-        print(f"  (lightgbm no disponible: {type(e).__name__}: {e})")
-        est_factory = None
-    if est_factory is not None:
-        trained = tr.train_walk_forward(X, y, folds, estimator_factory=est_factory)
-        print(f"  AUC out-of-fold: {trained['oof_auc']}")
-        if trained["importances"] is not None:
-            print("  Top features:")
-            print(trained["importances"].head(10).to_string())
-        thr = tr.threshold_evaluation(
-            trained["oof_scores"], trained["tested_mask"],
-            valid["pnl_r"].to_numpy())
-        print("  Expectancy por umbral del modelo:")
-        print(thr.to_string(index=False))
+        # --- modelo entrenado sobre walk-forward ---
+        print("\n[3/4] Modelo (LightGBM si disponible) sobre walk-forward...")
+        feat_cols = bf._numeric_feature_columns(labeled)
+        valid = labeled.loc[valid_index]
+        X = valid[feat_cols].reset_index(drop=True).fillna(0.0)
+        y = (valid["outcome"] == lb.WIN).astype(int).to_numpy()
+        try:
+            est_factory = tr.make_lgbm_classifier
+            est_factory()   # prueba que lightgbm exista
+        except Exception as e:
+            # Muestra el error real (p.ej. 'libgomp.so.1: cannot open...') en vez de
+            # esconderlo: si el modelo no corre, queremos saber POR QUE.
+            print(f"  (lightgbm no disponible: {type(e).__name__}: {e})")
+            est_factory = None
+        if est_factory is not None:
+            trained = tr.train_walk_forward(X, y, folds, estimator_factory=est_factory)
+            print(f"  AUC out-of-fold: {trained['oof_auc']}")
+            if trained["importances"] is not None:
+                print("  Top features:")
+                print(trained["importances"].head(10).to_string())
+            thr = tr.threshold_evaluation(
+                trained["oof_scores"], trained["tested_mask"],
+                valid["pnl_r"].to_numpy())
+            print("  Expectancy por umbral del modelo:")
+            print(thr.to_string(index=False))
 
-    # --- retrieval (read-only, no decide) ---
+        # retrieval sobre las SENALES fired (esparso; complementa al denso)
+        if args.retrieval:
+            print("\n  -- retrieval sobre senales fired (esparso) --")
+            _run_retrieval_diagnostic(labeled, folds, valid_index, args)
+    elif labeled is not None:
+        print(f"\n  [guard] {len(events)} senales < {min_for_wf} para walk-forward "
+              f"de {args.n_splits} folds: se omiten OOS/modelo de senales (el track "
+              f"record de arriba es valido). Sube historia (--years) o baja --step.")
+
+    # ===== SALIDA B: retrieval DENSO (TODAS las velas, no solo los fired) =====
     if args.retrieval:
-        _run_retrieval_diagnostic(labeled, folds, valid_index, args)
+        print("\n[denso] retrieval sobre TODOS los estados (no solo los fired)...")
+        if n_states < min_for_wf:
+            print(f"  (muestra densa insuficiente: {n_states}); se omite")
+        else:
+            if args.retrieval_backend == "exact" and args.retrieval_query_step <= 1:
+                print("  (sugerencia: --retrieval-backend turbovec y "
+                      "--retrieval-query-step>1 para 100k+ estados)")
+            dfolds, dvalid = wf.folds_from_labeled(
+                states, n_splits=args.n_splits, embargo=args.embargo)
+            _run_retrieval_diagnostic(states, dfolds, dvalid, args)
 
-    # --- ablacion de modulos por toggles de entorno ---
-    if args.no_ablation:
+    # --- ablacion de modulos (OPT-IN, --ablation): 3 replays fires-only extra ---
+    # Es un diagnostico periodico de "que modulo paga su sitio", no de cada run;
+    # por eso es opt-in (el run rutinario hace UN solo replay).
+    if not args.ablation:
         return
-    print("\n[4/4] Poda de modulos (re-replay con cada modulo OFF)...")
+    if base_metric is None:
+        print("\n[ablacion] omitida: sin suficientes senales para una baseline OOS.")
+        return
+    print("\n[ablacion] Poda de modulos (re-replay fires-only con cada modulo OFF)...")
     toggles = {
         "scorer":        {"FQ_USE_SCORER": "0"},
         "regime":        {"FQ_USE_REGIME": "0"},
         "session_bias":  {"FQ_SESSION_BIAS": "0"},
     }
-    base_metric = base_metrics.get("expectancy_r")
     print(f"  baseline expectancy_r={_f(base_metric)} (n_oos={n_pool})")
     for name, env_off in toggles.items():
         try:
@@ -374,37 +430,6 @@ def main():
             # restaura el toggle para no contaminar el siguiente
             for k in env_off:
                 os.environ[k] = "1"
-
-
-def _run_dense_mode(tfs, args, bar_minutes):
-    """Pivot DENSO: indexa el estado de CADA vela (no solo los ~decenas que
-    disparan) con su retorno forward en ATR -> densidad real para que el k-NN
-    pruebe la tesis. Backend turbovec por defecto (exacto seria O(n^2) sobre 100k
-    estados). El diagnostico de retrieval (causal + leakage) corre igual.
-    """
-    print("\n[DENSO] replay de CADA vela (estado + label forward en ATR)...")
-    prim_tf = TF_STACK[args.tf_id][0]
-    states = _run_replay(
-        tfs, env_overrides=None, seed=args.seed, tf_id=args.tf_id,
-        dense=True, horizon_bars=args.dense_horizon,
-        min_lookback=args.min_lookback, step=args.step, progress_every=5000,
-    )
-    n = len(states)
-    n_fired = int(states["fired"].sum()) if "fired" in states.columns else 0
-    print(f"  estados densos: {n} | de los cuales el motor dispararia: {n_fired}")
-    if n < args.n_splits * 3:
-        sys.exit(f"muestra densa insuficiente ({n}); sube el rango o baja step")
-    summ = lb.label_summary(states)
-    if summ is not None:
-        print(f"  label forward (ATR): mean_r={summ['expectancy_r']:.3f} "
-              f"frac_up={summ['win_rate']:.3f} n={summ['n']}")
-    folds, valid_index = wf.folds_from_labeled(
-        states, n_splits=args.n_splits, embargo=args.embargo)
-    # Denso -> turbovec por defecto si el usuario no forzo backend.
-    if args.retrieval_backend == "exact" and args.retrieval_query_step <= 1:
-        print("  (sugerencia: --retrieval-backend turbovec y --retrieval-query-step>1 "
-              "para 100k estados)")
-    _run_retrieval_diagnostic(states, folds, valid_index, args)
 
 
 def _cost_for_symbol(symbol):

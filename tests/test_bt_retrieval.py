@@ -256,6 +256,50 @@ def test_replay_states_denso_sintetico():
     assert {"entry_index", "pnl_r", "bars_held", "fired", "outcome"} <= set(out.columns)
     assert out["bars_held"].iloc[0] == 100
     assert out["pnl_r"].notna().all()
+    assert not out["fired"].any()   # fake_eval nunca dispara (decision != fire)
+
+
+def test_replay_states_enriquece_filas_fired():
+    """UNIFICADO: las filas fired=True cargan dir/entry/sl/targets reales del motor
+    -> ese subset es el track record de senales (alimenta label_events + frontera)."""
+    import bt_features as bf
+    rng = np.random.default_rng(5)
+    n = 900
+    close = 100 + np.cumsum(rng.standard_normal(n))
+    ts = pd.date_range("2024-01-01", periods=n, freq="5min")
+    dfp = pd.DataFrame({"timestamp": ts, "open": close, "high": close + 1,
+                        "low": close - 1, "close": close, "volume": 1.0})
+
+    class F:
+        def __init__(self, c):
+            for at in ("confluence_count", "node_type", "killzone", "bias_4h"):
+                setattr(self, at, 1.0)
+
+    def fake_eval(dp, dm, dh, ds, *a, **k):
+        i = len(dp) - 1
+        c = float(dp["close"].iloc[-1])
+        f = F(c)
+        if i % 60 == 0:        # dispara periodicamente con niveles completos
+            rep = {"decision": "fire", "direction": "long",
+                   "levels": {"entry": c, "sl": c - 2, "tp1": c + 2, "tp2": c + 3,
+                              "tp3": c + 3, "tp4": c + 5, "rr_tp3": 1.5}}
+            return True, f, rep
+        return False, f, {"decision": "field_only", "levels": {}}
+
+    out = bf.replay_states(dfp, None, None, None, fake_eval, None, None, None, {},
+                           min_lookback=100, step=1, horizon_bars=50)
+    fired = out[out["fired"]]
+    assert len(fired) >= 5
+    # las filas fired llevan los niveles reales del motor y la direccion correcta
+    assert fired["stop_price"].notna().all()
+    assert fired["px_tp4"].notna().all()
+    assert set(fired["direction"].unique()) <= {bf.LONG, bf.SHORT}
+    assert (fired["direction"] == bf.LONG).all()
+    assert (fired["entry_price"] == fired["target_price"] - 2).all()  # entry = motor, no close[i]
+    # las no-fired no tienen niveles (NaN) pero si label denso
+    nonf = out[~out["fired"]]
+    assert nonf["stop_price"].isna().all()
+    assert out["pnl_r"].notna().all()
 
 
 def test_aproximacion_turbovec_vs_exacto():

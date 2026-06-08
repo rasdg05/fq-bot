@@ -127,6 +127,7 @@ def replay_events(
     target_level="tp1",
     enrich_fn=None,
     progress_every=0,
+    on_bar=None,
 ):
     """Recorre df_15m y dispara el motor en cada vela; registra los FIRE.
 
@@ -157,6 +158,8 @@ def replay_events(
             log.info("replay %d/%d eventos=%d", i, n, len(events))
 
         ts = ts_col[i]
+        if on_bar is not None:
+            on_bar(ts)   # inyecta la hora del bar en gates por reloj de pared
         win15 = df_15m.iloc[: i + 1]
         win1h = htf_window(df_1h, ts, tail=htf_tail)
         win4h = htf_window(df_4h, ts, tail=htf_tail)
@@ -241,11 +244,30 @@ def _atr_series(df, atr_col=None):
     return atr
 
 
+def _fire_levels(report, target_level="tp1"):
+    """Direccion (+1/-1) y niveles del motor para un FIRE valido, o (None, None)
+    si el report no trae niveles completos. Compartido para que la fila de senal
+    del replay denso sea IDENTICA a la de replay_events (fires-only)."""
+    direction = _DIR_MAP.get(report.get("direction"))
+    levels = report.get("levels") or {}
+    entry = levels.get("entry"); stop = levels.get("sl")
+    target = levels.get(target_level)
+    if direction is None or entry is None or stop is None or target is None:
+        return None, None
+    return direction, {
+        "entry_price": float(entry), "stop_price": float(stop),
+        "target_price": float(target), "direction": direction,
+        "tp3": levels.get("tp3"), "rr_tp3": levels.get("rr_tp3"),
+        "px_tp1": levels.get("tp1"), "px_tp2": levels.get("tp2"),
+        "px_tp3": levels.get("tp3"), "px_tp4": levels.get("tp4"),
+    }
+
+
 def replay_states(
     df_primary, df_mid, df_high, df_sub,
     evaluate_fn, detect_pspace_fn, laplacian_check_fn, calculate_levels_fn, config,
     min_lookback=300, step=1, horizon_bars=288, htf_tail=300, sub_tail=120,
-    atr_col=None, progress_every=0,
+    atr_col=None, target_level="tp1", progress_every=0, on_bar=None,
 ):
     """Replay DENSO para el indice de retrieval (pivot): registra el ESTADO
     (field/features que el motor computa) de CADA vela evaluada -- dispare o no --
@@ -257,8 +279,13 @@ def replay_states(
 
     pnl_r = (close[i+H] - close[i]) / ATR[i]  (movimiento forward en multiplos de
     ATR; direccion LONG por construccion -> el signo mide si el estado precede
-    subida o bajada). outcome = win si pnl_r>0. Columna `fired` marca si el motor
-    habria disparado ahi (para cruzar con las senales reales despues).
+    subida o bajada). outcome = win si pnl_r>0.
+
+    UNIFICADO: las filas con fired=True llevan ADEMAS la direccion/entry/sl/targets
+    reales del motor -> ese subset ES el track record de senales (lo consumen
+    label_events + la frontera TP, identico a replay_events). Asi UN solo replay
+    alimenta las dos salidas (retrieval denso + research de senales) sin repetir el
+    coste del motor.
 
     Causal: usa df_primary.iloc[:i+1] y htf_window (solo pasado <= ts). El label
     mira al futuro [i, i+H] pero eso es el DESENLACE (se conoce solo despues); el
@@ -275,6 +302,8 @@ def replay_states(
         if progress_every and i % progress_every == 0:
             log.info("replay_states %d/%d estados=%d", i, n, len(rows))
         ts = ts_col[i]
+        if on_bar is not None:
+            on_bar(ts)   # hora del bar para los gates por reloj de pared
         winp = df_primary.iloc[: i + 1]
         win_mid = htf_window(df_mid, ts, tail=htf_tail)
         win_high = htf_window(df_high, ts, tail=htf_tail)
@@ -291,13 +320,21 @@ def replay_states(
         if not np.isfinite(a) or a <= 0:
             continue
         fwd_r = float((close[i + horizon_bars] - close[i]) / a)
+        is_fire = bool(fire and report.get("decision") == "fire")
+        direction, lvl = _fire_levels(report, target_level) if is_fire else (None, None)
         row = {
             "entry_index": i, "entry_ts": pd.Timestamp(ts),
             "entry_price": float(close[i]), "direction": LONG,
             "bars_held": int(horizon_bars), "pnl_r": fwd_r,
             "outcome": WIN if fwd_r > 0 else LOSS,
-            "fired": bool(fire and report.get("decision") == "fire"),
+            # fired = FIRE valido (con niveles): este subset ES el track record de
+            # senales (frontera+modelo via label_events). El label denso (pnl_r
+            # forward-ATR) queda intacto para el retrieval; label_events re-etiqueta
+            # el subset con triple-barrier en su propia tabla.
+            "fired": lvl is not None,
         }
         row.update(extract_features(field, report))
+        if lvl is not None:
+            row.update(lvl)   # dir/entry/sl/targets reales del motor (sobreescribe LONG)
         rows.append(row)
     return pd.DataFrame(rows)
