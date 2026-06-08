@@ -24,7 +24,8 @@ def _rising_df(n=400, start=100.0, slope=0.1):
 
 
 def _events(df, idxs):
-    """Eventos LONG con px_tp1<px_tp2<px_tp4 (tp3==tp2, omitido en el grid)."""
+    """Eventos LONG sinteticos con px_tp1<px_tp2<px_tp4 (px_tp3 se deja == px_tp2
+    aqui solo por simplicidad del fixture; el grid barre tp1/tp2/tp4)."""
     recs = []
     c = df["close"].to_numpy()
     for i in idxs:
@@ -92,3 +93,31 @@ def test_grid_skips_missing_px():
                               taker_fee=0.0, slippage_bps=0.0, apply_funding=False)},
                           bar_minutes=5.0)
     assert set(grid["TP"]) == {"tp1"}   # tp4 sin px -> celda omitida
+
+
+def test_tp_horizon_grid_frontier():
+    """Frontera (TP x horizonte): una celda por (TP, horizonte), esquema con
+    costes/OOS, y el TP cercano gana mas que el lejano en serie alcista."""
+    df = _rising_df()
+    events = _events(df, list(range(50, 320, 9)))
+    # tp_horizon_grid usa el stop del motor (no lo deriva de ATR como tp_sl_grid).
+    events["stop_price"] = events["entry_price"] - 1.0   # riesgo 1.0 por trade
+    grid = opt.tp_horizon_grid(
+        df, events, ["tp1", "tp4"], [60, 200],
+        sim_kwargs={"cost": eng.CostModel(
+            taker_fee=0.0, slippage_bps=0.0, apply_funding=False)},
+        bar_minutes=5.0)
+    assert len(grid) == 2 * 2                      # 2 TP x 2 horizontes
+    assert {"TP", "horizon", "exp_R", "WR", "total_R", "n"}.issubset(grid.columns)
+    wr_tp1 = grid[grid["TP"] == "tp1"]["WR"].astype(float).mean()
+    wr_tp4 = grid[grid["TP"] == "tp4"]["WR"].astype(float).mean()
+    assert wr_tp1 >= wr_tp4
+    # choose_optimum opera igual sobre esta tabla
+    best = opt.choose_optimum(grid, by="exp_R")
+    assert best is not None and "horizon" in best
+
+
+def test_tp_horizon_grid_empty_events():
+    df = _rising_df()
+    grid = opt.tp_horizon_grid(df, pd.DataFrame(), ["tp1"], [60])
+    assert len(grid) == 0

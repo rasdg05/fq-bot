@@ -16,14 +16,15 @@
   drawdown, OOS cuando la muestra alcanza para walk-forward (cae a in-sample con
   pocas senales). Cero replays extra: identico patron al barrido de horizonte.
 
-  BUG CONOCIDO DEL MONOLITO (calculate_levels en fq_bot_v3_2.py): tp3 se computa
-  como entry + rng*PHI_INV, IDENTICO a tp2 -> px_tp3 == px_tp2 (la frontera y el
-  grid lo reflejan: filas tp2/tp3 iguales). El UNICO target genuinamente lejano
-  es tp4 = entry + rng. TODO (en el entorno del bot, no en este sandbox donde el
-  monolito no importa): en calculate_levels, separar tp3 a un multiplo intermedio
-  real (p.ej. entry + rng*(1+PHI_INV)/2 o un RR fijo entre tp2 y tp4) para que la
-  escalera "TP tras TP" tenga cuatro peldanos distintos. Hasta entonces, el grid
-  usa por defecto tp1,tp2,tp4.
+  NOTA tp3 (corregido jun-2026): calculate_levels en fq_bot_v3_2.py ya separa
+  tp3 al punto medio aureo entry + rng*(1+PHI_INV)/2 (~0.809*rng), entre tp2
+  (0.618) y tp4 (1.0). Antes tp3 == tp2 (mismo precio) y la escalera tenia 3
+  peldanos; ahora son cuatro distintos y monotonos, asi que el grid puede barrer
+  tp1..tp4 sin filas duplicadas.
+
+  Frontera (TP x horizonte): tp_horizon_grid usa el cubo de una pasada
+  bt_labeler.label_events_grid (re-etiquetar al variar target/horizonte es
+  gratis post-replay) para la tabla que el selector F3 del retrieval consume.
 
   Pieza (casi) pura: usa bt_features._atr_series + bt_labeler/bt_engine/
   bt_walkforward/bt_metrics. Sin red, sin tocar el monolito.
@@ -139,6 +140,41 @@ def tp_sl_grid(df_primary, events, sl_mults, tp_levels, horizon, *,
             labeled = lb.label_events(df_primary, cell, max_bars=horizon)
             mm = _cell_metrics(labeled, sim_kwargs, bar_minutes, n_splits, embargo)
             rows.append({"SL_xATR": float(sl), "TP": lvl, **mm})
+    return pd.DataFrame(rows)
+
+
+def tp_horizon_grid(df_primary, events, tp_levels, horizons, *,
+                    sim_kwargs=None, n_splits=7, embargo=8, bar_minutes=5.0):
+    """Frontera (TP x horizonte) sobre el MISMO conjunto fired, con costes y OOS.
+
+    A diferencia de tp_sl_grid (SL x TP a un horizonte), aqui el STOP es el del
+    motor (events['stop_price']) y barremos NIVEL de TP x HORIZONTE vertical. Se
+    apoya en el cubo de UNA pasada (bt_labeler.label_events_grid): re-etiquetar
+    todas las celdas no re-replica el motor (gratis). Por celda mide net de
+    costes con bt_engine.simulate, OOS cuando hay folds.
+
+    df_primary : OHLCV del TF primario (futuro del triple-barrier).
+    events     : DataFrame/lista de senales fired con entry_index, entry_price,
+                 stop_price, direction y px_<lvl>.
+    tp_levels  : iterable de niveles ('tp1'..'tp4').
+    horizons   : iterable de barreras verticales (velas).
+
+    Devuelve DataFrame: TP, horizon, n, oos, exp_R, WR, total_R, calmar, max_dd.
+    """
+    if hasattr(events, "to_dict"):
+        recs = events.to_dict("records")
+    else:
+        recs = list(events)
+    target_keys = [f"px_{lvl}" for lvl in tp_levels]
+    long_df = lb.label_events_grid(df_primary, recs, target_keys, list(horizons))
+    if len(long_df) == 0:
+        return pd.DataFrame(
+            columns=["TP", "horizon", "n", "oos", "exp_R", "WR", "total_R",
+                     "calmar", "max_dd"])
+    rows = []
+    for (tp, h), cell in long_df.groupby(["tp", "horizon"], sort=False):
+        mm = _cell_metrics(cell, sim_kwargs, bar_minutes, n_splits, embargo)
+        rows.append({"TP": tp, "horizon": int(h), **mm})
     return pd.DataFrame(rows)
 
 

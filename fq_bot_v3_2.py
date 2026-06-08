@@ -933,7 +933,12 @@ def calculate_levels(df, direction):
         sl  = min(ema50_v, float(df["low"].iloc[-10:].min())) * 0.998
         tp1 = entry + (rng * PHI_INV * PHI_INV)
         tp2 = entry + (rng * PHI_INV)
-        tp3 = entry * (1 + (rng / entry) * PHI_INV)
+        # tp3: peldano intermedio REAL entre tp2 (0.618*rng) y tp4 (1.0*rng).
+        # Antes era entry*(1+(rng/entry)*PHI_INV) == entry+rng*PHI_INV == tp2
+        # (mismo precio que tp2): la "escalera" tenia 3 peldanos, no 4. Ahora usa
+        # el punto medio aureo (1+PHI_INV)/2 ~= 0.809*rng -> cuatro TPs distintos
+        # y monotonos.
+        tp3 = entry + (rng * (1.0 + PHI_INV) / 2.0)
         tp4 = entry + (rng * PHI_INV * PHI)
     else:
         ema50_v = last.get("ema50")
@@ -941,7 +946,9 @@ def calculate_levels(df, direction):
         sl  = max(ema50_v, float(df["high"].iloc[-10:].max())) * 1.002
         tp1 = entry - (rng * PHI_INV * PHI_INV)
         tp2 = entry - (rng * PHI_INV)
-        tp3 = entry * (1 - (rng / entry) * PHI_INV)
+        # tp3: peldano intermedio REAL entre tp2 y tp4 (simetrico al long). Antes
+        # == tp2 por construccion; ahora punto medio aureo (1+PHI_INV)/2.
+        tp3 = entry - (rng * (1.0 + PHI_INV) / 2.0)
         tp4 = entry - (rng * PHI_INV * PHI)
 
     risk = abs(entry - sl)

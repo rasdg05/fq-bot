@@ -401,14 +401,26 @@ def main():
         valid = labeled.loc[valid_index]
         X = valid[feat_cols].reset_index(drop=True).fillna(0.0)
         y = (valid["outcome"] == lb.WIN).astype(int).to_numpy()
+        est_factory = None
         try:
-            est_factory = tr.make_lgbm_classifier
-            est_factory()   # prueba que lightgbm exista
-        except Exception as e:
-            # Muestra el error real (p.ej. 'libgomp.so.1: cannot open...') en vez de
-            # esconderlo: si el modelo no corre, queremos saber POR QUE.
-            print(f"  (lightgbm no disponible: {type(e).__name__}: {e})")
-            est_factory = None
+            import lightgbm  # noqa: F401
+        except ImportError:
+            print("  [skip] lightgbm no instalado; instala lightgbm para el modelo.")
+        else:
+            # lightgbm importa: el riesgo real es que el CLASSIFIER no construya.
+            # LGBMClassifier vive en lightgbm.sklearn y REQUIERE scikit-learn; sin
+            # el, construir truena con LightGBMError (NO ImportError) y un except
+            # generico lo escondia tras "lightgbm no disponible". Aqui nombramos la
+            # causa real para que un reporte sin AUC nunca sea un misterio.
+            try:
+                tr.make_lgbm_classifier()
+                est_factory = tr.make_lgbm_classifier
+            except Exception as e:
+                print("  [WARN] lightgbm importa pero LGBMClassifier no construye:")
+                print(f"         {type(e).__name__}: {e}")
+                print("         Causa habitual: falta scikit-learn (o libgomp1).")
+                print("         -> pip install scikit-learn. Modelo OMITIDO "
+                      "(sin AUC / umbral / top-features).")
         if est_factory is not None:
             trained = tr.train_walk_forward(X, y, folds, estimator_factory=est_factory)
             print(f"  AUC out-of-fold: {trained['oof_auc']}")
