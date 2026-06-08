@@ -89,7 +89,8 @@ jobs:
     runs-on: ubuntu-latest
     # Baseline (replay + OOS + modelo) cabe sobre. La poda triplica el tiempo
     # (3 re-replays sobre ~70k velas), por eso es opt-in y el techo es holgado.
-    timeout-minutes: 180
+    # 350 (< 360 max de runner hosted): BTC 48m de 5m necesita ~170min de replay.
+    timeout-minutes: 350
     env:
       # Defaults benignos para que el monolito importe sin secretos reales.
       TELEGRAM_TOKEN: "ci-dummy"
@@ -97,6 +98,13 @@ jobs:
       TELEGRAM_CHAT_ID: "0"
       ANTHROPIC_API_KEY: "ci-dummy"
       FQ_LEDGER_PATH: "/tmp/fq_ledger_ci.db"
+      # Gate DETERMINISTA en research: con el ledger vacio de CI, el Thompson
+      # sampling (FQ_USE_THOMPSON=1) hace que kappa sea un draw aleatorio y el set
+      # de senales dependa del SEED (seed=7 -> 412 senales; seed=42 -> 17). Eso es
+      # ruido del RNG, no estrategia. Con =0 el gate usa kappa legacy_v2
+      # determinista -> set de senales estable, reproducible y atribuible a la
+      # estrategia (no al seed). Imprescindible para research honesto.
+      FQ_USE_THOMPSON: "0"
       EX: ${{ github.event.inputs.exchange || 'okx' }}
       SYM: ${{ github.event.inputs.symbol || 'BTC/USDT' }}
       MONTHS: ${{ github.event.inputs.months || '48' }}
