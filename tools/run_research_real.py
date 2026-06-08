@@ -45,6 +45,8 @@ import bt_metrics as met
 import bt_train as tr
 import bt_ablation as ab
 import bt_retrieval as rt
+import bt_optimize as opt
+import bt_quality as ql
 
 
 # Stack de TFs por TF primario: (primario, htf_mid, htf_high, sub). El motor
@@ -196,10 +198,36 @@ def _label_and_fold(events, df15, max_bars, n_splits, embargo):
     return labeled, folds, valid_index
 
 
+def _exposure_fraction(pooled):
+    """Fraccion de tiempo en mercado: velas en posicion / span temporal cubierto.
+
+    Aproxima exposicion como sum(bars_held) / (span de entry_index cubierto). >1
+    indicaria solape de posiciones (aqui se capa a 1.0). None si no computable.
+    """
+    if pooled is None or len(pooled) == 0:
+        return None
+    if "bars_held" not in pooled.columns or "entry_index" not in pooled.columns:
+        return None
+    bh = pd.to_numeric(pooled["bars_held"], errors="coerce")
+    ei = pd.to_numeric(pooled["entry_index"], errors="coerce")
+    span = float((ei + bh).max() - ei.min())
+    held = float(bh.sum())
+    if not np.isfinite(span) or span <= 0:
+        return None
+    return min(held / span, 1.0)
+
+
 def _oos_metrics(labeled, folds, valid_index, sim_kwargs, ppy):
+    """Metricas OOS sobre la cartera pooled. Devuelve (metrics, n_pool, equity).
+
+    Emite ADEMAS la curva de equity (Series) para volcado/diagnostico de
+    drawdown, y agrega exposicion + distribucion mfe_r/mae_r al dict de metricas.
+    """
     pooled = ab.pooled_oos_trades(labeled, folds, valid_index=valid_index)
     res = eng.simulate(pooled, **sim_kwargs)
-    return met.metrics_from_result(res, periods_per_year=ppy), len(pooled)
+    exposure = _exposure_fraction(pooled)
+    metrics = met.metrics_from_result(res, periods_per_year=ppy, exposure=exposure)
+    return metrics, len(pooled), res.get("equity_curve")
 
 
 def main():
@@ -262,6 +290,23 @@ def main():
                         "retrieval denso (todas las velas)")
     p.add_argument("--dense-horizon", type=int, default=288,
                    help="velas forward para el label de retorno en ATR (denso)")
+    # --- FASE D: riesgo/drawdown ---
+    p.add_argument("--equity-json", default=None,
+                   help="ruta para volcar la curva de equity OOS + drawdown (JSON)")
+    # --- FASE C: grid post-replay de SL (xATR) x TP (tp1..tp4) ---
+    p.add_argument("--tp-sl-grid", action="store_true",
+                   help="re-etiqueta el MISMO conjunto fired variando ancho de SL "
+                        "(multiplos de ATR) y nivel de TP -> tabla SL x TP con "
+                        "expectancy/WR/Calmar (post-replay, cero replays extra)")
+    p.add_argument("--sl-mults", default="0.5,1.0,1.5,2.0",
+                   help="multiplos de ATR para el ancho de SL del grid (coma)")
+    p.add_argument("--grid-tps", default="tp1,tp2,tp4",
+                   help="niveles de TP del grid (coma). tp3 se omite (==tp2 en el motor)")
+    # --- FASE B: gate de calidad 'VIP oro' (decil superior OOS) ---
+    p.add_argument("--quality-gate", action="store_true",
+                   help="aisla el decil/percentil superior del score del modelo y de "
+                        "la expectancy del vecindario del retrieval (OOS) y reporta "
+                        "WR/expectancy/total_r/max_dd del subset VIP vs el total")
     args = p.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -332,6 +377,8 @@ def main():
         _print_track_record(labeled)
         horizons = _parse_int_list(args.horizon_sweep) or [args.max_bars]
         _print_tp_frontier(df_primary, events, horizons)
+        if args.tp_sl_grid:
+            _print_tp_sl_grid(df_primary, events, args, sim_kwargs, bar_minutes)
     else:
         labeled = None
         print("  (el motor no disparo ninguna senal valida; se omite el research de "
@@ -341,11 +388,12 @@ def main():
         folds, valid_index = wf.folds_from_labeled(
             labeled, n_splits=args.n_splits, embargo=args.embargo)
         ppy = _periods_per_year(labeled, bar_minutes)
-        base_metrics, n_pool = _oos_metrics(
+        base_metrics, n_pool, base_equity = _oos_metrics(
             labeled, folds, valid_index, sim_kwargs, ppy)
         base_metric = base_metrics.get("expectancy_r")
         print("\n[2/4] Metricas OOS de senales (con fees+slippage+funding):")
         print(met.format_report(base_metrics))
+        _dump_equity_curve(base_equity, args)
 
         # --- modelo entrenado sobre walk-forward ---
         print("\n[3/4] Modelo (LightGBM si disponible) sobre walk-forward...")
@@ -372,6 +420,17 @@ def main():
                 valid["pnl_r"].to_numpy())
             print("  Expectancy por umbral del modelo:")
             print(thr.to_string(index=False))
+
+            # [FASE B] gate VIP por PERCENTIL del score OOS del modelo (robusto
+            # aunque el AUC sea pobre: aisla el top relativo, no un umbral fijo).
+            if args.quality_gate:
+                tested = trained["tested_mask"]
+                gate = ql.quality_gate(
+                    trained["oof_scores"][tested],
+                    valid["pnl_r"].to_numpy()[tested])
+                print("\n  [VIP oro] subset por decil/percentil del SCORE DEL MODELO "
+                      "(OOS):")
+                print(ql.format_gate(gate, title="VIP modelo"))
 
         # retrieval sobre las SENALES fired (esparso; complementa al denso)
         if args.retrieval:
@@ -417,7 +476,7 @@ def main():
                               min_lookback=args.min_lookback, step=args.step)
             lab2, fold2, vi2 = _label_and_fold(
                 ev2, df_primary, args.max_bars, args.n_splits, args.embargo)
-            m2, _ = _oos_metrics(lab2, fold2, vi2, sim_kwargs, ppy)
+            m2, _, _ = _oos_metrics(lab2, fold2, vi2, sim_kwargs, ppy)
             without = m2.get("expectancy_r")
             delta = (base_metric - without) if (base_metric is not None and
                                                 without is not None) else None
@@ -462,10 +521,10 @@ def _run_retrieval_diagnostic(labeled, folds, valid_index, args):
         oos = rt.retrieval_oos(labeled, folds, valid_index, mode="causal", **common)
     except Exception as e:
         print(f"  (retrieval no disponible: {e})")
-        return
+        return None
     if len(oos) == 0:
         print("  (sin eventos OOS para retrieval)")
-        return
+        return None
     abl = rt.retrieval_ablation(oos, gate_threshold=0.0)
     print(f"  backend={args.retrieval_backend} k={args.retrieval_k} "
           f"sim_floor={args.retrieval_sim_floor} n_floor={common['n_floor'] or args.retrieval_k//2}")
@@ -507,6 +566,46 @@ def _run_retrieval_diagnostic(labeled, folds, valid_index, args):
             print(f"  [json] resultados -> {args.retrieval_json}")
         except Exception as e:
             print(f"  [json] no se pudo escribir: {e}")
+
+    # [FASE B] gate VIP por PERCENTIL de la expectancy del vecindario (OOS causal).
+    # Aisla el decil superior por retr_expectancy_r y mide su pnl_r realizado.
+    if getattr(args, "quality_gate", False):
+        sub = oos[oos["pnl_r"].notna() & oos["retr_expectancy_r"].notna()]
+        if len(sub) > 0:
+            gate = ql.quality_gate(
+                sub["retr_expectancy_r"].to_numpy(),
+                sub["pnl_r"].to_numpy())
+            print("\n  [VIP oro] subset por decil/percentil de la EXPECTANCY DEL "
+                  "VECINDARIO (retrieval OOS):")
+            print(ql.format_gate(gate, title="VIP retrieval"))
+    return oos
+
+
+def _dump_equity_curve(equity, args):
+    """[FASE D] Vuelca la curva de equity OOS + su drawdown a JSON (si --equity-json).
+
+    La curva es el insumo de drawdown/Calmar; emitirla permite graficarla fuera o
+    auditar el peor tramo. No imprime la serie completa en el log (es larga).
+    """
+    if not getattr(args, "equity_json", None) or equity is None or len(equity) == 0:
+        return
+    import json
+    eq = np.asarray(equity, dtype="float64")
+    dd = met.drawdown_series(eq)
+    mdd, peak_i, trough_i = met.max_drawdown(eq)
+    payload = {
+        "symbol": args.symbol, "exchange": args.exchange,
+        "equity_curve": eq.tolist(),
+        "drawdown_series": dd.tolist(),
+        "max_drawdown": mdd, "peak_idx": peak_i, "trough_idx": trough_i,
+        "final_equity": float(eq[-1]), "initial_equity": float(eq[0]),
+    }
+    try:
+        with open(args.equity_json, "w") as fh:
+            json.dump(payload, fh, default=_jsonable)
+        print(f"  [equity] curva OOS ({len(eq)} puntos) + drawdown -> {args.equity_json}")
+    except Exception as e:
+        print(f"  [equity] no se pudo escribir: {e}")
 
 
 def _jsonable(o):
@@ -593,6 +692,48 @@ def _print_tp_frontier(df_primary, events, horizons):
         print("  WR baja y exp_R sube al alejar el TP: ese es el trade-off. "
               "avg_MFE = recorrido tipico en R (si << rr del TP, el TP no se "
               "alcanza). Horizonte mas largo da mas chance al TP lejano.")
+
+
+def _parse_float_list(s):
+    """'0.5,1.0,2.0' -> [0.5, 1.0, 2.0]. Vacio/None -> []."""
+    if not s:
+        return []
+    return [float(x) for x in str(s).replace(" ", "").split(",") if x]
+
+
+def _print_tp_sl_grid(df_primary, events, args, sim_kwargs, bar_minutes):
+    """[FASE C] Grid post-replay SL(xATR) x TP -> tabla con exp_R/WR/Calmar OOS.
+
+    Re-etiqueta el MISMO conjunto fired variando ancho de SL (multiplos de ATR) y
+    nivel de TP, sin re-replicar el motor. Elige el optimo por Calmar (fallback
+    expectancy). El horizonte es el primero del sweep (o --max-bars).
+    """
+    if events is None or len(events) == 0:
+        return
+    sl_mults = _parse_float_list(args.sl_mults)
+    tp_levels = [t.strip() for t in str(args.grid_tps).split(",") if t.strip()]
+    horizon = (_parse_int_list(args.horizon_sweep) or [args.max_bars])[0]
+    print(f"\n[1.6/4] Grid SL(xATR) x TP (post-replay; horizonte={horizon} velas; "
+          f"OOS si la muestra alcanza, si no in-sample):")
+    grid = opt.tp_sl_grid(
+        df_primary, events, sl_mults, tp_levels, horizon,
+        sim_kwargs=sim_kwargs, n_splits=args.n_splits, embargo=args.embargo,
+        bar_minutes=bar_minutes)
+    if grid is None or len(grid) == 0:
+        print("  (sin celdas evaluables: faltan px_tp o ATR en las senales)")
+        return
+    show = grid.copy()
+    for c in ("exp_R", "WR", "total_R", "calmar", "max_dd"):
+        show[c] = show[c].map(lambda v: round(v, 3) if v is not None and
+                              not (isinstance(v, float) and pd.isna(v)) else None)
+    print(show.to_string(index=False))
+    best = opt.choose_optimum(grid, by="calmar")
+    if best is not None:
+        print(f"  >> OPTIMO (por Calmar): SL={best['SL_xATR']}xATR TP={best['TP']} "
+              f"exp_R={_f(best['exp_R'])} WR={_f(best['WR'])} "
+              f"calmar={_f(best['calmar'])} max_dd={_f(best['max_dd'])} "
+              f"n={best['n']} ({'OOS' if best['oos'] else 'in-sample'})")
+    print("  Nota: tp3 omitido (== tp2 en calculate_levels del motor; ver bt_optimize).")
 
 
 def _print_track_record(labeled):

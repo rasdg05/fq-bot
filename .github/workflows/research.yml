@@ -86,6 +86,14 @@ on:
         description: "Subsamplea queries de test del retrieval denso (10 = 1 de cada 10; acota coste)"
         default: "10"
         type: string
+      tp_sl_grid:
+        description: "FASE C: grid post-replay SL(xATR) x TP -> tabla con exp_R/WR/Calmar OOS y optimo (gratis, no re-replica)"
+        default: "true"
+        type: string
+      quality_gate:
+        description: "FASE B: gate VIP oro -> decil superior OOS por score del modelo y expectancy del retrieval (WR/exp/total_R/max_dd VIP vs total)"
+        default: "true"
+        type: string
   schedule:
     - cron: "17 6 * * 1"   # lunes 06:17 UTC
 
@@ -130,6 +138,8 @@ jobs:
       RK: ${{ github.event.inputs.retrieval_k || '50' }}
       DHORIZON: ${{ github.event.inputs.dense_horizon || '288' }}
       DQSTEP: ${{ github.event.inputs.dense_query_step || '10' }}
+      TPSLGRID: ${{ github.event.inputs.tp_sl_grid || 'true' }}
+      QGATE: ${{ github.event.inputs.quality_gate || 'true' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -208,11 +218,19 @@ jobs:
           if [ "${RETRIEVAL}" = "true" ]; then
             RFLAG="--retrieval --retrieval-backend turbovec --retrieval-k ${RK} --retrieval-query-step ${DQSTEP} --retrieval-json research_out/retrieval_${SYM//\//-}.json"
           fi
+          # FASE C (grid SL/TP) y FASE B (gate VIP): post-replay, sin coste de motor.
+          GRIDFLAG=""
+          [ "${TPSLGRID}" = "true" ] && GRIDFLAG="--tp-sl-grid"
+          QGATEFLAG=""
+          [ "${QGATE}" = "true" ] && QGATEFLAG="--quality-gate"
+          # FASE D: vuelca la curva de equity OOS + drawdown como artefacto.
+          EQJSON="research_out/equity_${SYM//\//-}.json"
           python tools/run_research_real.py --exchange "${EX}" --symbol "${SYM}" \
             --tf-id "${TFID}" --target-level "${TARGETLVL}" \
             --horizon-sweep "${HSWEEP}" --dense-horizon "${DHORIZON}" \
             --step "${STEP}" --max-bars "${MAXBARS}" \
-            --seed "${SEED}" --n-splits "${NSPLITS}" --embargo 8 ${ABLATION_FLAG} ${RFLAG} \
+            --seed "${SEED}" --n-splits "${NSPLITS}" --embargo 8 \
+            ${ABLATION_FLAG} ${RFLAG} ${GRIDFLAG} ${QGATEFLAG} --equity-json "${EQJSON}" \
             2>&1 | tee research_out/research_real.txt
 
       - name: Empaquetar reporte

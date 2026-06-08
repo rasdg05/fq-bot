@@ -94,6 +94,45 @@ def test_compute_metrics_full_bundle():
     assert out["final_equity"] == pytest.approx(10_503)
 
 
+def test_excursion_stats_aggregates():
+    # FASE D: agregados de la distribucion mfe_r/mae_r del labeler.
+    out = m.excursion_stats(mfe_r=[1.0, 2.0, 3.0], mae_r=[-0.5, -1.0, -1.5])
+    assert out["avg_mfe_r"] == pytest.approx(2.0)
+    assert out["median_mfe_r"] == pytest.approx(2.0)
+    assert out["avg_mae_r"] == pytest.approx(-1.0)
+    assert out["median_mae_r"] == pytest.approx(-1.0)
+    assert out["mfe_p90_r"] == pytest.approx(np.percentile([1.0, 2.0, 3.0], 90))
+    # nan-safe: insumos no finitos se descartan
+    clean = m.excursion_stats(mfe_r=[1.0, np.nan, 3.0])
+    assert clean["avg_mfe_r"] == pytest.approx(2.0)
+
+
+def test_compute_metrics_exposure_and_excursions():
+    # FASE D: exposure + mfe/mae entran en el dict y en el reporte.
+    out = m.compute_metrics(pnl_r=[1.0, -1.0, 2.0], mfe_r=[1.5, 0.2, 2.5],
+                            mae_r=[-0.3, -1.0, -0.1], exposure=0.42)
+    assert out["exposure"] == pytest.approx(0.42)
+    assert out["avg_mfe_r"] == pytest.approx((1.5 + 0.2 + 2.5) / 3)
+    assert "avg_mae_r" in out
+    assert "exposure" in m.format_report(out)
+    assert "avg_mfe_r" in m.format_report(out)
+
+
+def test_known_pnl_r_drawdown_and_calmar():
+    # FASE D: serie de pnl_r conocida -> equity y max_dd/calmar correctos.
+    # pnl_r en R, equity multiplicativa con risk 1R = 100 sobre equity0=1000.
+    pnl_r = [2.0, -1.0, -1.0, 3.0]   # equity: +200,-100,-100,+300
+    equity = [1000, 1200, 1100, 1000, 1300]
+    # pico 1200 -> fondo 1000 (idx 3) => dd = 1000/1200 - 1
+    mdd, peak, trough = m.max_drawdown(equity)
+    assert mdd == pytest.approx(1000 / 1200 - 1)
+    assert peak == 1 and trough == 3
+    out = m.compute_metrics(equity_curve=equity, pnl_r=pnl_r, periods_per_year=252)
+    assert out["total_r"] == pytest.approx(3.0)
+    assert out["max_drawdown"] == pytest.approx(1000 / 1200 - 1)
+    assert out["calmar"] is not None and np.isfinite(out["calmar"])
+
+
 def test_metrics_from_engine_result():
     import bt_engine as eng
     trades = pd.DataFrame([
