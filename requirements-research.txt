@@ -1,0 +1,11 @@
+# Dependencias SOLO del harness de research (backtest / walk-forward / modelo).
+# El bot en produccion NO las necesita, por eso van aparte de requirements.txt
+# y se instalan unicamente en el workflow de Research.
+#
+# OJO al acoplamiento: lightgbm expone LGBMClassifier via `lightgbm.sklearn`,
+# que es un peer-dependency DURO de scikit-learn. Sin scikit-learn, `import
+# lightgbm` pasa verde pero construir el classifier lanza LightGBMError y el
+# modelo se degrada en silencio (reporte sin AUC / umbral / top-features). Por
+# eso ambos van JUNTOS aqui y el workflow asegura su construccion.
+lightgbm>=4.0.0
+scikit-learn>=1.3.0

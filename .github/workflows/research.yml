@@ -75,7 +75,20 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest lightgbm
+          pip install pytest
+          # lightgbm + scikit-learn juntos: LGBMClassifier vive en
+          # lightgbm.sklearn y necesita scikit-learn (ver requirements-research).
+          pip install -r requirements-research.txt
+
+      - name: Assert — LGBMClassifier se construye (scikit-learn presente)
+        # Falla en ROJO si el modelo esta degradado (import lightgbm verde pero
+        # classifier no construye, p.ej. falta scikit-learn). Sin esto el run
+        # real se lo traga en su try/except y el reporte sale sin AUC en
+        # silencio. NO es continue-on-error a proposito.
+        run: |
+          python -c "import bt_train as t; m = t.make_lgbm_classifier(); \
+            assert type(m).__name__ == 'LGBMClassifier', type(m); \
+            print('OK LGBMClassifier construido:', type(m))"
 
       - name: Sanity — suite de research
         run: pytest tests/test_bt_*.py -q

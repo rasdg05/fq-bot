@@ -45,6 +45,34 @@ import bt_train as tr
 import bt_ablation as ab
 
 
+def _resolve_lgbm_factory():
+    """Devuelve make_lgbm_classifier solo si el LGBMClassifier se puede
+    CONSTRUIR de verdad, y avisa con la causa real cuando no.
+
+    No basta con que `import lightgbm` pase verde: el clasificador vive en
+    `lightgbm.sklearn` y REQUIERE scikit-learn. Si falta scikit-learn,
+    construirlo lanza LightGBMError (no ImportError), que un `except Exception`
+    generico se traga dejando el reporte sin AUC / umbral / top-features. Eso es
+    el "install verde pero modelo degradado en silencio": aqui lo hacemos
+    ruidoso y con la causa correcta.
+    """
+    try:
+        import lightgbm  # noqa: F401
+    except ImportError:
+        print("  [skip] lightgbm no instalado; instala lightgbm para el modelo.")
+        return None
+    try:
+        tr.make_lgbm_classifier()
+    except Exception as e:
+        print("  [WARN] lightgbm importa pero NO puede construir LGBMClassifier:")
+        print(f"         {type(e).__name__}: {e}")
+        print("         Causa habitual: falta scikit-learn (LGBMClassifier vive")
+        print("         en lightgbm.sklearn). -> pip install scikit-learn.")
+        print("         El modelo se OMITE (sin AUC / umbral / top-features).")
+        return None
+    return tr.make_lgbm_classifier
+
+
 def _load_tf(exchange, symbol, tf, data_dir):
     """Carga un Parquet OHLCV y le aplica los indicadores del motor."""
     import fq_market_data as md
@@ -224,12 +252,7 @@ def main():
     valid = labeled.loc[valid_index]
     X = valid[feat_cols].reset_index(drop=True).fillna(0.0)
     y = (valid["outcome"] == lb.WIN).astype(int).to_numpy()
-    try:
-        est_factory = tr.make_lgbm_classifier
-        est_factory()   # prueba que lightgbm exista
-    except Exception:
-        print("  (lightgbm no disponible; instala lightgbm para el modelo)")
-        est_factory = None
+    est_factory = _resolve_lgbm_factory()
     if est_factory is not None:
         trained = tr.train_walk_forward(X, y, folds, estimator_factory=est_factory)
         print(f"  AUC out-of-fold: {trained['oof_auc']}")
