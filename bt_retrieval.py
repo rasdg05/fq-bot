@@ -372,7 +372,8 @@ def neighborhood_stats(scores, pnl_r, ages=None, *, sim_floor=0.5, n_floor=1,
 # ============================================================
 def retrieval_oos(labeled, folds, valid_index, *, backend="exact", bit_width=4,
                   k=50, vectorizer=None, sim_floor=0.5, n_floor=None,
-                  decay_bars=None, max_age_bars=None, mode="causal", seed=42):
+                  decay_bars=None, max_age_bars=None, mode="causal", seed=42,
+                  query_step=1):
     """Calcula los estadisticos de retrieval para cada evento de TEST de cada fold.
 
     Para cada fold (train_idx, test_idx) -> filas reales via valid_index:
@@ -401,6 +402,10 @@ def retrieval_oos(labeled, folds, valid_index, *, backend="exact", bit_width=4,
         te_orig = [pos_to_orig[int(p)] for p in test_idx]
         tr = lab.iloc[tr_orig]
         te = lab.iloc[te_orig]
+        # Subsamplea queries de test (denso: miles de estados por fold -> acota el
+        # coste de busqueda sin sesgar; el INDICE sigue completo).
+        if query_step and query_step > 1:
+            te = te.iloc[::query_step]
         tr = tr[tr["pnl_r"].notna()]
         if len(tr) == 0:
             continue

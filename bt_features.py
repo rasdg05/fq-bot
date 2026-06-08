@@ -213,3 +213,91 @@ def replay_events(
         events.append(row)
 
     return pd.DataFrame(events)
+
+
+# ============================================================
+# REPLAY DENSO: estado de CADA vela (no solo las que disparan)
+# ============================================================
+WIN = "win"
+LOSS = "loss"
+
+
+def _atr_series(df, atr_col=None):
+    """Serie de ATR para normalizar el retorno forward. Usa la columna dada o una
+    comun (atr14/atr/ATRr_14); si no hay, calcula ATR(14) Wilder desde H/L/C.
+    """
+    import numpy as _np
+    if atr_col and atr_col in df.columns:
+        return df[atr_col].to_numpy(dtype="float64")
+    for c in ("atr14", "atr", "ATRr_14", "ATR_14", "atr_14"):
+        if c in df.columns:
+            return df[c].to_numpy(dtype="float64")
+    high = df["high"].to_numpy(dtype="float64")
+    low = df["low"].to_numpy(dtype="float64")
+    close = df["close"].to_numpy(dtype="float64")
+    prev = _np.concatenate([[close[0]], close[:-1]])
+    tr = _np.maximum(high - low, _np.maximum(_np.abs(high - prev), _np.abs(low - prev)))
+    atr = pd.Series(tr).ewm(alpha=1.0 / 14, adjust=False).mean().to_numpy()
+    return atr
+
+
+def replay_states(
+    df_primary, df_mid, df_high, df_sub,
+    evaluate_fn, detect_pspace_fn, laplacian_check_fn, calculate_levels_fn, config,
+    min_lookback=300, step=1, horizon_bars=288, htf_tail=300, sub_tail=120,
+    atr_col=None, progress_every=0,
+):
+    """Replay DENSO para el indice de retrieval (pivot): registra el ESTADO
+    (field/features que el motor computa) de CADA vela evaluada -- dispare o no --
+    etiquetado con el retorno forward normalizado por ATR a `horizon_bars`.
+
+    Asi el estimador k-NN prueba la tesis pura ('estados de mercado similares
+    preceden movimientos similares') con densidad real (decenas de miles de
+    estados), desacoplado del gate francotirador (que solo dispara ~decenas).
+
+    pnl_r = (close[i+H] - close[i]) / ATR[i]  (movimiento forward en multiplos de
+    ATR; direccion LONG por construccion -> el signo mide si el estado precede
+    subida o bajada). outcome = win si pnl_r>0. Columna `fired` marca si el motor
+    habria disparado ahi (para cruzar con las senales reales despues).
+
+    Causal: usa df_primary.iloc[:i+1] y htf_window (solo pasado <= ts). El label
+    mira al futuro [i, i+H] pero eso es el DESENLACE (se conoce solo despues); el
+    walk-forward + embargo de retrieval_oos garantiza que ningun vecino del indice
+    tenga su [i, i+H] solapado con el query.
+    """
+    n = len(df_primary)
+    ts_col = df_primary["timestamp"].to_numpy()
+    close = df_primary["close"].to_numpy(dtype="float64")
+    atr = _atr_series(df_primary, atr_col)
+    last_i = n - horizon_bars - 1   # necesitamos H velas de futuro para el label
+    rows = []
+    for i in range(min_lookback, max(min_lookback, last_i), step):
+        if progress_every and i % progress_every == 0:
+            log.info("replay_states %d/%d estados=%d", i, n, len(rows))
+        ts = ts_col[i]
+        winp = df_primary.iloc[: i + 1]
+        win_mid = htf_window(df_mid, ts, tail=htf_tail)
+        win_high = htf_window(df_high, ts, tail=htf_tail)
+        win_sub = htf_window(df_sub, ts, tail=sub_tail)
+        try:
+            fire, field, report = evaluate_fn(
+                winp, win_mid, win_high, win_sub,
+                detect_pspace_fn, laplacian_check_fn, calculate_levels_fn, config,
+            )
+        except Exception as e:
+            log.warning("evaluate_fn (denso) fallo en i=%d: %s", i, e)
+            continue
+        a = atr[i]
+        if not np.isfinite(a) or a <= 0:
+            continue
+        fwd_r = float((close[i + horizon_bars] - close[i]) / a)
+        row = {
+            "entry_index": i, "entry_ts": pd.Timestamp(ts),
+            "entry_price": float(close[i]), "direction": LONG,
+            "bars_held": int(horizon_bars), "pnl_r": fwd_r,
+            "outcome": WIN if fwd_r > 0 else LOSS,
+            "fired": bool(fire and report.get("decision") == "fire"),
+        }
+        row.update(extract_features(field, report))
+        rows.append(row)
+    return pd.DataFrame(rows)

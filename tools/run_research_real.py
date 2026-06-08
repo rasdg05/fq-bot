@@ -85,7 +85,8 @@ def _build_config(monolith, tf_id="15m"):
     }
 
 
-def _run_replay(tfs, env_overrides=None, seed=42, tf_id="15m", **replay_kwargs):
+def _run_replay(tfs, env_overrides=None, seed=42, tf_id="15m", dense=False,
+                horizon_bars=288, **replay_kwargs):
     """Replay con (re)carga de fusion_engine bajo unos env overrides. Devuelve
     el DataFrame de eventos disparados por el motor.
 
@@ -116,6 +117,18 @@ def _run_replay(tfs, env_overrides=None, seed=42, tf_id="15m", **replay_kwargs):
     # gate (stdlib random) y cualquier np.random global.
     random.seed(seed)
     np.random.seed(seed)
+    if dense:
+        # Replay DENSO: estado de cada vela + label forward en ATR (pivot de
+        # retrieval; desacopla del gate francotirador).
+        return bf.replay_states(
+            df15, df1h, df4h, df1m,
+            evaluate_fn=fusion_engine.evaluate_signal,
+            detect_pspace_fn=b.detect_pspace,
+            laplacian_check_fn=b.laplacian_check,
+            calculate_levels_fn=b.calculate_levels,
+            config=config, horizon_bars=horizon_bars,
+            **replay_kwargs,
+        )
     return bf.replay_events(
         df15, df1h, df4h, df1m,
         evaluate_fn=fusion_engine.evaluate_signal,
@@ -206,6 +219,15 @@ def main():
                    help="half-life de recencia en velas (None=sin decaimiento)")
     p.add_argument("--retrieval-json", default=None,
                    help="ruta para volcar resultados de retrieval en JSON (comparacion)")
+    p.add_argument("--retrieval-query-step", type=int, default=1,
+                   help="subsamplea queries de test del retrieval (denso: usa >1)")
+    # --- modo DENSO (pivot): indexa el estado de CADA vela, no solo los fires ---
+    p.add_argument("--dense", action="store_true",
+                   help="retrieval DENSO: replay de cada vela + label forward en "
+                        "ATR -> densidad real (decenas de miles de estados), "
+                        "desacoplado del gate francotirador")
+    p.add_argument("--dense-horizon", type=int, default=288,
+                   help="velas forward para el label de retorno en ATR (denso)")
     args = p.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -238,6 +260,11 @@ def main():
 
     # --- Inicializar el ledger (esquema) para que el motor lea memoria ---
     _init_ledger()
+
+    # --- MODO DENSO (pivot de retrieval): estado de CADA vela ---
+    if args.dense:
+        _run_dense_mode(tfs, args, bar_minutes)
+        return
 
     # --- BASELINE: replay con todos los modulos ---
     print("\n[1/4] replay del motor (baseline, todos los modulos)...")
@@ -349,6 +376,37 @@ def main():
                 os.environ[k] = "1"
 
 
+def _run_dense_mode(tfs, args, bar_minutes):
+    """Pivot DENSO: indexa el estado de CADA vela (no solo los ~decenas que
+    disparan) con su retorno forward en ATR -> densidad real para que el k-NN
+    pruebe la tesis. Backend turbovec por defecto (exacto seria O(n^2) sobre 100k
+    estados). El diagnostico de retrieval (causal + leakage) corre igual.
+    """
+    print("\n[DENSO] replay de CADA vela (estado + label forward en ATR)...")
+    prim_tf = TF_STACK[args.tf_id][0]
+    states = _run_replay(
+        tfs, env_overrides=None, seed=args.seed, tf_id=args.tf_id,
+        dense=True, horizon_bars=args.dense_horizon,
+        min_lookback=args.min_lookback, step=args.step, progress_every=5000,
+    )
+    n = len(states)
+    n_fired = int(states["fired"].sum()) if "fired" in states.columns else 0
+    print(f"  estados densos: {n} | de los cuales el motor dispararia: {n_fired}")
+    if n < args.n_splits * 3:
+        sys.exit(f"muestra densa insuficiente ({n}); sube el rango o baja step")
+    summ = lb.label_summary(states)
+    if summ is not None:
+        print(f"  label forward (ATR): mean_r={summ['expectancy_r']:.3f} "
+              f"frac_up={summ['win_rate']:.3f} n={summ['n']}")
+    folds, valid_index = wf.folds_from_labeled(
+        states, n_splits=args.n_splits, embargo=args.embargo)
+    # Denso -> turbovec por defecto si el usuario no forzo backend.
+    if args.retrieval_backend == "exact" and args.retrieval_query_step <= 1:
+        print("  (sugerencia: --retrieval-backend turbovec y --retrieval-query-step>1 "
+              "para 100k estados)")
+    _run_retrieval_diagnostic(states, folds, valid_index, args)
+
+
 def _cost_for_symbol(symbol):
     """Modelo de costos por simbolo. BTC es mas liquido (spread/slippage finos)
     que SOL; funding tipico similar en USDT-perp. Re-tunear con datos reales.
@@ -374,7 +432,7 @@ def _run_retrieval_diagnostic(labeled, folds, valid_index, args):
     common = dict(backend=args.retrieval_backend, bit_width=args.retrieval_bit,
                   k=args.retrieval_k, sim_floor=args.retrieval_sim_floor,
                   n_floor=args.retrieval_nfloor, decay_bars=args.retrieval_decay_bars,
-                  seed=args.seed)
+                  seed=args.seed, query_step=getattr(args, "retrieval_query_step", 1))
     try:
         oos = rt.retrieval_oos(labeled, folds, valid_index, mode="causal", **common)
     except Exception as e:

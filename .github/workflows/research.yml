@@ -78,6 +78,18 @@ on:
         description: "k vecinos del retrieval"
         default: "50"
         type: string
+      dense:
+        description: "Retrieval DENSO (pivot): indexa el ESTADO de cada vela (no solo los ~decenas que disparan) con su retorno forward en ATR. Densidad real (100k+ estados) para probar la tesis desacoplada del gate francotirador."
+        default: true
+        type: boolean
+      dense_horizon:
+        description: "Velas forward para el label de retorno en ATR (denso). 288=24h en 5m"
+        default: "288"
+        type: string
+      dense_query_step:
+        description: "Subsamplea queries de test del retrieval denso (10 = 1 de cada 10; acota coste)"
+        default: "10"
+        type: string
   schedule:
     - cron: "17 6 * * 1"   # lunes 06:17 UTC
 
@@ -120,6 +132,9 @@ jobs:
       RETRIEVAL: ${{ github.event.inputs.retrieval || 'true' }}
       RBACKEND: ${{ github.event.inputs.retrieval_backend || 'exact' }}
       RK: ${{ github.event.inputs.retrieval_k || '50' }}
+      DENSE: ${{ github.event.inputs.dense || 'true' }}
+      DHORIZON: ${{ github.event.inputs.dense_horizon || '288' }}
+      DQSTEP: ${{ github.event.inputs.dense_query_step || '10' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -197,11 +212,18 @@ jobs:
           if [ "${RETRIEVAL}" = "true" ]; then
             RFLAG="--retrieval --retrieval-backend ${RBACKEND} --retrieval-k ${RK} --retrieval-json research_out/retrieval_${SYM//\//-}.json"
           fi
+          # Modo DENSO (pivot): indexa el estado de CADA vela (no solo los fires).
+          # turbovec + query_step porque son ~100k+ estados. Fuerza retrieval on.
+          DFLAG=""
+          if [ "${DENSE}" = "true" ]; then
+            DFLAG="--dense --dense-horizon ${DHORIZON} --retrieval-query-step ${DQSTEP}"
+            RFLAG="--retrieval --retrieval-backend turbovec --retrieval-k ${RK} --retrieval-json research_out/retrieval_${SYM//\//-}.json"
+          fi
           python tools/run_research_real.py --exchange "${EX}" --symbol "${SYM}" \
             --tf-id "${TFID}" --target-level "${TARGETLVL}" \
             --horizon-sweep "${HSWEEP}" \
             --step "${STEP}" --max-bars "${MAXBARS}" \
-            --seed "${SEED}" --n-splits "${NSPLITS}" --embargo 8 ${ABLATION_FLAG} ${RFLAG} \
+            --seed "${SEED}" --n-splits "${NSPLITS}" --embargo 8 ${ABLATION_FLAG} ${RFLAG} ${DFLAG} \
             2>&1 | tee research_out/research_real.txt
 
       - name: Empaquetar reporte

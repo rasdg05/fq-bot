@@ -212,6 +212,52 @@ def test_leakage_embargo_estable():
 # ------------------------------------------------------------
 # *** TEST DE APROXIMACION (#5): exacto vs turbovec ***
 # ------------------------------------------------------------
+def test_denso_turbovec_query_step():
+    """Pivot DENSO: muchos estados (no solo los que disparan), indice grande con
+    turbovec y queries subsampleadas (query_step). El leakage gate debe aguantar:
+    causal recupera edge, placebo colapsa."""
+    pytest.importorskip("turbovec")
+    df = _make_events(n=5000, signal=True)        # 5k estados (denso)
+    folds, vi = W.folds_from_labeled(df, n_splits=6, embargo=8)
+    common = dict(k=50, sim_floor=0.3, n_floor=5, seed=1,
+                  backend="turbovec", bit_width=4, query_step=5)
+    oos_c = R.retrieval_oos(df, folds, vi, mode="causal", **common)
+    oos_p = R.retrieval_oos(df, folds, vi, mode="placebo", **common)
+    edge_c = R.retrieval_ablation(oos_c)["edge_vs_base_r"]
+    edge_p = R.retrieval_ablation(oos_p)["edge_vs_base_r"]
+    assert R.retrieval_ablation(oos_c)["gate_pass"]["n"] > 30
+    assert edge_c > 0.05                          # densidad -> recupera la senal
+    assert abs(edge_p) < 0.5 * edge_c + 0.05      # placebo colapsa
+
+
+def test_replay_states_denso_sintetico():
+    """replay_states emite un estado por vela con label forward en ATR."""
+    import bt_features as bf
+    rng = np.random.default_rng(3)
+    n = 1500
+    close = 100 + np.cumsum(rng.standard_normal(n))
+    ts = pd.date_range("2024-01-01", periods=n, freq="5min")
+    dfp = pd.DataFrame({"timestamp": ts, "open": close, "high": close + 1,
+                        "low": close - 1, "close": close, "volume": 1.0})
+
+    def fake_eval(dp, dm, dh, ds, *a, **k):
+        # field/report minimos; nunca dispara (decision != fire)
+        class F: pass
+        f = F()
+        for at in ("confluence_count", "pd_pct", "w_effective", "node_type",
+                   "killzone", "killzone_priority", "bias_4h", "bias_1h",
+                   "choch", "has_fuel"):
+            setattr(f, at, 0.5 if at in ("pd_pct", "w_effective") else "x")
+        return False, f, {"decision": "field_only", "p_master_data": {}, "score": {}}
+
+    out = bf.replay_states(dfp, None, None, None, fake_eval, None, None, None, {},
+                           min_lookback=50, step=1, horizon_bars=100)
+    assert len(out) > 1000
+    assert {"entry_index", "pnl_r", "bars_held", "fired", "outcome"} <= set(out.columns)
+    assert out["bars_held"].iloc[0] == 100
+    assert out["pnl_r"].notna().all()
+
+
 def test_aproximacion_turbovec_vs_exacto():
     turbovec = pytest.importorskip("turbovec")
     df = _make_events(n=1500, signal=True)
