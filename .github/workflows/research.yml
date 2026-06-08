@@ -1,17 +1,30 @@
 name: Research (backtest / walk-forward / poda)
 
-# Corre el harness de research y publica el reporte como artefacto.
+# Corre el harness de research (runner turbovec) y publica el reporte como
+# artefacto. CLICK-TO-RUN: con solo darle "Run workflow" corre BTC y SOL en
+# PARALELO, intradia (TF 5m), recolectando TODA la data gratis post-replay
+# (frontera TP x horizonte, grid SL/TP, gate VIP, retrieval k-NN read-only).
 #
-# - Manual (workflow_dispatch): elige exchange, ventana y parametros.
-# - Semanal (schedule): regenera el track record OOS solo.
+# - Manual (workflow_dispatch): los defaults ya son los buenos; no hace falta
+#   tocar nada. Los inputs son para experimentar.
+# - Semanal (schedule): regenera BTC+SOL OOS con datos frescos.
 #
-# Datos: OHLCV publico via ccxt (NO requiere secretos/API keys). Binance suele
-# bloquear los runners de GitHub (HTTP 451), por eso el default es OKX (mas
-# permisivo con runners cloud que Bybit).
+# Datos: OHLCV publico via ccxt (NO requiere secretos). Binance da HTTP 451 en
+# runners; el default es OKX (swap perpetuo, casa funding entre BTC y SOL).
 #
-# El job NUNCA falla por el run real: el demo sintetico es la red de seguridad
-# verde y siempre deja un artefacto. El run real corre con continue-on-error y
-# vuelca su salida (y cualquier traceback) al mismo artefacto para diagnostico.
+# Paralelismo y presupuesto de CI:
+#   - matrix por simbolo: BTC (48m) y SOL (24m) como jobs concurrentes, cada uno
+#     con su propio techo de 350min. fail-fast=false: que uno falle no mata al otro.
+#   - cadencia intradia via TF 5m (el TF, no el step, es la palanca principal:
+#     5m da ~3x la resolucion del viejo 15m). El step se mantiene en el rango
+#     seguro de tiempo (BTC step=3, SOL step=2) para GARANTIZAR que el run
+#     completa al primer click; bajalo (mas senales) si ves holgura de tiempo.
+#   - cache de Parquet por simbolo+exchange+meses, rotando por SEMANA ISO: re-runs
+#     dentro de la semana NO re-bajan 48m de velas; el run semanal baja frescas.
+#
+# El job NUNCA falla por el run real: el demo sintetico es la red verde y siempre
+# deja artefacto. El run real corre con continue-on-error y vuelca su salida (y
+# cualquier traceback) al artefacto para diagnostico.
 
 on:
   workflow_dispatch:
@@ -20,80 +33,64 @@ on:
         description: "Exchange ccxt (okx/bybit/binance)"
         default: "okx"
         type: string
-      symbol:
-        description: "Simbolo (default BTC; para SOL: SOL/USDT con months=24 step=2)"
-        default: "BTC/USDT"
-        type: string
-      months:
-        description: "Meses de histgrico a descargar (BTC 48 = mas densidad; SOL 24)"
-        default: "48"
-        type: string
-      step:
-        description: "Evaluar 1 de cada N velas (con tf_id=5m: 3 para BTC ~48m, 2 para SOL ~24m; cabe en 180min)"
-        default: "3"
-        type: string
+      tf_id:
+        description: "TF primario del motor (5m = intradia, mas senales; 15m = mas rapido)"
+        default: "5m"
+        type: choice
+        options: ["5m", "15m"]
       max_bars:
-        description: "Horizonte de la barrera vertical (velas del TF primario; con tf_id=5m: 288=24h, 576=48h)"
-        default: "576"
+        description: "Barrera vertical del label de win (velas; 5m: 288=24h intradia, 576=48h)"
+        default: "288"
+        type: string
+      horizon_sweep:
+        description: "Frontera TP a varios horizontes (velas, coma). Gratis post-replay. 5m: 96=8h 288=24h 576=48h"
+        default: "96,288,576"
+        type: string
+      dense_horizon:
+        description: "Velas forward del label de retorno en ATR (retrieval denso). 5m: 288=24h"
+        default: "288"
         type: string
       n_splits:
         description: "Folds walk-forward (guard pide n_splits*3 senales)"
         default: "7"
         type: string
-      ablation:
-        description: "OPT-IN: poda de modulos = 3 replays fires-only EXTRA (triplica el coste). El run normal hace UN solo replay (senales + retrieval denso). Enciende solo para el diagnostico periodico de que modulo paga su sitio."
-        default: false
-        type: boolean
-      seed:
-        description: "Semilla del replay (gate = Thompson sampling). Fija = reproducible; variala para muestrear la distribucion"
-        default: "42"
-        type: string
-      tf_id:
-        description: "TF primario del motor (5m = mas volumen de senales, recomendado para retrieval; 15m = mas rapido)"
-        default: "5m"
-        type: choice
-        options: ["5m", "15m"]
       target_level:
-        description: "Barrera de ganancia = label de win (modelo + retrieval). tp1 = definicion del ledger (~1R, WR balanceado, sin descartar eventos). OJO tp3==tp2 en el motor; tp4 = unico target lejano real (entry+rng)."
+        description: "Barrera de ganancia = label de win. tp1 (~1R, WR balanceado, sin descartar eventos) recomendado."
         default: "tp1"
         type: choice
         options: ["tp1", "tp2", "tp3", "tp4"]
-      horizon_sweep:
-        description: "Frontera TP a varios horizontes (velas, coma). Post-replay: NO re-replica (gratis). Vacio = solo max_bars. 288=24h 576=48h 864=72h en 5m"
-        default: "288,576,864"
+      seed:
+        description: "Semilla del replay (reproducible; variala para muestrear)"
+        default: "42"
         type: string
-      data_only:
-        description: "Solo descargar histgrico (build_dataset) y omitir el replay. Para preparar/validar datos de un simbolo nuevo (p.ej. BTC). Sube el dataset como artefacto."
-        default: false
-        type: boolean
       retrieval:
-        description: "Activar diagnostico read-only de retrieval (k-NN causal de expectancy por analogia)"
+        description: "Diagnostico read-only de retrieval (k-NN causal de expectancy por analogia)"
         default: "true"
-        type: string
-      retrieval_backend:
-        description: "Backend de retrieval (exact = numpy fuente de verdad; turbovec = ANN 2/4-bit)"
-        default: "exact"
         type: string
       retrieval_k:
         description: "k vecinos del retrieval"
         default: "50"
         type: string
-      dense_horizon:
-        description: "Velas forward para el label de retorno en ATR (denso). 288=24h en 5m"
-        default: "288"
-        type: string
       dense_query_step:
-        description: "Subsamplea queries de test del retrieval denso (10 = 1 de cada 10; acota coste)"
+        description: "Subsamplea queries del retrieval denso (10 = 1 de cada 10; acota coste)"
         default: "10"
         type: string
       tp_sl_grid:
-        description: "FASE C: grid post-replay SL(xATR) x TP -> tabla con exp_R/WR/Calmar OOS y optimo (gratis, no re-replica)"
+        description: "Grid post-replay SL(xATR) x TP + frontera TP x horizonte con costes/OOS (gratis)"
         default: "true"
         type: string
       quality_gate:
-        description: "FASE B: gate VIP oro -> decil superior OOS por score del modelo y expectancy del retrieval (WR/exp/total_R/max_dd VIP vs total)"
+        description: "Gate VIP oro: decil superior OOS por score del modelo y expectancy del retrieval"
         default: "true"
         type: string
+      ablation:
+        description: "OPT-IN: poda de modulos = 3 replays EXTRA (triplica el coste). Default OFF (no es gratis)."
+        default: false
+        type: boolean
+      data_only:
+        description: "Solo descargar histgrico y omitir el replay (preparar/validar datos de un simbolo)"
+        default: false
+        type: boolean
   schedule:
     - cron: "17 6 * * 1"   # lunes 06:17 UTC
 
@@ -103,10 +100,22 @@ permissions:
 jobs:
   research:
     runs-on: ubuntu-latest
-    # Baseline (replay + OOS + modelo) cabe sobre. La poda triplica el tiempo
-    # (3 re-replays sobre ~70k velas), por eso es opt-in y el techo es holgado.
-    # 350 (< 360 max de runner hosted): BTC 48m de 5m necesita ~170min de replay.
+    # Techo holgado: BTC 48m de 5m ~170min de replay denso + modelo/grids/retrieval.
+    # La poda (opt-in) triplica; por eso el techo es 350 (< 360 max del runner).
     timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # BTC: 48 meses (densidad para el retrieval). step=3 = rango seguro de
+          # tiempo para 48m en 5m (garantiza que el run completa al primer click).
+          - symbol: "BTC/USDT"
+            months: "48"
+            step: "3"
+          # SOL: 24 meses (dataset mas chico) -> cabe con mas cadencia (step=2).
+          - symbol: "SOL/USDT"
+            months: "24"
+            step: "2"
     env:
       # Defaults benignos para que el monolito importe sin secretos reales.
       TELEGRAM_TOKEN: "ci-dummy"
@@ -115,31 +124,31 @@ jobs:
       ANTHROPIC_API_KEY: "ci-dummy"
       FQ_LEDGER_PATH: "/tmp/fq_ledger_ci.db"
       # Gate DETERMINISTA en research: con el ledger vacio de CI, el Thompson
-      # sampling (FQ_USE_THOMPSON=1) hace que kappa sea un draw aleatorio y el set
-      # de senales dependa del SEED (seed=7 -> 412 senales; seed=42 -> 17). Eso es
-      # ruido del RNG, no estrategia. Con =0 el gate usa kappa legacy_v2
-      # determinista -> set de senales estable, reproducible y atribuible a la
-      # estrategia (no al seed). Imprescindible para research honesto.
+      # sampling hace que kappa sea un draw aleatorio y el set de senales dependa
+      # del SEED (ruido del RNG, no estrategia). Con =0 el gate usa kappa
+      # legacy_v2 determinista -> set de senales reproducible y atribuible a la
+      # estrategia. Imprescindible para research honesto.
       FQ_USE_THOMPSON: "0"
+      # --- por simbolo (matrix) ---
+      SYM: ${{ matrix.symbol }}
+      MONTHS: ${{ matrix.months }}
+      STEP: ${{ matrix.step }}
+      # --- globales (inputs con default; el schedule usa el default) ---
       EX: ${{ github.event.inputs.exchange || 'okx' }}
-      SYM: ${{ github.event.inputs.symbol || 'BTC/USDT' }}
-      MONTHS: ${{ github.event.inputs.months || '48' }}
-      STEP: ${{ github.event.inputs.step || '3' }}
-      MAXBARS: ${{ github.event.inputs.max_bars || '576' }}
-      NSPLITS: ${{ github.event.inputs.n_splits || '7' }}
-      ABLATION: ${{ github.event.inputs.ablation || false }}
-      SEED: ${{ github.event.inputs.seed || '42' }}
       TFID: ${{ github.event.inputs.tf_id || '5m' }}
-      TARGETLVL: ${{ github.event.inputs.target_level || 'tp1' }}
-      HSWEEP: ${{ github.event.inputs.horizon_sweep || '288,576,864' }}
-      DATAONLY: ${{ github.event.inputs.data_only || false }}
-      RETRIEVAL: ${{ github.event.inputs.retrieval || 'true' }}
-      RBACKEND: ${{ github.event.inputs.retrieval_backend || 'exact' }}
-      RK: ${{ github.event.inputs.retrieval_k || '50' }}
+      MAXBARS: ${{ github.event.inputs.max_bars || '288' }}
+      HSWEEP: ${{ github.event.inputs.horizon_sweep || '96,288,576' }}
       DHORIZON: ${{ github.event.inputs.dense_horizon || '288' }}
+      NSPLITS: ${{ github.event.inputs.n_splits || '7' }}
+      TARGETLVL: ${{ github.event.inputs.target_level || 'tp1' }}
+      SEED: ${{ github.event.inputs.seed || '42' }}
+      RETRIEVAL: ${{ github.event.inputs.retrieval || 'true' }}
+      RK: ${{ github.event.inputs.retrieval_k || '50' }}
       DQSTEP: ${{ github.event.inputs.dense_query_step || '10' }}
       TPSLGRID: ${{ github.event.inputs.tp_sl_grid || 'true' }}
       QGATE: ${{ github.event.inputs.quality_gate || 'true' }}
+      ABLATION: ${{ github.event.inputs.ablation || false }}
+      DATAONLY: ${{ github.event.inputs.data_only || false }}
     steps:
       - uses: actions/checkout@v4
 
@@ -147,6 +156,15 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+
+      - name: Identificadores de simbolo (slug sin '/')
+        # SLUG: artefactos y cache key sin '/' (upload-artifact@v4 lo prohibe y dos
+        # jobs de la matrix NO pueden subir artefactos con el mismo nombre).
+        run: echo "SLUG=$(echo "$SYM" | tr '/:' '__')" >> "$GITHUB_ENV"
+
+      - name: Sello de semana ISO (rota la cache de datos)
+        id: stamp
+        run: echo "week=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
 
       - name: Install dependencies
         run: |
@@ -156,25 +174,20 @@ jobs:
           pip install -r requirements.txt
           # scikit-learn: LGBMClassifier vive en lightgbm.sklearn y lo necesita.
           # Sin el, 'import lightgbm' pasa (verde) pero make_lgbm_classifier truena
-          # y el modelo [3/4] se degrada en SILENCIO (run_research_real lo traga en
-          # su try/except). El assert de abajo construye el classifier para que un
-          # sklearn ausente sea rojo de install, no un reporte sin modelo.
-          # turbovec: backend ANN del retrieval (wheel manylinux; backend por
-          # defecto es exacto/numpy, asi que turbovec es opcional pero lo dejamos
-          # listo para el test de aproximacion).
+          # y el modelo [3/4] se degrada en SILENCIO (el runner lo nombra ahora,
+          # pero el assert de abajo lo hace rojo de install, no reporte sin modelo).
+          # turbovec: backend ANN del retrieval denso (100k+ estados).
           pip install pytest lightgbm scikit-learn turbovec
           python -c "import lightgbm, sklearn; from lightgbm import LGBMClassifier; LGBMClassifier(); print('lightgbm', lightgbm.__version__, 'sklearn', sklearn.__version__, 'OK')"
 
       - name: Sanity — suite de research (incluye test de leakage de retrieval)
         run: pytest tests/test_bt_*.py -q
 
-      # Cachea los Parquet por exchange+symbol+meses para NO re-descargar 48m de
-      # historia en cada run (clave para BTC: descarga una vez, reusa).
-      - name: Cache de datasets OHLCV
+      - name: Cache de datasets OHLCV (rota por semana)
         uses: actions/cache@v4
         with:
           path: data
-          key: ohlcv-${{ env.EX }}-${{ env.SYM }}-${{ env.MONTHS }}m-v1
+          key: ohlcv-${{ env.EX }}-${{ env.SLUG }}-${{ env.MONTHS }}m-${{ steps.stamp.outputs.week }}
 
       - name: Demo sintetico (red de seguridad, siempre verde)
         run: |
@@ -186,10 +199,17 @@ jobs:
         continue-on-error: true
         run: |
           YEARS=$(python -c "print(round(${MONTHS}/12.0, 4))")
-          # Stack de TFs a descargar segun el TF primario (ver TF_STACK en el runner).
+          # Stack de TFs segun el TF primario (ver TF_STACK en el runner).
           if [ "${TFID}" = "5m" ]; then DL_TFS="5m 15m 1h"; else DL_TFS="15m 1h 4h"; fi
           for TF in ${DL_TFS}; do
-            echo "== descargando ${SYM} ${TF} (${MONTHS} meses, ${EX}) =="
+            P=$(python -c "import bt_data; print(bt_data.dataset_path('data', '${EX}', '${SYM}', '${TF}'))")
+            if [ -f "$P" ]; then
+              echo "== cache hit ${SYM} ${TF}: $P (omito descarga) ==" \
+                | tee -a research_out/download.txt
+              continue
+            fi
+            echo "== descargando ${SYM} ${TF} (${MONTHS} meses, ${EX}) ==" \
+              | tee -a research_out/download.txt
             python tools/build_dataset.py --symbol "${SYM}" --timeframe "${TF}" \
               --market swap --years "${YEARS}" --exchanges "${EX}" \
               2>&1 | tee -a research_out/download.txt
@@ -199,7 +219,7 @@ jobs:
         if: ${{ env.DATAONLY == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: dataset
+          name: dataset-${{ env.SLUG }}
           path: data/
           retention-days: 90
 
@@ -207,24 +227,20 @@ jobs:
         if: ${{ env.DATAONLY != 'true' }}
         continue-on-error: true
         run: |
-          # UNIFICADO: el replay es DENSO por defecto -> UN solo replay del motor
-          # alimenta el research de senales (subset fired: frontera + modelo) Y el
-          # retrieval denso (todas las velas). Antes eran dos replays del mismo
-          # motor sobre las mismas velas; ahora es uno (~mitad del coste de CI).
+          # UNIFICADO: el replay es DENSO -> UN replay del motor alimenta el
+          # research de senales (subset fired: frontera + modelo) Y el retrieval
+          # denso (todas las velas). Todo lo demas es post-replay (gratis).
           ABLATION_FLAG=""
           [ "${ABLATION}" = "true" ] && ABLATION_FLAG="--ablation"   # opt-in: 3 replays extra
-          # Retrieval read-only (no decide). Denso -> turbovec + query_step (100k+ estados).
           RFLAG=""
           if [ "${RETRIEVAL}" = "true" ]; then
-            RFLAG="--retrieval --retrieval-backend turbovec --retrieval-k ${RK} --retrieval-query-step ${DQSTEP} --retrieval-json research_out/retrieval_${SYM//\//-}.json"
+            RFLAG="--retrieval --retrieval-backend turbovec --retrieval-k ${RK} --retrieval-query-step ${DQSTEP} --retrieval-json research_out/retrieval_${SLUG}.json"
           fi
-          # FASE C (grid SL/TP) y FASE B (gate VIP): post-replay, sin coste de motor.
           GRIDFLAG=""
           [ "${TPSLGRID}" = "true" ] && GRIDFLAG="--tp-sl-grid"
           QGATEFLAG=""
           [ "${QGATE}" = "true" ] && QGATEFLAG="--quality-gate"
-          # FASE D: vuelca la curva de equity OOS + drawdown como artefacto.
-          EQJSON="research_out/equity_${SYM//\//-}.json"
+          EQJSON="research_out/equity_${SLUG}.json"
           python tools/run_research_real.py --exchange "${EX}" --symbol "${SYM}" \
             --tf-id "${TFID}" --target-level "${TARGETLVL}" \
             --horizon-sweep "${HSWEEP}" --dense-horizon "${DHORIZON}" \
@@ -237,10 +253,10 @@ jobs:
         if: always()
         run: |
           {
-            echo "# Reporte de research FQ"
-            echo "fecha: $(date -u +%FT%TZ)  exchange: ${EX}  symbol: ${SYM}  meses: ${MONTHS}"
+            echo "# Reporte de research FQ — ${SYM}"
+            echo "fecha: $(date -u +%FT%TZ)  exchange: ${EX}  symbol: ${SYM}  meses: ${MONTHS}  tf: ${TFID}  step: ${STEP}"
             echo ""
-            echo "## Real (motor de produccion)"; echo '```'
+            echo "## Real (motor de produccion + retrieval)"; echo '```'
             cat research_out/research_real.txt 2>/dev/null || echo "(no disponible — ver download.txt)"
             echo '```'
             echo "## Demo sintetico (sanity)"; echo '```'
@@ -252,7 +268,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: research-report
+          name: research-report-${{ env.SLUG }}
           path: research_out/
           retention-days: 90
 

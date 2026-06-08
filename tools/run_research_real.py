@@ -300,8 +300,9 @@ def main():
                         "expectancy/WR/Calmar (post-replay, cero replays extra)")
     p.add_argument("--sl-mults", default="0.5,1.0,1.5,2.0",
                    help="multiplos de ATR para el ancho de SL del grid (coma)")
-    p.add_argument("--grid-tps", default="tp1,tp2,tp4",
-                   help="niveles de TP del grid (coma). tp3 se omite (==tp2 en el motor)")
+    p.add_argument("--grid-tps", default="tp1,tp2,tp3,tp4",
+                   help="niveles de TP del grid (coma). tp3 ya es distinto de tp2 "
+                        "(fix jun-2026): cuatro peldanos reales")
     # --- FASE B: gate de calidad 'VIP oro' (decil superior OOS) ---
     p.add_argument("--quality-gate", action="store_true",
                    help="aisla el decil/percentil superior del score del modelo y de "
@@ -379,6 +380,8 @@ def main():
         _print_tp_frontier(df_primary, events, horizons)
         if args.tp_sl_grid:
             _print_tp_sl_grid(df_primary, events, args, sim_kwargs, bar_minutes)
+            _print_tp_horizon_grid(df_primary, events, args, sim_kwargs,
+                                   bar_minutes, horizons)
     else:
         labeled = None
         print("  (el motor no disparo ninguna senal valida; se omite el research de "
@@ -745,7 +748,43 @@ def _print_tp_sl_grid(df_primary, events, args, sim_kwargs, bar_minutes):
               f"exp_R={_f(best['exp_R'])} WR={_f(best['WR'])} "
               f"calmar={_f(best['calmar'])} max_dd={_f(best['max_dd'])} "
               f"n={best['n']} ({'OOS' if best['oos'] else 'in-sample'})")
-    print("  Nota: tp3 omitido (== tp2 en calculate_levels del motor; ver bt_optimize).")
+    print("  Nota: tp3 ya es un peldano distinto (fix jun-2026); el grid lo incluye.")
+
+
+def _print_tp_horizon_grid(df_primary, events, args, sim_kwargs, bar_minutes,
+                           horizons):
+    """[FASE C+] Frontera TP x HORIZONTE con costes y OOS (gratis post-replay).
+
+    Complementa a _print_tp_frontier (in-sample, sin costes) y a _print_tp_sl_grid
+    (SL x TP a un horizonte fijo): aqui barremos NIVEL de TP x HORIZONTE vertical
+    con el stop del motor, net de costes y OOS, via el cubo de una pasada
+    bt_labeler.label_events_grid (re-etiquetar todas las celdas no re-replica el
+    motor). Es la 'frontera' que el selector F3 del retrieval consume.
+    """
+    if events is None or len(events) == 0:
+        return
+    tp_levels = [t.strip() for t in str(args.grid_tps).split(",") if t.strip()]
+    print(f"\n[1.7/4] Frontera TP x horizonte con costes/OOS "
+          f"(post-replay; horizontes={horizons} velas):")
+    grid = opt.tp_horizon_grid(
+        df_primary, events, tp_levels, horizons,
+        sim_kwargs=sim_kwargs, n_splits=args.n_splits, embargo=args.embargo,
+        bar_minutes=bar_minutes)
+    if grid is None or len(grid) == 0:
+        print("  (sin celdas evaluables: faltan px_tp o stop en las senales)")
+        return
+    show = grid.copy()
+    for c in ("exp_R", "WR", "total_R", "calmar", "max_dd"):
+        if c in show.columns:
+            show[c] = show[c].map(lambda v: round(v, 3) if v is not None and
+                                  not (isinstance(v, float) and pd.isna(v)) else None)
+    print(show.to_string(index=False))
+    best = opt.choose_optimum(grid, by="exp_R")
+    if best is not None:
+        print(f"  >> OPTIMO (por exp_R): TP={best['TP']} horizonte={best['horizon']} "
+              f"exp_R={_f(best['exp_R'])} WR={_f(best['WR'])} "
+              f"total_R={_f(best['total_R'])} n={best['n']} "
+              f"({'OOS' if best['oos'] else 'in-sample'})")
 
 
 def _print_track_record(labeled):
