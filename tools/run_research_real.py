@@ -115,6 +115,36 @@ def _run_replay(tfs, env_overrides=None, seed=42, tf_id="15m", **replay_kwargs):
     # gate (stdlib random) y cualquier np.random global.
     random.seed(seed)
     np.random.seed(seed)
+
+    # Reproducibilidad #2: inyectar la hora del BAR en los gates por reloj de
+    # pared. volume_quality.is_dead_window()/volume_veto() vetan por hora CDMX
+    # (14-16h, viernes tarde) via datetime.now(); en el replay eso juzga TODA la
+    # historia contra la hora REAL de ejecucion (un run a las 15:xx CDMX = "ultima
+    # hora NY" veta ~90% de las senales -> el conteo se volvia funcion de cuando
+    # le diste "Run"). Sustituimos datetime.now por la hora del bar en curso para
+    # que el veto se evalue al timestamp historico de cada vela: backtest = bot en
+    # vivo, e independiente de la hora de ejecucion. Se reaplica tras cada reload.
+    import volume_quality as _volq
+    _replay_clock = {"ts": None}
+    _RealDT = _volq.datetime
+
+    class _BarClockDatetime(_RealDT):
+        @classmethod
+        def now(cls, tz=None):
+            ts = _replay_clock["ts"]
+            if ts is None:
+                return _RealDT.now(tz)
+            t = pd.Timestamp(ts)
+            if t.tzinfo is None:
+                t = t.tz_localize("UTC")
+            d = t.to_pydatetime()
+            return d.astimezone(tz) if tz is not None else d
+
+    _volq.datetime = _BarClockDatetime
+
+    def _on_bar(ts):
+        _replay_clock["ts"] = ts
+
     return bf.replay_events(
         df15, df1h, df4h, df1m,
         evaluate_fn=fusion_engine.evaluate_signal,
@@ -122,6 +152,7 @@ def _run_replay(tfs, env_overrides=None, seed=42, tf_id="15m", **replay_kwargs):
         laplacian_check_fn=b.laplacian_check,
         calculate_levels_fn=b.calculate_levels,
         config=config,
+        on_bar=_on_bar,
         **replay_kwargs,
     )
 
@@ -207,6 +238,9 @@ def main():
     print(f"velas {prim_tf}: {len(df_primary)} | {mid_tf}: {_n(df_mid)} | "
           f"{high_tf}: {_n(df_high)} | {sub_tf}: {_n(df_sub)}")
     print(f"seed={args.seed} (replay reproducible; el gate usa Thompson sampling)")
+    print("veto de franja muerta (volume_quality) evaluado por la HORA DEL BAR, "
+          "no por el reloj de ejecucion (replay reproducible e independiente de "
+          "cuando se lanza)")
     print(f"target_level={args.target_level} (barrera de ganancia del "
           f"triple-barrier; tp3 = hard lock contra el target completo)")
 

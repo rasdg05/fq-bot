@@ -127,6 +127,7 @@ def replay_events(
     target_level="tp1",
     enrich_fn=None,
     progress_every=0,
+    on_bar=None,
 ):
     """Recorre df_15m y dispara el motor en cada vela; registra los FIRE.
 
@@ -143,6 +144,11 @@ def replay_events(
         toca TP1 = win, igual que el ledger).
     enrich_fn: opcional callable(field, report, win15, direction) -> dict extra
         (p.ej. volumen/session_bias/sync calculados aparte) para mas features.
+    on_bar: opcional callable(ts) invocado con el timestamp de la vela ANTES de
+        evaluar el motor. Permite al runner inyectar la hora del bar en gates que
+        usan el reloj de pared (p.ej. volume_quality.is_dead_window), para que el
+        replay sea fiel al timestamp historico e independiente de la hora real de
+        ejecucion. Sin hook, el comportamiento es identico al anterior.
 
     Devuelve un DataFrame de eventos: una fila por senal disparada, con
     entry_index (posicion en df_15m), entry_price, stop_price, target_price,
@@ -157,6 +163,8 @@ def replay_events(
             log.info("replay %d/%d eventos=%d", i, n, len(events))
 
         ts = ts_col[i]
+        if on_bar is not None:
+            on_bar(ts)
         win15 = df_15m.iloc[: i + 1]
         win1h = htf_window(df_1h, ts, tail=htf_tail)
         win4h = htf_window(df_4h, ts, tail=htf_tail)
