@@ -172,7 +172,12 @@ jobs:
       OOT: ${{ github.event.inputs.out_of_time || '' }}
       ABLATION: ${{ github.event.inputs.ablation || false }}
       DATAONLY: ${{ github.event.inputs.data_only || false }}
-      BUILDIDX: ${{ github.event.inputs.build_index || false }}
+      # NOTA: el formulario "Run workflow" renderiza los inputs desde la rama por
+      # DEFECTO (main), no desde la rama seleccionada -> 'build_index' no aparece
+      # hasta que esto aterrice en main. Mientras tanto, default = 'true' en esta
+      # rama para que el indice se construya con solo elegir la rama y darle Run
+      # (retrieval=true ya es default). Al mergear a main, volver a '|| false'.
+      BUILDIDX: ${{ github.event.inputs.build_index || 'true' }}
       GOLDPCT: ${{ github.event.inputs.gold_top_pct || '0.05' }}
     steps:
       - uses: actions/checkout@v4
