@@ -290,6 +290,11 @@ def main():
                    help="corre el replay con FQ_EMERGENT_TIME_ENABLED=1 (Phase E): "
                         "sync_score/sigma_tau pasan a estar VIVOS. OJO: cambia el set de "
                         "senales (el motor veta por sync), asi que es un experimento aparte")
+    # --- prueba FORWARD / out-of-time (proof of work; escalón antes de capital) ---
+    p.add_argument("--out-of-time", default=None,
+                   help="fecha de corte (p.ej. 2025-06-01): congela el modelo con "
+                        "lo ANTERIOR y evalua SOLO la ventana posterior + calibracion "
+                        "predicho-vs-realizado. El test sin fuga por construccion")
     # --- replay DENSO unificado (default): UN replay alimenta senales + retrieval.
     # --dense se mantiene por compatibilidad con el workflow, pero ya es implicito.
     p.add_argument("--dense", action="store_true",
@@ -469,6 +474,9 @@ def main():
             _run_retrieval_diagnostic(labeled, folds, valid_index, args)
             if getattr(args, "vector_ablation", False):
                 _print_vector_ablation(labeled, folds, valid_index, args)
+        # prueba FORWARD / out-of-time (proof of work)
+        if getattr(args, "out_of_time", None):
+            _run_out_of_time(labeled, args, sim_kwargs, bar_minutes)
     elif labeled is not None:
         print(f"\n  [guard] {len(events)} senales < {min_for_wf} para walk-forward "
               f"de {args.n_splits} folds: se omiten OOS/modelo de senales (el track "
@@ -569,6 +577,51 @@ def _print_vector_ablation(labeled, folds, valid_index, args):
         print(f"  >> LIFT del bloque quantum = {_f(lift)} R/trade  [{verdict}]")
         print("     (positivo y robusto a leakage = el tiempo emergente / "
               "excitación de campo aporta edge medible)")
+
+
+def _run_out_of_time(labeled, args, sim_kwargs, bar_minutes):
+    """[forward] Prueba out-of-time: congela el modelo con lo ANTERIOR al corte y
+    evalúa SOLO la ventana posterior (jamás vista) + calibración predicho-vs-
+    realizado. Es el escalón de rigor previo a capital: sin fuga por construcción.
+    """
+    import bt_forward as fw
+    try:
+        before, after = fw.out_of_time_split(labeled, args.out_of_time)
+    except Exception as e:
+        print(f"\n[forward] out-of-time: no se pudo dividir ({e})")
+        return
+    print(f"\n[forward] OUT-OF-TIME corte={args.out_of_time}: "
+          f"before={len(before)} after={len(after)} (la ventana 'after' es jamás vista)")
+    if len(before) < 30 or len(after) < 10:
+        print("  (muestra insuficiente a un lado del corte; mueve el corte o sube historia)")
+        return
+    fac = _resolve_lgbm_factory()
+    if fac is None:
+        return
+    feat_cols = bf._numeric_feature_columns(labeled)
+    try:
+        scored, _ = fw.freeze_predict(before, after, feat_cols, fac)
+    except Exception as e:
+        print(f"  (no se pudo congelar el modelo: {e})")
+        return
+    m = fw.forward_metrics(after, sim_kwargs=sim_kwargs, bar_minutes=bar_minutes)
+    if m is not None:
+        print("  Métricas FORWARD (net de costes, ventana posterior):")
+        print(met.format_report(m))
+    sc = scored["fwd_score"].to_numpy()
+    win = (scored["outcome"] == lb.WIN).astype(float).to_numpy()
+    tab, err = fw.calibration_table(sc, win, n_bins=5)
+    if len(tab):
+        print("  Calibración (score predicho vs WR realizada, por bin):")
+        print(tab.to_string(index=False))
+        print(f"  >> error de calibración (MAE ponderado) = {_f(err)} "
+              f"(0 = perfecto; alto = el modelo miente sobre la magnitud)")
+    exp_tab, _e = fw.calibration_table(sc, scored["pnl_r"].to_numpy(), n_bins=5)
+    if len(exp_tab):
+        print("  Expectancy realizada (R) por bin de score predicho:")
+        print(exp_tab.rename(columns={"real_mean": "exp_R"}).to_string(index=False))
+    print("  Próximo escalón: reconcile() compara la expectancy VIVA del ledger "
+          "contra el IC del backtest (alarma de drift).")
 
 
 def _run_retrieval_diagnostic(labeled, folds, valid_index, args):

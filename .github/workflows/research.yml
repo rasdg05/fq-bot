@@ -91,6 +91,10 @@ on:
         description: "EJE A experimental: replay con FQ_EMERGENT_TIME_ENABLED=1 (sync/sigma_tau VIVOS). OJO: cambia el set de señales. Default OFF."
         default: false
         type: boolean
+      out_of_time:
+        description: "PROOF OF WORK: fecha de corte (p.ej. 2025-09-01) para la prueba forward out-of-time + calibración. Vacío = off."
+        default: ""
+        type: string
       ablation:
         description: "OPT-IN: poda de modulos = 3 replays EXTRA (triplica el coste). Default OFF (no es gratis)."
         default: false
@@ -157,6 +161,7 @@ jobs:
       QGATE: ${{ github.event.inputs.quality_gate || 'true' }}
       VABL: ${{ github.event.inputs.vector_ablation || 'true' }}
       ETIME: ${{ github.event.inputs.emergent_time || false }}
+      OOT: ${{ github.event.inputs.out_of_time || '' }}
       ABLATION: ${{ github.event.inputs.ablation || false }}
       DATAONLY: ${{ github.event.inputs.data_only || false }}
     steps:
@@ -255,13 +260,15 @@ jobs:
           [ "${VABL}" = "true" ] && VABLFLAG="--vector-ablation"
           ETIMEFLAG=""
           [ "${ETIME}" = "true" ] && ETIMEFLAG="--emergent-time"
+          OOTFLAG=""
+          [ -n "${OOT}" ] && OOTFLAG="--out-of-time ${OOT}"
           EQJSON="research_out/equity_${SLUG}.json"
           python tools/run_research_real.py --exchange "${EX}" --symbol "${SYM}" \
             --tf-id "${TFID}" --target-level "${TARGETLVL}" \
             --horizon-sweep "${HSWEEP}" --dense-horizon "${DHORIZON}" \
             --step "${STEP}" --max-bars "${MAXBARS}" \
             --seed "${SEED}" --n-splits "${NSPLITS}" --embargo 8 \
-            ${ABLATION_FLAG} ${RFLAG} ${GRIDFLAG} ${QGATEFLAG} ${VABLFLAG} ${ETIMEFLAG} \
+            ${ABLATION_FLAG} ${RFLAG} ${GRIDFLAG} ${QGATEFLAG} ${VABLFLAG} ${ETIMEFLAG} ${OOTFLAG} \
             --equity-json "${EQJSON}" \
             2>&1 | tee research_out/research_real.txt
 
