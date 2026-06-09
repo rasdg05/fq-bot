@@ -174,10 +174,13 @@ jobs:
       DATAONLY: ${{ github.event.inputs.data_only || false }}
       # NOTA: el formulario "Run workflow" renderiza los inputs desde la rama por
       # DEFECTO (main), no desde la rama seleccionada -> 'build_index' no aparece
-      # hasta que esto aterrice en main. Mientras tanto, default = 'true' en esta
-      # rama para que el indice se construya con solo elegir la rama y darle Run
-      # (retrieval=true ya es default). Al mergear a main, volver a '|| false'.
-      BUILDIDX: ${{ github.event.inputs.build_index || 'true' }}
+      # hasta que esto aterrice en main. Y NO se puede usar
+      # `${{ inputs.build_index || 'true' }}`: GitHub rellena el input con su
+      # default declarado ('false'), y la CADENA "false" es truthy en expresiones
+      # -> gana el ||. Por eso, en esta rama, BUILDIDX va HARDCODEADO a true (el
+      # build se condiciona ademas a retrieval=true en el step). Al mergear a main,
+      # volver a `${{ github.event.inputs.build_index || false }}`.
+      BUILDIDX: "true"
       GOLDPCT: ${{ github.event.inputs.gold_top_pct || '0.05' }}
     steps:
       - uses: actions/checkout@v4
@@ -280,7 +283,7 @@ jobs:
           IDXFLAG=""
           # F2: persiste el gate ORO desde ESTE replay (sin replay extra). Requiere
           # retrieval ON (de el sale el OOS denso que calibra el umbral).
-          [ "${BUILDIDX}" = "true" ] && IDXFLAG="--build-index --index-out research_out/retrieval/${SLUG} --gold-top-pct ${GOLDPCT}"
+          [ "${BUILDIDX}" = "true" ] && [ "${RETRIEVAL}" = "true" ] && IDXFLAG="--build-index --index-out research_out/retrieval/${SLUG} --gold-top-pct ${GOLDPCT}"
           EQJSON="research_out/equity_${SLUG}.json"
           python tools/run_research_real.py --exchange "${EX}" --symbol "${SYM}" \
             --tf-id "${TFID}" --target-level "${TARGETLVL}" \
