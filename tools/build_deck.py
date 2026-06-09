@@ -1,669 +1,621 @@
 # -*- coding: utf-8 -*-
 """
-Genera el deck interno (PDF 16:9) sobre la frontera de tiempo complejo x
-vectorizacion a gran escala (turbovec) y el edge medible. Visuales propios
-(fractales de tiempo emergente, recurrencia, cubo, vecindario k-NN, frontera).
-Sin red. Salida: FQ_Frontera_TiempoComplejo.pdf
+Deck interno FQ v2 — profesional, concreto, sin solapes.
+Sistema de layout con líneas pre-medidas (draw_lines) para que NADA se encime.
+Salida: FQ_Sistema_Cuantitativo.pdf
 """
+import textwrap
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
-from matplotlib.patches import FancyBboxPatch, FancyArrowPatch, Circle, Rectangle, RegularPolygon
+from matplotlib.patches import FancyBboxPatch, FancyArrowPatch, Circle, Rectangle, RegularPolygon, Polygon
 from matplotlib.collections import LineCollection
+from matplotlib.colors import LinearSegmentedColormap
 
-# ---------------- paleta / tema ----------------
-BG    = "#070b16"
-PANEL = "#0e1526"
-PANEL2= "#121b30"
-GOLD  = "#e8c66b"
-GOLD2 = "#f6e2a8"
-CYAN  = "#45e0d0"
-MAG   = "#b483ff"
-RED   = "#ff5252"
-GREEN = "#5ad19a"
-TEXT  = "#e9eef8"
-MUTE  = "#8a97b0"
-GRID  = "#1f2c49"
+# ---------------- paleta premium ----------------
+BG    = "#0a0f1c"
+INK   = "#0f1729"
+INK2  = "#13203a"
+LINE  = "#243353"
+GOLD  = "#e6b84f"
+GOLDL = "#f3d792"
+TEAL  = "#37d3c0"
+BLUE  = "#6aa6ff"
+VIOLET= "#a98bff"
+RED   = "#ff6b6b"
+GREEN = "#54d49a"
+TXT   = "#eef2fb"
+SUB   = "#9aa7c2"
 
 plt.rcParams.update({
     "font.family": "DejaVu Sans",
-    "font.size": 11,
-    "text.color": TEXT,
-    "axes.edgecolor": GRID,
-    "axes.labelcolor": TEXT,
-    "xtick.color": MUTE,
-    "ytick.color": MUTE,
+    "text.color": TXT,
     "figure.dpi": 150,
 })
 
-W, H = 16.0, 9.0   # lienzo logico 16:9
+W, H = 16.0, 9.0
+# 1 unidad-y = 60 pt -> altura de línea en unidades = fs*ls/60
+def lh(fs, ls=1.45):
+    return fs * ls / 60.0
 
 
 def new_page():
     fig = plt.figure(figsize=(13.333, 7.5))
     fig.patch.set_facecolor(BG)
-    ax = fig.add_axes([0, 0, 1, 1])
-    ax.set_xlim(0, W); ax.set_ylim(0, H)
-    ax.axis("off")
+    ax = fig.add_axes([0, 0, 1, 1]); ax.set_xlim(0, W); ax.set_ylim(0, H); ax.axis("off")
     return fig, ax
 
 
-def panel(ax, x, y, w, h, fc=PANEL, ec=GRID, lw=1.2, r=0.06, alpha=1.0):
-    p = FancyBboxPatch((x, y), w, h, boxstyle=f"round,pad=0.02,rounding_size={r}",
-                       fc=fc, ec=ec, lw=lw, alpha=alpha, mutation_aspect=1)
-    ax.add_patch(p)
-    return p
+def panel(ax, x, y, w, h, fc=INK, ec=LINE, lw=1.1, r=0.05, alpha=1.0):
+    ax.add_patch(FancyBboxPatch((x, y), w, h,
+                 boxstyle=f"round,pad=0.0,rounding_size={r}",
+                 fc=fc, ec=ec, lw=lw, alpha=alpha))
 
 
-def footer(ax, n, total=11):
-    ax.plot([0.6, W - 0.6], [0.52, 0.52], color=GRID, lw=1)
-    ax.text(0.6, 0.26, "FQ · Documento interno — confidencial · combinar para colaboradores",
-            fontsize=7.5, color=MUTE)
-    ax.text(W - 0.6, 0.26, f"{n} / {total}", fontsize=7.5, color=MUTE, ha="right")
-    ax.text(W/2, 0.26, "Tiempo complejo × vectorización a gran escala",
-            fontsize=7.5, color=MUTE, ha="center")
+def draw_lines(ax, x, y_top, lines, fs=11, ls=1.5, color=TXT, weight=None):
+    """Dibuja líneas con espaciado exacto (va=top). Devuelve la y inferior."""
+    step = lh(fs, ls)
+    for i, ln in enumerate(lines):
+        ax.text(x, y_top - i * step, ln, fontsize=fs, color=color,
+                va="top", ha="left", fontweight=weight)
+    return y_top - len(lines) * step
 
 
-def kicker(ax, x, y, text, color=GOLD):
-    ax.text(x, y, text.upper(), fontsize=9.5, color=color, fontweight="bold")
+def wrap(text, width):
+    return textwrap.wrap(text, width)
 
 
-# ---------------- generadores de fractales ----------------
-def fbm(n, Hurst=0.62, seed=7):
-    """Movimiento browniano fraccional via sintesis espectral (price-like)."""
-    rng = np.random.default_rng(seed)
-    f = np.fft.rfftfreq(n)
-    f[0] = f[1]
-    amp = f ** (-(Hurst + 0.5))
-    spec = amp * (rng.normal(size=f.size) + 1j * rng.normal(size=f.size))
-    x = np.fft.irfft(spec, n)
-    x = (x - x.mean()) / (x.std() + 1e-9)
-    return np.cumsum(x) / np.sqrt(n) * 6.0 + 100.0
+def header(ax, kick, title, sub=None, tcolor=TXT):
+    ax.text(0.7, 8.45, kick.upper(), fontsize=10, color=GOLD, fontweight="bold")
+    ax.add_patch(Rectangle((0.7, 8.30), 0.9, 0.03, fc=GOLD, ec="none"))
+    ax.text(0.7, 7.95, title, fontsize=23, color=tcolor, fontweight="bold", va="top")
+    y = 7.0
+    if sub:
+        for i, ln in enumerate(wrap(sub, 96)):
+            ax.text(0.7, 7.15 - i * lh(12.5, 1.3), ln, fontsize=12.5, color=SUB, va="top")
+        y = 7.15 - len(wrap(sub, 96)) * lh(12.5, 1.3) - 0.15
+    return y
 
 
-def grad_line(ax, t, y, c0=CYAN, c1=GOLD, lw=1.8, alpha=1.0):
+def footer(ax, n, total=13):
+    ax.plot([0.7, W - 0.7], [0.5, 0.5], color=LINE, lw=1)
+    ax.text(0.7, 0.24, "FQ Quantitative Signals Engine · Documento interno — confidencial",
+            fontsize=7.5, color=SUB)
+    ax.text(W - 0.7, 0.24, f"{n:02d} / {total}", fontsize=7.5, color=SUB, ha="right")
+
+
+def chip(ax, x, y, text, color=GOLD, fs=9):
+    w = 0.14 * len(text) + 0.5
+    panel(ax, x, y, w, 0.5, fc=INK2, ec=color, r=0.25, lw=1.1)
+    ax.text(x + w / 2, y + 0.25, text, fontsize=fs, color=color, ha="center", va="center")
+    return w
+
+
+def grad_line(ax, t, y, c0, c1, lw=2.0, alpha=1.0):
     pts = np.array([t, y]).T.reshape(-1, 1, 2)
     segs = np.concatenate([pts[:-1], pts[1:]], axis=1)
-    lc = LineCollection(segs, cmap=None, linewidth=lw, alpha=alpha)
-    cols = np.linspace(0, 1, len(segs))
-    from matplotlib.colors import LinearSegmentedColormap
-    cm = LinearSegmentedColormap.from_list("cg", [c0, c1])
-    lc.set_array(cols); lc.set_cmap(cm)
+    lc = LineCollection(segs, linewidth=lw, alpha=alpha)
+    lc.set_array(np.linspace(0, 1, len(segs)))
+    lc.set_cmap(LinearSegmentedColormap.from_list("g", [c0, c1]))
     ax.add_collection(lc)
 
 
-# ============================================================
-# PAGINA 1 — PORTADA
-# ============================================================
-def page_cover(pdf):
-    fig, ax = new_page()
-    # fondo fractal tenue
-    bgax = fig.add_axes([0.0, 0.0, 1.0, 1.0]); bgax.axis("off")
-    bgax.set_xlim(0, 1); bgax.set_ylim(0, 1)
-    t = np.linspace(0, 1, 1400)
-    for k, (seed, a, off) in enumerate([(3, 0.10, 0.20), (11, 0.13, 0.42),
-                                        (21, 0.10, 0.66), (31, 0.08, 0.83)]):
-        y = fbm(1400, 0.6, seed)
-        y = (y - y.min()) / (y.max() - y.min())
-        bgax.plot(t, off + a * (y - 0.5), color=[CYAN, GOLD, MAG, GOLD2][k],
-                  lw=1.0, alpha=0.18)
-    # halo
-    ax.add_patch(Circle((12.6, 6.4), 3.6, fc=GOLD, ec="none", alpha=0.05))
-    ax.add_patch(Circle((3.2, 2.4), 2.8, fc=CYAN, ec="none", alpha=0.05))
+def fbm(n, Hurst=0.62, seed=7):
+    rng = np.random.default_rng(seed)
+    f = np.fft.rfftfreq(n); f[0] = f[1]
+    spec = (f ** (-(Hurst + 0.5))) * (rng.normal(size=f.size) + 1j * rng.normal(size=f.size))
+    x = np.fft.irfft(spec, n)
+    x = (x - x.mean()) / (x.std() + 1e-9)
+    return np.cumsum(x) / np.sqrt(n) * 6.0
 
-    ax.text(1.0, 7.7, "FQ — QUANTUM STRUCTURAL ENGINE", fontsize=12, color=GOLD,
-            fontweight="bold")
-    ax.text(1.0, 6.55, "La frontera del", fontsize=30, color=TEXT, fontweight="light")
-    ax.text(1.0, 5.35, "edge medible", fontsize=52, color=GOLD2, fontweight="bold")
-    ax.text(1.02, 4.35,
-            "Tiempo complejo · vectorización a gran escala · estados cuánticos\n"
-            "de la huella energética del precio · excitación de campo",
-            fontsize=14, color=MUTE)
-    # chips
-    chips = ["Fractales de tiempo emergente", "Retrieval k-NN causal",
-             "Cubo TP × horizonte", "5 dimensiones de pensamiento"]
-    cx = 1.0
-    for c in chips:
-        w = 0.18 * len(c) + 0.5
-        panel(ax, cx, 2.7, w, 0.62, fc=PANEL2, ec=GRID, r=0.3)
-        ax.text(cx + w/2, 3.01, c, fontsize=9.5, color=GOLD2, ha="center", va="center")
-        cx += w + 0.35
-    ax.text(1.0, 1.5, "Documento interno · confidencial · para colaboradores",
-            fontsize=10, color=MUTE)
-    ax.text(1.0, 1.05, "v1 · 2026 · estado: tesis en validación (edge OOS atribuible)",
-            fontsize=9, color=MUTE)
+
+# ============================================================
+# 1 — PORTADA
+# ============================================================
+def p_cover(pdf):
+    fig, ax = new_page()
+    t = np.linspace(0, 1, 1200)
+    for k, (s, a, off, c) in enumerate([(3, .09, .22, TEAL), (11, .11, .44, GOLD),
+                                        (21, .09, .68, BLUE), (5, .07, .85, VIOLET)]):
+        y = fbm(1200, .62, s); y = (y - y.min()) / (y.max() - y.min())
+        ax.plot(0.7 + t * 14.6, 9 * off + a * 9 * (y - .5), color=c, lw=1.0, alpha=0.16)
+    ax.add_patch(Circle((13.2, 6.6), 3.4, fc=GOLD, ec="none", alpha=0.045))
+
+    ax.text(0.7, 8.0, "FQ QUANTITATIVE SIGNALS ENGINE", fontsize=13, color=GOLD, fontweight="bold")
+    ax.add_patch(Rectangle((0.7, 7.78), 1.1, 0.035, fc=GOLD, ec="none"))
+    ax.text(0.7, 7.2, "Señales intradía validadas", fontsize=33, color=TXT, fontweight="bold", va="top")
+    ax.text(0.7, 6.05, "out-of-sample", fontsize=33, color=GOLDL, fontweight="bold", va="top")
+    draw_lines(ax, 0.72, 5.05, [
+        "Motor de decisión multi-capa para perpetuos de BTC y SOL: estructura ICT/SMC,",
+        "cuantificación de líneas temporales y convicción adaptativa — sin emitir una señal",
+        "que no sobreviva a una validación con costes reales y pruebas de fuga.",
+    ], fs=12.5, ls=1.55, color=SUB)
+
+    cx = 0.7
+    for c in ["Walk-forward OOS", "Costes reales", "Retrieval por analogía", "CI semanal BTC+SOL"]:
+        cx += chip(ax, cx, 3.1, c, GOLDL) + 0.3
+    ax.text(0.7, 1.5, "Documento interno · confidencial · para colaboradores", fontsize=10.5, color=SUB)
+    ax.text(0.7, 1.05, "v2 · 2026 · arquitectura construida y en validación continua", fontsize=9.5, color=SUB)
     pdf.savefig(fig, facecolor=BG); plt.close(fig)
 
 
 # ============================================================
-# PAGINA 2 — TESIS / RESUMEN EJECUTIVO
+# 2 — QUÉ ES FQ
 # ============================================================
-def page_thesis(pdf):
+def p_what(pdf):
     fig, ax = new_page()
-    kicker(ax, 0.7, 8.4, "Resumen ejecutivo")
-    ax.text(0.7, 7.75, "Medir el mercado como un campo, no como una serie",
-            fontsize=22, color=TEXT, fontweight="bold")
-
-    panel(ax, 0.7, 3.0, 9.0, 4.4, fc=PANEL)
-    body = (
-        "Tesis. Cada vela es un ESTADO: una huella energética del precio que el motor\n"
-        "ya describe con decenas de magnitudes (convicción, excitación de campo, régimen,\n"
-        "tiempo emergente). Codificamos ese estado como un VECTOR y, a escala, recuperamos\n"
-        "sus análogos históricos —los fractales que riman en el tiempo— para leer lo que\n"
-        "REALMENTE pagaron.\n\n"
-        "El salto. No predecimos con una fórmula: medimos por analogía local sobre un índice\n"
-        "vectorial masivo (turbovec). El mercado deja de ser una curva y se vuelve un campo\n"
-        "de estados cuyo desenlace forward está adjunto. Detectar el evento = reconocer el\n"
-        "fractal y leer su superficie de pagos.\n\n"
-        "El resultado buscado. Una arquitectura que aproxima estados complejos del tiempo y\n"
-        "convierte su entendimiento en edge MEDIBLE — y el edge medible, compuesto, en la\n"
-        "frontera de rentabilidad extraordinaria."
-    )
-    ax.text(0.95, 7.05, body, fontsize=11.3, color=TEXT, va="top", linespacing=1.5)
-
-    # tarjetas derechas
+    header(ax, "Qué es FQ", "Un motor de señales, no una colección de indicadores",
+           "FQ decide cada operación fusionando ocho capas de análisis y la traduce en un plan "
+           "ejecutable (entrada, stop y escalera de objetivos), con probabilidad maestra explícita.")
     cards = [
-        ("Estado", "Arquitectura construida\ny verde en CI", CYAN),
-        ("Validando", "Run real BTC+SOL\n(leakage gate)", GOLD),
-        ("Frontera", "Rentabilidad objetivo\ncontingente a edge OOS", MAG),
+        ("Qué hace", [
+            "Detecta setups intradía en perpetuos",
+            "BTC/SOL y emite señal con dirección,",
+            "entrada, SL y escalera de TP.",
+            "Opera por Telegram (público + VIP)."], TEAL),
+        ("Cómo decide", [
+            "Fusiona estructura ICT/SMC, campo de",
+            "confluencia, ensemble de scoring, régimen,",
+            "calidad de volumen, sesgo de sesión,",
+            "convicción κ y cuantificación temporal."], GOLD),
+        ("Por qué es distinto", [
+            "Ninguna señal se publica sin pasar por el",
+            "harness de research: replay histórico,",
+            "validación walk-forward con costes y",
+            "pruebas de fuga. Mide antes de afirmar."], VIOLET),
     ]
-    y = 6.7
-    for tag, txt, col in cards:
-        panel(ax, 10.1, y - 1.15, 5.2, 1.15, fc=PANEL2, ec=col, lw=1.4)
-        ax.text(10.4, y - 0.28, tag, fontsize=11, color=col, fontweight="bold")
-        ax.text(10.4, y - 0.62, txt, fontsize=9.8, color=TEXT, va="top", linespacing=1.35)
-        y -= 1.45
-    panel(ax, 0.7, 1.05, 14.6, 1.5, fc="#0c1322", ec=GOLD, lw=1.2)
-    ax.text(0.95, 2.15, "Principio rector", fontsize=10.5, color=GOLD, fontweight="bold")
-    ax.text(0.95, 1.45,
-            "MEDIR, NO ASUMIR. Cada idea entra como dimensión testeable; sobrevive solo si su "
-            "edge out-of-sample es atribuible (IC bootstrap > 0). La elegancia es que la "
-            "intuición se vuelve número.",
-            fontsize=10.2, color=TEXT, va="center", linespacing=1.4)
-    footer(ax, 2)
-    pdf.savefig(fig, facecolor=BG); plt.close(fig)
-
-
-# ============================================================
-# PAGINA 3 — MODELO DE FUNCIONAMIENTO E INTEGRACION (pipeline)
-# ============================================================
-def page_pipeline(pdf):
-    fig, ax = new_page()
-    kicker(ax, 0.7, 8.4, "Modelo de funcionamiento e integración")
-    ax.text(0.7, 7.75, "Un replay caro · todo lo demás, medición gratis",
-            fontsize=22, color=TEXT, fontweight="bold")
-
-    steps = [
-        ("1 · Replay denso", "El motor recorre la historia\nuna vez. ~99% del costo.", CYAN),
-        ("2 · Vector de estado", "Cada vela → vector causal\n(convicción·campo·tiempo).", GOLD),
-        ("3 · Índice turbovec", "k-NN masivo: los fractales\nanálogos del histórico.", MAG),
-        ("4 · Cubo TP×horizonte", "Superficie de desenlaces\npor estado (post-replay).", GOLD2),
-        ("5 · Selector / edge", "Lee qué pagó en estados\nsimilares → orden óptima.", GREEN),
-    ]
-    x = 0.7; w = 2.78; gap = 0.32; y = 4.6; h = 2.0
-    centers = []
-    for i, (t, d, c) in enumerate(steps):
-        panel(ax, x, y, w, h, fc=PANEL2, ec=c, lw=1.5)
-        ax.text(x + w/2, y + h - 0.42, t, fontsize=11, color=c, fontweight="bold", ha="center")
-        ax.text(x + w/2, y + h/2 - 0.25, d, fontsize=9.2, color=TEXT, ha="center",
-                va="center", linespacing=1.4)
-        centers.append((x + w, y + h/2))
-        if i < len(steps) - 1:
-            ar = FancyArrowPatch((x + w + 0.02, y + h/2), (x + w + gap - 0.02, y + h/2),
-                                 arrowstyle="-|>", mutation_scale=16, color=GOLD, lw=2)
-            ax.add_patch(ar)
-        x += w + gap
-
-    # banda inferior: lo que es gratis (post-replay)
-    panel(ax, 0.7, 1.05, 14.6, 2.95, fc=PANEL)
-    ax.text(0.95, 3.62, "Todo esto cuelga del MISMO replay (re-etiquetar es gratis):",
-            fontsize=11, color=GOLD, fontweight="bold")
-    free = [
-        ("Frontera TP×horizonte", "expectancy/WR por celda, con costes y OOS"),
-        ("Grid SL × TP", "ancho de stop óptimo en múltiplos de ATR"),
-        ("Gate VIP oro", "decil superior por score del modelo / retrieval"),
-        ("Retrieval k-NN", "expectancy por analogía, read-only (no decide aún)"),
-    ]
-    bx = 0.95
-    for t, d in free:
-        panel(ax, bx, 1.35, 3.5, 1.75, fc=PANEL2, ec=GRID)
-        ax.text(bx + 1.75, 2.7, t, fontsize=10, color=CYAN, fontweight="bold", ha="center")
-        ax.text(bx + 1.75, 2.0, d, fontsize=8.6, color=TEXT, ha="center", va="center",
-                wrap=True, linespacing=1.35)
-        bx += 3.62
-    ax.text(8.0, 5.0, "fusion_engine intacto · separación por DATOS, no por código  ·  "
-            "BTC y SOL comparten el mismo motor",
-            fontsize=9.2, color=MUTE, ha="center")
+    x = 0.7; w = 4.83
+    for title, lines, c in cards:
+        panel(ax, x, 1.25, w, 5.0, fc=INK, ec=LINE)
+        ax.add_patch(Rectangle((x, 6.16), w, 0.09, fc=c, ec="none"))
+        ax.text(x + 0.35, 5.78, title, fontsize=13.5, color=c, fontweight="bold")
+        draw_lines(ax, x + 0.35, 5.18, lines, fs=11, ls=1.6, color=TXT)
+        x += w + 0.25
     footer(ax, 3)
     pdf.savefig(fig, facecolor=BG); plt.close(fig)
 
 
 # ============================================================
-# PAGINA 4 — EL CUBO (superficie de desenlaces)
+# 3 — POSICIONAMIENTO
 # ============================================================
-def page_cube(pdf):
+def p_position(pdf):
     fig, ax = new_page()
-    kicker(ax, 0.7, 8.4, "El cubo · superficie de desenlaces")
-    ax.text(0.7, 7.75, "Una señal no es un número: es una superficie",
-            fontsize=22, color=TEXT, fontweight="bold")
-
-    # explicacion izquierda
-    panel(ax, 0.7, 1.2, 6.6, 6.05, fc=PANEL)
-    txt = (
-        "El problema. Etiquetar una señal con un solo win/loss\n"
-        "colapsa toda la información de DÓNDE tomar ganancia\n"
-        "(TP1…TP4) y CUÁNTO aguantar (el horizonte).\n\n"
-        "El cubo. En una sola pasada por las velas futuras,\n"
-        "calcula el desenlace de TODAS las combinaciones\n"
-        "(TP × horizonte) con un stop común:\n\n"
-        "   ·  primer toque de stop vs target (pesimista en empate)\n"
-        "   ·  win al RR del TP · loss −1R · timeout mark-to-market\n"
-        "   ·  MFE/MAE por horizonte = recorrido típico en R\n\n"
-        "Por qué importa. El replay es el costo; re-etiquetar es\n"
-        "gratis. Cada estado histórico queda con su superficie de\n"
-        "pagos ADJUNTA → es la side-table que el retrieval lee:\n"
-        "\"para estados como este, ¿qué (TP, horizonte) pagó?\""
-    )
-    ax.text(0.95, 7.0, txt, fontsize=10.4, color=TEXT, va="top", linespacing=1.45)
-
-    # heatmap del cubo
-    hz = ["8h", "16h", "24h", "48h", "72h"]
-    tps = ["TP4 (1.00R)", "TP3 (0.81R)", "TP2 (0.62R)", "TP1 (0.38R)"]
-    expR = np.array([
-        [0.18, 0.34, 0.52, 0.74, 0.95],   # tp4
-        [0.22, 0.41, 0.58, 0.69, 0.72],   # tp3
-        [0.27, 0.45, 0.55, 0.57, 0.57],   # tp2
-        [0.31, 0.36, 0.37, 0.37, 0.37],   # tp1
-    ])
-    hax = fig.add_axes([0.52, 0.20, 0.43, 0.52])
-    hax.set_facecolor(PANEL)
-    from matplotlib.colors import LinearSegmentedColormap
-    cm = LinearSegmentedColormap.from_list("fq", ["#11233f", CYAN, GOLD, "#ff8a3d"])
-    im = hax.imshow(expR, cmap=cm, aspect="auto", vmin=0.1, vmax=1.0)
-    hax.set_xticks(range(len(hz))); hax.set_xticklabels(hz, fontsize=9)
-    hax.set_yticks(range(len(tps))); hax.set_yticklabels(tps, fontsize=9)
-    for i in range(expR.shape[0]):
-        for j in range(expR.shape[1]):
-            hax.text(j, i, f"{expR[i,j]:.2f}", ha="center", va="center",
-                     color="#06101f", fontsize=8.5, fontweight="bold")
-    # celda optima
-    bi, bj = np.unravel_index(np.argmax(expR), expR.shape)
-    hax.add_patch(Rectangle((bj-0.5, bi-0.5), 1, 1, fill=False, ec="#ffffff", lw=2.4))
-    hax.set_title("expectancy (R) por celda  ·  ◻ óptimo del vecindario",
-                  fontsize=9.5, color=TEXT, pad=8)
-    for s in hax.spines.values():
-        s.set_color(GRID)
-    ax.text(11.7, 1.35, "WR ↑ al acercar el TP · R ↑ al alejarlo: ese es el trade-off "
-            "que el cubo mide.", fontsize=8.6, color=MUTE, ha="center")
+    header(ax, "Posicionamiento", "Metodología de fondo cuantitativo, no de bot retail",
+           "Lo que separa a FQ del grueso del mercado no son más indicadores: es el rigor con que "
+           "valida. Esa disciplina lo coloca en el tramo superior por método.")
+    rows = [
+        ("Señal", "Pocos indicadores fijos", "Fusión de 8 capas + probabilidad maestra"),
+        ("Backtest", "Curva ajustada al pasado (overfit)", "Walk-forward purgado + embargo, OOS"),
+        ("Costes", "Ignorados o idealizados", "Fees + slippage + funding por símbolo"),
+        ("TP / SL", "Fijos o arbitrarios", "Frontera TP×horizonte medida con costes"),
+        ("Validez", "Sin control de fuga", "Pruebas de fuga (causal vs placebo vs oracle)"),
+        ("Incertidumbre", "Siempre opina", "Se abstiene cuando no hay evidencia"),
+    ]
+    ax.text(0.95, 6.42, "DIMENSIÓN", fontsize=9, color=SUB, fontweight="bold")
+    ax.text(4.3, 6.42, "BOT RETAIL TÍPICO", fontsize=9, color=SUB, fontweight="bold")
+    ax.text(9.6, 6.42, "FQ", fontsize=9, color=GOLD, fontweight="bold")
+    y = 6.12; rh = 0.62
+    for dim, retail, fq in rows:
+        panel(ax, 0.7, y - rh + 0.1, 14.6, rh - 0.12, fc=INK, ec=LINE)
+        ax.text(0.95, y - rh / 2 + 0.04, dim, fontsize=10.3, color=TXT, fontweight="bold", va="center")
+        ax.text(4.3, y - rh / 2 + 0.04, retail, fontsize=9.8, color=SUB, va="center")
+        ax.add_patch(Circle((9.25, y - rh / 2 + 0.04), 0.07, fc=GOLD, ec="none"))
+        ax.text(9.6, y - rh / 2 + 0.04, fq, fontsize=9.8, color=TXT, va="center")
+        y -= rh
+    panel(ax, 0.7, 1.1, 14.6, 0.92, fc="#101a0f", ec=GREEN, lw=1.2)
+    ax.text(0.95, 1.56, "Resultado: arquitectura de grado institucional aplicada a intradía cripto "
+            "— el ~4% superior se define por método de validación, no por marketing.",
+            fontsize=10.3, color=GREEN, va="center")
     footer(ax, 4)
     pdf.savefig(fig, facecolor=BG); plt.close(fig)
 
 
 # ============================================================
-# PAGINA 5 — FRACTALES DE TIEMPO EMERGENTE
+# 4 — ARQUITECTURA DEL MOTOR
 # ============================================================
-def page_fractals(pdf):
+def p_arch(pdf):
     fig, ax = new_page()
-    kicker(ax, 0.7, 8.4, "Fractales de tiempo emergente")
-    ax.text(0.7, 7.75, "El mercado rima a través de las escalas",
-            fontsize=22, color=TEXT, fontweight="bold")
-    ax.text(0.7, 7.0,
-            "Auto-similaridad: la misma firma estructural reaparece a distintos zooms. "
-            "Reconocerla = encontrar el análogo (el fractal) cuyo desenlace ya es historia.",
-            fontsize=10.6, color=MUTE)
+    header(ax, "Arquitectura del motor de decisión",
+           "Ocho capas → una probabilidad maestra → un plan")
+    layers = [
+        ("Estructura ICT/SMC", "order blocks, FVG, barridos de liquidez, CHoCH, killzones", TEAL),
+        ("Campo y confluencia", "premium/discount, nodos, peso efectivo del contexto", TEAL),
+        ("Ensemble de scoring", "volumen · estructura · liquidez · concept-stack · historia", BLUE),
+        ("Régimen", "clasifica tendencia vs rango y ajusta el umbral", BLUE),
+        ("Calidad de volumen", "veta horas muertas y modula por volumen real", GOLD),
+        ("Sesgo de sesión", "London/NY/Asia condicionado al sesgo diario", GOLD),
+        ("Convicción adaptativa κ", "aprende del track real del contexto (Thompson)", VIOLET),
+        ("Cuantificación temporal", "sincronía y fase entre 5m/15m/1h/4h → τ", VIOLET),
+    ]
+    y = 6.55; rh = 0.58; x = 0.7; w = 9.3
+    for i, (name, desc, c) in enumerate(layers):
+        panel(ax, x, y - rh + 0.1, w, rh - 0.12, fc=INK, ec=LINE)
+        ax.add_patch(Rectangle((x, y - rh + 0.1), 0.1, rh - 0.12, fc=c, ec="none"))
+        ax.text(x + 0.45, y - rh / 2 + 0.05, f"{i+1}", fontsize=11, color=c, fontweight="bold", va="center", ha="center")
+        ax.text(x + 0.85, y - rh / 2 + 0.18, name, fontsize=11, color=TXT, fontweight="bold", va="center")
+        ax.text(x + 0.85, y - rh / 2 - 0.13, desc, fontsize=8.6, color=SUB, va="center")
+        y -= rh
 
-    n = 2000
-    y = fbm(n, 0.66, 17)
-    t = np.arange(n)
-    # serie completa
-    a1 = fig.add_axes([0.06, 0.42, 0.55, 0.32]); a1.set_facecolor(PANEL)
-    grad_line(a1, t, y, CYAN, GOLD, lw=1.4)
-    a1.set_xlim(0, n); a1.set_ylim(y.min(), y.max())
-    a1.set_xticks([]); a1.set_yticks([])
-    for s in a1.spines.values(): s.set_color(GRID)
-    a1.set_title("escala macro", fontsize=9.5, color=MUTE, loc="left")
-    # ventana de zoom
-    z0, z1 = 760, 1010
-    a1.add_patch(Rectangle((z0, y[z0:z1].min()), z1-z0, y[z0:z1].max()-y[z0:z1].min(),
-                           fill=False, ec=GOLD, lw=1.5))
-
-    a2 = fig.add_axes([0.66, 0.50, 0.30, 0.20]); a2.set_facecolor(PANEL)
-    yz = y[z0:z1]; grad_line(a2, np.arange(len(yz)), yz, GOLD, MAG, lw=1.6)
-    a2.set_xlim(0, len(yz)); a2.set_ylim(yz.min(), yz.max())
-    a2.set_xticks([]); a2.set_yticks([])
-    for s in a2.spines.values(): s.set_color(GOLD)
-    a2.set_title("zoom · misma estadística", fontsize=9, color=GOLD, loc="left")
-
-    # recurrence plot (campo de recurrencias)
-    m = 260
-    ys = y[::n//m][:m]
-    D = np.abs(ys[:, None] - ys[None, :])
-    R = (D < np.quantile(D, 0.16)).astype(float)
-    a3 = fig.add_axes([0.66, 0.10, 0.30, 0.34]); a3.set_facecolor(PANEL)
-    cmr = matplotlib.colors.LinearSegmentedColormap.from_list("r", ["#0a1424", MAG, GOLD])
-    a3.imshow(R, cmap=cmr, origin="lower", aspect="auto")
-    a3.set_xticks([]); a3.set_yticks([])
-    for s in a3.spines.values(): s.set_color(GRID)
-    a3.set_title("campo de recurrencia (estados que se repiten)", fontsize=8.8, color=MUTE, loc="left")
-
-    panel(ax, 0.9, 1.0, 9.0, 2.05, fc=PANEL2, ec=GRID)
-    ax.text(1.2, 2.65, "De la imagen al edge", fontsize=10.5, color=GOLD, fontweight="bold")
-    ax.text(1.2, 1.35,
-            "El campo de recurrencia es la intuición hecha dato: las diagonales y bloques son\n"
-            "estados que vuelven. turbovec los encuentra a gran escala; el cubo dice qué pagaron.\n"
-            "Tiempo emergente = la coordenada que hace que dos velas distantes sean 'el mismo' fractal.",
-            fontsize=9.6, color=TEXT, va="center", linespacing=1.5)
+    # rail de salida derecha
+    ox = 10.4
+    ax.add_patch(FancyArrowPatch((10.05, 3.7), (10.38, 3.7), arrowstyle="-|>",
+                 mutation_scale=18, color=GOLD, lw=2))
+    panel(ax, ox, 4.55, 4.9, 2.0, fc=INK2, ec=GOLD, lw=1.4)
+    ax.text(ox + 0.35, 6.25, "P_master", fontsize=15, color=GOLD, fontweight="bold")
+    draw_lines(ax, ox + 0.35, 5.75, [
+        "Probabilidad maestra explícita:",
+        "el producto calibrado de las 8 capas.",
+        "Por debajo del umbral → silencio."], fs=10, ls=1.5, color=TXT)
+    panel(ax, ox, 2.3, 4.9, 2.0, fc=INK, ec=TEAL, lw=1.3)
+    ax.text(ox + 0.35, 4.0, "Niveles", fontsize=15, color=TEAL, fontweight="bold")
+    draw_lines(ax, ox + 0.35, 3.5, [
+        "Entrada, stop estructural y escalera",
+        "TP1–TP4 (cuatro peldaños reales,",
+        "monótonos) lista para ejecutar."], fs=10, ls=1.5, color=TXT)
+    panel(ax, ox, 0.95, 4.9, 1.05, fc="#101a0f", ec=GREEN, lw=1.2)
+    ax.text(ox + 0.35, 1.47, "Señal publicada a Telegram (público / VIP)",
+            fontsize=10, color=GREEN, va="center")
     footer(ax, 5)
     pdf.savefig(fig, facecolor=BG); plt.close(fig)
 
 
 # ============================================================
-# PAGINA 6 — RETRIEVAL: FRACTALES COMO VECINOS (k-NN)
+# 5 — CUANTIFICACIÓN DE LÍNEAS TEMPORALES
 # ============================================================
-def page_knn(pdf):
+def p_time(pdf):
     fig, ax = new_page()
-    kicker(ax, 0.7, 8.4, "Retrieval · los fractales como vecinos")
-    ax.text(0.7, 7.75, "Buscar el análogo, leer su desenlace",
-            fontsize=22, color=TEXT, fontweight="bold")
+    header(ax, "Cuantificación de líneas temporales",
+           "Medir si los marcos temporales hablan el mismo idioma",
+           "El precio vive en varias escalas a la vez. FQ cuantifica la sincronía y la fase entre "
+           "5m, 15m, 1h y 4h, y convierte esa coherencia temporal en convicción — o en veto.")
+    tfs = [("4h", 0.6, BLUE), ("1h", 1.0, TEAL), ("15m", 1.7, GOLD), ("5m", 2.6, GOLDL)]
+    a = fig.add_axes([0.06, 0.16, 0.55, 0.46]); a.set_facecolor(INK)
+    t = np.linspace(0, 4 * np.pi, 400)
+    for i, (lab, freq, c) in enumerate(tfs):
+        y = 3 - i + 0.42 * np.sin(freq * t + i * 0.25)
+        a.plot(t, y, color=c, lw=1.9)
+        a.text(-0.25, 3 - i, lab, color=c, fontsize=9.5, ha="right", va="center", fontweight="bold")
+    a.axvline(t[235], color=TXT, lw=1.1, ls="--", alpha=0.6)
+    a.text(t[235], 3.7, "marcos alineados → señal", color=TXT, fontsize=8.2, ha="center")
+    a.set_xlim(-0.6, t[-1]); a.set_ylim(-0.4, 4.0); a.axis("off")
 
-    rng = np.random.default_rng(4)
-    cloud = rng.normal(0, 1, size=(520, 2))
-    cloud[:160] += [2.4, 1.6]; cloud[160:300] += [-2.2, 1.1]; cloud[300:] += [0.2, -2.0]
-    q = np.array([2.1, 1.35])
-    d = np.linalg.norm(cloud - q, axis=1)
-    knn = np.argsort(d)[:28]
-    sax = fig.add_axes([0.05, 0.10, 0.56, 0.62]); sax.set_facecolor(PANEL)
-    sax.scatter(cloud[:, 0], cloud[:, 1], s=14, c=MUTE, alpha=0.45, edgecolors="none")
-    sax.scatter(cloud[knn, 0], cloud[knn, 1], s=34, c=GOLD, edgecolors="#06101f",
-                linewidths=0.4, label="k análogos (fractales)")
-    sax.add_patch(Circle(q, d[knn].max(), fill=False, ec=CYAN, lw=1.4, ls="--"))
-    sax.scatter([q[0]], [q[1]], s=240, marker="*", c=MAG, edgecolors="white",
-                linewidths=0.8, label="estado actual (query)", zorder=5)
-    sax.set_xticks([]); sax.set_yticks([])
-    for s in sax.spines.values(): s.set_color(GRID)
-    sax.legend(loc="lower left", fontsize=8.5, facecolor=PANEL2, edgecolor=GRID,
-               labelcolor=TEXT)
-    sax.set_title("espacio vectorial de estados (proyección 2D)", fontsize=9.5,
-                  color=MUTE, loc="left")
-
-    panel(ax, 9.9, 4.6, 5.4, 2.65, fc=PANEL2, ec=CYAN, lw=1.4)
-    ax.text(10.2, 6.85, "Qué devuelve el vecindario", fontsize=11, color=CYAN, fontweight="bold")
-    ax.text(10.2, 4.95,
-            "·  expectancy_r  (pago esperado en R)\n"
-            "·  win-rate ponderado por similitud\n"
-            "·  dispersión (riesgo del vecindario)\n"
-            "·  confianza = f(densidad, dispersión)\n"
-            "·  best (TP, horizonte) del cubo vecino",
-            fontsize=10, color=TEXT, va="top", linespacing=1.55)
-
-    panel(ax, 9.9, 1.0, 5.4, 3.25, fc="#0c1322", ec=GOLD, lw=1.2)
-    ax.text(10.2, 3.9, "Causalidad y abstención", fontsize=11, color=GOLD, fontweight="bold")
-    ax.text(10.2, 1.35,
-            "El índice SOLO contiene estados cuyo desenlace ya\n"
-            "cerró (+ embargo): nada de futuro. Si el vecindario\n"
-            "es ralo (pocos análogos coherentes), la capa SE\n"
-            "ABSTIENE — no inventa edge donde no hay fractal.\n"
-            "Honestidad > volumen de señales.",
-            fontsize=9.6, color=TEXT, va="bottom", linespacing=1.5)
+    panel(ax, 9.9, 4.35, 5.4, 2.2, fc=INK, ec=VIOLET, lw=1.3)
+    ax.text(10.2, 6.25, "sync_score", fontsize=13, color=VIOLET, fontweight="bold")
+    draw_lines(ax, 10.2, 5.75, [
+        "Coherencia entre escalas en [0,1].",
+        "Alto → los tiempos confirman el mismo",
+        "movimiento. Bajo → ruido entre marcos:",
+        "el motor atenúa o veta la operación."], fs=10, ls=1.5, color=TXT)
+    panel(ax, 9.9, 1.7, 5.4, 2.35, fc=INK, ec=GOLD, lw=1.3)
+    ax.text(10.2, 3.75, "τ emergente", fontsize=13, color=GOLD, fontweight="bold")
+    draw_lines(ax, 10.2, 3.25, [
+        "Un tiempo propio del mercado que se",
+        "acelera o frena según la actividad real,",
+        "no el reloj. Modula la convicción: pondera",
+        "más cuando el mercado 'avanza' de verdad."], fs=10, ls=1.5, color=TXT)
+    ax.text(0.95, 1.15, "Esto es lo que antes llamábamos informalmente 'líneas de tiempo': "
+            "aquí es una magnitud medible que entra al vector de estado.", fontsize=9, color=SUB)
     footer(ax, 6)
     pdf.savefig(fig, facecolor=BG); plt.close(fig)
 
 
 # ============================================================
-# PAGINA 7 — LAS 5 DIMENSIONES DE PENSAMIENTO
+# 6 — CONVICCIÓN ADAPTATIVA κ
 # ============================================================
-def page_five(pdf):
+def p_kappa(pdf):
     fig, ax = new_page()
-    kicker(ax, 0.7, 8.4, "Las 5 dimensiones de pensamiento")
-    ax.text(0.7, 7.75, "El espacio de exploración del edge",
-            fontsize=22, color=TEXT, fontweight="bold")
+    header(ax, "Convicción adaptativa (κ)",
+           "El motor aprende de sus propios desenlaces",
+           "Cada contexto (killzone, régimen, tipo de setup) tiene memoria de cómo le fue. κ sube "
+           "la convicción donde el track real es bueno y la baja donde sangra — sin intervención manual.")
+    a = fig.add_axes([0.06, 0.16, 0.52, 0.46]); a.set_facecolor(INK)
+    rng = np.random.default_rng(1)
+    n = 60
+    wins = np.cumsum(rng.random(n) > 0.42)
+    losses = np.arange(1, n + 1) - wins
+    kappa = 0.85 + 0.30 / (1 + np.exp(-(wins - losses) / 4.0))
+    a.plot(np.arange(n), kappa, color=GOLD, lw=2.2)
+    a.axhline(1.0, color=SUB, lw=1, ls="--", alpha=0.5)
+    a.fill_between(np.arange(n), 1.0, kappa, where=kappa >= 1, color=GREEN, alpha=0.12)
+    a.fill_between(np.arange(n), 1.0, kappa, where=kappa < 1, color=RED, alpha=0.12)
+    a.set_xlim(0, n - 1); a.set_ylim(0.8, 1.2)
+    a.set_xlabel("operaciones cerradas del contexto", fontsize=9, color=SUB)
+    a.set_ylabel("κ (multiplicador de convicción)", fontsize=9, color=SUB)
+    a.tick_params(colors=SUB, labelsize=8)
+    for s in a.spines.values(): s.set_color(LINE)
 
-    labels = ["A · Composición\ndel vector", "B · Superficie\n(cubo)",
-              "C · Geometría de\nsimilitud", "D · No-estacio-\nnariedad",
-              "E · Abstención /\nconfianza"]
-    cols = [GOLD, CYAN, MAG, GREEN, GOLD2]
-    cx, cy, Rr = 4.0, 4.0, 2.55
-    pax = fig.add_axes([0.02, 0.08, 0.46, 0.66]); pax.axis("off")
-    pax.set_xlim(0, 8); pax.set_ylim(0, 8)
-    ang = np.linspace(np.pi/2, np.pi/2 + 2*np.pi, 6)[:-1]
-    pts = np.c_[cx + Rr*np.cos(ang), cy + Rr*np.sin(ang)]
-    for rr in (0.4, 0.7, 1.0):
-        poly = RegularPolygon((cx, cy), 5, radius=Rr*rr, orientation=np.pi/10,
-                              fill=False, ec=GRID, lw=1)
-        pax.add_patch(poly)
-    vals = np.array([0.92, 0.85, 0.7, 0.66, 0.78])
-    vpts = np.c_[cx + Rr*vals*np.cos(ang), cy + Rr*vals*np.sin(ang)]
-    pax.add_patch(plt.Polygon(vpts, closed=True, fc=GOLD, ec=GOLD2, lw=2, alpha=0.18))
-    for (x, y), (vx, vy), c, lb in zip(pts, vpts, cols, labels):
-        pax.plot([cx, x], [cy, y], color=GRID, lw=1)
-        pax.scatter([vx], [vy], s=60, c=c, edgecolors="white", linewidths=0.6, zorder=5)
-        ha = "center"
-        pax.text(cx + (Rr+0.7)*np.cos(np.arctan2(y-cy, x-cx)),
-                 cy + (Rr+0.7)*np.sin(np.arctan2(y-cy, x-cx)),
-                 lb, fontsize=8.6, color=c, ha=ha, va="center", linespacing=1.2,
-                 fontweight="bold")
-
-    # tabla derecha
-    rows = [
-        ("A", "Composición del vector", "kappa, σ_τ, sync, radar, campo", "lift OOS + ↓dispersión", GOLD),
-        ("B", "Superficie (cubo)", "selector TP×horizonte vs fijo", "exp_R(selector) > fijo", CYAN),
-        ("C", "Geometría de similitud", "escalado/whitening · k · régimen", "ninguna dim acapara", MAG),
-        ("D", "No-estacionariedad", "ventana W · decaimiento τ", "régimen vivo > histórico", GREEN),
-        ("E", "Abstención / confianza", "piso de densidad del vecindario", "exp_R ↑ con densidad", GOLD2),
-    ]
-    x0, y0, rw, rh = 7.7, 6.55, 7.6, 1.04
-    for i, (k, name, what, test, c) in enumerate(rows):
-        yy = y0 - i*rh
-        panel(ax, x0, yy - rh + 0.18, rw, rh - 0.16, fc=PANEL2, ec=c, lw=1.3)
-        ax.add_patch(Circle((x0 + 0.5, yy - 0.42), 0.28, fc=c, ec="none"))
-        ax.text(x0 + 0.5, yy - 0.42, k, fontsize=11, color="#06101f", ha="center",
-                va="center", fontweight="bold")
-        ax.text(x0 + 1.05, yy - 0.18, name, fontsize=10.3, color=TEXT, fontweight="bold",
-                va="center")
-        ax.text(x0 + 1.05, yy - 0.6, f"explora: {what}", fontsize=8.4, color=MUTE, va="center")
-        ax.text(x0 + rw - 0.2, yy - 0.42, test, fontsize=8.6, color=c, va="center", ha="right")
-    ax.text(7.7, 0.92, "Puerta a TODO: el test de leakage (causal vs oracle vs placebo). "
-            "Si colapsa → se mata la línea.", fontsize=8.4, color=MUTE)
+    panel(ax, 9.6, 4.3, 5.7, 2.25, fc=INK, ec=GOLD, lw=1.3)
+    ax.text(9.9, 6.25, "Thompson sampling", fontsize=13, color=GOLD, fontweight="bold")
+    draw_lines(ax, 9.9, 5.75, [
+        "Sobre la memoria de desenlaces por bucket,",
+        "κ explora/explota como un bandido bayesiano:",
+        "apuesta más donde la evidencia acumulada",
+        "respalda, con cota dura (no se desboca)."], fs=10, ls=1.5, color=TXT)
+    panel(ax, 9.6, 1.7, 5.7, 2.2, fc=INK2, ec=TEAL, lw=1.2)
+    ax.text(9.9, 3.6, "En research: determinista", fontsize=12.5, color=TEAL, fontweight="bold")
+    draw_lines(ax, 9.9, 3.1, [
+        "Para que el backtest sea reproducible y",
+        "atribuible a la estrategia (no al azar del",
+        "muestreo), el harness fija κ a su forma",
+        "determinista. Honestidad sobre vistosidad."], fs=10, ls=1.5, color=TXT)
     footer(ax, 7)
     pdf.savefig(fig, facecolor=BG); plt.close(fig)
 
 
 # ============================================================
-# PAGINA 8 — INTEGRACION QUANTUM BOT (mapping)
+# 7 — HARNESS DE RESEARCH
 # ============================================================
-def page_integration(pdf):
+def p_harness(pdf):
     fig, ax = new_page()
-    kicker(ax, 0.7, 8.4, "Integración con el Quantum bot")
-    ax.text(0.7, 7.75, "Cada idea original → una coordenada medible",
-            fontsize=22, color=TEXT, fontweight="bold")
-
-    rows = [
-        ("Excitación de radar", "fq_radar", "evento / gatillo de campo", "FRONTERA", MAG),
-        ("Tiempo emergente / complejo", "emergent_time · σ_τ", "fase y ritmo del tiempo", "FRONTERA", GOLD),
-        ("Líneas de tiempo cuánticas", "quantum_timelines · sync", "sincronía entre escalas", "FRONTERA", CYAN),
-        ("Entropía / κ (cognición)", "entropy_cognition · kappa", "convicción adaptativa", "FRONTERA", GOLD2),
-        ("Excitación de campo", "field · confluence · w_eff", "huella energética", "PARCIAL", GREEN),
-        ("Convicción del motor", "p_master · scorer ensemble", "probabilidad maestra", "EN EL VECTOR", "#7fd0ff"),
+    header(ax, "Cómo validamos", "Un backtest que un fondo auditaría",
+           "El mismo motor de producción se re-corre sobre años de historia. Nada se ajusta al "
+           "pasado: se mide fuera de muestra, con costes, y se prueba contra fuga.")
+    steps = [
+        ("Replay", "el motor recorre la historia\ny dispara como en vivo", TEAL),
+        ("Triple-barrera", "etiqueta cada señal:\nTP / SL / tiempo (pesimista)", BLUE),
+        ("Walk-forward OOS", "folds purgados + embargo;\nfees, slippage y funding", GOLD),
+        ("Modelo + retrieval", "LightGBM global +\nk-NN por analogía", VIOLET),
     ]
-    ax.text(0.9, 7.05, "MAGNITUD DEL QUANTUM BOT", fontsize=8.5, color=MUTE)
-    ax.text(6.7, 7.05, "SEÑAL REAL EN CÓDIGO", fontsize=8.5, color=MUTE)
-    ax.text(10.9, 7.05, "INTERPRETACIÓN", fontsize=8.5, color=MUTE)
-    ax.text(15.2, 7.05, "ESTADO", fontsize=8.5, color=MUTE, ha="right")
-    y = 6.75; rh = 0.78
-    for name, code, interp, st, c in rows:
-        panel(ax, 0.7, y - rh + 0.14, 14.6, rh - 0.16, fc=PANEL2, ec=GRID, lw=1)
-        ax.add_patch(Rectangle((0.7, y - rh + 0.14), 0.12, rh - 0.16, fc=c, ec="none"))
-        ax.text(0.95, y - 0.4, name, fontsize=10.6, color=TEXT, fontweight="bold", va="center")
-        ax.text(6.7, y - 0.4, code, fontsize=9.4, color=c, va="center", family="DejaVu Sans Mono"
-                if False else "DejaVu Sans")
-        ax.text(10.9, y - 0.4, interp, fontsize=9.2, color=MUTE, va="center")
-        stc = {"FRONTERA": GOLD, "PARCIAL": CYAN, "EN EL VECTOR": GREEN}[st]
-        panel(ax, 13.7, y - 0.68, 1.55, 0.5, fc="#0c1322", ec=stc, lw=1.1, r=0.25)
-        ax.text(14.47, y - 0.43, st, fontsize=7.6, color=stc, ha="center", va="center",
-                fontweight="bold")
-        y -= rh
+    x = 0.7; w = 3.45; gap = 0.32; y = 4.5; hh = 2.0
+    for i, (t, d, c) in enumerate(steps):
+        panel(ax, x, y, w, hh, fc=INK, ec=c, lw=1.4)
+        ax.text(x + w / 2, y + hh - 0.45, t, fontsize=12.5, color=c, fontweight="bold", ha="center")
+        draw_lines(ax, x + 0.35, y + hh - 0.95, d.split("\n"), fs=9.6, ls=1.45, color=TXT)
+        if i < 3:
+            ax.add_patch(FancyArrowPatch((x + w + 0.02, y + hh / 2), (x + w + gap - 0.02, y + hh / 2),
+                         arrowstyle="-|>", mutation_scale=15, color=GOLD, lw=2))
+        x += w + gap
 
-    panel(ax, 0.7, 0.82, 14.6, 1.3, fc="#0c1322", ec=GOLD)
-    ax.text(0.95, 1.82, "La jugada", fontsize=10.5, color=GOLD, fontweight="bold")
-    ax.text(0.95, 1.28,
-            "Lo marcado FRONTERA aún no es coordenada del vector. Lifearlas (radar, σ_τ, sync, κ) y\n"
-            "ablacionar = medir si el tiempo emergente y la excitación de campo dan edge — read-only, post-replay.",
-            fontsize=9.2, color=TEXT, va="center", linespacing=1.4)
+    panel(ax, 0.7, 1.05, 14.6, 2.95, fc=INK)
+    ax.text(0.95, 3.65, "Prueba de fuga — la puerta de entrada a todo", fontsize=12.5, color=GOLD, fontweight="bold")
+    draw_lines(ax, 0.95, 3.1, [
+        "Se compara el edge en tres modos: CAUSAL (índice estrictamente sin futuro), PLACEBO",
+        "(etiquetas barajadas — debe colapsar a cero) y ORACLE (con futuro — cota superior leaky).",
+        "Si el edge solo existe con oracle, o sobrevive al placebo, la línea se documenta y se mata.",
+        "Es el resultado más valioso posible: nos protege de creernos un backtest que miente.",
+    ], fs=10.3, ls=1.55, color=TXT)
     footer(ax, 8)
     pdf.savefig(fig, facecolor=BG); plt.close(fig)
 
 
 # ============================================================
-# PAGINA 9 — LA FRONTERA DE RENTABILIDAD
+# 8 — RETRIEVAL + CUBO
 # ============================================================
-def page_frontier(pdf):
+def p_retrieval(pdf):
     fig, ax = new_page()
-    kicker(ax, 0.7, 8.4, "La frontera de rentabilidad")
-    ax.text(0.7, 7.75, "Más entendimiento del tiempo complejo → más edge compuesto",
-            fontsize=20, color=TEXT, fontweight="bold")
+    header(ax, "Retrieval por analogía y la superficie de pagos",
+           "Reconocer el estado análogo y leer lo que pagó",
+           "Cada estado de mercado se codifica como vector. A escala, FQ recupera sus análogos "
+           "históricos y lee su superficie de desenlaces — no predice con una fórmula, mide por analogía.")
+    # knn scatter
+    a = fig.add_axes([0.05, 0.14, 0.42, 0.48]); a.set_facecolor(INK)
+    rng = np.random.default_rng(4)
+    cl = rng.normal(0, 1, (420, 2)); cl[:150] += [2.3, 1.5]; cl[150:280] += [-2.1, 1.0]; cl[280:] += [0.2, -2.0]
+    q = np.array([2.0, 1.3]); d = np.linalg.norm(cl - q, axis=1); kn = np.argsort(d)[:26]
+    a.scatter(cl[:, 0], cl[:, 1], s=12, c=SUB, alpha=0.4, edgecolors="none")
+    a.scatter(cl[kn, 0], cl[kn, 1], s=30, c=GOLD, edgecolors=BG, linewidths=0.4)
+    a.add_patch(Circle(q, d[kn].max(), fill=False, ec=TEAL, lw=1.3, ls="--"))
+    a.scatter([q[0]], [q[1]], s=210, marker="*", c=VIOLET, edgecolors="white", linewidths=0.7, zorder=5)
+    a.set_xticks([]); a.set_yticks([]); a.set_title("vecindario de estados análogos", fontsize=9.5, color=SUB, loc="left")
+    for s in a.spines.values(): s.set_color(LINE)
 
-    fax = fig.add_axes([0.07, 0.16, 0.6, 0.56]); fax.set_facecolor(PANEL)
-    x = np.linspace(0, 1, 200)
-    edge = 0.04 + 0.9 / (1 + np.exp(-8*(x - 0.55)))   # logistica
-    band = 0.10 + 0.18*x
-    fax.fill_between(x, edge*(1-band), edge*(1+band), color=GOLD, alpha=0.12,
-                     label="IC bootstrap (incertidumbre)")
-    grad_line(fax, x, edge, CYAN, "#ff8a3d", lw=2.6)
-    # hitos F1..F4
-    for xf, lab, c in [(0.18, "F1 diagnóstico", CYAN), (0.42, "F2 gate+sizing", GOLD),
-                       (0.66, "F3 selector TP/H", MAG), (0.9, "F4 capital", "#ff8a3d")]:
-        yf = 0.04 + 0.9/(1+np.exp(-8*(xf-0.55)))
-        fax.scatter([xf], [yf], s=60, c=c, edgecolors="white", lw=0.6, zorder=5)
-        fax.text(xf, yf + 0.06, lab, fontsize=8.2, color=c, ha="center")
-    fax.set_xlim(0, 1); fax.set_ylim(0, 1.15)
-    fax.set_xlabel("profundidad de entendimiento del tiempo complejo →", fontsize=9.5)
-    fax.set_ylabel("edge medible (R) → rentabilidad compuesta", fontsize=9.5)
-    fax.set_xticks([]); fax.set_yticks([])
-    for s in fax.spines.values(): s.set_color(GRID)
-    fax.legend(loc="upper left", fontsize=8, facecolor=PANEL2, edgecolor=GRID, labelcolor=TEXT)
+    # cube heatmap
+    hz = ["8h", "16h", "24h", "48h"]; tps = ["TP4", "TP3", "TP2", "TP1"]
+    expR = np.array([[.18, .34, .52, .74], [.22, .41, .58, .69], [.27, .45, .55, .57], [.31, .36, .37, .37]])
+    h = fig.add_axes([0.53, 0.17, 0.30, 0.42]); h.set_facecolor(INK)
+    cm = LinearSegmentedColormap.from_list("fq", ["#102038", TEAL, GOLD, "#ff944d"])
+    h.imshow(expR, cmap=cm, aspect="auto", vmin=.15, vmax=.9)
+    h.set_xticks(range(4)); h.set_xticklabels(hz, fontsize=8.5, color=SUB)
+    h.set_yticks(range(4)); h.set_yticklabels(tps, fontsize=8.5, color=SUB)
+    for i in range(4):
+        for j in range(4):
+            h.text(j, i, f"{expR[i,j]:.2f}", ha="center", va="center", color="#06101f", fontsize=8, fontweight="bold")
+    bi, bj = np.unravel_index(np.argmax(expR), expR.shape)
+    h.add_patch(Rectangle((bj - .5, bi - .5), 1, 1, fill=False, ec="white", lw=2))
+    h.set_title("expectancy (R) · TP × horizonte", fontsize=9, color=SUB, loc="left")
+    for s in h.spines.values(): s.set_color(LINE)
 
-    panel(ax, 10.4, 4.35, 4.9, 2.95, fc=PANEL2, ec=GOLD, lw=1.4)
-    ax.text(10.7, 6.95, "Cómo se compone", fontsize=11, color=GOLD, fontweight="bold")
-    ax.text(10.7, 6.5,
-            "·  cada dimensión que pasa el test\n"
-            "   suma edge atribuible\n"
-            "·  el cubo convierte WR×R en la\n"
-            "   curva de expectancy óptima\n"
-            "·  el retrieval aísla los estados de oro\n"
-            "·  edge × frecuencia × compuesto",
-            fontsize=9.3, color=TEXT, va="top", linespacing=1.4)
-
-    panel(ax, 10.4, 1.0, 4.9, 3.1, fc="#0c1322", ec=RED, lw=1.2)
-    ax.text(10.7, 3.75, "Lectura honesta", fontsize=10.5, color=RED, fontweight="bold")
-    ax.text(10.7, 1.3,
-            "La curva es la FRONTERA OBJETIVO que la\n"
-            "arquitectura está diseñada para capturar,\n"
-            "no un retorno prometido. Cada tramo se\n"
-            "desbloquea SOLO con edge OOS atribuible\n"
-            "(IC inferior 90% > 0). Sin eso, no se\n"
-            "mueve capital. La elegancia es la disciplina.",
-            fontsize=9.0, color=TEXT, va="bottom", linespacing=1.4)
+    panel(ax, 13.4, 1.6, 1.9, 5.0, fc=INK2, ec=GOLD, lw=1.2)
+    draw_lines(ax, 13.6, 6.3, ["El cubo:", "una señal", "no es un", "número,", "es una", "superficie", "de pagos.",
+                               "", "El vecino", "trae la", "suya entera", "→ elegir", "TP y", "horizonte", "óptimos."],
+               fs=9.2, ls=1.5, color=TXT)
     footer(ax, 9)
     pdf.savefig(fig, facecolor=BG); plt.close(fig)
 
 
 # ============================================================
-# PAGINA 10 — POR QUE ES INUSUAL
+# 9 — ROBUSTEZ (LO CONSTRUIDO)
 # ============================================================
-def page_unusual(pdf):
+def p_robust(pdf):
     fig, ax = new_page()
-    kicker(ax, 0.7, 8.4, "Por qué es inusual")
-    ax.text(0.7, 7.75, "Una aproximación que no se ve en el mercado estructural",
-            fontsize=21, color=TEXT, fontweight="bold")
-
+    header(ax, "Robustez — lo que ya está construido",
+           "Sistema en producción + laboratorio de validación")
     cards = [
-        ("Estimador LOCAL, no fórmula", "No ajustamos una ecuación global: medimos por "
-         "analogía sobre el histórico vivo. El mercado se trata como campo de estados.", GOLD),
-        ("Doble cerebro", "GBM global (patrón medio) + retrieval k-NN causal (la excepción "
-         "local) se complementan. Pocos combinan ambos con guardas de leakage.", CYAN),
-        ("Tiempo emergente como geometría", "El tiempo no es eje: es coordenada del vector. "
-         "Dos velas distantes pueden ser 'el mismo' fractal. Eso redefine 'similar'.", MAG),
-        ("Optimización sin re-replay", "TP, SL y horizonte se optimizan gratis sobre el mismo "
-         "replay (el cubo). Barrer estrategia cuesta casi cero.", GREEN),
-        ("Abstención honesta", "Cuando no hay fractal, el modelo calla. La señal de oro nace "
-         "de densidad+coherencia del vecindario, no de forzar volumen.", GOLD2),
-        ("Símbolo-agnóstico", "El MISMO código corre BTC y SOL; solo cambian los datos. "
-         "Escala a cualquier mercado sin reescribir la lógica.", "#7fd0ff"),
+        ("Producto en producción", [
+            "Bot de Telegram público + VIP, pagos,",
+            "anuncio de desenlaces, contenido público.",
+            "Desplegado y operando (Railway)."], TEAL),
+        ("Laboratorio de research", [
+            "Harness bt_* con ~89 pruebas en verde,",
+            "leakage gates, costes por símbolo,",
+            "walk-forward purgado y embargado."], GOLD),
+        ("Automatización", [
+            "CI semanal corre BTC y SOL en paralelo,",
+            "cachea datos, publica reportes y abre",
+            "incidencias si algo se degrada."], BLUE),
+        ("Innovación reciente", [
+            "Frontera TP×horizonte, fix de la escalera",
+            "TP, blindaje del modelo, e incorporación",
+            "del bloque temporal al vector de estado."], VIOLET),
     ]
-    x0, y0, cw, ch, gx, gy = 0.7, 4.05, 7.15, 2.95, 0.5, 0.45
-    for i, (t, d, c) in enumerate(cards):
-        cx = x0 + (i % 2) * (cw + gx)
-        cy = y0 - (i // 2) * (ch + gy)
-        panel(ax, cx, cy, cw, ch, fc=PANEL2, ec=c, lw=1.4)
-        ax.add_patch(Rectangle((cx, cy + ch - 0.12), cw, 0.12, fc=c, ec="none"))
-        ax.text(cx + 0.35, cy + ch - 0.55, t, fontsize=11.5, color=c, fontweight="bold")
-        ax.text(cx + 0.35, cy + ch - 1.0, d, fontsize=9.4, color=TEXT, va="top",
-                wrap=True, linespacing=1.45)
+    x0, y0, w, hh, gx, gy = 0.7, 4.55, 7.15, 1.85, 0.5, 0.35
+    for i, (t, lines, c) in enumerate(cards):
+        x = x0 + (i % 2) * (w + gx); y = y0 - (i // 2) * (hh + gy)
+        panel(ax, x, y, w, hh, fc=INK, ec=c, lw=1.3)
+        ax.add_patch(Rectangle((x, y + hh - 0.1), w, 0.1, fc=c, ec="none"))
+        ax.text(x + 0.35, y + hh - 0.48, t, fontsize=12, color=c, fontweight="bold")
+        draw_lines(ax, x + 0.35, y + hh - 0.88, lines, fs=9.7, ls=1.45, color=TXT)
+    # métricas
+    mx = 0.7
+    for v, l in [("~89", "pruebas verde"), ("2", "símbolos en paralelo"),
+                 ("3", "modos anti-fuga"), ("8", "capas de decisión")]:
+        panel(ax, mx, 0.95, 3.5, 0.95, fc=INK2, ec=LINE)
+        ax.text(mx + 0.3, 1.45, v, fontsize=18, color=GOLD, fontweight="bold", va="center")
+        ax.text(mx + 1.45, 1.45, l, fontsize=9.5, color=SUB, va="center")
+        mx += 3.65
     footer(ax, 10)
     pdf.savefig(fig, facecolor=BG); plt.close(fig)
 
 
 # ============================================================
-# PAGINA 11 — ESTADO, ROADMAP Y CIERRE
+# 10 — LAS 5 DIMENSIONES
 # ============================================================
-def page_roadmap(pdf):
+def p_five(pdf):
     fig, ax = new_page()
-    kicker(ax, 0.7, 8.4, "Estado · roadmap · cierre")
-    ax.text(0.7, 7.75, "Construido, validándose, y con la frontera a la vista",
-            fontsize=21, color=TEXT, fontweight="bold")
-
-    phases = [
-        ("F0", "Harness + leakage gate", "VERDE (CI sintético)", GREEN),
-        ("F1", "Retrieval diagnóstico\nBTC + SOL", "VALIDANDO (run real)", GOLD),
-        ("F2", "Gate + sizing", "siguiente si F1 +", CYAN),
-        ("F3", "Selector TP/horizonte", "usa el cubo", MAG),
-        ("F4", "Comparativa y capital", "criterio de migración", "#ff8a3d"),
+    header(ax, "El espacio de exploración del edge", "Cinco dimensiones, cada una con su prueba")
+    labels = ["A · Composición\ndel vector", "B · Superficie\nde pagos (cubo)", "C · Geometría de\nsimilitud",
+              "D · No-estacio-\nnariedad", "E · Abstención /\nconfianza"]
+    cols = [GOLD, TEAL, VIOLET, GREEN, BLUE]
+    pax = fig.add_axes([0.02, 0.10, 0.42, 0.60]); pax.axis("off"); pax.set_xlim(0, 8); pax.set_ylim(0, 8)
+    cx, cy, R = 4.0, 4.1, 2.4
+    ang = np.linspace(np.pi / 2, np.pi / 2 + 2 * np.pi, 6)[:-1]
+    for rr in (0.45, 0.72, 1.0):
+        pax.add_patch(RegularPolygon((cx, cy), 5, radius=R * rr, orientation=np.pi / 10, fill=False, ec=LINE, lw=1))
+    vals = np.array([0.95, 0.82, 0.66, 0.62, 0.74])
+    vp = np.c_[cx + R * vals * np.cos(ang), cy + R * vals * np.sin(ang)]
+    pax.add_patch(Polygon(vp, closed=True, fc=GOLD, ec=GOLDL, lw=2, alpha=0.16))
+    for a, c, lb, v in zip(ang, cols, labels, vals):
+        x, y = cx + R * np.cos(a), cy + R * np.sin(a)
+        pax.plot([cx, x], [cy, y], color=LINE, lw=1)
+        pax.scatter([cx + R * v * np.cos(a)], [cy + R * v * np.sin(a)], s=55, c=c, edgecolors="white", lw=0.5, zorder=5)
+        pax.text(cx + (R + 0.75) * np.cos(a), cy + (R + 0.75) * np.sin(a), lb,
+                 fontsize=8.6, color=c, ha="center", va="center", fontweight="bold", linespacing=1.2)
+    rows = [
+        ("A", "Composición del vector", "¿suman las coordenadas temporales / de campo?", GOLD),
+        ("B", "Superficie de pagos", "¿elegir TP×horizonte bate la escalera fija?", TEAL),
+        ("C", "Geometría de similitud", "¿ninguna dimensión acapara la similitud?", VIOLET),
+        ("D", "No-estacionariedad", "¿régimen vivo > histórico completo?", GREEN),
+        ("E", "Abstención / confianza", "¿el edge sube con la densidad del vecindario?", BLUE),
     ]
-    x = 0.7; w = 2.85; gap = 0.3; y = 4.5; h = 1.95
-    for i, (k, t, st, c) in enumerate(phases):
-        panel(ax, x, y, w, h, fc=PANEL2, ec=c, lw=1.4)
-        ax.text(x + 0.35, y + h - 0.5, k, fontsize=16, color=c, fontweight="bold")
-        ax.text(x + 0.35, y + h - 1.0, t, fontsize=9.4, color=TEXT, va="top", linespacing=1.3)
-        ax.text(x + 0.35, y + 0.25, st, fontsize=8.2, color=c)
-        if i < len(phases) - 1:
-            ax.add_patch(FancyArrowPatch((x + w + 0.02, y + h/2), (x + w + gap - 0.02, y + h/2),
-                         arrowstyle="-|>", mutation_scale=14, color=GOLD, lw=1.8))
-        x += w + gap
-
-    panel(ax, 0.7, 2.45, 14.6, 1.55, fc=PANEL, ec=CYAN, lw=1.3)
-    ax.text(0.95, 3.55, "Siguiente build recomendado — Eje A", fontsize=11, color=CYAN,
-            fontweight="bold")
-    ax.text(0.95, 2.75,
-            "Lift de kappa_evo · σ_τ (tiempo emergente) · sync_score · radar al vector de estado "
-            "+ su ablación en el runner. Bajo riesgo (read-only, post-replay). El próximo run ya "
-            "mediría si los fractales de tiempo emergente aportan edge atribuible.",
-            fontsize=9.7, color=TEXT, va="center", linespacing=1.45)
-
-    panel(ax, 0.7, 0.95, 14.6, 1.3, fc="#0c1322", ec=GOLD, lw=1.3)
-    ax.text(8.0, 1.78, "\"El mercado es un campo de estados. Medimos su huella, reconocemos el",
-            fontsize=11.5, color=GOLD2, ha="center", style="italic")
-    ax.text(8.0, 1.32, "fractal, y convertimos el entendimiento del tiempo complejo en edge.\"",
-            fontsize=11.5, color=GOLD2, ha="center", style="italic")
+    x0, y0, rw, rh = 7.5, 6.5, 7.8, 1.0
+    for i, (k, name, q, c) in enumerate(rows):
+        yy = y0 - i * rh
+        panel(ax, x0, yy - rh + 0.15, rw, rh - 0.18, fc=INK, ec=c, lw=1.2)
+        ax.add_patch(Circle((x0 + 0.5, yy - rh / 2 + 0.07), 0.27, fc=c, ec="none"))
+        ax.text(x0 + 0.5, yy - rh / 2 + 0.07, k, fontsize=11, color="#06101f", ha="center", va="center", fontweight="bold")
+        ax.text(x0 + 1.05, yy - rh / 2 + 0.25, name, fontsize=10.6, color=TXT, fontweight="bold", va="center")
+        ax.text(x0 + 1.05, yy - rh / 2 - 0.16, q, fontsize=8.8, color=SUB, va="center")
     footer(ax, 11)
     pdf.savefig(fig, facecolor=BG); plt.close(fig)
 
 
+# ============================================================
+# 11 — ROADMAP
+# ============================================================
+def p_roadmap(pdf):
+    fig, ax = new_page()
+    header(ax, "Frontera de desarrollo", "De diagnóstico validado a asignación de capital")
+    phases = [
+        ("F0", "Harness + prueba de fuga", "construido · verde", GREEN),
+        ("F1", "Retrieval diagnóstico\nBTC + SOL", "en validación", GOLD),
+        ("F2", "Gate + sizing", "tras F1 positivo", TEAL),
+        ("F3", "Selector TP / horizonte", "usa el cubo", VIOLET),
+        ("F4", "Comparativa y capital", "criterio de migración", BLUE),
+    ]
+    x = 0.7; w = 2.68; gap = 0.3; y = 4.4; hh = 2.0
+    for i, (k, t, st, c) in enumerate(phases):
+        panel(ax, x, y, w, hh, fc=INK, ec=c, lw=1.3)
+        ax.text(x + 0.3, y + hh - 0.5, k, fontsize=17, color=c, fontweight="bold")
+        draw_lines(ax, x + 0.3, y + hh - 1.0, t.split("\n"), fs=9.5, ls=1.4, color=TXT)
+        ax.text(x + 0.3, y + 0.28, st, fontsize=8.4, color=c)
+        if i < 4:
+            ax.add_patch(FancyArrowPatch((x + w + 0.02, y + hh / 2), (x + w + gap - 0.02, y + hh / 2),
+                         arrowstyle="-|>", mutation_scale=13, color=GOLD, lw=1.7))
+        x += w + gap
+    panel(ax, 0.7, 1.05, 14.6, 2.95, fc=INK)
+    ax.text(0.95, 3.6, "Disciplina de avance", fontsize=12.5, color=GOLD, fontweight="bold")
+    draw_lines(ax, 0.95, 3.05, [
+        "Cada fase se desbloquea SOLO si la anterior produce edge fuera de muestra, atribuible y",
+        "robusto a costes (límite inferior del intervalo de confianza > 0). Ninguna intuición mueve",
+        "capital antes de medirse. La rentabilidad no se promete: se compone a medida que el edge",
+        "medible se acumula fase a fase. Esa disciplina ES la ventaja sostenible.",
+    ], fs=10.3, ls=1.55, color=TXT)
+    footer(ax, 12)
+    pdf.savefig(fig, facecolor=BG); plt.close(fig)
+
+
+# ============================================================
+# 12 — CIERRE
+# ============================================================
+def p_close(pdf):
+    fig, ax = new_page()
+    t = np.linspace(0, 1, 1000)
+    for s, a, off, c in [(7, .08, .3, TEAL), (3, .10, .6, GOLD)]:
+        y = fbm(1000, .62, s); y = (y - y.min()) / (y.max() - y.min())
+        ax.plot(0.7 + t * 14.6, 9 * off + a * 9 * (y - .5), color=c, lw=1.0, alpha=0.14)
+    ax.text(0.7, 6.6, "En una frase", fontsize=11, color=GOLD, fontweight="bold")
+    draw_lines(ax, 0.7, 6.0, [
+        "FQ trata el mercado como un campo de estados:",
+        "lo cuantifica en el tiempo, reconoce el estado análogo,",
+        "y convierte ese entendimiento en edge medible.",
+    ], fs=22, ls=1.5, color=TXT, weight="bold")
+    ax.add_patch(Rectangle((0.72, 3.5), 5.0, 0.04, fc=GOLD, ec="none"))
+    draw_lines(ax, 0.72, 3.05, [
+        "Arquitectura de grado institucional · validación fuera de muestra con costes ·",
+        "innovación en retrieval por analogía y cuantificación temporal.",
+        "Construido, en validación, y diseñado para componer rentabilidad con disciplina.",
+    ], fs=12, ls=1.6, color=SUB)
+    ax.text(0.7, 0.9, "FQ Quantitative Signals Engine · interno — confidencial", fontsize=9.5, color=SUB)
+    pdf.savefig(fig, facecolor=BG); plt.close(fig)
+
+
+def p_vision(pdf):
+    fig, ax = new_page()
+    header(ax, "La tesis de investigación", "El mercado como un campo de estados medible")
+    draw_lines(ax, 0.72, 6.55, [
+        "La mayoría de los sistemas tratan el precio como una serie",
+        "y le ajustan reglas. Nosotros lo tratamos como un CAMPO DE",
+        "ESTADOS: cada vela es una huella —estructura, volumen,",
+        "sincronía entre escalas— que puede cuantificarse y comparar.",
+    ], fs=12.5, ls=1.6, color=TXT)
+    draw_lines(ax, 0.72, 4.05, [
+        "Lo que investigamos: codificar ese estado como vector,",
+        "recuperar a gran escala sus análogos históricos —los",
+        "fractales que riman en el tiempo— y leer su desenlace real",
+        "para decidir con probabilidad y costes explícitos.",
+    ], fs=12.5, ls=1.6, color=SUB)
+    # visual: campo de estados (embedding + recurrencias)
+    a = fig.add_axes([0.63, 0.30, 0.33, 0.44]); a.set_facecolor("none"); a.axis("off")
+    rng = np.random.default_rng(11)
+    P = rng.normal(0, 1, (240, 2))
+    P[:80] += [1.8, 1.4]; P[80:150] += [-1.6, 0.9]; P[150:] += [0.3, -1.7]
+    a.scatter(P[:, 0], P[:, 1], s=16, c=SUB, alpha=0.45, edgecolors="none")
+    # algunas recurrencias (pares similares distantes)
+    for i, j, c in [(5, 200, GOLD), (40, 170, TEAL), (90, 20, VIOLET), (130, 60, BLUE)]:
+        a.plot([P[i, 0], P[j, 0]], [P[i, 1], P[j, 1]], color=c, lw=1.2, alpha=0.7)
+        a.scatter(P[[i, j], 0], P[[i, j], 1], s=34, c=c, edgecolors="white", lw=0.5, zorder=5)
+    a.set_xlim(P[:, 0].min() - .5, P[:, 0].max() + .5)
+    a.set_ylim(P[:, 1].min() - .5, P[:, 1].max() + .5)
+    ax.text(10.4, 6.5, "Estados análogos a través del tiempo", fontsize=9.5, color=SUB)
+
+    panel(ax, 0.7, 1.05, 14.6, 1.35, fc=INK2, ec=GOLD, lw=1.2)
+    ax.text(0.95, 2.0, "La apuesta intelectual", fontsize=11.5, color=GOLD, fontweight="bold")
+    draw_lines(ax, 0.95, 1.55, [
+        "Cuanto mejor cuantificamos el tiempo complejo del mercado, más nítido se vuelve el edge.",
+        "El edge medible, compuesto con disciplina, es la ventaja sostenible.",
+    ], fs=10.3, ls=1.5, color=TXT)
+    footer(ax, 2)
+    pdf.savefig(fig, facecolor=BG); plt.close(fig)
+
+
 def main():
-    out = "FQ_Frontera_TiempoComplejo.pdf"
+    out = "FQ_Sistema_Cuantitativo.pdf"
     with PdfPages(out) as pdf:
-        page_cover(pdf)
-        page_thesis(pdf)
-        page_pipeline(pdf)
-        page_cube(pdf)
-        page_fractals(pdf)
-        page_knn(pdf)
-        page_five(pdf)
-        page_integration(pdf)
-        page_frontier(pdf)
-        page_unusual(pdf)
-        page_roadmap(pdf)
+        for fn in (p_cover, p_vision, p_what, p_position, p_arch, p_time, p_kappa,
+                   p_harness, p_retrieval, p_robust, p_five, p_roadmap, p_close):
+            fn(pdf)
     print("OK ->", out)
 
 

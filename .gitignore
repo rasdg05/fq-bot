@@ -10,3 +10,6 @@ venv/
 # Datasets historicos del harness de research (no versionar; se regeneran)
 data/
 *.parquet
+
+# Decks generados (artefactos; se regeneran con tools/build_deck.py)
+FQ_*.pdf
