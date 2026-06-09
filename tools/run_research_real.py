@@ -47,6 +47,7 @@ import bt_ablation as ab
 import bt_retrieval as rt
 import bt_optimize as opt
 import bt_quality as ql
+import retrieval_gate as rg
 
 
 # Stack de TFs por TF primario: (primario, htf_mid, htf_high, sub). El motor
@@ -321,6 +322,14 @@ def main():
                    help="aisla el decil/percentil superior del score del modelo y de "
                         "la expectancy del vecindario del retrieval (OOS) y reporta "
                         "WR/expectancy/total_r/max_dd del subset VIP vs el total")
+    # --- F2: persiste el gate ORO (indice de retrieval + umbral) en una corrida ---
+    p.add_argument("--build-index", action="store_true",
+                   help="tras el retrieval denso, calibra el umbral oro (top_pct) y "
+                        "persiste el gate (indice+scaler+outcomes+meta) para el live")
+    p.add_argument("--index-out", default=None,
+                   help="dir del artefacto del gate (default: retrieval/<ex>/<sym>)")
+    p.add_argument("--gold-top-pct", type=float, default=0.05,
+                   help="percentil que define ORO (0.05 = top 5%, lo validado en F1)")
     args = p.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -493,7 +502,12 @@ def main():
                       "--retrieval-query-step>1 para 100k+ estados)")
             dfolds, dvalid = wf.folds_from_labeled(
                 states, n_splits=args.n_splits, embargo=args.embargo)
-            _run_retrieval_diagnostic(states, dfolds, dvalid, args)
+            idx_out = None
+            if args.build_index:
+                idx_out = args.index_out or os.path.join(
+                    "retrieval", args.exchange, args.symbol.replace("/", "_"))
+            _run_retrieval_diagnostic(states, dfolds, dvalid, args,
+                                      build_index_dir=idx_out)
 
     # --- ablacion de modulos (OPT-IN, --ablation): 3 replays fires-only extra ---
     # Es un diagnostico periodico de "que modulo paga su sitio", no de cada run;
@@ -624,7 +638,7 @@ def _run_out_of_time(labeled, args, sim_kwargs, bar_minutes):
           "contra el IC del backtest (alarma de drift).")
 
 
-def _run_retrieval_diagnostic(labeled, folds, valid_index, args):
+def _run_retrieval_diagnostic(labeled, folds, valid_index, args, build_index_dir=None):
     """[read-only] Expectancy por analogia (k-NN causal) + ablacion + leakage.
 
     NO altera ninguna decision: solo mide si condicionar por la expectancy del
@@ -685,6 +699,37 @@ def _run_retrieval_diagnostic(labeled, folds, valid_index, args):
             print(f"  [json] resultados -> {args.retrieval_json}")
         except Exception as e:
             print(f"  [json] no se pudo escribir: {e}")
+
+    # [F2] persiste el gate ORO desde ESTE mismo replay (un solo replay):
+    # calibra el umbral con la expectancy del vecindario (confident, causal) e
+    # indexa TODOS los estados resueltos. NO persiste si el leakage no paso.
+    if build_index_dir:
+        if verdict != "OK":
+            print(f"  [index] NO se persiste: leakage={verdict} "
+                  f"(causal={_f(edge)} placebo={_f(edge_pl)}); el edge no es limpio.")
+        else:
+            try:
+                conf = oos[~oos["retr_abstain"].astype(bool)]
+                top_pct = getattr(args, "gold_top_pct", 0.05)
+                thr = rg.calibrate_gold_threshold(
+                    conf["retr_expectancy_r"].to_numpy(), top_pct=top_pct)
+                idx = rg.StateIndex.build(labeled, backend=args.retrieval_backend,
+                                          bit_width=args.retrieval_bit)
+                gate = rg.GoldGate(idx, thr, k=args.retrieval_k,
+                                   sim_floor=args.retrieval_sim_floor,
+                                   n_floor=common["n_floor"],
+                                   decay_bars=args.retrieval_decay_bars)
+                gate.save(build_index_dir, backend=args.retrieval_backend, meta_extra={
+                    "symbol": args.symbol, "exchange": args.exchange,
+                    "tf_id": args.tf_id, "dense_horizon": args.dense_horizon,
+                    "gold_top_pct": top_pct, "bit_width": args.retrieval_bit,
+                    "n_states": int(len(labeled)), "n_confident": int(len(conf)),
+                    "edge_causal_r": edge, "edge_placebo_r": edge_pl,
+                    "leakage_ok": True, "seed": args.seed})
+                print(f"  [index] gate ORO persistido -> {build_index_dir} "
+                      f"(umbral retr_expectancy_r={_f(thr)}, n_confident={len(conf)})")
+            except Exception as e:
+                print(f"  [index] no se pudo construir/persistir: {e}")
 
     # [FASE B] gate VIP por PERCENTIL de la expectancy del vecindario (OOS causal).
     # Aisla el decil superior por retr_expectancy_r y mide su pnl_r realizado.
