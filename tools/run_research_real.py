@@ -282,6 +282,14 @@ def main():
                    help="ruta para volcar resultados de retrieval en JSON (comparacion)")
     p.add_argument("--retrieval-query-step", type=int, default=1,
                    help="subsamplea queries de test del retrieval (denso: usa >1)")
+    # --- Eje A: ablacion del vector (base vs +bloque quantum/tiempo emergente) ---
+    p.add_argument("--vector-ablation", action="store_true",
+                   help="[Eje A] mide el LIFT del bloque quantum (kappa/sigma_tau/sync/"
+                        "campo) en el edge de retrieval, sobre las senales fired (barato)")
+    p.add_argument("--emergent-time", action="store_true",
+                   help="corre el replay con FQ_EMERGENT_TIME_ENABLED=1 (Phase E): "
+                        "sync_score/sigma_tau pasan a estar VIVOS. OJO: cambia el set de "
+                        "senales (el motor veta por sync), asi que es un experimento aparte")
     # --- replay DENSO unificado (default): UN replay alimenta senales + retrieval.
     # --dense se mantiene por compatibilidad con el workflow, pero ya es implicito.
     p.add_argument("--dense", action="store_true",
@@ -314,6 +322,14 @@ def main():
     print("=" * 70)
     print("  HARNESS DE RESEARCH FQ — runner REAL (motor de produccion)")
     print("=" * 70)
+
+    # Eje A: para que sync_score/sigma_tau (tiempo emergente) esten VIVOS en el
+    # vector, el replay debe correr con Phase E ON. Se fija ANTES del replay; el
+    # reload de modulos en _run_replay lo recoge. Cambia el set de senales.
+    if getattr(args, "emergent_time", False):
+        os.environ["FQ_EMERGENT_TIME_ENABLED"] = "1"
+        print("\n[Eje A] FQ_EMERGENT_TIME_ENABLED=1 (Phase E ON; sync/sigma_tau vivos; "
+              "el set de senales cambia)")
 
     # --- datos ---
     prim_tf, mid_tf, high_tf, sub_tf = TF_STACK[args.tf_id]
@@ -451,6 +467,8 @@ def main():
         if args.retrieval:
             print("\n  -- retrieval sobre senales fired (esparso) --")
             _run_retrieval_diagnostic(labeled, folds, valid_index, args)
+            if getattr(args, "vector_ablation", False):
+                _print_vector_ablation(labeled, folds, valid_index, args)
     elif labeled is not None:
         print(f"\n  [guard] {len(events)} senales < {min_for_wf} para walk-forward "
               f"de {args.n_splits} folds: se omiten OOS/modelo de senales (el track "
@@ -518,6 +536,39 @@ def _cost_for_symbol(symbol):
     # SOL y otros alts: slippage por defecto mas amplio.
     return eng.CostModel(taker_fee=0.0005, slippage_bps=1.0,
                          funding_rate_8h=0.0001, apply_funding=True)
+
+
+def _print_vector_ablation(labeled, folds, valid_index, args):
+    """[Eje A] Ablación del vector: base vs base+BLOQUE QUANTUM (tiempo emergente /
+    excitación de campo / convicción adaptativa). Mide si esas coordenadas suben el
+    EDGE de retrieval (gate_pass − base) OOS. Read-only, sobre las señales fired
+    (esparso = barato). Si qt_sync/qt_sigma salen planas, re-corre con
+    --emergent-time (FQ_EMERGENT_TIME_ENABLED=1) para que el tiempo emergente viva.
+    """
+    print("\n  -- [Eje A] ablación de vector: base vs +quantum (tiempo emergente) --")
+    common = dict(backend=args.retrieval_backend, bit_width=args.retrieval_bit,
+                  k=args.retrieval_k, sim_floor=args.retrieval_sim_floor,
+                  n_floor=args.retrieval_nfloor, decay_bars=args.retrieval_decay_bars,
+                  seed=args.seed, query_step=getattr(args, "retrieval_query_step", 1))
+    edges = {}
+    for name, vec in rt.vector_variants().items():
+        try:
+            oos = rt.retrieval_oos(labeled, folds, valid_index, mode="causal",
+                                   vectorizer=vec, **common)
+            e = rt.retrieval_ablation(oos, gate_threshold=0.0).get("edge_vs_base_r")
+        except Exception as ex:
+            print(f"  ({name}: no disponible: {ex})")
+            e = None
+        edges[name] = e
+        print(f"  vector={name:<8} dim={getattr(vec, 'dim', '?')} "
+              f"edge_retrieval={_f(e)} R/trade")
+    b, q = edges.get("base"), edges.get("quantum")
+    if b is not None and q is not None and not (isinstance(b, float) and np.isnan(b)):
+        lift = q - b
+        verdict = "SUMA" if lift > 0 else "NO SUMA"
+        print(f"  >> LIFT del bloque quantum = {_f(lift)} R/trade  [{verdict}]")
+        print("     (positivo y robusto a leakage = el tiempo emergente / "
+              "excitación de campo aporta edge medible)")
 
 
 def _run_retrieval_diagnostic(labeled, folds, valid_index, args):

@@ -233,12 +233,38 @@ DEFAULT_NUMERIC = [
     "regime_score",
     "field_confluence_count", "field_pd_pct", "field_w_effective",
 ]
+# BLOQUE QUANTUM / TIEMPO EMERGENTE (Eje A) — convicción adaptativa, excitación de
+# campo y tiempo complejo. Es el bloque que se ABLACIONA: vector base vs base+qt
+# para medir si los estados cuánticos / fractales de tiempo emergente aportan edge.
+# OJO: qt_sync_score y qt_sigma_tau solo aportan varianza si el replay corrió bajo
+# FQ_EMERGENT_TIME_ENABLED=1 (si no, son constantes y el escalado robusto las anula).
+QUANTUM_BLOCK = [
+    "qt_kappa_evo", "qt_alpha_hybrid", "qt_h_factor",
+    "qt_f_confluence", "qt_f_ict", "qt_n_concepts",
+    "qt_vol_score", "qt_session_bias_mult",
+    "qt_sync_score", "qt_sigma_tau",
+]
+
 # Categoricas: contexto/regimen. One-hot a ESCALA FIJA pequena (no dominan el
 # producto interno frente a las continuas estandarizadas).
 DEFAULT_CATEGORICAL = [
     "direction", "field_killzone", "field_bias_4h", "field_bias_1h",
     "regime_state", "field_node_type",
 ]
+
+
+def vector_variants():
+    """Variantes del vector de estado para la ablación del Eje A.
+
+    base    : el vector validado (convicción + scorer + régimen + estructura).
+    quantum : base + BLOQUE QUANTUM (tiempo emergente / excitación de campo /
+              convicción adaptativa). Compararlos OOS mide si las ideas del
+              Quantum bot, como coordenadas, aportan edge atribuible.
+    """
+    return {
+        "base":    StateVectorizer(numeric=DEFAULT_NUMERIC),
+        "quantum": StateVectorizer(numeric=DEFAULT_NUMERIC + QUANTUM_BLOCK),
+    }
 
 
 class StateVectorizer:

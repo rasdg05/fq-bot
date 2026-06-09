@@ -90,6 +90,25 @@ def extract_features(field, report):
     f["regime_state"] = regime.get("state")
     f["regime_score"] = regime.get("score")
 
+    # BLOQUE QUANTUM / TIEMPO EMERGENTE (Eje A) — magnitudes que el motor YA computa
+    # en p_master_data y que codifican convicción adaptativa, excitación de campo y
+    # tiempo complejo. Prefijo qt_ para agruparlas como bloque ablacionable.
+    #   · convicción/entropía (siempre vivas): kappa_evo, alpha_hybrid, h_factor,
+    #     f_confluence, f_ict, n_concepts
+    #   · excitación de campo: vol_score, session_bias_mult
+    #   · tiempo emergente (vivas SOLO con FQ_EMERGENT_TIME_ENABLED=1; si no, son
+    #     constantes/None): sync_score, sigma_tau
+    f["qt_kappa_evo"]         = pm.get("kappa_evo")
+    f["qt_alpha_hybrid"]      = pm.get("alpha_hybrid")
+    f["qt_h_factor"]          = pm.get("h_factor")
+    f["qt_f_confluence"]      = pm.get("f_confluence")
+    f["qt_f_ict"]             = pm.get("f_ict")
+    f["qt_n_concepts"]        = pm.get("n_concepts")
+    f["qt_vol_score"]         = pm.get("vol_score")
+    f["qt_session_bias_mult"] = pm.get("session_bias_mult")
+    f["qt_sync_score"]        = pm.get("sync_score")
+    f["qt_sigma_tau"]         = pm.get("sigma_tau")
+
     # Atributos del FieldState (lo que ve el motor estructuralmente).
     for attr in ("confluence_count", "pd_pct", "w_effective", "node_type",
                  "killzone", "killzone_priority", "bias_4h", "bias_1h",

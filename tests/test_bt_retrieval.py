@@ -313,3 +313,22 @@ def test_aproximacion_turbovec_vs_exacto():
     e_turbo = R.retrieval_ablation(oos_turbo)["gate_pass"]["expectancy_r"]
     # la aproximacion 4-bit no debe degradar la expectancy estimada fuera del ruido
     assert abs(e_turbo - e_exact) < 0.12
+
+
+# --------------------------------------------------------------------------
+# Eje A — variantes de vector (base vs +bloque quantum)
+# --------------------------------------------------------------------------
+def test_vector_variants_quantum_adds_block_dims():
+    import pandas as pd
+    cols = {c: [0.1, 0.2, 0.3] for c in R.DEFAULT_NUMERIC + R.QUANTUM_BLOCK}
+    df = pd.DataFrame(cols)
+    v = R.vector_variants()
+    v["base"].fit(df)
+    v["quantum"].fit(df)
+    # mismas categóricas (ausentes aquí) -> la diferencia de dim es el bloque quantum
+    assert v["quantum"].dim - v["base"].dim == len(R.QUANTUM_BLOCK)
+    assert v["quantum"].dim > v["base"].dim
+
+
+def test_quantum_block_is_disjoint_from_base():
+    assert not (set(R.QUANTUM_BLOCK) & set(R.DEFAULT_NUMERIC))
