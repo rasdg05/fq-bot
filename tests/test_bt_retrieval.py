@@ -97,6 +97,23 @@ def test_exact_write_load(tmp_path):
     assert int(ids[0, 0]) == 1
 
 
+def test_turbovec_write_load_then_search(tmp_path):
+    """Regresion: load() salta __init__; debe reconstruir _pad/_tdim o search
+    revienta (AttributeError _pad) en el PRIMER classify en vivo. dim=30 (no
+    multiplo de 8) ejercita el padding real del gate de produccion."""
+    pytest.importorskip("turbovec")
+    rng = np.random.default_rng(0)
+    V = rng.standard_normal((20, 30)).astype(np.float32)
+    be = R.TurbovecBackend(30, bit_width=4)
+    be.add_with_ids(V, np.arange(20, dtype=np.uint64))
+    p = tmp_path / "i.turbo"
+    be.write(str(p))
+    be2 = R.TurbovecBackend.load(str(p), dim=30, bit_width=4)
+    assert be2._pad == 2 and be2._tdim == 32        # padding reconstruido
+    s, ids = be2.search(V[3:4], 1)                   # no debe lanzar
+    assert int(ids[0, 0]) == 3
+
+
 # ------------------------------------------------------------
 # Vectorizador causal
 # ------------------------------------------------------------

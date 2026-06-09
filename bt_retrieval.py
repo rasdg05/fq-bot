@@ -207,6 +207,10 @@ class TurbovecBackend:
         obj = cls.__new__(cls)
         obj._tv = turbovec
         obj.dim = int(dim)
+        # mismo padding que __init__: load() salta __init__, hay que reconstruir
+        # _pad/_tdim o _fit_pad (y por tanto search) revienta al consultar.
+        obj._pad = (-obj.dim) % 8
+        obj._tdim = obj.dim + obj._pad
         obj.bit_width = int(bit_width)
         obj._idx = turbovec.IdMapIndex.load(path)
         obj._present = set()
