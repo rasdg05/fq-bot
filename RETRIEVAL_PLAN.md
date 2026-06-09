@@ -409,6 +409,39 @@ python tools/compare_retrieval.py retrieval_SOL.json retrieval_BTC.json
 
 ---
 
+## 9. F2 EN PRODUCCION — gate ORO en vivo (paper primero)
+
+> Estado: piezas puras CONSTRUIDAS y verdes. `retrieval_gate.py` (gate + persist),
+> `tools/build_retrieval_index.py` y `--build-index` en `run_research_real`
+> (un solo replay) construyen el artefacto; `gold_live.py` lo consume en el loop.
+
+### 9.1 El artefacto del gate (por símbolo)
+`retrieval/<exchange>/<symbol>/`: `scaler.pkl` + `index.pkl|index.turbo` +
+`outcomes.parquet` + `meta.json` (umbral oro, k, sim_floor, n_floor, dim, leakage).
+Lo produce la corrida de research (`build_index=true`) **solo si el leakage pasa**.
+`turbovec` ya está en `requirements.txt` (wheel; sin compilar) para cargar el
+índice turbovec en Railway; el backend `exact` (numpy) no necesita nada extra.
+
+### 9.2 Deploy en Railway
+1. Descargar el artefacto `research-report-<sym>` del run, extraer `retrieval/`.
+2. Colocarlo en el **Volume** de Railway (persistente), p.ej. `/data/retrieval/...`,
+   y apuntar `FQ_RETRIEVAL_DIR=/data/retrieval/okx/BTC_USDT`.
+   (El índice está gitignored — es artefacto, no fuente.)
+
+### 9.3 Cableado del loop (paper primero)
+En cada vela, tras `fusion_engine.evaluate_signal` (ya se llama), el monolito:
+```
+eng = gold_live.GoldLiveEngine.from_dir(os.environ["FQ_RETRIEVAL_DIR"], symbol,
+          calculate_levels_fn=calculate_levels)
+sig, verdict = eng.evaluate(field, report, df_15m, price)   # ORO/BASE/ABSTAIN
+if sig:  # solo ORO + direccion de campo
+    # PAPER: governor.decide -> PaperBroker.open (sella en HashLedger) -> Reconciler audita
+```
+Default **OFF** (`FQ_GOLD_LIVE=0`) hasta validar cadencia/calidad en paper. La
+señal sale en el formato del `PaperBroker`/`live_driver` — sin adaptaciones.
+
+---
+
 ## 8. Qué se reutiliza (sin tocar) y qué se añade
 
 **Se reutiliza tal cual**: `fusion_engine.evaluate_signal` (intacto), `bt_data`
