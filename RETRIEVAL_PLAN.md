@@ -428,6 +428,16 @@ Lo produce la corrida de research (`build_index=true`) **solo si el leakage pasa
    y apuntar `FQ_RETRIEVAL_DIR=/data/retrieval/okx/BTC_USDT`.
    (El índice está gitignored — es artefacto, no fuente.)
 
+Envs del runtime paper (todos opcionales salvo `FQ_RETRIEVAL_DIR`):
+- `FQ_GOLD_LIVE=1` enciende el hook (default OFF).
+- `FQ_GOLD_SYMBOL` / `FQ_GOLD_TF` símbolo y TF del gate (default `SOL/USDT` / `5m`).
+- `FQ_GOLD_LEDGER_PATH` ledger durable (default `/data/gold_ledger_<slug>.jsonl`,
+  **en el Volume** para sobrevivir restarts; cuélgalo del backup de `ops/maintenance`).
+- `FQ_GOLD_BASELINE_R` baseline OOS **en unidades de trade** → enciende el
+  Reconciler (kill-switch si la viva diverge). Sin él, el reconcile queda OFF a
+  propósito (el forward-label del research no es la misma unidad que el TP1).
+- `FQ_GOLD_DIGEST_EVERY` velas entre digests ORO/BASE/ABSTAIN al admin (0=off).
+
 ### 9.3 Cableado del loop (paper primero)
 En cada vela, tras `fusion_engine.evaluate_signal` (ya se llama), el monolito:
 ```

@@ -6,12 +6,40 @@ contra la vela, y que el gobernador puede vetar.
 """
 from types import SimpleNamespace
 
+import numpy as np
+import pandas as pd
 import pytest
 
 import execution as ex
 import retrieval_gate as rg
 import gold_live as gl
 import gold_paper as gp
+
+
+class Spy:
+    """notify_fn que registra TODAS las llamadas (incl. alert/digest con sig=None)."""
+    def __init__(self):
+        self.calls = []
+
+    def __call__(self, sig, verdict, pos):
+        self.calls.append((sig, verdict, pos))
+
+
+def _make_gate_dir(tmp_path, *, bad_feature=False):
+    rng = np.random.default_rng(0)
+    n = 120
+    feat = rng.uniform(-1.0, 1.0, n)
+    df = pd.DataFrame({"entry_index": np.arange(n),
+                       "pnl_r": feat * 1.2 + rng.normal(0, 0.1, n),
+                       "p_master": feat + 3.0, "scorer_structure": feat * 0.8,
+                       "direction": ex.LONG})
+    numeric = ["p_master", "scorer_structure"] + (["feature_inexistente"] if bad_feature else [])
+    vec = rg.btr.StateVectorizer(numeric=numeric, categorical=["direction"])
+    idx = rg.StateIndex.build(df, vectorizer=vec)
+    gate = rg.GoldGate(idx, gold_threshold=0.5, k=30, sim_floor=0.0, n_floor=3)
+    d = str(tmp_path / "okx" / "BTC_USDT")
+    gate.save(d, meta_extra={"symbol": "BTC/USDT"})
+    return d
 
 
 class FakeGate:
@@ -87,3 +115,57 @@ def test_reconcile_runs_every_n():
     rt.on_bar(_field(), _report(), None, 100.0)   # tick 1 -> no
     rt.on_bar(_field(), _report(), None, 100.0)   # tick 2 -> si
     assert len(calls) == 1
+
+
+# --------------------------------------------------------------------------
+# from_env: ledger durable + reconciler auto (gated) + telemetria
+# --------------------------------------------------------------------------
+def test_from_env_durable_ledger_and_reconciler_gated(tmp_path, monkeypatch):
+    d = _make_gate_dir(tmp_path)
+    led = str(tmp_path / "gold_led.jsonl")
+    monkeypatch.setenv("FQ_RETRIEVAL_DIR", d)
+    monkeypatch.setenv("FQ_GOLD_LEDGER_PATH", led)
+    monkeypatch.setenv("FQ_GOLD_BASELINE_R", "0.3")     # enciende el reconciler
+    rt = gp.GoldPaperRuntime.from_env("BTC/USDT", calculate_levels_fn=_levels)
+    assert isinstance(rt.broker.ledger, ex.DurableHashLedger)
+    assert rt.reconciler is not None                    # baseline -> reconcile ON
+    rep = rt.on_bar(_field("long"), _report(), None, 100.0)
+    assert rep["tier"] == rg.GOLD and rep["opened"] is not None
+    # el track record sobrevive a un "restart"
+    assert ex.DurableHashLedger.load(led).verify()
+
+
+def test_from_env_no_baseline_disables_reconciler(tmp_path, monkeypatch):
+    d = _make_gate_dir(tmp_path)
+    monkeypatch.setenv("FQ_RETRIEVAL_DIR", d)
+    monkeypatch.setenv("FQ_GOLD_LEDGER_PATH", str(tmp_path / "l.jsonl"))
+    monkeypatch.delenv("FQ_GOLD_BASELINE_R", raising=False)
+    rt = gp.GoldPaperRuntime.from_env("BTC/USDT", calculate_levels_fn=_levels)
+    assert rt.reconciler is None                        # sin baseline -> no kill espurio
+
+
+def test_coverage_alert_when_vector_feature_missing(tmp_path, monkeypatch):
+    d = _make_gate_dir(tmp_path, bad_feature=True)       # el vector espera una feature ausente
+    monkeypatch.setenv("FQ_RETRIEVAL_DIR", d)
+    monkeypatch.setenv("FQ_GOLD_LEDGER_PATH", str(tmp_path / "l.jsonl"))
+    spy = Spy()
+    rt = gp.GoldPaperRuntime.from_env("BTC/USDT", calculate_levels_fn=_levels, notify_fn=spy)
+    rt.on_bar(_field("long"), _report(), None, 100.0)
+    alerts = [v for s, v, p in spy.calls if isinstance(v, dict) and v.get("alert")]
+    assert alerts and "feature_inexistente" in alerts[0]["missing"]
+
+
+def test_digest_emitted_every_n():
+    spy = Spy()
+    rt = _runtime(rg.BASE, notify_fn=spy)
+    rt.digest_every = 2
+    rt.on_bar(_field(), _report(), None, 100.0)          # tick 1
+    rt.on_bar(_field(), _report(), None, 100.0)          # tick 2 -> digest
+    digests = [v for s, v, p in spy.calls if isinstance(v, dict) and "digest" in v]
+    assert digests and digests[0]["digest"]["base"] == 2
+
+
+def test_counts_track_tiers():
+    rt = _runtime(rg.GOLD)
+    rt.on_bar(_field("long"), _report(), None, 100.0)
+    assert rt.counts["gold"] == 1 and rt.counts["base"] == 0

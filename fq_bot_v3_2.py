@@ -2633,8 +2633,25 @@ _GOLD_RUNTIME_TRIED = False
 
 
 def _gold_admin_notify(sig, verdict, pos):
-    """Aviso admin-only de una senal ORO sellada en paper."""
+    """Aviso admin-only del gate ORO en paper. Tres tipos: senal ORO sellada
+    (sig!=None), alerta de cobertura, y digest periodico (sig=None)."""
     try:
+        if sig is None:
+            v = verdict if isinstance(verdict, dict) else {}
+            if v.get("alert"):
+                msg = "⚠️ <b>Gold gate</b>: {} (faltan: {})".format(
+                    v["alert"], ", ".join(v.get("missing", [])))
+            elif "digest" in v:
+                c = v["digest"]
+                msg = ("📊 <b>Gold paper</b> ({tk} velas) — ORO {g} · BASE {b} · "
+                       "ABSTAIN {a} · abiertas {o}").format(
+                           tk=v.get("ticks", "?"), g=c.get("gold", 0),
+                           b=c.get("base", 0), a=c.get("abstain", 0),
+                           o=v.get("open", 0))
+            else:
+                return
+            broadcast_to_subscribers(msg, tiers=["admin"])
+            return
         d = "LONG" if sig["direction"] > 0 else "SHORT"
         exp = verdict.get("expectancy_r")
         msg = ("🥇 <b>ORO (paper)</b> {sym} {d}\n"

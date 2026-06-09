@@ -23,6 +23,7 @@
       pasando por su gobernador (con tope de cuentas correlacionadas).
 ================================================================================
 """
+import os
 import json
 import hashlib
 import logging
@@ -153,6 +154,44 @@ class HashLedger:
                 return False
             prev = rec["hash"]
         return True
+
+
+class DurableHashLedger(HashLedger):
+    """HashLedger con respaldo append-only en disco (JSONL). El track record
+    forward es el PRODUCTO de la fase paper: en RAM se evapora en cada restart
+    del contenedor. Aquí cada append se vuelca como una línea JSON; load() rehidrata
+    y verifica la cadena -> sobrevive a reinicios. Sigue siendo stdlib/testeable.
+    """
+
+    def __init__(self, path):
+        super().__init__()
+        self.path = path
+        d = os.path.dirname(path)
+        if d:
+            os.makedirs(d, exist_ok=True)
+
+    def append(self, payload: dict):
+        rec = super().append(payload)
+        with open(self.path, "a") as fh:
+            fh.write(json.dumps(rec, sort_keys=True, default=str) + "\n")
+        return rec
+
+    @classmethod
+    def load(cls, path):
+        """Rehidrata desde el JSONL (si existe) y verifica la cadena. Lanza si
+        está corrupta (manipulación o escritura parcial)."""
+        obj = cls(path)
+        if os.path.exists(path):
+            recs = []
+            with open(path) as fh:
+                for line in fh:
+                    line = line.strip()
+                    if line:
+                        recs.append(json.loads(line))
+            obj.records = recs
+            if recs and not obj.verify():
+                raise ValueError("cadena del ledger durable corrupta al cargar")
+        return obj
 
 
 # ============================================================
