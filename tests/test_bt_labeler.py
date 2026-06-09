@@ -153,3 +153,71 @@ def test_label_events_no_future_marks_none():
     out = lb.label_events(df, events)
     assert out.iloc[0]["outcome"] is None
     assert lb.label_summary(out) is None
+
+
+# --------------------------------------------------------------------------
+# CUBO (TP x horizonte) - label_event_grid / label_events_grid / grid_summary
+# --------------------------------------------------------------------------
+def test_grid_cell_matches_label_event():
+    """Una celda del cubo (un target, un horizonte) DEBE coincidir exactamente
+    con llamar label_event con ese (target, max_bars): win, loss, timeout y tie
+    pesimista. Es el contrato de coherencia del cubo.
+    """
+    bars = _bars([
+        (102, 99, 101),    # nada
+        (104, 100, 103),   # toca target 104 (no toca stop 96)
+        (105, 96, 97),     # (ya resuelto antes)
+    ])
+    # target cercano 104 (gana en vela 1) y lejano 110 (no llega; el stop 96 se
+    # toca en la vela 2 -> loss). Cada celda del cubo coincide con label_event.
+    for tgt in (104, 110):
+        for H in (1, 2, 3):
+            g = lb.label_event_grid(bars, 100, 96, lb.LONG,
+                                    {"t": tgt}, [H])["cells"][("t", H)]
+            ref = lb.label_event(bars, 100, 96, tgt, lb.LONG, max_bars=H)
+            assert g["outcome"] == ref["outcome"]
+            assert g["pnl_r"] == pytest.approx(ref["pnl_r"])
+            assert g["bars_held"] == ref["bars_held"]
+
+
+def test_grid_pessimistic_tie_is_loss():
+    # target y stop en la MISMA vela -> pesimista: stop primero (loss).
+    bars = _bars([(110, 90, 100)])   # toca target 110 Y stop 90 en la vela 0
+    cell = lb.label_event_grid(bars, 100, 90, lb.LONG, {"t": 110}, [1])
+    c = cell["cells"][("t", 1)]
+    assert c["outcome"] == lb.LOSS
+    assert c["pnl_r"] == pytest.approx(-1.0)
+
+
+def test_grid_horizon_monotonicity_resolves():
+    # Un horizonte mas largo solo puede RESOLVER timeouts (nunca des-resolver).
+    bars = _bars([(101, 99, 100)] * 5 + [(120, 99, 119)])  # target lejano en vela 5
+    g = lb.label_event_grid(bars, 100, 90, lb.LONG, {"far": 118}, [3, 6])
+    assert g["cells"][("far", 3)]["outcome"] == lb.TIMEOUT   # aun no llega
+    assert g["cells"][("far", 6)]["outcome"] == lb.WIN       # ya con mas horizonte
+
+
+def test_label_events_grid_long_format_and_summary():
+    df = _bars([(101, 99, 100)] * 2 + [(106, 99, 105)] + [(108, 99, 107)] * 5)
+    events = [{"entry_index": 0, "entry_price": 100, "stop_price": 95,
+               "direction": lb.LONG, "px_tp1": 104, "px_tp4": 130, "tag": "X"}]
+    long_df = lb.label_events_grid(df, events, ["px_tp1", "px_tp4"], [3, 6])
+    # 2 targets x 2 horizontes = 4 filas; preserva claves del evento
+    assert len(long_df) == 4
+    assert set(long_df["tp"]) == {"tp1", "tp4"}
+    assert set(long_df["horizon"]) == {3, 6}
+    assert list(long_df["tag"].unique()) == ["X"]
+    # tp1 cercano gana; tp4 lejano no se alcanza -> timeout (mark-to-market)
+    tp1_h6 = long_df[(long_df["tp"] == "tp1") & (long_df["horizon"] == 6)].iloc[0]
+    tp4_h6 = long_df[(long_df["tp"] == "tp4") & (long_df["horizon"] == 6)].iloc[0]
+    assert tp1_h6["outcome"] == lb.WIN
+    assert tp4_h6["outcome"] == lb.TIMEOUT
+
+    summ = lb.grid_summary(long_df)
+    assert {"tp", "horizon", "n", "win_rate", "expectancy_r", "total_r"}.issubset(
+        summ.columns)
+    # tp1 cercano se alcanza siempre (WR=1); tp4 lejano nunca (WR=0, timeout).
+    wr_tp1 = summ[summ["tp"] == "tp1"]["win_rate"].astype(float).mean()
+    wr_tp4 = summ[summ["tp"] == "tp4"]["win_rate"].astype(float).mean()
+    assert wr_tp1 > wr_tp4
+    assert lb.best_cell(long_df, by="expectancy_r") is not None

@@ -183,3 +183,37 @@ def test_replay_step_subsamples():
     )
     # de 200..259 en pasos de 10 -> 200,210,...,250 = 6 evaluaciones
     assert list(ev["entry_index"]) == [200, 210, 220, 230, 240, 250]
+
+
+# --------------------------------------------------------------------------
+# Eje A — bloque quantum / tiempo emergente en extract_features
+# --------------------------------------------------------------------------
+def _qt_report():
+    r = _fire_report()
+    r["p_master_data"].update({
+        "kappa_evo": 1.08, "alpha_hybrid": 0.6, "h_factor": 1.0,
+        "f_confluence": 0.7, "f_ict": 0.5, "n_concepts": 3,
+        "vol_score": 1.25, "session_bias_mult": 1.1,
+        "sync_score": 0.82, "sigma_tau": 1.05,
+    })
+    return r
+
+
+def test_extract_features_emits_quantum_block():
+    f = bf.extract_features(_FakeField(), _qt_report())
+    # las 10 coordenadas del bloque quantum quedan aplanadas con prefijo qt_
+    assert f["qt_kappa_evo"] == 1.08
+    assert f["qt_sigma_tau"] == 1.05
+    assert f["qt_sync_score"] == 0.82
+    assert f["qt_vol_score"] == 1.25
+    assert f["qt_n_concepts"] == 3
+    for k in ("qt_alpha_hybrid", "qt_h_factor", "qt_f_confluence", "qt_f_ict",
+              "qt_session_bias_mult"):
+        assert k in f
+
+
+def test_extract_features_quantum_block_defensive_none():
+    # si el motor no pobló esas claves (p.ej. Phase E OFF), no rompe: van None.
+    f = bf.extract_features(_FakeField(), _fire_report())
+    assert f["qt_sync_score"] is None and f["qt_sigma_tau"] is None
+    assert f["qt_kappa_evo"] is None

@@ -108,7 +108,12 @@ def cagr(equity, periods_per_year):
     total_growth = eq[-1] / eq[0]
     if total_growth <= 0:
         return -1.0
-    return float(total_growth ** (periods_per_year / n_periods) - 1.0)
+    # Muestras chicas con crecimiento grande pueden desbordar la potencia
+    # (annualizar pocos periodos): silencia el overflow y reporta None si no es
+    # finito en vez de propagar inf al Calmar.
+    with np.errstate(over="ignore", invalid="ignore"):
+        c = total_growth ** (periods_per_year / n_periods) - 1.0
+    return float(c) if np.isfinite(c) else None
 
 
 def calmar(equity, periods_per_year):
@@ -145,8 +150,35 @@ def win_rate(pnls):
 # ============================================================
 # REPORTE COMPLETO
 # ============================================================
+def excursion_stats(mfe_r=None, mae_r=None):
+    """Agregados de la distribucion de excursiones (en R) que ya trae el labeler.
+
+    mfe_r (favorable, >=0) y mae_r (adversa, <=0) por trade. Dicen cuanto se
+    movio el precio a favor/en contra ANTES del desenlace -> insumo para decidir
+    si un TP esta bien puesto (avg_mfe_r << rr_TP => el TP rara vez se alcanza) y
+    cuanto 'aprieta' el stop tipico (mae). None se omite.
+    """
+    out = {}
+    if mfe_r is not None:
+        f = _as_array(mfe_r)
+        f = f[np.isfinite(f)]
+        if len(f):
+            out["avg_mfe_r"] = float(f.mean())
+            out["median_mfe_r"] = float(np.median(f))
+            out["mfe_p90_r"] = float(np.percentile(f, 90))
+    if mae_r is not None:
+        a = _as_array(mae_r)
+        a = a[np.isfinite(a)]
+        if len(a):
+            out["avg_mae_r"] = float(a.mean())
+            out["median_mae_r"] = float(np.median(a))
+            out["mae_p10_r"] = float(np.percentile(a, 10))
+    return out
+
+
 def compute_metrics(returns=None, equity_curve=None, pnl=None, pnl_r=None,
-                    periods_per_year=None, risk_free=0.0):
+                    periods_per_year=None, risk_free=0.0,
+                    mfe_r=None, mae_r=None, exposure=None):
     """Reune todas las metricas en un dict. Cualquier insumo ausente se omite.
 
     returns      : retornos por trade (para Sharpe/Sortino).
@@ -154,6 +186,8 @@ def compute_metrics(returns=None, equity_curve=None, pnl=None, pnl_r=None,
     pnl          : pnl por trade en quote (para profit factor / win rate).
     pnl_r        : pnl por trade en R (para expectancy_r).
     periods_per_year: para anualizar Sharpe/Sortino y CAGR/Calmar.
+    mfe_r/mae_r  : excursiones por trade (en R) -> agregados de distribucion.
+    exposure     : fraccion de tiempo en mercado [0,1] (velas en posicion / span).
     """
     out = {}
 
@@ -196,14 +230,25 @@ def compute_metrics(returns=None, equity_curve=None, pnl=None, pnl_r=None,
             out["cagr"] = cagr(eq, periods_per_year)
             out["calmar"] = calmar(eq, periods_per_year)
 
+    out.update(excursion_stats(mfe_r=mfe_r, mae_r=mae_r))
+    if exposure is not None:
+        out["exposure"] = float(exposure)
+
     return out
 
 
-def metrics_from_result(result, periods_per_year=None, risk_free=0.0):
-    """Conveniencia: toma el dict de bt_engine.simulate() y saca el reporte."""
+def metrics_from_result(result, periods_per_year=None, risk_free=0.0,
+                        exposure=None):
+    """Conveniencia: toma el dict de bt_engine.simulate() y saca el reporte.
+
+    Si los trades preservan mfe_r/mae_r (vienen del labeler), agrega su
+    distribucion. `exposure` (fraccion de tiempo en mercado) se pasa tal cual.
+    """
     trades = result.get("trades")
     pnl = trades["net_pnl"] if trades is not None and "net_pnl" in trades else None
     pnl_r = trades["net_pnl_r"] if trades is not None and "net_pnl_r" in trades else None
+    mfe_r = trades["mfe_r"] if trades is not None and "mfe_r" in trades else None
+    mae_r = trades["mae_r"] if trades is not None and "mae_r" in trades else None
     return compute_metrics(
         returns=result.get("returns"),
         equity_curve=result.get("equity_curve"),
@@ -211,6 +256,9 @@ def metrics_from_result(result, periods_per_year=None, risk_free=0.0):
         pnl_r=pnl_r,
         periods_per_year=periods_per_year,
         risk_free=risk_free,
+        mfe_r=mfe_r,
+        mae_r=mae_r,
+        exposure=exposure,
     )
 
 
@@ -227,6 +275,9 @@ def format_report(metrics):
         "profit_factor", "avg_win", "avg_loss",
         "mean_return", "std_return", "sharpe", "sortino",
         "total_return", "cagr", "calmar", "max_drawdown", "final_equity",
+        "exposure",
+        "avg_mfe_r", "median_mfe_r", "mfe_p90_r",
+        "avg_mae_r", "median_mae_r", "mae_p10_r",
     ]
     lines = []
     for k in order:

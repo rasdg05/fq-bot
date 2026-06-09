@@ -33,6 +33,23 @@ class _FeatureThreshold:
 
 
 # --------------------------------------------------------------------------
+# make_lgbm_classifier — contrato de construccion
+# --------------------------------------------------------------------------
+def test_make_lgbm_classifier_builds_when_available():
+    """Con lightgbm + scikit-learn instalados (entorno de research), el
+    classifier DEBE construirse. Atrapa el "install verde pero modelo degradado
+    en silencio": `import lightgbm` pasa pero LGBMClassifier (en lightgbm.sklearn)
+    truena por falta de scikit-learn. En CI normal (sin deps) se omite; en el CI
+    de research, que instala ambas, se ejecuta de verdad.
+    """
+    pytest.importorskip("lightgbm")
+    pytest.importorskip("sklearn")
+    clf = tr.make_lgbm_classifier()
+    assert type(clf).__name__ == "LGBMClassifier"
+    assert clf.get_params()["n_estimators"] == 300
+
+
+# --------------------------------------------------------------------------
 # roc_auc
 # --------------------------------------------------------------------------
 def test_auc_perfect_separation():

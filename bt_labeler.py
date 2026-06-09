@@ -195,6 +195,197 @@ def label_events(df, events, max_bars=None, pessimistic=True):
     return pd.DataFrame(out)
 
 
+# ============================================================
+# CUBO (TP x HORIZONTE) - una sola pasada, post-replay
+# ============================================================
+#
+# El replay del motor es el ~99% del coste; re-etiquetar al variar el TARGET o el
+# HORIZONTE es barato (solo cambia la barrera, no las velas). Este cubo resuelve,
+# en UNA pasada por las velas de cada senal, TODAS las combinaciones (target x
+# horizonte) con un STOP comun. Es la pieza que el plan de retrieval (F3,
+# "selector de TP/horizonte") y el grid de bt_optimize consumen: la 'frontera'
+# de desenlaces por estado. Coherente con label_event (misma R, mismo pesimismo,
+# mismo pnl_r), de modo que una celda del cubo == llamar label_event con ese
+# (target, max_bars).
+
+
+def label_event_grid(bars, entry_price, stop_price, direction, targets,
+                     horizons, pessimistic=True):
+    """Etiqueta UNA senal contra una rejilla (target x horizonte) en una pasada.
+
+    bars      : DataFrame OHLCV cronologico DESPUES del entry (igual que
+                label_event), columnas high/low/close.
+    targets   : dict {nombre: target_price}. (Una lista tambien vale; se nombran
+                't0','t1',... por posicion.) El STOP es comun a todos.
+    horizons  : iterable de barreras verticales (en numero de velas).
+    pessimistic: si target y stop caen en la misma vela, asume stop primero.
+
+    Devuelve dict:
+      cells : {(target_name, horizon): {outcome, bars_held, exit_price, pnl_r}}
+      mfe_r : {horizon: mfe_r}   # excursion favorable hasta ese horizonte (>=0)
+      mae_r : {horizon: mae_r}   # excursion adversa hasta ese horizonte (<=0)
+    """
+    if direction not in (LONG, SHORT):
+        raise ValueError("direction debe ser LONG(+1) o SHORT(-1)")
+    risk = abs(entry_price - stop_price)
+    if risk <= 0:
+        raise ValueError("riesgo no positivo (entry == stop)")
+    if not isinstance(targets, dict):
+        targets = {f"t{i}": float(p) for i, p in enumerate(targets)}
+
+    d = direction
+    n = len(bars)
+    horizons = [int(h) for h in horizons]
+    # Solo necesitamos recorrer hasta el horizonte mayor (acotado por las velas).
+    max_h = min(max(horizons), n) if (n > 0 and horizons) else 0
+
+    highs = bars["high"].to_numpy()[:max_h]
+    lows = bars["low"].to_numpy()[:max_h]
+    closes = bars["close"].to_numpy()[:max_h]
+
+    # Excursiones acumuladas en R: mfe_cum[k]/mae_cum[k] = mejor/peor sobre las
+    # primeras k velas (k=0 => 0.0, como inicializa label_event).
+    fav_price = highs if d == LONG else lows
+    adv_price = lows if d == LONG else highs
+    fav_r = d * (fav_price - entry_price) / risk
+    adv_r = d * (adv_price - entry_price) / risk
+    mfe_cum = np.concatenate([[0.0], np.maximum.accumulate(fav_r)]) if max_h \
+        else np.array([0.0])
+    mae_cum = np.concatenate([[0.0], np.minimum.accumulate(adv_r)]) if max_h \
+        else np.array([0.0])
+    mfe_cum = np.maximum(mfe_cum, 0.0)
+    mae_cum = np.minimum(mae_cum, 0.0)
+
+    # Primer toque del stop (comun) y de cada target, en [0, max_h).
+    def _first(mask):
+        idx = np.flatnonzero(mask)
+        return int(idx[0]) if idx.size else None
+
+    if max_h:
+        stop_first = _first(lows <= stop_price) if d == LONG \
+            else _first(highs >= stop_price)
+        target_first = {
+            name: (_first(highs >= px) if d == LONG else _first(lows <= px))
+            for name, px in targets.items()
+        }
+    else:
+        stop_first = None
+        target_first = {name: None for name in targets}
+
+    cells = {}
+    mfe_by_h = {}
+    mae_by_h = {}
+    for h in horizons:
+        hc = min(h, n)                       # horizonte efectivo (acotado)
+        mfe_by_h[h] = float(mfe_cum[min(hc, max_h)])
+        mae_by_h[h] = float(mae_cum[min(hc, max_h)])
+        s = stop_first if (stop_first is not None and stop_first < hc) else None
+        for name, px in targets.items():
+            tf = target_first.get(name)
+            t = tf if (tf is not None and tf < hc) else None
+            if s is None and t is None:
+                # barrera vertical: mark-to-market al cierre del horizonte.
+                if hc <= 0:
+                    outcome, bars_held, exit_price = TIMEOUT, 0, entry_price
+                else:
+                    exit_price = float(closes[hc - 1])
+                    outcome, bars_held = TIMEOUT, hc
+                pnl_r = d * (exit_price - entry_price) / risk
+            elif t is not None and (s is None or t < s):
+                # target primero (estrictamente): WIN. Empate (t == s) -> stop.
+                outcome, bars_held, exit_price = WIN, t + 1, float(px)
+                pnl_r = d * (px - entry_price) / risk
+            else:
+                # stop primero o empate pesimista: LOSS.
+                outcome, bars_held, exit_price = LOSS, s + 1, float(stop_price)
+                pnl_r = d * (stop_price - entry_price) / risk
+            cells[(name, h)] = {
+                "outcome": outcome,
+                "bars_held": bars_held,
+                "exit_price": exit_price,
+                "pnl_r": float(pnl_r),
+            }
+    return {"cells": cells, "mfe_r": mfe_by_h, "mae_r": mae_by_h}
+
+
+def label_events_grid(df, events, target_keys, horizons, pessimistic=True):
+    """Cubo (TP x horizonte) por lote, formato LARGO (una fila por celda).
+
+    df          : OHLCV continuo (indice 0..n-1), como label_events.
+    events      : iterable de dicts con entry_index, entry_price, stop_price,
+                  direction y los precios de target en `target_keys`.
+    target_keys : claves de cada evento con el precio del target, p.ej.
+                  ['px_tp1','px_tp2','px_tp4']. El nombre de TP en la salida es la
+                  clave sin el prefijo 'px_'.
+    horizons    : lista de barreras verticales (velas).
+
+    Devuelve un DataFrame LARGO: una fila por (evento, tp, horizonte) con todas
+    las claves del evento preservadas + tp, horizon, outcome, bars_held,
+    exit_price, pnl_r, mfe_r, mae_r. El subconjunto de una celda (tp, horizon)
+    tiene el MISMO esquema que label_events -> alimenta bt_engine/bt_metrics tal
+    cual.
+    """
+    out = []
+    n = len(df)
+    for ev in events:
+        ei = int(ev["entry_index"])
+        future = df.iloc[ei + 1:]
+        targets = {}
+        for key in target_keys:
+            px = ev.get(key)
+            if px is None or (isinstance(px, float) and np.isnan(px)):
+                continue
+            name = key[3:] if key.startswith("px_") else key
+            targets[name] = float(px)
+        if len(future) == 0 or not targets:
+            continue
+        grid = label_event_grid(
+            future, ev["entry_price"], ev["stop_price"], int(ev["direction"]),
+            targets, horizons, pessimistic=pessimistic)
+        for (name, h), cell in grid["cells"].items():
+            row = dict(ev)
+            row.update(cell)
+            row["tp"] = name
+            row["horizon"] = h
+            row["mfe_r"] = grid["mfe_r"][h]
+            row["mae_r"] = grid["mae_r"][h]
+            out.append(row)
+    return pd.DataFrame(out)
+
+
+def grid_summary(long_df):
+    """Tabla (TP x horizonte): expectancy_r / win_rate / total_r / n por celda,
+    desde el DataFrame largo de label_events_grid. La 'frontera' que el selector
+    F3 consume. Ordenada por expectancy_r descendente.
+    """
+    if long_df is None or len(long_df) == 0:
+        return pd.DataFrame(
+            columns=["tp", "horizon", "n", "win_rate", "expectancy_r", "total_r"])
+    resolved = long_df[long_df["outcome"].notna()]
+    rows = []
+    for (tp, h), g in resolved.groupby(["tp", "horizon"], sort=False):
+        pnls = g["pnl_r"].astype(float)
+        n = len(g)
+        wins = int((g["outcome"] == WIN).sum())
+        rows.append({
+            "tp": tp, "horizon": int(h), "n": n,
+            "win_rate": wins / n if n else None,
+            "expectancy_r": float(pnls.mean()) if n else None,
+            "total_r": float(pnls.sum()),
+        })
+    res = pd.DataFrame(rows)
+    return res.sort_values("expectancy_r", ascending=False).reset_index(drop=True)
+
+
+def best_cell(long_df, by="expectancy_r"):
+    """La mejor celda (tp, horizonte) del cubo segun `by`. None si vacio."""
+    summ = grid_summary(long_df)
+    summ = summ[summ[by].notna()]
+    if len(summ) == 0:
+        return None
+    return summ.loc[summ[by].astype(float).idxmax()].to_dict()
+
+
 def label_summary(labeled):
     """Resumen rapido de un DataFrame etiquetado: conteos y expectancy en R.
 
