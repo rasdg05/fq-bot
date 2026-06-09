@@ -438,6 +438,39 @@ Envs del runtime paper (todos opcionales salvo `FQ_RETRIEVAL_DIR`):
   propósito (el forward-label del research no es la misma unidad que el TP1).
 - `FQ_GOLD_DIGEST_EVERY` velas entre digests ORO/BASE/ABSTAIN al admin (0=off).
 
+#### 9.2.1 Runbook SOL — run #26 (VERIFICADO, jun-2026)
+
+Gate ORO de SOL construido y validado (artefacto `research-report-SOL_USDT`):
+`gold_threshold=4.1226` · `n_states=104826` · `n_confident=8984` · backend
+`turbovec` (dim 30, bit_width 4). Edge **causal +0.353R / placebo −0.022R /
+leakage_ok** (denso); sobre señales fired `gate_pass` da **+0.41R, WR 55%, PF
+1.91** (n=20). La carga del artefacto con el código de producción está
+**verificada end-to-end** (turbovec load → query densa → tier).
+
+Pasos (una vez):
+1. Actions → run #26 → artefacto `research-report-SOL_USDT` → descargar y
+   descomprimir. Tomar la carpeta `retrieval/SOL_USDT/` (trae `index.turbo`,
+   `scaler.pkl`, `meta.json`, `outcomes.parquet`).
+2. Subirla al **Volume** de Railway en `/data/retrieval/SOL_USDT/`.
+3. Envs (símbolo y TF ya son default `SOL/USDT` / `5m`; el bot primario es
+   `SOL-USDT-SWAP` → el gate clasifica estados de SOL, que es justo su dominio):
+   ```
+   FQ_GOLD_LIVE=1
+   FQ_RETRIEVAL_DIR=/data/retrieval/SOL_USDT
+   ```
+   (El ledger durable cae por default en `/data/gold_ledger_SOL_USDT.jsonl`, ya
+   en el Volume.) **No** setear `FQ_GOLD_BASELINE_R` aún: el reconcile arranca OFF
+   a propósito hasta tener expectancy en unidades de trade del propio paper.
+4. Confirmar en logs al primer 5m: `[gold] runtime paper ORO activo (SOL/USDT,
+   dir=/data/retrieval/SOL_USDT)` y `[gold] reconciler OFF: sin baseline`.
+5. Tras ~2-4 semanas de paper: leer la expectancy media de los CLOSE del ledger
+   (`reconciler.extract_closed_r`), fijarla en `FQ_GOLD_BASELINE_R` → el
+   kill-switch del Reconciler queda armado en la unidad correcta.
+
+> `turbovec>=0.7.0` debe estar en la imagen de prod (ya está en
+> `requirements.txt`). `TurbovecBackend.load` reconstruye el padding del vector
+> (fix jun-2026); sin él el primer `classify` en vivo caía.
+
 ### 9.3 Cableado del loop (paper primero)
 En cada vela, tras `fusion_engine.evaluate_signal` (ya se llama), el monolito:
 ```
