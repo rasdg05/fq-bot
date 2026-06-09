@@ -109,6 +109,19 @@ def test_build_gold_signal_short_and_zero_risk():
 # --------------------------------------------------------------------------
 # gold_signal_source: solo emite en ORO, y la señal es consumible por el broker
 # --------------------------------------------------------------------------
+def test_gate_save_load_roundtrip(tmp_path):
+    idx = rg.StateIndex.build(_past())
+    gate = rg.GoldGate(idx, gold_threshold=0.5, k=30, sim_floor=0.0, n_floor=3)
+    out = str(tmp_path / "BTC")
+    gate.save(out, meta_extra={"symbol": "BTC/USDT", "gold_top_pct": 0.05})
+    g2 = rg.GoldGate.from_dir(out)
+    # mismo umbral/params y misma decision tras el roundtrip
+    assert g2.gold_threshold == pytest.approx(0.5)
+    assert g2.k == 30 and g2.n_floor == 3
+    assert g2.classify(_HIGH)["tier"] == rg.GOLD
+    assert g2.classify(_LOW)["tier"] == rg.BASE
+
+
 def test_gold_signal_source_emits_only_on_gold_and_is_broker_ready():
     idx = rg.StateIndex.build(_past())
     gate = rg.GoldGate(idx, gold_threshold=0.5, k=30, sim_floor=0.0, n_floor=3)

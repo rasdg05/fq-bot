@@ -24,6 +24,7 @@
 ================================================================================
 """
 import os
+import json
 import logging
 
 import numpy as np
@@ -94,6 +95,33 @@ class StateIndex:
         id2entry = dict(zip(ent, df["entry_index"].astype(float)))
         return cls(vec, be, id2pnl, id2entry)
 
+    # ---- persistencia (artefacto de produccion por simbolo) ----
+    INDEX_EXACT, INDEX_TURBO = "index.pkl", "index.turbo"
+
+    def save(self, out_dir, *, backend="exact"):
+        """Persiste scaler + indice + side-table en out_dir (retrieval/<ex>/<sym>/)."""
+        os.makedirs(out_dir, exist_ok=True)
+        self.vec.save(os.path.join(out_dir, "scaler.pkl"))
+        fname = self.INDEX_EXACT if backend == "exact" else self.INDEX_TURBO
+        self.be.write(os.path.join(out_dir, fname))
+        ids = list(self.id2pnl.keys())
+        pd.DataFrame({"id": ids, "pnl_r": [self.id2pnl[i] for i in ids],
+                      "entry_index": [self.id2entry.get(i) for i in ids]}
+                     ).to_parquet(os.path.join(out_dir, "outcomes.parquet"))
+
+    @classmethod
+    def load(cls, out_dir, *, backend="exact", bit_width=4):
+        vec = btr.StateVectorizer.load(os.path.join(out_dir, "scaler.pkl"))
+        if backend == "exact":
+            be = btr.ExactBackend.load(os.path.join(out_dir, cls.INDEX_EXACT))
+        else:
+            be = btr.TurbovecBackend.load(os.path.join(out_dir, cls.INDEX_TURBO),
+                                          dim=vec.dim, bit_width=bit_width)
+        out = pd.read_parquet(os.path.join(out_dir, "outcomes.parquet"))
+        id2pnl = dict(zip(out["id"].astype("int64"), out["pnl_r"].astype(float)))
+        id2entry = dict(zip(out["id"].astype("int64"), out["entry_index"].astype(float)))
+        return cls(vec, be, id2pnl, id2entry)
+
     def query(self, state, *, k=50, sim_floor=0.5, n_floor=None,
               decay_bars=None, max_age_bars=None):
         """Recupera el vecindario del estado y devuelve neighborhood_stats."""
@@ -140,6 +168,34 @@ class GoldGate:
         else:
             tier = BASE
         return {"tier": tier, **st}
+
+    # ---- persistencia del gate completo (indice + umbral + params) ----
+    def save(self, out_dir, *, backend="exact", meta_extra=None):
+        """Persiste el indice y un meta.json con umbral oro + params del gate.
+        El artefacto resultante lo reconstruye GoldGate.from_dir en el live."""
+        self.index.save(out_dir, backend=backend)
+        meta = {"backend": backend, "gold_threshold": self.gold_threshold,
+                "k": self.k, "sim_floor": self.sim_floor, "n_floor": self.n_floor,
+                "decay_bars": self.decay_bars, "max_age_bars": self.max_age_bars,
+                "dim": self.index.vec.dim, "n_states": len(self.index.id2pnl)}
+        if meta_extra:
+            meta.update(meta_extra)
+        with open(os.path.join(out_dir, "meta.json"), "w") as fh:
+            json.dump(meta, fh, indent=2, default=float)
+
+    @classmethod
+    def from_dir(cls, out_dir, **overrides):
+        """Reconstruye el gate desde el artefacto persistido (para el live)."""
+        with open(os.path.join(out_dir, "meta.json")) as fh:
+            meta = json.load(fh)
+        backend = overrides.pop("backend", meta.get("backend", "exact"))
+        idx = StateIndex.load(out_dir, backend=backend,
+                              bit_width=int(meta.get("bit_width", 4)))
+        params = {"k": int(meta.get("k", 50)), "sim_floor": meta.get("sim_floor", 0.5),
+                  "n_floor": meta.get("n_floor"), "decay_bars": meta.get("decay_bars"),
+                  "max_age_bars": meta.get("max_age_bars")}
+        params.update(overrides)
+        return cls(idx, meta.get("gold_threshold"), **params)
 
 
 def build_gold_signal(symbol, direction, entry, stop, *, tp_r=1.0):
