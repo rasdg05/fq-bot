@@ -378,8 +378,15 @@ def check_outcome_against_candles(signal_row, df):
     now = datetime.now(timezone.utc)
     elapsed_min = (now - ts_emitted).total_seconds() / 60.0
 
-    # Filtra velas post-emision
-    df_post = df[df["timestamp"] > pd.Timestamp(ts_emitted)]
+    # Filtra velas post-emision. Las velas OHLCV vienen en UTC pero tz-naive
+    # (datetime64[ms]); ts_emitted es tz-aware. Pandas NO compara naive vs aware
+    # ("Invalid comparison between dtype=datetime64[ms] and Timestamp"), asi que
+    # normalizamos AMBOS lados a UTC tz-naive antes de comparar.
+    cutoff = pd.Timestamp(ts_emitted).tz_localize(None)
+    ts_col = df["timestamp"]
+    if getattr(ts_col.dtype, "tz", None) is not None:
+        ts_col = ts_col.dt.tz_convert("UTC").dt.tz_localize(None)
+    df_post = df[ts_col > cutoff]
     if len(df_post) == 0:
         return None  # aun no hay velas posteriores
 
