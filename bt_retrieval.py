@@ -29,6 +29,7 @@
 """
 import logging
 import pickle
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -302,8 +303,25 @@ class StateVectorizer:
 
     def fit(self, df):
         X = self._num_matrix(df)
-        self.center_ = np.nanmedian(X, axis=0)
-        q75, q25 = np.nanpercentile(X, [75, 25], axis=0)
+        # Telemetria de cobertura: avisa que features llegan con muchos/todos NaN.
+        # Una columna all-NaN colapsa esa dimension a 0 (se imputa) -> senal perdida
+        # y 'All-NaN slice' en nanmedian/nanpercentile. Lo logueamos por nombre para
+        # diagnosticar diferencias entre simbolos (p.ej. BTC vs SOL) sin adivinar.
+        if X.size:
+            nan_frac = np.isnan(X).mean(axis=0)
+            bad = [(self.numeric[i], float(nan_frac[i]))
+                   for i in range(len(self.numeric)) if nan_frac[i] >= 0.5]
+            if bad:
+                log.warning("[vectorizer] features con NaN>=50%% (dim se degrada): %s",
+                            ", ".join("%s=%.0f%%" % (n, f * 100) for n, f in bad))
+        # Silencia el 'All-NaN slice' (lo manejamos abajo); ya avisamos por nombre.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            self.center_ = np.nanmedian(X, axis=0)
+            q75, q25 = np.nanpercentile(X, [75, 25], axis=0)
+        # Columnas all-NaN -> center/scale NaN: neutralizalas (centro 0, escala 1)
+        # para que la dimension quede en 0 limpio en vez de propagar NaN.
+        self.center_ = np.where(np.isfinite(self.center_), self.center_, 0.0)
         iqr = q75 - q25
         iqr[~np.isfinite(iqr) | (iqr <= 0)] = 1.0  # evita /0; columnas constantes
         self.scale_ = iqr
