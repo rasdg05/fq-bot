@@ -463,9 +463,11 @@ Pasos (una vez):
    a propósito hasta tener expectancy en unidades de trade del propio paper.
 4. Confirmar en logs al primer 5m: `[gold] runtime paper ORO activo (SOL/USDT,
    dir=/data/retrieval/SOL_USDT)` y `[gold] reconciler OFF: sin baseline`.
-5. Tras ~2-4 semanas de paper: leer la expectancy media de los CLOSE del ledger
-   (`reconciler.extract_closed_r`), fijarla en `FQ_GOLD_BASELINE_R` → el
-   kill-switch del Reconciler queda armado en la unidad correcta.
+5. Tras ~2-4 semanas de paper: correr `python tools/gold_baseline.py` (lee el
+   ledger del Volume, verifica la cadena y reporta expectancy/WR/PF + la línea
+   `FQ_GOLD_BASELINE_R=…` lista para copiar). Fijar ese env → el kill-switch del
+   Reconciler queda armado en la unidad correcta. Por debajo de 20 cierres no
+   sugiere baseline (es el mismo umbral que `Reconciler.min_trades`).
 
 > `turbovec>=0.7.0` debe estar en la imagen de prod (ya está en
 > `requirements.txt`). `TurbovecBackend.load` reconstruye el padding del vector
