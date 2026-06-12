@@ -88,7 +88,13 @@ def extract_features(field, report):
 
     regime = report.get("regime") or {}
     f["regime_state"] = regime.get("state")
-    f["regime_score"] = regime.get("score")
+    # regime_detector.detect_regime NO emite 'score': su magnitud numerica es
+    # n_flags (0..3 votos de deriva, lo que define el state). Sin este fallback
+    # la columna regime_score llegaba 100% NaN en TODOS los simbolos (dimension
+    # muerta del vector de retrieval + warnings 'All-NaN slice' en el fit).
+    # 'score' se respeta por si un detector futuro lo emite.
+    rs = regime.get("score")
+    f["regime_score"] = rs if rs is not None else regime.get("n_flags")
 
     # BLOQUE QUANTUM / TIEMPO EMERGENTE (Eje A) — magnitudes que el motor YA computa
     # en p_master_data y que codifican convicción adaptativa, excitación de campo y

@@ -142,6 +142,28 @@ def test_vectorizer_categoricas_no_dominan():
     assert cont_energy > 0.1
 
 
+def test_vectorizer_telemetria_separa_muerta_de_esparsa(caplog):
+    """La telemetria distingue dimension MUERTA (100% NaN exacto: extractor
+    roto, como regime_score hasta jun-2026) del esparso POR DISENO (~99% NaN:
+    el motor solo computa la capa ML cerca del fire). El %.0f de antes
+    redondeaba 99.98%% a '100%%' y los hacia indistinguibles en el log."""
+    import logging
+
+    df = _make_events(200)
+    df["regime_score"] = np.nan                     # 100% exacto -> MUERTA
+    df["scorer_history"] = np.nan
+    df.loc[df.index[:2], "scorer_history"] = 0.5    # 99% -> esparsa, no muerta
+    with caplog.at_level(logging.WARNING, logger="bt_retrieval"):
+        R.StateVectorizer().fit(df)
+    dead_lines = [r.message for r in caplog.records if "MUERTA" in r.message]
+    assert len(dead_lines) == 1
+    assert "regime_score" in dead_lines[0]
+    assert "scorer_history" not in dead_lines[0]
+    # ambas aparecen en la linea de cobertura NaN>=50%
+    cov = [r.message for r in caplog.records if "NaN>=50%" in r.message]
+    assert cov and "regime_score" in cov[0] and "scorer_history" in cov[0]
+
+
 # ------------------------------------------------------------
 # Estimador de vecindario
 # ------------------------------------------------------------

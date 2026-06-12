@@ -97,8 +97,40 @@ def test_extract_features_defensive_on_empty_report():
     assert f["p_master"] is None
     assert f["scorer_total"] is None
     assert f["regime_state"] is None
+    assert f["regime_score"] is None
     # los atributos de field siguen presentes
     assert f["field_confluence_count"] == 4
+
+
+def test_extract_features_regime_score_from_real_detector_shape():
+    """REGRESION: regime_detector.detect_regime() NO emite 'score' (sus claves
+    son state/flags_fired/n_flags/recommend/details). El extractor leia
+    regime['score'] -> regime_score quedaba 100% NaN en todos los simbolos
+    (All-NaN slice en StateVectorizer.fit, dimension muerta del vector).
+    El fallback debe tomar n_flags."""
+    r = _fire_report()
+    r["regime"] = {            # forma REAL de regime_detector.detect_regime()
+        "state": "shift_moderate",
+        "flags_fired": ["vol_z", "kl_drift"],
+        "n_flags": 2,
+        "recommend": "tighten",
+        "details": {
+            "kl_drift": {"fired": True, "value": 1.8, "detail": "KL=1.80"},
+            "vol_z": {"fired": True, "value": 2.3, "detail": "ATR z=2.30"},
+            "wr_trend": {"fired": False, "value": 0.0, "detail": "n=4 insuf"},
+        },
+    }
+    f = bf.extract_features(_FakeField(), r)
+    assert f["regime_state"] == "shift_moderate"
+    assert f["regime_score"] == 2          # n_flags como magnitud del regimen
+
+
+def test_extract_features_regime_score_explicit_takes_precedence():
+    # si un detector futuro emite 'score', gana sobre n_flags
+    r = _fire_report()
+    r["regime"] = {"state": "stable", "score": 0.9, "n_flags": 1}
+    f = bf.extract_features(_FakeField(), r)
+    assert f["regime_score"] == 0.9
 
 
 # --------------------------------------------------------------------------

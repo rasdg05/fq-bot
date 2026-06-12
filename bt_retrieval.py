@@ -313,7 +313,16 @@ class StateVectorizer:
                    for i in range(len(self.numeric)) if nan_frac[i] >= 0.5]
             if bad:
                 log.warning("[vectorizer] features con NaN>=50%% (dim se degrada): %s",
-                            ", ".join("%s=%.0f%%" % (n, f * 100) for n, f in bad))
+                            ", ".join("%s=%.1f%%" % (n, f * 100) for n, f in bad))
+            # 100% exacto = dimension MUERTA (extractor roto o flag apagado);
+            # distinto del esparso POR DISENO (el motor solo computa la capa ML
+            # cerca del fire -> p.ej. 99.9% NaN en el fit denso). Separarlo
+            # evita confundir bug con cobertura al leer el log (el %.0f de
+            # antes redondeaba 99.98% a "100%").
+            dead = [n for n, f in bad if f >= 1.0]
+            if dead:
+                log.warning("[vectorizer] features 100%% NaN (dimension MUERTA, "
+                            "revisar extractor): %s", ", ".join(dead))
         # Silencia el 'All-NaN slice' (lo manejamos abajo); ya avisamos por nombre.
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=RuntimeWarning)
