@@ -1,14 +1,17 @@
 [build]
 builder = "NIXPACKS"
 
-# UN SOLO SERVICIO con AMBOS bots (VIP + PUBLIC) corriendo como subprocesos.
-# Razon: Railway no soporta compartir un volumen entre servicios, asi que el
-# bot publico vive en el mismo container que el VIP para poder leer /data/fq_ledger.db.
+# UN SOLO SERVICIO. El launcher arranca VIP + maintenance siempre, y el bot
+# PUBLIC solo si tiene token PROPIO (TELEGRAM_TOKEN_PUBLIC distinto del VIP);
+# sin el, topologia de UN solo bot (decision jun-2026: todo por tiers en el
+# VIP). Razon del servicio unico: Railway no comparte volumenes entre
+# servicios y el publico (cuando corre) lee /data/fq_ledger.db del VIP.
 #
 # Variables que el servicio Railway debe tener:
 #   VIP:    TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, ANTHROPIC_API_KEY, FQ_LEDGER_PATH
-#   PUBLIC: TELEGRAM_TOKEN_PUBLIC, FQ_VIP_BOT_USERNAME,
-#           FQ_PUBLIC_DB_PATH=/data/fq_public.db, FQ_VIP_LEDGER_PATH=/data/fq_ledger.db
+#   PUBLIC (OPCIONAL, solo con bot propio de BotFather): TELEGRAM_TOKEN_PUBLIC,
+#           FQ_VIP_BOT_USERNAME, FQ_PUBLIC_DB_PATH=/data/fq_public.db,
+#           FQ_VIP_LEDGER_PATH=/data/fq_ledger.db
 [deploy]
 startCommand = "python launcher.py"
 restartPolicyType = "ALWAYS"
