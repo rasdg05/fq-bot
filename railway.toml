@@ -1,6 +1,21 @@
 [build]
 builder = "NIXPACKS"
 
+# watchPatterns (ENGINEERING_PLAN N1): un push de SOLO documentacion/research
+# tooling NO debe reiniciar el worker en vivo. Estrategia blacklist: se
+# deploya TODO ("**") salvo lo que seguro no toca el runtime — si manana se
+# anade un tipo de archivo nuevo al runtime, deploya por defecto (fallo
+# seguro). OJO: tests/ y tools/ corren en CI de GitHub, no en el worker;
+# .github/ es CI; internal/ y *.md son documentacion.
+watchPatterns = [
+  "**",
+  "!**/*.md",
+  "!internal/**",
+  "!.github/**",
+  "!tests/**",
+  "!tools/**",
+]
+
 # UN SOLO SERVICIO. El launcher arranca VIP + maintenance siempre, y el bot
 # PUBLIC solo si tiene token PROPIO (TELEGRAM_TOKEN_PUBLIC distinto del VIP);
 # sin el, topologia de UN solo bot (decision jun-2026: todo por tiers en el
