@@ -376,29 +376,48 @@ python tools/compare_retrieval.py retrieval_SOL.json retrieval_BTC.json
 
 ---
 
-## 6.5 BTC — diagnóstico del gate DEGENERADO (run #26, jun-2026)
+## 6.5 BTC — veredicto SELLADO con baseline honesto (run #30, 12-jun-2026)
 
-> **⚠ ACTUALIZACIÓN 12-jun-2026 — VEREDICTO SUSPENDIDO (ver §6.7):** los
-> números de esta sección se midieron bajo el **bug de reloj de killzones**
-> (toda la historia de BTC se evaluó con killzone de las 17-21h CDMX, es
-> decir prácticamente SIN killzone → Fase D estrangulada). BTC se re-mide
-> con el fix de bar-clock antes de sellar nada. El diagnóstico del bug de
-> `regime_score` (abajo) sigue siendo válido y su fix queda.
+> **SELLO (run #30, id 27415283709, post-fix de reloj §6.7, commit a8b092c):**
+> **BTC NO es candidato a gate ORO** — pero por la razón CORRECTA, no la del
+> run #26. Con killzones reales el motor **SÍ dispara en BTC** (223 señales /
+> 48m, 8.6× las 26 del #26): el diagnóstico bug-era "el motor casi no dispara
+> en BTC" era un artefacto del reloj. El problema real es el mismo de SOL:
+> **edge bruto positivo que los costes en R se comen** (+0.207R pre-coste →
+> −0.068R neto OOS), y un retrieval denso sin edge causal limpio (REVISAR →
+> índice no persistido, correcto). El no-persist sigue siendo el sistema
+> funcionando.
 
-> Veredicto (provisional, a sellar con UNA re-corrida post-fix): **BTC NO es
-> candidato** a gate ORO con la evidencia del run #26. El framework rechazando
-> un símbolo sin edge limpio es el sistema funcionando, no un fallo de CI: el
-> artefacto BTC de 13KB (sin `retrieval/`) es el no-persist correcto del gate
-> de leakage, no un bug.
+**Números del run #30 (BTC/USDT 48m, 5m, step 3, seed 42, inputs default):**
+- Cadencia: **223 fired / 48m** evaluando 1 de cada 3 velas (~4.6/mes en
+  replay ≈ ~1.1/sem; en vivo algo más). La Fase D ya no estrangula: mata
+  2.56% de las velas, no la historia entera.
+- Funnel: pre_check 53.0% + direction 37.1% (≈90% muere en el campo, sano),
+  C 5.14%, D 2.56%, B 1.67%, p_master 0.23% (317 near-miss: mediana 1.264,
+  p90 1.805 vs `PMASTER_MIN=1.95`), vol_veto 84, rr 75 → fire 223 (0.16%).
+- Etiquetadas (in-sample, pre-coste): WR 55.2%, **+0.244R**.
+- **OOS con costes** (n=191, fees+slip 0.4bps+funding): expectancy
+  **−0.0679R**, WR 55.0%, **PF 0.865**, maxDD −26.2%, Sharpe −0.44.
+- Pre-coste pooled OOS: **+0.207R** → la carga media de costes es
+  **≈0.28R/trade** (stops apretados de BTC convierten ~10bps round-trip en
+  ~0.3R). El edge bruto existe; muere en la unidad R del stop, no en el motor.
+- Grid TP×H OOS con costes: el óptimo es `tp1/h288 = −0.068R` — **la config
+  actual ya es la mejor celda y aún así es negativa**; grid SL×ATR: ninguna
+  celda OOS positiva. No hay rescate por TP/SL estático.
+- LightGBM: AUC OOF **0.408** (no discrimina en BTC fired); VIP modelo top5%
+  +0.51R con n=10 (anécdota).
+- Retrieval denso: `causal +0.0067` (≈0) · `placebo −0.090` · `oracle +1.462`
+  → **REVISAR** → índice NO persistido. El esparso (fired-only) dio "OK" con
+  causal +0.166 pero `gate_pass n=8` — anécdota; **no habilita** reconstruir
+  artefacto (eso exige el DENSO en `leakage_ok`, §6.7 paso 2).
+- Quantum (Eje A): lift **−0.288R, NO SUMA** (2ª vez consecutiva);
+  `qt_sync_score` sigue siendo dimensión 100% NaN (muerta) incluso con el
+  bloque ON → si algún día se reintenta el bloque, revisar el extractor antes
+  (nota técnica; prioridad baja porque el bloque no suma).
 
-**Números del run #26 (BTC/USDT 48m, 5m, seed 42, inputs default):**
-- Denso: `causal +0.0453R` (≈0, ruido) · `placebo −0.1578` · `oracle +1.1357`
-  → `leakage_verdict=REVISAR` → índice **no persistido** (correcto).
-- Fired: **26 señales en 48 meses** (vs 629 de SOL en 24m). El retrieval
-  esparso quedó con n=6 por fold (todo nan) y la frontera/modelo con n=22 OOS:
-  `exp_r +0.0229R`, `PF 1.03`. El motor casi no dispara en BTC con los
-  `TF_PROFILES` actuales — la "ventaja de densidad" de BTC (riesgo #6) no
-  existe en el subset accionable.
+**Números del run #26 (bug-era, solo historial):** 26 fired/48m, exp_r OOS
++0.0229R n=22, denso causal +0.0453 REVISAR. Medidos con killzone vacía toda
+la historia (§6.7): **no comparables**; se conservan como forense del bug.
 
 **Causa de los warnings "All-NaN slice" (`bt_retrieval.py:301`):** bug de
 ESQUEMA, no específico de BTC. `extract_features` leía `regime["score"]`,
@@ -420,56 +439,72 @@ regresión usando la forma REAL del detector. Notas:
 - Los `qt_sync_score`/`qt_sigma_tau` 100% NaN bajo `emergent_time=false` son
   comportamiento documentado del bloque quantum (§2.4/bt_retrieval), no bug.
 
-**Evaluación contra §6.3 (run #26, pre-fix):**
+**Evaluación contra §6.3 (run #30, SELLADA):**
 
-| Criterio §6.3 | BTC run #26 | ¿Pasa? |
+| Criterio §6.3 | BTC run #30 (honesto) | ¿Pasa? |
 |---|---|---|
-| 1. Edge neto ≥ +0.05R y PF ≥ 1.3 | +0.0229R, PF 1.03 (n=22 OOS) | NO |
-| 2. Lift IC90 > 0 atribuible | causal +0.045 ≈ 0 | NO |
-| 3. Densidad fiable | denso abstained=0, pero 26 fired/48m | NO |
-| 4. Robustez a costes | n/a (cae antes) | — |
-| 5. Sin leakage (tests #1–#5) | veredicto REVISAR | NO |
+| 1. Edge neto ≥ +0.05R y PF ≥ 1.3 | −0.068R, PF 0.87 (n=191 OOS) | NO |
+| 2. Lift IC90 > 0 atribuible | causal denso +0.0067 ≈ 0 | NO |
+| 3. Densidad fiable | 223 fired/48m (mejor que #26) pero retrieval esparso sigue ralo (`gate_pass n=8`) | NO |
+| 4. Robustez a costes | el edge bruto +0.21R no sobrevive ni a 1× costes en R | NO |
+| 5. Sin leakage (tests #1–#5) | denso REVISAR (placebo no colapsa del todo, oracle ≫ causal) | NO |
 
-**Decisión:** NO desplegar nada de BTC; SOL sigue siendo el único gate vivo
-(§9.2.1). Re-evaluar BTC solo si la re-corrida post-fix diera `leakage_ok` y
-causal materialmente > 0 — poco probable: la dimensión reparada es esparsa en
-el denso. El camino realista para BTC es densidad de señales (Opción B §3.0 o
-re-tunear `TF_PROFILES`), no el vector; eso es F4, con su propio criterio.
+**Decisión (sellada):** NO desplegar nada de BTC; SOL sigue siendo el único
+gate vivo (§9.2.1, con su caveat de §6.7). La verificación post-fix pedida por
+la versión anterior de esta sección **se ejecutó** (run #30): `regime_score`
+ya NO aparece como dimensión muerta (fix verificado; queda esparso ~99.8% por
+diseño en el denso) y el denso siguió REVISAR → veredicto sellado. El camino
+F4 para BTC se **reformula**: su problema NO es densidad de disparo (eso era
+el bug) sino **calidad neta en unidades R** — las palancas reales son el mapa
+de segmentos de sesión (§6.8: ny_am_kz +0.455 OOS pre-coste es su mejor
+franja), el selector F3 (TP/horizonte por estado) y/o stops menos apretados
+(la carga de costes baja proporcionalmente al ancho del stop).
 
-**Re-corrida de verificación (la dispara el dueño; ~4h el job BTC):**
-Actions → "Research (backtest / walk-forward / poda)" → Run workflow → branch
-`claude/turbovec-tp-cube-hardening-fvzdx7` → inputs por DEFECTO (idénticos al
-#26; la matriz ya trae BTC 48m/step 3 y SOL 24m/step 2). Qué mirar en el log
-del job BTC (step "Research real"):
-1. `[vectorizer] features 100% NaN (dimension MUERTA…)` — post-fix NO debe
-   aparecer `regime_score` (la línea de cobertura `NaN>=50%` sí puede listarlo
-   con ~99.9%: eso es lo esparso por diseño).
-2. `[leakage] veredicto=…` del bloque `[denso]` — si sigue `REVISAR` (o causal
-   ≈0), el veredicto de arriba queda SELLADO y BTC fuera hasta F4.
+**Fractal cruzado SOL #30 vs BTC #30 (la prueba anti-espejismo de §6.7):**
+ver el veredicto completo en §6.8. Resumen: la franja **corta/bajista de SOL
+NO replica en BTC — se INVIERTE** (BTC: LONG +0.294 vs SHORT +0.134; bias
+alcista ≥ bajista) → dirección/bias es **beta del período** de cada símbolo,
+no alpha del motor. Lo que SÍ replica es estructura de **sesión**:
+`london_open_kz` no paga en ninguno (SOL −0.066 n=43 / BTC +0.038 n=33,
+pre-coste ≈0 = claramente negativo neto, y en ambos es bucket grande),
+`silver_bullet_lo` paga en ambos (+0.310/+0.275), viernes fuerte en ambos
+(+0.372/+0.464), lunes flojo en ambos (−0.204/+0.028), madrugada 00-08utc
+negativa en ambos (n chico).
 
 ---
 
 ## 6.6 F2.5 — CADENCIA: poda de módulos + funnel (jun-2026)
 
-> **⚠ 12-jun-2026:** los números de cadencia de esta sección (629 fired,
-> gate_pass 20, etc.) provienen del run #26, medido bajo el bug de reloj
-> (§6.7): toda la historia con killzone NY de peso máximo. Se re-miden con
-> el run post-fix; el método y los criterios de esta sección no cambian.
+> **✅ 12-jun-2026 — números RE-MEDIDOS con el run #30 (post-fix §6.7).** Los
+> del run #26 (629 fired, gate_pass 20…) eran ficción de reloj y quedan solo
+> como historial. El método y los criterios de esta sección no cambian.
+> La poda en sí corre en el **run #31** (`ablation=true`, lanzado 12-jun
+> ~15:45Z): veredictos VIVE/MATAR pendientes de ese run.
 
 > Problema: la cadencia de señales es demasiado baja para el negocio Y para
 > los datos que F3 necesita. Palanca elegida (la segura): **poda de módulos
 > OOS** — subir cadencia quitando peso muerto, NO bajando umbrales a ciegas.
 > El umbral ORO no se toca: más fired ⇒ más candidatos ORO en proporción,
 > con la calidad del gate intacta.
+> **Lente del #30 (baseline OOS NEGATIVO):** multiplicar señales con
+> expectancy negativa multiplica pérdida. El hallazgo valioso de la poda ya
+> no es "qué quitar para disparar más" sino **qué módulo DAÑA** (retirarlo
+> MEJORA expectancy, delta<0 en su variante sin-él). Calidad primero,
+> cadencia después.
 
-**Números (run #26, SOL):**
-- Motor: 629 fired / 24m a step=2 ≈ **25/mes** en replay (~6/sem; el replay
-  evalúa 1 de cada 2 velas → en vivo algo más, cooldowns aparte).
-- ORO en vivo (techo teórico): confident = 8984/104826 ≈ 8.6% de velas; ORO =
-  top 5% de confident ≈ 449 velas-ORO/24m ≈ **~4/sem brutas**, menos los skip
-  (sin dirección de campo / niveles). Sobre señales del motor: gate_pass∩fired
-  OOS = 20/24m ≈ **0.8/mes** — de ahí la urgencia.
-- BTC: 26 fired/48m. Su problema no es de poda (§6.5); fuera de esta fase.
+**Números honestos (run #30):**
+- SOL: **183 fired / 24m a step=2** ≈ 7.6/mes en replay (**~1.8/sem**; en
+  vivo algo más, cooldowns aparte). In-sample +0.136R pre-coste; **OOS
+  −0.095R neto (n=156, PF 0.84)**. Near-miss p_master: n=273, mediana 1.337,
+  p90 1.843 vs `PMASTER_MIN=1.95` (hay pila bajo el umbral, pero con OOS
+  negativo NO se abre el grifo — regla de oro).
+- BTC: **223 fired / 48m a step=3** (~1.1/sem). Ya no está fuera por
+  cadencia (§6.5 sellado); su poda no corre en CI (la matriz de `ablation`
+  deja solo SOL por presupuesto de minutos).
+- ORO en vivo: el techo teórico del #26 (confident 8.6%, ~4/sem brutas) se
+  midió con el gate de la ficción NY; se re-deriva cuando un denso dé
+  `leakage_ok` y se reconstruya el artefacto (§6.7 paso 2 — aún NO ocurre:
+  #30 dio REVISAR en ambos símbolos).
 
 **Las dos herramientas (ya cableadas en esta rama):**
 1. **Funnel de decisiones** (gratis, en CADA run): el replay denso ahora
@@ -594,14 +629,17 @@ VIVO nunca tuvo este bug** (su reloj de pared es el correcto).
   edge puede CONCENTRARSE por sesión (la diferencia #26 vs #28 lo sugiere —
   el mapa de segmentos post-fix lo medirá de verdad, por vela y sin ficción).
 
-**Secuencia de re-medición (post-fix, en orden):**
-1. Run normal (defaults): re-baseline HONESTO de SOL y BTC — funnel, cadencia,
-   leakage, segmentos, cubo. BTC recibe su prueba justa (§6.5 se re-sella con
-   estos números).
-2. Si SOL da `leakage_ok`: descargar `retrieval/SOL_USDT` del artefacto y
-   reemplazar el contenido del Volume (mismo runbook §9.2.1); reiniciar worker.
-3. Poda (`ablation=true`) sobre la base ya honesta → decisión de cadencia.
-4. Recién entonces: §6.6 (números re-medidos) y §6.3/F4 para BTC.
+**Secuencia de re-medición (post-fix, en orden) — estado al 12-jun tarde:**
+1. ✅ **HECHO** — run #30 (id 27415283709): baseline honesto de SOL y BTC
+   (abajo y §6.5). BTC recibió su prueba justa; §6.5 re-sellado.
+2. ✗ **NO disparado** — el denso dio `REVISAR` en AMBOS símbolos (SOL causal
+   −0.0098 / BTC +0.0067) → ningún artefacto se reconstruye. El gate vivo del
+   Volume sigue siendo el de la ficción NY: el paper corre admin-only como
+   ledger forward, pero **NO leerlo como validación** y NO reemplazar nada.
+3. ⏳ **EN CURSO** — run #31 (id 27426619247, `ablation=true`, lanzado
+   12-jun 15:47Z): poda sobre base honesta. Veredictos a §6.6 al aterrizar.
+4. Pendiente de (3): §6.3/F4 para BTC quedó reformulado en §6.5 (calidad
+   neta, no densidad); el siguiente diseño accionable es F2.6 (§6.8).
 
 **Primer baseline honesto — run #30, SOL (12-jun-2026, post-fix):**
 - Cadencia: **183 fired / 24m** (~1.8/sem a step=2). In-sample +0.136R;
@@ -624,6 +662,86 @@ VIVO nunca tuvo este bug** (su reloj de pared es el correcto).
   sería un módulo cuyo retiro **MEJORE** la expectancy (módulo dañino), no
   solo la cadencia. Regla de oro aplica: multiplicar señales con expectancy
   negativa multiplica pérdida — calidad primero (segmentos), cadencia después.
+
+**Segundo baseline honesto — run #30, BTC (12-jun-2026, post-fix):**
+- 223 fired/48m (step 3), OOS −0.068R neto (n=191, PF 0.87), pre-coste
+  +0.207R, denso REVISAR → no persist. Detalle completo y evaluación §6.3:
+  **§6.5 (sellado)**.
+- **Veredicto del fractal (SOL vs BTC, ambos post-fix):** la concentración
+  del edge POR SESIÓN replica (london_open_kz malo en ambos, silver_bullet_lo
+  bueno en ambos, viernes fuerte / lunes flojo en ambos, madrugada mala);
+  la concentración POR DIRECCIÓN/BIAS se **invierte** (SOL paga short/bajista,
+  BTC paga long/alcista) → confirmado el caveat: "los shorts pagan" en SOL es
+  **beta del mega-bear**, no alpha. El candidato explotable que sobrevive la
+  prueba anti-espejismo es el de **sesión** (→ §6.8 F2.6); el veto
+  direccional queda rechazado como regla universal.
+- El bug de reloj queda **CERRADO**: fix a8b092c + test de regresión
+  (`tests/test_replay_clock.py`) + verificación en #30 (vocab de killzones
+  con diversidad real en ambos símbolos; `regime_score` ya no es dimensión
+  muerta). Regla permanente: cualquier `datetime.now()` nuevo en el path del
+  motor es sospechoso — el replay debe inyectar `_BarClockDatetime`
+  (`tools/run_research_real.py`) en todo módulo que lea reloj.
+
+---
+
+## 6.8 F2.6 — GATE POR SEGMENTO de sesión (diseño, 12-jun-2026; pendiente de #31)
+
+> Estado: **DISEÑO, sin código**. Se construye solo después del veredicto de
+> la poda (#31) y se valida con el protocolo de abajo ANTES de tocar prod.
+> Paper primero, 0% real. El gate ORO NUNCA se degrada para esto.
+
+**Evidencia (la que sobrevivió la prueba anti-espejismo SOL #30 × BTC #30,
+OOS pooled, pnl_r PRE-coste; los netos restan ~0.23R en SOL / ~0.28R en BTC):**
+
+| Corte | SOL #30 (n=156) | BTC #30 (n=191) | ¿Replica? |
+|---|---|---|---|
+| `london_open_kz` | **−0.066** (n=43) | **+0.038** (n=33) | SÍ — ≈0 pre-coste ⇒ claramente negativo NETO en ambos; y es bucket grande en ambos (el motor insiste donde no paga) |
+| `silver_bullet_lo` | +0.310 (15) | +0.275 (26) | SÍ — paga en ambos |
+| viernes | +0.372 (31) | +0.464 (32) | SÍ — mejor día en ambos |
+| lunes | −0.204 (17) | +0.028 (26) | SÍ — (casi) peor día en ambos |
+| 00-08 UTC | −0.319 (9) | −0.171 (12) / −0.505 (5) | SÍ direccional, n chico |
+| dirección / bias_4h | short/bajista paga | long/alcista paga | **NO — INVERTIDO** (beta del período de cada símbolo) |
+| ny_am_kz, `fuera`, 20-24utc, sab/dom, mie/jue | dispares entre símbolos | dispares | NO — tratarlos como ruido local hasta nueva evidencia |
+
+**Decisiones de diseño:**
+1. **Veto direccional RECHAZADO** ("veto longs con bias alcista"): se invierte
+   entre símbolos ⇒ es exposición al drift del período. Si algún día se
+   quiere, es una capa de REGIME-FOLLOWING explícita y consciente, no un
+   hallazgo del motor.
+2. **El candidato es el veto de SESIÓN**, y de UNA sola regla para empezar
+   (anti-overfit): `london_open_kz` — el único corte grande (n=43+33),
+   replicado y accionable. Lunes y 00-08utc quedan como candidatos
+   SECUNDARIOS: solo se consideran si el primario sobrevive forward (apilar
+   vetos = re-overfit por la puerta de atrás).
+3. **Dónde corta**: capa de decisión (post-`evaluate_signal`, junto a los
+   gates existentes), **jamás dentro de `fusion_engine`**. El mismo predicado
+   corre en el replay de research y en vivo (mismo código, cero divergencia
+   backtest/live).
+4. **Reloj**: el predicado juzga el **timestamp de la VELA** (en vivo y en
+   replay), nunca `datetime.now()` — lección §6.7 grabada a fuego.
+5. **Reversible**: env del worker, default OFF.
+   `FQ_SEGMENT_VETO_KILLZONES=""` (CSV de killzones vetadas; p.ej.
+   `london_open_kz`) y, si el secundario se gana su lugar,
+   `FQ_SEGMENT_VETO_UTC_BLOCKS=""` (p.ej. `00-04,04-08`). Módulo puro
+   `segment_veto.py` con tests de timestamps históricos.
+6. **Relación con la poda #31**: `session_bias` (multiplicador continuo) está
+   bajo ablación. Si MUERE, F2.6 es su sucesor más honesto (regla discreta,
+   replicada cross-symbol, medible). Si VIVE, F2.6 se mide ENCIMA de él y
+   solo entra si el delta OOS neto adicional lo justifica.
+
+**Protocolo de validación (en orden, sin saltarse pasos):**
+1. **Offline (gratis, sin replay):** filtrar los events/cubos ya persistidos
+   de #30/#31 con el veto y re-pasar la cartera OOS por el engine de costes.
+   Esperado con los números de hoy: SOL −0.095R → ≈−0.02R y BTC −0.068R →
+   ≈−0.03R (mejora, aún ≤0: el veto solo NO compra el verde — por eso no se
+   vende como salvación). Si ni esto mejora, F2.6 muere aquí.
+2. **UNA corrida de confirmación** con el veto ON (env en el workflow):
+   funnel + OOS + segmentos de la población restante + **gate ORO de esa
+   config re-validado (denso `leakage_ok`)**. Vara §6.6: el veto se queda
+   solo si mejora expectancy OOS sin degradar WR de forma no compensada.
+3. **Paper forward 2–4 semanas** con el ledger ORO (la vara de siempre).
+4. Prod por env, con confirmación explícita del usuario y rollback de una
+   línea. Cada paso documenta sus números aquí.
 
 ---
 
@@ -655,6 +773,12 @@ VIVO nunca tuvo este bug** (su reloj de pared es el correcto).
   y ganancia material de `n`. Producción cambia por env, reversible.
 - Acumular datos F3: cubo por evento (`tp_cube_<sym>.parquet`) en cada run +
   corrida de cosecha (months 36 / step 1) cuando la config quede estable.
+
+### F2.6 — **Gate por segmento de sesión** (ver §6.8; post-poda)
+- Veto de calidad killzone-aware (primario: `london_open_kz`), replicado
+  SOL×BTC en #30. Dirección/bias rechazados (beta del período).
+- Orden: offline sobre cubos → corrida de confirmación + `leakage_ok` del
+  ORO → paper forward → prod por env con confirmación del usuario.
 
 ### F3 — **Selector de TP/horizonte**
 - Usar el cubo §3.2 para elegir `(TP, horizonte)` que pagó en estados similares.
