@@ -52,11 +52,16 @@ def _log(msg):
 
 def _spawn(name, cmd):
     _log("starting {}: {}".format(name, " ".join(cmd)))
+    env = os.environ.copy()
+    # Marca para los hijos: corren BAJO el launcher (VIP + public en el MISMO
+    # container). entry_public la usa para NO caer al fallback del token VIP:
+    # dos pollers de getUpdates con el mismo token = HTTP 409 + comandos perdidos.
+    env["FQ_LAUNCHER"] = "1"
     return subprocess.Popen(
         cmd,
         stdout=sys.stdout,
         stderr=sys.stderr,
-        env=os.environ.copy(),
+        env=env,
     )
 
 
