@@ -442,6 +442,83 @@ del job BTC (step "Research real"):
 
 ---
 
+## 6.6 F2.5 — CADENCIA: poda de módulos + funnel (jun-2026)
+
+> Problema: la cadencia de señales es demasiado baja para el negocio Y para
+> los datos que F3 necesita. Palanca elegida (la segura): **poda de módulos
+> OOS** — subir cadencia quitando peso muerto, NO bajando umbrales a ciegas.
+> El umbral ORO no se toca: más fired ⇒ más candidatos ORO en proporción,
+> con la calidad del gate intacta.
+
+**Números (run #26, SOL):**
+- Motor: 629 fired / 24m a step=2 ≈ **25/mes** en replay (~6/sem; el replay
+  evalúa 1 de cada 2 velas → en vivo algo más, cooldowns aparte).
+- ORO en vivo (techo teórico): confident = 8984/104826 ≈ 8.6% de velas; ORO =
+  top 5% de confident ≈ 449 velas-ORO/24m ≈ **~4/sem brutas**, menos los skip
+  (sin dirección de campo / niveles). Sobre señales del motor: gate_pass∩fired
+  OOS = 20/24m ≈ **0.8/mes** — de ahí la urgencia.
+- BTC: 26 fired/48m. Su problema no es de poda (§6.5); fuera de esta fase.
+
+**Las dos herramientas (ya cableadas en esta rama):**
+1. **Funnel de decisiones** (gratis, en CADA run): el replay denso ahora
+   registra `(decision, failed_at)` por vela y el runner imprime
+   `[1.4/4] Funnel del motor` + quantiles de `p_master` de los near-miss vs
+   `PMASTER_MIN`. Dice DÓNDE mueren las velas candidatas (fases A–D, killzone,
+   vol_veto, p_master, RR…) — el mapa para elegir qué relajar.
+2. **Poda OOS** (`ablation=true`, opt-in): re-replay fires-only con cada
+   módulo OFF (`scorer` / `regime` / `session_bias`) y veredicto VIVE/MATAR
+   por delta de expectancy OOS, con `n` por variante (= cuánta cadencia
+   compra quitarlo).
+
+**Runbook de la poda (SOL primero, como se decidió):**
+- Actions → Research → Run workflow → branch
+  `claude/turbovec-tp-cube-hardening-fvzdx7` → `ablation=true`. Sugerido para
+  esa corrida: `retrieval=false`, `tp_sl_grid=false`, `quality_gate=false`,
+  `vector_ablation=false` (holgura de tiempo; la poda no los usa).
+- El workflow de esta rama hace el resto: **BTC se salta** (4 replays de 48m
+  no caben en el techo de 350min) y **SOL corre a step=3** (~55min/replay →
+  ~4h las 4 variantes; ~420 señales por variante bastan para el veredicto).
+- Leer en el log: `[ablacion] ... [VIVE|MATAR] <modulo> sin_el expectancy_r=…
+  delta=… (n=…)`.
+
+**Criterio de decisión (antes de tocar producción):**
+- **MATAR** un módulo solo si `delta ≤ 0` (quitarlo NO empeora expectancy OOS)
+  **y** sube `n` de forma material (≥ +20%). Aplicación en prod = env del
+  worker (`FQ_USE_SCORER=0` / `FQ_USE_REGIME=0` / `FQ_SESSION_BIAS=0`),
+  reversible, con confirmación explícita del usuario.
+- Si los 3 módulos ML VIVEN, el siguiente candidato sale del **funnel**
+  (p.ej. `PMASTER_MIN` del TF profile si los near-miss se apilan bajo el
+  umbral; o el gate A–D que más mate). Eso ya es re-tunear el motor: mismo
+  estándar — re-run de research con el cambio, comparar OOS y **re-validar el
+  gate ORO (leakage_ok) antes de redeployar el artefacto**.
+- `gold_top_pct` NO se toca en esta fase: primero cadencia del motor; el
+  umbral ORO se revisa con el digest y 2–4 semanas de paper (regla del plan:
+  si ORO < 2–3/semana sostenido, replantear umbral).
+
+**Datos para F3 (selector TP/horizonte por vecindario) — "meter más señales
+concluidas":**
+1. **Cubo por evento persistido** (nuevo, en cada run): el runner vuelca
+   `tp_cube_<sym>.parquet` — formato largo evento × {tp1..tp4} × horizonte
+   con outcome/pnl_r/MFE/MAE **+ features del motor** (la tabla de
+   entrenamiento del selector, §3.2). Con los números del run #26 SOL:
+   ~629×4×3 ≈ 7.5k filas.
+2. **Corrida de cosecha** (post-poda, config ya estabilizada): editar la
+   matriz del workflow — SOL `months: 24→36`, `step: 2→1` (~3-4h de job) →
+   ~1.4–1.9k eventos ≈ 17–23k filas de cubo. (No es input del form: son 2
+   líneas en `research.yml`, se cambian cuando la poda esté decidida para no
+   cosechar con una config que va a cambiar.)
+3. **Ledger paper ORO**: fuente lenta (techo ~4/sem) — NO bloquea entrenar el
+   selector (eso usa el cubo de research), pero SÍ es la vara de validación
+   forward: F3 no se promueve sin ≥40–50 trades forward dentro del IC (igual
+   que F4/VIP).
+- **Gate para construir F3**: ≥~1000 eventos fired en el cubo de UNA config
+  post-poda estable + gate ORO de esa config re-validado (`leakage_ok`).
+  Antes de eso, el vecindario k=50 sobre fired es demasiado ralo para que el
+  argmax del cubo sea estimable (lo vimos: retrieval esparso de BTC murió por
+  exactamente esto).
+
+---
+
 ## 7. Roadmap por fases
 
 ### F0 — Datos BTC + harness de índice causal + **test de leakage** (puerta)
@@ -464,9 +541,18 @@ del job BTC (step "Research real"):
 - Activar (a) gate con abstención y (b) sizing kappa-like acotado.
 - Ablación: motor+lightgbm vs +gate vs +sizing vs +ambos, por símbolo.
 
+### F2.5 — **Cadencia**: poda de módulos + funnel (ver §6.6)
+- Diagnóstico: funnel de decisiones del replay denso (gratis, cada run).
+- Poda OOS (`ablation=true`, SOL primero): MATAR solo módulos con `delta ≤ 0`
+  y ganancia material de `n`. Producción cambia por env, reversible.
+- Acumular datos F3: cubo por evento (`tp_cube_<sym>.parquet`) en cada run +
+  corrida de cosecha (months 36 / step 1) cuando la config quede estable.
+
 ### F3 — **Selector de TP/horizonte**
 - Usar el cubo §3.2 para elegir `(TP, horizonte)` que pagó en estados similares.
 - Comparar contra la escalera TP1–TP4 fija y `max_bars` único.
+- Gate de entrada: ≥~1000 eventos fired en el cubo post-poda + gate ORO
+  re-validado de esa config (§6.6); validación forward ≥40–50 trades.
 
 ### F4 — Comparativa y **decisión de migración**
 - Ablación completa (`+todo`) y tabla BTC vs SOL con métricas idénticas.
