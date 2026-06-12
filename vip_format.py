@@ -50,7 +50,7 @@ def leverage_for_tier(p_master):
 # ============================================================
 # SENAL VIP - simplificada, ejecutable sin exponer motor
 # ============================================================
-def build_vip_signal(field, decision_report, tf_label=None, tf_id=None):
+def build_vip_signal(field, decision_report, tf_label=None, tf_id=None, gold=False):
     """
     Senal lista para copy-paste. NO expone P_master, kappa_evo, Theta(D),
     f_confluencia ni constantes phi/alpha. Solo lo que el VIP necesita ejecutar.
@@ -62,6 +62,11 @@ def build_vip_signal(field, decision_report, tf_label=None, tf_id=None):
     mismo (limpio). El encabezado iconico (🎯 Senal FQ VIP ◆) + la insignia de
     CALIDAD la distinguen de un vistazo de las alertas tacticas y las lecturas
     de campo. tf_label/tf_id son opcionales (contexto en el header).
+
+    gold=True cuando el GoldGate (retrieval, F2) clasifica el estado como ORO:
+    la senal se marca como "VIP Gold" — encabezado con medalla (🥇 Senal FQ VIP
+    Gold ◆) + insignia distintiva — para separar de un vistazo el top percentil
+    de expectancy del resto de senales reales.
     """
     direction = decision_report["direction"]
     pm     = decision_report["p_master_data"]
@@ -98,12 +103,20 @@ def build_vip_signal(field, decision_report, tf_label=None, tf_id=None):
     cc   = getattr(field, "confluence_count", 0)
     quality = "CALIDAD {} · {} · {} confluencias".format(hier, node, cc)
 
+    # Marca VIP Gold: encabezado con medalla + insignia distintiva cuando el
+    # GoldGate clasifica el estado como ORO (top percentil de expectancy del
+    # vecindario). El resto de senales reales conservan el encabezado 🎯.
+    if gold:
+        head = "  🥇 Senal {product} VIP Gold ◆ {pair}\n  🥇 SENAL VIP GOLD\n"
+    else:
+        head = "  🎯 Senal {product} VIP ◆ {pair}\n"
+
     risk_pct = (levels["risk"] / levels["entry"]) * 100 if levels.get("risk") else 0
     risk_lbl = risk_band(risk_pct)
 
     return (
         "{rule}\n"
-        "  🎯 Senal {product} VIP ◆ {pair}\n"
+        + head +
         "  {quality}\n"
         "  {ctx}\n"
         "{rule}\n"

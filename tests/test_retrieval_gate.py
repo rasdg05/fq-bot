@@ -122,6 +122,49 @@ def test_gate_save_load_roundtrip(tmp_path):
     assert g2.classify(_LOW)["tier"] == rg.BASE
 
 
+# --------------------------------------------------------------------------
+# classify_live: puente field+report -> verdict, mismo esquema que el índice
+# --------------------------------------------------------------------------
+class _Field:
+    """Doble mínimo del FieldState con los atributos que lee extract_features."""
+    def __init__(self, **kw):
+        self.confluence_count = kw.get("confluence_count", 4)
+        self.pd_pct = kw.get("pd_pct", 0.5)
+        self.w_effective = kw.get("w_effective", 1.0)
+        self.node_type = kw.get("node_type", "colapso")
+        self.killzone = kw.get("killzone", "ny")
+        self.killzone_priority = kw.get("killzone_priority", 1)
+        self.bias_4h = kw.get("bias_4h", "alcista")
+        self.bias_1h = kw.get("bias_1h", "alcista")
+        self.choch = kw.get("choch", False)
+        self.has_fuel = kw.get("has_fuel", True)
+
+
+def _report(p_master, structure, direction="long"):
+    return {
+        "direction": direction,
+        "p_master_data": {"p_master": p_master, "p_master_raw": p_master,
+                          "p_master_pre_vol": p_master},
+        "score": {"total_score": structure,
+                  "breakdown": [{"name": "structure", "score": structure}]},
+        "regime": {"state": "trend", "score": structure},
+    }
+
+
+def test_classify_live_uses_extract_features_schema():
+    idx = rg.StateIndex.build(_past())
+    gate = rg.GoldGate(idx, gold_threshold=0.5, k=30, sim_floor=0.0, n_floor=3)
+    # estado bueno (p_master alto, structure positiva) -> ORO; malo -> BASE.
+    hi = rg.classify_live(gate, _Field(), _report(3.95, 0.78, "long"))
+    lo = rg.classify_live(gate, _Field(), _report(2.05, -0.78, "short"))
+    assert hi["tier"] == rg.GOLD
+    assert lo["tier"] == rg.BASE
+
+
+def test_classify_live_none_gate_returns_none():
+    assert rg.classify_live(None, _Field(), _report(3.95, 0.78)) is None
+
+
 def test_gold_signal_source_emits_only_on_gold_and_is_broker_ready():
     idx = rg.StateIndex.build(_past())
     gate = rg.GoldGate(idx, gold_threshold=0.5, k=30, sim_floor=0.0, n_floor=3)

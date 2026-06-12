@@ -139,6 +139,56 @@ except ImportError:
     VOLUME_QUALITY_AVAILABLE = False
     volume_quality = None
 
+# Modulo FQ F2 (Retrieval GoldGate - marca "VIP Gold" en el top percentil de
+# expectancy del vecindario). Opcional: solo activo si hay artefacto persistido
+# (FQ_RETRIEVAL_GATE_DIR). Sin artefacto, ninguna senal se marca como Gold.
+try:
+    import retrieval_gate
+    RETRIEVAL_GATE_AVAILABLE = True
+except ImportError:
+    RETRIEVAL_GATE_AVAILABLE = False
+    retrieval_gate = None
+
+# Cache del GoldGate cargado (se reconstruye una vez desde el artefacto).
+# Sentinela: None = aun no intentado; False = intentado y no disponible.
+_GOLD_GATE = None
+
+
+def _load_gold_gate():
+    """Carga perezosa del GoldGate desde FQ_RETRIEVAL_GATE_DIR (artefacto que
+    persiste tools/build_retrieval_index.py). Devuelve el gate o False si no hay
+    artefacto / falla la carga. Cachea el resultado para no releer en cada
+    disparo. Cualquier fallo degrada a 'sin marca Gold', nunca rompe la senal."""
+    global _GOLD_GATE
+    if _GOLD_GATE is not None:
+        return _GOLD_GATE
+    gate_dir = os.environ.get("FQ_RETRIEVAL_GATE_DIR", "").strip()
+    if not (RETRIEVAL_GATE_AVAILABLE and gate_dir):
+        _GOLD_GATE = False
+        return _GOLD_GATE
+    try:
+        _GOLD_GATE = retrieval_gate.GoldGate.from_dir(gate_dir)
+        log.info("GoldGate cargado desde %s (umbral oro=%s)",
+                 gate_dir, _GOLD_GATE.gold_threshold)
+    except Exception as e:
+        log.warning("GoldGate no disponible (%s): senales sin marca Gold", e)
+        _GOLD_GATE = False
+    return _GOLD_GATE
+
+
+def _is_gold_signal(field, report):
+    """True si el GoldGate clasifica el estado actual como ORO. Defensivo: sin
+    gate o ante cualquier error, devuelve False (la senal sale sin marca Gold)."""
+    gate = _load_gold_gate()
+    if not gate:
+        return False
+    try:
+        verdict = retrieval_gate.classify_live(gate, field, report)
+        return bool(verdict) and verdict.get("tier") == retrieval_gate.GOLD
+    except Exception as e:
+        log.warning("clasificacion Gold fallo: %s", e)
+        return False
+
 # Modulos FQ v4.0 (Mistral - VIP System)
 try:
     import vip_system as vip
@@ -2751,8 +2801,11 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
             # asi que el detalle tecnico no se pierde. Fallback al reporte Capa 5
             # si vip_format no esta disponible.
             if VIP_FORMAT_AVAILABLE and vip_format is not None:
+                is_gold = _is_gold_signal(field, report)
+                if is_gold:
+                    log.info("[%s/%s] senal ORO -> marca VIP Gold", tf_label, tf_id)
                 msg = vip_format.build_vip_signal(
-                    field, report, tf_label=tf_label, tf_id=tf_id)
+                    field, report, tf_label=tf_label, tf_id=tf_id, gold=is_gold)
             else:
                 msg = field_reports.build_signal_report(
                     field, report, tf_label=tf_label, tf_id=tf_id, pmin=tf_pmin)

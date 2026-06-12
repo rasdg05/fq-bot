@@ -198,6 +198,25 @@ class GoldGate:
         return cls(idx, meta.get("gold_threshold"), **params)
 
 
+def classify_live(gate, field, report):
+    """Clasifica una señal VIVA (field + report del motor) reusando EXACTAMENTE
+    el mismo esquema de features con el que se construyó el índice
+    (bt_features.extract_features). Así la consulta al vecindario ve lo mismo que
+    el research: sin esto, los nombres de columna no cuadrarían con el scaler.
+
+    Devuelve el verdict dict del gate ({"tier": gold/base/abstain, ...}) o None
+    si no hay gate. Pieza puente para la entrega: el monolito la llama en el
+    disparo para decidir la marca "VIP Gold". Import perezoso de bt_features para
+    no arrastrar pandas si nadie clasifica en vivo."""
+    if gate is None:
+        return None
+    import bt_features
+    state = bt_features.extract_features(field, report)
+    # `direction` es categórica del vectorizer y vive en el report, no en el field.
+    state["direction"] = report.get("direction")
+    return gate.classify(state)
+
+
 def build_gold_signal(symbol, direction, entry, stop, *, tp_r=1.0):
     """Arma la señal {symbol,direction,entry,stop,tp} con TP1 a tp_r veces el
     riesgo (ganador del cubo: TP1 / horizonte ~8h). direction: LONG(+1)/SHORT(-1).

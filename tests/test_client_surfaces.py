@@ -154,6 +154,21 @@ def test_no_banned_tokens(name, text):
     assert not hits, "{}: tokens prohibidos {}".format(name, hits)
 
 
+def test_vip_signal_gold_marking():
+    """gold=True marca la senal como VIP Gold (encabezado con medalla +
+    insignia); gold=False conserva el encabezado 🎯 sin la marca."""
+    field, decision = _fake_field(), _fake_decision()
+    gold = vip_format.build_vip_signal(field, decision, gold=True)
+    plain = vip_format.build_vip_signal(field, decision, gold=False)
+
+    assert "VIP Gold" in gold and "🥇" in gold
+    assert "SENAL VIP GOLD" in gold
+    assert "VIP Gold" not in plain and "🥇" not in plain
+    assert "🎯 Senal" in plain                      # el resto mantiene su header
+    # default (sin pasar gold) = sin marca, backward-compat.
+    assert "VIP Gold" not in vip_format.build_vip_signal(field, decision)
+
+
 @pytest.mark.parametrize("name,text", _client_surfaces())
 def test_no_raw_formulas(name, text):
     hits = [p.pattern for p in FORMULA_PATTERNS if p.search(text)]
