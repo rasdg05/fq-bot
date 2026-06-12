@@ -50,17 +50,22 @@ def _resolve_public_token(env=None):
     REGLA: bajo el launcher (FQ_LAUNCHER=1, VIP + public en el MISMO container)
     NO hay fallback al token VIP: el VIP ya hace getUpdates ahi mismo y
     compartir token = dos pollers compitiendo -> HTTP 409 en loop y comandos
-    repartidos al azar entre ambos bots. Standalone (legacy, un solo bot) el
-    fallback se conserva.
+    repartidos al azar entre ambos bots. Lo mismo aplica si
+    TELEGRAM_TOKEN_PUBLIC trae EL MISMO token que el VIP (pegado por error o
+    por la idea de 'un solo bot'): el publico se parquea, no pelea. Standalone
+    (legacy, un solo bot en el proceso) el fallback se conserva.
 
-    source: 'public' | 'vip_fallback' | None.
+    source: 'public' | 'vip_fallback' | 'duplicate_of_vip' | None.
     """
     env = os.environ if env is None else env
     pub = (env.get("TELEGRAM_TOKEN_PUBLIC") or "").strip()
-    if pub:
-        return pub, "public"
     vip = (env.get("TELEGRAM_TOKEN") or "").strip()
-    if vip and (env.get("FQ_LAUNCHER") or "").strip() != "1":
+    under_launcher = (env.get("FQ_LAUNCHER") or "").strip() == "1"
+    if pub:
+        if under_launcher and vip and pub == vip:
+            return "", "duplicate_of_vip"
+        return pub, "public"
+    if vip and not under_launcher:
         return vip, "vip_fallback"
     return "", None
 
@@ -259,24 +264,31 @@ def main():
             # (el launcher tumbaria el container completo -> restart loop y
             # se llevaria al VIP por delante). El publico queda PARQUEADO y
             # VIP + maintenance siguen vivos.
-            log.critical(
-                "TELEGRAM_TOKEN_PUBLIC vacio: bot publico PARQUEADO (sin "
-                "fallback al token VIP bajo launcher; setea la env en el "
-                "servicio Railway y redeploya).")
+            if TOKEN_SOURCE == "duplicate_of_vip":
+                why = ("TELEGRAM_TOKEN_PUBLIC trae EL MISMO token que "
+                       "TELEGRAM_TOKEN (bot VIP). Dos procesos no pueden "
+                       "pollear un mismo token (HTTP 409 + comandos "
+                       "robados). El bot publico necesita su PROPIO bot de "
+                       "BotFather (/newbot); o si decidiste UN solo bot, "
+                       "borra TELEGRAM_TOKEN_PUBLIC y este proceso queda "
+                       "parqueado a proposito.")
+            else:
+                why = ("falta TELEGRAM_TOKEN_PUBLIC en el worker (ya NO se "
+                       "usa el token VIP como fallback; ese doble polling "
+                       "era la causa de los HTTP 409).")
+            log.critical("Bot publico PARQUEADO: %s", why)
             # Aviso UNICO via token VIP para que el operador no tenga que
             # deducirlo del watchdog ("'public' sin latido"): el parqueo es
             # deliberado y el resto del worker sigue normal.
             _dm_admin_via(
                 os.environ.get("TELEGRAM_TOKEN"),
                 os.environ.get("TELEGRAM_CHAT_ID"),
-                "FQ Public Bot PARQUEADO: falta TELEGRAM_TOKEN_PUBLIC en el "
-                "worker (ya NO se usa el token VIP como fallback; ese doble "
-                "polling era la causa de los HTTP 409). VIP y maintenance "
+                "FQ Public Bot PARQUEADO: " + why + "\nVIP y maintenance "
                 "siguen normales. El watchdog reportara 'public' sin latido "
-                "hasta setear la env y redeployar.")
+                "mientras dure el parqueo.")
             while True:
                 time.sleep(600)
-                log.critical("Bot publico sigue parqueado: falta TELEGRAM_TOKEN_PUBLIC")
+                log.critical("Bot publico sigue parqueado: %s", why)
         log.error("FATAL: TELEGRAM_TOKEN_PUBLIC vacio (o TELEGRAM_TOKEN como fallback)")
         sys.exit(1)
 

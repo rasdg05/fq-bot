@@ -48,6 +48,26 @@ def test_resolve_token_public_gana_bajo_launcher():
     assert src == "public"
 
 
+def test_resolve_token_duplicado_del_vip_parquea():
+    """REGRESION jun-2026: el operador pego el token del bot VIP en
+    TELEGRAM_TOKEN_PUBLIC -> dos pollers sobre el mismo token dentro del
+    container (la guerra 409 sigue aunque el servicio duplicado de Railway
+    ya no exista). Bajo launcher se parquea; no se pelea."""
+    tok, src = epub._resolve_public_token(
+        {"TELEGRAM_TOKEN_PUBLIC": "mismo-tok", "TELEGRAM_TOKEN": "mismo-tok",
+         "FQ_LAUNCHER": "1"})
+    assert tok == ""
+    assert src == "duplicate_of_vip"
+
+
+def test_resolve_token_duplicado_standalone_se_permite():
+    # sin launcher solo corre UN proceso: mismo token no es conflicto
+    tok, src = epub._resolve_public_token(
+        {"TELEGRAM_TOKEN_PUBLIC": "mismo-tok", "TELEGRAM_TOKEN": "mismo-tok"})
+    assert tok == "mismo-tok"
+    assert src == "public"
+
+
 def test_resolve_token_vacio_sin_envs():
     tok, src = epub._resolve_public_token({})
     assert tok == ""
