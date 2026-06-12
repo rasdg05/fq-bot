@@ -40,6 +40,21 @@ LONG = 1
 SHORT = -1
 WIN = "win"
 
+# Dedupe de telemetria del vectorizer: el walk-forward llama fit() por fold y
+# la MISMA cobertura se re-loguea decenas de veces (los logs del run se leen
+# a mano; el spam entierra lo importante). La clave es (tipo, tupla de
+# features): un set de features NUEVO vuelve a avisar; el mismo set con
+# porcentajes ligeramente distintos, no.
+_warned_coverage = set()
+
+
+def _warn_coverage_once(kind, names, msg, *fmt):
+    key = (kind, tuple(names))
+    if key in _warned_coverage:
+        return
+    _warned_coverage.add(key)
+    log.warning(msg, *fmt)
+
 
 # ============================================================
 # BACKENDS (contrato comun, espejo de turbovec.IdMapIndex)
@@ -312,8 +327,10 @@ class StateVectorizer:
             bad = [(self.numeric[i], float(nan_frac[i]))
                    for i in range(len(self.numeric)) if nan_frac[i] >= 0.5]
             if bad:
-                log.warning("[vectorizer] features con NaN>=50%% (dim se degrada): %s",
-                            ", ".join("%s=%.1f%%" % (n, f * 100) for n, f in bad))
+                _warn_coverage_once(
+                    "nan50", [n for n, _ in bad],
+                    "[vectorizer] features con NaN>=50%% (dim se degrada): %s",
+                    ", ".join("%s=%.1f%%" % (n, f * 100) for n, f in bad))
             # 100% exacto = dimension MUERTA (extractor roto o flag apagado);
             # distinto del esparso POR DISENO (el motor solo computa la capa ML
             # cerca del fire -> p.ej. 99.9% NaN en el fit denso). Separarlo
@@ -321,8 +338,10 @@ class StateVectorizer:
             # antes redondeaba 99.98% a "100%").
             dead = [n for n, f in bad if f >= 1.0]
             if dead:
-                log.warning("[vectorizer] features 100%% NaN (dimension MUERTA, "
-                            "revisar extractor): %s", ", ".join(dead))
+                _warn_coverage_once(
+                    "dead", dead,
+                    "[vectorizer] features 100%% NaN (dimension MUERTA, "
+                    "revisar extractor): %s", ", ".join(dead))
         # Silencia el 'All-NaN slice' (lo manejamos abajo); ya avisamos por nombre.
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=RuntimeWarning)

@@ -153,6 +153,7 @@ def test_vectorizer_telemetria_separa_muerta_de_esparsa(caplog):
     df["regime_score"] = np.nan                     # 100% exacto -> MUERTA
     df["scorer_history"] = np.nan
     df.loc[df.index[:2], "scorer_history"] = 0.5    # 99% -> esparsa, no muerta
+    R._warned_coverage.clear()   # el dedupe es por proceso; aisla del orden de tests
     with caplog.at_level(logging.WARNING, logger="bt_retrieval"):
         R.StateVectorizer().fit(df)
     dead_lines = [r.message for r in caplog.records if "MUERTA" in r.message]
@@ -162,6 +163,31 @@ def test_vectorizer_telemetria_separa_muerta_de_esparsa(caplog):
     # ambas aparecen en la linea de cobertura NaN>=50%
     cov = [r.message for r in caplog.records if "NaN>=50%" in r.message]
     assert cov and "regime_score" in cov[0] and "scorer_history" in cov[0]
+
+
+def test_vectorizer_telemetria_no_spamea_por_fold(caplog):
+    """El walk-forward llama fit() por fold: la MISMA cobertura debe avisar
+    UNA vez por proceso, no decenas (los logs del run se leen a mano). Un set
+    de features distinto si vuelve a avisar."""
+    import logging
+
+    df = _make_events(200)
+    df["regime_score"] = np.nan
+    R._warned_coverage.clear()
+    with caplog.at_level(logging.WARNING, logger="bt_retrieval"):
+        R.StateVectorizer().fit(df)       # fold 1: avisa
+        R.StateVectorizer().fit(df)       # fold 2: misma cobertura -> silencio
+        R.StateVectorizer().fit(df)       # fold 3: idem
+    assert len([r for r in caplog.records if "MUERTA" in r.message]) == 1
+    assert len([r for r in caplog.records if "NaN>=50%" in r.message]) == 1
+
+    # cobertura DISTINTA (otra feature muerta) -> avisa de nuevo
+    df2 = _make_events(200)
+    df2["scorer_total"] = np.nan
+    with caplog.at_level(logging.WARNING, logger="bt_retrieval"):
+        R.StateVectorizer().fit(df2)
+    dead = [r.message for r in caplog.records if "MUERTA" in r.message]
+    assert len(dead) == 2 and "scorer_total" in dead[-1]
 
 
 # ------------------------------------------------------------

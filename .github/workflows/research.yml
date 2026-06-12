@@ -321,6 +321,8 @@ jobs:
           {
             echo "# Reporte de research FQ — ${SYM}"
             echo "fecha: $(date -u +%FT%TZ)  exchange: ${EX}  symbol: ${SYM}  meses: ${MONTHS}  tf: ${TFID}  step: ${STEP}"
+            # Provenance (ENGINEERING_PLAN N5): sin esto, casar artefacto<->run<->codigo es arqueologia.
+            echo "run: #${{ github.run_number }} (id ${{ github.run_id }})  sha: ${{ github.sha }}  branch: ${{ github.ref_name }}"
             echo ""
             echo "## Real (motor de produccion + retrieval)"; echo '```'
             cat research_out/research_real.txt 2>/dev/null || echo "(no disponible — ver download.txt)"

@@ -730,11 +730,24 @@ OOS pooled, pnl_r PRE-coste; los netos restan ~0.23R en SOL / ~0.28R en BTC):**
    solo entra si el delta OOS neto adicional lo justifica.
 
 **Protocolo de validación (en orden, sin saltarse pasos):**
-1. **Offline (gratis, sin replay):** filtrar los events/cubos ya persistidos
-   de #30/#31 con el veto y re-pasar la cartera OOS por el engine de costes.
-   Esperado con los números de hoy: SOL −0.095R → ≈−0.02R y BTC −0.068R →
-   ≈−0.03R (mejora, aún ≤0: el veto solo NO compra el verde — por eso no se
-   vende como salvación). Si ni esto mejora, F2.6 muere aquí.
+1. ✅ **Offline MEDIDO (12-jun-2026, `tools/regrade_events.py` sobre los cubos
+   del #30; folds reconstruidos y verificados exactos):**
+
+   | OOS pooled (neto ~) | SOL | BTC |
+   |---|---|---|
+   | base | −0.095R (n=156) | −0.068R (n=191) |
+   | **veto primario** `london_open_kz` → restantes | **−0.017R** (n=113) | **−0.033R** (n=158) |
+   | señales vetadas (lo que dejamos de operar) | −0.299R (n=43) | −0.237R (n=33) |
+   | info: veto apilado (+lun, +00-08utc) → restantes | +0.036R (n=97) | +0.007R (n=134) |
+
+   El primario mejora ambos símbolos y lo vetado es claramente tóxico neto;
+   aún ≤0 (el veto solo no compra el verde — no venderlo como salvación).
+   El apilado pondría el OOS en verde en ambos, PERO: (a) los 3 cortes
+   salieron de estos mismos datos (multiple comparisons), (b) cuesta −38% de
+   cadencia en SOL (156→97, ya escasa, y aleja el gate de F3), (c) la columna
+   neta usa la carga MEDIA de costes — el neto real por subset lo da la
+   corrida de confirmación. Decisión de diseño intacta: primario primero;
+   el apilado solo si el primario sobrevive forward.
 2. **UNA corrida de confirmación** con el veto ON (env en el workflow):
    funnel + OOS + segmentos de la población restante + **gate ORO de esa
    config re-validado (denso `leakage_ok`)**. Vara §6.6: el veto se queda
