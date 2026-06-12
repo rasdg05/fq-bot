@@ -115,7 +115,10 @@ CREATE TABLE IF NOT EXISTS signals (
     snapshot_json   TEXT NOT NULL,
     -- outcome fields (NULL hasta cerrar)
     ts_closed       TEXT,
-    outcome         TEXT,           -- 'tp1','tp2','tp3','tp4','sl','timeout'
+    outcome         TEXT,           -- 'tp1'..'tp4','sl','timeout','stale'
+                                    -- (stale = la ventana de velas no cubre el
+                                    --  inicio de la senal: outcome no auditable,
+                                    --  pnl_r=0 y NO cuenta como win)
     exit_price      REAL,
     pnl_r           REAL,           -- multiplo de R alcanzado
     minutes_open    INTEGER
@@ -459,10 +462,109 @@ try:
 except ImportError:
     pd = None
 
+# --- ventana del reconcile -------------------------------------------------
+# El limite fijo de 50 velas (15m ~12.5h; 5m ~4.2h) era MENOR que la vida
+# posible de una senal (timeout 8h + downtime del bot): las velas del hueco no
+# se veian y la senal se cerraba contra precio reciente -> outcome inventado y
+# sesgado optimista. Ahora la ventana se dimensiona por la senal abierta mas
+# vieja (cap FQ_RECONCILE_MAX_CANDLES: una sola llamada al exchange, OKX capea
+# ~300 velas por request) y, si aun asi la ventana NO cubre el inicio de una
+# senal, se cierra como 'stale' (no auditable) en vez de inventar.
+RECONCILE_BASE_CANDLES = 50
+RECONCILE_MAX_CANDLES  = int(os.environ.get("FQ_RECONCILE_MAX_CANDLES", "300"))
+RECONCILE_MARGIN_BARS  = 5
+RECONCILE_RUNT_MIN     = 40   # fetch sospechosamente corto: no decidir 'stale'
+
+_TF_MINUTES = {"1m": 1, "3m": 3, "5m": 5, "15m": 15, "30m": 30,
+               "1h": 60, "2h": 120, "4h": 240, "6h": 360, "12h": 720,
+               "1d": 1440}
+
+# tf_id NULL en el ledger = senal anterior a schema v4 (ancla 15m, igual que
+# el backfill de la migracion y _BUCKET_ANCHOR_TF).
+_RECONCILE_ANCHOR_TF = "15m"
+
+
+def _tf_minutes(timeframe):
+    tf = (timeframe or "").strip().lower()
+    if tf in _TF_MINUTES:
+        return _TF_MINUTES[tf]
+    try:
+        if tf.endswith("m"):
+            return max(1, int(tf[:-1]))
+        if tf.endswith("h"):
+            return int(tf[:-1]) * 60
+        if tf.endswith("d"):
+            return int(tf[:-1]) * 1440
+    except ValueError:
+        pass
+    return 15
+
+
+def _ts_emitted_utc(sig):
+    ts = datetime.fromisoformat(sig["ts_emitted"])
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    return ts
+
+
+def _bars_to_cover(open_sigs, timeframe, now=None):
+    """Velas necesarias para que la ventana llegue a la senal abierta mas
+    vieja (+margen). Clampa a [RECONCILE_BASE_CANDLES, RECONCILE_MAX_CANDLES]."""
+    now = now or datetime.now(timezone.utc)
+    tf_min = _tf_minutes(timeframe)
+    oldest_min = 0.0
+    for sig in open_sigs:
+        try:
+            age = (now - _ts_emitted_utc(sig)).total_seconds() / 60.0
+            oldest_min = max(oldest_min, age)
+        except Exception:
+            continue
+    bars = int(math.ceil(oldest_min / tf_min)) + RECONCILE_MARGIN_BARS
+    return min(max(bars, RECONCILE_BASE_CANDLES), RECONCILE_MAX_CANDLES)
+
+
+def _coverage_start_naive(df):
+    """Primer timestamp de la ventana, normalizado a UTC tz-naive (misma
+    convencion que check_outcome_against_candles)."""
+    ts_col = df["timestamp"]
+    if getattr(ts_col.dtype, "tz", None) is not None:
+        ts_col = ts_col.dt.tz_convert("UTC").dt.tz_localize(None)
+    return ts_col.min()
+
+
+def _covers_signal(sig, coverage_start, tf_minutes_):
+    """True si la ventana alcanza el inicio de vida de la senal. Tolerancia de
+    UNA vela: la primera vela que el tracker necesita es la primera con
+    timestamp > ts_emitted (estrictamente posterior, como en
+    check_outcome_against_candles)."""
+    cutoff = pd.Timestamp(_ts_emitted_utc(sig)).tz_localize(None)
+    return coverage_start <= cutoff + pd.Timedelta(minutes=tf_minutes_)
+
+
+def _stale_outcome(sig, df):
+    """Cierre 'stale': la vida temprana de la senal cayo FUERA de la ventana
+    (un TP/SL pudo tocarse en el hueco y no es verificable). pnl_r=0 neutral:
+    ningun consumidor lo cuenta como win y no ensucia la expectancy."""
+    last_close = float(df["close"].iloc[-1])
+    minutes_open = int(
+        (datetime.now(timezone.utc) - _ts_emitted_utc(sig)).total_seconds() / 60)
+    return {"outcome": "stale", "exit_price": last_close, "pnl_r": 0.0,
+            "minutes_open": minutes_open}
+
+
 def reconcile_outcomes(fetch_ohlcv_fn, exchange, symbol, timeframe="15m"):
     """
     Recorre todas las senales abiertas, fetchea velas recientes y resuelve
     outcomes posibles. Devuelve lista de senales recien cerradas.
+
+    Ventana: dimensionada para cubrir la senal abierta mas vieja (una sola
+    fetch, cap FQ_RECONCILE_MAX_CANDLES). Si una senal nacio ANTES de la
+    primera vela disponible, su outcome no es auditable (el hueco nunca sana:
+    la ventana solo avanza) -> se cierra como 'stale', pero SOLO en el pase
+    del TF que origino la senal (tf_id; NULL = ancla 15m): asi el pase 5m no
+    mata senales de 15m/1h que su propio pase, con ventana mas larga en
+    tiempo-pared, si puede auditar. Las senales cubiertas se resuelven igual
+    que siempre (cualquier pase puede cerrarlas).
     """
     if pd is None:
         log.error("pandas no disponible para reconcile_outcomes")
@@ -472,17 +574,40 @@ def reconcile_outcomes(fetch_ohlcv_fn, exchange, symbol, timeframe="15m"):
     if not open_sigs:
         return []
 
-    # Una sola fetch de velas suficientes para cubrir el timeout
-    # 8h / 15m = 32 velas, traemos 50 por seguridad
+    # Una sola fetch, dimensionada por la senal abierta mas vieja.
+    limit = _bars_to_cover(open_sigs, timeframe)
     try:
-        df = fetch_ohlcv_fn(exchange, symbol, timeframe, limit=50)
+        df = fetch_ohlcv_fn(exchange, symbol, timeframe, limit=limit)
     except Exception as e:
         log.error("reconcile fetch_ohlcv error: {}".format(e))
         return []
+    if df is None or len(df) == 0:
+        log.warning("reconcile [{}]: fetch devolvio 0 velas (skip)".format(timeframe))
+        return []
+
+    tf_min = _tf_minutes(timeframe)
+    coverage_start = _coverage_start_naive(df)
+    # Guard anti-runt: si el fetch volvio sospechosamente corto (hiccup del
+    # exchange), este ciclo no toma decisiones de 'stale' (las senales siguen
+    # abiertas y el proximo tick decide).
+    can_stale = len(df) >= min(limit, RECONCILE_RUNT_MIN)
 
     closed = []
     for sig in open_sigs:
         try:
+            if not _covers_signal(sig, coverage_start, tf_min):
+                sig_tf = sig.get("tf_id") or _RECONCILE_ANCHOR_TF
+                if not can_stale or sig_tf != timeframe:
+                    continue   # lo juzga el pase de su propio TF
+                result = _stale_outcome(sig, df)
+                close_signal(sig["id"], result["outcome"], result["exit_price"],
+                             result["pnl_r"], result["minutes_open"])
+                log.warning(
+                    "reconcile [{}]: senal #{} mas vieja que la ventana "
+                    "({} velas desde {}): outcome=stale (no auditable)".format(
+                        timeframe, sig["id"], len(df), coverage_start))
+                closed.append({**sig, **result})
+                continue
             result = check_outcome_against_candles(sig, df)
             if result is not None:
                 close_signal(
