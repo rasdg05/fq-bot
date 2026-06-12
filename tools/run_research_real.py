@@ -307,6 +307,14 @@ def main():
     # --- FASE D: riesgo/drawdown ---
     p.add_argument("--equity-json", default=None,
                    help="ruta para volcar la curva de equity OOS + drawdown (JSON)")
+    # --- F3 (datos): cubo (TP x horizonte) POR EVENTO, persistido ---
+    p.add_argument("--tp-cube-out", default=None,
+                   help="ruta parquet/csv para el cubo por evento (bt_labeler."
+                        "label_events_grid, formato largo: evento x TP x "
+                        "horizonte + features). Es la tabla que entrena el "
+                        "selector F3 (TP/horizonte por vecindario); se acumula "
+                        "run a run como artefacto. Re-etiquetado post-replay: "
+                        "cero replays extra")
     # --- FASE C: grid post-replay de SL (xATR) x TP (tp1..tp4) ---
     p.add_argument("--tp-sl-grid", action="store_true",
                    help="re-etiqueta el MISMO conjunto fired variando ancho de SL "
@@ -390,6 +398,7 @@ def main():
     events = (states[states["fired"]].reset_index(drop=True)
               if "fired" in states.columns else states.iloc[0:0])
     print(f"  estados densos: {n_states} | senales disparadas (fired): {len(events)}")
+    _print_decision_funnel(states, args)
 
     base_metric, n_pool, ppy = None, 0, None
     min_for_wf = args.n_splits * 3
@@ -408,6 +417,8 @@ def main():
         _print_track_record(labeled)
         horizons = _parse_int_list(args.horizon_sweep) or [args.max_bars]
         _print_tp_frontier(df_primary, events, horizons)
+        if args.tp_cube_out:
+            _dump_tp_cube(df_primary, events, horizons, args)
         if args.tp_sl_grid:
             _print_tp_sl_grid(df_primary, events, args, sim_kwargs, bar_minutes)
             _print_tp_horizon_grid(df_primary, events, args, sim_kwargs,
@@ -825,6 +836,62 @@ def _tp_frontier_rows(df_primary, recs, max_bars):
             "avg_MFE": round(s["avg_mfe_r"], 2), "avg_MAE": round(s["avg_mae_r"], 2),
         })
     return rows
+
+
+def _print_decision_funnel(states, args):
+    """[1.4/4] FUNNEL de cadencia: donde mueren las velas candidatas.
+
+    El replay denso YA evaluo el motor en cada vela; agrupar (decision,
+    failed_at) es gratis y es el diagnostico previo a la poda: dice QUE gate
+    mata candidatos (la poda OOS dice si ese gate paga su sitio antes de
+    relajarlo). Ver RETRIEVAL_PLAN §6.6 (F2.5 cadencia).
+    """
+    funnel = bf.decision_funnel(states)
+    if len(funnel) == 0:
+        return
+    print("\n[1.4/4] Funnel del motor (en que decision/gate muere cada vela):")
+    print("  " + funnel.to_string(index=False).replace("\n", "\n  "))
+    # near-miss del gate de conviccion: cuanta cadencia hay a un paso del
+    # umbral (si p90 esta pegado a PMASTER_MIN, el headroom es real; si esta
+    # lejos, relajar el umbral no compra cadencia util).
+    near = states[states["decision"] == "math_below_threshold"]
+    if len(near) and "p_master" in near.columns:
+        pm = pd.to_numeric(near["p_master"], errors="coerce").dropna()
+        if len(pm):
+            thr = None
+            try:
+                import fq_bot_v3_2 as _b
+                thr = _build_config(_b, tf_id=args.tf_id).get("PMASTER_MIN")
+            except Exception:
+                pass
+            q = pm.quantile([0.5, 0.75, 0.9])
+            print(f"  near-miss p_master (n={len(pm)}): mediana={q[0.5]:.3f} "
+                  f"p75={q[0.75]:.3f} p90={q[0.9]:.3f} max={pm.max():.3f}"
+                  + (f"  (gate PMASTER_MIN={thr})" if thr is not None else ""))
+
+
+def _dump_tp_cube(df_primary, events, horizons, args):
+    """Persiste el cubo (TP x horizonte) POR EVENTO -- la side-table §3.2 que
+    entrena el selector F3 (TP/horizonte por vecindario). El replay es el
+    costo; esto es re-etiquetado (label_events_grid) + I/O, cero replays."""
+    recs = events.to_dict("records")
+    cube = lb.label_events_grid(
+        df_primary, recs, ["px_tp1", "px_tp2", "px_tp3", "px_tp4"], horizons)
+    if cube is None or len(cube) == 0:
+        print("  [cube] sin filas etiquetables; no se persiste")
+        return
+    out = args.tp_cube_out
+    d = os.path.dirname(out)
+    if d:
+        os.makedirs(d, exist_ok=True)
+    try:
+        cube.to_parquet(out, index=False)
+    except Exception as e:
+        out = os.path.splitext(out)[0] + ".csv"   # sin pyarrow -> csv
+        cube.to_csv(out, index=False)
+        print(f"  [cube] parquet no disponible ({type(e).__name__}); fallback csv")
+    print(f"  [cube] {len(cube)} filas (evento x TP x horizonte, con features) "
+          f"-> {out}")
 
 
 def _print_tp_frontier(df_primary, events, horizons):

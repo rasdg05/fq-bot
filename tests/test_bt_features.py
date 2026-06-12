@@ -218,6 +218,52 @@ def test_replay_step_subsamples():
 
 
 # --------------------------------------------------------------------------
+# replay_states: funnel de cadencia (decision/failed_at por vela)
+# --------------------------------------------------------------------------
+def test_replay_states_registra_decision_y_funnel():
+    """El replay denso guarda (decision, failed_at) de CADA vela evaluada y
+    decision_funnel los agrupa: el diagnostico de cadencia (que gate mata
+    candidatos) sale gratis del mismo replay."""
+    df15 = _make_tf(360)
+
+    def fake_eval(w15, w1h, w4h, w1m, dp, lap, cl, cfg):
+        i = len(w15) - 1
+        if i % 3 == 0:
+            return False, _FakeField(), {"decision": "field_only", "failed_at": "D"}
+        if i % 3 == 1:
+            return False, _FakeField(), {"decision": "math_below_threshold",
+                                         "failed_at": "p_master"}
+        return True, _FakeField(), _fire_report()
+
+    states = bf.replay_states(
+        df15, None, None, None,
+        evaluate_fn=fake_eval, detect_pspace_fn=None, laplacian_check_fn=None,
+        calculate_levels_fn=None, config={}, min_lookback=300, horizon_bars=10,
+    )
+    assert "decision" in states.columns and "failed_at" in states.columns
+    assert set(states["decision"].unique()) == {
+        "field_only", "math_below_threshold", "fire"}
+
+    funnel = bf.decision_funnel(states)
+    assert list(funnel.columns) == ["decision", "failed_at", "n", "pct"]
+    assert funnel["n"].sum() == len(states)
+    assert abs(funnel["pct"].sum() - 100.0) < 0.5
+    # ordenado desc: la primera fila es la decision mas frecuente
+    assert funnel.iloc[0]["n"] == funnel["n"].max()
+    # los fire llevan failed_at vacio (None -> "")
+    fire_row = funnel[funnel["decision"] == "fire"].iloc[0]
+    assert fire_row["failed_at"] == ""
+
+
+def test_decision_funnel_vacio_sin_columna():
+    # replays viejos (sin columna decision) -> funnel vacio, no revienta
+    import pandas as pd
+    old = pd.DataFrame({"entry_index": [1, 2], "pnl_r": [0.1, -0.2]})
+    funnel = bf.decision_funnel(old)
+    assert len(funnel) == 0
+
+
+# --------------------------------------------------------------------------
 # Eje A — bloque quantum / tiempo emergente en extract_features
 # --------------------------------------------------------------------------
 def _qt_report():

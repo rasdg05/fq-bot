@@ -120,6 +120,13 @@ permissions:
 jobs:
   research:
     runs-on: ubuntu-latest
+    # PODA (ablation=true): 4 replays (baseline + 3 toggles) NO caben en el techo
+    # para BTC 48m (~4h/replay) y van justos para SOL a step=2. Politica:
+    #  - BTC se SALTA cuando ablation=true (la poda se decide en SOL primero;
+    #    BTC no es candidato por §6.5 del plan y 4x4h revienta el runner).
+    #  - SOL corre la poda a step=3 (ver EFF_STEP abajo): ~55min/replay -> ~4h.
+    # En schedule los inputs llegan vacios -> la condicion no salta nada.
+    if: ${{ !(github.event.inputs.ablation == 'true' && matrix.symbol == 'BTC/USDT') }}
     # Techo holgado: BTC 48m de 5m ~170min de replay denso + modelo/grids/retrieval.
     # La poda (opt-in) triplica; por eso el techo es 350 (< 360 max del runner).
     timeout-minutes: 350
@@ -285,10 +292,16 @@ jobs:
           # retrieval ON (de el sale el OOS denso que calibra el umbral).
           [ "${BUILDIDX}" = "true" ] && [ "${RETRIEVAL}" = "true" ] && IDXFLAG="--build-index --index-out research_out/retrieval/${SLUG} --gold-top-pct ${GOLDPCT}"
           EQJSON="research_out/equity_${SLUG}.json"
+          # PODA: 4 replays deben caber en el techo de 350min. A step=2 SOL va al
+          # filo (~5h45); step=3 cierra en ~4h con ~420 senales por variante
+          # (suficiente para el veredicto VIVE/MATAR por modulo).
+          EFF_STEP="${STEP}"
+          [ "${ABLATION}" = "true" ] && EFF_STEP="3"
           python tools/run_research_real.py --exchange "${EX}" --symbol "${SYM}" \
             --tf-id "${TFID}" --target-level "${TARGETLVL}" \
             --horizon-sweep "${HSWEEP}" --dense-horizon "${DHORIZON}" \
-            --step "${STEP}" --max-bars "${MAXBARS}" \
+            --tp-cube-out "research_out/tp_cube_${SLUG}.parquet" \
+            --step "${EFF_STEP}" --max-bars "${MAXBARS}" \
             --seed "${SEED}" --n-splits "${NSPLITS}" --embargo 8 \
             ${ABLATION_FLAG} ${RFLAG} ${GRIDFLAG} ${QGATEFLAG} ${VABLFLAG} ${ETIMEFLAG} ${OOTFLAG} ${IDXFLAG} \
             --equity-json "${EQJSON}" \
