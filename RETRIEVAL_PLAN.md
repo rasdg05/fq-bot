@@ -484,6 +484,9 @@ del job BTC (step "Research real"):
   delta=… (n=…)` + el funnel para el siguiente candidato.
 
 **Criterio de decisión (antes de tocar producción):**
+- **REGLA DE ORO (fijada por el usuario, jun-2026): si elevar la cadencia
+  empeora la expectancy OOS (o degrada WR sin que la expectancy lo compense),
+  NO se hace.** La cadencia nunca se compra con calidad.
 - **MATAR** un módulo solo si `delta ≤ 0` (quitarlo NO empeora expectancy OOS)
   **y** sube `n` de forma material (≥ +20%). Aplicación en prod = env del
   worker (`FQ_USE_SCORER=0` / `FQ_USE_REGIME=0` / `FQ_SESSION_BIAS=0`),
@@ -496,6 +499,22 @@ del job BTC (step "Research real"):
 - `gold_top_pct` NO se toca en esta fase: primero cadencia del motor; el
   umbral ORO se revisa con el digest y 2–4 semanas de paper (regla del plan:
   si ORO < 2–3/semana sostenido, replantear umbral).
+
+**Edge por SEGMENTO — localizar el fractal explotable (jun-2026):**
+El runner imprime `[2.5/4] Edge por segmento` y persiste
+`segments_<sym>.csv`: expectancy/WR/n/maxDD condicional por **killzone,
+bloque horario UTC (4h), día de semana, tipo de nodo, dirección y bias 4h**,
+sobre la cartera OOS pooled (o in-sample etiquetado como tal). Es la versión
+LEGIBLE del retrieval: dónde (sesión/horario/setup) el sistema es
+consistentemente rentable, para explotarlo de forma comprobada y replicable.
+- **Estándar anti-espejismo**: con tantos cortes siempre hay un grupo "bueno"
+  por azar. Un segmento se considera candidato si `ok_n` (n ≥ 10 OOS) y
+  expectancy claramente > 0; se **explota** (p.ej. gate por killzone/horario)
+  solo tras (1) repetirse en una segunda corrida con datos frescos, y
+  (2) sobrevivir el mismo estándar que la poda (OOS + gate ORO re-validado).
+  El retrieval k-NN ya es el explotador GENERAL de estos fractales (el gate
+  ORO condensa "estados similares pagaron"); el segmento legible sirve para
+  entenderlo, comunicarlo y endurecer reglas de sesión si el dato lo respalda.
 
 **Datos para F3 (selector TP/horizonte por vecindario) — "meter más señales
 concluidas":**

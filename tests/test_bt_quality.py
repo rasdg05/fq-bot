@@ -83,3 +83,46 @@ def test_format_gate_renders():
                           quantiles=(0.5,))
     txt = q.format_gate(grid)
     assert "VIP" in txt and "base" in txt
+
+
+# --------------------------------------------------------------------------
+# segment_expectancy: edge condicional por segmento (fractales legibles)
+# --------------------------------------------------------------------------
+def _seg_df():
+    import pandas as pd
+    # killzone 'ny' paga (+0.5 x12), 'asia' pierde (-0.4 x12), 'raro' n=2
+    rows = []
+    rows += [{"field_killzone": "ny", "pnl_r": 0.5}] * 12
+    rows += [{"field_killzone": "asia", "pnl_r": -0.4}] * 12
+    rows += [{"field_killzone": "raro", "pnl_r": 3.0}] * 2
+    rows += [{"field_killzone": None, "pnl_r": 0.1}] * 3
+    return pd.DataFrame(rows)
+
+
+def test_segment_expectancy_ordena_y_marca_min_n():
+    t = q.segment_expectancy(_seg_df(), "field_killzone", min_n=10)
+    assert list(t.columns) == ["field_killzone", "n", "wr", "expectancy_r",
+                               "total_r", "max_dd_r", "ok_n"]
+    # los grupos con n>=10 van primero, ordenados por expectancy
+    assert t.iloc[0]["field_killzone"] == "ny" and bool(t.iloc[0]["ok_n"])
+    assert t.iloc[1]["field_killzone"] == "asia"
+    # 'raro' tiene mejor expectancy pero n<10 -> ok_n False y va despues
+    raro = t[t["field_killzone"] == "raro"].iloc[0]
+    assert not bool(raro["ok_n"]) and raro["expectancy_r"] == 3.0
+    # NaN del segmento agrupado como '(nan)'
+    assert "(nan)" in set(t["field_killzone"])
+
+
+def test_segment_expectancy_columna_ausente_o_vacio():
+    import pandas as pd
+    assert len(q.segment_expectancy(pd.DataFrame(), "x")) == 0
+    assert len(q.segment_expectancy(_seg_df(), "no_existe")) == 0
+
+
+def test_segment_expectancy_stats_correctos():
+    t = q.segment_expectancy(_seg_df(), "field_killzone", min_n=10)
+    ny = t[t["field_killzone"] == "ny"].iloc[0]
+    assert ny["n"] == 12
+    assert abs(ny["expectancy_r"] - 0.5) < 1e-9
+    assert abs(ny["total_r"] - 6.0) < 1e-9
+    assert ny["wr"] == 1.0

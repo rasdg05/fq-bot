@@ -307,6 +307,12 @@ def main():
     # --- FASE D: riesgo/drawdown ---
     p.add_argument("--equity-json", default=None,
                    help="ruta para volcar la curva de equity OOS + drawdown (JSON)")
+    # --- F2.5: edge por segmento (fractales legibles) ---
+    p.add_argument("--segments-out", default=None,
+                   help="ruta csv para la tabla completa de edge por segmento "
+                        "(killzone / bloque horario / dia / node_type / "
+                        "direccion / bias). Radar de fractales explotables; "
+                        "post-replay, cero coste")
     # --- F3 (datos): cubo (TP x horizonte) POR EVENTO, persistido ---
     p.add_argument("--tp-cube-out", default=None,
                    help="ruta parquet/csv para el cubo por evento (bt_labeler."
@@ -438,6 +444,7 @@ def main():
         print("\n[2/4] Metricas OOS de senales (con fees+slippage+funding):")
         print(met.format_report(base_metrics))
         _dump_equity_curve(base_equity, args)
+        _print_segments(labeled, folds, valid_index, args)
 
         # --- modelo entrenado sobre walk-forward ---
         print("\n[3/4] Modelo (LightGBM si disponible) sobre walk-forward...")
@@ -501,6 +508,7 @@ def main():
         print(f"\n  [guard] {len(events)} senales < {min_for_wf} para walk-forward "
               f"de {args.n_splits} folds: se omiten OOS/modelo de senales (el track "
               f"record de arriba es valido). Sube historia (--years) o baja --step.")
+        _print_segments(labeled, None, None, args)
 
     # ===== SALIDA B: retrieval DENSO (TODAS las velas, no solo los fired) =====
     if args.retrieval:
@@ -868,6 +876,59 @@ def _print_decision_funnel(states, args):
             print(f"  near-miss p_master (n={len(pm)}): mediana={q[0.5]:.3f} "
                   f"p75={q[0.75]:.3f} p90={q[0.9]:.3f} max={pm.max():.3f}"
                   + (f"  (gate PMASTER_MIN={thr})" if thr is not None else ""))
+
+
+_SEGMENT_COLS = ("field_killzone", "hora_utc_4h", "dia_semana",
+                 "field_node_type", "direction", "field_bias_4h")
+
+
+def _print_segments(labeled, folds, valid_index, args):
+    """[2.5/4] Edge por SEGMENTO (fractales legibles): expectancy condicional
+    por killzone / bloque horario UTC / dia / tipo de nodo / direccion / bias.
+
+    Sobre la cartera OOS pooled cuando hay folds (honesto); si no, in-sample
+    ETIQUETADO como tal. Es un RADAR de candidatos: con tantos cortes siempre
+    hay un grupo bueno por azar -> un segmento se explota SOLO tras
+    confirmarlo OOS/forward (mismo estandar que la poda; RETRIEVAL_PLAN §6.6).
+    """
+    try:
+        if folds:
+            pool = ab.pooled_oos_trades(labeled, folds, valid_index=valid_index)
+            scope = "OOS (folds pooled)"
+        else:
+            pool, scope = labeled, "IN-SAMPLE (sin folds: solo indicativo)"
+        if "pnl_r" in pool.columns:
+            pool = pool[pd.to_numeric(pool["pnl_r"], errors="coerce").notna()].copy()
+        if pool is None or len(pool) == 0:
+            return
+        if "entry_ts" in pool.columns:
+            ts = pd.to_datetime(pool["entry_ts"])
+            pool["hora_utc_4h"] = (ts.dt.hour // 4 * 4).map(
+                lambda h: "%02d-%02dutc" % (h, h + 4))
+            pool["dia_semana"] = ts.dt.dayofweek.map(dict(enumerate(
+                ["lun", "mar", "mie", "jue", "vie", "sab", "dom"])))
+        print(f"\n[2.5/4] Edge por segmento ({scope}; n={len(pool)}; min_n=10):")
+        frames = []
+        for c in (c for c in _SEGMENT_COLS if c in pool.columns):
+            t = ql.segment_expectancy(pool, c)
+            if len(t) == 0:
+                continue
+            frames.append(t.assign(segmento=c).rename(columns={c: "valor"}))
+            show = t[t["ok_n"]] if bool(t["ok_n"].any()) else t.head(4)
+            print(f"\n  -- {c} --")
+            print("  " + show.to_string(index=False).replace("\n", "\n  "))
+        print("\n  NOTA: radar de candidatos, no prueba. Un segmento se explota "
+              "solo tras confirmarse OOS/forward (multiples cortes => siempre "
+              "hay un 'bueno' por azar).")
+        if getattr(args, "segments_out", None) and frames:
+            out = args.segments_out
+            d = os.path.dirname(out)
+            if d:
+                os.makedirs(d, exist_ok=True)
+            pd.concat(frames, ignore_index=True).to_csv(out, index=False)
+            print(f"  [segmentos] tabla completa -> {out}")
+    except Exception as e:
+        print(f"  [segmentos] error no fatal: {e}")
 
 
 def _dump_tp_cube(df_primary, events, horizons, args):

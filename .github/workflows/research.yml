@@ -308,6 +308,7 @@ jobs:
             --tf-id "${TFID}" --target-level "${TARGETLVL}" \
             --horizon-sweep "${HSWEEP}" --dense-horizon "${DHORIZON}" \
             --tp-cube-out "research_out/tp_cube_${SLUG}.parquet" \
+            --segments-out "research_out/segments_${SLUG}.csv" \
             --step "${EFF_STEP}" --max-bars "${MAXBARS}" \
             --seed "${SEED}" --n-splits "${NSPLITS}" --embargo 8 \
             ${ABLATION_FLAG} ${RFLAG} ${GRIDFLAG} ${QGATEFLAG} ${VABLFLAG} ${ETIMEFLAG} ${OOTFLAG} ${IDXFLAG} \
