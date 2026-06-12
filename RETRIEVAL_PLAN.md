@@ -745,6 +745,45 @@ OOS pooled, pnl_r PRE-coste; los netos restan ~0.23R en SOL / ~0.28R en BTC):**
 
 ---
 
+## 6.9 CVD proxy — radar NEGATIVO (12-jun-2026)
+
+> Pregunta del usuario: ¿sirve "precio en nivel de interés + divergencia de
+> CVD = entrada"? Lo que el bot ya tiene (niveles ICT, espera, patrón de
+> divergencia) y lo que no (CVD real: el OHLCV no trae lado agresor) está en
+> el análisis de sesión; aquí el RESULTADO del diagnóstico barato.
+
+**Método (cero replays):** `cvd.py` (proxy de delta por vela: posición del
+cierre en el rango × volumen; detector espejo de `detect_rsi_divergence`) +
+`tools/regrade_cvd.py` (reconstruye labels tp1/h288 y folds 7/embargo 8 del
+run #30 desde el cubo persistido — verificado EXACTO contra los números
+sellados: SOL n=156 +0.138658 / BTC n=191 +0.207435 — y clasifica cada evento
+por la ventana causal de velas previas a la entrada, bajada de OKX).
+
+**Resultado (OOS pooled, exp_r PRE-coste vs base; `alineada` = divergencia a
+favor del trade, el playbook; `contra` = en contra):**
+
+| | SOL lb=96 | SOL lb=48 | BTC lb=96 | BTC lb=48 |
+|---|---|---|---|---|
+| base | +0.139 (156) | +0.139 (156) | +0.207 (191) | +0.207 (191) |
+| alineada | **+0.223 (18)** | −0.074 (31) | +0.001 (16) | +0.145 (21) |
+| contra | +0.082 (35) | +0.604 (17) | +0.328 (48) | +0.246 (29) |
+
+**Veredicto: el playbook NO sobrevive el anti-espejismo.** "Alineada > base"
+solo en 1 de 4 celdas (SOL/96, n=18) y se INVIERTE al cambiar lookback o
+símbolo. Curiosamente "contra > base" sale en 3 de 4 — pero con n=17–48,
+proxy (no CVD real) y 4 cortes escaneados, es exactamente el patrón de azar
+que el estándar §6.6 existe para no perseguir. Decisión:
+- NO se cablea gate/feature de CVD; NO se paga el dato real (taker/tick) con
+  esta evidencia.
+- Si el ledger forward o un run futuro reaviva la hipótesis, el primer paso
+  vuelve a ser este regrade (gratis), no un replay.
+- Subproducto que SÍ queda: el patrón de regrade offline (medir cualquier
+  veto/filtro sobre eventos persistidos sin replay) — semilla del
+  `regrade_events` genérico del ENGINEERING_PLAN N5; es la herramienta con la
+  que F2.6 §6.8 hará su paso 1.
+
+---
+
 ## 7. Roadmap por fases
 
 ### F0 — Datos BTC + harness de índice causal + **test de leakage** (puerta)

@@ -131,6 +131,10 @@ en el log de boot como env desconocida, no como default silencioso.
       events/cubo persistidos de un run y re-medir OOS con un filtro/veto,
       SIN replay. Convierte cada pregunta "¿y si vetamos X?" de 4h de CI a
       segundos locales. Mismo motor de costes (`bt_engine`/`bt_metrics`).
+      Semilla ya construida: `tools/regrade_cvd.py` (jun-2026, §6.9 del
+      RETRIEVAL_PLAN) reconstruye labels+folds del cubo con verificación
+      exacta contra los números sellados del run; generalizarla es extraer
+      el predicado.
 - [ ] **Comparador de runs**: `tools/compare_runs.py run30/ run31/` → tabla
       lado a lado (funnel, OOS, leakage, segmentos top). Hoy se hace a ojo
       entre logs de 500 líneas.
