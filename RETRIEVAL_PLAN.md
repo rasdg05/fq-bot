@@ -603,6 +603,28 @@ VIVO nunca tuvo este bug** (su reloj de pared es el correcto).
 3. Poda (`ablation=true`) sobre la base ya honesta → decisión de cadencia.
 4. Recién entonces: §6.6 (números re-medidos) y §6.3/F4 para BTC.
 
+**Primer baseline honesto — run #30, SOL (12-jun-2026, post-fix):**
+- Cadencia: **183 fired / 24m** (~1.8/sem a step=2). In-sample +0.136R;
+  **OOS −0.095R** (n=156, PF 0.84). El motor global NO tiene edge OOS en SOL
+  en este período con costes.
+- Denso: `causal −0.0098 ≈ 0` → REVISAR → **índice NO persistido** (el gate
+  vivo sigue siendo el de la ficción NY; no reemplazar; no leer su paper como
+  validación).
+- **Mapa de segmentos OOS (n=156)** — el edge existe pero CONCENTRADO:
+  SHORT **+0.274** (n=87) vs LONG −0.032 (n=69) · bias_4h bajista **+0.314**
+  (n=71) vs alcista −0.130 (n=61) · bloque **12-16 UTC +0.361** (n=38) ·
+  silver_bullet ny_am/londres +0.32/+0.31 (n=18/15) · london_open_kz
+  **−0.066 con n=43 (el bucket más grande dispara donde NO paga)** · vie/sab/
+  dom +0.37/+0.26/+0.27 vs lun −0.204.
+- ⚠ Caveat: el período es un mega-bear de SOL (~150→62): "los shorts pagan"
+  puede ser beta del período, no alpha. Estándar anti-espejismo vigente: el
+  mapa se explota solo si (1) replica en BTC #30 / corrida fresca y
+  (2) sobrevive forward. NUNCA degradando el gate ORO para "aprovechar hoy".
+- Lectura de la poda (#31) con baseline OOS negativo: el hallazgo más valioso
+  sería un módulo cuyo retiro **MEJORE** la expectancy (módulo dañino), no
+  solo la cadencia. Regla de oro aplica: multiplicar señales con expectancy
+  negativa multiplica pérdida — calidad primero (segmentos), cadencia después.
+
 ---
 
 ## 7. Roadmap por fases
