@@ -121,28 +121,22 @@ jobs:
   research:
     runs-on: ubuntu-latest
     # PODA (ablation=true): 4 replays (baseline + 3 toggles) NO caben en el techo
-    # para BTC 48m (~4h/replay) y van justos para SOL a step=2. Politica:
-    #  - BTC se SALTA cuando ablation=true (la poda se decide en SOL primero;
-    #    BTC no es candidato por §6.5 del plan y 4x4h revienta el runner).
-    #  - SOL corre la poda a step=3 (ver EFF_STEP abajo): ~55min/replay -> ~4h.
-    # En schedule los inputs llegan vacios -> la condicion no salta nada.
-    if: ${{ !(github.event.inputs.ablation == 'true' && matrix.symbol == 'BTC/USDT') }}
+    # para BTC 48m (~4h/replay). La MATRIZ es dinamica: con ablation=true solo
+    # corre SOL (la poda se decide en SOL primero; BTC no es candidato por §6.5)
+    # y a step=3 via EFF_STEP (abajo): ~55min/replay -> ~4h las 4 variantes.
+    # NOTA: esto va en la matriz (fromJSON) y NO en jobs.<id>.if porque el
+    # contexto `matrix` no existe en el if de job (evaluaria siempre true).
+    # En schedule los inputs llegan vacios -> matriz completa, sin cambios.
     # Techo holgado: BTC 48m de 5m ~170min de replay denso + modelo/grids/retrieval.
     # La poda (opt-in) triplica; por eso el techo es 350 (< 360 max del runner).
     timeout-minutes: 350
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          # BTC: 48 meses (densidad para el retrieval). step=3 = rango seguro de
-          # tiempo para 48m en 5m (garantiza que el run completa al primer click).
-          - symbol: "BTC/USDT"
-            months: "48"
-            step: "3"
-          # SOL: 24 meses (dataset mas chico) -> cabe con mas cadencia (step=2).
-          - symbol: "SOL/USDT"
-            months: "24"
-            step: "2"
+      # BTC: 48 meses (densidad para el retrieval), step=3 = rango seguro de tiempo.
+      # SOL: 24 meses (dataset mas chico) -> mas cadencia (step=2).
+      matrix: ${{ fromJSON(github.event.inputs.ablation == 'true'
+        && '{"include":[{"symbol":"SOL/USDT","months":"24","step":"2"}]}'
+        || '{"include":[{"symbol":"BTC/USDT","months":"48","step":"3"},{"symbol":"SOL/USDT","months":"24","step":"2"}]}') }}
     env:
       # Defaults benignos para que el monolito importe sin secretos reales.
       TELEGRAM_TOKEN: "ci-dummy"
