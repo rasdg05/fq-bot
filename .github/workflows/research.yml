@@ -264,6 +264,19 @@ jobs:
           # UNIFICADO: el replay es DENSO -> UN replay del motor alimenta el
           # research de senales (subset fired: frontera + modelo) Y el retrieval
           # denso (todas las velas). Todo lo demas es post-replay (gratis).
+          #
+          # MODO PODA (ablation=true): el run queda configurado SOLO para el
+          # veredicto de poda, sin tocar mas inputs en el form: los extras
+          # (retrieval / grids / gate VIP / ablacion de vector) se fuerzan OFF
+          # aqui y todo el presupuesto va a los 4 replays (baseline + 3
+          # toggles). El funnel [1.4/4] y el cubo TPxH no cuestan replays y
+          # siguen ON. Esto vive AQUI y no en los `default:` de los inputs
+          # porque el form de la UI renderiza los defaults de MAIN.
+          if [ "${ABLATION}" = "true" ]; then
+            RETRIEVAL="false"; TPSLGRID="false"; QGATE="false"; VABL="false"
+            echo "== MODO PODA: solo SOL (matriz dinamica), step efectivo=3,"
+            echo "   retrieval/tp_sl_grid/quality_gate/vector_ablation -> OFF =="
+          fi
           ABLATION_FLAG=""
           [ "${ABLATION}" = "true" ] && ABLATION_FLAG="--ablation"   # opt-in: 3 replays extra
           RFLAG=""

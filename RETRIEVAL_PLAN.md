@@ -470,16 +470,18 @@ del job BTC (step "Research real"):
    por delta de expectancy OOS, con `n` por variante (= cuánta cadencia
    compra quitarlo).
 
-**Runbook de la poda (SOL primero, como se decidió):**
+**Runbook de la poda (SOL primero, como se decidió) — UN solo checkbox:**
 - Actions → Research → Run workflow → branch
-  `claude/turbovec-tp-cube-hardening-fvzdx7` → `ablation=true`. Sugerido para
-  esa corrida: `retrieval=false`, `tp_sl_grid=false`, `quality_gate=false`,
-  `vector_ablation=false` (holgura de tiempo; la poda no los usa).
-- El workflow de esta rama hace el resto: **BTC se salta** (4 replays de 48m
-  no caben en el techo de 350min) y **SOL corre a step=3** (~55min/replay →
-  ~4h las 4 variantes; ~420 señales por variante bastan para el veredicto).
+  `claude/turbovec-tp-cube-hardening-fvzdx7` → marcar **solo `ablation`** →
+  Run. El workflow de la rama hace TODO lo demás en modo poda: la matriz
+  dinámica deja **solo SOL** (4 replays de BTC 48m no caben en el techo de
+  350min), el step efectivo sube a **3** (~55min/replay → ~4h las 4
+  variantes; ~420 señales por variante bastan para el veredicto) y los
+  extras (`retrieval`/`tp_sl_grid`/`quality_gate`/`vector_ablation`) se
+  fuerzan OFF para que todo el presupuesto vaya a los replays. El funnel
+  [1.4/4] y el cubo TP×H siguen ON (no cuestan replays).
 - Leer en el log: `[ablacion] ... [VIVE|MATAR] <modulo> sin_el expectancy_r=…
-  delta=… (n=…)`.
+  delta=… (n=…)` + el funnel para el siguiente candidato.
 
 **Criterio de decisión (antes de tocar producción):**
 - **MATAR** un módulo solo si `delta ≤ 0` (quitarlo NO empeora expectancy OOS)
