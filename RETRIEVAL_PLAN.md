@@ -376,6 +376,72 @@ python tools/compare_retrieval.py retrieval_SOL.json retrieval_BTC.json
 
 ---
 
+## 6.5 BTC — diagnóstico del gate DEGENERADO (run #26, jun-2026)
+
+> Veredicto (provisional, a sellar con UNA re-corrida post-fix): **BTC NO es
+> candidato** a gate ORO con la evidencia del run #26. El framework rechazando
+> un símbolo sin edge limpio es el sistema funcionando, no un fallo de CI: el
+> artefacto BTC de 13KB (sin `retrieval/`) es el no-persist correcto del gate
+> de leakage, no un bug.
+
+**Números del run #26 (BTC/USDT 48m, 5m, seed 42, inputs default):**
+- Denso: `causal +0.0453R` (≈0, ruido) · `placebo −0.1578` · `oracle +1.1357`
+  → `leakage_verdict=REVISAR` → índice **no persistido** (correcto).
+- Fired: **26 señales en 48 meses** (vs 629 de SOL en 24m). El retrieval
+  esparso quedó con n=6 por fold (todo nan) y la frontera/modelo con n=22 OOS:
+  `exp_r +0.0229R`, `PF 1.03`. El motor casi no dispara en BTC con los
+  `TF_PROFILES` actuales — la "ventaja de densidad" de BTC (riesgo #6) no
+  existe en el subset accionable.
+
+**Causa de los warnings "All-NaN slice" (`bt_retrieval.py:301`):** bug de
+ESQUEMA, no específico de BTC. `extract_features` leía `regime["score"]`,
+pero `regime_detector.detect_regime()` nunca emite esa clave (emite
+`state/flags_fired/n_flags/recommend/details`) → `regime_score` llegaba
+**100% NaN en TODOS los símbolos**. Verificado en el artefacto SOL del mismo
+run: `scaler.pkl` con `center_=NaN` SOLO en `regime_score` (y 98 warnings en
+el log de SOL, 96 en BTC). Fix jun-2026: fallback `regime_score = n_flags`
+(0..3 votos de deriva) en `bt_features.extract_features`, con test de
+regresión usando la forma REAL del detector. Notas:
+- El artefacto SOL **desplegado** es inmune al fix: su `center_=NaN` anula esa
+  dimensión en `transform` (NaN→0) con o sin valor vivo → el vector de la
+  query en producción NO se desalinea del índice.
+- En el fit DENSO `regime_score` seguirá esparso (~99.9% NaN): el motor solo
+  computa la capa ML cerca del fire (diseño, no bug). Donde revive de verdad
+  es en los fits sobre señales FIRED (ablación Eje A, gate VIP), con cobertura
+  100%. La telemetría del vectorizer ahora separa "100% NaN exacto = dimensión
+  MUERTA" del esparso por diseño para que esto no se confunda otra vez.
+- Los `qt_sync_score`/`qt_sigma_tau` 100% NaN bajo `emergent_time=false` son
+  comportamiento documentado del bloque quantum (§2.4/bt_retrieval), no bug.
+
+**Evaluación contra §6.3 (run #26, pre-fix):**
+
+| Criterio §6.3 | BTC run #26 | ¿Pasa? |
+|---|---|---|
+| 1. Edge neto ≥ +0.05R y PF ≥ 1.3 | +0.0229R, PF 1.03 (n=22 OOS) | NO |
+| 2. Lift IC90 > 0 atribuible | causal +0.045 ≈ 0 | NO |
+| 3. Densidad fiable | denso abstained=0, pero 26 fired/48m | NO |
+| 4. Robustez a costes | n/a (cae antes) | — |
+| 5. Sin leakage (tests #1–#5) | veredicto REVISAR | NO |
+
+**Decisión:** NO desplegar nada de BTC; SOL sigue siendo el único gate vivo
+(§9.2.1). Re-evaluar BTC solo si la re-corrida post-fix diera `leakage_ok` y
+causal materialmente > 0 — poco probable: la dimensión reparada es esparsa en
+el denso. El camino realista para BTC es densidad de señales (Opción B §3.0 o
+re-tunear `TF_PROFILES`), no el vector; eso es F4, con su propio criterio.
+
+**Re-corrida de verificación (la dispara el dueño; ~4h el job BTC):**
+Actions → "Research (backtest / walk-forward / poda)" → Run workflow → branch
+`claude/turbovec-tp-cube-hardening-fvzdx7` → inputs por DEFECTO (idénticos al
+#26; la matriz ya trae BTC 48m/step 3 y SOL 24m/step 2). Qué mirar en el log
+del job BTC (step "Research real"):
+1. `[vectorizer] features 100% NaN (dimension MUERTA…)` — post-fix NO debe
+   aparecer `regime_score` (la línea de cobertura `NaN>=50%` sí puede listarlo
+   con ~99.9%: eso es lo esparso por diseño).
+2. `[leakage] veredicto=…` del bloque `[denso]` — si sigue `REVISAR` (o causal
+   ≈0), el veredicto de arriba queda SELLADO y BTC fuera hasta F4.
+
+---
+
 ## 7. Roadmap por fases
 
 ### F0 — Datos BTC + harness de índice causal + **test de leakage** (puerta)
