@@ -38,7 +38,8 @@ class GoldPaperRuntime:
 
     def __init__(self, engine, *, account, governor=None, broker=None,
                  notify_fn=None, requested_risk=None, reconciler=None,
-                 reconcile_every=50, digest_every=0):
+                 reconcile_every=50, digest_every=0,
+                 maker_sim=False, maker_eps_bps=1.0, maker_ttl_bars=6):
         self.engine = engine
         self.account = account
         self.governor = governor or RiskGovernor()
@@ -51,6 +52,16 @@ class GoldPaperRuntime:
         self._ticks = 0
         self.counts = {"gold": 0, "base": 0, "abstain": 0}
         self._coverage_checked = False
+        # SHADOW maker (FQ_GOLD_MAKER_SIM): mide en paralelo si una LIMITE en
+        # el precio de la senal se habria llenado (penetracion, NO touch) o
+        # expirado — el dato de adverse selection que decide si la frontera
+        # maker del research (bt_engine [2.2/4]) es capturable. NO cambia las
+        # posiciones taker del paper: instrumentacion pura sobre el ledger
+        # (MAKER_FILL/MAKER_MISS por pid).
+        self.maker_sim = bool(maker_sim)
+        self.maker_eps = float(maker_eps_bps) / 10_000.0
+        self.maker_ttl_bars = int(maker_ttl_bars)
+        self._maker_pending = []
 
     @classmethod
     def from_env(cls, symbol, *, calculate_levels_fn, notify_fn=None):
@@ -89,9 +100,17 @@ class GoldPaperRuntime:
                      "(setea FQ_GOLD_BASELINE_R tras observar el paper)")
 
         digest_every = int(os.environ.get("FQ_GOLD_DIGEST_EVERY", "0"))
+        maker_sim = os.environ.get("FQ_GOLD_MAKER_SIM", "0").strip() in ("1", "true", "yes")
+        maker_eps = float(os.environ.get("FQ_GOLD_MAKER_EPS_BPS", "1.0"))
+        maker_ttl = int(os.environ.get("FQ_GOLD_MAKER_TTL_BARS", "6"))
+        if maker_sim:
+            log.info("[gold] maker shadow ON (eps=%.1fbps ttl=%d barras): "
+                     "midiendo fill-rate de limites, posiciones siguen taker",
+                     maker_eps, maker_ttl)
         return cls(engine, account=acc, governor=governor, broker=broker,
                    notify_fn=notify_fn, reconciler=reconciler,
-                   digest_every=digest_every)
+                   digest_every=digest_every, maker_sim=maker_sim,
+                   maker_eps_bps=maker_eps, maker_ttl_bars=maker_ttl)
 
     @staticmethod
     def _baseline_from_env_or_meta(gate_dir):
@@ -136,6 +155,29 @@ class GoldPaperRuntime:
             except Exception as e:
                 log.warning("[gold] digest: %s", e)
 
+    def _process_maker_pending(self, high, low, ts):
+        """Shadow maker: una limite descansando en `limit` se considera llena
+        solo si el precio PENETRA el nivel mas alla de eps (touch no llena:
+        peor caso de cola). TTL en barras evaluables; al expirar -> MISS."""
+        still = []
+        for pend in self._maker_pending:
+            d, limit = pend["direction"], pend["limit"]
+            filled = (low < limit * (1 - self.maker_eps)) if d > 0 \
+                else (high > limit * (1 + self.maker_eps))
+            if filled:
+                self.broker.ledger.append({
+                    "event": "MAKER_FILL", "ts": ts, "pid": pend["pid"],
+                    "limit": limit, "bars_waited": pend["waited"] + 1})
+                continue
+            pend["waited"] += 1
+            if pend["waited"] >= self.maker_ttl_bars:
+                self.broker.ledger.append({
+                    "event": "MAKER_MISS", "ts": ts, "pid": pend["pid"],
+                    "limit": limit, "bars_waited": pend["waited"]})
+            else:
+                still.append(pend)
+        self._maker_pending = still
+
     def on_bar(self, field, report, df_primary, price, *, high=None, low=None, ts=None):
         """Procesa una vela. high/low resuelven posiciones abiertas. Devuelve
         {tier, opened, resolved}."""
@@ -146,6 +188,10 @@ class GoldPaperRuntime:
                 out = self.broker.resolve_on_bar(self.account, pos, high, low, ts=ts)
                 if out is not None:
                     resolved.append({"pid": pos.pid, **out})
+            # 1.5) shadow maker: evaluar limites pendientes contra ESTA vela
+            #      (antes de abrir nuevas: una limite no se llena en su vela 0)
+            if self.maker_sim and self._maker_pending:
+                self._process_maker_pending(high, low, ts)
 
         # 2) reconciliar periodicamente (cierra el lazo de seguridad)
         self._ticks += 1
@@ -169,6 +215,10 @@ class GoldPaperRuntime:
             if d["approved"]:
                 pos = self.broker.open(self.account, sig, d["risk_frac"], ts=ts)
                 opened = {"pid": pos.pid, "risk_frac": d["risk_frac"], **sig}
+                if self.maker_sim:
+                    self._maker_pending.append({
+                        "pid": pos.pid, "direction": pos.direction,
+                        "limit": pos.entry, "waited": 0})
                 if self.notify_fn is not None:
                     try:
                         self.notify_fn(sig, verdict, pos)

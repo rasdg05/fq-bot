@@ -230,6 +230,39 @@ def _exposure_fraction(pooled):
     return min(held / span, 1.0)
 
 
+def _print_execution_frontier(labeled, folds, valid_index, sim_kwargs, ppy):
+    """[2.2/4] Frontera de ejecucion: las MISMAS senales OOS bajo escenarios
+    de fees maker/taker (CostModel.maker_*). Gratis (re-simular, no re-replicar).
+
+    Es el TECHO: asume fill 100% en la limite (adverse selection no modelada).
+    La captura realista la mide el paper con FQ_GOLD_MAKER_SIM (RETRIEVAL_PLAN
+    §6.10). El stop SIEMPRE taker. Sirve para decidir si vale la pena pagar el
+    fill-model forward, no para declarar victoria.
+    """
+    from dataclasses import replace
+    base_cost = sim_kwargs.get("cost") or eng.CostModel()
+    escenarios = [
+        ("taker/taker (actual)", base_cost),
+        ("entrada maker", replace(base_cost, maker_entry=True)),
+        ("entrada+TP maker", replace(base_cost, maker_entry=True,
+                                     maker_tp_exit=True)),
+    ]
+    print("\n[2.2/4] Frontera de ejecucion (techo maker; fill 100% asumido, "
+          f"maker_fee={base_cost.maker_fee}):")
+    rows = []
+    for name, c in escenarios:
+        kw = dict(sim_kwargs)
+        kw["cost"] = c
+        m, n, _eq = _oos_metrics(labeled, folds, valid_index, kw, ppy)
+        rows.append({"escenario": name, "n": n,
+                     "exp_R": m.get("expectancy_r"),
+                     "PF": m.get("profit_factor"),
+                     "total_R": m.get("total_r"),
+                     "maxDD": m.get("max_drawdown")})
+    print(pd.DataFrame(rows).to_string(
+        index=False, float_format=lambda v: f"{v:8.4f}"))
+
+
 def _oos_metrics(labeled, folds, valid_index, sim_kwargs, ppy):
     """Metricas OOS sobre la cartera pooled. Devuelve (metrics, n_pool, equity).
 
@@ -456,6 +489,7 @@ def main():
         print("\n[2/4] Metricas OOS de senales (con fees+slippage+funding):")
         print(met.format_report(base_metrics))
         _dump_equity_curve(base_equity, args)
+        _print_execution_frontier(labeled, folds, valid_index, sim_kwargs, ppy)
         _print_segments(labeled, folds, valid_index, args)
 
         # --- modelo entrenado sobre walk-forward ---

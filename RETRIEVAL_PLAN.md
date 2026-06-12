@@ -797,6 +797,53 @@ que el estándar §6.6 existe para no perseguir. Decisión:
 
 ---
 
+## 6.10 Frontera de ejecución MAKER (techo) + fill-model shadow (12-jun-2026)
+
+> Hallazgo §6.5: el edge bruto de ambos símbolos muere en costes en unidades R
+> (stops apretados ⇒ ~10bps round-trip ≈ 0.23–0.28R). La palanca más grande no
+> es estrategia: es EJECUCIÓN. El sistema entra cuando el precio LLEGA a un
+> nivel y el TP es un precio conocido — territorio natural de orden LÍMITE
+> (maker 2bps OKX vs taker 5bps, y sin slippage en la pierna maker).
+
+**Techo medido (offline sobre el pool OOS del #30; fill 100% asumido):**
+
+| neto/trade | BTC | BTC+veto london | SOL | SOL+veto |
+|---|---|---|---|---|
+| taker/taker (hoy) | −0.063R | −0.026R | −0.086R | +0.006R |
+| entrada maker | **+0.024R** | **+0.061R** | −0.008R | +0.079R |
+| entrada+TP maker | +0.066R | **+0.102R** | +0.021R | +0.108R |
+
+(Validación: el escenario "hoy" reproduce el neto sellado del run a ~0.01R;
+el residuo es funding/compounding.)
+
+**El caveat que gobierna esta sección: ADVERSE SELECTION.** Una límite en el
+nivel no se llena en los trades que se escapan (que tienden a ser ganadores)
+y se llena siempre en los que te atraviesan. El techo NO es la promesa; la
+captura realista se mide, no se asume. Dos instrumentos (jun-2026, cableados):
+
+1. **Research — `[2.2/4] Frontera de ejecución`** en cada run:
+   `bt_engine.CostModel` ahora soporta piernas maker (`maker_entry`,
+   `maker_tp_exit`; stop y timeout SIEMPRE taker; slippage 0 en pierna maker)
+   y el runner imprime los 3 escenarios sobre el mismo pool OOS. Gratis
+   (re-simulación, cero replays).
+2. **Paper — shadow maker (`FQ_GOLD_MAKER_SIM=1`)**: por cada ORO que el
+   paper abre taker (como siempre), registra en el ledger si una límite en el
+   precio de la señal se habría llenado — fill solo por PENETRACIÓN
+   (`FQ_GOLD_MAKER_EPS_BPS`, default 1bp; touch NO llena = peor caso de cola)
+   con TTL (`FQ_GOLD_MAKER_TTL_BARS`, default 6 velas) → eventos
+   `MAKER_FILL`/`MAKER_MISS` por `pid`, joinables con el outcome del gemelo
+   taker. NO toca las posiciones: instrumentación pura, default OFF.
+
+**Regla de decisión (se fija con ~30–50 eventos forward):** la ejecución
+maker solo se adopta si la sub-cartera `MAKER_FILL` (con fees maker) supera a
+la cartera taker completa Y el fill-rate × techo justifica el cambio. Si los
+fills se concentran en losers (adverse selection dura), la línea muere y nos
+quedamos taker — resultado válido. Nota: el fill-rate es propiedad de la
+microestructura (nivel→penetración), no del gate: la medición sirve aunque el
+artefacto ORO se reconstruya después (§6.7 paso 2).
+
+---
+
 ## 7. Roadmap por fases
 
 ### F0 — Datos BTC + harness de índice causal + **test de leakage** (puerta)

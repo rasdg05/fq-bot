@@ -169,3 +169,48 @@ def test_counts_track_tiers():
     rt = _runtime(rg.GOLD)
     rt.on_bar(_field("long"), _report(), None, 100.0)
     assert rt.counts["gold"] == 1 and rt.counts["base"] == 0
+
+
+# ------------------------------------------------------------
+# Shadow maker (FQ_GOLD_MAKER_SIM): fill-rate de limites en paralelo
+# ------------------------------------------------------------
+def _maker_events(rt):
+    return [r["payload"] for r in rt.broker.ledger.records
+            if str(r["payload"].get("event", "")).startswith("MAKER_")]
+
+
+def test_maker_shadow_fill_por_penetracion():
+    rt = _runtime(rg.GOLD, maker_sim=True, maker_eps_bps=1.0, maker_ttl_bars=6)
+    rep = rt.on_bar(_field("long"), _report(), None, 100.0)   # abre taker + pending
+    assert rep["opened"] is not None
+    pid = rep["opened"]["pid"]
+    # touch exacto del nivel NO llena (low == limite > limite*(1-eps))
+    rt.engine.gate.tier = rg.BASE   # siguientes velas sin nueva senal
+    rt.on_bar(_field("long"), _report(), None, 100.0, high=100.5, low=100.0)
+    assert _maker_events(rt) == []
+    # penetracion: low < 100*(1-1bp)=99.99 -> FILL con el pid del taker gemelo
+    rt.on_bar(_field("long"), _report(), None, 100.0, high=100.2, low=99.9)
+    evs = _maker_events(rt)
+    assert len(evs) == 1 and evs[0]["event"] == "MAKER_FILL"
+    assert evs[0]["pid"] == pid and evs[0]["bars_waited"] == 2
+
+
+def test_maker_shadow_miss_al_expirar_ttl():
+    rt = _runtime(rg.GOLD, maker_sim=True, maker_eps_bps=1.0, maker_ttl_bars=3)
+    rt.on_bar(_field("short"), _report(), None, 100.0)        # SHORT limite en 100
+    rt.engine.gate.tier = rg.BASE
+    for _ in range(3):   # el precio nunca penetra por encima de 100*(1+eps)
+        rt.on_bar(_field("short"), _report(), None, 99.0, high=99.95, low=98.5)
+    evs = _maker_events(rt)
+    assert len(evs) == 1 and evs[0]["event"] == "MAKER_MISS"
+    assert evs[0]["bars_waited"] == 3
+    assert rt._maker_pending == []
+
+
+def test_maker_shadow_off_por_default_y_no_toca_posiciones():
+    rt = _runtime(rg.GOLD)
+    rep = rt.on_bar(_field("long"), _report(), None, 100.0)
+    assert rep["opened"] is not None          # el taker abre igual que siempre
+    rt.engine.gate.tier = rg.BASE
+    rt.on_bar(_field("long"), _report(), None, 100.0, high=101.0, low=98.0)
+    assert _maker_events(rt) == []            # sin flag, cero instrumentacion
