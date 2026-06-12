@@ -132,6 +132,7 @@ def _run_replay(tfs, env_overrides=None, seed=42, tf_id="15m", dense=False,
     # Vale para AMBOS replays (denso y fires-only): replay_states tambien invoca
     # on_bar, asi el denso es igual de fiel.
     import volume_quality as _volq
+    import killzones_pd as _kzpd
     _replay_clock = {"ts": None}
     _RealDT = _volq.datetime
 
@@ -148,6 +149,17 @@ def _run_replay(tfs, env_overrides=None, seed=42, tf_id="15m", dense=False,
             return d.astimezone(tz) if tz is not None else d
 
     _volq.datetime = _BarClockDatetime
+    # MISMA inyeccion para killzones_pd (descubierto jun-2026, run #26 vs #28):
+    # current_killzone() y get_legacy_session() leian datetime.now(CDMX) ->
+    # TODA la historia heredaba la killzone/sesion de la hora en que corria el
+    # CI, y eso alimenta Fase D (w_killzone / w_clock_legacy -> w_effective ->
+    # p_master). Un run en horario NY (run #26: silver_bullet w=1.40 para cada
+    # vela de 24 meses) disparo 629 senales de SOL; el mismo codigo+datos+seed
+    # de madrugada CDMX (run #28: pesos asia 0.50) disparo 226. Con el bar-clock
+    # cada vela se juzga en SU killzone historica: backtest = bot en vivo e
+    # independiente de la hora del click. is_weekend_closed (UTC) se deja
+    # intacto a proposito: WEEKEND_ADMIN_ONLY ya lo neutraliza en research.
+    _kzpd.datetime = _BarClockDatetime
 
     def _on_bar(ts):
         _replay_clock["ts"] = ts

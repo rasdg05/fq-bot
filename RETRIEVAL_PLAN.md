@@ -378,6 +378,13 @@ python tools/compare_retrieval.py retrieval_SOL.json retrieval_BTC.json
 
 ## 6.5 BTC — diagnóstico del gate DEGENERADO (run #26, jun-2026)
 
+> **⚠ ACTUALIZACIÓN 12-jun-2026 — VEREDICTO SUSPENDIDO (ver §6.7):** los
+> números de esta sección se midieron bajo el **bug de reloj de killzones**
+> (toda la historia de BTC se evaluó con killzone de las 17-21h CDMX, es
+> decir prácticamente SIN killzone → Fase D estrangulada). BTC se re-mide
+> con el fix de bar-clock antes de sellar nada. El diagnóstico del bug de
+> `regime_score` (abajo) sigue siendo válido y su fix queda.
+
 > Veredicto (provisional, a sellar con UNA re-corrida post-fix): **BTC NO es
 > candidato** a gate ORO con la evidencia del run #26. El framework rechazando
 > un símbolo sin edge limpio es el sistema funcionando, no un fallo de CI: el
@@ -443,6 +450,11 @@ del job BTC (step "Research real"):
 ---
 
 ## 6.6 F2.5 — CADENCIA: poda de módulos + funnel (jun-2026)
+
+> **⚠ 12-jun-2026:** los números de cadencia de esta sección (629 fired,
+> gate_pass 20, etc.) provienen del run #26, medido bajo el bug de reloj
+> (§6.7): toda la historia con killzone NY de peso máximo. Se re-miden con
+> el run post-fix; el método y los criterios de esta sección no cambian.
 
 > Problema: la cadencia de señales es demasiado baja para el negocio Y para
 > los datos que F3 necesita. Palanca elegida (la segura): **poda de módulos
@@ -537,6 +549,59 @@ concluidas":**
   Antes de eso, el vecindario k=50 sobre fired es demasiado ralo para que el
   argmax del cubo sea estimable (lo vimos: retrieval esparso de BTC murió por
   exactamente esto).
+
+---
+
+## 6.7 BUG DE RELOJ EN RESEARCH (12-jun-2026) — hallazgo, alcance y re-medición
+
+**Hallazgo.** `killzones_pd.current_killzone()` y `get_legacy_session()` leen
+`datetime.now(CDMX)`. En el replay de research, TODA la historia heredaba la
+killzone/sesión de la hora a la que corría el CI; eso alimenta la Fase D
+(`w_killzone`/`w_clock_legacy` → `w_effective` → `p_master`) → el set de
+señales era función de la hora del click. El harness ya parcheaba el reloj de
+`volume_quality` (mismo bug, descubierto antes); faltaba `killzones_pd`.
+
+**Prueba (mismos datos, mismo código de motor, misma semilla):**
+| Run | Hora CDMX del job | Régimen ficticio | fired SOL | leakage denso |
+|---|---|---|---|---|
+| #26 | 08:57–10:51 (NY am) | `silver_bullet/ny_am` w=1.40/1.20 toda la historia | **629** | causal **+0.353**, OK |
+| #28 | 01:09–03:06 (madrugada) | asia/london_open w=0.50–1.20 | **226** | causal **−0.208**, REVISAR |
+
+Forense adicional: el vocab one-hot de killzone del artefacto #26 de SOL solo
+contiene `['ny_am_kz','silver_bullet_ny_am']`, y el de BTC (#26, corrió
+17–21h CDMX) quedó **vacío** → BTC evaluó 48 meses prácticamente sin
+killzone: sus 26 fired y su veredicto §6.5 estaban **estrangulados por el
+bug**, no (solo) por el mercado.
+
+**Fix (jun-2026):** el harness inyecta `_BarClockDatetime` también en
+`killzones_pd` → cada vela se juzga en SU killzone histórica; backtest = bot
+en vivo e independiente de la hora del click. Test de regresión:
+`tests/test_replay_clock.py`. `is_weekend_closed` (UTC) queda intacto a
+propósito (`WEEKEND_ADMIN_ONLY` ya lo neutraliza en research). **El bot en
+VIVO nunca tuvo este bug** (su reloj de pared es el correcto).
+
+**Qué queda invalidado / qué sobrevive:**
+- Invalidado como comparable: TODO research previo al fix (#26, #28, #29):
+  cadencias, edges, umbral ORO, veredicto BTC, poda. Eran backtests de
+  regímenes ficticios ("todo NY", "todo madrugada").
+- El **artefacto SOL desplegado** (gate ORO vivo) se construyó con el sesgo
+  "todo NY": `gold_threshold=4.1226` y su edge no son fiables. El paper sigue
+  corriendo (es papel y su ledger forward mide la verdad), pero el artefacto
+  se **reconstruye** con el primer run post-fix que dé `leakage_ok` y se
+  reemplaza en el Volume.
+- Sobreviven: los fixes de `regime_score`, 409, reconcile, topología; el
+  funnel/segmentos/cubo (instrumentación que destapó esto); el dato de que el
+  edge puede CONCENTRARSE por sesión (la diferencia #26 vs #28 lo sugiere —
+  el mapa de segmentos post-fix lo medirá de verdad, por vela y sin ficción).
+
+**Secuencia de re-medición (post-fix, en orden):**
+1. Run normal (defaults): re-baseline HONESTO de SOL y BTC — funnel, cadencia,
+   leakage, segmentos, cubo. BTC recibe su prueba justa (§6.5 se re-sella con
+   estos números).
+2. Si SOL da `leakage_ok`: descargar `retrieval/SOL_USDT` del artefacto y
+   reemplazar el contenido del Volume (mismo runbook §9.2.1); reiniciar worker.
+3. Poda (`ablation=true`) sobre la base ya honesta → decisión de cadencia.
+4. Recién entonces: §6.6 (números re-medidos) y §6.3/F4 para BTC.
 
 ---
 
