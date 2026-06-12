@@ -150,6 +150,25 @@ class ListenerState:
         self.offset = 0
         self.lock = threading.Lock()
 
+def _dm_admin_via(token, chat_id, text):
+    """DM al admin con token EXPLICITO. Existe porque al parquear el bot
+    publico no hay token publico: el unico canal disponible es el VIP (un solo
+    POST, sin polling -> no contribuye al 409). Best-effort, nunca lanza."""
+    token = (token or "").strip()
+    chat_id = (chat_id or "").strip()
+    if not token or not chat_id:
+        return False
+    try:
+        r = requests.post(
+            "https://api.telegram.org/bot{}/sendMessage".format(token),
+            data={"chat_id": chat_id, "text": text},
+            timeout=20,
+        )
+        return r.status_code == 200
+    except Exception:
+        return False
+
+
 def _alert_admin_conflict():
     """Aviso unico (por racha) al admin: hay un conflicto de token."""
     admin_cid = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
@@ -244,6 +263,17 @@ def main():
                 "TELEGRAM_TOKEN_PUBLIC vacio: bot publico PARQUEADO (sin "
                 "fallback al token VIP bajo launcher; setea la env en el "
                 "servicio Railway y redeploya).")
+            # Aviso UNICO via token VIP para que el operador no tenga que
+            # deducirlo del watchdog ("'public' sin latido"): el parqueo es
+            # deliberado y el resto del worker sigue normal.
+            _dm_admin_via(
+                os.environ.get("TELEGRAM_TOKEN"),
+                os.environ.get("TELEGRAM_CHAT_ID"),
+                "FQ Public Bot PARQUEADO: falta TELEGRAM_TOKEN_PUBLIC en el "
+                "worker (ya NO se usa el token VIP como fallback; ese doble "
+                "polling era la causa de los HTTP 409). VIP y maintenance "
+                "siguen normales. El watchdog reportara 'public' sin latido "
+                "hasta setear la env y redeployar.")
             while True:
                 time.sleep(600)
                 log.critical("Bot publico sigue parqueado: falta TELEGRAM_TOKEN_PUBLIC")

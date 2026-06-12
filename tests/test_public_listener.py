@@ -67,3 +67,34 @@ def test_conflict_backoff_escala_y_capea():
 
 def test_conflict_backoff_cero_sin_conflictos():
     assert epub._conflict_backoff(0) == 0
+
+
+# --------------------------------------------------------------------------
+# _dm_admin_via (aviso de parqueo via token VIP)
+# --------------------------------------------------------------------------
+def test_dm_admin_via_sin_credenciales_no_toca_red(monkeypatch):
+    def _boom(*a, **k):
+        raise AssertionError("no debe tocar la red sin token/chat")
+    monkeypatch.setattr(epub.requests, "post", _boom)
+    assert epub._dm_admin_via("", "123", "x") is False
+    assert epub._dm_admin_via("tok", "", "x") is False
+    assert epub._dm_admin_via(None, None, "x") is False
+
+
+def test_dm_admin_via_postea_con_credenciales(monkeypatch):
+    seen = {}
+
+    class _Resp:
+        status_code = 200
+
+    def fake_post(url, data=None, timeout=None):
+        seen["url"] = url
+        seen["data"] = data
+        return _Resp()
+
+    monkeypatch.setattr(epub.requests, "post", fake_post)
+    ok = epub._dm_admin_via(" tok ", " 42 ", "hola")
+    assert ok is True
+    assert "bottok/sendMessage" in seen["url"]
+    assert seen["data"]["chat_id"] == "42"
+    assert seen["data"]["text"] == "hola"
