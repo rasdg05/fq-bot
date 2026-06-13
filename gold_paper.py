@@ -32,6 +32,33 @@ import gold_live
 log = logging.getLogger("gold_paper")
 
 
+def process_maker_pending(pending, ledger, high, low, ts, *, eps, ttl_bars):
+    """Shadow maker COMPARTIDO (gold_paper ORO + motor_paper): una limite
+    descansando en `limit` se considera llena solo si el precio PENETRA el
+    nivel mas alla de `eps` (touch NO llena: peor caso de cola/adverse
+    selection). TTL en barras evaluables; al expirar -> MISS. Sella
+    MAKER_FILL/MAKER_MISS por pid en `ledger` y devuelve la lista de pendientes
+    que siguen vivas. Instrumentacion pura: no toca posiciones."""
+    still = []
+    for pend in pending:
+        d, limit = pend["direction"], pend["limit"]
+        filled = (low < limit * (1 - eps)) if d > 0 \
+            else (high > limit * (1 + eps))
+        if filled:
+            ledger.append({
+                "event": "MAKER_FILL", "ts": ts, "pid": pend["pid"],
+                "limit": limit, "bars_waited": pend["waited"] + 1})
+            continue
+        pend["waited"] += 1
+        if pend["waited"] >= ttl_bars:
+            ledger.append({
+                "event": "MAKER_MISS", "ts": ts, "pid": pend["pid"],
+                "limit": limit, "bars_waited": pend["waited"]})
+        else:
+            still.append(pend)
+    return still
+
+
 class GoldPaperRuntime:
     """Orquesta, por vela: resolver abiertas -> reconciliar -> clasificar y, si
     ORO, abrir en paper + avisar admin. Track record en un ledger durable."""
@@ -156,27 +183,10 @@ class GoldPaperRuntime:
                 log.warning("[gold] digest: %s", e)
 
     def _process_maker_pending(self, high, low, ts):
-        """Shadow maker: una limite descansando en `limit` se considera llena
-        solo si el precio PENETRA el nivel mas alla de eps (touch no llena:
-        peor caso de cola). TTL en barras evaluables; al expirar -> MISS."""
-        still = []
-        for pend in self._maker_pending:
-            d, limit = pend["direction"], pend["limit"]
-            filled = (low < limit * (1 - self.maker_eps)) if d > 0 \
-                else (high > limit * (1 + self.maker_eps))
-            if filled:
-                self.broker.ledger.append({
-                    "event": "MAKER_FILL", "ts": ts, "pid": pend["pid"],
-                    "limit": limit, "bars_waited": pend["waited"] + 1})
-                continue
-            pend["waited"] += 1
-            if pend["waited"] >= self.maker_ttl_bars:
-                self.broker.ledger.append({
-                    "event": "MAKER_MISS", "ts": ts, "pid": pend["pid"],
-                    "limit": limit, "bars_waited": pend["waited"]})
-            else:
-                still.append(pend)
-        self._maker_pending = still
+        """Shadow maker del ORO (delega en el helper compartido)."""
+        self._maker_pending = process_maker_pending(
+            self._maker_pending, self.broker.ledger, high, low, ts,
+            eps=self.maker_eps, ttl_bars=self.maker_ttl_bars)
 
     def on_bar(self, field, report, df_primary, price, *, high=None, low=None, ts=None):
         """Procesa una vela. high/low resuelven posiciones abiertas. Devuelve

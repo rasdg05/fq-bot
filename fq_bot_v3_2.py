@@ -2716,6 +2716,85 @@ def _gold_paper_eval(field, report, df_primary, price, tf_id):
 
 
 # ============================================================
+# F2.6/§6.10.1 — MOTOR PAPER (motor base + veto + shadow maker; default OFF)
+# ============================================================
+# Paper del SUBSET CORRECTO (§6.10.1): abre las senales del MOTOR BASE (el `fire`
+# CRUDO de evaluate_signal) filtradas por su propio veto (default london), con
+# shadow maker midiendo el fill-rate REAL — el juez del techo +0.10R. 0% real,
+# ledger durable propio, paralelo al ORO. Activar con FQ_MOTOR_PAPER=1.
+MOTOR_PAPER_ENABLED = os.environ.get("FQ_MOTOR_PAPER", "0").strip() in ("1", "true", "yes")
+MOTOR_PAPER_TF = os.environ.get("FQ_MOTOR_PAPER_TF", "15m")  # TF nativo del fire
+_MOTOR_RUNTIME = None
+_MOTOR_RUNTIME_TRIED = False
+
+
+def _motor_admin_notify(sig, verdict, pos):
+    """Aviso admin-only del motor paper (open + digest). SIN VIP, 0% real."""
+    try:
+        if sig is None:
+            v = verdict if isinstance(verdict, dict) else {}
+            if "digest" in v:
+                c = v["digest"]
+                msg = ("📄 <b>Motor paper</b> ({tk} velas) — fire {f} · abiertas "
+                       "{o} · vetadas {ve} · vivas {ov}").format(
+                           tk=v.get("ticks", "?"), f=c.get("fire", 0),
+                           o=c.get("opened", 0), ve=c.get("vetoed", 0),
+                           ov=v.get("open", 0))
+                broadcast_to_subscribers(msg, tiers=["admin"])
+            return
+        d = "LONG" if sig["direction"] > 0 else "SHORT"
+        msg = ("🧪 <b>Motor base (paper)</b> {sym} {d} [{tf}/{kz}]\n"
+               "entry {e:.4f} · SL {s:.4f} · TP {t:.4f} · pid={pid}\n"
+               "<i>Subset correcto §6.10.1 — 0% real, mide fill maker.</i>").format(
+                   sym=GOLD_LIVE_SYMBOL, d=d, tf=verdict.get("tf", "?"),
+                   kz=verdict.get("killzone", "?"), e=sig["entry"], s=sig["stop"],
+                   t=sig["tp"], pid=pos.pid)
+        broadcast_to_subscribers(msg, tiers=["admin"])
+    except Exception as e:
+        log.warning("[motor] notify admin: %s", e)
+
+
+def _motor_runtime():
+    """Lazy-init del runtime motor paper (una vez). None si no se puede armar."""
+    global _MOTOR_RUNTIME, _MOTOR_RUNTIME_TRIED
+    if _MOTOR_RUNTIME is not None or _MOTOR_RUNTIME_TRIED:
+        return _MOTOR_RUNTIME
+    _MOTOR_RUNTIME_TRIED = True
+    try:
+        import motor_paper
+        _MOTOR_RUNTIME = motor_paper.MotorPaperRuntime.from_env(
+            GOLD_LIVE_SYMBOL, notify_fn=_motor_admin_notify)
+        log.info("[motor] runtime paper MOTOR BASE activo (%s, tf=%s)",
+                 GOLD_LIVE_SYMBOL, MOTOR_PAPER_TF)
+    except Exception as e:
+        log.warning("[motor] no se pudo armar el runtime paper: %s", e)
+        _MOTOR_RUNTIME = None
+    return _MOTOR_RUNTIME
+
+
+def _motor_paper_eval(fire, field, report, df_primary, price, tf_id):
+    """Hook por vela: corre el MOTOR PAPER en el TF configurado. No-op si
+    FQ_MOTOR_PAPER!=1. Juzga el veto con el ts de la VELA (no now()). Nunca
+    rompe el loop (todo en try/except)."""
+    if not MOTOR_PAPER_ENABLED or tf_id != MOTOR_PAPER_TF:
+        return
+    rt = _motor_runtime()
+    if rt is None:
+        return
+    try:
+        hi = float(df_primary["high"].iloc[-1])
+        lo = float(df_primary["low"].iloc[-1])
+        try:
+            cts = df_primary["timestamp"].iloc[-1]   # ts de la VELA (no now())
+        except Exception:
+            cts = None
+        rt.on_bar(fire, field, report, df_primary, price, high=hi, low=lo,
+                  ts=cts, tf_id=tf_id)
+    except Exception as e:
+        log.warning("[motor] on_bar: %s", e)
+
+
+# ============================================================
 # v4.1.1 — _evaluate_setup_v411 (delegate al fusion_engine)
 # ============================================================
 def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
@@ -2807,6 +2886,11 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
 
         # F2: gate ORO de retrieval en PAPEL (admin-only; no-op si FQ_GOLD_LIVE!=1)
         _gold_paper_eval(field, report, df_primary, price, tf_id)
+
+        # F2.6/§6.10.1: MOTOR PAPER — mide el SUBSET CORRECTO (motor base + veto
+        # + shadow maker) con el `fire` CRUDO (antes de QTE / veto-VIP de abajo)
+        # = misma poblacion que el replay de research. No-op si FQ_MOTOR_PAPER!=1.
+        _motor_paper_eval(fire, field, report, df_primary, price, tf_id)
 
         # F2.6 (§6.8): VETO DE SESION — capa de decision POST evaluate_signal,
         # JAMAS dentro de fusion_engine. Si la killzone de la VELA (field.killzone)
