@@ -36,8 +36,54 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import bt_ablation as ab          # noqa: E402
 import bt_quality as ql           # noqa: E402
 import bt_walkforward as wf       # noqa: E402
+import bt_engine as eng           # noqa: E402
+import bt_metrics as met          # noqa: E402
 
 _DIAS = ["lun", "mar", "mie", "jue", "vie", "sab", "dom"]
+
+
+def _cost_for_symbol(symbol):
+    """Mismo CostModel por simbolo que el runner (BTC mas fino que SOL)."""
+    sym = (symbol or "").upper().replace("-", "/").split(":")[0]
+    base = sym.split("/")[0]
+    slip = 0.4 if base in ("BTC", "XBT") else 1.0
+    return eng.CostModel(taker_fee=0.0005, slippage_bps=slip,
+                         funding_rate_8h=0.0001, apply_funding=True)
+
+
+def _exp_r(pool, cost):
+    """expectancy_r OOS de una cartera bajo un CostModel (bt_engine real,
+    no carga plana). bar_minutes=5 (cubo en 5m)."""
+    if pool is None or len(pool) == 0:
+        return float("nan"), 0
+    res = eng.simulate(pool, bar_minutes=5.0, cost=cost)
+    m = met.metrics_from_result(res, periods_per_year=None)
+    return m.get("expectancy_r"), m.get("n_trades", 0)
+
+
+def _maker_matrix(pooled, symbol):
+    """Matriz {base, con-veto} x {taker, entrada maker, entrada+TP maker}:
+    las DOS palancas de calidad juntas, con bt_engine real por pierna.
+    El veto usa la columna _vetada ya marcada en `pooled`."""
+    from dataclasses import replace
+    base_cost = _cost_for_symbol(symbol)
+    escen = [
+        ("taker/taker", base_cost),
+        ("entrada maker", replace(base_cost, maker_entry=True)),
+        ("entrada+TP maker", replace(base_cost, maker_entry=True,
+                                     maker_tp_exit=True)),
+    ]
+    restantes = pooled[~pooled["_vetada"]]
+    rows = []
+    for name, c in escen:
+        eb, nb = _exp_r(pooled, c)
+        er, nr = _exp_r(restantes, c)
+        rows.append({"ejecucion": name, "base_expR": eb, "base_n": nb,
+                     "+veto_expR": er, "+veto_n": nr})
+    print(f"\n  -- MATRIZ maker x veto (OOS, bt_engine real; {symbol}) --")
+    print("  " + pd.DataFrame(rows).to_string(
+        index=False, float_format=lambda v: f"{v:8.4f}").replace("\n", "\n  "))
+    print("  (base = toda la cartera OOS; +veto = sin las señales vetadas)")
 
 
 def _veto_mask(df, args):
@@ -95,6 +141,9 @@ def main():
     p.add_argument("--veto-weekdays", default=None)
     p.add_argument("--cost-burden-r", type=float, default=None,
                    help="carga media de costes del run en R (columna neta ~)")
+    p.add_argument("--maker-matrix", default=None, metavar="SYMBOL",
+                   help="imprime la matriz {base,veto}x{taker,maker} con "
+                        "bt_engine real para el simbolo dado (p.ej. SOL/USDT)")
     args = p.parse_args()
 
     cube = pd.read_parquet(args.cube)
@@ -121,6 +170,8 @@ def main():
         print(f"(neta~ = pre-coste - {burden:.4f}R, carga media del run)")
     _print_table(f"TODAS las etiquetadas (n={len(labeled)})", labeled, burden)
     _print_table(f"OOS pooled (n={len(pooled)})", pooled, burden)
+    if args.maker_matrix:
+        _maker_matrix(pooled, args.maker_matrix)
     print("\n  NOTA: paso 1 del protocolo F2.6 (§6.8): esto DIMENSIONA el "
           "veto; la decision exige corrida de confirmacion + leakage_ok del "
           "ORO + paper forward. Radar, no prueba.")

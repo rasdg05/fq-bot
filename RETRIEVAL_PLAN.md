@@ -901,6 +901,47 @@ quedamos taker — resultado válido. Nota: el fill-rate es propiedad de la
 microestructura (nivel→penetración), no del gate: la medición sirve aunque el
 artefacto ORO se reconstruya después (§6.7 paso 2).
 
+### 6.10.1 — LAS DOS PALANCAS JUNTAS (run #32, sha 94d415f, 13-jun-2026)
+
+> El run #32 (confirmación, motor honesto, código nuevo) confirma la frontera
+> maker `[2.2/4]` de cada símbolo y reproduce los cálculos offline del #30.
+> `tools/regrade_events.py --maker-matrix` mide la combinación **veto de
+> sesión × ejecución maker** con `bt_engine` real por pierna sobre el cubo OOS.
+
+**Matriz (expectancy_r OOS, bt_engine real; base = cartera completa, +veto =
+sin `london_open_kz`):**
+
+| ejecución | SOL base (n=156) | SOL +veto (n=113) | BTC base (n=191) | BTC +veto (n=158) |
+|---|---|---|---|---|
+| taker/taker (hoy) | −0.095 | −0.003 | −0.068 | −0.031 |
+| entrada maker | −0.017 | +0.070 | +0.019 | +0.055 |
+| **entrada+TP maker** | +0.021 | **+0.109** | +0.066 | **+0.102** |
+
+**Hito: primera config con +0.10R OOS positivo en AMBOS símbolos, replicada
+cross-symbol.** El filo = **motor base + veto `london_open_kz` + ejecución
+maker**. Ni el TP estático ni el modelo ni el retrieval lo lograron; las dos
+palancas legibles sí.
+
+**Los 4 caveats que lo mantienen como TECHO, no promesa (orden de letalidad):**
+1. **Maker asume fill 100%** (adverse selection no modelada). El shadow maker
+   en paper (§6.10) lo está midiendo AHORA; sin su fill-rate real, +0.109 es
+   el techo. ESTA es la incógnita que decide si el filo es de verdad.
+2. **El veto + maker se apilan sobre la MISMA muestra** del #32. El veto ya
+   replicó SOL×BTC (anti-espejismo parcial), pero la vara real es forward.
+3. **El retrieval denso sigue REVISAR en ambos** (SOL causal −0.0098, BTC
+   +0.0067) → el gate ORO NO se reconstruye. Esta espada es del **motor base**,
+   NO del gate k-NN — que lleva varios runs sin dar `leakage_ok`. Implicación
+   estratégica: el producto operable que los datos respaldan HOY es el motor
+   base + palancas legibles, no el gate de retrieval.
+4. **Cadencia baja con el veto** (SOL 156→113, −28%). Calidad por cadencia:
+   aceptable para el objetivo, pero acerca el problema de densidad para F3.
+
+**Implicación para el camino a vivo:** el paper hoy mide fills sobre las
+señales del gate ORO (ficción NY). Para validar ESTA espada forward, el paper
+debe medir el subset correcto: **motor base + veto london + shadow maker**.
+Es un cambio de cableado del runtime paper (no del motor) — se plantea al
+usuario antes de tocar (§9.3); 0% real, reversible.
+
 ---
 
 ## 7. Roadmap por fases
