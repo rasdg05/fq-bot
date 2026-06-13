@@ -66,13 +66,12 @@ bit-a-bit las mismas versiones.
 
 ## N2. Guardas que codifican lecciones (tests de invariantes)
 
-- [ ] **Guarda de reloj de pared**: test que parsea (AST) los módulos del path
-      del motor (`fusion_engine`, `killzones_pd`, `volume_quality`,
-      `session_bias`, `market_context`, `ict_smc`, …) y FALLA si aparece un
-      `datetime.now()/utcnow()/date.today()` fuera de la allowlist explícita.
-      Es la versión permanente de la regla "§6.7: todo reloj nuevo en el motor
-      es sospechoso". El replay inyecta `_BarClockDatetime`; la guarda evita
-      que un módulo nuevo se quede fuera de la inyección.
+- [x] **Guarda de reloj de pared** (`tests/test_no_wallclock.py`): parsea (AST)
+      los módulos del path del motor y FALLA si aparece un
+      `datetime.now()/utcnow()/date.today()/Timestamp.now()` por encima del
+      BASELINE auditado. Es la versión permanente de "§6.7: todo reloj nuevo en
+      el motor es sospechoso". 13-jun-2026: añadido `segment_veto.py` (baseline
+      0) — el veto de sesión juzga el ts de la VELA, jamás el reloj de pared.
 - [ ] **Guarda de esquema del vector**: si `meta.json` declara N features, el
       vectorizer debe rechazar (no rellenar en silencio) una query con otro
       esquema. Ya hay telemetría de dims muertas; falta el contrato duro.
@@ -127,14 +126,12 @@ en el log de boot como env desconocida, no como default silencioso.
       con id, sha, inputs, veredictos clave (#26 ficción NY / #28 ficción
       madrugada / #30 baseline honesto / #31 poda…). Los artefactos de
       GitHub expiran (~90 días): los runs-hito se archivan al Volume o Drive.
-- [ ] **`tools/regrade_events.py`** (lo pide F2.6 §6.8 paso 1): cargar
-      events/cubo persistidos de un run y re-medir OOS con un filtro/veto,
-      SIN replay. Convierte cada pregunta "¿y si vetamos X?" de 4h de CI a
-      segundos locales. Mismo motor de costes (`bt_engine`/`bt_metrics`).
-      Semilla ya construida: `tools/regrade_cvd.py` (jun-2026, §6.9 del
-      RETRIEVAL_PLAN) reconstruye labels+folds del cubo con verificación
-      exacta contra los números sellados del run; generalizarla es extraer
-      el predicado.
+- [x] **`tools/regrade_events.py`** (F2.6 §6.8 paso 1): carga el cubo de un run
+      y re-mide OOS con un filtro/veto SIN replay; mismo motor de costes
+      (`bt_engine`/`bt_metrics`) + matriz maker×veto. 13-jun-2026: su predicado
+      `_veto_mask` se EXTRAJO a `segment_veto.py` (módulo puro), ahora COMPARTIDO
+      por el regrade offline, el replay integrado (`run_research_real`) y el loop
+      vivo (`fq_bot_v3_2`) → cero divergencia. (Falta el comparador de runs.)
 - [ ] **Comparador de runs**: `tools/compare_runs.py run30/ run31/` → tabla
       lado a lado (funnel, OOS, leakage, segmentos top). Hoy se hace a ojo
       entre logs de 500 líneas.

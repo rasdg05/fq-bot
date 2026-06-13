@@ -743,11 +743,29 @@ VIVO nunca tuvo este bug** (su reloj de pared es el correcto).
 
 ---
 
-## 6.8 F2.6 — GATE POR SEGMENTO de sesión (diseño, 12-jun-2026; pendiente de #31)
+## 6.8 F2.6 — GATE POR SEGMENTO de sesión (CÓDIGO, 13-jun-2026)
 
-> Estado: **DISEÑO, sin código**. Se construye solo después del veredicto de
-> la poda (#31) y se valida con el protocolo de abajo ANTES de tocar prod.
-> Paper primero, 0% real. El gate ORO NUNCA se degrada para esto.
+> Estado: **CÓDIGO en producción (default OFF)**, 13-jun-2026. La poda (#31)
+> dijo que no se mata nada (§6.6) → F2.6 se construye ENCIMA del motor. Se
+> valida con el protocolo de abajo ANTES de activar en vivo. Paper primero,
+> 0% real. El gate ORO NUNCA se degrada para esto.
+>
+> **Implementado** (`segment_veto.py`, módulo puro, default OFF
+> `FQ_SEGMENT_VETO_KILLZONES=""`): predicado que veta por killzone / bloque-UTC
+> / día, juzgando el TIMESTAMP DE LA VELA (nunca `datetime.now()`; en la guarda
+> `tests/test_no_wallclock.py` con baseline 0). MISMO predicado en los TRES
+> consumidores → cero divergencia:
+> - **research** (`run_research_real`): filtra la población etiquetada tras
+>   `label_events`, antes de OOS/[2.2/4]/[2.5/4]/retrieval (cubo `events`
+>   INTACTO para el regrade); el run mide el veto INTEGRADO.
+> - **offline** (`tools/regrade_events._veto_mask`): delega en `segment_veto`
+>   → sus números reproducen lo que mide la corrida integrada.
+> - **vivo** (`fq_bot_v3_2`): capa de decisión post `evaluate_signal` (junto al
+>   gate QTE), JAMÁS dentro de `fusion_engine`; veta la señal VIP. Default OFF.
+>
+> El protocolo paso 2 (corrida de confirmación) ya es LANZABLE: input
+> `segment_veto_killzones` en `research.yml` → `FQ_SEGMENT_VETO_KILLZONES` del
+> replay (ver runbook §9.4).
 
 **Evidencia (la que sobrevivió la prueba anti-espejismo SOL #30 × BTC #30,
 OOS pooled, pnl_r PRE-coste; los netos restan ~0.23R en SOL / ~0.28R en BTC):**
@@ -936,11 +954,17 @@ palancas legibles sí.
 4. **Cadencia baja con el veto** (SOL 156→113, −28%). Calidad por cadencia:
    aceptable para el objetivo, pero acerca el problema de densidad para F3.
 
-**Implicación para el camino a vivo:** el paper hoy mide fills sobre las
-señales del gate ORO (ficción NY). Para validar ESTA espada forward, el paper
-debe medir el subset correcto: **motor base + veto london + shadow maker**.
-Es un cambio de cableado del runtime paper (no del motor) — se plantea al
-usuario antes de tocar (§9.3); 0% real, reversible.
+**Implicación para el camino a vivo — RESUELTO en CÓDIGO (13-jun-2026):** el
+paper ORO mide fills sobre el gate de la ficción NY (población incorrecta). Para
+validar ESTA espada forward se cableó `motor_paper.py` (`MotorPaperRuntime`,
+default OFF `FQ_MOTOR_PAPER`): un track PARALELO al ORO que abre en paper el
+**motor base** (el `fire` CRUDO de `evaluate_signal`, misma población que el
+replay) filtrado por su **veto propio** (default `london_open_kz`, independiente
+del veto VIP en vivo → desacopla la validación del impacto a clientes) y mide el
+**shadow maker** (fill por penetración). `tools/motor_paper_stats.py` reporta el
+fill-rate maker REAL + adverse selection (FILL vs MISS). Es cableado del runtime
+paper, NO del motor; 0% real, reversible. El edge neto = matriz §6.10.1 escalada
+por el fill-rate realizado. Runbook §9.4. Meta: ≥30-50 fills (regla §6.10).
 
 ---
 
@@ -1067,6 +1091,44 @@ if sig:  # solo ORO + direccion de campo
 ```
 Default **OFF** (`FQ_GOLD_LIVE=0`) hasta validar cadencia/calidad en paper. La
 señal sale en el formato del `PaperBroker`/`live_driver` — sin adaptaciones.
+
+### 9.4 Runbooks F2.6 (veto de sesión + motor paper) — 13-jun-2026
+
+Tres acciones, en orden de seguridad. El código ya está en producción (default
+OFF). Paper primero; nada de dinero real.
+
+**A) Corrida de CONFIRMACIÓN del veto (§6.8 paso 2) — CI, 0% impacto.**
+Actions → Research → Run workflow → branch
+`claude/turbovec-tp-cube-hardening-fvzdx7` → setear input
+`segment_veto_killzones = london_open_kz` (dejar el resto por default) → Run.
+El replay filtra la población etiquetada por el veto ANTES de medir → el
+REPORTE trae OOS [2/4] + frontera maker [2.2/4] + segmentos [2.5/4] +
+`leakage_ok` del ORO de la población restante. Vara §6.6: el veto se queda solo
+si mejora la expectancy OOS sin degradar WR de forma no compensada.
+> Nota GitHub: el form renderiza inputs desde `main`. Si `segment_veto_killzones`
+> no aparece al seleccionar la rama, hay que mergear esta rama a `main` primero
+> (o, fallback puntual, hardcodear `FQ_SEGMENT_VETO_KILLZONES` en el `env:` del
+> workflow como se hizo con `BUILDIDX`).
+
+**B) MOTOR PAPER forward (§6.10.1, mide el fill-rate REAL) — Railway, 0% real,
+admin-only.** worker → Variables: `FQ_MOTOR_PAPER=1` (+ opcional
+`FQ_MOTOR_PAPER_TF=15m`, `FQ_MOTOR_PAPER_VETO_KILLZONES=london_open_kz` ya es
+default). Redeploy. Confirmar en logs: `[motor] runtime paper MOTOR BASE
+activo`. Tras 2-4 semanas: `python tools/motor_paper_stats.py` (lee el ledger
+del Volume) → fill-rate maker + adverse selection + muestra vs la meta ≥30-50.
+NO toca VIP ni dinero; es el juez del techo +0.10R. Rollback: borrar la env.
+
+**C) VETO LONDON EN VIVO (provisional, §6.8 paso 4) — Railway, IMPACTA CLIENTES.**
+worker → Variables: `FQ_SEGMENT_VETO_KILLZONES=london_open_kz`. Redeploy.
+⚠️ Esto VETA señales VIP a CLIENTES en la franja london (1:00-5:00 CDMX), no
+solo paper → CONFIRMAR con el usuario (captura del dashboard) antes de activar.
+Confirmar en logs: `VETO sesion [killzone=london_open_kz] - señal NO difundida`
+en la franja. Rollback de una línea: borrar la env. Idealmente solo tras (B)
+dar fill-rate y/o el forward respaldar el veto.
+
+**Siguiente (post-confirmación, NO antes):** cosecha F3 — editar la matriz de
+`research.yml` (SOL `months: 24→36`, `step: 2→1`) para ≥~1000 eventos del cubo
+de la config estable, base de F3 (selector TP/horizonte). Es el camino a ≥0.133R.
 
 ---
 
