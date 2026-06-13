@@ -100,8 +100,12 @@ on:
         default: false
         type: boolean
       cosecha:
-        description: "F3: COSECHA SOL 36m/step1 (~1.4-1.9k eventos para el selector TP/horizonte, §6.6). Solo SOL, ~3-4h. Default OFF."
-        default: false
+        # ⚠⚠ DEFAULT TRUE *TEMPORAL* (13-jun-2026): GitHub mobile resetea el toggle
+        # boolean al scrollear, asi que el #34 corre la cosecha con solo Run.
+        # REVERTIR a `false` en cuanto el #34 este corriendo (el run ya capturo el
+        # valor al dispatch; revertir no lo afecta). Pendiente de revert.
+        description: "F3: COSECHA SOL 36m/step1 (~1.4-1.9k eventos, §6.6). ⚠ DEFAULT TRUE TEMPORAL — revertir a false tras lanzar #34."
+        default: true
         type: boolean
       data_only:
         description: "Solo descargar histgrico y omitir el replay (preparar/validar datos de un simbolo)"
