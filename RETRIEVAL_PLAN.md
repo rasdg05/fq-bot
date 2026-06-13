@@ -825,6 +825,25 @@ OOS pooled, pnl_r PRE-coste; los netos restan ~0.23R en SOL / ~0.28R en BTC):**
    neta usa la carga MEDIA de costes — el neto real por subset lo da la
    corrida de confirmación. Decisión de diseño intacta: primario primero;
    el apilado solo si el primario sobrevive forward.
+
+   ✅ **Replicación cross-muestra (13-jun-2026, `regrade_events` sobre el cubo
+   del #31 = SOL step 3, muestra DISTINTA al #30/#32 step 2; n=106 vs 156):**
+   el veto **primario REPLICA**, el **secundario NO**. Matriz maker real:
+
+   | SOL, lift del veto london | #30 (step2, n=156) | #31 (step3, n=106) |
+   |---|---|---|
+   | bucket london (pre-coste) | −0.066 (tóxico) | −0.083 (tóxico) ✓ |
+   | taker base → +veto | −0.095 → −0.003 (**+0.092**) | +0.018 → +0.098 (**+0.080**) |
+   | entrada+TP maker base → +veto | +0.021 → +0.109 (**+0.088**) | +0.144 → +0.224 (**+0.080**) |
+   | secundario: bucket extra (lun/00-08) | −0.076 (tóxico) | **+0.011 (NO tóxico)** |
+
+   Lectura: el **lift del primario es ~+0.08R estable** en ambas muestras (taker
+   Y maker) y su bucket es tóxico en ambas → sobrevive "replicar en datos
+   frescos". El **secundario NO replica**: en #31 corta trades ~breakeven (no
+   tóxicos) ⇒ su +0.036R del #30 huele a multiple-comparisons. Refuerza la regla:
+   solo el primario; el secundario NO se apila. (Nota: #31 base es +0.018, no
+   −0.095: step 3 es muestra más favorable; lo que replica es el LIFT, no el
+   absoluto.)
 2. **UNA corrida de confirmación** con el veto ON (env en el workflow):
    funnel + OOS + segmentos de la población restante + **gate ORO de esa
    config re-validado (denso `leakage_ok`)**. Vara §6.6: el veto se queda
