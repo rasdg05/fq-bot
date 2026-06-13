@@ -844,11 +844,27 @@ OOS pooled, pnl_r PRE-coste; los netos restan ~0.23R en SOL / ~0.28R en BTC):**
    solo el primario; el secundario NO se apila. (Nota: #31 base es +0.018, no
    −0.095: step 3 es muestra más favorable; lo que replica es el LIFT, no el
    absoluto.)
-2. **UNA corrida de confirmación** con el veto ON (env en el workflow):
-   funnel + OOS + segmentos de la población restante + **gate ORO de esa
-   config re-validado (denso `leakage_ok`)**. Vara §6.6: el veto se queda
-   solo si mejora expectancy OOS sin degradar WR de forma no compensada.
-3. **Paper forward 2–4 semanas** con el ledger ORO (la vara de siempre).
+2. ✅ **CONFIRMACIÓN INTEGRADA — run #33 SOL (13-jun-2026, `segment_veto_killzones=london_open_kz`).**
+   El replay aplicó el veto integrado (`[veto sesion §6.8] caen 47/183`) y
+   re-foldeó sobre la población restante:
+
+   | SOL #33, OOS (folds re-pooled, n=116) | exp_R | PF | WR |
+   |---|---|---|---|
+   | base (sin veto, §6.10.1) | −0.095 | <1 | 0.50 |
+   | **taker/taker +veto** | **+0.0122** | 1.01 | **0.5431** |
+   | entrada maker +veto | +0.0857 | 1.14 | — |
+   | **entrada+TP maker +veto** | **+0.1245** | 1.21 | — |
+
+   **Veredicto §6.6: PASA.** El veto sube la expectancy OOS (−0.095→+0.012
+   taker) Y la WR (0.50→0.543) — mejora ambas, no degrada. Segmentos restantes:
+   killzones todas ≥0 (london eliminado); `12-16utc +0.361`, viernes +0.431.
+   **Caveat clave:** el taker es breakeven (+0.012); el **+0.1245 EXIGE maker**
+   (fill 100% asumido) → la vara real sigue siendo el fill-rate del motor paper.
+   **Leakage denso = REVISAR** (causal −0.0098 / placebo −0.1167): el gate k-NN
+   NO se reconstruye → la espada es **motor base + veto + maker**, NO el gate
+   (confirma §6.10.1 #3). Lunes sigue tóxico en #33 (−0.379) pero NO en #31
+   (muestra fresca) → secundario frágil, **no apilar**. BTC #33 pendiente.
+3. **Paper forward 2–4 semanas** con el ledger del **motor paper** (`/paper`).
 4. Prod por env, con confirmación explícita del usuario y rollback de una
    línea. Cada paso documenta sus números aquí.
 
