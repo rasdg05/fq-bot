@@ -38,6 +38,7 @@ ENGINE_PATH_BASELINE = {
     "entropy_cognition.py": 10,  # sellos de ledger/outcomes
     "market_context.py":    0,
     "session_bias.py":      0,
+    "segment_veto.py":      0,   # F2.6 §6.8: juzga el ts de la VELA, nunca now()
     "battle_planner.py":    0,
     "emergent_time.py":     0,
     "quantum_timelines.py": 0,

@@ -48,6 +48,7 @@ import bt_retrieval as rt
 import bt_optimize as opt
 import bt_quality as ql
 import retrieval_gate as rg
+import segment_veto as sv
 
 
 # Stack de TFs por TF primario: (primario, htf_mid, htf_high, sub). El motor
@@ -479,7 +480,22 @@ def main():
         print("  (el motor no disparo ninguna senal valida; se omite el research de "
               "senales, pero el retrieval denso sigue abajo)")
 
-    if labeled is not None and len(events) >= min_for_wf:
+    # F2.6 (§6.8) — VETO DE SESION integrado. Default OFF (FQ_SEGMENT_VETO_*="").
+    # Filtra la poblacion ETIQUETADA por killzone / bloque-UTC / dia de la VELA:
+    # TODO lo de abajo (OOS [2/4], frontera maker [2.2/4], segmentos [2.5/4],
+    # modelo, retrieval/leakage) mide la cartera CON el veto. El cubo (events) NO
+    # se toca -> queda integro para el regrade offline de cualquier otro corte.
+    # Mismo predicado (segment_veto) que tools/regrade_events.py y el loop vivo.
+    if labeled is not None and len(labeled):
+        _veto = sv.from_env()
+        if _veto.active:
+            _vmask = _veto.mask(labeled)
+            print("\n  [veto sesion §6.8] %s -> caen %d/%d; la poblacion "
+                  "restante alimenta OOS/frontera/segmentos/retrieval"
+                  % (_veto.describe(), int(_vmask.sum()), len(labeled)))
+            labeled = labeled[~_vmask].reset_index(drop=True)
+
+    if labeled is not None and len(labeled) >= min_for_wf:
         folds, valid_index = wf.folds_from_labeled(
             labeled, n_splits=args.n_splits, embargo=args.embargo)
         ppy = _periods_per_year(labeled, bar_minutes)
