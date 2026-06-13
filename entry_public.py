@@ -44,13 +44,52 @@ from ops import heartbeat as hb
 # ============================================================
 # CONFIG
 # ============================================================
-TELEGRAM_TOKEN = (
-    os.environ.get("TELEGRAM_TOKEN_PUBLIC", "") or
-    os.environ.get("TELEGRAM_TOKEN", "")  # fallback si solo hay uno
-).strip()
+def _resolve_public_token(env=None):
+    """Token del bot publico -> (token, source).
+
+    REGLA: bajo el launcher (FQ_LAUNCHER=1, VIP + public en el MISMO container)
+    NO hay fallback al token VIP: el VIP ya hace getUpdates ahi mismo y
+    compartir token = dos pollers compitiendo -> HTTP 409 en loop y comandos
+    repartidos al azar entre ambos bots. Lo mismo aplica si
+    TELEGRAM_TOKEN_PUBLIC trae EL MISMO token que el VIP (pegado por error o
+    por la idea de 'un solo bot'): el publico se parquea, no pelea. Standalone
+    (legacy, un solo bot en el proceso) el fallback se conserva.
+
+    source: 'public' | 'vip_fallback' | 'duplicate_of_vip' | None.
+    """
+    env = os.environ if env is None else env
+    pub = (env.get("TELEGRAM_TOKEN_PUBLIC") or "").strip()
+    vip = (env.get("TELEGRAM_TOKEN") or "").strip()
+    under_launcher = (env.get("FQ_LAUNCHER") or "").strip() == "1"
+    if pub:
+        if under_launcher and vip and pub == vip:
+            return "", "duplicate_of_vip"
+        return pub, "public"
+    if vip and not under_launcher:
+        return vip, "vip_fallback"
+    return "", None
+
+
+TELEGRAM_TOKEN, TOKEN_SOURCE = _resolve_public_token()
 
 POLL_INTERVAL_SEC      = 3        # short poll cada 3 seg
 SCHEDULER_TICK_SECONDS = 60       # tick cada minuto
+
+# getUpdates HTTP 409 = Conflict: OTRO consumidor esta usando el MISMO token
+# (segunda instancia del bot -- p.ej. servicio Railway duplicado -- o un
+# webhook activo). Reintentar cada 5s fijos solo spamea el log: backoff
+# exponencial + UNA alerta al admin por racha con el diagnostico.
+CONFLICT_BACKOFF_BASE_SEC = 5
+CONFLICT_BACKOFF_MAX_SEC  = 300
+CONFLICT_ALERT_AFTER      = 5     # alertar al admin tras N 409 consecutivos
+
+
+def _conflict_backoff(consecutive):
+    """Segundos de espera tras `consecutive` HTTP 409 seguidos (>= 1)."""
+    if consecutive <= 0:
+        return 0
+    return min(CONFLICT_BACKOFF_BASE_SEC * (2 ** (consecutive - 1)),
+               CONFLICT_BACKOFF_MAX_SEC)
 
 # ============================================================
 # LOGGING
@@ -116,20 +155,70 @@ class ListenerState:
         self.offset = 0
         self.lock = threading.Lock()
 
+def _dm_admin_via(token, chat_id, text):
+    """DM al admin con token EXPLICITO. Existe porque al parquear el bot
+    publico no hay token publico: el unico canal disponible es el VIP (un solo
+    POST, sin polling -> no contribuye al 409). Best-effort, nunca lanza."""
+    token = (token or "").strip()
+    chat_id = (chat_id or "").strip()
+    if not token or not chat_id:
+        return False
+    try:
+        r = requests.post(
+            "https://api.telegram.org/bot{}/sendMessage".format(token),
+            data={"chat_id": chat_id, "text": text},
+            timeout=20,
+        )
+        return r.status_code == 200
+    except Exception:
+        return False
+
+
+def _alert_admin_conflict():
+    """Aviso unico (por racha) al admin: hay un conflicto de token."""
+    admin_cid = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+    if not admin_cid:
+        return
+    try:
+        telegram_send(
+            int(admin_cid),
+            "FQ Public Bot: HTTP 409 persistente en getUpdates.\n"
+            "Causa tipica: OTRA instancia esta haciendo polling con el MISMO "
+            "token (revisa en Railway si hay un servicio duplicado ademas del "
+            "worker) o hay un webhook activo (getWebhookInfo).\n"
+            "Este proceso entra en backoff (hasta {}s) hasta que el conflicto "
+            "desaparezca.".format(CONFLICT_BACKOFF_MAX_SEC))
+    except Exception:
+        pass
+
+
 def command_listener(state):
     if not TELEGRAM_TOKEN:
         log.error("No TELEGRAM_TOKEN_PUBLIC - listener disabled")
         return
     url = "https://api.telegram.org/bot{}/getUpdates".format(TELEGRAM_TOKEN)
     log.info("Command listener iniciado")
+    conflicts = 0
     while True:
         try:
             params = {"timeout": 30, "offset": state.offset or 0}
             r = requests.get(url, params=params, timeout=40)
+            if r.status_code == 409:
+                conflicts += 1
+                wait = _conflict_backoff(conflicts)
+                log.warning(
+                    "getUpdates HTTP 409 (#%d consecutivo): otra instancia "
+                    "con el mismo token (servicio duplicado?) o webhook "
+                    "activo. Backoff %ds.", conflicts, wait)
+                if conflicts == CONFLICT_ALERT_AFTER:
+                    _alert_admin_conflict()
+                time.sleep(wait)
+                continue
             if r.status_code != 200:
                 log.warning("getUpdates HTTP {}".format(r.status_code))
                 time.sleep(5)
                 continue
+            conflicts = 0
             data = r.json()
             if not data.get("ok"):
                 log.warning("getUpdates not ok: {}".format(data))
@@ -170,8 +259,44 @@ def main():
     log.info("=" * 70)
 
     if not TELEGRAM_TOKEN:
+        if (os.environ.get("FQ_LAUNCHER") or "").strip() == "1":
+            # Bajo el launcher NO robamos el token VIP ni salimos con rc!=0
+            # (el launcher tumbaria el container completo -> restart loop y
+            # se llevaria al VIP por delante). El publico queda PARQUEADO y
+            # VIP + maintenance siguen vivos.
+            if TOKEN_SOURCE == "duplicate_of_vip":
+                why = ("TELEGRAM_TOKEN_PUBLIC trae EL MISMO token que "
+                       "TELEGRAM_TOKEN (bot VIP). Dos procesos no pueden "
+                       "pollear un mismo token (HTTP 409 + comandos "
+                       "robados). El bot publico necesita su PROPIO bot de "
+                       "BotFather (/newbot); o si decidiste UN solo bot, "
+                       "borra TELEGRAM_TOKEN_PUBLIC y este proceso queda "
+                       "parqueado a proposito.")
+            else:
+                why = ("falta TELEGRAM_TOKEN_PUBLIC en el worker (ya NO se "
+                       "usa el token VIP como fallback; ese doble polling "
+                       "era la causa de los HTTP 409).")
+            log.critical("Bot publico PARQUEADO: %s", why)
+            # Aviso UNICO via token VIP para que el operador no tenga que
+            # deducirlo del watchdog ("'public' sin latido"): el parqueo es
+            # deliberado y el resto del worker sigue normal.
+            _dm_admin_via(
+                os.environ.get("TELEGRAM_TOKEN"),
+                os.environ.get("TELEGRAM_CHAT_ID"),
+                "FQ Public Bot PARQUEADO: " + why + "\nVIP y maintenance "
+                "siguen normales. El watchdog reportara 'public' sin latido "
+                "mientras dure el parqueo.")
+            while True:
+                time.sleep(600)
+                log.critical("Bot publico sigue parqueado: %s", why)
         log.error("FATAL: TELEGRAM_TOKEN_PUBLIC vacio (o TELEGRAM_TOKEN como fallback)")
         sys.exit(1)
+
+    if TOKEN_SOURCE == "vip_fallback":
+        log.warning(
+            "Usando TELEGRAM_TOKEN (VIP) como fallback: modo standalone "
+            "legacy. Si el bot VIP corre en paralelo con este token habra "
+            "HTTP 409 en getUpdates.")
 
     # Inicializar BD publica
     try:

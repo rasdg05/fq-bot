@@ -2619,6 +2619,90 @@ def evaluate_setup(exchange, tf_id="15m", intra=False):
     return False
 
 # ============================================================
+# F2 — Gate ORO de retrieval en PAPEL (admin-only; default OFF)
+# ============================================================
+# Por vela del TF primario clasifica el estado con el gate de retrieval (F2) y,
+# si es ORO, abre en PAPEL (sella en el HashLedger que audita el Reconciler) y
+# avisa SOLO al admin. SIN broadcast a VIP. Se activa con FQ_GOLD_LIVE=1 + un
+# artefacto en FQ_RETRIEVAL_DIR. Todo en try/except: jamas rompe el loop de eval.
+GOLD_LIVE_ENABLED = os.environ.get("FQ_GOLD_LIVE", "0").strip() in ("1", "true", "yes")
+GOLD_LIVE_SYMBOL  = os.environ.get("FQ_GOLD_SYMBOL", "SOL/USDT")
+GOLD_LIVE_TF      = os.environ.get("FQ_GOLD_TF", "5m")
+_GOLD_RUNTIME = None
+_GOLD_RUNTIME_TRIED = False
+
+
+def _gold_admin_notify(sig, verdict, pos):
+    """Aviso admin-only del gate ORO en paper. Tres tipos: senal ORO sellada
+    (sig!=None), alerta de cobertura, y digest periodico (sig=None)."""
+    try:
+        if sig is None:
+            v = verdict if isinstance(verdict, dict) else {}
+            if v.get("alert"):
+                msg = "⚠️ <b>Gold gate</b>: {} (faltan: {})".format(
+                    v["alert"], ", ".join(v.get("missing", [])))
+            elif "digest" in v:
+                c = v["digest"]
+                msg = ("📊 <b>Gold paper</b> ({tk} velas) — ORO {g} · BASE {b} · "
+                       "ABSTAIN {a} · abiertas {o}").format(
+                           tk=v.get("ticks", "?"), g=c.get("gold", 0),
+                           b=c.get("base", 0), a=c.get("abstain", 0),
+                           o=v.get("open", 0))
+            else:
+                return
+            broadcast_to_subscribers(msg, tiers=["admin"])
+            return
+        d = "LONG" if sig["direction"] > 0 else "SHORT"
+        exp = verdict.get("expectancy_r")
+        msg = ("🥇 <b>ORO (paper)</b> {sym} {d}\n"
+               "entry {e:.4f} · SL {s:.4f} · TP1 {t:.4f}\n"
+               "vecindario exp≈{x} · n={n} · pid={pid}\n"
+               "<i>Solo registro forward (0% real).</i>").format(
+                   sym=GOLD_LIVE_SYMBOL, d=d, e=sig["entry"], s=sig["stop"],
+                   t=sig["tp"], x=("%.3fR" % exp) if exp is not None else "?",
+                   n=verdict.get("n_in_radius", "?"), pid=pos.pid)
+        broadcast_to_subscribers(msg, tiers=["admin"])
+    except Exception as e:
+        log.warning("[gold] notify admin: %s", e)
+
+
+def _gold_runtime():
+    """Lazy-init del runtime paper (una vez). None si no se puede armar."""
+    global _GOLD_RUNTIME, _GOLD_RUNTIME_TRIED
+    if _GOLD_RUNTIME is not None or _GOLD_RUNTIME_TRIED:
+        return _GOLD_RUNTIME
+    _GOLD_RUNTIME_TRIED = True
+    try:
+        import gold_paper
+        _GOLD_RUNTIME = gold_paper.GoldPaperRuntime.from_env(
+            GOLD_LIVE_SYMBOL, calculate_levels_fn=calculate_levels,
+            notify_fn=_gold_admin_notify)
+        log.info("[gold] runtime paper ORO activo (%s, dir=%s)",
+                 GOLD_LIVE_SYMBOL, os.environ.get("FQ_RETRIEVAL_DIR"))
+    except Exception as e:
+        log.warning("[gold] no se pudo armar el runtime paper: %s", e)
+        _GOLD_RUNTIME = None
+    return _GOLD_RUNTIME
+
+
+def _gold_paper_eval(field, report, df_primary, price, tf_id):
+    """Hook por vela: corre el gate ORO en paper en el TF primario. No-op si
+    FQ_GOLD_LIVE!=1. Nunca rompe el loop (todo en try/except)."""
+    if not GOLD_LIVE_ENABLED or tf_id != GOLD_LIVE_TF:
+        return
+    rt = _gold_runtime()
+    if rt is None:
+        return
+    try:
+        hi = float(df_primary["high"].iloc[-1])
+        lo = float(df_primary["low"].iloc[-1])
+        rt.on_bar(field, report, df_primary, price, high=hi, low=lo,
+                  ts=datetime.now(timezone.utc))
+    except Exception as e:
+        log.warning("[gold] on_bar: %s", e)
+
+
+# ============================================================
 # v4.1.1 — _evaluate_setup_v411 (delegate al fusion_engine)
 # ============================================================
 def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
@@ -2707,6 +2791,9 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
         }
         STATE.last_eval_diagnostic_tf[tf_id] = diag
         STATE.last_eval_diagnostic = diag
+
+        # F2: gate ORO de retrieval en PAPEL (admin-only; no-op si FQ_GOLD_LIVE!=1)
+        _gold_paper_eval(field, report, df_primary, price, tf_id)
 
         # 4B. Gate QTE LEGACY (post-fire). Si Phase E (FQ v5.1) esta activo,
         # el QTE ya fue procesado pre-fusion como input al P_master con sync gate,

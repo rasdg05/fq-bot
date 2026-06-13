@@ -28,11 +28,25 @@ import signal
 import subprocess
 import time
 
-BOTS = [
-    ("vip",         [sys.executable, "-u", "entry_vip.py"]),
-    ("public",      [sys.executable, "-u", "entry_public.py"]),
-    ("maintenance", [sys.executable, "-u", "-m", "ops.maintenance"]),
-]
+def _public_enabled():
+    """El bot publico solo corre con token PROPIO (distinto del VIP). Sin el,
+    o con el MISMO token del VIP pegado en TELEGRAM_TOKEN_PUBLIC, no se lanza:
+    dos pollers sobre un token = guerra de getUpdates (HTTP 409) + comandos
+    robados. Misma regla que entry_public._resolve_public_token (defensa en
+    profundidad alla; aqui evitamos hasta el proceso parqueado y su ruido de
+    watchdog). Decision jun-2026: topologia de UN solo bot (todo por tiers en
+    el VIP) -> sin token publico propio, 'public' queda fuera a proposito."""
+    pub = (os.environ.get("TELEGRAM_TOKEN_PUBLIC") or "").strip()
+    vip = (os.environ.get("TELEGRAM_TOKEN") or "").strip()
+    return bool(pub) and pub != vip
+
+
+def _bots():
+    bots = [("vip", [sys.executable, "-u", "entry_vip.py"])]
+    if _public_enabled():
+        bots.append(("public", [sys.executable, "-u", "entry_public.py"]))
+    bots.append(("maintenance", [sys.executable, "-u", "-m", "ops.maintenance"]))
+    return bots
 
 GRACE_SECONDS = 8       # tiempo para que los hijos atiendan SIGTERM
 POLL_INTERVAL = 3       # cada cuantos segundos chequeamos si murio alguien
@@ -52,11 +66,16 @@ def _log(msg):
 
 def _spawn(name, cmd):
     _log("starting {}: {}".format(name, " ".join(cmd)))
+    env = os.environ.copy()
+    # Marca para los hijos: corren BAJO el launcher (VIP + public en el MISMO
+    # container). entry_public la usa para NO caer al fallback del token VIP:
+    # dos pollers de getUpdates con el mismo token = HTTP 409 + comandos perdidos.
+    env["FQ_LAUNCHER"] = "1"
     return subprocess.Popen(
         cmd,
         stdout=sys.stdout,
         stderr=sys.stderr,
-        env=os.environ.copy(),
+        env=env,
     )
 
 
@@ -95,8 +114,12 @@ def main():
     signal.signal(signal.SIGTERM, _shutdown)
     signal.signal(signal.SIGINT, _shutdown)
 
-    _log("FQ launcher arrancando {} bots".format(len(BOTS)))
-    for name, cmd in BOTS:
+    bots = _bots()
+    if not _public_enabled():
+        _log("public: deshabilitado (sin TELEGRAM_TOKEN_PUBLIC propio) — "
+             "topologia de un solo bot; todo por tiers en el VIP")
+    _log("FQ launcher arrancando {} bots".format(len(bots)))
+    for name, cmd in bots:
         _processes.append((name, _spawn(name, cmd)))
 
     while True:

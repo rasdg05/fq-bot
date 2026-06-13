@@ -132,6 +132,7 @@ def _run_replay(tfs, env_overrides=None, seed=42, tf_id="15m", dense=False,
     # Vale para AMBOS replays (denso y fires-only): replay_states tambien invoca
     # on_bar, asi el denso es igual de fiel.
     import volume_quality as _volq
+    import killzones_pd as _kzpd
     _replay_clock = {"ts": None}
     _RealDT = _volq.datetime
 
@@ -148,6 +149,17 @@ def _run_replay(tfs, env_overrides=None, seed=42, tf_id="15m", dense=False,
             return d.astimezone(tz) if tz is not None else d
 
     _volq.datetime = _BarClockDatetime
+    # MISMA inyeccion para killzones_pd (descubierto jun-2026, run #26 vs #28):
+    # current_killzone() y get_legacy_session() leian datetime.now(CDMX) ->
+    # TODA la historia heredaba la killzone/sesion de la hora en que corria el
+    # CI, y eso alimenta Fase D (w_killzone / w_clock_legacy -> w_effective ->
+    # p_master). Un run en horario NY (run #26: silver_bullet w=1.40 para cada
+    # vela de 24 meses) disparo 629 senales de SOL; el mismo codigo+datos+seed
+    # de madrugada CDMX (run #28: pesos asia 0.50) disparo 226. Con el bar-clock
+    # cada vela se juzga en SU killzone historica: backtest = bot en vivo e
+    # independiente de la hora del click. is_weekend_closed (UTC) se deja
+    # intacto a proposito: WEEKEND_ADMIN_ONLY ya lo neutraliza en research.
+    _kzpd.datetime = _BarClockDatetime
 
     def _on_bar(ts):
         _replay_clock["ts"] = ts
@@ -216,6 +228,39 @@ def _exposure_fraction(pooled):
     if not np.isfinite(span) or span <= 0:
         return None
     return min(held / span, 1.0)
+
+
+def _print_execution_frontier(labeled, folds, valid_index, sim_kwargs, ppy):
+    """[2.2/4] Frontera de ejecucion: las MISMAS senales OOS bajo escenarios
+    de fees maker/taker (CostModel.maker_*). Gratis (re-simular, no re-replicar).
+
+    Es el TECHO: asume fill 100% en la limite (adverse selection no modelada).
+    La captura realista la mide el paper con FQ_GOLD_MAKER_SIM (RETRIEVAL_PLAN
+    §6.10). El stop SIEMPRE taker. Sirve para decidir si vale la pena pagar el
+    fill-model forward, no para declarar victoria.
+    """
+    from dataclasses import replace
+    base_cost = sim_kwargs.get("cost") or eng.CostModel()
+    escenarios = [
+        ("taker/taker (actual)", base_cost),
+        ("entrada maker", replace(base_cost, maker_entry=True)),
+        ("entrada+TP maker", replace(base_cost, maker_entry=True,
+                                     maker_tp_exit=True)),
+    ]
+    print("\n[2.2/4] Frontera de ejecucion (techo maker; fill 100% asumido, "
+          f"maker_fee={base_cost.maker_fee}):")
+    rows = []
+    for name, c in escenarios:
+        kw = dict(sim_kwargs)
+        kw["cost"] = c
+        m, n, _eq = _oos_metrics(labeled, folds, valid_index, kw, ppy)
+        rows.append({"escenario": name, "n": n,
+                     "exp_R": m.get("expectancy_r"),
+                     "PF": m.get("profit_factor"),
+                     "total_R": m.get("total_r"),
+                     "maxDD": m.get("max_drawdown")})
+    print(pd.DataFrame(rows).to_string(
+        index=False, float_format=lambda v: f"{v:8.4f}"))
 
 
 def _oos_metrics(labeled, folds, valid_index, sim_kwargs, ppy):
@@ -307,6 +352,20 @@ def main():
     # --- FASE D: riesgo/drawdown ---
     p.add_argument("--equity-json", default=None,
                    help="ruta para volcar la curva de equity OOS + drawdown (JSON)")
+    # --- F2.5: edge por segmento (fractales legibles) ---
+    p.add_argument("--segments-out", default=None,
+                   help="ruta csv para la tabla completa de edge por segmento "
+                        "(killzone / bloque horario / dia / node_type / "
+                        "direccion / bias). Radar de fractales explotables; "
+                        "post-replay, cero coste")
+    # --- F3 (datos): cubo (TP x horizonte) POR EVENTO, persistido ---
+    p.add_argument("--tp-cube-out", default=None,
+                   help="ruta parquet/csv para el cubo por evento (bt_labeler."
+                        "label_events_grid, formato largo: evento x TP x "
+                        "horizonte + features). Es la tabla que entrena el "
+                        "selector F3 (TP/horizonte por vecindario); se acumula "
+                        "run a run como artefacto. Re-etiquetado post-replay: "
+                        "cero replays extra")
     # --- FASE C: grid post-replay de SL (xATR) x TP (tp1..tp4) ---
     p.add_argument("--tp-sl-grid", action="store_true",
                    help="re-etiqueta el MISMO conjunto fired variando ancho de SL "
@@ -390,6 +449,7 @@ def main():
     events = (states[states["fired"]].reset_index(drop=True)
               if "fired" in states.columns else states.iloc[0:0])
     print(f"  estados densos: {n_states} | senales disparadas (fired): {len(events)}")
+    _print_decision_funnel(states, args)
 
     base_metric, n_pool, ppy = None, 0, None
     min_for_wf = args.n_splits * 3
@@ -408,6 +468,8 @@ def main():
         _print_track_record(labeled)
         horizons = _parse_int_list(args.horizon_sweep) or [args.max_bars]
         _print_tp_frontier(df_primary, events, horizons)
+        if args.tp_cube_out:
+            _dump_tp_cube(df_primary, events, horizons, args)
         if args.tp_sl_grid:
             _print_tp_sl_grid(df_primary, events, args, sim_kwargs, bar_minutes)
             _print_tp_horizon_grid(df_primary, events, args, sim_kwargs,
@@ -427,6 +489,8 @@ def main():
         print("\n[2/4] Metricas OOS de senales (con fees+slippage+funding):")
         print(met.format_report(base_metrics))
         _dump_equity_curve(base_equity, args)
+        _print_execution_frontier(labeled, folds, valid_index, sim_kwargs, ppy)
+        _print_segments(labeled, folds, valid_index, args)
 
         # --- modelo entrenado sobre walk-forward ---
         print("\n[3/4] Modelo (LightGBM si disponible) sobre walk-forward...")
@@ -490,6 +554,7 @@ def main():
         print(f"\n  [guard] {len(events)} senales < {min_for_wf} para walk-forward "
               f"de {args.n_splits} folds: se omiten OOS/modelo de senales (el track "
               f"record de arriba es valido). Sube historia (--years) o baja --step.")
+        _print_segments(labeled, None, None, args)
 
     # ===== SALIDA B: retrieval DENSO (TODAS las velas, no solo los fired) =====
     if args.retrieval:
@@ -523,7 +588,15 @@ def main():
         "regime":        {"FQ_USE_REGIME": "0"},
         "session_bias":  {"FQ_SESSION_BIAS": "0"},
     }
-    print(f"  baseline expectancy_r={_f(base_metric)} (n_oos={n_pool})")
+    # Modulos cuyas features alimentan el VECTOR del gate ORO (DEFAULT_NUMERIC
+    # en bt_retrieval): apagarlos en prod desalinea la query del indice aunque
+    # su delta de motor sea 0 -> NO son "peso muerto removible" (§6.6). Avisar.
+    gate_coupled = {"scorer", "regime"}
+    n_base = len(events)
+    print(f"  baseline expectancy_r={_f(base_metric)} (n_oos={n_pool}, "
+          f"n_fired={n_base})")
+    print("  regla §6.6: MATAR solo si delta<=0 Y la cadencia sube >=20% "
+          "(quitarlo no daña Y compra señales); si no, el modulo se queda.")
     for name, env_off in toggles.items():
         try:
             ev2 = _run_replay(tfs, env_overrides=env_off, seed=args.seed,
@@ -535,9 +608,20 @@ def main():
             without = m2.get("expectancy_r")
             delta = (base_metric - without) if (base_metric is not None and
                                                 without is not None) else None
-            verdict = "VIVE " if (delta is not None and delta > 0) else "MATAR"
+            dn = (len(ev2) - n_base) / n_base if n_base else 0.0
+            # Veredicto fiel a la regla §6.6, no el binario delta>0.
+            if delta is None:
+                verdict = "?    "
+            elif delta > 0:
+                verdict = "VIVE "                      # quitarlo EMPEORA -> aporta
+            elif dn >= 0.20:
+                verdict = "MATAR"                      # no daña Y compra cadencia
+            else:
+                verdict = "QUEDA"                      # inerte: no daña pero no paga cadencia
+            flag = "  [acoplado al gate ORO: NO apagar en prod]" \
+                if name in gate_coupled else ""
             print(f"  [{verdict}] {name:<14} sin_el expectancy_r={_f(without)} "
-                  f"delta={_f(delta)}  (n={len(ev2)})")
+                  f"delta={_f(delta)}  (n={len(ev2)}, dn={dn:+.0%}){flag}")
         except Exception as e:
             print(f"  [error] {name}: {e}")
         finally:
@@ -825,6 +909,115 @@ def _tp_frontier_rows(df_primary, recs, max_bars):
             "avg_MFE": round(s["avg_mfe_r"], 2), "avg_MAE": round(s["avg_mae_r"], 2),
         })
     return rows
+
+
+def _print_decision_funnel(states, args):
+    """[1.4/4] FUNNEL de cadencia: donde mueren las velas candidatas.
+
+    El replay denso YA evaluo el motor en cada vela; agrupar (decision,
+    failed_at) es gratis y es el diagnostico previo a la poda: dice QUE gate
+    mata candidatos (la poda OOS dice si ese gate paga su sitio antes de
+    relajarlo). Ver RETRIEVAL_PLAN §6.6 (F2.5 cadencia).
+    """
+    funnel = bf.decision_funnel(states)
+    if len(funnel) == 0:
+        return
+    print("\n[1.4/4] Funnel del motor (en que decision/gate muere cada vela):")
+    print("  " + funnel.to_string(index=False).replace("\n", "\n  "))
+    # near-miss del gate de conviccion: cuanta cadencia hay a un paso del
+    # umbral (si p90 esta pegado a PMASTER_MIN, el headroom es real; si esta
+    # lejos, relajar el umbral no compra cadencia util).
+    near = states[states["decision"] == "math_below_threshold"]
+    if len(near) and "p_master" in near.columns:
+        pm = pd.to_numeric(near["p_master"], errors="coerce").dropna()
+        if len(pm):
+            thr = None
+            try:
+                import fq_bot_v3_2 as _b
+                thr = _build_config(_b, tf_id=args.tf_id).get("PMASTER_MIN")
+            except Exception:
+                pass
+            q = pm.quantile([0.5, 0.75, 0.9])
+            print(f"  near-miss p_master (n={len(pm)}): mediana={q[0.5]:.3f} "
+                  f"p75={q[0.75]:.3f} p90={q[0.9]:.3f} max={pm.max():.3f}"
+                  + (f"  (gate PMASTER_MIN={thr})" if thr is not None else ""))
+
+
+_SEGMENT_COLS = ("field_killzone", "hora_utc_4h", "dia_semana",
+                 "field_node_type", "direction", "field_bias_4h")
+
+
+def _print_segments(labeled, folds, valid_index, args):
+    """[2.5/4] Edge por SEGMENTO (fractales legibles): expectancy condicional
+    por killzone / bloque horario UTC / dia / tipo de nodo / direccion / bias.
+
+    Sobre la cartera OOS pooled cuando hay folds (honesto); si no, in-sample
+    ETIQUETADO como tal. Es un RADAR de candidatos: con tantos cortes siempre
+    hay un grupo bueno por azar -> un segmento se explota SOLO tras
+    confirmarlo OOS/forward (mismo estandar que la poda; RETRIEVAL_PLAN §6.6).
+    """
+    try:
+        if folds:
+            pool = ab.pooled_oos_trades(labeled, folds, valid_index=valid_index)
+            scope = "OOS (folds pooled)"
+        else:
+            pool, scope = labeled, "IN-SAMPLE (sin folds: solo indicativo)"
+        if "pnl_r" in pool.columns:
+            pool = pool[pd.to_numeric(pool["pnl_r"], errors="coerce").notna()].copy()
+        if pool is None or len(pool) == 0:
+            return
+        if "entry_ts" in pool.columns:
+            ts = pd.to_datetime(pool["entry_ts"])
+            pool["hora_utc_4h"] = (ts.dt.hour // 4 * 4).map(
+                lambda h: "%02d-%02dutc" % (h, h + 4))
+            pool["dia_semana"] = ts.dt.dayofweek.map(dict(enumerate(
+                ["lun", "mar", "mie", "jue", "vie", "sab", "dom"])))
+        print(f"\n[2.5/4] Edge por segmento ({scope}; n={len(pool)}; min_n=10):")
+        frames = []
+        for c in (c for c in _SEGMENT_COLS if c in pool.columns):
+            t = ql.segment_expectancy(pool, c)
+            if len(t) == 0:
+                continue
+            frames.append(t.assign(segmento=c).rename(columns={c: "valor"}))
+            show = t[t["ok_n"]] if bool(t["ok_n"].any()) else t.head(4)
+            print(f"\n  -- {c} --")
+            print("  " + show.to_string(index=False).replace("\n", "\n  "))
+        print("\n  NOTA: radar de candidatos, no prueba. Un segmento se explota "
+              "solo tras confirmarse OOS/forward (multiples cortes => siempre "
+              "hay un 'bueno' por azar).")
+        if getattr(args, "segments_out", None) and frames:
+            out = args.segments_out
+            d = os.path.dirname(out)
+            if d:
+                os.makedirs(d, exist_ok=True)
+            pd.concat(frames, ignore_index=True).to_csv(out, index=False)
+            print(f"  [segmentos] tabla completa -> {out}")
+    except Exception as e:
+        print(f"  [segmentos] error no fatal: {e}")
+
+
+def _dump_tp_cube(df_primary, events, horizons, args):
+    """Persiste el cubo (TP x horizonte) POR EVENTO -- la side-table §3.2 que
+    entrena el selector F3 (TP/horizonte por vecindario). El replay es el
+    costo; esto es re-etiquetado (label_events_grid) + I/O, cero replays."""
+    recs = events.to_dict("records")
+    cube = lb.label_events_grid(
+        df_primary, recs, ["px_tp1", "px_tp2", "px_tp3", "px_tp4"], horizons)
+    if cube is None or len(cube) == 0:
+        print("  [cube] sin filas etiquetables; no se persiste")
+        return
+    out = args.tp_cube_out
+    d = os.path.dirname(out)
+    if d:
+        os.makedirs(d, exist_ok=True)
+    try:
+        cube.to_parquet(out, index=False)
+    except Exception as e:
+        out = os.path.splitext(out)[0] + ".csv"   # sin pyarrow -> csv
+        cube.to_csv(out, index=False)
+        print(f"  [cube] parquet no disponible ({type(e).__name__}); fallback csv")
+    print(f"  [cube] {len(cube)} filas (evento x TP x horizonte, con features) "
+          f"-> {out}")
 
 
 def _print_tp_frontier(df_primary, events, horizons):

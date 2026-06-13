@@ -88,7 +88,13 @@ def extract_features(field, report):
 
     regime = report.get("regime") or {}
     f["regime_state"] = regime.get("state")
-    f["regime_score"] = regime.get("score")
+    # regime_detector.detect_regime NO emite 'score': su magnitud numerica es
+    # n_flags (0..3 votos de deriva, lo que define el state). Sin este fallback
+    # la columna regime_score llegaba 100% NaN en TODOS los simbolos (dimension
+    # muerta del vector de retrieval + warnings 'All-NaN slice' en el fit).
+    # 'score' se respeta por si un detector futuro lo emite.
+    rs = regime.get("score")
+    f["regime_score"] = rs if rs is not None else regime.get("n_flags")
 
     # BLOQUE QUANTUM / TIEMPO EMERGENTE (Eje A) — magnitudes que el motor YA computa
     # en p_master_data y que codifican convicción adaptativa, excitación de campo y
@@ -351,9 +357,34 @@ def replay_states(
             # forward-ATR) queda intacto para el retrieval; label_events re-etiqueta
             # el subset con triple-barrier en su propia tabla.
             "fired": lvl is not None,
+            # Diagnostico de CADENCIA: en que gate murio la vela candidata.
+            # Gratis en el mismo replay; decision_funnel() lo agrupa post-replay
+            # para decidir que modulo relajar (con respaldo OOS de la poda).
+            "decision": report.get("decision"),
+            "failed_at": report.get("failed_at"),
         }
         row.update(extract_features(field, report))
         if lvl is not None:
             row.update(lvl)   # dir/entry/sl/targets reales del motor (sobreescribe LONG)
         rows.append(row)
     return pd.DataFrame(rows)
+
+
+def decision_funnel(states):
+    """FUNNEL de cadencia: cuenta estados del replay denso por (decision,
+    failed_at) del motor -- 'donde mueren las velas candidatas'.
+
+    states: DataFrame de replay_states (necesita la columna 'decision'; los
+    replays anteriores a jun-2026 no la traen -> devuelve vacio).
+    Devuelve DataFrame [decision, failed_at, n, pct] ordenado desc por n.
+    """
+    cols = ["decision", "failed_at", "n", "pct"]
+    if states is None or len(states) == 0 or "decision" not in states.columns:
+        return pd.DataFrame(columns=cols)
+    df = states[["decision"]].copy()
+    fa = states["failed_at"] if "failed_at" in states.columns else None
+    df["failed_at"] = (fa.fillna("") if fa is not None else "")
+    df["decision"] = df["decision"].fillna("?")
+    g = df.groupby(["decision", "failed_at"]).size().reset_index(name="n")
+    g["pct"] = (100.0 * g["n"] / len(states)).round(2)
+    return g.sort_values(["n", "decision"], ascending=[False, True]).reset_index(drop=True)

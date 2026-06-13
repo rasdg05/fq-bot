@@ -29,6 +29,7 @@
 """
 import logging
 import pickle
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -38,6 +39,21 @@ log = logging.getLogger("bt_retrieval")
 LONG = 1
 SHORT = -1
 WIN = "win"
+
+# Dedupe de telemetria del vectorizer: el walk-forward llama fit() por fold y
+# la MISMA cobertura se re-loguea decenas de veces (los logs del run se leen
+# a mano; el spam entierra lo importante). La clave es (tipo, tupla de
+# features): un set de features NUEVO vuelve a avisar; el mismo set con
+# porcentajes ligeramente distintos, no.
+_warned_coverage = set()
+
+
+def _warn_coverage_once(kind, names, msg, *fmt):
+    key = (kind, tuple(names))
+    if key in _warned_coverage:
+        return
+    _warned_coverage.add(key)
+    log.warning(msg, *fmt)
 
 
 # ============================================================
@@ -207,6 +223,10 @@ class TurbovecBackend:
         obj = cls.__new__(cls)
         obj._tv = turbovec
         obj.dim = int(dim)
+        # mismo padding que __init__: load() salta __init__, hay que reconstruir
+        # _pad/_tdim o _fit_pad (y por tanto search) revienta al consultar.
+        obj._pad = (-obj.dim) % 8
+        obj._tdim = obj.dim + obj._pad
         obj.bit_width = int(bit_width)
         obj._idx = turbovec.IdMapIndex.load(path)
         obj._present = set()
@@ -298,8 +318,38 @@ class StateVectorizer:
 
     def fit(self, df):
         X = self._num_matrix(df)
-        self.center_ = np.nanmedian(X, axis=0)
-        q75, q25 = np.nanpercentile(X, [75, 25], axis=0)
+        # Telemetria de cobertura: avisa que features llegan con muchos/todos NaN.
+        # Una columna all-NaN colapsa esa dimension a 0 (se imputa) -> senal perdida
+        # y 'All-NaN slice' en nanmedian/nanpercentile. Lo logueamos por nombre para
+        # diagnosticar diferencias entre simbolos (p.ej. BTC vs SOL) sin adivinar.
+        if X.size:
+            nan_frac = np.isnan(X).mean(axis=0)
+            bad = [(self.numeric[i], float(nan_frac[i]))
+                   for i in range(len(self.numeric)) if nan_frac[i] >= 0.5]
+            if bad:
+                _warn_coverage_once(
+                    "nan50", [n for n, _ in bad],
+                    "[vectorizer] features con NaN>=50%% (dim se degrada): %s",
+                    ", ".join("%s=%.1f%%" % (n, f * 100) for n, f in bad))
+            # 100% exacto = dimension MUERTA (extractor roto o flag apagado);
+            # distinto del esparso POR DISENO (el motor solo computa la capa ML
+            # cerca del fire -> p.ej. 99.9% NaN en el fit denso). Separarlo
+            # evita confundir bug con cobertura al leer el log (el %.0f de
+            # antes redondeaba 99.98% a "100%").
+            dead = [n for n, f in bad if f >= 1.0]
+            if dead:
+                _warn_coverage_once(
+                    "dead", dead,
+                    "[vectorizer] features 100%% NaN (dimension MUERTA, "
+                    "revisar extractor): %s", ", ".join(dead))
+        # Silencia el 'All-NaN slice' (lo manejamos abajo); ya avisamos por nombre.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            self.center_ = np.nanmedian(X, axis=0)
+            q75, q25 = np.nanpercentile(X, [75, 25], axis=0)
+        # Columnas all-NaN -> center/scale NaN: neutralizalas (centro 0, escala 1)
+        # para que la dimension quede en 0 limpio en vez de propagar NaN.
+        self.center_ = np.where(np.isfinite(self.center_), self.center_, 0.0)
         iqr = q75 - q25
         iqr[~np.isfinite(iqr) | (iqr <= 0)] = 1.0  # evita /0; columnas constantes
         self.scale_ = iqr

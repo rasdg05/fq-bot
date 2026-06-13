@@ -131,3 +131,32 @@ def format_gate(grid, title="VIP gate"):
             f"{f(r['expectancy_r']):>8} {f(r['total_r']):>9} {f(r['max_dd_r']):>9} "
             f"{f(r['calmar_r']):>9} {f(r['edge_vs_base_r']):>8}")
     return "\n".join(lines)
+
+
+def segment_expectancy(df, by, min_n=10, pnl_col="pnl_r"):
+    """Edge CONDICIONAL por segmento: agrupa trades por la columna `by` y mide
+    subset_stats por valor (n, wr, expectancy_r, total_r, max_dd_r).
+
+    Es el cazador de 'fractales' LEGIBLE: en que killzone / bloque horario /
+    tipo de nodo / direccion el sistema es consistentemente rentable, en una
+    tabla que un humano puede explotar y replicar.
+
+    HONESTIDAD: esto es un RADAR, no una prueba. Con muchos cortes SIEMPRE
+    aparece un grupo bueno por azar (multiple comparisons); min_n marca
+    ok_n=False en grupos chicos y el segmento se explota SOLO tras confirmarse
+    OOS/forward (mismo estandar que la poda). Ordena ok_n primero y por
+    expectancy_r desc. NaN del segmento -> '(nan)'.
+    """
+    cols = [by, "n", "wr", "expectancy_r", "total_r", "max_dd_r", "ok_n"]
+    if df is None or len(df) == 0 or by not in df.columns:
+        return pd.DataFrame(columns=cols)
+    key = df[by].astype("object").where(df[by].notna(), "(nan)").astype(str)
+    rows = []
+    for val, sub in df.groupby(key, sort=False):
+        st = subset_stats(sub[pnl_col]) if pnl_col in sub.columns else subset_stats([])
+        rows.append({by: val, "n": st["n"], "wr": st["wr"],
+                     "expectancy_r": st["expectancy_r"], "total_r": st["total_r"],
+                     "max_dd_r": st["max_dd_r"], "ok_n": bool(st["n"] >= min_n)})
+    out = pd.DataFrame(rows, columns=cols)
+    return out.sort_values(["ok_n", "expectancy_r"],
+                           ascending=[False, False]).reset_index(drop=True)

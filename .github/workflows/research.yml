@@ -120,22 +120,23 @@ permissions:
 jobs:
   research:
     runs-on: ubuntu-latest
+    # PODA (ablation=true): 4 replays (baseline + 3 toggles) NO caben en el techo
+    # para BTC 48m (~4h/replay). La MATRIZ es dinamica: con ablation=true solo
+    # corre SOL (la poda se decide en SOL primero; BTC no es candidato por §6.5)
+    # y a step=3 via EFF_STEP (abajo): ~55min/replay -> ~4h las 4 variantes.
+    # NOTA: esto va en la matriz (fromJSON) y NO en jobs.<id>.if porque el
+    # contexto `matrix` no existe en el if de job (evaluaria siempre true).
+    # En schedule los inputs llegan vacios -> matriz completa, sin cambios.
     # Techo holgado: BTC 48m de 5m ~170min de replay denso + modelo/grids/retrieval.
     # La poda (opt-in) triplica; por eso el techo es 350 (< 360 max del runner).
     timeout-minutes: 350
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          # BTC: 48 meses (densidad para el retrieval). step=3 = rango seguro de
-          # tiempo para 48m en 5m (garantiza que el run completa al primer click).
-          - symbol: "BTC/USDT"
-            months: "48"
-            step: "3"
-          # SOL: 24 meses (dataset mas chico) -> cabe con mas cadencia (step=2).
-          - symbol: "SOL/USDT"
-            months: "24"
-            step: "2"
+      # BTC: 48 meses (densidad para el retrieval), step=3 = rango seguro de tiempo.
+      # SOL: 24 meses (dataset mas chico) -> mas cadencia (step=2).
+      matrix: ${{ fromJSON(github.event.inputs.ablation == 'true'
+        && '{"include":[{"symbol":"SOL/USDT","months":"24","step":"2"}]}'
+        || '{"include":[{"symbol":"BTC/USDT","months":"48","step":"3"},{"symbol":"SOL/USDT","months":"24","step":"2"}]}') }}
     env:
       # Defaults benignos para que el monolito importe sin secretos reales.
       TELEGRAM_TOKEN: "ci-dummy"
@@ -172,7 +173,15 @@ jobs:
       OOT: ${{ github.event.inputs.out_of_time || '' }}
       ABLATION: ${{ github.event.inputs.ablation || false }}
       DATAONLY: ${{ github.event.inputs.data_only || false }}
-      BUILDIDX: ${{ github.event.inputs.build_index || false }}
+      # NOTA: el formulario "Run workflow" renderiza los inputs desde la rama por
+      # DEFECTO (main), no desde la rama seleccionada -> 'build_index' no aparece
+      # hasta que esto aterrice en main. Y NO se puede usar
+      # `${{ inputs.build_index || 'true' }}`: GitHub rellena el input con su
+      # default declarado ('false'), y la CADENA "false" es truthy en expresiones
+      # -> gana el ||. Por eso, en esta rama, BUILDIDX va HARDCODEADO a true (el
+      # build se condiciona ademas a retrieval=true en el step). Al mergear a main,
+      # volver a `${{ github.event.inputs.build_index || false }}`.
+      BUILDIDX: "true"
       GOLDPCT: ${{ github.event.inputs.gold_top_pct || '0.05' }}
     steps:
       - uses: actions/checkout@v4
@@ -255,6 +264,19 @@ jobs:
           # UNIFICADO: el replay es DENSO -> UN replay del motor alimenta el
           # research de senales (subset fired: frontera + modelo) Y el retrieval
           # denso (todas las velas). Todo lo demas es post-replay (gratis).
+          #
+          # MODO PODA (ablation=true): el run queda configurado SOLO para el
+          # veredicto de poda, sin tocar mas inputs en el form: los extras
+          # (retrieval / grids / gate VIP / ablacion de vector) se fuerzan OFF
+          # aqui y todo el presupuesto va a los 4 replays (baseline + 3
+          # toggles). El funnel [1.4/4] y el cubo TPxH no cuestan replays y
+          # siguen ON. Esto vive AQUI y no en los `default:` de los inputs
+          # porque el form de la UI renderiza los defaults de MAIN.
+          if [ "${ABLATION}" = "true" ]; then
+            RETRIEVAL="false"; TPSLGRID="false"; QGATE="false"; VABL="false"
+            echo "== MODO PODA: solo SOL (matriz dinamica), step efectivo=3,"
+            echo "   retrieval/tp_sl_grid/quality_gate/vector_ablation -> OFF =="
+          fi
           ABLATION_FLAG=""
           [ "${ABLATION}" = "true" ] && ABLATION_FLAG="--ablation"   # opt-in: 3 replays extra
           RFLAG=""
@@ -275,12 +297,19 @@ jobs:
           IDXFLAG=""
           # F2: persiste el gate ORO desde ESTE replay (sin replay extra). Requiere
           # retrieval ON (de el sale el OOS denso que calibra el umbral).
-          [ "${BUILDIDX}" = "true" ] && IDXFLAG="--build-index --index-out research_out/retrieval/${SLUG} --gold-top-pct ${GOLDPCT}"
+          [ "${BUILDIDX}" = "true" ] && [ "${RETRIEVAL}" = "true" ] && IDXFLAG="--build-index --index-out research_out/retrieval/${SLUG} --gold-top-pct ${GOLDPCT}"
           EQJSON="research_out/equity_${SLUG}.json"
+          # PODA: 4 replays deben caber en el techo de 350min. A step=2 SOL va al
+          # filo (~5h45); step=3 cierra en ~4h con ~420 senales por variante
+          # (suficiente para el veredicto VIVE/MATAR por modulo).
+          EFF_STEP="${STEP}"
+          [ "${ABLATION}" = "true" ] && EFF_STEP="3"
           python tools/run_research_real.py --exchange "${EX}" --symbol "${SYM}" \
             --tf-id "${TFID}" --target-level "${TARGETLVL}" \
             --horizon-sweep "${HSWEEP}" --dense-horizon "${DHORIZON}" \
-            --step "${STEP}" --max-bars "${MAXBARS}" \
+            --tp-cube-out "research_out/tp_cube_${SLUG}.parquet" \
+            --segments-out "research_out/segments_${SLUG}.csv" \
+            --step "${EFF_STEP}" --max-bars "${MAXBARS}" \
             --seed "${SEED}" --n-splits "${NSPLITS}" --embargo 8 \
             ${ABLATION_FLAG} ${RFLAG} ${GRIDFLAG} ${QGATEFLAG} ${VABLFLAG} ${ETIMEFLAG} ${OOTFLAG} ${IDXFLAG} \
             --equity-json "${EQJSON}" \
@@ -292,6 +321,8 @@ jobs:
           {
             echo "# Reporte de research FQ — ${SYM}"
             echo "fecha: $(date -u +%FT%TZ)  exchange: ${EX}  symbol: ${SYM}  meses: ${MONTHS}  tf: ${TFID}  step: ${STEP}"
+            # Provenance (ENGINEERING_PLAN N5): sin esto, casar artefacto<->run<->codigo es arqueologia.
+            echo "run: #${{ github.run_number }} (id ${{ github.run_id }})  sha: ${{ github.sha }}  branch: ${{ github.ref_name }}"
             echo ""
             echo "## Real (motor de produccion + retrieval)"; echo '```'
             cat research_out/research_real.txt 2>/dev/null || echo "(no disponible — ver download.txt)"
