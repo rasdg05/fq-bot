@@ -99,6 +99,10 @@ on:
         description: "OPT-IN: poda de modulos = 3 replays EXTRA (triplica el coste). Default OFF (no es gratis)."
         default: false
         type: boolean
+      cosecha:
+        description: "F3: COSECHA SOL 36m/step1 (~1.4-1.9k eventos para el selector TP/horizonte, §6.6). Solo SOL, ~3-4h. Default OFF."
+        default: false
+        type: boolean
       data_only:
         description: "Solo descargar histgrico y omitir el replay (preparar/validar datos de un simbolo)"
         default: false
@@ -146,9 +150,14 @@ jobs:
       fail-fast: false
       # BTC: 48 meses (densidad para el retrieval), step=3 = rango seguro de tiempo.
       # SOL: 24 meses (dataset mas chico) -> mas cadencia (step=2).
-      matrix: ${{ fromJSON(github.event.inputs.ablation == 'true'
+      # COSECHA (cosecha=true): SOL 36m/step1 (~1.4-1.9k eventos para F3, §6.6),
+      # solo SOL (~3-4h, cabe en el techo). PODA (ablation=true): solo SOL 24m.
+      # Normal: BTC 48m + SOL 24m. Prioridad: cosecha > ablation > normal.
+      matrix: ${{ fromJSON(github.event.inputs.cosecha == 'true'
+        && '{"include":[{"symbol":"SOL/USDT","months":"36","step":"1"}]}'
+        || (github.event.inputs.ablation == 'true'
         && '{"include":[{"symbol":"SOL/USDT","months":"24","step":"2"}]}'
-        || '{"include":[{"symbol":"BTC/USDT","months":"48","step":"3"},{"symbol":"SOL/USDT","months":"24","step":"2"}]}') }}
+        || '{"include":[{"symbol":"BTC/USDT","months":"48","step":"3"},{"symbol":"SOL/USDT","months":"24","step":"2"}]}')) }}
     env:
       # Defaults benignos para que el monolito importe sin secretos reales.
       TELEGRAM_TOKEN: "ci-dummy"
