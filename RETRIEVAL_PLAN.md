@@ -1043,6 +1043,14 @@ por el fill-rate realizado. Runbook §9.4. Meta: ≥30-50 fills (regla §6.10).
 - Comparar contra la escalera TP1–TP4 fija y `max_bars` único.
 - Gate de entrada: ≥~1000 eventos fired en el cubo post-poda + gate ORO
   re-validado de esa config (§6.6); validación forward ≥40–50 trades.
+- ✅ **CÓDIGO construido (13-jun-2026): `bt_tp_selector.py`** — k-NN causal
+  walk-forward sobre el cubo (reusa `StateVectorizer` + folds purgados),
+  elige la celda `(tp,horizonte)` de mayor expectancy del vecindario, abstiene
+  a baseline si es ralo. 5 tests (lift +0.40R en cubo sintético estructurado).
+  **Smoke sobre el #33 (183 eventos): lift −0.053R (WR 50→40%)** → confirma
+  EMPÍRICAMENTE el gate §6.6: con <1000 eventos el vecindario k=50 es ruido y
+  el argmax sobreajusta. La máquina está lista; falta la **cosecha**
+  (`cosecha=true` → SOL 36m/step1, ~1.4–1.9k eventos) para tener señal real.
 
 ### F4 — Comparativa y **decisión de migración**
 - Ablación completa (`+todo`) y tabla BTC vs SOL con métricas idénticas.
