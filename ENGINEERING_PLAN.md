@@ -32,7 +32,7 @@ veredicto, se tocan solo para fixes; cero inversión estética:
 
 | Módulo / área | Por qué está en cuarentena | Veredicto llega de |
 |---|---|---|
-| `signal_scorer.py`, `regime_detector.py`, `session_bias.py` | bajo ablación VIVE/MATAR | run #31 (poda) |
+| ~~`signal_scorer.py`, `regime_detector.py`, `session_bias.py`~~ **RESUELTO (#31)** | session_bias VIVE y sostiene el edge (sin él +0.018→−0.003); scorer/regime son additivos inertes para el disparo PERO acoplados al gate ORO (7/13 features del vector) → **NO se apagan**. Ver §6.6 del RETRIEVAL_PLAN. Salen de cuarentena: ninguno se toca por env. | ✅ run #31 |
 | bloque vector quantum (`qt_*` en `bt_retrieval`/`bt_features`) | NO SUMA en Eje A dos corridas seguidas (#30: −0.288R); `qt_sync_score` es dimensión 100% NaN (muerta) | decisión tras 1 corrida más o retiro directo |
 | `emergent_time.py` Phase E (`FQ_EMERGENT_TIME_ENABLED`) | OFF por default, sin validación shadow registrada | shadow/paper si alguien lo pide |
 | `tools/research_demo.py`, `tools/repro_fvg_selection.py`, `tools/build_deck.py`, `internal/_staging` | posible peso muerto de tooling | auditoría N5 |

@@ -588,7 +588,15 @@ def main():
         "regime":        {"FQ_USE_REGIME": "0"},
         "session_bias":  {"FQ_SESSION_BIAS": "0"},
     }
-    print(f"  baseline expectancy_r={_f(base_metric)} (n_oos={n_pool})")
+    # Modulos cuyas features alimentan el VECTOR del gate ORO (DEFAULT_NUMERIC
+    # en bt_retrieval): apagarlos en prod desalinea la query del indice aunque
+    # su delta de motor sea 0 -> NO son "peso muerto removible" (§6.6). Avisar.
+    gate_coupled = {"scorer", "regime"}
+    n_base = len(events)
+    print(f"  baseline expectancy_r={_f(base_metric)} (n_oos={n_pool}, "
+          f"n_fired={n_base})")
+    print("  regla §6.6: MATAR solo si delta<=0 Y la cadencia sube >=20% "
+          "(quitarlo no daña Y compra señales); si no, el modulo se queda.")
     for name, env_off in toggles.items():
         try:
             ev2 = _run_replay(tfs, env_overrides=env_off, seed=args.seed,
@@ -600,9 +608,20 @@ def main():
             without = m2.get("expectancy_r")
             delta = (base_metric - without) if (base_metric is not None and
                                                 without is not None) else None
-            verdict = "VIVE " if (delta is not None and delta > 0) else "MATAR"
+            dn = (len(ev2) - n_base) / n_base if n_base else 0.0
+            # Veredicto fiel a la regla §6.6, no el binario delta>0.
+            if delta is None:
+                verdict = "?    "
+            elif delta > 0:
+                verdict = "VIVE "                      # quitarlo EMPEORA -> aporta
+            elif dn >= 0.20:
+                verdict = "MATAR"                      # no daña Y compra cadencia
+            else:
+                verdict = "QUEDA"                      # inerte: no daña pero no paga cadencia
+            flag = "  [acoplado al gate ORO: NO apagar en prod]" \
+                if name in gate_coupled else ""
             print(f"  [{verdict}] {name:<14} sin_el expectancy_r={_f(without)} "
-                  f"delta={_f(delta)}  (n={len(ev2)})")
+                  f"delta={_f(delta)}  (n={len(ev2)}, dn={dn:+.0%}){flag}")
         except Exception as e:
             print(f"  [error] {name}: {e}")
         finally:

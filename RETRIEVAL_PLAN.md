@@ -506,6 +506,59 @@ negativa en ambos (n chico).
   `leakage_ok` y se reconstruya el artefacto (§6.7 paso 2 — aún NO ocurre:
   #30 dio REVISAR en ambos símbolos).
 
+### ✅ SELLO de la poda — run #31 (id 27426619247, SOL 24m step 3, 12-jun-2026)
+
+> Baseline del #31 (step 3, otra muestra): 124 fired/24m, **OOS +0.0182R
+> (n=106, PF 1.02, WR 54.7%, Sharpe 0.12, maxDD −12.5%)** — primer baseline
+> NO-negativo. In-sample +0.234R. Ojo: el run vive para los DELTAS de la
+> ablación, no por el absoluto (step distinto al #30).
+
+**Veredictos `[ablacion]` (re-replay fires-only con cada módulo OFF):**
+
+| módulo OFF | exp_r sin él | delta | n fired | label log | DECISIÓN real |
+|---|---|---|---|---|---|
+| `scorer` | +0.0182 | **0.0000 exacto** | 124 (=base) | MATAR | **NO matar** |
+| `regime` | +0.0182 | **0.0000 exacto** | 124 (=base) | MATAR | **NO matar** |
+| `session_bias` | −0.0028 | **+0.0210** | 112 (<base) | VIVE | **VIVE (crítico)** |
+
+**Interpretación (el label crudo del runner ≠ la regla de §6.6):**
+
+1. **session_bias VIVE y es el módulo que SOSTIENE el edge.** Quitarlo hunde
+   el baseline de **+0.0182 a −0.0028** (a negativo). Aporta +0.021R, MÁS que
+   el baseline entero. Sale de la cuarentena del ENGINEERING_PLAN confirmado
+   como el activo más valioso del motor en este período, no como candidato a
+   poda. (Y baja cadencia al quitarlo: 124→112, porque su multiplicador
+   empuja señales sobre `PMASTER_MIN`.)
+
+2. **scorer y regime NO se matan, por DOS razones independientes:**
+   - **(a) `delta=0.0000` EXACTO con n idéntico = additivos inertes para el
+     DISPARO, no peso muerto removible.** `fusion_engine:704` lo dice: la capa
+     ML "scorer ensemble + regime (additivos, **no afectan P_master**)". Su
+     única palanca sobre la decisión es el downgrade combinado
+     (`regime==deriva` Y `scorer<ENSEMBLE_MIN`, `fusion_engine:727`), que **no
+     se activó en ninguna de las 124 señales** del período (si lo hubiera
+     hecho, apagarlos habría cambiado n o expectancy). El label `[MATAR]` del
+     log es binario (`delta>0`→VIVE, else→MATAR) y NO incorpora la condición
+     de cadencia de §6.6: **MATAR exige `delta≤0` Y `+20%` de n**. Aquí
+     `Δn=0%` (124→124, no compran NADA de cadencia) → **no califican**.
+   - **(b) Apagarlos en prod ROMPERÍA el gate ORO.** 7 de las 13 features del
+     vector de retrieval (`DEFAULT_NUMERIC`) vienen de ahí: `scorer_total`,
+     `scorer_volume`, `scorer_structure`, `scorer_liquidity`,
+     `scorer_concept_stack`, `scorer_history`, `regime_score`.
+     `FQ_USE_SCORER=0`/`FQ_USE_REGIME=0` dejaría esas columnas NaN en el
+     state-row vivo → el vector de la query se desalinea del índice → el
+     clasificador ORO se degrada en silencio. `delta=0` sobre el MOTOR no
+     implica `delta=0` sobre el GATE.
+
+**Conclusión: la poda NO mata ningún módulo. Cero cambios de prod.** Resultado
+válido y tranquilizador: el motor no tiene peso muerto removible por env, y su
+edge magro (+0.018R) descansa en `session_bias`. La cadencia NO se compra
+apagando ML (no mueven n). Las palancas reales de calidad quedan donde ya
+están medidas: **veto de sesión (§6.8 F2.6)** y **ejecución maker (§6.10, la
+más grande)** — ninguna es "matar un módulo". El near-miss del #31 (n=172,
+mediana 1.405, p90 1.879 vs `PMASTER_MIN=1.95`) sigue mostrando pila bajo el
+umbral, pero con baseline +0.018R la regla de oro manda: calidad primero.
+
 **Las dos herramientas (ya cableadas en esta rama):**
 1. **Funnel de decisiones** (gratis, en CADA run): el replay denso ahora
    registra `(decision, failed_at)` por vela y el runner imprime
@@ -636,10 +689,16 @@ VIVO nunca tuvo este bug** (su reloj de pared es el correcto).
    −0.0098 / BTC +0.0067) → ningún artefacto se reconstruye. El gate vivo del
    Volume sigue siendo el de la ficción NY: el paper corre admin-only como
    ledger forward, pero **NO leerlo como validación** y NO reemplazar nada.
-3. ⏳ **EN CURSO** — run #31 (id 27426619247, `ablation=true`, lanzado
-   12-jun 15:47Z): poda sobre base honesta. Veredictos a §6.6 al aterrizar.
+3. ✅ **HECHO** — run #31 (id 27426619247, `ablation=true`, terminó 12-jun
+   21:01Z): poda sobre base honesta. **Veredicto sellado en §6.6: NO se mata
+   ningún módulo** (scorer/regime additivos inertes y acoplados al gate ORO;
+   session_bias VIVE y sostiene el edge). Cero cambios de prod.
 4. Pendiente de (3): §6.3/F4 para BTC quedó reformulado en §6.5 (calidad
-   neta, no densidad); el siguiente diseño accionable es F2.6 (§6.8).
+   neta, no densidad); el siguiente diseño accionable es F2.6 (§6.8) y la
+   ejecución maker (§6.10). La **corrida de confirmación** es ahora un run
+   NORMAL (sin `ablation`, defaults) sobre el sha 7e7ac12: trae frontera maker
+   `[2.2/4]` + leakage denso + segmentos sobre la base honesta, sin tocar
+   ningún toggle de módulo (la poda ya dijo que no hay nada que apagar).
 
 **Primer baseline honesto — run #30, SOL (12-jun-2026, post-fix):**
 - Cadencia: **183 fired / 24m** (~1.8/sem a step=2). In-sample +0.136R;
