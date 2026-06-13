@@ -94,10 +94,12 @@ try:
     import killzones_pd
     import fusion_engine
     import field_reports
+    import segment_veto
     ICT_MODULES_AVAILABLE = True
 except ImportError as _e:
     ICT_MODULES_AVAILABLE = False
     ict_smc = killzones_pd = fusion_engine = field_reports = None
+    segment_veto = None
 
 # Modulos FQ v4.2+ (Mistral curated VIP format - v5.0 Quantum)
 try:
@@ -2619,6 +2621,17 @@ def evaluate_setup(exchange, tf_id="15m", intra=False):
     return False
 
 # ============================================================
+# F2.6 — VETO DE SESION en vivo (RETRIEVAL_PLAN §6.8; default OFF)
+# ============================================================
+# Capa de DECISION post evaluate_signal (junto a los gates existentes, JAMAS
+# dentro de fusion_engine): si la killzone de la VELA esta en
+# FQ_SEGMENT_VETO_KILLZONES (o su bloque-UTC/dia en las envs hermanas), la senal
+# VIP NO se difunde. Juzga el timestamp de la VELA, nunca datetime.now()
+# (leccion §6.7). Reversible de una env. Default "" -> .active False -> no-op.
+# OJO: veta la senal VIP a CLIENTES en esa franja, no solo en paper.
+SEGMENT_VETO = segment_veto.from_env() if segment_veto is not None else None
+
+# ============================================================
 # F2 — Gate ORO de retrieval en PAPEL (admin-only; default OFF)
 # ============================================================
 # Por vela del TF primario clasifica el estado con el gate de retrieval (F2) y,
@@ -2794,6 +2807,30 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
 
         # F2: gate ORO de retrieval en PAPEL (admin-only; no-op si FQ_GOLD_LIVE!=1)
         _gold_paper_eval(field, report, df_primary, price, tf_id)
+
+        # F2.6 (§6.8): VETO DE SESION — capa de decision POST evaluate_signal,
+        # JAMAS dentro de fusion_engine. Si la killzone de la VELA (field.killzone)
+        # esta vetada (FQ_SEGMENT_VETO_*), la senal VIP NO se difunde. Juzga el ts
+        # de la VELA (df_primary["timestamp"]), nunca datetime.now() (§6.7).
+        # Default OFF (.active False) -> bloque entero saltado.
+        if fire and SEGMENT_VETO is not None and SEGMENT_VETO.active:
+            try:
+                _kz = getattr(field, "killzone", None)
+                try:
+                    _ts = df_primary["timestamp"].iloc[-1]
+                except Exception:
+                    _ts = None
+                _veto_why = SEGMENT_VETO.reason(killzone=_kz, ts_utc=_ts)
+            except Exception as _ve:
+                _veto_why = None
+                log.warning("[{}/{}] veto sesion error: {}".format(tf_label, tf_id, _ve))
+            if _veto_why:
+                log.warning("[{}/{}] VETO sesion [{}] - senal NO difundida".format(
+                    tf_label, tf_id, _veto_why))
+                STATE.last_eval_result_tf[tf_id] = "SEGMENT-VETO [{}] {}".format(
+                    tf_id, _veto_why)
+                STATE.last_eval_result = STATE.last_eval_result_tf[tf_id]
+                fire = False
 
         # 4B. Gate QTE LEGACY (post-fire). Si Phase E (FQ v5.1) esta activo,
         # el QTE ya fue procesado pre-fusion como input al P_master con sync gate,

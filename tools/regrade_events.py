@@ -28,7 +28,6 @@ import argparse
 import os
 import sys
 
-import numpy as np
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -38,8 +37,7 @@ import bt_quality as ql           # noqa: E402
 import bt_walkforward as wf       # noqa: E402
 import bt_engine as eng           # noqa: E402
 import bt_metrics as met          # noqa: E402
-
-_DIAS = ["lun", "mar", "mie", "jue", "vie", "sab", "dom"]
+import segment_veto as sv         # noqa: E402
 
 
 def _cost_for_symbol(symbol):
@@ -87,28 +85,14 @@ def _maker_matrix(pooled, symbol):
 
 
 def _veto_mask(df, args):
-    """True = la señal cae al veto. OR de los predicados pedidos."""
-    ts = pd.to_datetime(df["entry_ts"])
-    mask = np.zeros(len(df), dtype=bool)
-    why = []
-    if args.veto_killzones:
-        kzs = [k.strip() for k in args.veto_killzones.split(",") if k.strip()]
-        mask |= df["field_killzone"].astype(str).isin(kzs).to_numpy()
-        why.append(f"killzone in {kzs}")
-    if args.veto_utc_blocks:
-        blocks = set()
-        for b in args.veto_utc_blocks.split(","):
-            b = b.strip()
-            if b:
-                blocks.add(int(b.split("-")[0]))
-        mask |= ts.dt.hour.floordiv(4).mul(4).isin(blocks).to_numpy()
-        why.append(f"bloque_utc in {sorted(blocks)}")
-    if args.veto_weekdays:
-        dias = [d.strip() for d in args.veto_weekdays.split(",") if d.strip()]
-        idx = [_DIAS.index(d) for d in dias]
-        mask |= ts.dt.dayofweek.isin(idx).to_numpy()
-        why.append(f"dia in {dias}")
-    return mask, " OR ".join(why) if why else "(sin veto)"
+    """True = la señal cae al veto. Delega en `segment_veto` — el MISMO
+    predicado que el replay integrado (run_research_real) y el loop vivo. Asi
+    los numeros de este regrade offline REPRODUCEN lo que mide una corrida con
+    el veto ON (cero divergencia offline / research / live)."""
+    cfg = sv.parse(killzones=args.veto_killzones or "",
+                   utc_blocks=args.veto_utc_blocks or "",
+                   weekdays=args.veto_weekdays or "")
+    return cfg.mask(df), cfg.describe()
 
 
 def _print_table(tag, pool, burden):
