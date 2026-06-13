@@ -171,3 +171,77 @@ class MotorPaperRuntime:
                                  d.get("reason"))
         self._maybe_digest()
         return {"fire": bool(fire), "opened": opened, "resolved": resolved}
+
+
+def ledger_report(path):
+    """Lee el ledger del motor paper y devuelve un dict de stats (cartera +
+    fill-rate maker + adverse selection). Reusado por el comando /paper del bot
+    y por tools/motor_paper_stats.py. Devuelve None si el ledger no existe.
+    DurableHashLedger.load verifica la cadena SHA-256 (LANZA si está rota)."""
+    import os
+    if not os.path.exists(path):
+        return None
+    led = DurableHashLedger.load(path)
+    recs = [r["payload"] for r in led.records]
+    pnl, kz, maker, vetoed = {}, {}, {}, {}
+    for p in recs:
+        ev, pid = p.get("event"), p.get("pid")
+        if ev == "CLOSE":
+            pnl[pid] = p.get("pnl_r")
+        elif ev == "MOTOR_OPEN_META":
+            kz[pid] = p.get("killzone")
+        elif ev == "MAKER_FILL":
+            maker[pid] = "FILL"
+        elif ev == "MAKER_MISS":
+            maker[pid] = "MISS"
+        elif ev == "MOTOR_VETOED":
+            k = p.get("killzone")
+            vetoed[k] = vetoed.get(k, 0) + 1
+    closed = {pid: r for pid, r in pnl.items() if r is not None}
+
+    def _agg(rs):
+        rs = [r for r in rs if r is not None]
+        n = len(rs)
+        if not n:
+            return {"n": 0, "mean": None, "wr": None, "total": 0.0}
+        return {"n": n, "mean": sum(rs) / n,
+                "wr": sum(1 for r in rs if r > 0) / n, "total": sum(rs)}
+
+    n_fill = sum(1 for v in maker.values() if v == "FILL")
+    n_miss = sum(1 for v in maker.values() if v == "MISS")
+    return {
+        "records": len(recs), "n_open_meta": len(kz), "n_closed": len(closed),
+        "n_vetoed": sum(vetoed.values()), "vetoed_by_kz": vetoed,
+        "portfolio": _agg(list(closed.values())),
+        "fill": _agg([closed[p] for p in closed if maker.get(p) == "FILL"]),
+        "miss": _agg([closed[p] for p in closed if maker.get(p) == "MISS"]),
+        "n_fill": n_fill, "n_miss": n_miss,
+        "fill_rate": (n_fill / (n_fill + n_miss)) if (n_fill + n_miss) else None,
+    }
+
+
+def format_report_telegram(rep):
+    """Resumen compacto del ledger motor paper para admin (HTML Telegram)."""
+    if rep is None:
+        return "📄 <b>Motor paper</b>: sin ledger aún (el archivo no existe)."
+    if rep["n_closed"] == 0:
+        return ("📄 <b>Motor paper</b>: {r} registros · {o} abiertas · "
+                "{v} vetadas — aún SIN cierres. El motor dispara lento "
+                "(~1-2/sem); cada fire entra aquí.").format(
+                    r=rep["records"], o=rep["n_open_meta"], v=rep["n_vetoed"])
+    p = rep["portfolio"]
+    out = ["📄 <b>Motor paper (subset correcto §6.10.1)</b>",
+           "cartera: n={n} · exp≈{m:+.3f}R GROSS · WR {w:.0f}%".format(
+               n=p["n"], m=p["mean"], w=p["wr"] * 100.0)]
+    if rep["fill_rate"] is not None:
+        f, m = rep["fill"], rep["miss"]
+        out.append("fill-rate maker: <b>{r:.0f}%</b> (FILL {nf} / MISS {nm})".format(
+            r=rep["fill_rate"] * 100.0, nf=rep["n_fill"], nm=rep["n_miss"]))
+        if f["n"] and m["n"]:
+            tag = "⚠ adverse selection" if f["mean"] < m["mean"] else "✓ sin adverse sel."
+            out.append("FILLED exp≈{ff:+.3f}R vs MISSED {mm:+.3f}R — {t}".format(
+                ff=f["mean"], mm=m["mean"], t=tag))
+    if rep["n_vetoed"]:
+        out.append("vetadas: %d" % rep["n_vetoed"])
+    out.append("<i>0% real · meta ≥30-50 fills para decidir (§6.10)</i>")
+    return "\n".join(out)

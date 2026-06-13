@@ -4136,7 +4136,7 @@ def command_listener(exchange):
                               "/evolve", "/concepts", "/weekend", "/campo",
                               "/gencode", "/grant", "/broadcast",
                               "/atribucion", "/regimen", "/sweep",
-                              "/timelines"}
+                              "/timelines", "/paper"}
                 if cmd_name in ADMIN_ONLY and str(chat_id) != str(TELEGRAM_CHAT_ID):
                     telegram_send(
                         "Comando no disponible. Usa /help para ver tus comandos.",
@@ -4467,6 +4467,46 @@ def cmd_metrics(exchange=None):
 
 def cmd_ledger(exchange=None):
     return ev.format_ledger_telegram(10)
+
+
+def cmd_paper(exchange=None):
+    """Admin: stats de los ledgers PAPER del Volume (ORO + motor base). 0% real.
+    Surface del forward sin shell: corre los stats donde vive el ledger."""
+    import os
+    slug = GOLD_LIVE_SYMBOL.replace("/", "_").replace(":", "_")
+    out = ["🧾 <b>Paper forward (Volume)</b>"]
+    # ORO (gold): el ledger graba, pero su EDGE (gate ficción NY) NO es fiable
+    try:
+        from execution import DurableHashLedger
+        import reconciler as rc
+        gpath = os.environ.get("FQ_GOLD_LEDGER_PATH",
+                               "/data/gold_ledger_%s.jsonl" % slug)
+        if not os.path.exists(gpath):
+            out.append("🥇 ORO: sin ledger (FQ_GOLD_LIVE off o aún sin velas).")
+        else:
+            led = DurableHashLedger.load(gpath)
+            rs = rc.extract_closed_r(led)
+            if rs:
+                mean = sum(rs) / len(rs)
+                wr = sum(1 for r in rs if r > 0) / len(rs)
+                out.append("🥇 ORO: n={} · exp≈{:+.3f}R · WR {:.0f}% · {} reg "
+                           "(gate ficción NY: edge NO fiable §6.10.1)".format(
+                               len(rs), mean, wr * 100.0, len(led.records)))
+            else:
+                out.append("🥇 ORO: {} registros · 0 cierres aún.".format(
+                    len(led.records)))
+    except Exception as e:
+        out.append("🥇 ORO: error leyendo ledger (%s)" % e)
+    # MOTOR base (subset correcto §6.10.1)
+    try:
+        import motor_paper
+        mpath = os.environ.get("FQ_MOTOR_PAPER_LEDGER_PATH",
+                               "/data/motor_paper_%s.jsonl" % slug)
+        out.append(motor_paper.format_report_telegram(
+            motor_paper.ledger_report(mpath)))
+    except Exception as e:
+        out.append("📄 Motor: error (%s)" % e)
+    return "\n".join(out)
 
 def cmd_evolve(exchange=None):
     """Estado del modulador kappa_evo - que buckets estan activos"""
@@ -5119,6 +5159,7 @@ def main():
         "/entropy":   lambda exc=None: cmd_entropy(),
         "/metrics":   lambda exc=None: cmd_metrics(),
         "/ledger":    lambda exc=None: cmd_ledger(),
+        "/paper":     lambda exc=None: cmd_paper(),
         "/evolve":    lambda exc=None: cmd_evolve(),
         "/campo":     cmd_campo,
         "/concepts":  lambda exc=None: cmd_concepts(),

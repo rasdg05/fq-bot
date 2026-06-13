@@ -134,6 +134,29 @@ def test_resuelve_abierta_contra_la_vela():
     assert len(rep["resolved"]) == 1 and rep["resolved"][0]["reason"] == "tp"
 
 
+def test_ledger_report_y_formato(tmp_path):
+    """ledger_report agrega cartera/fill-rate/adverse selection desde un ledger
+    durable real; el formato Telegram no crashea en vacío ni con data."""
+    path = str(tmp_path / "m.jsonl")
+    broker = ex.PaperBroker(ledger=ex.DurableHashLedger.load(path))
+    rt = mp.MotorPaperRuntime("SOL/USDT", account=ex.Account("a", 10_000.0),
+                              broker=broker, veto=sv.parse(killzones="london_open_kz"),
+                              maker_sim=True, maker_eps_bps=1.0, maker_ttl_bars=6)
+    rt.on_bar(True, _field(), _report("long"), None, 100.0)                     # abre
+    rt.on_bar(False, _field(), _report("long"), None, 100.0, high=100.2, low=99.9)   # FILL
+    rt.on_bar(False, _field(), _report("long"), None, 101.5, high=101.5, low=100.2)  # TP
+    rt.on_bar(True, _field("london_open_kz"), _report("long"), None, 100.0)     # vetada
+    # ledger inexistente -> None -> formato no crashea
+    assert mp.ledger_report(str(tmp_path / "noexiste.jsonl")) is None
+    assert "sin ledger" in mp.format_report_telegram(None)
+    rep = mp.ledger_report(path)
+    assert rep["n_closed"] == 1 and rep["n_vetoed"] == 1
+    assert rep["n_fill"] == 1 and rep["fill_rate"] == 1.0
+    assert rep["portfolio"]["mean"] == 1.0  # TP a +1R gross
+    msg = mp.format_report_telegram(rep)
+    assert "Motor paper" in msg and "fill-rate maker" in msg
+
+
 def test_from_env_default_london(monkeypatch, tmp_path):
     monkeypatch.setenv("FQ_MOTOR_PAPER_LEDGER_PATH", str(tmp_path / "m.jsonl"))
     for k in ("FQ_MOTOR_PAPER_VETO_KILLZONES", "FQ_MOTOR_PAPER_VETO_UTC_BLOCKS",
