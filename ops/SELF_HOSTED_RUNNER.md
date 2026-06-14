@@ -64,17 +64,38 @@ sudo ./svc.sh status        # debe decir "active (running)"
 ```
 En GitHub → Settings → Actions → Runners debe aparecer **Idle** (verde).
 
-## 5. Lanzar la cosecha
+## 5. VERIFICAR el sharding (una vez, ~minutos) — paso de seguridad
 
-Con el runner en **Idle**, avísame: pongo `cosecha` con default `true` (truco
-del bug de GitHub mobile) → vos lanzás **Actions → Research → Run** de un toque.
-El job arranca en TU VPS (verás los logs en GitHub igual que siempre), corre
-SOL 36m/step1 completo (~7-9h, sin cortarse) y al terminar **sube el artefacto
-`research-report-SOL_USDT` a GitHub como siempre**. Yo lo bajo por MCP y corro
-el F3 `--sweep` sobre el cubo grande.
+La cosecha usa **sharding** (parte el replay por fecha en `nproc` procesos
+paralelos → ~22h baja a ~2-3h). Antes de confiar en la cosecha grande,
+comprobá que el sharding reproduce EXACTO el cubo sin shardear. En el VPS, como
+usuario `runner`, con algo de data ya descargada (o bajá un rango chico):
 
-> Si el job queda "Queued" mucho rato = el runner no está online. Revisá
-> `sudo ./svc.sh status` y que aparezca Idle en la UI.
+```bash
+cd ~/actions-runner/_work/fq-bot/fq-bot   # o donde clonó el runner; o git clone aparte
+# baja ~4 meses de SOL para la prueba (rápido):
+for TF in 5m 15m 1h; do python tools/build_dataset.py --symbol SOL/USDT \
+    --timeframe $TF --market swap --years 0.4 --exchanges okx; done
+python tools/cosecha_shard.py --symbol SOL/USDT --verify --verify-days 90
+```
+Debe imprimir **`✅ IDÉNTICOS`**. Si dice `❌ DIFIEREN`, avisame ANTES de la
+cosecha grande (hay un bug de borde) — no la lances shardeada.
+
+## 6. Lanzar la cosecha (sharded, ~2-3h)
+
+Con el runner en **Idle** y el verify en ✅, avísame: pongo `cosecha` con default
+`true` (truco del bug de GitHub mobile) → vos lanzás **Actions → Research → Run**
+de un toque. El job corre en TU VPS, **shardeado en `nproc` procesos**, hace
+**BTC ~84m + SOL ~72m a step1** (máxima data; `build_dataset` trunca a lo que OKX
+tenga) y sube los cubos `research-report-BTC_USDT` / `_SOL_USDT` a GitHub. Yo los
+bajo por MCP y corro **F3 `run_pooled --sweep`** sobre el cubo POOLED (~1.4-1.9k
+eventos, sobre el gate de 1000).
+
+> Paralelo de símbolos: con **1 runner** los 2 jobs (BTC, SOL) corren en serie
+> (cada uno shardeado → ~3h c/u ≈ 6h). Para correrlos a la vez, registrá el
+> runner DOS veces (pasos 3-4 en dos carpetas `actions-runner-1/-2`) → ~3h total.
+> En CCX43 (16 núcleos) cada job shardea en ~8 → vuela.
+> Si el job queda "Queued" = el runner no está online (`sudo ./svc.sh status`).
 
 ## 6. Después
 

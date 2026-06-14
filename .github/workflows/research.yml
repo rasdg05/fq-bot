@@ -199,6 +199,7 @@ jobs:
       ETIME: ${{ github.event.inputs.emergent_time || false }}
       OOT: ${{ github.event.inputs.out_of_time || '' }}
       ABLATION: ${{ github.event.inputs.ablation || false }}
+      COSECHA: ${{ github.event.inputs.cosecha || false }}
       DATAONLY: ${{ github.event.inputs.data_only || false }}
       # NOTA: el formulario "Run workflow" renderiza los inputs desde la rama por
       # DEFECTO (main), no desde la rama seleccionada -> 'build_index' no aparece
@@ -339,16 +340,30 @@ jobs:
           # (suficiente para el veredicto VIVE/MATAR por modulo).
           EFF_STEP="${STEP}"
           [ "${ABLATION}" = "true" ] && EFF_STEP="3"
-          python tools/run_research_real.py --exchange "${EX}" --symbol "${SYM}" \
-            --tf-id "${TFID}" --target-level "${TARGETLVL}" \
-            --horizon-sweep "${HSWEEP}" --dense-horizon "${DHORIZON}" \
-            --tp-cube-out "research_out/tp_cube_${SLUG}.parquet" \
-            --segments-out "research_out/segments_${SLUG}.csv" \
-            --step "${EFF_STEP}" --max-bars "${MAXBARS}" \
-            --seed "${SEED}" --n-splits "${NSPLITS}" --embargo 8 \
-            ${ABLATION_FLAG} ${RFLAG} ${GRIDFLAG} ${QGATEFLAG} ${VABLFLAG} ${ETIMEFLAG} ${OOTFLAG} ${IDXFLAG} \
-            --equity-json "${EQJSON}" \
-            2>&1 | tee research_out/research_real.txt
+          if [ "${COSECHA}" = "true" ]; then
+            # COSECHA SHARDED: parte el replay por fecha en N=nproc shards
+            # paralelos (cube-only, sin retrieval). El cubo merged sube como
+            # artefacto research-report-<sym> igual que siempre.
+            NSHARDS=$(nproc)
+            echo "== COSECHA SHARDED ${SYM}: ${NSHARDS} shards en paralelo =="
+            python tools/cosecha_shard.py --exchange "${EX}" --symbol "${SYM}" \
+              --tf-id "${TFID}" --shards "${NSHARDS}" --workers "${NSHARDS}" \
+              --step "${STEP}" --max-bars "${MAXBARS}" --n-splits "${NSPLITS}" \
+              --embargo 8 --seed "${SEED}" --horizon-sweep "${HSWEEP}" \
+              --out "research_out/tp_cube_${SLUG}.parquet" \
+              2>&1 | tee research_out/research_real.txt
+          else
+            python tools/run_research_real.py --exchange "${EX}" --symbol "${SYM}" \
+              --tf-id "${TFID}" --target-level "${TARGETLVL}" \
+              --horizon-sweep "${HSWEEP}" --dense-horizon "${DHORIZON}" \
+              --tp-cube-out "research_out/tp_cube_${SLUG}.parquet" \
+              --segments-out "research_out/segments_${SLUG}.csv" \
+              --step "${EFF_STEP}" --max-bars "${MAXBARS}" \
+              --seed "${SEED}" --n-splits "${NSPLITS}" --embargo 8 \
+              ${ABLATION_FLAG} ${RFLAG} ${GRIDFLAG} ${QGATEFLAG} ${VABLFLAG} ${ETIMEFLAG} ${OOTFLAG} ${IDXFLAG} \
+              --equity-json "${EQJSON}" \
+              2>&1 | tee research_out/research_real.txt
+          fi
 
       - name: Empaquetar reporte
         if: always()

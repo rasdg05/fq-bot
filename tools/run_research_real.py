@@ -367,6 +367,14 @@ def main():
                         "selector F3 (TP/horizonte por vecindario); se acumula "
                         "run a run como artefacto. Re-etiquetado post-replay: "
                         "cero replays extra")
+    # --- SHARDING por fecha (cosecha paralela; ver tools/cosecha_shard.py) ---
+    p.add_argument("--date-start", default=None,
+                   help="ISO (YYYY-MM-DD): solo eventos con entry_ts >= esto. El "
+                        "replay recorta los dfs a [date_start-lookback, date_end+"
+                        "horizonte] (indicadores ya computados -> seguro). Permite "
+                        "shardear el replay por fecha y mergear los cubos.")
+    p.add_argument("--date-end", default=None,
+                   help="ISO: solo eventos con entry_ts < esto (rango del shard).")
     # --- FASE C: grid post-replay de SL (xATR) x TP (tp1..tp4) ---
     p.add_argument("--tp-sl-grid", action="store_true",
                    help="re-etiqueta el MISMO conjunto fired variando ancho de SL "
@@ -414,6 +422,39 @@ def main():
     df_high = _load_tf(args.exchange, args.symbol, high_tf, args.data_dir)
     df_sub = _load_tf(args.exchange, args.symbol, sub_tf, args.data_dir)
     tfs = (df_primary, df_mid, df_high, df_sub)
+
+    # SHARDING por fecha: recorta los dfs a [date_start-lookback, date_end+horizonte]
+    # (indicadores ya computados en _load_tf sobre el df COMPLETO -> recortar es
+    # seguro). El warmup del replay (min_lookback) consume el buffer-izq y los
+    # eventos arrancan en ~date_start; el buffer-der da la ventana de labeling.
+    # Mas abajo se filtran los eventos a [date_start, date_end). Cero solape entre
+    # shards adyacentes. Ver tools/cosecha_shard.py.
+    _date_start = pd.to_datetime(args.date_start) if args.date_start else None
+    _date_end = pd.to_datetime(args.date_end) if args.date_end else None
+    if _date_start is not None or _date_end is not None:
+        _bm = TF_MINUTES.get(prim_tf, 15.0)
+        _maxh = max([args.dense_horizon, args.max_bars]
+                    + (_parse_int_list(args.horizon_sweep) or []))
+        _lo = (_date_start - pd.Timedelta(minutes=_bm * args.min_lookback)
+               if _date_start is not None else None)
+        _hi = (_date_end + pd.Timedelta(minutes=_bm * _maxh)
+               if _date_end is not None else None)
+
+        def _slice_win(df):
+            if df is None:
+                return None
+            ts = pd.to_datetime(df["timestamp"])
+            keep = pd.Series(True, index=df.index)
+            if _lo is not None:
+                keep &= ts >= _lo
+            if _hi is not None:
+                keep &= ts <= _hi
+            return df[keep.to_numpy()].reset_index(drop=True)
+        df_primary, df_mid, df_high, df_sub = (_slice_win(d) for d in tfs)
+        tfs = (df_primary, df_mid, df_high, df_sub)
+        print(f"[shard] eventos [{args.date_start}..{args.date_end}); ventana "
+              f"{prim_tf}: {len(df_primary)} velas (buffer lookback+horizonte)")
+
     print(f"\nTF primario={prim_tf} (mid={mid_tf} high={high_tf} sub={sub_tf})")
     print(f"velas {prim_tf}: {len(df_primary)} | {mid_tf}: {_n(df_mid)} | "
           f"{high_tf}: {_n(df_high)} | {sub_tf}: {_n(df_sub)}")
@@ -449,6 +490,18 @@ def main():
                  "rango historico (--years) o revisa los datos")
     events = (states[states["fired"]].reset_index(drop=True)
               if "fired" in states.columns else states.iloc[0:0])
+    # SHARD: quedarse SOLO con los eventos del rango [date_start, date_end) de este
+    # shard (los del warmup-izq y el buffer-der de labeling pertenecen a shards
+    # vecinos). entry_ts es global -> el merge por entry_ts no duplica ni pierde.
+    if (_date_start is not None or _date_end is not None) and len(events):
+        _ets = pd.to_datetime(events["entry_ts"])
+        _km = pd.Series(True, index=events.index)
+        if _date_start is not None:
+            _km &= _ets >= _date_start
+        if _date_end is not None:
+            _km &= _ets < _date_end
+        events = events[_km.to_numpy()].reset_index(drop=True)
+        print(f"  [shard] eventos en rango: {len(events)}")
     print(f"  estados densos: {n_states} | senales disparadas (fired): {len(events)}")
     _print_decision_funnel(states, args)
 
