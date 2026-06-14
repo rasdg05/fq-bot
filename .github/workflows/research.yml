@@ -100,8 +100,10 @@ on:
         default: false
         type: boolean
       cosecha:
-        description: "F3: COSECHA cross-simbolo BTC+SOL a MAXIMA DATA / step1 (densidad maxima -> ~1.4-1.9k eventos POOLED, sobre el gate de 1000). Self-hosted (sin tope 6h), ~18-22h/simbolo. Default OFF."
-        default: false
+        # ⚠ DEFAULT TRUE TEMPORAL (bug toggle GitHub mobile): lanzar el #35 de un
+        # click en el runner self-hosted. REVERTIR a false cuando este corriendo.
+        description: "F3: COSECHA cross-simbolo BTC+SOL a MAXIMA DATA / step1 (sharded en self-hosted). ⚠ DEFAULT TRUE TEMPORAL — revertir tras lanzar."
+        default: true
         type: boolean
       data_only:
         description: "Solo descargar histgrico y omitir el replay (preparar/validar datos de un simbolo)"
