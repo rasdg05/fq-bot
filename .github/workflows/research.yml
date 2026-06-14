@@ -135,7 +135,11 @@ permissions:
 
 jobs:
   research:
-    runs-on: ubuntu-latest
+    # COSECHA pesada (cosecha=true) -> runner SELF-HOSTED (sin el tope de 6h de
+    # GitHub): permite step1 a 36m+ sin recortar densidad. El runner debe estar
+    # ONLINE antes de lanzar (si no, el job queda en cola). El resto de runs
+    # (normal/poda/schedule) sigue en ubuntu-latest (gratis, GitHub-hosted).
+    runs-on: ${{ github.event.inputs.cosecha == 'true' && 'self-hosted' || 'ubuntu-latest' }}
     # PODA (ablation=true): 4 replays (baseline + 3 toggles) NO caben en el techo
     # para BTC 48m (~4h/replay). La MATRIZ es dinamica: con ablation=true solo
     # corre SOL (la poda se decide en SOL primero; BTC no es candidato por §6.5)
@@ -145,7 +149,8 @@ jobs:
     # En schedule los inputs llegan vacios -> matriz completa, sin cambios.
     # Techo holgado: BTC 48m de 5m ~170min de replay denso + modelo/grids/retrieval.
     # La poda (opt-in) triplica; por eso el techo es 350 (< 360 max del runner).
-    timeout-minutes: 350
+    # COSECHA en self-hosted: 1440 min (24h) — sin el tope de 6h de GitHub.
+    timeout-minutes: ${{ github.event.inputs.cosecha == 'true' && 1440 || 350 }}
     strategy:
       fail-fast: false
       # BTC: 48 meses (densidad para el retrieval), step=3 = rango seguro de tiempo.
@@ -231,7 +236,8 @@ jobs:
       - name: Install dependencies
         run: |
           # libgomp1: runtime OpenMP que lightgbm necesita para importar.
-          sudo apt-get update && sudo apt-get install -y libgomp1
+          sudo apt-get update && sudo apt-get install -y libgomp1 \
+            || echo "[apt skip] sin sudo/apt (self-hosted): asume libgomp1 preinstalado"
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           # scikit-learn: LGBMClassifier vive en lightgbm.sklearn y lo necesita.
