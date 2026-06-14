@@ -158,14 +158,17 @@ jobs:
       fail-fast: false
       # BTC: 48 meses (densidad para el retrieval), step=3 = rango seguro de tiempo.
       # SOL: 24 meses (dataset mas chico) -> mas cadencia (step=2).
-      # COSECHA (cosecha=true): BTC 84m + SOL 72m a step1 (maxima densidad). En
+      # COSECHA (cosecha=true): BTC 84m + SOL 60m a step1 (maxima densidad). En
       # #36 BTC ya se cosecho y valido OK (1311 eventos, cubo en mano); SOL fallo
-      # por el bug del venv (ya corregido con --clear). Este re-lanzamiento es
-      # SOL-ONLY para no re-hacer los ~76min de BTC. RESTAURAR ambos simbolos
-      # cuando SOL termine en verde. PODA (ablation=true): solo SOL 24m.
+      # 2 veces: (1) bug del venv (corregido con --clear) y (2) #37 bajo n=0 porque
+      # SOL-USDT-SWAP en OKX listo 2021-01-22 y pedir 72m (->2020-06) cae ANTES del
+      # listing -> build_dataset devuelve vacio (BTC no lo sufre, su data llega al
+      # inicio pedido). SOL=60m (->2021-06, ~4 meses post-listing) captura ~todo SOL
+      # con margen. Este re-lanzamiento es SOL-ONLY (BTC ya en mano). RESTAURAR
+      # ambos simbolos cuando SOL termine en verde. PODA (ablation=true): solo SOL 24m.
       # Normal: BTC 48m + SOL 24m. Prioridad: cosecha > ablation > normal.
       matrix: ${{ fromJSON(github.event.inputs.cosecha == 'true'
-        && '{"include":[{"symbol":"SOL/USDT","months":"72","step":"1"}]}'
+        && '{"include":[{"symbol":"SOL/USDT","months":"60","step":"1"}]}'
         || (github.event.inputs.ablation == 'true'
         && '{"include":[{"symbol":"SOL/USDT","months":"24","step":"2"}]}'
         || '{"include":[{"symbol":"BTC/USDT","months":"48","step":"3"},{"symbol":"SOL/USDT","months":"24","step":"2"}]}')) }}
@@ -387,6 +390,22 @@ jobs:
               --equity-json "${EQJSON}" \
               2>&1 | tee research_out/research_real.txt
           fi
+
+      - name: Verificar cubo de cosecha (rojo honesto si vacio)
+        # El step previo tiene continue-on-error + '| tee' -> el rc de
+        # cosecha_shard se traga y el job iba VERDE aun sin cubo (paso en #37: SOL
+        # bajo n=0 y subio un artefacto vacio "exitoso"). Este gate, SIN
+        # continue-on-error, falla el job si la cosecha no produjo un cubo con
+        # eventos. Solo aplica a la cosecha (no toca runs normales/poda).
+        if: ${{ env.COSECHA == 'true' && env.DATAONLY != 'true' }}
+        run: |
+          CUBE="research_out/tp_cube_${SLUG}.parquet"
+          if [ ! -s "$CUBE" ]; then
+            echo "::error::cosecha sin cubo ($CUBE). Salida del replay:"
+            cat research_out/research_real.txt 2>/dev/null || true
+            exit 1
+          fi
+          python -c "import pandas as pd; n=pd.read_parquet('$CUBE')['entry_ts'].nunique(); print('cubo OK:', n, 'eventos'); assert n>0, 'cubo sin eventos'"
 
       - name: Empaquetar reporte
         if: always()
