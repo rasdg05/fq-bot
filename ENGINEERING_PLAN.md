@@ -47,22 +47,26 @@ El hallazgo: `requirements.txt` tiene cotas abiertas (`pandas>=2.3.2`,
 puede saltar versiones mayores SIN cambio de código. Para un bot de dinero es
 una bomba de relojería silenciosa.
 
-- [ ] **Lockfile**: congelar el set completo (`pip-compile` →
-      `requirements.lock`, o `uv lock`). Railway y CI instalan del lock;
-      `requirements.txt` queda como declaración de intención. Actualizar el
-      lock = PR consciente, con suite verde.
-- [ ] **Pin de runtime**: CI usa Python 3.12; fijar la MISMA versión en
-      Nixpacks (`NIXPACKS_PYTHON_VERSION` o `runtime.txt`) para que prod, CI
-      y research no diverjan (hoy es implícito).
-- [ ] **Docs no redeployan**: `railway.toml` → `watchPatterns` que excluyan
-      `**/*.md` (y `internal/`). Hoy cada commit de documentación reinicia el
-      worker en vivo sin necesidad. (Cambio de 3 líneas; aplicar con el
-      usuario mirando el dashboard.)
-- [ ] CI: job de `pip install` desde el lock + `pip check` (detecta conflictos
-      de dependencias en el acto).
+- [x] **Lockfile**: `requirements.lock` (57 paquetes, set completo pinneado ==),
+      generado con `uv pip compile requirements.txt --python-version 3.12`
+      (= la versión de CI/prod). Captura el set vivo hoy (pandas==3.0.3,
+      numpy==2.2.6, ccxt==4.5.58, anthropic==0.109.1…). `requirements.txt` queda
+      como declaración de intención. Regenerar = PR consciente con suite verde.
+- [ ] **Pin de runtime** (FASE 2, supervisada): fijar Python 3.12 en Nixpacks
+      (`runtime.txt`/`NIXPACKS_PYTHON_VERSION`) para que prod=CI=research.
+      Pendiente: cambia el build de prod → aplicar con el usuario mirando el
+      dashboard, junto al switch de Railway al lock.
+- [x] **Docs no redeployan**: `railway.toml` → `watchPatterns` (excluye
+      `**/*.md`, `internal/`, `.github/`, `tests/`, `tools/`). Ya en producción.
+- [x] CI: job **`lockcheck`** (`ci.yml`) — instala desde `requirements.lock` en
+      3.12, corre `pip check` (conflictos) + la suite. Si el lock se rompe o se
+      desfasa, CI rojo ANTES de tocar prod.
 
 **Criterio de salida**: dos deploys consecutivos sin cambio de código instalan
-bit-a-bit las mismas versiones.
+bit-a-bit las mismas versiones. **Estado: lock CONSTRUIDO y validado en CI
+(cero riesgo de prod). FASE 2 (supervisada con dashboard):** apuntar Railway/
+Nixpacks a `requirements.lock` + pin de runtime 3.12 → ahí se cumple el criterio.
+El lock listo + `lockcheck` verde es el prerequisito que vuelve esa fase segura.
 
 ## N2. Guardas que codifican lecciones (tests de invariantes)
 
