@@ -15,17 +15,23 @@ usa `runs-on: self-hosted` y `timeout-minutes: 1440` (24h). El resto de runs
 ## 1. El VPS (una vez)
 
 Cualquiera sirve; recomendado **8 GB RAM** (el índice de retrieval sobre ~311k
-estados consume memoria). Ubuntu 22.04/24.04 x64.
+estados consume memoria). Ubuntu 22.04/24.04/26.04 x64. El sharding usa `nproc`
+núcleos, así que **más núcleos = más rápido**.
 
-| Proveedor | Plan | RAM/vCPU | Precio aprox |
-|---|---|---|---|
-| **Hetzner** | CX32 | 8 GB / 4 vCPU | ~€6.5/mo (o por horas) |
-| Hetzner | CX22 | 4 GB / 2 vCPU | ~€4/mo (justo, puede faltar RAM) |
-| DigitalOcean | Basic 8GB | 8 GB / 2 vCPU | ~$48/mo (o droplet por horas) |
-| AWS/GCP spot | c7i.large | 4 GB / 2 vCPU | ~$0.05-0.10/h |
+| Proveedor | Plan | RAM/vCPU | Cosecha sharded | Precio |
+|---|---|---|---|---|
+| **Hetzner CCX33** ⭐ (recomendado) | dedicado | 32 GB / 8 vCPU | ~3h/símbolo (8 shards) | $0.119/h (~$74/mo) |
+| Hetzner CCX43 | dedicado | 64 GB / 16 vCPU | ~1.5h/símbolo (16 shards) | $0.236/h |
+| Hetzner CCX23 | dedicado | 16 GB / 4 vCPU | ~6h/símbolo (4 shards) | $0.059/h |
 
-Tip: en Hetzner podés crearlo, correr la cosecha (~8h ≈ €0.07) y borrarlo, o
-dejarlo idle para F4/futuras (cuesta centavos/día).
+**CCX33 (8 vCPU / 32 GB) es ideal:** 8 shards en paralelo, y como cada shard
+procesa 1/8 de la data, la RAM por shard es ~1-2 GB → **~8-16 GB de 32 GB, muy
+holgado**. Los 2 símbolos (BTC+SOL) corren en serie con 1 runner → **~6h + ~1h
+de descarga ≈ ~7h** (vs ~44h sin shardear). Por hora ≈ **€0.80** la cosecha
+completa; lo borrás al terminar o lo dejás idle para F4.
+
+> Al crear el server: **agregá tu SSH key** (el aviso naranja "SSH keys") para
+> poder entrar por SSH a montar el runner. Ubuntu 26.04 sirve.
 
 ## 2. Prerrequisitos en el VPS (como root, una vez)
 
