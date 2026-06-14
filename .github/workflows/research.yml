@@ -158,11 +158,14 @@ jobs:
       fail-fast: false
       # BTC: 48 meses (densidad para el retrieval), step=3 = rango seguro de tiempo.
       # SOL: 24 meses (dataset mas chico) -> mas cadencia (step=2).
-      # COSECHA (cosecha=true): SOL 36m/step1 (~1.4-1.9k eventos para F3, §6.6),
-      # solo SOL (~3-4h, cabe en el techo). PODA (ablation=true): solo SOL 24m.
+      # COSECHA (cosecha=true): BTC 84m + SOL 72m a step1 (maxima densidad). En
+      # #36 BTC ya se cosecho y valido OK (1311 eventos, cubo en mano); SOL fallo
+      # por el bug del venv (ya corregido con --clear). Este re-lanzamiento es
+      # SOL-ONLY para no re-hacer los ~76min de BTC. RESTAURAR ambos simbolos
+      # cuando SOL termine en verde. PODA (ablation=true): solo SOL 24m.
       # Normal: BTC 48m + SOL 24m. Prioridad: cosecha > ablation > normal.
       matrix: ${{ fromJSON(github.event.inputs.cosecha == 'true'
-        && '{"include":[{"symbol":"BTC/USDT","months":"84","step":"1"},{"symbol":"SOL/USDT","months":"72","step":"1"}]}'
+        && '{"include":[{"symbol":"SOL/USDT","months":"72","step":"1"}]}'
         || (github.event.inputs.ablation == 'true'
         && '{"include":[{"symbol":"SOL/USDT","months":"24","step":"2"}]}'
         || '{"include":[{"symbol":"BTC/USDT","months":"48","step":"3"},{"symbol":"SOL/USDT","months":"24","step":"2"}]}')) }}
@@ -234,12 +237,15 @@ jobs:
         # tiene build de 3.12 -> falla en ~30s. uv baja un Python 3.12 portable
         # (OS-agnostico) y crea un venv con pip (--seed) que el resto de steps usa
         # via $GITHUB_PATH. Asi 'python'/'pip' resuelven al 3.12 del venv.
+        # --clear: en el self-hosted $HOME persiste entre jobs; el 2do simbolo de
+        # la matrix (corre en serie en el MISMO runner) encontraria el venv del 1ro
+        # y 'uv venv' fallaria ("already exists"). --clear lo recrea idempotente.
         if: ${{ github.event.inputs.cosecha == 'true' }}
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           UV="$HOME/.local/bin/uv"
           "$UV" python install 3.12
-          "$UV" venv --seed --python 3.12 "$HOME/fqvenv"
+          "$UV" venv --seed --clear --python 3.12 "$HOME/fqvenv"
           echo "$HOME/fqvenv/bin" >> "$GITHUB_PATH"
           "$HOME/fqvenv/bin/python" --version
 
