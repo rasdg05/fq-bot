@@ -31,7 +31,7 @@ TOTAL = 11
 # expectancy OOS por palanca acumulada (R/trade, neto de costes); §6.10.1 + #33
 STAGES = ["Motor\nbase", "+ veto\nsesión", "+ entrada\nmaker", "+ entrada+TP\nmaker"]
 SOL_R = [-0.095, 0.012, 0.086, 0.1245]
-BTC_R = [-0.068, -0.031, 0.055, 0.102]
+BTC_R = [-0.068, -0.027, 0.0585, 0.1046]
 TARGET_R = 0.133
 
 
@@ -107,8 +107,8 @@ def p_exec(pdf):
     # 4 métricas headline
     metric(ax, 0.7, 5.05, 3.45, "+0.1245R", "expectancy OOS (SOL)",
            color=GREEN, sub="motor+veto+maker · PF 1.21")
-    metric(ax, 4.35, 5.05, 3.45, "+0.102R", "expectancy OOS (BTC)",
-           color=GREEN, sub="misma config, replica")
+    metric(ax, 4.35, 5.05, 3.45, "+0.1046R", "expectancy OOS (BTC)",
+           color=GREEN, sub="integrado, replica cross-símbolo")
     metric(ax, 8.0, 5.05, 3.45, "54.3%", "win-rate (SOL, post-veto)",
            color=TEAL, sub="sube desde 50.0% base")
     metric(ax, 11.65, 5.05, 3.65, "≥ 0.133R", "objetivo forward",
@@ -352,9 +352,9 @@ def p_validation(pdf):
     ax.text(1.05, 2.12, "CONFIRMACIÓN INTEGRADA (run #33, 13-jun)", fontsize=10.5,
             color=GREEN, fontweight="bold")
     draw_lines(ax, 1.05, 1.78, [
-        "Una corrida de research con el veto YA integrado al motor reprodujo el resultado end-to-end:",
-        "expectancy OOS −0.095 → +0.012 (taker) y +0.1245 (maker), con el win-rate subiendo de 50.0% a 54.3%.",
-        "El veto mejora expectancy Y win-rate a la vez — pasa la vara de calidad. Falta el cross-símbolo BTC.",
+        "Corridas con el veto YA integrado al motor reprodujeron el resultado end-to-end en AMBOS símbolos:",
+        "SOL: taker −0.095→+0.012 · maker +0.1245R (WR 50→54%). BTC: taker −0.068→−0.027 · maker +0.1046R.",
+        "Pasa la vara de calidad en los dos — primer +0.10R OOS integrado y replicado cross-símbolo.",
     ], fs=10.3, ls=1.42, color=SUB)
     footer(ax, 7, TOTAL); pdf.savefig(fig, facecolor=BG); plt.close(fig)
 

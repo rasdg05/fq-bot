@@ -844,26 +844,29 @@ OOS pooled, pnl_r PRE-coste; los netos restan ~0.23R en SOL / ~0.28R en BTC):**
    solo el primario; el secundario NO se apila. (Nota: #31 base es +0.018, no
    −0.095: step 3 es muestra más favorable; lo que replica es el LIFT, no el
    absoluto.)
-2. ✅ **CONFIRMACIÓN INTEGRADA — run #33 SOL (13-jun-2026, `segment_veto_killzones=london_open_kz`).**
-   El replay aplicó el veto integrado (`[veto sesion §6.8] caen 47/183`) y
-   re-foldeó sobre la población restante:
+2. ✅ **CONFIRMACIÓN INTEGRADA CROSS-SÍMBOLO — run #33 (13-jun-2026,
+   `segment_veto_killzones=london_open_kz`).** El replay aplicó el veto integrado
+   en AMBOS símbolos (`caen 47/183` SOL · `caen 41/223` BTC) y re-foldeó la
+   población restante. Reproduce la matriz offline §6.10.1 end-to-end:
 
-   | SOL #33, OOS (folds re-pooled, n=116) | exp_R | PF | WR |
-   |---|---|---|---|
-   | base (sin veto, §6.10.1) | −0.095 | <1 | 0.50 |
-   | **taker/taker +veto** | **+0.0122** | 1.01 | **0.5431** |
-   | entrada maker +veto | +0.0857 | 1.14 | — |
-   | **entrada+TP maker +veto** | **+0.1245** | 1.21 | — |
+   | OOS post-veto (folds re-pooled) | SOL (n=116) | BTC (n=156) |
+   |---|---|---|
+   | base (sin veto, §6.10.1) | −0.095 | −0.068 |
+   | **taker/taker +veto** | **+0.0122** (WR 0.543) | **−0.0273** (WR 0.558) |
+   | entrada maker +veto | +0.0857 | +0.0585 |
+   | **entrada+TP maker +veto** | **+0.1245** (PF 1.21) | **+0.1046** (PF 1.19) |
 
-   **Veredicto §6.6: PASA.** El veto sube la expectancy OOS (−0.095→+0.012
-   taker) Y la WR (0.50→0.543) — mejora ambas, no degrada. Segmentos restantes:
-   killzones todas ≥0 (london eliminado); `12-16utc +0.361`, viernes +0.431.
-   **Caveat clave:** el taker es breakeven (+0.012); el **+0.1245 EXIGE maker**
-   (fill 100% asumido) → la vara real sigue siendo el fill-rate del motor paper.
-   **Leakage denso = REVISAR** (causal −0.0098 / placebo −0.1167): el gate k-NN
-   NO se reconstruye → la espada es **motor base + veto + maker**, NO el gate
-   (confirma §6.10.1 #3). Lunes sigue tóxico en #33 (−0.379) pero NO en #31
-   (muestra fresca) → secundario frágil, **no apilar**. BTC #33 pendiente.
+   **Veredicto §6.6: PASA en ambos.** El veto sube expectancy OOS y WR sin
+   degradar; killzones restantes ≥0 (london eliminado en los dos; mejor franja
+   BTC = `ny_am_kz +0.455`). **Caveats que lo mantienen TECHO:** (a) el taker
+   sigue ≤0 (SOL +0.012 breakeven, **BTC −0.027 NEGATIVO**) → el +0.10R EXIGE
+   maker con fill 100% asumido → la vara real es el fill-rate del motor paper;
+   BTC depende MÁS del maker que SOL. (b) **Leakage denso = REVISAR en ambos**
+   (SOL causal −0.0098 / BTC +0.0067; placebo no colapsa) → el gate k-NN NO se
+   reconstruye → la espada es **motor base + veto + maker**, NO el gate (§6.10.1
+   #3). (c) Lunes tóxico en #33 pero NO en #31 (fresca) → secundario frágil, no
+   apilar. **Hito: primera config con +0.10R OOS positivo INTEGRADO y replicado
+   cross-símbolo** — pendiente solo el fill-rate forward.
 3. **Paper forward 2–4 semanas** con el ledger del **motor paper** (`/paper`).
 4. Prod por env, con confirmación explícita del usuario y rollback de una
    línea. Cada paso documenta sus números aquí.
