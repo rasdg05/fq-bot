@@ -100,7 +100,7 @@ on:
         default: false
         type: boolean
       cosecha:
-        description: "F3: COSECHA SOL 36m/step1 (~1.4-1.9k eventos, §6.6). Solo SOL, ~3-4h. Default OFF."
+        description: "F3: COSECHA cross-simbolo BTC+SOL a MAXIMA DATA / step1 (densidad maxima -> ~1.4-1.9k eventos POOLED, sobre el gate de 1000). Self-hosted (sin tope 6h), ~18-22h/simbolo. Default OFF."
         default: false
         type: boolean
       data_only:
@@ -149,8 +149,9 @@ jobs:
     # En schedule los inputs llegan vacios -> matriz completa, sin cambios.
     # Techo holgado: BTC 48m de 5m ~170min de replay denso + modelo/grids/retrieval.
     # La poda (opt-in) triplica; por eso el techo es 350 (< 360 max del runner).
-    # COSECHA en self-hosted: 1440 min (24h) — sin el tope de 6h de GitHub.
-    timeout-minutes: ${{ github.event.inputs.cosecha == 'true' && 1440 || 350 }}
+    # COSECHA en self-hosted: 2880 min (48h) — datos MAXIMOS a step1 (BTC ~84m,
+    # SOL ~72m; build_dataset trunca a lo disponible) tardan ~18-22h/simbolo.
+    timeout-minutes: ${{ github.event.inputs.cosecha == 'true' && 2880 || 350 }}
     strategy:
       fail-fast: false
       # BTC: 48 meses (densidad para el retrieval), step=3 = rango seguro de tiempo.
@@ -159,7 +160,7 @@ jobs:
       # solo SOL (~3-4h, cabe en el techo). PODA (ablation=true): solo SOL 24m.
       # Normal: BTC 48m + SOL 24m. Prioridad: cosecha > ablation > normal.
       matrix: ${{ fromJSON(github.event.inputs.cosecha == 'true'
-        && '{"include":[{"symbol":"SOL/USDT","months":"36","step":"1"}]}'
+        && '{"include":[{"symbol":"BTC/USDT","months":"84","step":"1"},{"symbol":"SOL/USDT","months":"72","step":"1"}]}'
         || (github.event.inputs.ablation == 'true'
         && '{"include":[{"symbol":"SOL/USDT","months":"24","step":"2"}]}'
         || '{"include":[{"symbol":"BTC/USDT","months":"48","step":"3"},{"symbol":"SOL/USDT","months":"24","step":"2"}]}')) }}

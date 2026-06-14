@@ -8,6 +8,7 @@ que los gaps entre eventos superen el horizonte, como en el cubo real esparso).
 """
 import numpy as np
 import pandas as pd
+import pytest
 
 import bt_tp_selector as bts
 
@@ -28,7 +29,7 @@ def _cube(n=300, seed=0):
                    ("tp3", 576): -0.5 + rng.normal(0, 0.02)}
         for (tp, h), r in pnl.items():
             rows.append({"entry_index": ei,
-                         "entry_ts": pd.Timestamp("2024-01-01") + pd.Timedelta(minutes=5 * i),
+                         "entry_ts": pd.Timestamp("2024-01-01") + pd.Timedelta(days=i),
                          "tp": tp, "horizon": h, "pnl_r": r,
                          "p_master": pm, "direction": 1,
                          "bars_held": h, "outcome": "win"})
@@ -63,6 +64,26 @@ def test_baseline_es_la_celda_fija():
 def test_cubo_chico_no_crashea():
     _sel, rep = bts.run(_cube(n=8), n_splits=5, embargo=8, k=20)
     assert isinstance(rep, dict)  # folds vacíos -> n=0, sin crash
+
+
+def test_run_pooled_cross_simbolo():
+    """Pooling de dos 'símbolos' (features comunes): folds por calendario
+    (entry_ts), el vecindario cruza símbolos. Con estructura, el selector no
+    empeora la baseline y produce OOS."""
+    a = _cube(n=200, seed=1)
+    b = _cube(n=200, seed=2)  # mismo calendario -> los folds los interleavean
+    sel, rep = bts.run_pooled({"A": a, "B": b}, k=20, margin=0.1, min_support=10)
+    assert rep["selector"]["n"] > 0
+    assert rep["selector"]["expectancy_r"] >= rep["baseline"]["expectancy_r"]
+    assert np.isfinite(sel["sel_pnl"].to_numpy()).all()
+
+
+def test_run_pooled_celdas_incompatibles_explota():
+    a = _cube(n=20)
+    b = _cube(n=20)
+    b = b[b["horizon"] != 576]  # quita una celda -> no debe poolear en silencio
+    with pytest.raises(ValueError):
+        bts.run_pooled({"A": a, "B": b}, k=10, min_support=5)
 
 
 def test_abstencion_cae_a_baseline():

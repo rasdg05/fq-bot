@@ -164,6 +164,47 @@ def sweep(cube, *, ks=(25, 50, 75), margins=(0.0, 0.05, 0.1, 0.2),
     return pd.DataFrame(out)
 
 
+def run_pooled(cubes, *, n_splits=7, embargo=8, k=50, baseline=("tp1", 288),
+               bar_minutes=5.0, min_neighbors=10, margin=0.1, min_support=20):
+    """F3 sobre el cubo POOLED cross-símbolo (la premisa del retrieval: estados
+    similares pagan igual, sea SOL o BTC). `cubes` = dict {símbolo: cube_df}.
+
+    Concatena las features (symbol-agnósticas) y construye los folds causales por
+    TIEMPO DE CALENDARIO (`entry_ts`), NO por entry_index — cada símbolo tiene su
+    propia timeline de índices, pero comparten el calendario. El vecindario k-NN
+    cruza símbolos; la purga/embargo es por tiempo real. Devuelve (sel, report).
+
+    Pooling es lo que lleva F3 sobre el gate de ≥1000 eventos (§6.6): SOL + BTC
+    a step1 con datos máximos ≈ 1.4-1.6k eventos juntos."""
+    evs, pnls, bases, cells_ref = [], [], [], None
+    for sym, cube in cubes.items():
+        ev, cell_pnl, cells, base_pnl = events_and_cells(cube, baseline)
+        if cells_ref is None:
+            cells_ref = cells
+        elif cells != cells_ref:
+            raise ValueError("cubos con celdas (tp×horizonte) distintas: %s vs %s"
+                             % (sym, "ref"))
+        ev = ev.copy()
+        ev["_symbol"] = sym
+        evs.append(ev); pnls.append(cell_pnl); bases.append(base_pnl)
+    ev = pd.concat(evs, ignore_index=True)
+    cell_pnl = np.vstack(pnls)
+    base_pnl = np.concatenate(bases)
+    # folds por calendario: t0=entry_ts en NANOSEGUNDOS (forzar [ns]: pandas 3.x
+    # puede guardar datetime como [ms]/[us]); t1=t0+horizonte_max; embargo bars→ns
+    t0 = (pd.to_datetime(ev["entry_ts"]).to_numpy()
+          .astype("datetime64[ns]").astype("int64"))
+    bar_ns = int(bar_minutes * 60 * 1e9)
+    hmax = max(h for _t, h in cells_ref)
+    folds = wf.purged_walk_forward_splits(t0, t0 + hmax * bar_ns, n_splits,
+                                          embargo * bar_ns)
+    sel = select_oos(ev, cell_pnl, base_pnl, cells_ref, folds,
+                     base_col=_base_col(cells_ref, baseline), k=k,
+                     min_neighbors=min_neighbors, margin=margin,
+                     min_support=min_support)
+    return sel, evaluate(sel)
+
+
 def main(argv):
     import argparse
     p = argparse.ArgumentParser(description="F3 selector TP/horizonte (diagnóstico).")
