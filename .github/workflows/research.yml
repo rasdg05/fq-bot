@@ -224,9 +224,24 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
+        if: ${{ github.event.inputs.cosecha != 'true' }}
         with:
           python-version: "3.12"
           cache: pip
+
+      - name: Python 3.12 via uv (self-hosted / OS nuevo sin build de setup-python)
+        # En la cosecha (runner self-hosted, Ubuntu 26.04) actions/setup-python no
+        # tiene build de 3.12 -> falla en ~30s. uv baja un Python 3.12 portable
+        # (OS-agnostico) y crea un venv con pip (--seed) que el resto de steps usa
+        # via $GITHUB_PATH. Asi 'python'/'pip' resuelven al 3.12 del venv.
+        if: ${{ github.event.inputs.cosecha == 'true' }}
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          UV="$HOME/.local/bin/uv"
+          "$UV" python install 3.12
+          "$UV" venv --seed --python 3.12 "$HOME/fqvenv"
+          echo "$HOME/fqvenv/bin" >> "$GITHUB_PATH"
+          "$HOME/fqvenv/bin/python" --version
 
       - name: Identificadores de simbolo (slug sin '/')
         # SLUG: artefactos y cache key sin '/' (upload-artifact@v4 lo prohibe y dos
