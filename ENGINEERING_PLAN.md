@@ -166,6 +166,44 @@ plan solo añade el ORDEN respecto a la poda:
 - [ ] Alerta si el ledger paper ORO no recibe eventos en N días (detecta gate
       muerto en silencio).
 
+## N8. Programa de cosecha de evidencia (la fábrica de números honestos)
+
+Objetivo: convertir el research en una BATERÍA de evidencia reproducible que
+(a) enriquezca el sistema y (b) sostenga, con números medidos, la tesis de
+inversión. Siete corridas; cada una deja un artefacto versionado (sha + inputs)
+y una lámina para el deck. Orden pensado para que 1–6 alimenten el 7 (el forward).
+
+1. [ ] **Cosecha multi-símbolo** (ETH/USDT, BNB, majors perp). Reutiliza
+   `tools/build_dataset.py --symbol X` + `tools/cosecha_shard.py --symbol X`
+   (symbol-agnóstico; sólo cambia la ruta del artefacto). Entrega un **portafolio
+   de edges candidatos** por símbolo/TF → diversificación medible, no narrada.
+   [coste: runner self-hosted, ~horas/símbolo].
+2. [~] **Walk-forward / OOS purgado**. YA existe en `cosecha_shard`
+   (`--n-splits 7 --embargo 8`). Falta el **reporte per-split** (expectancy y
+   dispersión fold a fold) → evidencia de que el edge NO es overfit.
+   `tools/walkforward_report.py` sobre el cubo.
+3. [x] **Monte Carlo de la curva** (`tools/montecarlo_curve.py`). Bootstrap de
+   la serie de R por-trade → distribución de **drawdown máximo**, **risk-of-ruin**
+   y **bandas de equity** (p5–p95). La lámina de riesgo que todo LP exige.
+4. [ ] **Análisis de capacidad** (`tools/capacity_analysis.py`, NUEVO). Modela
+   el decaimiento del edge vs. tamaño de orden (slippage / participación de
+   volumen) → **cuánto capital absorbe** el edge antes de comérselo. Define el
+   techo de despliegue y, con él, el tamaño honesto de la ronda.
+5. [ ] **Segmentación por régimen**. `regime_detector.py` ya etiqueta
+   tendencia/rango/volatilidad. Falta el **reporte de edge por régimen** sobre el
+   cubo → dónde vive el alpha y dónde abstenerse.
+6. [ ] **Atribución de features** (la joya analítica). `signal_scorer.py`
+   (Shapley) + `bt_ablation.py` ya existen a nivel señal/ablación. Falta el
+   **reporte cosecha-level**: qué componentes del motor (fases A/B/C/D, P_master,
+   contexto multi-TF) generan realmente la expectancy. Vuelve el motor
+   transparente y defendible, no mágico.
+7. [→] **Forward vivo** (en curso). El motor paper SOL+BTC ya corre a 0% real;
+   es la **prioridad #1 de datos**. 1–6 lo contextualizan (régimen, capacidad,
+   riesgo); el forward lo confirma. El `fill-rate maker` es el sello final.
+
+**Criterio de salida**: cada paso deja artefacto reproducible + lámina; el deck
+se arma SÓLO con lo medido (no se extrapola el forward antes de tiempo).
+
 ## Secuencia recomendada
 
 | Cuándo | Qué |
