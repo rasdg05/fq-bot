@@ -108,6 +108,25 @@ def test_governor_can_veto_gold():
     assert rep["opened"] is None                 # kill-switch -> no abre aunque sea ORO
 
 
+def test_session_veto_no_abre_pero_clasifica_y_sella():
+    # §6.8: el veto de sesion (decidido por el llamador con el ts de la vela) NO
+    # abre la senal ORO, pero la clasifica, la cuenta y la sella para el forward.
+    rt = _runtime(rg.GOLD)
+    rep = rt.on_bar(_field("long"), _report(), None, 100.0, vetoed=True)
+    assert rep["tier"] == rg.GOLD                # se clasifica ORO igual
+    assert rep["opened"] is None and rep["vetoed"] is True   # pero NO abre
+    assert len(rt.account.open) == 0
+    assert rt.counts.get("vetoed") == 1          # contado para el digest
+    assert rt.broker.ledger.records[-1]["payload"]["event"] == "GOLD_VETO"
+
+
+def test_session_veto_false_abre_normal():
+    # Default vetoed=False -> comportamiento intacto (abre como siempre).
+    rt = _runtime(rg.GOLD)
+    rep = rt.on_bar(_field("long"), _report(), None, 100.0, vetoed=False)
+    assert rep["opened"] is not None and rep["vetoed"] is False
+
+
 def test_reconcile_runs_every_n():
     calls = []
     recon = SimpleNamespace(check=lambda accounts=None: calls.append(1))

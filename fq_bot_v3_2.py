@@ -2657,10 +2657,10 @@ def _gold_admin_notify(sig, verdict, pos):
             elif "digest" in v:
                 c = v["digest"]
                 msg = ("📊 <b>Gold paper</b> ({tk} velas) — ORO {g} · BASE {b} · "
-                       "ABSTAIN {a} · abiertas {o}").format(
+                       "ABSTAIN {a} · VETADO {vt} · abiertas {o}").format(
                            tk=v.get("ticks", "?"), g=c.get("gold", 0),
                            b=c.get("base", 0), a=c.get("abstain", 0),
-                           o=v.get("open", 0))
+                           vt=c.get("vetoed", 0), o=v.get("open", 0))
             else:
                 return
             broadcast_to_subscribers(msg, tiers=["admin"])
@@ -2709,8 +2709,20 @@ def _gold_paper_eval(field, report, df_primary, price, tf_id):
     try:
         hi = float(df_primary["high"].iloc[-1])
         lo = float(df_primary["low"].iloc[-1])
+        # §6.8 VETO DE SESION fusionado al track ORO: el MISMO SEGMENT_VETO que
+        # filtra la senal VIP juzga la killzone de la VELA por su timestamp (no
+        # now(), §6.7). Si la franja esta vetada, el gold paper NO abre la senal
+        # ORO -> mide el edge validado (base + veto). Default OFF -> vetoed=False.
+        vetoed = False
+        if SEGMENT_VETO is not None and SEGMENT_VETO.active:
+            try:
+                _ts = df_primary["timestamp"].iloc[-1]
+                vetoed = bool(SEGMENT_VETO.reason(
+                    killzone=getattr(field, "killzone", None), ts_utc=_ts))
+            except Exception:
+                vetoed = False
         rt.on_bar(field, report, df_primary, price, high=hi, low=lo,
-                  ts=datetime.now(timezone.utc))
+                  ts=datetime.now(timezone.utc), vetoed=vetoed)
     except Exception as e:
         log.warning("[gold] on_bar: %s", e)
 

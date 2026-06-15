@@ -188,9 +188,12 @@ class GoldPaperRuntime:
             self._maker_pending, self.broker.ledger, high, low, ts,
             eps=self.maker_eps, ttl_bars=self.maker_ttl_bars)
 
-    def on_bar(self, field, report, df_primary, price, *, high=None, low=None, ts=None):
-        """Procesa una vela. high/low resuelven posiciones abiertas. Devuelve
-        {tier, opened, resolved}."""
+    def on_bar(self, field, report, df_primary, price, *, high=None, low=None,
+               ts=None, vetoed=False):
+        """Procesa una vela. high/low resuelven posiciones abiertas. `vetoed` lo
+        decide el llamador (capa de decision, con el ts de la VELA — §6.7): si la
+        senal es ORO pero la killzone esta vetada, NO se abre. Devuelve
+        {tier, opened, resolved, vetoed}."""
         # 1) resolver abiertas contra la vela real (empate pesimista)
         resolved = []
         if high is not None and low is not None:
@@ -220,7 +223,22 @@ class GoldPaperRuntime:
             self._check_coverage(gold_live.live_state_row(field, report))
 
         opened = None
-        if sig is not None:
+        vetoed_now = bool(sig is not None and vetoed)
+        if vetoed_now:
+            # §6.8 VETO DE SESION (capa de decision; el llamador lo decidio con la
+            # killzone de la VELA): la senal ORO NO se abre — consistente con el
+            # edge validado (base + veto). Se SELLA para el track record forward
+            # (mismo patron que el shadow maker) y se cuenta, pero no entra al
+            # broker. Resolucion/maker/reconcile de arriba siguen corriendo.
+            self.counts["vetoed"] = self.counts.get("vetoed", 0) + 1
+            try:
+                self.broker.ledger.append({
+                    "event": "GOLD_VETO", "ts": str(ts),
+                    "direction": sig.get("direction"), "entry": sig.get("entry")})
+            except Exception as e:
+                log.warning("[gold] sello veto: %s", e)
+            log.info("[gold] ORO VETADO por sesion (no se abre)")
+        elif sig is not None:
             d = self.governor.decide(self.account, requested_risk=self.requested_risk)
             if d["approved"]:
                 pos = self.broker.open(self.account, sig, d["risk_frac"], ts=ts)
@@ -238,4 +256,5 @@ class GoldPaperRuntime:
                 log.info("[gold] ORO rechazado por gobernador: %s", d["reason"])
 
         self._maybe_digest()
-        return {"tier": tier, "opened": opened, "resolved": resolved}
+        return {"tier": tier, "opened": opened, "resolved": resolved,
+                "vetoed": vetoed_now}
