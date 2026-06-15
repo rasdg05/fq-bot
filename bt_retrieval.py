@@ -28,6 +28,7 @@
 ================================================================================
 """
 import logging
+import os
 import pickle
 import warnings
 
@@ -273,18 +274,47 @@ DEFAULT_CATEGORICAL = [
 ]
 
 
+# DECOUPLING TEST (§6.6): grupos de features del vector ACOPLADAS a un módulo del
+# motor. Medir el edge OOS del gate SIN ellas responde si el módulo es removible del
+# motor sin romper el gate: si el gate NO cae (o mejora) sin scorer/regime, esas
+# features no lo cargaban → se puede cortar el módulo + reconstruir el índice. Se
+# activa con FQ_RETRIEVAL_DECOUPLE="scorer,regime" (vacío = comportamiento normal).
+DECOUPLE_GROUPS = {
+    "scorer": {"numeric": ["scorer_total", "scorer_volume", "scorer_structure",
+                           "scorer_liquidity", "scorer_concept_stack",
+                           "scorer_history"],
+               "categorical": []},
+    "regime": {"numeric": ["regime_score"], "categorical": ["regime_state"]},
+}
+
+
+def _decouple_groups():
+    """Grupos pedidos vía FQ_RETRIEVAL_DECOUPLE (CSV; ignora desconocidos)."""
+    raw = os.environ.get("FQ_RETRIEVAL_DECOUPLE", "").strip()
+    return [g.strip() for g in raw.split(",") if g.strip() in DECOUPLE_GROUPS]
+
+
 def vector_variants():
-    """Variantes del vector de estado para la ablación del Eje A.
+    """Variantes del vector de estado para la ablación del Eje A (+ decoupling).
 
     base    : el vector validado (convicción + scorer + régimen + estructura).
     quantum : base + BLOQUE QUANTUM (tiempo emergente / excitación de campo /
               convicción adaptativa). Compararlos OOS mide si las ideas del
               Quantum bot, como coordenadas, aportan edge atribuible.
+    no_<g>  : (solo con FQ_RETRIEVAL_DECOUPLE) base SIN las features del grupo g
+              (scorer/regime) → mide si el gate las necesita (decoupling §6.6).
     """
-    return {
+    variants = {
         "base":    StateVectorizer(numeric=DEFAULT_NUMERIC),
         "quantum": StateVectorizer(numeric=DEFAULT_NUMERIC + QUANTUM_BLOCK),
     }
+    for g in _decouple_groups():
+        drop_n = set(DECOUPLE_GROUPS[g]["numeric"])
+        drop_c = set(DECOUPLE_GROUPS[g]["categorical"])
+        variants["no_%s" % g] = StateVectorizer(
+            numeric=[c for c in DEFAULT_NUMERIC if c not in drop_n],
+            categorical=[c for c in DEFAULT_CATEGORICAL if c not in drop_c])
+    return variants
 
 
 class StateVectorizer:

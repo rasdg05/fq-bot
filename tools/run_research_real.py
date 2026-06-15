@@ -749,6 +749,17 @@ def _print_vector_ablation(labeled, folds, valid_index, args):
         print(f"  >> LIFT del bloque quantum = {_f(lift)} R/trade  [{verdict}]")
         print("     (positivo y robusto a leakage = el tiempo emergente / "
               "excitación de campo aporta edge medible)")
+    # DECOUPLING (§6.6): edge del gate SIN scorer/regime (solo si FQ_RETRIEVAL_DECOUPLE
+    # las pidió). Si el edge NO cae vs base, esas features no cargan el gate -> el
+    # módulo es REMOVIBLE del motor (cortar motor + reconstruir índice sin desalinear).
+    if b is not None and not (isinstance(b, float) and np.isnan(b)):
+        for g in ("scorer", "regime"):
+            de = edges.get("no_%s" % g)
+            if de is None or (isinstance(de, float) and np.isnan(de)):
+                continue
+            drop = b - de   # cuánto CAE el edge del gate al sacar la feature
+            print(f"  >> gate SIN {g}: edge={_f(de)} vs base={_f(b)} (cae {_f(drop)}) "
+                  f"-> {'el GATE la NECESITA (no decouplear)' if drop > 0 else 'DECOUPLEABLE (no aporta al gate)'}")
 
 
 def _run_out_of_time(labeled, args, sim_kwargs, bar_minutes):

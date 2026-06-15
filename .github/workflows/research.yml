@@ -141,6 +141,10 @@ on:
         description: "Step del replay para --symbol (default 2)."
         default: "2"
         type: string
+      decouple:
+        description: "Decoupling §6.6: mide el edge del gate ORO SIN scorer/regime (CSV, p.ej. scorer,regime). Vacío = off. Decide si un módulo ACOPLADO se puede cortar del motor."
+        default: ""
+        type: string
   schedule:
     - cron: "17 6 * * 1"   # lunes 06:17 UTC
 
@@ -241,6 +245,8 @@ jobs:
       FQ_SEGMENT_VETO_KILLZONES: ${{ github.event.inputs.segment_veto_killzones || '' }}
       FQ_SEGMENT_VETO_UTC_BLOCKS: ${{ github.event.inputs.segment_veto_utc_blocks || '' }}
       FQ_SEGMENT_VETO_WEEKDAYS: ${{ github.event.inputs.segment_veto_weekdays || '' }}
+      # Decoupling §6.6 del gate ORO (vacío = off -> vector_variants normal).
+      FQ_RETRIEVAL_DECOUPLE: ${{ github.event.inputs.decouple || '' }}
     steps:
       - uses: actions/checkout@v4
 
