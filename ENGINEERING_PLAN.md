@@ -178,10 +178,9 @@ y una lámina para el deck. Orden pensado para que 1–6 alimenten el 7 (el forw
    (symbol-agnóstico; sólo cambia la ruta del artefacto). Entrega un **portafolio
    de edges candidatos** por símbolo/TF → diversificación medible, no narrada.
    [coste: runner self-hosted, ~horas/símbolo].
-2. [~] **Walk-forward / OOS purgado**. YA existe en `cosecha_shard`
-   (`--n-splits 7 --embargo 8`). Falta el **reporte per-split** (expectancy y
-   dispersión fold a fold) → evidencia de que el edge NO es overfit.
-   `tools/walkforward_report.py` sobre el cubo.
+2. [x] **Walk-forward / OOS purgado**. Folds en `cosecha_shard` (`--n-splits 7
+   --embargo 8`) + `tools/walkforward_report.py`: expectancy y dispersión FOLD A
+   FOLD + lámina → evidencia de que el edge es estable y NO un overfit.
 3. [x] **Monte Carlo de la curva** (`tools/montecarlo_curve.py`). Bootstrap de
    la serie de R por-trade → distribución de **drawdown máximo**, **risk-of-ruin**
    y **bandas de equity** (p5–p95). La lámina de riesgo que todo LP exige.
@@ -191,9 +190,9 @@ y una lámina para el deck. Orden pensado para que 1–6 alimenten el 7 (el forw
    comérselo (C½ y C0). Define el techo de despliegue y el tamaño honesto de la
    ronda. Paramétrico: `avg_bar_notional`/`impact_coef` se CALIBRAN con volumen y
    fills reales (el forward maker los dará).
-5. [ ] **Segmentación por régimen**. `regime_detector.py` ya etiqueta
-   tendencia/rango/volatilidad. Falta el **reporte de edge por régimen** sobre el
-   cubo → dónde vive el alpha y dónde abstenerse.
+5. [x] **Segmentación por régimen**. `tools/regime_report.py` segmenta el cubo
+   por régimen/volatilidad/sesión (numérica → bins; categórica → grupos) y mide
+   expectancy OOS por segmento + lámina → dónde VIVE el alpha y dónde abstenerse.
 6. [x] **Atribución de features** (la joya analítica). `tools/attribution_report.py`
    cablea `bt_ablation.run_ablation` (que estaba sin usar) en un reporte +
    **lámina** ranqueada: qué componentes del motor (P_master, regime, session_bias,
