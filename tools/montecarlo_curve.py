@@ -16,7 +16,7 @@ equity *= (1 + risk_frac * R_i), componiendo. Bootstrap i.i.d. sobre los trades
 declara por honestidad). Sin red, determinista por --seed.
 
 Uso:
-  python tools/montecarlo_curve.py --cube data/cosecha_SOL.parquet --col pnl_r
+  python tools/montecarlo_curve.py --cube data/cosecha_SOL.parquet --tp tp4 --label-horizon 288
   python tools/montecarlo_curve.py --ledger /data/motor_paper_BTC_USDT.jsonl
   python tools/montecarlo_curve.py --rfile rs.txt --paths 20000 --horizon 500 \
          --risk-frac 0.01 --ruin-dd 0.5 --seed 42 --out mc_SOL.json
@@ -91,10 +91,20 @@ def _load_r(args):
     if args.cube:
         import pandas as pd                          # lazy: parquet sólo en runner
         df = pd.read_parquet(args.cube)
+        # El cubo es LONG: una fila por evento × tp × horizonte. Hay que filtrar a
+        # UN (tp, horizonte) o la serie de R queda inflada/correlacionada (y el
+        # Monte Carlo daría números falsos). Se filtra sólo si la col existe.
+        if args.tp and "tp" in df.columns:
+            df = df[df["tp"].astype(str) == str(args.tp)]
+        if args.label_horizon is not None and "horizon" in df.columns:
+            df = df[df["horizon"].astype(int) == int(args.label_horizon)]
         if args.col not in df.columns:
             raise SystemExit("col %r no está en el cubo (cols: %s)"
                              % (args.col, list(df.columns)[:20]))
-        return list(df[args.col].dropna().astype(float))
+        rs = df[args.col].dropna().astype(float)
+        if rs.empty:
+            raise SystemExit("0 filas tras filtrar (revisa --tp / --label-horizon)")
+        return list(rs)
     raise SystemExit("dá una fuente: --cube / --ledger / --rfile")
 
 
@@ -118,6 +128,12 @@ def main(argv=None):
     src = ap.add_argument_group("fuente de R (una)")
     src.add_argument("--cube", help="parquet del cubo cosecha")
     src.add_argument("--col", default="pnl_r", help="columna de R en el cubo")
+    src.add_argument("--tp", default=None,
+                     help="filtra el cubo a un nivel TP (p.ej. tp4). El cubo es "
+                          "long: 1 fila por evento×tp×horizonte; SIN filtrar, R "
+                          "queda inflada.")
+    src.add_argument("--label-horizon", type=int, default=None,
+                     help="filtra el cubo a un horizonte de label (p.ej. 288)")
     src.add_argument("--ledger", help="ledger jsonl (motor/ORO paper)")
     src.add_argument("--rfile", help="texto con una R por línea")
     ap.add_argument("--paths", type=int, default=10000)
