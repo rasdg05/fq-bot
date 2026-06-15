@@ -656,7 +656,12 @@ def main():
         "scorer":        {"FQ_USE_SCORER": "0"},
         "regime":        {"FQ_USE_REGIME": "0"},
         "session_bias":  {"FQ_SESSION_BIAS": "0"},
+        "volume_quality": {"FQ_VOL_GATE_ENABLED": "0"},
     }
+    # emergent_time NO entra: sus features (qt_sync_score/qt_sigma_tau) alimentan
+    # el vector del gate ORO (acoplado §6.6) y no tiene un off-switch limpio.
+    # ICT (FQ_ENABLE_ICT) es candidato, pero su default depende de la lib y
+    # rompería el restore-a-"1" de abajo; se añade aparte con cuidado.
     # Modulos cuyas features alimentan el VECTOR del gate ORO (DEFAULT_NUMERIC
     # en bt_retrieval): apagarlos en prod desalinea la query del indice aunque
     # su delta de motor sea 0 -> NO son "peso muerto removible" (§6.6). Avisar.
