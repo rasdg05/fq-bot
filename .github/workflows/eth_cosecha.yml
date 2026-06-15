@@ -1,0 +1,39 @@
+name: ETH cosecha (Hetzner) — 1 tap
+
+# UN TAP, CERO inputs. Dispara el workflow "Research" para ETH/USDT a MAXIMA
+# data (84 meses, step1) en el runner self-hosted (Hetzner). El simbolo y los
+# parametros van hardcodeados aca: solo darle "Run workflow".
+#
+# IMPORTANTE: ENCENDE el CCX33 (Hetzner) y espera a que el runner figure ONLINE
+# ANTES de darle Run. Si no, el job de research queda EN COLA hasta que aparezca.
+#
+# Por que un "disparador": el form de Run workflow no deja tipear el simbolo en
+# mobile; esto lo cablea por API. Reusa research.yml (rama turbovec) con toda su
+# logica probada (matriz por simbolo, gate de cubo no-vacio, artefacto).
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  actions: write      # para disparar otro workflow_dispatch
+  contents: read
+
+jobs:
+  disparar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Disparar Research — ETH, cosecha, Hetzner, 84m, step1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run research.yml \
+            --repo "${{ github.repository }}" \
+            --ref claude/turbovec-tp-cube-hardening-fvzdx7 \
+            -f symbol=ETH/USDT \
+            -f cosecha=true \
+            -f sym_months=84 \
+            -f sym_step=1
+          echo "OK: disparado research.yml para ETH/USDT (cosecha, 84m, step1)."
+          echo "Mira la pestana Actions -> 'Research' (corre en self-hosted/Hetzner)."
+          echo "Si no arranca: confirma que el runner de Hetzner este ONLINE."
