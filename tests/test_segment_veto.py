@@ -51,6 +51,15 @@ def test_from_env_killzones(monkeypatch):
     assert veto.active and veto.killzones == frozenset({"london_open_kz"})
 
 
+def test_from_env_prefix_independiente(monkeypatch):
+    # El prefijo permite un veto propio (gold paper) sin tocar el global (VIP).
+    monkeypatch.delenv(sv.ENV_KILLZONES, raising=False)
+    monkeypatch.setenv("FQ_GOLD_SEGMENT_VETO_KILLZONES", "london_open_kz")
+    assert not sv.from_env().active                       # el global sigue OFF
+    g = sv.from_env(prefix="FQ_GOLD_SEGMENT_VETO")        # el propio, ON
+    assert g.active and g.killzones == frozenset({"london_open_kz"})
+
+
 def test_killzone_explicito_preferido():
     veto = sv.parse(killzones="london_open_kz")
     assert veto.active

@@ -2631,6 +2631,16 @@ def evaluate_setup(exchange, tf_id="15m", intra=False):
 # OJO: veta la senal VIP a CLIENTES en esa franja, no solo en paper.
 SEGMENT_VETO = segment_veto.from_env() if segment_veto is not None else None
 
+# Veto del track GOLD PAPER (admin-only, 0% real): env PROPIO
+# FQ_GOLD_SEGMENT_VETO_* -> permite vetar SOLO en paper (observar el edge
+# base+veto en el forward) SIN tocar la senal VIP a clientes (paper-first). Si su
+# env esta vacio, cae al SEGMENT_VETO global: asi, si se activa el veto VIP, el
+# gold paper veta igual (consistencia). Default todo OFF -> inerte.
+_GOLD_VETO_OWN = (segment_veto.from_env(prefix="FQ_GOLD_SEGMENT_VETO")
+                  if segment_veto is not None else None)
+GOLD_SEGMENT_VETO = (_GOLD_VETO_OWN if (_GOLD_VETO_OWN is not None
+                     and _GOLD_VETO_OWN.active) else SEGMENT_VETO)
+
 # ============================================================
 # F2 — Gate ORO de retrieval en PAPEL (admin-only; default OFF)
 # ============================================================
@@ -2709,15 +2719,16 @@ def _gold_paper_eval(field, report, df_primary, price, tf_id):
     try:
         hi = float(df_primary["high"].iloc[-1])
         lo = float(df_primary["low"].iloc[-1])
-        # §6.8 VETO DE SESION fusionado al track ORO: el MISMO SEGMENT_VETO que
-        # filtra la senal VIP juzga la killzone de la VELA por su timestamp (no
-        # now(), §6.7). Si la franja esta vetada, el gold paper NO abre la senal
-        # ORO -> mide el edge validado (base + veto). Default OFF -> vetoed=False.
+        # §6.8 VETO DE SESION fusionado al track ORO: GOLD_SEGMENT_VETO (env propio
+        # FQ_GOLD_SEGMENT_VETO_*, o el global como fallback) juzga la killzone de
+        # la VELA por su timestamp (no now(), §6.7). Si la franja esta vetada, el
+        # gold paper NO abre la senal ORO -> mide el edge validado (base + veto).
+        # Env propio = se puede vetar en paper sin tocar VIP. Default -> vetoed=False.
         vetoed = False
-        if SEGMENT_VETO is not None and SEGMENT_VETO.active:
+        if GOLD_SEGMENT_VETO is not None and GOLD_SEGMENT_VETO.active:
             try:
                 _ts = df_primary["timestamp"].iloc[-1]
-                vetoed = bool(SEGMENT_VETO.reason(
+                vetoed = bool(GOLD_SEGMENT_VETO.reason(
                     killzone=getattr(field, "killzone", None), ts_utc=_ts))
             except Exception:
                 vetoed = False
