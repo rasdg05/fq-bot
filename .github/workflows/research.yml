@@ -111,6 +111,26 @@ on:
         description: "Percentil que define ORO (0.05 = top 5%, lo validado en F1)."
         default: "0.05"
         type: string
+      # Estos 4 inputs los CONSUME el workflow cuando se corre desde la rama de
+      # research (turbovec): GitHub renderiza el form desde main, pero la lógica
+      # (matriz por símbolo + FQ_RETRIEVAL_DECOUPLE) vive en esa rama. Declararlos
+      # aquí es lo único que falta para que aparezcan en "Run workflow".
+      symbol:
+        description: "Cosechar UN simbolo arbitrario (p.ej. ETH/USDT). Vacio = matriz normal (BTC/SOL). self-hosted si cosecha=ON; si no, GitHub-hosted reducido."
+        default: ""
+        type: string
+      sym_months:
+        description: "Meses de historia para --symbol (default 24; cabe bajo el techo de 6h de GitHub-hosted)."
+        default: "24"
+        type: string
+      sym_step:
+        description: "Step del replay para --symbol (default 2)."
+        default: "2"
+        type: string
+      decouple:
+        description: "Decoupling §6.6: mide el edge del gate ORO SIN scorer/regime (CSV, p.ej. scorer,regime). Vacío = off."
+        default: ""
+        type: string
   schedule:
     - cron: "17 6 * * 1"   # lunes 06:17 UTC
 
