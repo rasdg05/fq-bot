@@ -100,10 +100,10 @@ on:
         default: false
         type: boolean
       cosecha:
-        # ⚠ DEFAULT TRUE TEMPORAL (bug toggle GitHub mobile): lanzar el #35 de un
-        # click en el runner self-hosted. REVERTIR a false cuando este corriendo.
-        description: "F3: COSECHA cross-simbolo BTC+SOL a MAXIMA DATA / step1 (sharded en self-hosted). ⚠ DEFAULT TRUE TEMPORAL — revertir tras lanzar."
-        default: true
+        # Cosecha cross-simbolo cosechada OK en #36 (BTC) + #38 (SOL); default de
+        # vuelta en false (un cosecha=true dispara 1-2h en el runner self-hosted).
+        description: "F3: COSECHA cross-simbolo BTC+SOL a MAXIMA DATA / step1 (sharded en self-hosted)."
+        default: false
         type: boolean
       data_only:
         description: "Solo descargar histgrico y omitir el replay (preparar/validar datos de un simbolo)"
@@ -158,17 +158,14 @@ jobs:
       fail-fast: false
       # BTC: 48 meses (densidad para el retrieval), step=3 = rango seguro de tiempo.
       # SOL: 24 meses (dataset mas chico) -> mas cadencia (step=2).
-      # COSECHA (cosecha=true): BTC 84m + SOL 60m a step1 (maxima densidad). En
-      # #36 BTC ya se cosecho y valido OK (1311 eventos, cubo en mano); SOL fallo
-      # 2 veces: (1) bug del venv (corregido con --clear) y (2) #37 bajo n=0 porque
-      # SOL-USDT-SWAP en OKX listo 2021-01-22 y pedir 72m (->2020-06) cae ANTES del
-      # listing -> build_dataset devuelve vacio (BTC no lo sufre, su data llega al
-      # inicio pedido). SOL=60m (->2021-06, ~4 meses post-listing) captura ~todo SOL
-      # con margen. Este re-lanzamiento es SOL-ONLY (BTC ya en mano). RESTAURAR
-      # ambos simbolos cuando SOL termine en verde. PODA (ablation=true): solo SOL 24m.
+      # COSECHA (cosecha=true): BTC 84m + SOL 60m a step1 (maxima densidad). Ambos
+      # cosechados y validados OK (#36 BTC=1311 eventos / 7 anios; #38 SOL=981 /
+      # 5 anios). SOL topa en 60m porque SOL-USDT-SWAP en OKX listo 2021-01-22:
+      # pedir mas (->antes del listing) hace que build_dataset baje n=0. BTC llega
+      # a 2019 sin problema. PODA (ablation=true): solo SOL 24m.
       # Normal: BTC 48m + SOL 24m. Prioridad: cosecha > ablation > normal.
       matrix: ${{ fromJSON(github.event.inputs.cosecha == 'true'
-        && '{"include":[{"symbol":"SOL/USDT","months":"60","step":"1"}]}'
+        && '{"include":[{"symbol":"BTC/USDT","months":"84","step":"1"},{"symbol":"SOL/USDT","months":"60","step":"1"}]}'
         || (github.event.inputs.ablation == 'true'
         && '{"include":[{"symbol":"SOL/USDT","months":"24","step":"2"}]}'
         || '{"include":[{"symbol":"BTC/USDT","months":"48","step":"3"},{"symbol":"SOL/USDT","months":"24","step":"2"}]}')) }}
