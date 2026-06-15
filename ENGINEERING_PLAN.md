@@ -185,10 +185,12 @@ y una lámina para el deck. Orden pensado para que 1–6 alimenten el 7 (el forw
 3. [x] **Monte Carlo de la curva** (`tools/montecarlo_curve.py`). Bootstrap de
    la serie de R por-trade → distribución de **drawdown máximo**, **risk-of-ruin**
    y **bandas de equity** (p5–p95). La lámina de riesgo que todo LP exige.
-4. [ ] **Análisis de capacidad** (`tools/capacity_analysis.py`, NUEVO). Modela
-   el decaimiento del edge vs. tamaño de orden (slippage / participación de
-   volumen) → **cuánto capital absorbe** el edge antes de comérselo. Define el
-   techo de despliegue y, con él, el tamaño honesto de la ronda.
+4. [x] **Análisis de capacidad** (`tools/capacity_analysis.py`). Modela el
+   decaimiento del edge vs. tamaño de orden (impacto raíz-cuadrada sobre la
+   participación de volumen) → **cuánto capital absorbe** el edge antes de
+   comérselo (C½ y C0). Define el techo de despliegue y el tamaño honesto de la
+   ronda. Paramétrico: `avg_bar_notional`/`impact_coef` se CALIBRAN con volumen y
+   fills reales (el forward maker los dará).
 5. [ ] **Segmentación por régimen**. `regime_detector.py` ya etiqueta
    tendencia/rango/volatilidad. Falta el **reporte de edge por régimen** sobre el
    cubo → dónde vive el alpha y dónde abstenerse.
