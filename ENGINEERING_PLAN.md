@@ -192,11 +192,13 @@ y una lámina para el deck. Orden pensado para que 1–6 alimenten el 7 (el forw
 5. [ ] **Segmentación por régimen**. `regime_detector.py` ya etiqueta
    tendencia/rango/volatilidad. Falta el **reporte de edge por régimen** sobre el
    cubo → dónde vive el alpha y dónde abstenerse.
-6. [ ] **Atribución de features** (la joya analítica). `signal_scorer.py`
-   (Shapley) + `bt_ablation.py` ya existen a nivel señal/ablación. Falta el
-   **reporte cosecha-level**: qué componentes del motor (fases A/B/C/D, P_master,
-   contexto multi-TF) generan realmente la expectancy. Vuelve el motor
-   transparente y defendible, no mágico.
+6. [x] **Atribución de features** (la joya analítica). `tools/attribution_report.py`
+   cablea `bt_ablation.run_ablation` (que estaba sin usar) en un reporte +
+   **lámina** ranqueada: qué componentes del motor (P_master, regime, session_bias,
+   volume_quality…) generan realmente la expectancy, SOLO en OOS walk-forward con
+   costes reales, con veredicto VIVE/MATAR. Vuelve el motor transparente y
+   defendible, no mágico. Requiere columnas-gate por módulo en el cubo (si no, se
+   re-cosecha guardándolas, o ablación por replay con toggles de env).
 7. [→] **Forward vivo** (en curso). El motor paper SOL+BTC ya corre a 0% real;
    es la **prioridad #1 de datos**. 1–6 lo contextualizan (régimen, capacidad,
    riesgo); el forward lo confirma. El `fill-rate maker` es el sello final.
