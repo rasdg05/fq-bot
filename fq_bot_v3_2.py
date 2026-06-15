@@ -2831,6 +2831,12 @@ def _motor_paper_eval(fire, field, report, df_primary, price, tf_id):
 # inmediato (ni toca el exchange).
 BTC_MOTOR_PAPER_ENABLED = os.environ.get("FQ_MOTOR_PAPER_BTC", "0").strip() in ("1", "true", "yes")
 BTC_MOTOR_TF = os.environ.get("FQ_MOTOR_PAPER_BTC_TF", "5m")  # TF del research (5m)
+# Ledger BTC SEPARADO del SOL: NO hereda FQ_MOTOR_PAPER_LEDGER_PATH (si ambos
+# simbolos lo compartieran, mezclarian trades en un archivo y corromperian los
+# dos edges). El resto de la config (tp4/veto/maker/equity) SI se comparte a
+# proposito: el unico variable del experimento debe ser el simbolo.
+BTC_MOTOR_LEDGER_PATH = os.environ.get(
+    "FQ_MOTOR_PAPER_BTC_LEDGER_PATH", "/data/motor_paper_BTC_USDT.jsonl")
 _BTC_MOTOR_RUNTIME = None
 _BTC_MOTOR_TRIED = False
 _BTC_MOTOR_LAST_TS = None  # last_signal_ts BTC (Phase E), independiente del SOL
@@ -2845,7 +2851,8 @@ def _btc_motor_runtime():
     try:
         import motor_paper
         _BTC_MOTOR_RUNTIME = motor_paper.MotorPaperRuntime.from_env(
-            "BTC/USDT", notify_fn=_motor_admin_notify)
+            "BTC/USDT", notify_fn=_motor_admin_notify,
+            ledger_path=BTC_MOTOR_LEDGER_PATH)
         log.info("[motor-btc] runtime paper BTC activo (tf=%s)", BTC_MOTOR_TF)
     except Exception as e:
         log.warning("[motor-btc] no se pudo armar el runtime: %s", e)
@@ -4610,13 +4617,20 @@ def cmd_paper(exchange=None):
                     len(led.records)))
     except Exception as e:
         out.append("🥇 ORO: error leyendo ledger (%s)" % e)
-    # MOTOR base (subset correcto §6.10.1)
+    # MOTOR paper — SOL (base, lo que opera el bot) + BTC (pipeline paralelo:
+    # el techo del research, +0.142R maker tp4). Ledgers SEPARADOS.
     try:
         import motor_paper
-        mpath = os.environ.get("FQ_MOTOR_PAPER_LEDGER_PATH",
+        spath = os.environ.get("FQ_MOTOR_PAPER_LEDGER_PATH",
                                "/data/motor_paper_%s.jsonl" % slug)
+        out.append("— <b>SOL</b> (motor base) —")
         out.append(motor_paper.format_report_telegram(
-            motor_paper.ledger_report(mpath)))
+            motor_paper.ledger_report(spath)))
+        # BTC: solo si el pipeline esta activo o ya hay ledger (evita ruido off).
+        if BTC_MOTOR_PAPER_ENABLED or os.path.exists(BTC_MOTOR_LEDGER_PATH):
+            out.append("— <b>₿ BTC</b> (techo research: +0.142R maker tp4) —")
+            out.append(motor_paper.format_report_telegram(
+                motor_paper.ledger_report(BTC_MOTOR_LEDGER_PATH)))
     except Exception as e:
         out.append("📄 Motor: error (%s)" % e)
     return "\n".join(out)

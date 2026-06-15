@@ -64,7 +64,7 @@ class MotorPaperRuntime:
         self._maker_pending = []
 
     @classmethod
-    def from_env(cls, symbol, *, notify_fn=None):
+    def from_env(cls, symbol, *, notify_fn=None, ledger_path=None):
         """Arma el runtime desde el entorno:
           FQ_MOTOR_PAPER_LEDGER_PATH ledger durable (default /data/motor_paper_<slug>.jsonl)
           FQ_MOTOR_PAPER_EQUITY      equity de la cuenta paper (default 10000)
@@ -74,10 +74,16 @@ class MotorPaperRuntime:
           FQ_MOTOR_PAPER_MAKER_SIM   shadow maker (default 1: es el punto del track)
           FQ_GOLD_MAKER_EPS_BPS / _TTL_BARS  mismo modelo de fill que el ORO
           FQ_MOTOR_PAPER_DIGEST_EVERY (cae a FQ_GOLD_DIGEST_EVERY) digest admin
+
+        ledger_path: override explícito del ledger. CRÍTICO para correr DOS
+        símbolos en paralelo (SOL + BTC): sin esto ambos heredarían el MISMO
+        FQ_MOTOR_PAPER_LEDGER_PATH y mezclarían sus trades en un solo archivo.
+        El resto de la config (TP/veto/maker/equity) SÍ se comparte a propósito:
+        el único variable del experimento debe ser el símbolo.
         """
         slug = symbol.replace("/", "_").replace(":", "_")
-        led_path = os.environ.get("FQ_MOTOR_PAPER_LEDGER_PATH",
-                                  "/data/motor_paper_%s.jsonl" % slug)
+        led_path = ledger_path or os.environ.get(
+            "FQ_MOTOR_PAPER_LEDGER_PATH", "/data/motor_paper_%s.jsonl" % slug)
         broker = PaperBroker(ledger=DurableHashLedger.load(led_path))
         equity = float(os.environ.get("FQ_MOTOR_PAPER_EQUITY", "10000"))
         acc = Account("paper-motor-%s" % symbol, equity)

@@ -165,3 +165,18 @@ def test_from_env_default_london(monkeypatch, tmp_path):
     rt = mp.MotorPaperRuntime.from_env("SOL/USDT")
     assert rt.veto.active and "london_open_kz" in rt.veto.killzones
     assert rt.maker_sim is True  # shadow ON por default (es el punto del track)
+
+
+def test_from_env_ledger_path_override_separates_symbols(monkeypatch, tmp_path):
+    """Correr SOL+BTC en paralelo exige ledgers SEPARADOS. ledger_path explicito
+    debe GANARLE a FQ_MOTOR_PAPER_LEDGER_PATH; si no, ambos simbolos mezclarian
+    sus trades en un solo archivo y corromperian los dos edges (el pipeline BTC
+    paralelo depende de esto)."""
+    sol_path = tmp_path / "sol.jsonl"
+    btc_path = tmp_path / "btc.jsonl"
+    monkeypatch.setenv("FQ_MOTOR_PAPER_LEDGER_PATH", str(sol_path))  # seteado p/ SOL
+    sol = mp.MotorPaperRuntime.from_env("SOL/USDT")
+    btc = mp.MotorPaperRuntime.from_env("BTC/USDT", ledger_path=str(btc_path))
+    assert sol.broker.ledger.path == str(sol_path)
+    assert btc.broker.ledger.path == str(btc_path)   # el override le gana al env
+    assert sol.broker.ledger.path != btc.broker.ledger.path
