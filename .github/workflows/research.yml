@@ -129,6 +129,18 @@ on:
         description: "F2.6: veto secundario por dia (CSV: lun,mar,...). Vacio = off."
         default: ""
         type: string
+      symbol:
+        description: "Cosechar UN simbolo arbitrario (p.ej. ETH/USDT). Vacio = matriz normal (BTC/SOL). Corre en GitHub-hosted con scope reducido (sin Hetzner)."
+        default: ""
+        type: string
+      sym_months:
+        description: "Meses de historia para --symbol (default 24; cabe bajo el techo de 6h de GitHub-hosted)."
+        default: "24"
+        type: string
+      sym_step:
+        description: "Step del replay para --symbol (default 2)."
+        default: "2"
+        type: string
   schedule:
     - cron: "17 6 * * 1"   # lunes 06:17 UTC
 
@@ -164,11 +176,17 @@ jobs:
       # pedir mas (->antes del listing) hace que build_dataset baje n=0. BTC llega
       # a 2019 sin problema. PODA (ablation=true): solo SOL 24m.
       # Normal: BTC 48m + SOL 24m. Prioridad: cosecha > ablation > normal.
-      matrix: ${{ fromJSON(github.event.inputs.cosecha == 'true'
+      # symbol (override) > cosecha > ablation > normal. symbol vacio/null es FALSY
+      # -> cae a la matriz original SIN cambios (schedule/normal/cosecha/ablation
+      # quedan intactos). symbol seteado -> UN solo simbolo en GitHub-hosted con
+      # sym_months/sym_step. runs-on/timeout siguen atados SOLO a cosecha.
+      matrix: ${{ fromJSON(github.event.inputs.symbol
+        && format('{{"include":[{{"symbol":"{0}","months":"{1}","step":"{2}"}}]}}', github.event.inputs.symbol, github.event.inputs.sym_months, github.event.inputs.sym_step)
+        || (github.event.inputs.cosecha == 'true'
         && '{"include":[{"symbol":"BTC/USDT","months":"84","step":"1"},{"symbol":"SOL/USDT","months":"60","step":"1"}]}'
         || (github.event.inputs.ablation == 'true'
         && '{"include":[{"symbol":"SOL/USDT","months":"24","step":"2"}]}'
-        || '{"include":[{"symbol":"BTC/USDT","months":"48","step":"3"},{"symbol":"SOL/USDT","months":"24","step":"2"}]}')) }}
+        || '{"include":[{"symbol":"BTC/USDT","months":"48","step":"3"},{"symbol":"SOL/USDT","months":"24","step":"2"}]}'))) }}
     env:
       # Defaults benignos para que el monolito importe sin secretos reales.
       TELEGRAM_TOKEN: "ci-dummy"
