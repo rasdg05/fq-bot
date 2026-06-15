@@ -93,7 +93,7 @@ def p_cover(pdf):
         cx += chip(ax, cx, 3.05, txt, color=col, fs=9.5) + 0.25
     ax.text(0.7, 1.45, "Documento interno · confidencial",
             fontsize=10.5, color=SUB)
-    ax.text(0.7, 1.05, "13-jun-2026 · arquitectura construida y en validación forward",
+    ax.text(0.7, 1.05, "15-jun-2026 · validación forward en curso · cosecha a máxima data corrida",
             fontsize=9.5, color=SUB)
     pdf.savefig(fig, facecolor=BG); plt.close(fig)
 
@@ -366,18 +366,18 @@ def p_engineering(pdf):
     fig, ax = d.new_page()
     header(ax, "Ingeniería", "Plan actualizado — lo que se construyó esta etapa")
     items = [
-        ("F2.6 · Veto de sesión", GOLD, "DESPLEGADO",
-         ["Módulo puro, default OFF. Mismo predicado en", "research / offline / vivo. Reversible por env."]),
-        ("Motor paper", TEAL, "DESPLEGADO",
-         ["Mide el subset CORRECTO en forward (motor base", "+ veto + shadow maker) — el juez del techo."]),
-        ("Comando /paper", BLUE, "DESPLEGADO",
-         ["Surface del ledger forward desde el teléfono;", "fill-rate maker + selección adversa en vivo."]),
-        ("Cosecha F3", VIOLET, "LANZABLE",
-         ["Corrida CI que junta ~1.4–1.9k eventos: la base", "del selector de TP/horizonte (el próximo edge)."]),
-        ("Guarda anti-reloj", GREEN, "EN CI",
-         ["Codifica la lección del bug de reloj: el CI", "rompe si vuelve a entrar al motor. +20 tests nuevos."]),
-        ("Frontera maker", GOLDL, "MEDIDO",
-         ["El modelo de costes ahora simula piernas maker;", "cada corrida imprime el techo de ejecución."]),
+        ("Veto → ORO (paper)", GOLD, "DESPLEGADO",
+         ["El veto validado, fusionado al paper ORO con", "env propio: paper vetado, cliente intacto."]),
+        ("Cosecha máx. data", VIOLET, "LANZADA",
+         ["BTC 7 años + SOL 5 años (histórico OKX) para", "dar señal real al selector de TP/horizonte."]),
+        ("Sharding del replay", TEAL, "DESPLEGADO",
+         ["Replay paralelo por fecha: ~22h → ~2–3h en", "runner self-hosted, sin el tope de 6h del CI."]),
+        ("Kill-switch paper", GREEN, "ARMABLE",
+         ["Reconciler con baseline VIVO del propio paper:", "apaga el track si la expectancy sale del IC."]),
+        ("Guardas en CI", BLUE, "EN CI",
+         ["Anti-reloj + cubo-no-vacío + lockfile: cada", "lección queda como test que rompe el build."]),
+        ("Selector TP/H (F3)", GOLDL, "PENDIENTE",
+         ["k-NN causal construido; el smoke a poca data", "dio negativo (honesto) → espera la cosecha."]),
     ]
     x0, y0 = 0.7, 5.05; w = 4.62; h = 1.78; gx, gy = 0.37, 0.32
     for i, (t, c, badge, lines) in enumerate(items):
@@ -447,16 +447,16 @@ def p_roadmap(pdf):
     header(ax, "Roadmap", "El camino a ≥0.133R forward-validado")
     lanes = [
         ("AHORA", GREEN, [
-            "Paper forward del subset correcto corriendo (motor base + veto + maker).",
-            "Veto 'london' confirmado en SOL; cross-símbolo BTC en curso.",
+            "Veto fusionado al track ORO en paper (0% real) — recolectando forward.",
+            "Edge cross-símbolo ya confirmado integrado: SOL +0.1245R · BTC +0.1046R (run #33).",
         ]),
         ("SIGUIENTE", GOLD, [
-            "Cosecha F3 (~1.4–1.9k eventos) → entrenar el SELECTOR de TP/horizonte:",
-            "dejar correr ganadores hacia el MFE ~1.7R observado (sube el R:R adaptativo).",
+            "Cosecha a máxima data lanzada (BTC 7a / SOL 5a) → señal real para el",
+            "SELECTOR de TP/horizonte (F3): dejar correr ganadores hacia el MFE observado.",
         ]),
         ("META", VIOLET, [
-            "F3 es el camino legítimo de +0.12R a ≥0.133R sin degradar nada.",
-            "Promoción a capital real solo tras fill-rate real + 40–50 trades forward dentro del IC.",
+            "F3, si replica a escala, es el camino legítimo de +0.12R a ≥0.133R sin degradar.",
+            "Capital real solo tras fill-rate real + 40–50 trades forward dentro del IC.",
         ]),
     ]
     y = 6.4; h = 1.3
