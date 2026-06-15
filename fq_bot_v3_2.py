@@ -2818,6 +2818,96 @@ def _motor_paper_eval(fire, field, report, df_primary, price, tf_id):
 
 
 # ============================================================
+# BTC MOTOR PAPER — pipeline PARALELO (paper-only, 0% real, default OFF)
+# ============================================================
+# El bot opera SOL; el research (cosecha 5m, 7 anios) midio en BTC el techo maker
+# MAS ALTO (+0.142R con exit ancho tp4, vs SOL +0.018R). Para VALIDAR forward esa
+# poblacion SIN tocar el VIP/SOL: una pasada de fusion_engine.evaluate_signal
+# (symbol-agnostico) sobre barras BTC, que alimenta un MotorPaperRuntime BTC
+# propio (ledger /data/motor_paper_BTC_USDT.jsonl, separado del SOL). JAMAS
+# broadcastea ni toca el motor/ORO/SOL. Comparte la config del pivote por env
+# (FQ_MOTOR_PAPER_TP=tp4, FQ_MOTOR_PAPER_VETO_KILLZONES="", maker shadow ON).
+# Activar con FQ_MOTOR_PAPER_BTC=1. Default OFF -> _btc_motor_paper_scan es no-op
+# inmediato (ni toca el exchange).
+BTC_MOTOR_PAPER_ENABLED = os.environ.get("FQ_MOTOR_PAPER_BTC", "0").strip() in ("1", "true", "yes")
+BTC_MOTOR_TF = os.environ.get("FQ_MOTOR_PAPER_BTC_TF", "5m")  # TF del research (5m)
+_BTC_MOTOR_RUNTIME = None
+_BTC_MOTOR_TRIED = False
+_BTC_MOTOR_LAST_TS = None  # last_signal_ts BTC (Phase E), independiente del SOL
+
+
+def _btc_motor_runtime():
+    """Lazy-init del runtime motor paper BTC (ledger propio). None si no se arma."""
+    global _BTC_MOTOR_RUNTIME, _BTC_MOTOR_TRIED
+    if _BTC_MOTOR_RUNTIME is not None or _BTC_MOTOR_TRIED:
+        return _BTC_MOTOR_RUNTIME
+    _BTC_MOTOR_TRIED = True
+    try:
+        import motor_paper
+        _BTC_MOTOR_RUNTIME = motor_paper.MotorPaperRuntime.from_env(
+            "BTC/USDT", notify_fn=_motor_admin_notify)
+        log.info("[motor-btc] runtime paper BTC activo (tf=%s)", BTC_MOTOR_TF)
+    except Exception as e:
+        log.warning("[motor-btc] no se pudo armar el runtime: %s", e)
+        _BTC_MOTOR_RUNTIME = None
+    return _BTC_MOTOR_RUNTIME
+
+
+def _btc_motor_paper_scan(exchange):
+    """Pasada BTC en su TF (default 5m) -> evaluate_signal -> motor paper BTC.
+    Paper-only, 0% real, JAMAS broadcastea ni toca SOL/VIP. No-op si
+    FQ_MOTOR_PAPER_BTC!=1. Nunca rompe el loop (todo en try/except)."""
+    global _BTC_MOTOR_LAST_TS
+    if not BTC_MOTOR_PAPER_ENABLED:
+        return
+    rt = _btc_motor_runtime()
+    if rt is None:
+        return
+    try:
+        tf_id = BTC_MOTOR_TF
+        profile = TF_PROFILES[tf_id]
+        df_primary = add_indicators(fetch_ohlcv(exchange, SYMBOL_BTC, tf_id, limit=200))
+        if df_primary is None or len(df_primary) < 50:
+            return
+        df_ctx_mid = add_indicators(fetch_ohlcv(exchange, SYMBOL_BTC, profile["context_mid"], limit=100))
+        df_ctx_high = add_indicators(fetch_ohlcv(exchange, SYMBOL_BTC, profile["context_high"], limit=100))
+        try:
+            df_sub = add_indicators(fetch_ohlcv(exchange, SYMBOL_BTC, profile["sub_tf"], limit=30))
+        except Exception:
+            df_sub = None
+        price = float(df_primary["close"].iloc[-1])
+        # Misma config que el scan SOL (lineas ~2871), con LAST_SIGNAL_TS propio
+        # de BTC para el cooldown de Phase E (independiente del SOL).
+        config = {
+            "PHI": PHI,
+            "PMASTER_MIN": profile["PMASTER_MIN"],
+            "RR_MIN_TP_DIVINO": profile.get("RR_MIN_TP3", RR_MIN_TP_DIVINO),
+            "TF_ID": tf_id,
+            "TF_LABEL": profile["label"],
+            "PULLBACK_VOL_MULT": profile["PULLBACK_VOL_MULT"],
+            "BREAKOUT_VOL_MULT": profile["BREAKOUT_VOL_MULT"],
+            "LAST_SIGNAL_TS": _BTC_MOTOR_LAST_TS,
+            "PHASE_E_N_PATHS": profile.get("PHASE_E_N_PATHS"),
+            "PHASE_E_COOLDOWN_MIN": profile.get("PHASE_E_COOLDOWN_MIN"),
+        }
+        fire, field, report = fusion_engine.evaluate_signal(
+            df_primary, df_ctx_mid, df_ctx_high, df_sub,
+            detect_pspace, laplacian_check, calculate_levels, config, intra=False)
+        if fire:
+            _BTC_MOTOR_LAST_TS = datetime.now(timezone.utc)
+        hi = float(df_primary["high"].iloc[-1])
+        lo = float(df_primary["low"].iloc[-1])
+        try:
+            cts = df_primary["timestamp"].iloc[-1]   # ts de la VELA (no now())
+        except Exception:
+            cts = None
+        rt.on_bar(fire, field, report, df_primary, price,
+                  high=hi, low=lo, ts=cts, tf_id=tf_id)
+    except Exception as e:
+        log.warning("[motor-btc] scan: %s", e)
+
+
+# ============================================================
 # v4.1.1 — _evaluate_setup_v411 (delegate al fusion_engine)
 # ============================================================
 def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
@@ -5276,6 +5366,13 @@ def main():
             # EVOLUTION HOOK - corre si alguno de los TFs cerro vela nueva
             if any_new_candle:
                 evolution_periodic_hook(exchange)
+
+            # BTC MOTOR PAPER (paralelo, paper-only, default OFF): cuando cierra
+            # la vela del TF BTC (5m, que coincide en reloj con la del SOL), corre
+            # una pasada BTC -> motor paper BTC. NO toca VIP/SOL. No-op si
+            # FQ_MOTOR_PAPER_BTC!=1 (ni toca el exchange).
+            if BTC_MOTOR_PAPER_ENABLED and BTC_MOTOR_TF in new_candle_tfs:
+                _btc_motor_paper_scan(exchange)
 
             # RADAR proactivo / ALERTA TACTICA (FQ v5.3):
             #   - Corre en FIELD_TIMEFRAMES (default 5m+15m; 1m opt-in, 3m retirado).
