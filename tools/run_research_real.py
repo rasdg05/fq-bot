@@ -26,6 +26,7 @@ Uso:
 """
 import argparse
 import importlib
+import json
 import logging
 import os
 import random
@@ -375,6 +376,21 @@ def main():
                         "shardear el replay por fecha y mergear los cubos.")
     p.add_argument("--date-end", default=None,
                    help="ISO: solo eventos con entry_ts < esto (rango del shard).")
+    # --- PODA SHARDED (ver tools/ablation_shard.py): emite/consume eventos crudos
+    # para paralelizar la ablacion por fecha SIN reescribir la metrica. ---
+    p.add_argument("--events-out", default=None,
+                   help="ruta parquet: corre SOLO el replay fires-only (rapido, con "
+                        "los toggles de modulo que vengan por env), filtra al rango "
+                        "del shard y vuelca los eventos crudos. NO etiqueta/modela. "
+                        "Es el emisor por-shard de la poda sharded.")
+    p.add_argument("--events-in", default=None,
+                   help="ruta parquet: SALTA el replay y carga eventos ya mergeados; "
+                        "corre el MISMO label+fold+OOS de siempre sobre ellos. Para "
+                        "computar la metrica de una variante sobre el cubo de eventos "
+                        "sharded-mergeado (correctitud: misma ruta que el run normal).")
+    p.add_argument("--metric-out", default=None,
+                   help="ruta json: con --events-in, vuelca {expectancy_r, n_fired, "
+                        "n_oos} de la variante y termina (sin modelo/retrieval).")
     # --- FASE C: grid post-replay de SL (xATR) x TP (tp1..tp4) ---
     p.add_argument("--tp-sl-grid", action="store_true",
                    help="re-etiqueta el MISMO conjunto fired variando ancho de SL "
@@ -472,38 +488,89 @@ def main():
     # --- Inicializar el ledger (esquema) para que el motor lea memoria ---
     _init_ledger()
 
-    # --- UNIFICADO: UN solo replay DENSO (estado de CADA vela) alimenta las DOS
-    # salidas: las filas fired=True son el track record de senales (frontera +
-    # modelo); TODAS las velas alimentan el retrieval denso. Antes eran dos replays
-    # del mismo motor sobre las mismas velas (fires-only + denso); ahora es UNO. ---
-    print("\n[1/4] replay DENSO del motor (estado de CADA vela; "
-          "un replay -> senales + retrieval denso)...")
-    states = _run_replay(
-        tfs, env_overrides=None, seed=args.seed, tf_id=args.tf_id,
-        dense=True, horizon_bars=args.dense_horizon,
-        min_lookback=args.min_lookback, step=args.step,
-        target_level=args.target_level, progress_every=5000,
-    )
-    n_states = len(states)
-    if n_states == 0:
-        sys.exit("el replay no produjo ningun estado; baja min_lookback / sube el "
-                 "rango historico (--years) o revisa los datos")
-    events = (states[states["fired"]].reset_index(drop=True)
-              if "fired" in states.columns else states.iloc[0:0])
-    # SHARD: quedarse SOLO con los eventos del rango [date_start, date_end) de este
-    # shard (los del warmup-izq y el buffer-der de labeling pertenecen a shards
-    # vecinos). entry_ts es global -> el merge por entry_ts no duplica ni pierde.
-    if (_date_start is not None or _date_end is not None) and len(events):
-        _ets = pd.to_datetime(events["entry_ts"])
-        _km = pd.Series(True, index=events.index)
-        if _date_start is not None:
-            _km &= _ets >= _date_start
-        if _date_end is not None:
-            _km &= _ets < _date_end
-        events = events[_km.to_numpy()].reset_index(drop=True)
-        print(f"  [shard] eventos en rango: {len(events)}")
-    print(f"  estados densos: {n_states} | senales disparadas (fired): {len(events)}")
-    _print_decision_funnel(states, args)
+    # PODA SHARDED — EMISOR por-shard (--events-out): SOLO replay fires-only
+    # (rapido), filtra al rango del shard y vuelca eventos crudos. Sin labeling/
+    # modelo/retrieval. Los toggles de modulo (FQ_USE_SCORER/REGIME, FQ_SESSION_BIAS)
+    # llegan por env del subproceso -> _run_replay recarga modulos y los recoge.
+    # Ver tools/ablation_shard.py.
+    if args.events_out:
+        print("\n[poda-shard] replay fires-only del motor (emisor de eventos)...")
+        ev = _run_replay(
+            tfs, env_overrides=None, seed=args.seed, tf_id=args.tf_id,
+            min_lookback=args.min_lookback, step=args.step,
+            target_level=args.target_level,
+        )
+        if (_date_start is not None or _date_end is not None) and len(ev):
+            _ets = pd.to_datetime(ev["entry_ts"])
+            _km = pd.Series(True, index=ev.index)
+            if _date_start is not None:
+                _km &= _ets >= _date_start
+            if _date_end is not None:
+                _km &= _ets < _date_end
+            ev = ev[_km.to_numpy()].reset_index(drop=True)
+        ev.to_parquet(args.events_out, index=False)
+        print(f"[events-out] {len(ev)} eventos -> {args.events_out}")
+        return
+
+    if args.events_in:
+        # PODA SHARDED — CONSUMIDOR (--events-in): SALTA el replay y carga los
+        # eventos ya mergeados (cubo sharded de UNA variante). Todo lo de abajo
+        # (label+fold+OOS) corre IDENTICO al run normal -> la metrica de la variante
+        # es la misma que sin shardear (correctitud por reuso de la ruta).
+        print(f"\n[poda-shard] eventos mergeados (sin replay) <- {args.events_in}")
+        states = None
+        events = pd.read_parquet(args.events_in)
+        events["entry_ts"] = pd.to_datetime(events["entry_ts"])
+        # entry_index viene LOCAL al slice de cada shard; label_events lo usa como
+        # df.iloc[entry_index+1:] y folds_from_labeled ORDENA por el -> hay que
+        # RE-DERIVARLO global: entry_ts -> posicion en el df_primary COMPLETO. Asi
+        # label/fold/OOS reproducen EXACTO el run sin shardear (entry_price/stop/
+        # target del evento son precios -> sobreviven el merge sin tocar).
+        _idx = pd.Series(range(len(df_primary)),
+                         index=pd.to_datetime(df_primary["timestamp"]).to_numpy())
+        events["entry_index"] = events["entry_ts"].map(_idx)
+        _miss = int(events["entry_index"].isna().sum())
+        if _miss:
+            print(f"  [aviso] {_miss} eventos sin match de entry_ts en df_primary "
+                  "(descartados)")
+            events = events[events["entry_index"].notna()]
+        events["entry_index"] = events["entry_index"].astype(int)
+        events = events.sort_values("entry_index").reset_index(drop=True)
+        n_states = len(events)
+    else:
+        # --- UNIFICADO: UN solo replay DENSO (estado de CADA vela) alimenta las DOS
+        # salidas: las filas fired=True son el track record de senales (frontera +
+        # modelo); TODAS las velas alimentan el retrieval denso. Antes eran dos replays
+        # del mismo motor sobre las mismas velas (fires-only + denso); ahora es UNO. ---
+        print("\n[1/4] replay DENSO del motor (estado de CADA vela; "
+              "un replay -> senales + retrieval denso)...")
+        states = _run_replay(
+            tfs, env_overrides=None, seed=args.seed, tf_id=args.tf_id,
+            dense=True, horizon_bars=args.dense_horizon,
+            min_lookback=args.min_lookback, step=args.step,
+            target_level=args.target_level, progress_every=5000,
+        )
+        n_states = len(states)
+        if n_states == 0:
+            sys.exit("el replay no produjo ningun estado; baja min_lookback / sube el "
+                     "rango historico (--years) o revisa los datos")
+        events = (states[states["fired"]].reset_index(drop=True)
+                  if "fired" in states.columns else states.iloc[0:0])
+        # SHARD: quedarse SOLO con los eventos del rango [date_start, date_end) de este
+        # shard (los del warmup-izq y el buffer-der de labeling pertenecen a shards
+        # vecinos). entry_ts es global -> el merge por entry_ts no duplica ni pierde.
+        if (_date_start is not None or _date_end is not None) and len(events):
+            _ets = pd.to_datetime(events["entry_ts"])
+            _km = pd.Series(True, index=events.index)
+            if _date_start is not None:
+                _km &= _ets >= _date_start
+            if _date_end is not None:
+                _km &= _ets < _date_end
+            events = events[_km.to_numpy()].reset_index(drop=True)
+            print(f"  [shard] eventos en rango: {len(events)}")
+        print(f"  estados densos: {n_states} | senales disparadas (fired): {len(events)}")
+    if states is not None:
+        _print_decision_funnel(states, args)
 
     base_metric, n_pool, ppy = None, 0, None
     min_for_wf = args.n_splits * 3
@@ -557,6 +624,17 @@ def main():
         base_metric = base_metrics.get("expectancy_r")
         print("\n[2/4] Metricas OOS de senales (con fees+slippage+funding):")
         print(met.format_report(base_metrics))
+        # PODA SHARDED — con --metric-out volca la metrica de ESTA variante y
+        # termina (sin modelo/retrieval: no hacen falta para el veredicto de poda).
+        # Ver tools/ablation_shard.py.
+        if args.metric_out:
+            with open(args.metric_out, "w") as _fh:
+                json.dump({"expectancy_r": (None if base_metric is None
+                                            else float(base_metric)),
+                           "n_fired": int(len(events)), "n_oos": int(n_pool)}, _fh)
+            print(f"[metric-out] expectancy_r={base_metric} n_fired={len(events)} "
+                  f"n_oos={n_pool} -> {args.metric_out}")
+            return
         _dump_equity_curve(base_equity, args)
         _print_execution_frontier(labeled, folds, valid_index, sim_kwargs, ppy)
         _print_segments(labeled, folds, valid_index, args)

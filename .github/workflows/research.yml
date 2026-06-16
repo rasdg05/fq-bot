@@ -380,11 +380,9 @@ jobs:
           # retrieval ON (de el sale el OOS denso que calibra el umbral).
           [ "${BUILDIDX}" = "true" ] && [ "${RETRIEVAL}" = "true" ] && IDXFLAG="--build-index --index-out research_out/retrieval/${SLUG} --gold-top-pct ${GOLDPCT}"
           EQJSON="research_out/equity_${SLUG}.json"
-          # PODA: 4 replays deben caber en el techo de 350min. A step=2 SOL va al
-          # filo (~5h45); step=3 cierra en ~4h con ~420 senales por variante
-          # (suficiente para el veredicto VIVE/MATAR por modulo).
+          # PODA: ablation=true -> ahora SHARDED en self-hosted (rama elif abajo),
+          # densidad maxima (step1). EFF_STEP solo aplica al run normal (else).
           EFF_STEP="${STEP}"
-          [ "${ABLATION}" = "true" ] && EFF_STEP="3"
           if [ "${COSECHA}" = "true" ]; then
             # COSECHA SHARDED: parte el replay por fecha en N=nproc shards
             # paralelos (cube-only, sin retrieval). El cubo merged sube como
@@ -397,6 +395,32 @@ jobs:
               --embargo 8 --seed "${SEED}" --horizon-sweep "${HSWEEP}" \
               --out "research_out/tp_cube_${SLUG}.parquet" \
               2>&1 | tee research_out/research_real.txt
+          elif [ "${ABLATION}" = "true" ]; then
+            # PODA SHARDED (self-hosted): la poda son 4 replays (baseline + 3
+            # toggles). En vez de correrlos secuencial a step bajo, shardeamos CADA
+            # variante por fecha en N=nproc cores y subimos a DENSIDAD MAXIMA
+            # (step1). --verify (1 vs 2 shards) corre PRIMERO; SOLO si reproduce
+            # exacto, corre la poda grande. El shell de Actions trae pipefail -> el
+            # rc del verify manda sobre el del tee.
+            NSHARDS=$(nproc)
+            echo "== PODA SHARDED ${SYM}: verify de correctitud (1 vs 2 shards) ==" \
+              | tee research_out/research_real.txt
+            if python tools/ablation_shard.py --exchange "${EX}" --symbol "${SYM}" \
+                 --tf-id "${TFID}" --step 1 --max-bars "${MAXBARS}" \
+                 --n-splits "${NSPLITS}" --embargo 8 --seed "${SEED}" \
+                 --horizon-sweep "${HSWEEP}" --shards "${NSHARDS}" --workers "${NSHARDS}" \
+                 --verify 2>&1 | tee -a research_out/research_real.txt; then
+              echo "== PODA SHARDED ${SYM}: ${NSHARDS} shards, step1 (densidad maxima) ==" \
+                | tee -a research_out/research_real.txt
+              python tools/ablation_shard.py --exchange "${EX}" --symbol "${SYM}" \
+                --tf-id "${TFID}" --step 1 --max-bars "${MAXBARS}" \
+                --n-splits "${NSPLITS}" --embargo 8 --seed "${SEED}" \
+                --horizon-sweep "${HSWEEP}" --shards "${NSHARDS}" --workers "${NSHARDS}" \
+                2>&1 | tee -a research_out/research_real.txt
+            else
+              echo "== VERIFY FALLO: el sharding no reproduce la poda -> NO corro la grande ==" \
+                | tee -a research_out/research_real.txt
+            fi
           else
             python tools/run_research_real.py --exchange "${EX}" --symbol "${SYM}" \
               --tf-id "${TFID}" --target-level "${TARGETLVL}" \
