@@ -159,10 +159,10 @@ jobs:
     # ubuntu-latest (gratis, GitHub-hosted).
     runs-on: ${{ (github.event.inputs.cosecha == 'true' || github.event.inputs.ablation == 'true') && 'self-hosted' || 'ubuntu-latest' }}
     # PODA (ablation=true): baseline + 3 toggles = 4 replays. En GitHub-hosted la
-    # corrida #40 se corto SIN veredicto al chocar el techo de 350min (BTC 48m
-    # ~4h/replay -> ~16h). Por eso ahora la poda va a self-hosted (sin techo). La
-    # MATRIZ (abajo) la corre SOLO en SOL 24m: la poda se decide primero en SOL
-    # (BTC no es candidato, §6.5) y a step=3 via EFF_STEP -> ~horas en Hetzner.
+    # corrida #40 se corto SIN veredicto al chocar el techo de 350min. Por eso
+    # ahora va a self-hosted Y SHARDED (tools/ablation_shard.py): cada variante se
+    # parte por fecha en N=nproc cores a DENSIDAD MAXIMA (step1). La MATRIZ (abajo)
+    # corre BTC 48m + SOL 24m (cross-check) -> ~4-5h las dos juntas en el CCX33.
     # NOTA: la matriz va en fromJSON y NO en jobs.<id>.if (el contexto `matrix`
     # no existe en el if de job). En schedule los inputs llegan vacios -> matriz
     # normal completa, sin cambios.
@@ -176,7 +176,7 @@ jobs:
       # cosechados y validados OK (#36 BTC=1311 eventos / 7 anios; #38 SOL=981 /
       # 5 anios). SOL topa en 60m porque SOL-USDT-SWAP en OKX listo 2021-01-22:
       # pedir mas (->antes del listing) hace que build_dataset baje n=0. BTC llega
-      # a 2019 sin problema. PODA (ablation=true): solo SOL 24m.
+      # a 2019 sin problema. PODA (ablation=true): BTC 48m + SOL 24m (sharded, step1).
       # Normal: BTC 48m + SOL 24m. Prioridad: cosecha > ablation > normal.
       # symbol (override) > cosecha > ablation > normal. symbol vacio/null es FALSY
       # -> cae a la matriz original SIN cambios (schedule/normal/cosecha/ablation
@@ -187,7 +187,7 @@ jobs:
         || (github.event.inputs.cosecha == 'true'
         && '{"include":[{"symbol":"BTC/USDT","months":"84","step":"1"},{"symbol":"SOL/USDT","months":"60","step":"1"}]}'
         || (github.event.inputs.ablation == 'true'
-        && '{"include":[{"symbol":"SOL/USDT","months":"24","step":"2"}]}'
+        && '{"include":[{"symbol":"BTC/USDT","months":"48","step":"1"},{"symbol":"SOL/USDT","months":"24","step":"1"}]}'
         || '{"include":[{"symbol":"BTC/USDT","months":"48","step":"3"},{"symbol":"SOL/USDT","months":"24","step":"2"}]}'))) }}
     env:
       # Defaults benignos para que el monolito importe sin secretos reales.
@@ -355,7 +355,7 @@ jobs:
           # porque el form de la UI renderiza los defaults de MAIN.
           if [ "${ABLATION}" = "true" ]; then
             RETRIEVAL="false"; TPSLGRID="false"; QGATE="false"; VABL="false"
-            echo "== MODO PODA: solo SOL (matriz dinamica), step efectivo=3,"
+            echo "== MODO PODA SHARDED: BTC+SOL (matriz), step1 densidad maxima,"
             echo "   retrieval/tp_sl_grid/quality_gate/vector_ablation -> OFF =="
           fi
           ABLATION_FLAG=""
