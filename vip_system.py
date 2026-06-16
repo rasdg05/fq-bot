@@ -411,23 +411,23 @@ def check_access(chat_id, command):
     days_left = days_remaining(chat_id)
     if tier == TIER_FREE:
         msg = (
-            "<b>ACCESO VIP REQUERIDO</b>\n"
+            "<b>Acceso VIP requerido</b>\n"
             "{fence}\n\n"
             "El comando {cmd} requiere suscripcion VIP.\n\n"
             "<b>Opciones:</b>\n"
             "{b} /precio - Ver planes y precios\n"
             "{b} /codigo XXXX - Canjear codigo de acceso\n"
             "{b} /vip - Adquirir suscripcion\n\n"
-            "RasDG opera con disciplina y datos en tiempo real.\n"
+            "La mesa opera con disciplina y datos en tiempo real.\n"
             "El VIP da acceso a:\n"
-            "{b} /analisis y /niveles con Claude Sonnet\n"
-            "{b} /pspace con orderbook + walls\n"
-            "{b} Senales automaticas P_master >= phi^2\n"
-            "{b} Co-pilot Opus 4.6 en setups de alta conviccion\n"
-            "{b} Metricas evolutivas y self-audit\n"
+            "{b} /analisis y /niveles con lectura asistida\n"
+            "{b} /pspace con orderbook y muros de liquidez\n"
+            "{b} Senales automaticas de alta conviccion\n"
+            "{b} Co-piloto de IA en los mejores setups\n"
+            "{b} Metricas y auditoria del track record\n"
         ).format(
-            fence="━" * 30,
-            cmd=cmd, b="▸",
+            fence="─" * 30,
+            cmd=cmd, b="›",
         )
     elif tier in (TIER_VIP, TIER_TRIAL) and days_left is not None and days_left <= 0:
         msg = (
@@ -502,29 +502,29 @@ def get_stats():
 # ============================================================
 def format_precio_message():
     """Pagina de planes VIP."""
-    rule = "━" * 30
+    rule = "─" * 30
     lines = [
         "<b>FQ · VIP</b>",
         rule,
         "  Senales SOL/USDT con disciplina sistematica.",
         "",
-        "  ▪ Entry, SL y TPs exactos",
-        "  ▪ SL anclado a estructura",
-        "  ▪ Analisis tactico on-demand",
-        "  ▪ Resultados verificables",
+        "  · Entry, SL y TPs exactos",
+        "  · SL anclado a estructura",
+        "  · Analisis tactico on-demand",
+        "  · Resultados verificables",
         "",
         "<b>Planes:</b>",
     ]
     for plan_id, info in PLAN_PRICES.items():
         if plan_id == "trial_7d":
             continue
-        lines.append("  ▸ {:<12} <b>${} USD</b>   {} dias".format(
+        lines.append("  · {:<12} <b>${} USD</b>   {} dias".format(
             info["label"], info["price_usd"], info["days"]))
     lines.extend([
         "",
         rule,
-        "  ▸ /vip          Iniciar pago",
-        "  ▸ /codigo XXXX  Canjear codigo",
+        "  › /vip          Iniciar pago",
+        "  › /codigo XXXX  Canjear codigo",
         "",
         "  Tarjeta (Stripe) o USDT (TRC20).",
     ])
@@ -540,7 +540,7 @@ def format_user_status(chat_id):
 
     lines = [
         "<b>MI ESTADO</b>",
-        "━" * 30,
+        "─" * 30,
         "",
         "Usuario: {}".format(u.get("username") or u.get("first_name") or "anonimo"),
         "Tier:    <b>{}</b>".format(tier.upper()),
@@ -559,7 +559,7 @@ def format_user_status(chat_id):
     lines.extend([
         "Desde:   {}".format(u["created_at"][:10]),
         "",
-        "━" * 30,
+        "─" * 30,
     ])
     if tier == TIER_FREE:
         lines.append("Sin acceso VIP. Usa /precio o /vip.")
@@ -575,7 +575,7 @@ def format_admin_stats():
     s = get_stats()
     return (
         "<b>ADMIN STATS</b>\n"
-        + ("━" * 30) + "\n\n"
+        + ("─" * 30) + "\n\n"
         "<b>USUARIOS:</b>\n"
         "Total:        {ut}\n"
         "Free:         {uf}\n"
@@ -602,7 +602,7 @@ def format_users_list(limit=20):
     users = get_all_users(limit=limit)
     if not users:
         return "Sin usuarios aun."
-    lines = ["<b>USUARIOS RECIENTES (top {})</b>".format(limit), "━" * 30, ""]
+    lines = ["<b>USUARIOS RECIENTES (top {})</b>".format(limit), "─" * 30, ""]
     for u in users:
         days = "-"
         if u.get("expires_at"):

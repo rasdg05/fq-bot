@@ -1551,11 +1551,11 @@ def build_signal_msg(direction, levels, decoh, masses, session, w_clock, p_maste
     side_glyph = G["long"] if direction == "long" else G["short"]
 
     if p_master >= PHI_CB:
-        leverage, sizing, tier = "8x", "10%", "phi^3 (alta conviccion)"
+        leverage, sizing, tier = "8x", "10%", "Maxima"
     elif p_master >= PHI_SQ:
-        leverage, sizing, tier = "5x", "5%",  "phi^2 (standard)"
+        leverage, sizing, tier = "5x", "5%",  "Estandar"
     else:
-        leverage, sizing, tier = "3x", "2%",  "phi (scalp)"
+        leverage, sizing, tier = "3x", "2%",  "Exploratoria"
 
     # Asia penalty warning
     asia_warn = ""
@@ -1576,25 +1576,25 @@ def build_signal_msg(direction, levels, decoh, masses, session, w_clock, p_maste
     elif risk_pct_val < 2.0:  risk_lbl = "Medio"
     else:                     risk_lbl = "Alto"
 
-    rule = "━" * 30
+    rule = "─" * 30
     intra_note = "\n  Confirmar al cierre 15m" if intra else ""
 
     msg = (
         "{rule}\n"
-        "  ▰ Senal FQ · SOL/USDT\n"
+        "  │ FQ · Senal VIP · SOL/USDT\n"
         "  {when}{intra}\n"
         "{rule}\n"
         "  {arrow} {side}        Conviccion {tier}\n"
         "\n"
-        "  ▸ Entry    ${entry:.2f}\n"
-        "  ▸ Stop     ${sl:.2f}    Riesgo {risk}\n"
+        "  Entry    ${entry:.2f}\n"
+        "  Stop     ${sl:.2f}    Riesgo {risk}\n"
         "\n"
-        "  ▸ TP1  30%   ${tp1:.2f}    R {rr1:.2f}\n"
-        "  ▸ TP2  30%   ${tp2:.2f}    R {rr2:.2f}\n"
-        "  ▸ TP3  25%   ${tp3:.2f}    R {rr3:.2f}\n"
-        "  ▸ TP4  15%   ${tp4:.2f}    R {rr4:.2f}\n"
+        "  TP1  30%   ${tp1:.2f}    R {rr1:.2f}\n"
+        "  TP2  30%   ${tp2:.2f}    R {rr2:.2f}\n"
+        "  TP3  25%   ${tp3:.2f}    R {rr3:.2f}\n"
+        "  TP4  15%   ${tp4:.2f}    R {rr4:.2f}\n"
         "{rule}\n"
-        "  Leverage {lev}   Size {size}\n"
+        "  Leverage {lev}   ·   Size {size}\n"
         "  SL inmutable.\n"
         "{rule}\n"
         "  #FQ #SOLUSDT #{tag}"
@@ -3453,7 +3453,7 @@ def radar_check(exchange, tf_id="15m"):
                                                   killzone_name=kz_name,
                                                   tf_label=tf_label)
             if flip_replace:
-                msg = ("<b>⚠️ FLIP — REEMPLAZA anterior {}</b>\n"
+                msg = ("<b>FLIP · REEMPLAZA anterior {}</b>\n"
                        "<i>El radar previo del {} queda invalidado por mayor edge.</i>\n\n").format(
                     "LONG→SHORT" if direction == "short" else "SHORT→LONG",
                     tf_id) + msg
@@ -3506,12 +3506,12 @@ def radar_check(exchange, tf_id="15m"):
         tf_tag = " [{}]".format(tf_id) if tf_id in _FIELD_FAST_TFS else ""
         flip_header = ""
         if flip_replace:
-            flip_header = ("<b>⚠️ FLIP — REEMPLAZA anterior {}</b>\n"
+            flip_header = ("<b>FLIP · REEMPLAZA anterior {}</b>\n"
                            "<i>El radar previo del {} queda invalidado por mayor edge.</i>\n\n").format(
                 "LONG→SHORT" if direction == "short" else "SHORT→LONG",
                 tf_id)
         msg = (flip_header +
-               "<b>📡 RADAR FQ{tf} — setup armandose</b>\n"
+               "<b>RADAR FQ{tf} · setup armandose</b>\n"
                "<i>No es senal automatica. Inteligencia anticipada.</i>\n\n"
                "{body}{suffix}").format(tf=tf_tag, body=body, suffix=suffix)
         telegram_send(msg, TELEGRAM_CHAT_ID)
@@ -3683,10 +3683,10 @@ def claude_followup_analisis_vip(exchange, ctx=None):
         reading = _escape_claude(claude_ai.tactical_analisis_vip(snapshot))
         if not reading:
             return None
-        rule = "━" * 30
+        rule = "─" * 30
         return (
             "{rule}\n"
-            "  ◆ Claude — Lectura breve\n"
+            "  │ Lectura del dia\n"
             "{rule}\n"
             "{r}\n"
             "{rule}"
@@ -3860,7 +3860,7 @@ def command_listener(exchange):
                             ok, msg_r, days = vip.redeem_code(code, chat_id, username)
                             if ok:
                                 telegram_send(
-                                    "<b>Codigo aplicado</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                                    "<b>Codigo aplicado</b>\n──────────────────────────────\n\n"
                                     "{m}\n\nAcceso VIP activo. Usa /help para comandos.".format(m=msg_r),
                                     chat_id)
                             else:
@@ -3898,11 +3898,11 @@ def command_listener(exchange):
                         if tier not in ("vip", "trial", "admin"):
                             telegram_send(
                                 "<b>Acceso VIP requerido</b>\n"
-                                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                                "──────────────────────────────\n\n"
                                 "El comando {} requiere suscripcion VIP.\n\n"
-                                "▸ /precio para ver planes\n"
-                                "▸ /codigo XXXX para canjear codigo\n"
-                                "▸ /vip para adquirir acceso".format(cmd_name), chat_id)
+                                "› /precio para ver planes\n"
+                                "› /codigo XXXX para canjear codigo\n"
+                                "› /vip para adquirir acceso".format(cmd_name), chat_id)
                             continue
                 else:
                     # Sin VIP system: solo admin (chat_id original)
@@ -3958,7 +3958,7 @@ def command_listener(exchange):
                             secs = int(remaining % 60)
                             telegram_send(
                                 "<b>/analisis en cooldown</b>\n"
-                                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                                "──────────────────────────────\n\n"
                                 "Espera <b>{}m {:02d}s</b> antes del siguiente analisis.\n\n"
                                 "Cooldown VIP = {} min por usuario. Protege la API y\n"
                                 "asegura que cada lectura que pidas sea fresca.\n\n"
@@ -4051,8 +4051,8 @@ def _cmd_vip_flow(exchange, chat_id, args):
         return
     if not args:
         msg = (
-            "<b>ADQUIRIR VIP</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "<b>FQ · Acceso VIP</b>\n"
+            "──────────────────────────────\n\n"
         )
         for pid, info in vip.PLAN_PRICES.items():
             if pid == "trial_7d":
@@ -4096,7 +4096,7 @@ def _cmd_vip_flow(exchange, chat_id, args):
             return
         telegram_send(
             "<b>{}</b> - USDT-{}\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "──────────────────────────────\n\n"
             "Monto exacto: <code>{:.4f}</code> USDT\n\n"
             "<b>Wallet:</b>\n<code>{}</code>\n\n"
             "Ref: {}\nExpira en {} horas.\n\n"
@@ -4131,7 +4131,7 @@ def _cmd_admin_gencode(admin_cid, args):
     code = vip.generate_code(duration_days=days, plan=plan, kind=kind,
                              created_by=admin_cid, note=note)
     telegram_send(
-        "<b>Codigo generado</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "<b>Codigo generado</b>\n──────────────────────────────\n\n"
         "Codigo: <code>{code}</code>\n"
         "Duracion: {d} dias | Plan: {p}\n"
         "{note}\n"
@@ -4179,7 +4179,7 @@ def _cmd_admin_broadcast(admin_cid, raw_args):
     sent = failed = 0
     for u in users:
         ok = telegram_send(
-            "<b>RasDG_Sol</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n{}".format(message),
+            "<b>RasDG_Sol</b>\n──────────────────────────────\n\n{}".format(message),
             u["chat_id"])
         if ok: sent += 1
         else:  failed += 1
@@ -4604,7 +4604,7 @@ def cmd_timelines(exchange):
         hist_block = "\n".join(hist_lines)
 
         block = qt.build_qte_block_admin(qa)
-        rule = "━" * 30
+        rule = "─" * 30
 
         return (
             "<b>QTE DEEP DIVE</b>\n"
@@ -4935,10 +4935,10 @@ def main():
     telegram_send(
         "{header}\n"
         "\n"
-        "  Motor en pista · eval cada 15 min\n"
+        "  Vigilancia continua · eval cada 15 min\n"
         "  SOL/USDT · OKX\n"
-        "  Claude: <b>{cs}</b>".format(
-            header=_brand.lux_header("FQ · Bot online", "Luces verdes"),
+        "  IA: <b>{cs}</b>".format(
+            header=_brand.lux_header("FQ · En linea", "Sistema operativo"),
             cs=claude_status)
     )
 
