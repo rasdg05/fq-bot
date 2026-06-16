@@ -166,13 +166,13 @@ def check_progress_events(signal_row, df, sent=None):
 # FORMATO DE ALERTAS
 # ============================================================
 _G = {
-    "rule": "━" * 30,
-    "title": "◆",
-    "event": "▰",
-    "act":   "▸",
-    "chk":   "▪",
-    "long":  "▴",
-    "short": "▾",
+    "rule": "─" * 30,
+    "title": "│",
+    "event": "│",
+    "act":   "·",
+    "chk":   "·",
+    "long":  "▲",
+    "short": "▼",
 }
 
 def _side(direction):
@@ -274,14 +274,14 @@ def build_tp3_celebration(sig, price):
     price_str = "${:.4f}".format(price) if price is not None else "-"
     return "\n".join([
         _G["rule"],
-        "  \U0001F973 TP3 ALCANZADO · Senal #{}".format(sid),
+        "  {} TP3 ALCANZADO · Senal #{}".format(_G["title"], sid),
         _G["rule"],
         "  {} Direccion   {}".format(_G["act"], side),
         "  {} Precio      {}".format(_G["act"], price_str),
-        "  {} Corrida     +3.00R confirmados \U0001F3AF".format(_G["act"]),
+        "  {} Corrida     +3.00R confirmados".format(_G["act"]),
         "",
-        "  Tercer objetivo tocado. Disciplina",
-        "  sistematica, no suerte. \U0001F64C",
+        "  Tercer objetivo alcanzado. Disciplina",
+        "  sistematica, no suerte.",
         "  Felicidades a quienes la tomaron.",
         _G["rule"],
     ])

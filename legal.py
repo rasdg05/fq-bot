@@ -15,7 +15,7 @@ def build_disclaimer():
     """Aviso de riesgo. Se muestra una vez al primer contacto y desde /legal."""
     return "\n".join([
         RULE,
-        "  ◆ {} · Aviso de riesgo".format(PRODUCT),
+        "  │ {} · Aviso de riesgo".format(PRODUCT),
         RULE,
         "  El trading de criptomonedas con",
         "  apalancamiento conlleva alto riesgo.",
@@ -38,7 +38,7 @@ def build_terms():
     """Terminos de servicio. Compacto."""
     return "\n".join([
         RULE,
-        "  ◆ {} · Terminos".format(PRODUCT),
+        "  │ {} · Terminos".format(PRODUCT),
         RULE,
         "  {} El acceso VIP es personal e".format(_CHK),
         "    intransferible.",
@@ -58,7 +58,7 @@ def build_privacy():
     """Politica de privacidad. Que datos se guardan y por que."""
     return "\n".join([
         RULE,
-        "  ◆ {} · Privacidad".format(PRODUCT),
+        "  │ {} · Privacidad".format(PRODUCT),
         RULE,
         "  Datos que guardamos:",
         "  {} Tu identificador de Telegram.".format(_CHK),
@@ -79,7 +79,7 @@ def build_legal_menu():
     """Menu /legal: las tres piezas accesibles."""
     return "\n".join([
         RULE,
-        "  ◆ {} · Legal".format(PRODUCT),
+        "  │ {} · Legal".format(PRODUCT),
         RULE,
         "  {} Aviso de riesgo".format(_CHK),
         "  {} Terminos de servicio".format(_CHK),
