@@ -1673,7 +1673,7 @@ def cmd_status(exchange):
                 abs(STATE.last_eth_chg) > MACRO_THRESHOLD_PCT * 100)
 
     return (
-        "<b>STATUS - FQ</b>\n"
+        "<b>FQ · Status</b>\n"
         "{fence}\n\n"
         "{when}\n"
         "Uptime: {h}h {m}m  |  Exchange: OKX live\n\n"
@@ -2576,7 +2576,7 @@ def evaluate_setup(exchange, tf_id="15m", intra=False):
                 log.info("Triggering Opus co-pilot for high-conviction signal")
                 broadcast_to_subscribers(
                     "<b>Senal de alta conviccion detectada</b>\n"
-                    "Activando co-pilot Opus 4.6 para revision final..."
+                    "Activando co-piloto de IA para revision final..."
                 )
                 signal_data = {
                     "direction":    direction,
@@ -2601,12 +2601,12 @@ def evaluate_setup(exchange, tf_id="15m", intra=False):
                 opus_reading = _escape_claude(claude_ai.signal_copilot(snapshot))
                 if opus_reading:
                     opus_msg = (
-                        "<b>OPUS 4.6 - REVISION FINAL DE SENAL</b>\n"
+                        "<b>FQ · Revision final de senal</b>\n"
                         "{thin}\n\n{r}\n\n"
                         "{thin}\nDecision final: SIEMPRE tuya.\n"
                         "El gate matematico ya valido el setup.\n"
                         "Esta lectura es para AFINAR, no validar.\n\n"
-                        "#FQ #Opus #SenalAltaConviccion"
+                        "#FQ #SOLUSDT"
                     ).format(thin=G["thin"], r=opus_reading)
                     # Split si es muy largo
                     parts = split_telegram_message(opus_msg)
@@ -2845,8 +2845,8 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
                 if claude_ai.is_available() and claude_ai.is_high_conviction(pm_data["p_master"]):
                     try:
                         broadcast_to_subscribers(
-                            "<b>Senal alta conviccion v4.1.1</b>\n"
-                            "Activando Opus 4.6 para revision final..."
+                            "<b>Senal de alta conviccion detectada</b>\n"
+                            "Activando co-piloto de IA para revision final..."
                         )
                         signal_data = {
                             "direction": direction, "p_master": pm_data["p_master"],
@@ -2869,10 +2869,10 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
                         opus_reading = _escape_claude(claude_ai.signal_copilot(snapshot))
                         if opus_reading:
                             opus_msg = (
-                                "<b>OPUS 4.6 — REVISION v4.1.1</b>\n"
+                                "<b>FQ · Revision final</b>\n"
                                 "{thin}\n\n{r}\n\n"
                                 "{thin}\nDecision final: TUYA.\n"
-                                "#FQ1 #Opus"
+                                "#FQ #SOLUSDT"
                             ).format(thin=G["thin"], r=opus_reading)
                             for p in split_telegram_message(opus_msg):
                                 broadcast_to_subscribers(p)
@@ -3035,9 +3035,9 @@ def claude_followup_general(exchange):
         snapshot = mctx.snapshot_for_general(df, basic_state)
         reading = _escape_claude(claude_ai.tactical_general(snapshot))
         return (
-            "<b>CLAUDE - Lectura tactica del analisis</b>\n"
+            "<b>FQ · Lectura tactica</b>\n"
             "{thin}\n\n{r}\n\n"
-            "{thin}\nModelo: Sonnet 4.5\n#FQ #Claude"
+            "{thin}\n#FQ #SOLUSDT"
         ).format(thin=G["thin"], r=reading)
     except Exception as e:
         log.error("Claude followup analisis error: {}".format(e))
@@ -3717,9 +3717,9 @@ def claude_followup_pspace(exchange):
         snapshot = mctx.snapshot_for_pspace(df, basic_state, ps)
         reading = _escape_claude(claude_ai.tactical_pspace(snapshot))
         return (
-            "<b>CLAUDE - Lectura P-Space + libro</b>\n"
+            "<b>FQ · Lectura P-Space</b>\n"
             "{thin}\n\n{r}\n\n"
-            "{thin}\nModelo: Sonnet 4.5\n#FQ #Claude"
+            "{thin}\n#FQ #SOLUSDT"
         ).format(thin=G["thin"], r=reading)
     except Exception as e:
         log.error("Claude followup pspace error: {}".format(e))
@@ -3754,9 +3754,9 @@ def claude_followup_niveles(exchange):
         snapshot = mctx.snapshot_for_niveles(df, basic_state, plan_primary, plan_secondary)
         reading = _escape_claude(claude_ai.tactical_niveles(snapshot))
         return (
-            "<b>CLAUDE - Afinacion del plan</b>\n"
+            "<b>FQ · Afinacion del plan</b>\n"
             "{thin}\n\n{r}\n\n"
-            "{thin}\nModelo: Sonnet 4.5\n#FQ #Claude"
+            "{thin}\n#FQ #SOLUSDT"
         ).format(thin=G["thin"], r=reading)
     except Exception as e:
         log.error("Claude followup niveles error: {}".format(e))
@@ -3968,7 +3968,7 @@ def command_listener(exchange):
                             continue
                         _VIP_ANALISIS_LAST[str(chat_id)] = now_s
 
-                    telegram_send("Lectura tactica en proceso - Claude Sonnet 4.6...", chat_id)
+                    telegram_send("Lectura en proceso...", chat_id)
                     try:
                         # Contexto pesado (QTE 2000 + battle plan) UNA sola vez,
                         # compartido entre mensaje curado y lectura de Claude.
@@ -3985,7 +3985,7 @@ def command_listener(exchange):
                         if claude_ai.is_available():
                             def _send_fu_analisis(fn=fu_fn, cid=chat_id, ctx=analisis_ctx):
                                 try:
-                                    telegram_send("Claude interpretando datos...", cid)
+                                    telegram_send("Interpretando datos...", cid)
                                     # El follow-up VIP reutiliza el ctx; el admin no lo usa.
                                     fu = fn(exchange, ctx=ctx) if ctx is not None else fn(exchange)
                                     if fu:
@@ -4004,12 +4004,12 @@ def command_listener(exchange):
                     handler = COMMANDS[cmd_name]
                     try:
                         loading_map = {
-                            "/lectura":  "Lectura tactica en proceso - Claude Sonnet 4.6...",
-                            "/analisis": "Lectura tactica en proceso - Claude Sonnet 4.6...",
-                            "/niveles":  "Lectura tactica en proceso - Claude Sonnet 4.6...",
-                            "/pspace":   "Lectura tactica en proceso - Claude Sonnet 4.6...",
-                            "/claude":   "Lectura tactica en proceso - Claude Sonnet 4.6...",
-                            "/ia":       "Lectura tactica en proceso - Claude Sonnet 4.6...",
+                            "/lectura":  "Lectura en proceso...",
+                            "/analisis": "Lectura en proceso...",
+                            "/niveles":  "Lectura en proceso...",
+                            "/pspace":   "Lectura en proceso...",
+                            "/claude":   "Lectura en proceso...",
+                            "/ia":       "Lectura en proceso...",
                         }
                         if cmd_name in loading_map:
                             telegram_send(loading_map[cmd_name], chat_id)
@@ -4022,7 +4022,7 @@ def command_listener(exchange):
                         if cmd_name in CLAUDE_FOLLOWUP and claude_ai.is_available():
                             def _send_claude_fu(c=cmd_name, cid=chat_id):
                                 try:
-                                    telegram_send("Claude interpretando datos...", cid)
+                                    telegram_send("Interpretando datos...", cid)
                                     fu = CLAUDE_FOLLOWUP[c](exchange)
                                     if fu:
                                         send_long(fu, cid)
@@ -4237,7 +4237,7 @@ def cmd_audit_manual(exchange):
         return "No hay data suficiente para audit."
 
     telegram_send(
-        "<b>AUDIT MANUAL - OPUS 4.6</b>\n"
+        "<b>FQ · Auditoria</b>\n"
         "Procesando {} senales cerradas...".format(n)
     )
     response = ev_claude.self_audit(prompt)
@@ -4245,7 +4245,7 @@ def cmd_audit_manual(exchange):
     ev.save_audit(n, metrics, response)
 
     return (
-        "<b>AUDIT MANUAL - OPUS 4.6</b>\n"
+        "<b>FQ · Auditoria</b>\n"
         "{thin}\n\n{r}\n\n"
         "{thin}\nSugerencias - RasDG decide.\n"
         "#SelfAudit #FQ"
@@ -4799,7 +4799,7 @@ def evolution_periodic_hook(exchange):
             log.info("Triggering self-audit Opus (n={})".format(n))
             broadcast_to_subscribers(
                 "<b>SELF-AUDIT EVOLUTIVO ACTIVADO</b>\n"
-                "{} senales cerradas. Opus 4.6 auditando ledger...".format(n)
+                "{} senales cerradas. Auditando ledger...".format(n)
             )
             prompt = ev.build_audit_prompt_v3() if hasattr(ev, "build_audit_prompt_v3") else ev.build_audit_prompt()
             if prompt:
@@ -4807,7 +4807,7 @@ def evolution_periodic_hook(exchange):
                 metrics = ev.get_global_metrics()
                 ev.save_audit(n, metrics, opus_response)
                 audit_msg = (
-                    "<b>AUDIT EVOLUTIVO - OPUS 4.6</b>\n"
+                    "<b>FQ · Auditoria evolutiva</b>\n"
                     "{thin}\n\n{r}\n\n"
                     "{thin}\n"
                     "Estas son SUGERENCIAS. RasDG decide.\n"
