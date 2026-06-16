@@ -1,0 +1,46 @@
+name: Báscula poda (Hetzner) — 1 tap
+
+# UN TAP, CERO inputs. Dispara "Research" en modo PODA (ablation=true): mide
+# cuánto aporta CADA módulo (scorer / regime / session_bias) corriendo
+# baseline + 3 toggles, en el runner SELF-HOSTED (Hetzner).
+#
+# Por qué Hetzner: la poda son 4 replays; en runner de GitHub NO entra en el
+# techo de 350 min y se corta SIN veredicto — eso le pasó a la corrida #40
+# (cancelled a las 5h49). En Hetzner no hay techo -> corre hasta el final.
+#
+# Scope: corre la poda en SOL 24m (la poda se decide primero en SOL; BTC no es
+# candidato, §6.5) -> veredicto en ~horas. Para sumar el cross-check en BTC,
+# avisá (suma ~medio día de runner).
+#
+# ANTES DE TAPEAR: encendé Hetzner y esperá a que el runner figure ONLINE (si
+# no, el job queda EN COLA). COMPARTE runner con la cosecha ETH: corren de a
+# una. Sugerencia: tapeá la BÁSCULA primero (dura horas, da el veredicto) y
+# después la cosecha ETH (dura ~día).
+#
+# Reusa research.yml de la rama claude/bascula-hetzner (= turbovec + ruteo de
+# la poda a self-hosted) con toda su lógica probada (matriz, ablación, artefacto).
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  actions: write      # para disparar otro workflow_dispatch
+  contents: read
+
+jobs:
+  disparar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Disparar Research — PODA (ablation) en SOL, Hetzner
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run research.yml \
+            --repo "${{ github.repository }}" \
+            --ref claude/bascula-hetzner \
+            -f ablation=true
+          echo "OK: disparada la báscula (ablation=true) en SOL sobre Hetzner."
+          echo "Mira la pestana Actions -> 'Research (backtest / walk-forward / poda)'."
+          echo "Corre en self-hosted/Hetzner, SIN techo de 350 min."
+          echo "Si no arranca: confirma que el runner de Hetzner este ONLINE."
