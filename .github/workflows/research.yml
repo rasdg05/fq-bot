@@ -117,18 +117,6 @@ on:
         description: "Percentil que define ORO (0.05 = top 5%, lo validado en F1)."
         default: "0.05"
         type: string
-      segment_veto_killzones:
-        description: "F2.6 §6.8: veto de sesion INTEGRADO en el replay (CSV killzones, p.ej. london_open_kz). Vacio = sin veto. Mide OOS/frontera/segmentos de la poblacion restante."
-        default: ""
-        type: string
-      segment_veto_utc_blocks:
-        description: "F2.6: veto secundario por bloque-UTC 4h (CSV, p.ej. 00-04,04-08). Vacio = off."
-        default: ""
-        type: string
-      segment_veto_weekdays:
-        description: "F2.6: veto secundario por dia (CSV: lun,mar,...). Vacio = off."
-        default: ""
-        type: string
       symbol:
         description: "Cosechar UN simbolo arbitrario (p.ej. ETH/USDT). Vacio = matriz normal (BTC/SOL). Corre en GitHub-hosted con scope reducido (sin Hetzner)."
         default: ""
@@ -238,13 +226,6 @@ jobs:
       # volver a `${{ github.event.inputs.build_index || false }}`.
       BUILDIDX: "true"
       GOLDPCT: ${{ github.event.inputs.gold_top_pct || '0.05' }}
-      # F2.6 §6.8 — veto de sesion INTEGRADO. run_research_real lee estas envs via
-      # segment_veto.from_env() y filtra la poblacion etiquetada ANTES de OOS /
-      # frontera maker / segmentos / retrieval -> el run mide el veto integrado
-      # (reproduce el regrade offline). Vacio = sin veto (baseline normal).
-      FQ_SEGMENT_VETO_KILLZONES: ${{ github.event.inputs.segment_veto_killzones || '' }}
-      FQ_SEGMENT_VETO_UTC_BLOCKS: ${{ github.event.inputs.segment_veto_utc_blocks || '' }}
-      FQ_SEGMENT_VETO_WEEKDAYS: ${{ github.event.inputs.segment_veto_weekdays || '' }}
       # Decoupling §6.6 del gate ORO (vacío = off -> vector_variants normal).
       FQ_RETRIEVAL_DECOUPLE: ${{ github.event.inputs.decouple || '' }}
     steps:
