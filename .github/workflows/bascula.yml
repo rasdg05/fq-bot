@@ -6,19 +6,22 @@ name: Báscula poda (Hetzner) — 1 tap
 #
 # Por qué Hetzner: la poda son 4 replays; en runner de GitHub NO entra en el
 # techo de 350 min y se corta SIN veredicto — eso le pasó a la corrida #40
-# (cancelled a las 5h49). En Hetzner no hay techo -> corre hasta el final.
+# (cancelled a las 5h49). En Hetzner no hay techo Y se shardea por fecha en
+# todos los cores -> corre hasta el final, rápido.
 #
-# Scope: corre la poda en SOL 24m (la poda se decide primero en SOL; BTC no es
-# candidato, §6.5) -> veredicto en ~horas. Para sumar el cross-check en BTC,
-# avisá (suma ~medio día de runner).
+# Scope: poda en SOL a DENSIDAD MÁXIMA (step1), SHARDED en N cores -> ~1-3h.
+# La poda se decide primero en SOL (BTC no es candidato, §6.5); para el
+# cross-check en BTC, avisá (suma ~medio día). Antes de la poda grande corre
+# un --verify (1 vs 2 shards = idénticos): si shardear corrompiera algo lo
+# caza y NO gasta el tiempo grande.
 #
 # ANTES DE TAPEAR: encendé Hetzner y esperá a que el runner figure ONLINE (si
 # no, el job queda EN COLA). COMPARTE runner con la cosecha ETH: corren de a
 # una. Sugerencia: tapeá la BÁSCULA primero (dura horas, da el veredicto) y
 # después la cosecha ETH (dura ~día).
 #
-# Reusa research.yml de la rama claude/bascula-hetzner (= turbovec + ruteo de
-# la poda a self-hosted) con toda su lógica probada (matriz, ablación, artefacto).
+# Reusa research.yml de la rama claude/bascula-hetzner (= turbovec + poda
+# SHARDED en self-hosted) con su lógica probada (sharding verificado, artefacto).
 
 on:
   workflow_dispatch: {}
@@ -42,5 +45,5 @@ jobs:
             -f ablation=true
           echo "OK: disparada la báscula (ablation=true) en SOL sobre Hetzner."
           echo "Mira la pestana Actions -> 'Research (backtest / walk-forward / poda)'."
-          echo "Corre en self-hosted/Hetzner, SIN techo de 350 min."
+          echo "Corre SHARDED (step1, densidad maxima): primero --verify, luego la poda."
           echo "Si no arranca: confirma que el runner de Hetzner este ONLINE."
