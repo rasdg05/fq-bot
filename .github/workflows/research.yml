@@ -87,8 +87,8 @@ on:
         description: "EJE A: mide el LIFT del bloque quantum (kappa/sigma_tau/sync/campo) en el edge de retrieval (barato, sobre señales fired)"
         default: "true"
         type: string
-      emergent_time:
-        description: "EJE A experimental: replay con FQ_EMERGENT_TIME_ENABLED=1 (sync/sigma_tau VIVOS). OJO: cambia el set de señales. Default OFF."
+      gated_shard:
+        description: "F4: GATEADO + OOT forward SHARDED en self-hosted (replay denso en paralelo, N cores). Usa out_of_time como corte forward. ~1h vs ~5h, números IDÉNTICOS."
         default: false
         type: boolean
       out_of_time:
@@ -141,11 +141,11 @@ permissions:
 
 jobs:
   research:
-    # PESADOS (cosecha=true O ablation=true) -> runner SELF-HOSTED (Hetzner, sin
-    # el tope de 6h de GitHub). El runner debe estar ONLINE antes de lanzar (si
-    # no, el job queda en cola). El resto (normal/schedule) sigue en
+    # PESADOS (cosecha O ablation O gated_shard = true) -> runner SELF-HOSTED
+    # (Hetzner, sin el tope de 6h de GitHub). El runner debe estar ONLINE antes de
+    # lanzar (si no, el job queda en cola). El resto (normal/schedule) sigue en
     # ubuntu-latest (gratis, GitHub-hosted).
-    runs-on: ${{ (github.event.inputs.cosecha == 'true' || github.event.inputs.ablation == 'true') && 'self-hosted' || 'ubuntu-latest' }}
+    runs-on: ${{ (github.event.inputs.cosecha == 'true' || github.event.inputs.ablation == 'true' || github.event.inputs.gated_shard == 'true') && 'self-hosted' || 'ubuntu-latest' }}
     # PODA (ablation=true): baseline + 3 toggles = 4 replays. En GitHub-hosted la
     # corrida #40 se corto SIN veredicto al chocar el techo de 350min. Por eso
     # ahora va a self-hosted Y SHARDED (tools/ablation_shard.py): cada variante se
@@ -154,8 +154,9 @@ jobs:
     # NOTA: la matriz va en fromJSON y NO en jobs.<id>.if (el contexto `matrix`
     # no existe en el if de job). En schedule los inputs llegan vacios -> matriz
     # normal completa, sin cambios.
-    # SELF-HOSTED: techo 2880 min (48h). Cosecha ~18-22h/simbolo; poda ~horas.
-    timeout-minutes: ${{ (github.event.inputs.cosecha == 'true' || github.event.inputs.ablation == 'true') && 2880 || 350 }}
+    # SELF-HOSTED: techo 2880 min (48h). Cosecha ~18-22h/simbolo; poda ~horas;
+    # gated_shard ~1h (1 simbolo, replay denso sharded).
+    timeout-minutes: ${{ (github.event.inputs.cosecha == 'true' || github.event.inputs.ablation == 'true' || github.event.inputs.gated_shard == 'true') && 2880 || 350 }}
     strategy:
       fail-fast: false
       # BTC: 48 meses (densidad para el retrieval), step=3 = rango seguro de tiempo.
@@ -166,7 +167,7 @@ jobs:
       # pedir mas (->antes del listing) hace que build_dataset baje n=0. BTC llega
       # a 2019 sin problema. PODA (ablation=true): BTC 48m + SOL 24m (sharded, step1).
       # Normal: BTC 48m + SOL 24m. Prioridad: cosecha > ablation > normal.
-      # symbol (override) > cosecha > ablation > normal. symbol vacio/null es FALSY
+      # symbol (override) > cosecha > ablation > gated_shard > normal. symbol vacio/null es FALSY
       # -> cae a la matriz original SIN cambios (schedule/normal/cosecha/ablation
       # quedan intactos). symbol seteado -> UN solo simbolo en GitHub-hosted con
       # sym_months/sym_step. runs-on/timeout van a self-hosted con cosecha O ablation.
@@ -176,7 +177,9 @@ jobs:
         && '{"include":[{"symbol":"BTC/USDT","months":"84","step":"1"},{"symbol":"SOL/USDT","months":"60","step":"1"}]}'
         || (github.event.inputs.ablation == 'true'
         && '{"include":[{"symbol":"BTC/USDT","months":"48","step":"1"},{"symbol":"SOL/USDT","months":"24","step":"1"}]}'
-        || '{"include":[{"symbol":"BTC/USDT","months":"48","step":"3"},{"symbol":"SOL/USDT","months":"24","step":"2"}]}'))) }}
+        || (github.event.inputs.gated_shard == 'true'
+        && '{"include":[{"symbol":"SOL/USDT","months":"24","step":"1"}]}'
+        || '{"include":[{"symbol":"BTC/USDT","months":"48","step":"3"},{"symbol":"SOL/USDT","months":"24","step":"2"}]}')))) }}
     env:
       # Defaults benignos para que el monolito importe sin secretos reales.
       TELEGRAM_TOKEN: "ci-dummy"
@@ -209,10 +212,14 @@ jobs:
       TPSLGRID: ${{ github.event.inputs.tp_sl_grid || 'true' }}
       QGATE: ${{ github.event.inputs.quality_gate || 'true' }}
       VABL: ${{ github.event.inputs.vector_ablation || 'true' }}
-      ETIME: ${{ github.event.inputs.emergent_time || false }}
+      # emergent_time se retiro del FORM (experimental, default OFF, cambia el set
+      # de senales) para hacerle lugar a gated_shard bajo el limite de 25 inputs;
+      # sigue disponible por CLI/env. ETIME queda en false -> ETIMEFLAG nunca activa.
+      ETIME: "false"
       OOT: ${{ github.event.inputs.out_of_time || '' }}
       ABLATION: ${{ github.event.inputs.ablation || false }}
       COSECHA: ${{ github.event.inputs.cosecha || false }}
+      GATED_SHARD: ${{ github.event.inputs.gated_shard || false }}
       DATAONLY: ${{ github.event.inputs.data_only || false }}
       # NOTA: el formulario "Run workflow" renderiza los inputs desde la rama por
       # DEFECTO (main), no desde la rama seleccionada -> 'build_index' no aparece
@@ -230,7 +237,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
-        if: ${{ github.event.inputs.cosecha != 'true' && github.event.inputs.ablation != 'true' }}
+        if: ${{ github.event.inputs.cosecha != 'true' && github.event.inputs.ablation != 'true' && github.event.inputs.gated_shard != 'true' }}
         with:
           python-version: "3.12"
           cache: pip
@@ -243,7 +250,7 @@ jobs:
         # --clear: en el self-hosted $HOME persiste entre jobs; el 2do simbolo de
         # la matrix (corre en serie en el MISMO runner) encontraria el venv del 1ro
         # y 'uv venv' fallaria ("already exists"). --clear lo recrea idempotente.
-        if: ${{ github.event.inputs.cosecha == 'true' || github.event.inputs.ablation == 'true' }}
+        if: ${{ github.event.inputs.cosecha == 'true' || github.event.inputs.ablation == 'true' || github.event.inputs.gated_shard == 'true' }}
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           UV="$HOME/.local/bin/uv"
@@ -400,6 +407,41 @@ jobs:
                 2>&1 | tee -a research_out/research_real.txt
             else
               echo "== VERIFY FALLO: el sharding no reproduce la poda -> NO corro la grande ==" \
+                | tee -a research_out/research_real.txt
+            fi
+          elif [ "${GATED_SHARD}" = "true" ]; then
+            # GATEADO + OOT SHARDED (self-hosted): el replay DENSO (estado de CADA
+            # vela, ~99% del costo) se parte por fecha en N=nproc cores; el analisis
+            # gateado (retrieval denso + quality_gate + grids + vector_ablation) +
+            # la prueba out-of-time corren UNA vez sobre los estados densos
+            # mergeados -> numeros IDENTICOS al run sin shardear, ~1h vs ~5h en el
+            # CCX33. Igual que poda/cosecha: --verify (1 vs 2 shards = estados
+            # densos identicos) corre PRIMERO; SOLO si reproduce exacto corre la
+            # grande (pipefail: el rc del verify manda sobre el del tee).
+            NSHARDS=$(nproc)
+            OOTARG=""
+            [ -n "${OOT}" ] && OOTARG="--out-of-time ${OOT}"
+            echo "== GATEADO SHARDED ${SYM}: verify de correctitud (1 vs 2 shards) ==" \
+              | tee research_out/research_real.txt
+            if python tools/gated_shard.py --exchange "${EX}" --symbol "${SYM}" \
+                 --tf-id "${TFID}" --step 1 --max-bars "${MAXBARS}" \
+                 --n-splits "${NSPLITS}" --embargo 8 --seed "${SEED}" \
+                 --horizon-sweep "${HSWEEP}" --dense-horizon "${DHORIZON}" \
+                 --target-level "${TARGETLVL}" \
+                 --shards "${NSHARDS}" --workers "${NSHARDS}" \
+                 --verify 2>&1 | tee -a research_out/research_real.txt; then
+              echo "== GATEADO SHARDED ${SYM}: ${NSHARDS} shards, step1, OOT=${OOT:-off} ==" \
+                | tee -a research_out/research_real.txt
+              python tools/gated_shard.py --exchange "${EX}" --symbol "${SYM}" \
+                --tf-id "${TFID}" --step 1 --max-bars "${MAXBARS}" \
+                --n-splits "${NSPLITS}" --embargo 8 --seed "${SEED}" \
+                --horizon-sweep "${HSWEEP}" --dense-horizon "${DHORIZON}" \
+                --target-level "${TARGETLVL}" \
+                --shards "${NSHARDS}" --workers "${NSHARDS}" \
+                --out "research_out/gated_${SLUG}.txt" ${OOTARG} \
+                2>&1 | tee -a research_out/research_real.txt
+            else
+              echo "== VERIFY FALLO: el sharding no reproduce el gateado -> NO corro la grande ==" \
                 | tee -a research_out/research_real.txt
             fi
           else

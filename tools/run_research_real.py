@@ -391,6 +391,20 @@ def main():
     p.add_argument("--metric-out", default=None,
                    help="ruta json: con --events-in, vuelca {expectancy_r, n_fired, "
                         "n_oos} de la variante y termina (sin modelo/retrieval).")
+    # --- GATEADO SHARDED (ver tools/gated_shard.py): emite/consume ESTADOS DENSOS
+    # (todas las velas, no solo fired) para paralelizar el replay denso por fecha y
+    # correr el analisis gateado+retrieval+OOT UNA vez sobre el merge. Analogo denso
+    # de --events-out/--events-in (que son fires-only para la poda). ---
+    p.add_argument("--states-out", default=None,
+                   help="ruta parquet: corre SOLO el replay DENSO (estado de CADA "
+                        "vela), filtra los estados al rango del shard por entry_ts y "
+                        "vuelca TODO el DataFrame de estados. NO etiqueta/modela. Es "
+                        "el emisor por-shard del gateado sharded (replay denso).")
+    p.add_argument("--states-in", default=None,
+                   help="ruta parquet: SALTA el replay y carga los estados densos ya "
+                        "mergeados; re-deriva entry_index global y corre el MISMO "
+                        "analisis de siempre (OOS/modelo/retrieval/quality_gate/OOT/"
+                        "grids) sobre el merge. Misma ruta que el run normal.")
     # --- FASE C: grid post-replay de SL (xATR) x TP (tp1..tp4) ---
     p.add_argument("--tp-sl-grid", action="store_true",
                    help="re-etiqueta el MISMO conjunto fired variando ancho de SL "
@@ -512,6 +526,35 @@ def main():
         print(f"[events-out] {len(ev)} eventos -> {args.events_out}")
         return
 
+    # GATEADO SHARDED — EMISOR por-shard (--states-out): replay DENSO (estado de
+    # CADA vela, igual que la rama 'else' normal), filtra los estados al rango del
+    # shard por entry_ts y vuelca TODO el DataFrame (no solo los fired). El analisis
+    # gateado+retrieval+OOT corre UNA vez sobre el merge via --states-in. Ver
+    # tools/gated_shard.py.
+    if args.states_out:
+        print("\n[gated-shard] replay DENSO del motor (emisor de estados)...")
+        states = _run_replay(
+            tfs, env_overrides=None, seed=args.seed, tf_id=args.tf_id,
+            dense=True, horizon_bars=args.dense_horizon,
+            min_lookback=args.min_lookback, step=args.step,
+            target_level=args.target_level, progress_every=5000,
+        )
+        # SHARD: quedarse SOLO con los estados del rango [date_start, date_end) (los
+        # del warmup-izq y el buffer-der pertenecen a shards vecinos). entry_ts es
+        # global -> el merge por entry_ts no duplica ni pierde. MISMO filtro que los
+        # eventos, pero sobre TODOS los estados (no solo fired).
+        if (_date_start is not None or _date_end is not None) and len(states):
+            _ets = pd.to_datetime(states["entry_ts"])
+            _km = pd.Series(True, index=states.index)
+            if _date_start is not None:
+                _km &= _ets >= _date_start
+            if _date_end is not None:
+                _km &= _ets < _date_end
+            states = states[_km.to_numpy()].reset_index(drop=True)
+        states.to_parquet(args.states_out, index=False)
+        print(f"[states-out] {len(states)} estados -> {args.states_out}")
+        return
+
     if args.events_in:
         # PODA SHARDED — CONSUMIDOR (--events-in): SALTA el replay y carga los
         # eventos ya mergeados (cubo sharded de UNA variante). Todo lo de abajo
@@ -537,6 +580,33 @@ def main():
         events["entry_index"] = events["entry_index"].astype(int)
         events = events.sort_values("entry_index").reset_index(drop=True)
         n_states = len(events)
+    elif args.states_in:
+        # GATEADO SHARDED — CONSUMIDOR (--states-in): SALTA el replay y carga los
+        # ESTADOS DENSOS ya mergeados (cubo sharded de todas las velas). Re-deriva el
+        # entry_index global desde entry_ts (igual que --events-in: el index venia
+        # LOCAL al slice de cada shard, y label_events/folds_from_labeled lo usan) y
+        # deja que el resto de main() corra IDENTICO al run normal (OOS/modelo/
+        # retrieval denso/quality_gate/OOT/grids usan `states` y `events`). Es la
+        # MISMA rama que el `else` de abajo pero sin replay. Ver tools/gated_shard.py.
+        print(f"\n[gated-shard] estados densos mergeados (sin replay) <- {args.states_in}")
+        states = pd.read_parquet(args.states_in)
+        states["entry_ts"] = pd.to_datetime(states["entry_ts"])
+        _idx = pd.Series(range(len(df_primary)),
+                         index=pd.to_datetime(df_primary["timestamp"]).to_numpy())
+        states["entry_index"] = states["entry_ts"].map(_idx)
+        _miss = int(states["entry_index"].isna().sum())
+        if _miss:
+            print(f"  [aviso] {_miss} estados sin match de entry_ts en df_primary "
+                  "(descartados)")
+            states = states[states["entry_index"].notna()]
+        states["entry_index"] = states["entry_index"].astype(int)
+        states = states.sort_values("entry_index").reset_index(drop=True)
+        n_states = len(states)
+        if n_states == 0:
+            sys.exit("el merge de estados vino vacio; revisa los shards / el rango")
+        events = (states[states["fired"]].reset_index(drop=True)
+                  if "fired" in states.columns else states.iloc[0:0])
+        print(f"  estados densos: {n_states} | senales disparadas (fired): {len(events)}")
     else:
         # --- UNIFICADO: UN solo replay DENSO (estado de CADA vela) alimenta las DOS
         # salidas: las filas fired=True son el track record de senales (frontera +
