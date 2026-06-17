@@ -7,7 +7,20 @@ const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : 
 const INIT_DATA = tg ? (tg.initData || "") : "";
 
 if (tg) {
-  try { tg.ready(); tg.expand(); } catch (e) {}
+  try {
+    tg.ready();
+    tg.expand();
+    // Mantener el chrome de Telegram en la paleta "Terminal" de la marca.
+    if (tg.setHeaderColor) tg.setHeaderColor("#0b0d0f");
+    if (tg.setBackgroundColor) tg.setBackgroundColor("#0b0d0f");
+  } catch (e) {}
+}
+
+const REFRESH_MS = 45000;       // auto-refresh silencioso del dashboard
+let BUSY = false;               // evita solapar fetches
+
+function haptic() {
+  try { if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged(); } catch (e) {}
 }
 
 const GLYPH = { long: "▲", short: "▼" }; // ▲ ▼
@@ -112,6 +125,28 @@ async function boot() {
   renderTabs();
   const wanted = tabs().find((t) => t.id === wantedView());
   select(wanted ? wanted.id : tabs()[0].id);
+  setupNative();
+}
+
+// Navegacion nativa (BackButton -> primera pestana) + auto-refresh silencioso
+// del dashboard (pausado si la app no esta visible o hay un fetch en curso).
+function setupNative() {
+  if (tg && tg.BackButton) {
+    try { tg.BackButton.onClick(() => select(tabs()[0].id)); } catch (e) {}
+  }
+  setInterval(() => {
+    if (!BUSY && CURRENT && document.visibilityState === "visible") {
+      select(CURRENT, { silent: true });
+    }
+  }, REFRESH_MS);
+}
+
+function updateBackButton() {
+  if (!tg || !tg.BackButton) return;
+  try {
+    if (CURRENT && tabs()[0] && CURRENT !== tabs()[0].id) tg.BackButton.show();
+    else tg.BackButton.hide();
+  } catch (e) {}
 }
 
 // Vista pedida por deep-link. Un boton web_app abre la URL directa, asi que el
@@ -161,17 +196,23 @@ function renderTabs() {
   });
 }
 
-function select(id) {
+function select(id, opts) {
+  opts = opts || {};
   CURRENT = id;
   document.querySelectorAll(".tab").forEach((b) => {
     b.classList.toggle("active", b.dataset.id === id);
   });
   try { location.hash = id; } catch (e) {}
+  if (!opts.silent) haptic();
+  updateBackButton();
   const tab = tabs().find((t) => t.id === id) || tabs()[0];
   const v = $("#view");
-  clear(v);
-  v.appendChild(el("div", "loading", "Cargando…"));
-  tab.render(v).catch((e) => fail(e));
+  if (!opts.silent) {
+    clear(v);
+    v.appendChild(el("div", "loading", "Cargando…"));
+  }
+  BUSY = true;
+  Promise.resolve(tab.render(v)).catch((e) => fail(e)).finally(() => { BUSY = false; });
 }
 
 function header(v, title) {

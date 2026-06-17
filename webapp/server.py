@@ -45,6 +45,30 @@ def create_app(config=None):
     app.config.update(cfg)
 
     # --------------------------------------------------------------
+    # Cabeceras de seguridad (best practice para un webview publico).
+    # CSP permite el SDK de Telegram y recursos propios; frame-ancestors deja
+    # que Telegram Web la embeba en iframe (los clientes nativos usan webview).
+    # --------------------------------------------------------------
+    _CSP = (
+        "default-src 'self'; "
+        "script-src 'self' https://telegram.org; "
+        "style-src 'self' 'unsafe-inline'; "
+        "connect-src 'self'; "
+        "img-src 'self' data:; "
+        "base-uri 'none'; "
+        "form-action 'self'; "
+        "frame-ancestors 'self' https://telegram.org https://*.telegram.org"
+    )
+
+    @app.after_request
+    def _security_headers(resp):
+        resp.headers.setdefault("Content-Security-Policy", _CSP)
+        resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+        resp.headers.setdefault("Referrer-Policy", "no-referrer")
+        resp.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+        return resp
+
+    # --------------------------------------------------------------
     # Auth
     # --------------------------------------------------------------
     def _resolve_user():

@@ -169,3 +169,13 @@ def test_track_record_no_leak(client):
     blob = r.get_data(as_text=True).lower()
     for tok in CLIENT_BANNED:
         assert tok not in blob
+
+
+# ---- security headers ----
+def test_security_headers(client):
+    r = client.get("/")
+    csp = r.headers.get("Content-Security-Policy", "")
+    assert "telegram.org" in csp
+    assert "default-src 'self'" in csp
+    assert r.headers.get("X-Content-Type-Options") == "nosniff"
+    assert r.headers.get("Referrer-Policy") == "no-referrer"

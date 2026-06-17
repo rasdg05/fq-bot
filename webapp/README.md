@@ -96,6 +96,7 @@ Eventos cableados:
 | Nueva señal | `fq_bot_v3_2.py` (broadcast de señal) | VIP/trial/admin | `signals` |
 | TP/SL alcanzado | `fq_bot_v3_2.py` (progress + táctico) | VIP/trial/admin | `signals` |
 | Pago confirmado | `fq_bot_v3_2.py` (polling crypto) | admin | `subs` |
+| Nuevo suscriptor | `fq_bot_v3_2.py` (canje de código) | admin | `subs` |
 | Salud del motor | `ops/maintenance.py` (watchdog) | admin | `health` |
 
 **Red de seguridad (best practice):** un botón `web_app` exige que el dominio de
@@ -107,7 +108,3 @@ comportamiento (las notificaciones salen como siempre).
 
 Activación: define `FQ_WEBAPP_URL` y registra el dominio en BotFather
 (`/setmenubutton` ya lo hace). Nada más que cablear.
-
-> Nota: "nuevo suscriptor" sin pago (canje de código de regalo) aún no emite DM
-> al admin — no había un punto de envío existente y añadirlo es más invasivo. El
-> evento de **pago confirmado** cubre el caso de dinero. Queda como mejora.

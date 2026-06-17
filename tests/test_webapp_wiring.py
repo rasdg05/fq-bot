@@ -49,8 +49,9 @@ def test_signal_and_progress_wired():
     assert src.count('reply_markup=_app_button("signals")') >= 3
 
 
-def test_payment_wired():
-    assert 'reply_markup=_app_button("subs")' in _src("fq_bot_v3_2.py")
+def test_payment_and_subscriber_wired():
+    # pago confirmado + nuevo suscriptor (canje de codigo) -> vista subs
+    assert _src("fq_bot_v3_2.py").count('reply_markup=_app_button("subs")') >= 2
 
 
 def test_health_wired():

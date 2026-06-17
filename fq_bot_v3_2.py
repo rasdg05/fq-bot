@@ -3895,6 +3895,14 @@ def command_listener(exchange):
                                     "<b>Codigo aplicado</b>\n──────────────────────────────\n\n"
                                     "{m}\n\nAcceso VIP activo. Usa /help para comandos.".format(m=msg_r),
                                     chat_id)
+                                # Aviso al admin: nuevo suscriptor via codigo.
+                                if TELEGRAM_CHAT_ID and str(chat_id) != str(TELEGRAM_CHAT_ID):
+                                    telegram_send(
+                                        "<b>Nuevo suscriptor</b>\n"
+                                        "@{u} canjeo un codigo (+{d}d).".format(
+                                            u=(username or chat_id), d=days),
+                                        TELEGRAM_CHAT_ID,
+                                        reply_markup=_app_button("subs"))
                             else:
                                 telegram_send("<b>Codigo invalido</b>\n{}".format(msg_r), chat_id)
                         continue
