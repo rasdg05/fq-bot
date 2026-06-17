@@ -1092,6 +1092,32 @@ cross-asset). Si sobrevive → primer edge forward-limpio del proyecto.
 
 ---
 
+### 6.13 — EL RETRIEVAL TAMPOCO SOBREVIVE FORWARD → SEÑAL NUEVA (run #61, sha 86360b3, 17-jun-2026)
+
+> Cierra §6.12: probado el forward del gate de RETRIEVAL (índice + umbral ORO del
+> BEFORE, gate del AFTER jamás visto). SOL — el candidato LIMPIO (fired +0.109 OOS,
+> leakage_ok) — NO sobrevive:
+>   AFTER=141 → oro=2 base=125 abstain=14 | n=2 exp_R=−0.2137 edge_vs_all=−0.099
+
+El gate no se equivoca forward: se queda **MUDO**. El umbral ORO del BEFORE (0.5515)
+casi no reconoce nada en el AFTER (2/141 oro) → la memoria del BEFORE deja de
+parecerse al mundo del AFTER. Es **REGIME DRIFT**, lo mismo que invirtió el score
+del modelo (§6.12, bin bajo +0.46R).
+
+**VEREDICTO COMPLETO: ningún selector del feature set actual (score del modelo NI
+gate de retrieval) tiene edge forward-estable.** Las ventajas OOS eran específicas
+de régimen y decaen out-of-time. NO es tuning → es **SEÑAL**. El harness eliminó
+honestamente todo el espacio de hipótesis del feature set actual (precio/estructura)
+en horas de cómputo, no en pérdidas vivas.
+
+**PIVOTE (en marcha): SEÑAL ORTOGONAL.** Primer frente cableado: cross-asset BTC→alt
+(commit ce09965; features `xbtc_` causales: trailing + shift_cross=1 + merge_asof
+backward, probado anti-leakage). Vara: ¿le da al alt el edge FORWARD que sus propias
+features no tienen? Se mide OOT por el MISMO harness (`--cross-asset BTC/USDT`,
+cableándose en el gated run). Siguientes Tier-1: funding+OI, order-flow.
+
+---
+
 ## 7. Roadmap por fases
 
 ### F0 — Datos BTC + harness de índice causal + **test de leakage** (puerta)
