@@ -1,0 +1,46 @@
+name: Edge gateado + OOT SHARDED (Hetzner) — 1 tap
+
+# UN TAP, CERO inputs. Igual que "Edge gateado + OOT (forward)" pero SHARDED en el
+# runner SELF-HOSTED (Hetzner): el replay DENSO (estado de CADA vela, ~99% del
+# costo) se parte por fecha en N=nproc cores y el análisis gateado (quality_gate +
+# retrieval denso + grids + vector_ablation) + la prueba OUT-OF-TIME corren UNA
+# vez sobre los estados mergeados -> números IDÉNTICOS al run sin shardear, pero
+# ~1h en vez de ~5h. Antes de la corrida grande corre un --verify (1 vs 2 shards =
+# estados densos idénticos): si shardear corrompiera algo lo caza y NO gasta el
+# tiempo grande.
+#
+# Corte OOT: 2025-09-01 -> ~9 meses de forward test, nunca visto al calibrar.
+# Símbolo: SOL/USDT 24m a densidad máxima (step1) — el forward read del edge gateado.
+#
+# ANTES DE TAPEAR: encendé Hetzner y esperá a que el runner figure ONLINE (si no,
+# el job queda EN COLA). COMPARTE runner con la poda/cosecha: corren de a una.
+# Para el OOT GRATIS en GitHub-hosted (sin tocar Hetzner) usá "Edge gateado + OOT
+# (forward)"; este es el camino RÁPIDO cuando el server está libre.
+#
+# Reusa research.yml de claude/bascula-hetzner (motor con gated_shard + out_of_time).
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  actions: write      # para disparar otro workflow_dispatch
+  contents: read
+
+jobs:
+  disparar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Disparar Research — gateado + OOT SHARDED (Hetzner, corte 2025-09-01)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run research.yml \
+            --repo "${{ github.repository }}" \
+            --ref claude/bascula-hetzner \
+            -f gated_shard=true \
+            -f out_of_time=2025-09-01
+          echo "OK: disparado Research GATEADO + OOT SHARDED (SOL, corte 2025-09-01) en Hetzner."
+          echo "Corre SELF-HOSTED: el runner de Hetzner debe estar ONLINE (si no, queda en cola)."
+          echo "Mira Actions -> 'Research (backtest / walk-forward / poda)'."
+          echo "Reporte = edge gateado OOS + prueba forward out-of-time (artefacto research-report-SOL_USDT)."
