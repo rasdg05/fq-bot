@@ -1058,6 +1058,40 @@ selectivos + bajar coste sobre lo seleccionado.
 
 ---
 
+### 6.12 — EL FORWARD TUMBA LA SELECCIÓN POR SCORE (run #60, step1 BTC+SOL+ETH, sha 7119fc2, 17-jun-2026)
+
+> Primer test FORWARD del gate de selectividad P2 (score top-50% del OOF +
+> killzone líquida). Veredicto: NO hay edge de selección estable out-of-time; el
+> juez OOT atrapó el sobreajuste ANTES de arriesgar capital.
+
+| símbolo | SELECTED OOS exp_R (+maker) | FORWARD [selección] exp_R | edge_vs_all fwd |
+|---|---|---|---|
+| ETH | +0.0283 (maker +0.0431) | **−0.1746** | **−0.081** |
+| SOL | −0.1498 (maker −0.1557) | −0.0071 | +0.108 |
+
+**La selección por score del modelo NO generaliza forward y se CONTRADICE entre
+símbolos:** ETH ayuda OOS / hunde forward; SOL hunde OOS / ayuda forward. Un efecto
+que cambia de signo entre muestra y símbolo = RUIDO, no edge. La calibración
+forward de ETH lo explica: el bin de MENOR score rindió +0.46R y el de mayor +0.34
+→ el orden del modelo se INVIRTIÓ out-of-time (decay / regime drift). (BTC #60 verde,
+mismo set; su FORWARD[selección] no se extrajo, pero ETH↔SOL ya es concluyente.)
+
+**Lo único limpio (pero SIN probar forward):** el gate de retrieval DENSO da
+leakage_ok en ETH (causal +0.066) y SOL (causal +0.091; fired +0.109) y concentra
+expectancy en deciles altos — PERO el forward de arriba usó SCORE DEL MODELO, no el
+retrieval. Quantum inconsistente (BTC +0.012, ETH +0.006, SOL −0.082 NO SUMA).
+
+**Veredicto honesto: HOY no hay edge forward-estable con estos selectores. NO
+desplegar selección/maker en vivo.** El harness hizo su trabajo: atrapó el
+sobreajuste barato (~1.5h en el box) en vez de en capital real.
+
+**Próximo test decisivo (EN CONSTRUCCIÓN):** forward del selector de RETRIEVAL
+(índice desde BEFORE, gateo del AFTER jamás visto). Si tampoco sobrevive → el edge
+durable NO está en el feature set actual → toca señal nueva (order-flow / funding /
+cross-asset). Si sobrevive → primer edge forward-limpio del proyecto.
+
+---
+
 ## 7. Roadmap por fases
 
 ### F0 — Datos BTC + harness de índice causal + **test de leakage** (puerta)
