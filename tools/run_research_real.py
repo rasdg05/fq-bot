@@ -232,37 +232,74 @@ def _exposure_fraction(pooled):
     return min(held / span, 1.0)
 
 
-def _print_execution_frontier(labeled, folds, valid_index, sim_kwargs, ppy):
-    """[2.2/4] Frontera de ejecucion: las MISMAS senales OOS bajo escenarios
-    de fees maker/taker (CostModel.maker_*). Gratis (re-simular, no re-replicar).
+def _print_execution_frontier(labeled, folds, valid_index, sim_kwargs, ppy,
+                              df_primary=None):
+    """[2.2/4] Frontera de ejecucion: las MISMAS senales OOS bajo escenarios de
+    fees maker/taker (CostModel.maker_*). Gratis (re-simular, no re-replicar).
 
-    Es el TECHO: asume fill 100% en la limite (adverse selection no modelada).
-    La captura realista la mide el paper con FQ_GOLD_MAKER_SIM (RETRIEVAL_PLAN
-    §6.10). El stop SIEMPRE taker. Sirve para decidir si vale la pena pagar el
-    fill-model forward, no para declarar victoria.
+    DOS lecturas:
+      - [techo]: maker con fill 100% asumido (adverse selection NO modelada).
+      - [fill-sim] (si hay df_primary): descuenta por el FILL-RATE real simulando
+        la limite de ENTRADA contra las velas con la MISMA regla penetracion>eps
+        que el paper (gold_paper.process_maker_pending / FQ_GOLD_MAKER_SIM, §6.10)
+        y regradua SOLO el subset que se HABRIA llenado; mas el chequeo de adverse
+        selection (¿los FILLED rinden menos que los MISSED?). El stop SIEMPRE taker.
+    El techo decide si vale la pena el fill-model; el [fill-sim] es el numero
+    DEFENDIBLE OOS (la captura forward final la sella el paper).
     """
     from dataclasses import replace
     base_cost = sim_kwargs.get("cost") or eng.CostModel()
-    escenarios = [
-        ("taker/taker (actual)", base_cost),
-        ("entrada maker", replace(base_cost, maker_entry=True)),
-        ("entrada+TP maker", replace(base_cost, maker_entry=True,
-                                     maker_tp_exit=True)),
-    ]
-    print("\n[2.2/4] Frontera de ejecucion (techo maker; fill 100% asumido, "
-          f"maker_fee={base_cost.maker_fee}):")
-    rows = []
-    for name, c in escenarios:
+    pooled = ab.pooled_oos_trades(labeled, folds, valid_index=valid_index)
+    mk = replace(base_cost, maker_entry=True)
+    mktp = replace(base_cost, maker_entry=True, maker_tp_exit=True)
+    nan = float("nan")
+
+    def _exp(trades, cost):
+        if trades is None or len(trades) == 0:
+            return {}
         kw = dict(sim_kwargs)
-        kw["cost"] = c
-        m, n, _eq = _oos_metrics(labeled, folds, valid_index, kw, ppy)
-        rows.append({"escenario": name, "n": n,
-                     "exp_R": m.get("expectancy_r"),
-                     "PF": m.get("profit_factor"),
-                     "total_R": m.get("total_r"),
-                     "maxDD": m.get("max_drawdown")})
+        kw["cost"] = cost
+        res = eng.simulate(trades, **kw)
+        return met.metrics_from_result(res, periods_per_year=ppy,
+                                       exposure=_exposure_fraction(trades))
+
+    def _row(name, trades, cost, fill_pct):
+        m = _exp(trades, cost)
+        return {"escenario": name, "n": (0 if trades is None else len(trades)),
+                "fill%": fill_pct, "exp_R": m.get("expectancy_r", nan),
+                "PF": m.get("profit_factor", nan), "total_R": m.get("total_r", nan),
+                "maxDD": m.get("max_drawdown", nan)}
+
+    rows = [_row("taker/taker (actual)", pooled, base_cost, 100.0),
+            _row("entrada maker [techo]", pooled, mk, 100.0),
+            _row("entrada+TP maker [techo]", pooled, mktp, 100.0)]
+
+    fr = None
+    if df_primary is not None and len(pooled):
+        eps = float(os.environ.get("FQ_GOLD_MAKER_EPS_BPS", "1.0")) / 10_000.0
+        ttl = int(os.environ.get("FQ_GOLD_MAKER_TTL_BARS", "6"))
+        mask = eng.maker_entry_fill_mask(
+            pooled, df_primary["high"].to_numpy(), df_primary["low"].to_numpy(),
+            eps=eps, ttl_bars=ttl)
+        fr = float(mask.mean()) if len(mask) else 0.0
+        filled = pooled[mask]
+        rows.append(_row("entrada maker [fill-sim]", filled, mk, fr * 100.0))
+        rows.append(_row("entrada+TP maker [fill-sim]", filled, mktp, fr * 100.0))
+
+    print(f"\n[2.2/4] Frontera de ejecucion (maker_fee={base_cost.maker_fee}; "
+          "[techo]=fill 100% asumido, [fill-sim]=descontado por fill-rate real):")
     print(pd.DataFrame(rows).to_string(
         index=False, float_format=lambda v: f"{v:8.4f}"))
+    if fr is not None and "pnl_r" in pooled.columns and mask.any() and (~mask).any():
+        rf = float(pooled.loc[mask, "pnl_r"].mean())
+        rm = float(pooled.loc[~mask, "pnl_r"].mean())
+        verdict = ("ADVERSE SELECTION: la limite se queda los flojos -> el "
+                   "[fill-sim] aun es OPTIMISTA" if rf < rm
+                   else "sin adverse selection evidente (alienta el maker)")
+        print(f"  fill-rate={fr:.1%} (eps={eps * 1e4:.1f}bps, ttl={ttl} velas)  "
+              f"R_fill={rf:+.4f} vs R_miss={rm:+.4f}  ->  {verdict}")
+    print("  nota: stop/timeout SIEMPRE taker; el [fill-sim] regradua solo lo que "
+          "la limite habria llenado. La captura forward real la mide el paper.")
 
 
 def _oos_metrics(labeled, folds, valid_index, sim_kwargs, ppy):
@@ -706,7 +743,8 @@ def main():
                   f"n_oos={n_pool} -> {args.metric_out}")
             return
         _dump_equity_curve(base_equity, args)
-        _print_execution_frontier(labeled, folds, valid_index, sim_kwargs, ppy)
+        _print_execution_frontier(labeled, folds, valid_index, sim_kwargs, ppy,
+                                  df_primary=df_primary)
         _print_segments(labeled, folds, valid_index, args)
 
         # --- modelo entrenado sobre walk-forward ---
