@@ -52,6 +52,38 @@ import retrieval_gate as rg
 import segment_veto as sv
 
 
+# [P2] GATE DE SELECTIVIDAD — exclusion ESTRUCTURAL de killzones. Es un PRIOR de
+# liquidez FIJO declarado A PRIORI (operar SOLO dentro de killzones definidas),
+# NO un corte data-minado: "fuera" = ninguna killzone activa, "asia_open" = la
+# ventana mas fina del dia. NO se elige mirando los resultados por segmento; va
+# aqui como constante de modulo justamente para que sea auditable y no toqueteable
+# por el run. La otra mitad de la regla (umbral de score) SI es data-driven pero
+# leakage-clean (OOF para OOS; ventana BEFORE para forward). Ver _select_mask /
+# _print_selectivity_gate y RETRIEVAL_PLAN (palanca P2: "operar solo el subset de
+# alta expectancy").
+SELECT_KILLZONE_EXCLUDE = {"fuera", "asia_open"}
+SELECT_KZ_COL = "field_killzone"
+
+
+def _select_mask(df, scores, score_thr, kz_col=SELECT_KZ_COL):
+    """Mascara del gate de selectividad P2 (bool ndarray alineado a `df`/`scores`):
+
+        seleccionado = (score >= score_thr) AND (killzone es liquida-activa)
+
+    `scores` debe venir YA alineado posicionalmente a `df` (mismo orden de filas);
+    el umbral `score_thr` se deriva FUERA (leakage-clean: OOF para OOS, ventana
+    BEFORE para forward) y aqui solo se APLICA. La pierna de killzone excluye
+    SELECT_KILLZONE_EXCLUDE (prior estructural). Si falta la columna de killzone,
+    la seleccion degrada a SOLO-score (sin la pierna estructural) y el caller avisa.
+    """
+    s = np.asarray(scores, dtype="float64")
+    keep = s >= float(score_thr)
+    if kz_col in df.columns:
+        kz = df[kz_col].astype("object")
+        keep &= ~kz.isin(SELECT_KILLZONE_EXCLUDE).to_numpy()
+    return keep
+
+
 # Stack de TFs por TF primario: (primario, htf_mid, htf_high, sub). El motor
 # trata arg1 de evaluate_signal como el TF de analisis y arg2/3/4 como
 # contexto/sub, asi que cambiar de 15m a 5m es solo re-mapear el stack (no toca
@@ -315,6 +347,131 @@ def _oos_metrics(labeled, folds, valid_index, sim_kwargs, ppy):
     return metrics, len(pooled), res.get("equity_curve")
 
 
+def _print_selectivity_gate(labeled, folds, valid_index, trained, sim_kwargs,
+                            ppy, df_primary, args):
+    """[P2] GATE DE SELECTIVIDAD (OOS) — "operar SOLO el subset de alta expectancy".
+
+    La tesis P2: el edge se concentra en el TOP del score del modelo Y dentro de
+    las killzones liquidas, mientras la media de TODAS las senales es negativa.
+    Aqui se mide ALL vs SELECTED sobre la MISMA cartera OOS pooled, con el umbral
+    de score derivado de forma LEAKAGE-CLEAN:
+
+      umbral = quantile(OOF scores en filas tested, 1 - select_top_pct)
+
+    Los OOF scores (`trained["oof_scores"]`) ya son out-of-sample por construccion
+    (cada fold predice su test con un modelo ajustado SOLO en su train), igual que
+    el percentil de ql.quality_gate. NO se ajusta nada aqui; solo se rebana y mide.
+    La pierna de killzone usa el prior estructural SELECT_KILLZONE_EXCLUDE.
+
+    Para el subset SELECCIONADO ademas se reporta la expectancy maker [fill-sim]
+    (P1) reusando eng.maker_entry_fill_mask EXACTAMENTE como la frontera [2.2/4]
+    -> se ve P1xP2 apilados sobre el libro ya selectivo.
+    """
+    oof = np.asarray(trained.get("oof_scores"), dtype="float64")
+    tested = np.asarray(trained.get("tested_mask"), dtype=bool)
+
+    # ALINEACION score<->trade (critico): `oof`/`tested` viven en el espacio
+    # POSICIONAL de valid = labeled.loc[valid_index].reset_index(drop=True) (0..N-1),
+    # porque train_walk_forward hizo X = valid[...].reset_index(drop=True). La
+    # cartera pooled es base.iloc[test_positions] ordenada por entry_index, con
+    # base IDENTICO (labeled.loc[valid_index].reset_index(drop=True)). Reproducimos
+    # pooled_oos_trades reteniendo la posicion base de cada fila para indexar `oof`
+    # con el MISMO orden -> score y trade quedan emparejados fila a fila.
+    base = labeled.loc[valid_index].reset_index(drop=True)
+    test_positions = (np.unique(np.concatenate([te for _tr, te in folds]))
+                      if folds else np.array([], dtype=int))
+    pooled = base.iloc[test_positions].copy()
+    pooled["_oof_pos"] = test_positions
+    if "entry_index" in pooled.columns:
+        pooled = pooled.sort_values("entry_index")
+    pooled = pooled.reset_index(drop=True)
+    pos = pooled["_oof_pos"].to_numpy()
+    pooled = pooled.drop(columns=["_oof_pos"])
+    scores = oof[pos]
+
+    # Sanidad: las filas pooled deben ser exactamente las 'tested' (con score OOF).
+    finite = np.isfinite(scores)
+    if not finite.all():
+        print(f"  [P2 aviso] {int((~finite).sum())}/{len(scores)} filas pooled sin "
+              "score OOF (no tested); se excluyen de la seleccion")
+    n_total = int(len(pooled))
+    if n_total == 0:
+        print("\n[P2] Gate de selectividad: sin filas OOS pooled; se omite.")
+        return
+
+    # Umbral leakage-clean: top `select_top_pct` del OOF en las filas tested.
+    top_pct = float(getattr(args, "select_top_pct", 0.50))
+    q = max(0.0, min(1.0, 1.0 - top_pct))
+    valid_scores = scores[finite]
+    score_thr = float(np.quantile(valid_scores, q)) if len(valid_scores) else float("nan")
+
+    kz_present = SELECT_KZ_COL in pooled.columns
+    sel = _select_mask(pooled, scores, score_thr) & finite
+    selected = pooled[sel]
+    n_sel = int(len(selected))
+
+    def _exp(trades, cost):
+        if trades is None or len(trades) == 0:
+            return {}
+        kw = dict(sim_kwargs)
+        kw["cost"] = cost
+        res = eng.simulate(trades, **kw)
+        return met.metrics_from_result(res, periods_per_year=ppy,
+                                       exposure=_exposure_fraction(trades))
+
+    base_cost = sim_kwargs.get("cost") or eng.CostModel()
+    nan = float("nan")
+    m_all = _exp(pooled, base_cost)
+    m_sel = _exp(selected, base_cost)
+    rows = [
+        {"subset": "ALL (todas OOS)", "n": n_total,
+         "exp_R": m_all.get("expectancy_r", nan), "WR": m_all.get("win_rate", nan),
+         "PF": m_all.get("profit_factor", nan), "total_R": m_all.get("total_r", nan)},
+        {"subset": "SELECTED (P2)", "n": n_sel,
+         "exp_R": m_sel.get("expectancy_r", nan), "WR": m_sel.get("win_rate", nan),
+         "PF": m_sel.get("profit_factor", nan), "total_R": m_sel.get("total_r", nan)},
+    ]
+
+    print("\n[3.5/4] Gate de selectividad P2 (operar SOLO el subset de alta "
+          "expectancy; OOS):")
+    print("  regla A PRIORI: score >= umbral(top {:.0%} del OOF) Y killzone "
+          "liquida (excluye {}).".format(top_pct, sorted(SELECT_KILLZONE_EXCLUDE)))
+    if not kz_present:
+        print(f"  [aviso] sin columna '{SELECT_KZ_COL}': seleccion = SOLO-score "
+              "(sin la pierna estructural de killzone).")
+    print(pd.DataFrame(rows).to_string(
+        index=False, float_format=lambda v: f"{v:8.4f}"))
+
+    # P1 x P2: expectancy maker [fill-sim] sobre el subset YA selectivo (misma
+    # regla penetracion>eps que la frontera [2.2/4] y gold_paper; stop/timeout taker).
+    if df_primary is not None and n_sel:
+        eps = float(os.environ.get("FQ_GOLD_MAKER_EPS_BPS", "1.0")) / 10_000.0
+        ttl = int(os.environ.get("FQ_GOLD_MAKER_TTL_BARS", "6"))
+        mask = eng.maker_entry_fill_mask(
+            selected, df_primary["high"].to_numpy(), df_primary["low"].to_numpy(),
+            eps=eps, ttl_bars=ttl)
+        fr = float(mask.mean()) if len(mask) else 0.0
+        from dataclasses import replace
+        mk = replace(base_cost, maker_entry=True)
+        m_fill = _exp(selected[mask], mk)
+        print(f"  [P1xP2 fill-sim] entrada maker sobre el SELECCIONADO: "
+              f"fill-rate={fr:.1%} (eps={eps * 1e4:.1f}bps ttl={ttl}) "
+              f"n_filled={int(mask.sum())} exp_R={_f(m_fill.get('expectancy_r'))} "
+              f"PF={_f(m_fill.get('profit_factor'))} (stop/timeout taker)")
+
+    rate = (n_sel / n_total) if n_total else 0.0
+    edge = ((m_sel.get("expectancy_r") - m_all.get("expectancy_r"))
+            if (m_sel.get("expectancy_r") is not None
+                and m_all.get("expectancy_r") is not None) else None)
+    print(f"  knobs: top_pct={top_pct:.2f} (umbral_OOF={_f(score_thr)}) "
+          f"killzone_excluye={sorted(SELECT_KILLZONE_EXCLUDE) if kz_present else 'n/a'} "
+          f"| seleccion={n_sel}/{n_total} ({rate:.1%}) | "
+          f"edge_vs_all={_f(edge)} R/trade")
+    print("  nota OOS limpia: el umbral sale del OOF (out-of-sample por "
+          "construccion) y la killzone es prior estructural; el test SIN FUGA es "
+          "el forward [seleccion] (--out-of-time).")
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--exchange", default="binance")
@@ -456,7 +613,14 @@ def main():
     p.add_argument("--quality-gate", action="store_true",
                    help="aisla el decil/percentil superior del score del modelo y de "
                         "la expectancy del vecindario del retrieval (OOS) y reporta "
-                        "WR/expectancy/total_r/max_dd del subset VIP vs el total")
+                        "WR/expectancy/total_r/max_dd del subset VIP vs el total. "
+                        "Activa TAMBIEN el gate de selectividad P2 (OOS + forward)")
+    p.add_argument("--select-top-pct", type=float, default=0.50,
+                   help="[P2 gate de selectividad] fraccion SUPERIOR del score que se "
+                        "OPERA (0.50 = top 50%% -> umbral = mediana). El umbral se "
+                        "deriva leakage-clean: en OOS del OOF (walk-forward), en "
+                        "forward de la ventana BEFORE; jamas del set evaluado. La "
+                        "killzone se filtra ademas por SELECT_KILLZONE_EXCLUDE.")
     # --- F2: persiste el gate ORO (indice de retrieval + umbral) en una corrida ---
     p.add_argument("--build-index", action="store_true",
                    help="tras el retrieval denso, calibra el umbral oro (top_pct) y "
@@ -464,7 +628,7 @@ def main():
     p.add_argument("--index-out", default=None,
                    help="dir del artefacto del gate (default: retrieval/<ex>/<sym>)")
     p.add_argument("--gold-top-pct", type=float, default=0.05,
-                   help="percentil que define ORO (0.05 = top 5%, lo validado en F1)")
+                   help="percentil que define ORO (0.05 = top 5%%, lo validado en F1)")
     args = p.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -796,6 +960,12 @@ def main():
                       "(OOS):")
                 print(ql.format_gate(gate, title="VIP modelo"))
 
+            # [P2] gate de selectividad OOS (score top-pct AND killzone liquida).
+            # Default-on con --quality-gate (sin input de workflow nuevo).
+            if trained is not None and args.quality_gate:
+                _print_selectivity_gate(labeled, folds, valid_index, trained,
+                                        sim_kwargs, ppy, df_primary, args)
+
         # retrieval sobre las SENALES fired (esparso; complementa al denso)
         if args.retrieval:
             print("\n  -- retrieval sobre senales fired (esparso) --")
@@ -989,7 +1159,7 @@ def _run_out_of_time(labeled, args, sim_kwargs, bar_minutes):
         return
     feat_cols = bf._numeric_feature_columns(labeled)
     try:
-        scored, _ = fw.freeze_predict(before, after, feat_cols, fac)
+        scored, model = fw.freeze_predict(before, after, feat_cols, fac)
     except Exception as e:
         print(f"  (no se pudo congelar el modelo: {e})")
         return
@@ -997,6 +1167,53 @@ def _run_out_of_time(labeled, args, sim_kwargs, bar_minutes):
     if m is not None:
         print("  Métricas FORWARD (net de costes, ventana posterior):")
         print(met.format_report(m))
+
+    # [P2] FORWARD del subset SELECCIONADO — el test SIN FUGA del gate de
+    # selectividad. El umbral de score se deriva EXCLUSIVAMENTE de la ventana
+    # BEFORE (congelada): se puntua BEFORE con el MISMO modelo frozen y se toma el
+    # quantile top-pct de ESOS scores; jamas se mira el 'after'. Ese umbral fijo se
+    # APLICA al 'after' (columna fwd_score, nunca vista) y se cruza con el prior
+    # estructural de killzone. forward_metrics mide el subset resultante.
+    if getattr(args, "quality_gate", False):
+        try:
+            top_pct = float(getattr(args, "select_top_pct", 0.50))
+            q = max(0.0, min(1.0, 1.0 - top_pct))
+            Xb = before[feat_cols].reset_index(drop=True).fillna(0.0)
+            before_scores = fw._predict_scores(model, Xb)   # umbral SOLO del BEFORE
+            bs = np.asarray(before_scores, dtype="float64")
+            bs = bs[np.isfinite(bs)]
+            if len(bs) == 0:
+                raise ValueError("sin scores finitos en la ventana BEFORE")
+            score_thr = float(np.quantile(bs, q))
+            fwd_scores = scored["fwd_score"].to_numpy()
+            kz_present = SELECT_KZ_COL in scored.columns
+            sel = _select_mask(scored, fwd_scores, score_thr)
+            sel_after = scored[sel]
+            n_sel, n_after = int(len(sel_after)), int(len(scored))
+            ms = fw.forward_metrics(sel_after, sim_kwargs=sim_kwargs,
+                                    bar_minutes=bar_minutes)
+            print("\n  FORWARD [selección] P2 (umbral del BEFORE aplicado al after "
+                  "jamás visto + killzone líquida):")
+            print(f"    umbral_score(top {top_pct:.0%} del BEFORE)={_f(score_thr)} "
+                  f"killzone_excluye="
+                  f"{sorted(SELECT_KILLZONE_EXCLUDE) if kz_present else 'n/a (solo-score)'} "
+                  f"| seleccion={n_sel}/{n_after} "
+                  f"({(n_sel / n_after if n_after else 0.0):.1%})")
+            if ms is not None:
+                print(f"    n={ms.get('n_trades')} "
+                      f"expectancy_r={_f(ms.get('expectancy_r'))} "
+                      f"total_return={_f(ms.get('total_return'))} "
+                      f"sharpe={_f(ms.get('sharpe'))} "
+                      f"profit_factor={_f(ms.get('profit_factor'))}")
+                e_all, e_sel = m.get("expectancy_r") if m else None, ms.get("expectancy_r")
+                edge = (e_sel - e_all) if (e_all is not None and e_sel is not None) else None
+                print(f"    >> edge_vs_all_forward={_f(edge)} R/trade  "
+                      "(¿la selección SOBREVIVE out-of-time? este es EL test)")
+            else:
+                print("    (subset forward vacío tras la selección; baja "
+                      "--select-top-pct o mueve el corte)")
+        except Exception as e:
+            print(f"  FORWARD [selección]: no se pudo computar ({e})")
     sc = scored["fwd_score"].to_numpy()
     win = (scored["outcome"] == lb.WIN).astype(float).to_numpy()
     tab, err = fw.calibration_table(sc, win, n_bins=5)
