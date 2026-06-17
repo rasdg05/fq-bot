@@ -20,7 +20,7 @@ Regla de oro de cada etapa:
 
 ## Topología de procesos (hoy)
 
-`launcher.py` arranca 3 procesos hijos en el mismo contenedor (Railway no
+`launcher.py` arranca 4 procesos hijos en el mismo contenedor (Railway no
 comparte volúmenes entre servicios):
 
 - **vip** (`entry_vip.py` → `fq_bot_v3_2.py`): motor de señales, gate QTE,
@@ -28,9 +28,13 @@ comparte volúmenes entre servicios):
 - **public** (`entry_public.py`): bot de marketing. Lee el ledger VIP en
   **read-only** y anuncia cierres, teasers y celebraciones de TP3.
 - **maintenance** (`ops.maintenance`): backups, heartbeat.
+- **web** (`entry_web.py` → `webapp/`): Mini App de Telegram (panel admin + app
+  cliente). Lee ledger y `vip.db` en **read-only**, sirve `$PORT`. Diseñado para
+  **nunca salir** (idle ante cualquier fallo) para no gatillar el restart del
+  container. Off en caliente con `FQ_WEBAPP_ENABLED=0`. Ver `webapp/README.md`.
 
-Comunicación VIP→Public: **solo** vía el archivo SQLite del ledger (RO). Sin
-acoplamiento de código entre procesos.
+Comunicación entre procesos: **solo** vía los archivos SQLite (RO desde public y
+web). Sin acoplamiento de código entre procesos.
 
 ## Mapa de módulos
 

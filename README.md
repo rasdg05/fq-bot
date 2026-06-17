@@ -31,9 +31,11 @@ Variables minimas (ver `.env.example` para la lista completa):
 ## Estructura
 
 ```
-launcher.py            Spawn VIP + publico
+launcher.py            Spawn VIP + publico + web
 entry_vip.py           Bot VIP
 entry_public.py        Bot publico
+entry_web.py           Mini App (Telegram WebApp): panel admin + app cliente
+webapp/                API Flask + SPA de la Mini App (ver webapp/README.md)
 fq_bot_v3_2.py         Loop principal y comandos
 fusion_engine.py       Pipeline de decision
 quantum_timelines.py   Simulacion Monte Carlo

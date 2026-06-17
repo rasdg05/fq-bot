@@ -32,6 +32,10 @@ BOTS = [
     ("vip",         [sys.executable, "-u", "entry_vip.py"]),
     ("public",      [sys.executable, "-u", "entry_public.py"]),
     ("maintenance", [sys.executable, "-u", "-m", "ops.maintenance"]),
+    # Mini App (Telegram WebApp): panel admin + app cliente. Sirve el puerto
+    # $PORT del servicio. Disenado para NUNCA salir (idle ante cualquier fallo),
+    # asi un bug de la web no gatilla el restart del container. Off: FQ_WEBAPP_ENABLED=0.
+    ("web",         [sys.executable, "-u", "entry_web.py"]),
 ]
 
 GRACE_SECONDS = 8       # tiempo para que los hijos atiendan SIGTERM
