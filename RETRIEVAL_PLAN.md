@@ -1006,6 +1006,58 @@ por el fill-rate realizado. Runbook §9.4. Meta: ≥30-50 fills (regla §6.10).
 
 ---
 
+### 6.11 — STEP1 GATED + OOT + FILL-SIM HONESTO (runs #58/#59, sha 57594bf, 17-jun-2026)
+
+> Primer gateado+OOT a densidad MÁXIMA (step1) en Hetzner, con el fill-sim maker
+> honesto (`bt_engine.maker_entry_fill_mask`, misma regla penetración>eps que el
+> paper) ya cableado en la frontera `[2.2/4]`. Cierra la incógnita #1 de §6.10.1.
+
+**Frontera de ejecución BTC (48m, step1, 594 trades OOS):**
+
+| ejecución | exp_R | nota |
+|---|---|---|
+| taker/taker (hoy) | −0.1066 | realidad |
+| entrada+TP maker **[techo]** | +0.0286 | fill 100% (optimista) |
+| entrada+TP maker **[fill-sim]** | **−0.0254** | fill-rate 89% real |
+
+`R_fill=+0.119` vs `R_miss=+0.616` → **ADVERSE SELECTION confirmada**: la límite
+se queda los flojos, los ganadores se escapan sin llenar. **Cierra el caveat #1
+de §6.10.1: el +0.10R era techo; el número honesto NO cruza cero con maker naive.**
+Maker recorta el sangrado (−0.107→−0.025) pero no basta solo.
+
+**OOT forward (BTC, 137 trades nunca vistos, corte 2025-09-01):** exp_R −0.05,
+−7.6% total. NEGATIVO en promedio — PERO el bin superior de score del modelo dio
+**+0.784R** forward (bin2 +0.38). SOL forward peor (−15.7%). El promedio pierde;
+**el tope de la selección gana.**
+
+**Dónde está el edge (todos los lentes coinciden, OOS):**
+- Score del modelo: umbral 0.70 → +0.218R; bin forward top +0.78R.
+- Retrieval denso (gate ORO): decil top-10% **+0.53 edge** (BTC), top-25% +0.38.
+- Killzones: asia_kz +0.57, ny_pm +0.33, ny_am +0.27; `fuera` −0.14, `asia_open` −0.25.
+- Bloque quantum: lift **+0.0123 [SUMA]** AUNQUE `qt_sync_score` está 100% NaN
+  (extractor MUERTO) → arreglarlo es upside gratis.
+
+**TESIS (sello): el edge del motor está en la SELECCIÓN, no en el promedio.** El
+libro all-in es negativo neto de costes; el tope de cada ranking (score, decil de
+retrieval, killzone líquida) es netamente positivo. Ganar la temporada = ser
+selectivos + bajar coste sobre lo seleccionado.
+
+**Planeación (próximos pasos, por puntos esperados):**
+1. **P2 — Gate de selectividad (EN CONSTRUCCIÓN):** disparar solo si
+   `score_modelo ≥ top-quantil` (OOF walk-forward) Y `killzone ∉ {fuera, asia_open}`
+   (prior estructural). Medido OOS + **OOT forward del subset seleccionado** (la
+   vara anti-leakage). Extiende F2.6. Es la palanca que puede cruzar el signo NETO.
+2. **P1b — Maker consciente de adverse selection:** no postear límite pasiva en
+   señales de momentum que se escapan; postear maker solo donde el fill no es
+   adversamente seleccionado. Rescata el hueco −0.107→0 que el maker naive deja.
+3. **Paso 3 — arreglar `qt_sync_score` (100% NaN, extractor muerto):** el bloque
+   quantum ya suma +0.012 con esa feature muerta; repararla = más lift sin coste.
+4. **ETH al mismo harness:** poda #55 dio baseline ungated **−0.0382** (el MENOS
+   negativo de los 3 → mejor candidato a cruzar a positivo con selectividad).
+   Faltan su gated/OOT/maker/segmentos: se añade ETH 48m step1 a la matriz gated_shard.
+
+---
+
 ## 7. Roadmap por fases
 
 ### F0 — Datos BTC + harness de índice causal + **test de leakage** (puerta)

@@ -155,7 +155,7 @@ jobs:
     # no existe en el if de job). En schedule los inputs llegan vacios -> matriz
     # normal completa, sin cambios.
     # SELF-HOSTED: techo 2880 min (48h). Cosecha ~18-22h/simbolo; poda ~horas;
-    # gated_shard ~1h (BTC+SOL step1, replay denso sharded, secuencial por simbolo).
+    # gated_shard ~1.5h (BTC+SOL+ETH step1, replay denso sharded, secuencial por simbolo).
     timeout-minutes: ${{ (github.event.inputs.cosecha == 'true' || github.event.inputs.ablation == 'true' || github.event.inputs.gated_shard == 'true') && 2880 || 350 }}
     strategy:
       fail-fast: false
@@ -178,7 +178,7 @@ jobs:
         || (github.event.inputs.ablation == 'true'
         && '{"include":[{"symbol":"BTC/USDT","months":"48","step":"1"},{"symbol":"SOL/USDT","months":"24","step":"1"}]}'
         || (github.event.inputs.gated_shard == 'true'
-        && '{"include":[{"symbol":"BTC/USDT","months":"48","step":"1"},{"symbol":"SOL/USDT","months":"24","step":"1"}]}'
+        && '{"include":[{"symbol":"BTC/USDT","months":"48","step":"1"},{"symbol":"SOL/USDT","months":"24","step":"1"},{"symbol":"ETH/USDT","months":"48","step":"1"}]}'
         || '{"include":[{"symbol":"BTC/USDT","months":"48","step":"3"},{"symbol":"SOL/USDT","months":"24","step":"2"}]}')))) }}
     env:
       # Defaults benignos para que el monolito importe sin secretos reales.
