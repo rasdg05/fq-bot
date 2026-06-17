@@ -254,6 +254,17 @@ DEFAULT_NUMERIC = [
     "regime_score",
     "field_confluence_count", "field_pd_pct", "field_w_effective",
 ]
+# CROSS-ASSET (BTC -> alt): features lead-lag CAUSALES inyectadas con --cross-asset.
+# Se anexan a DEFAULT_NUMERIC para que el vector de retrieval (denso + gate ORO +
+# gate forward) las ingiera automaticamente cuando esten presentes; cuando NO lo
+# estan, el vectorizer las imputa a 0 (mediana tras centrar) sin romper -- igual
+# que cualquier feature ausente. Misma lista que alimenta el modelo (bt_features.
+# _numeric_feature_columns reconoce el prefijo xbtc_). Single source of truth alli.
+try:
+    from bt_features import XBTC_FEATURE_COLUMNS as _XBTC_FEATURE_COLUMNS
+    DEFAULT_NUMERIC = DEFAULT_NUMERIC + list(_XBTC_FEATURE_COLUMNS)
+except Exception:   # pragma: no cover - bt_features siempre disponible en el bot
+    pass
 # BLOQUE QUANTUM / TIEMPO EMERGENTE (Eje A) — convicción adaptativa, excitación de
 # campo y tiempo complejo. Es el bloque que se ABLACIONA: vector base vs base+qt
 # para medir si los estados cuánticos / fractales de tiempo emergente aportan edge.

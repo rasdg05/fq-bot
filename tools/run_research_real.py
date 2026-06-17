@@ -105,6 +105,25 @@ def _load_tf(exchange, symbol, tf, data_dir):
     return md.add_indicators(df)
 
 
+def _load_cross_ohlcv(exchange, symbol, tf, data_dir):
+    """Carga el OHLCV CRUDO del activo cruzado (lider) al MISMO TF/exchange.
+
+    Reusa bt_data.dataset_path (misma convencion que el primario), pero NO aplica
+    add_indicators: cross_asset_features solo necesita OHLC + timestamp y calcula
+    sus propias ventanas trailing. Si el Parquet NO existe, ERROR CLARO (sys.exit)
+    -- nunca se omite en silencio: el cross-asset es una hipotesis que hay que
+    poder medir o saber por que no se pudo.
+    """
+    path = bt_data.dataset_path(data_dir, exchange, symbol, tf)
+    if not os.path.exists(path):
+        sys.exit(
+            f"--cross-asset {symbol}: falta el dataset {tf} en {path}. "
+            f"Descargalo al MISMO TF/exchange que el primario:\n"
+            f"  python tools/build_dataset.py --symbol {symbol} --timeframe {tf} "
+            f"--market swap --years 2 --exchanges {exchange}")
+    return bt_data.load_parquet(path)
+
+
 def _build_config(monolith, tf_id="15m"):
     """Replica el config que el monolito pasa a evaluate_signal."""
     profile = monolith.TF_PROFILES.get(tf_id, {})
@@ -477,6 +496,14 @@ def main():
     p.add_argument("--exchange", default="binance")
     p.add_argument("--symbol", default="SOL/USDT")
     p.add_argument("--data-dir", default="data")
+    p.add_argument("--cross-asset", default=None,
+                   help="simbolo LIDER cross-asset (p.ej. BTC/USDT) para features "
+                        "lead-lag CAUSALES (xbtc_*) alineadas a cada vela del "
+                        "primario via merge_asof backward (cross_ts<=t, shift 1 "
+                        "vela = conservador). Las xbtc_ entran al modelo [3/4] Y al "
+                        "vector de retrieval. Requiere el Parquet del lider al "
+                        "MISMO TF/exchange (si falta, error claro; NO se omite en "
+                        "silencio). Si == --symbol es no-op con aviso. Default None")
     p.add_argument("--tf-id", default="15m", choices=list(TF_STACK),
                    help="TF primario del motor (5m sube volumen de senales)")
     p.add_argument("--min-lookback", type=int, default=300)
@@ -842,6 +869,40 @@ def main():
         print(f"  estados densos: {n_states} | senales disparadas (fired): {len(events)}")
     if states is not None:
         _print_decision_funnel(states, args)
+
+    # ===== CROSS-ASSET LEAD-LAG (BTC -> alt) — inyeccion CAUSAL =====
+    # Punto unico DESPUES de que las 3 ramas (replay normal, --states-in,
+    # --events-in) converjan en `states`/`events` y ANTES de que algo los consuma
+    # (labeling [3-A], grids/cubo, modelo [3/4], retrieval denso [4/4], OOT,
+    # selectividad). Anexa las columnas xbtc_* por entry_index a `events` y
+    # `states`; `labeled` las HEREDA porque lb.label_events preserva toda clave del
+    # evento (ver bt_labeler.label_events). Causal por construccion: attach ->
+    # cross_asset_features solo lee el cruzado <= la vela de SU entry_index
+    # (merge_asof backward + shift_cross=1); aqui NO se añade ningun merge
+    # forward-looking. df_primary es el MISMO cuyas posiciones indexa entry_index
+    # (mismo que lb.label_events de abajo y que re-deriva entry_index en las ramas
+    # sharded), incluido el recorte por --date-start/--date-end.
+    if args.cross_asset:
+        if args.cross_asset == args.symbol:
+            print(f"\n[cross-asset] --cross-asset == --symbol ({args.symbol}); "
+                  "no-op (un activo no es su propio lider).")
+        else:
+            df_cross = _load_cross_ohlcv(
+                args.exchange, args.cross_asset, prim_tf, args.data_dir)
+            if events is not None and len(events):
+                events = bf.attach_cross_asset_features(events, df_primary, df_cross)
+            if states is not None and len(states):
+                states = bf.attach_cross_asset_features(states, df_primary, df_cross)
+            # cobertura = fraccion non-NaN de xbtc_ret_12 sobre los eventos fired
+            # (la MISMA poblacion que se etiqueta -> labeled). NaN inicial = velas
+            # sin ventana suficiente del cruzado / entry_index fuera de rango.
+            _n_ev = len(events) if events is not None else 0
+            if _n_ev and "xbtc_ret_12" in events.columns:
+                _cov = float(events["xbtc_ret_12"].notna().mean()) * 100.0
+            else:
+                _cov = 0.0
+            print(f"[cross-asset] {args.cross_asset} lider -> {_n_ev} eventos, "
+                  f"xbtc_ cobertura {_cov:.1f}%")
 
     base_metric, n_pool, ppy = None, 0, None
     min_for_wf = args.n_splits * 3
