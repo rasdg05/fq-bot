@@ -473,6 +473,27 @@ jobs:
           fi
           python -c "import pandas as pd; n=pd.read_parquet('$CUBE')['entry_ts'].nunique(); print('cubo OK:', n, 'eventos'); assert n>0, 'cubo sin eventos'"
 
+      - name: Verificar gateado + OOT (rojo honesto si el analisis crasheo)
+        # El step "Research real" tiene continue-on-error -> si el analisis gateado
+        # (run_research_real --states-in) crashea, el job iria VERDE sin forward (le
+        # paso a #57: NameError en la prueba OOT, swallowed). Este gate, SIN
+        # continue-on-error, falla el job si el gateado crasho o si se pidio OOT y NO
+        # hay resultado forward. Solo aplica a gated_shard (no toca los demas paths).
+        if: ${{ env.GATED_SHARD == 'true' && env.DATAONLY != 'true' }}
+        run: |
+          R="research_out/research_real.txt"
+          if grep -q "el analisis gateado fallo" "$R" 2>/dev/null; then
+            echo "::error::el analisis gateado+OOT crasheo (ver research_real.txt)"
+            tail -n 40 "$R" 2>/dev/null || true
+            exit 1
+          fi
+          if [ -n "${OOT}" ] && ! grep -q "OUT-OF-TIME" "$R" 2>/dev/null; then
+            echo "::error::OOT pedido (${OOT}) pero sin resultado forward en el reporte"
+            tail -n 40 "$R" 2>/dev/null || true
+            exit 1
+          fi
+          echo "gateado OK${OOT:+ + forward OUT-OF-TIME ($OOT)}"
+
       - name: Empaquetar reporte
         if: always()
         run: |

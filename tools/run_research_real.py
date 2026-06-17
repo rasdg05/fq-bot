@@ -910,6 +910,26 @@ def _print_vector_ablation(labeled, folds, valid_index, args):
                   f"-> {'el GATE la NECESITA (no decouplear)' if drop > 0 else 'DECOUPLEABLE (no aporta al gate)'}")
 
 
+def _resolve_lgbm_factory():
+    """Factory del modelo (tr.make_lgbm_classifier) para la prueba forward: la
+    devuelve si lightgbm importa Y el classifier construye (requiere scikit-learn /
+    libgomp1); si no, nombra la causa real y devuelve None (el forward se omite sin
+    romper, no crashea). Misma comprobacion que el modelo del walk-forward [3/4]."""
+    try:
+        import lightgbm  # noqa: F401
+    except ImportError:
+        print("  [skip] lightgbm no instalado; omito el modelo forward.")
+        return None
+    try:
+        tr.make_lgbm_classifier()
+    except Exception as e:
+        print("  [WARN] lightgbm importa pero LGBMClassifier no construye:")
+        print(f"         {type(e).__name__}: {e}")
+        print("         Causa habitual: falta scikit-learn (o libgomp1). Forward OMITIDO.")
+        return None
+    return tr.make_lgbm_classifier
+
+
 def _run_out_of_time(labeled, args, sim_kwargs, bar_minutes):
     """[forward] Prueba out-of-time: congela el modelo con lo ANTERIOR al corte y
     evalúa SOLO la ventana posterior (jamás vista) + calibración predicho-vs-
