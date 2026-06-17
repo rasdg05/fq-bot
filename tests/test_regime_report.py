@@ -4,6 +4,7 @@ ganador queda arriba con mayor expectancy. Sin red ni cubo.
 """
 import numpy as np
 import pandas as pd
+import pytest
 
 import bt_engine as eng
 import tools.regime_report as rr
@@ -38,6 +39,7 @@ def test_detect_and_rank():
 
 
 def test_lamina_png(tmp_path):
+    pytest.importorskip("matplotlib")  # lámina opcional: sin el renderer, skip
     df = _labeled_regime(300)
     rep, _ = rr.run(df, sim_kwargs=_no_cost())
     p = tmp_path / "reg.png"

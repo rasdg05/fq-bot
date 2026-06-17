@@ -4,6 +4,7 @@ edge positivo da media OOS>0 con folds mayormente positivos. Sin red ni cubo.
 """
 import numpy as np
 import pandas as pd
+import pytest
 
 import bt_engine as eng
 import tools.walkforward_report as wr
@@ -37,6 +38,7 @@ def test_per_fold_and_summary():
 
 
 def test_lamina_png(tmp_path):
+    pytest.importorskip("matplotlib")  # lámina opcional: sin el renderer, skip
     df = _labeled(300)
     rep, summary = wr.run(df, n_splits=5, embargo=0, sim_kwargs=_no_cost())
     p = tmp_path / "wf.png"

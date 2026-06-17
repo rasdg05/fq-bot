@@ -47,6 +47,7 @@ def test_useful_module_survives_useless_dies():
 
 
 def test_lamina_writes_png(tmp_path):
+    pytest.importorskip("matplotlib")  # lámina opcional: sin el renderer, skip
     df = _labeled(160)
     report, _ = ar.run(df, n_splits=5, embargo=0, sim_kwargs=_no_cost())
     p = tmp_path / "attr.png"
