@@ -82,10 +82,32 @@ python entry_web.py
 pytest tests/test_webapp_auth.py tests/test_webapp_data.py tests/test_webapp_server.py
 ```
 
-## Notificaciones (siguiente fase)
+## Notificaciones
 
-`notify.py` ya provee `send_with_app_button(chat_id, text, view=...)`: un mensaje
-normal del bot con un botón inline `web_app` que abre la Mini App en la vista
-relevante. Falta **cablearlo** a los 4 eventos (nueva señal, TP/SL, salud del
-motor, suscriptor/pago) en los puntos de envío existentes. Se hará con cuidado
-y tests porque toca superficies de cliente en vivo (ver `ARCHITECTURE.md`).
+Las notificaciones son los mensajes normales del bot que **ya existen**, ahora
+con un botón inline **"Abrir app"** (`web_app`) que abre la Mini App en la vista
+relevante. `notify.app_button(view=...)` construye el markup; los puntos de
+envío lo pasan como `reply_markup`.
+
+Eventos cableados:
+
+| Evento | Dónde | Llega a | Abre vista |
+|---|---|---|---|
+| Nueva señal | `fq_bot_v3_2.py` (broadcast de señal) | VIP/trial/admin | `signals` |
+| TP/SL alcanzado | `fq_bot_v3_2.py` (progress + táctico) | VIP/trial/admin | `signals` |
+| Pago confirmado | `fq_bot_v3_2.py` (polling crypto) | admin | `subs` |
+| Salud del motor | `ops/maintenance.py` (watchdog) | admin | `health` |
+
+**Red de seguridad (best practice):** un botón `web_app` exige que el dominio de
+`FQ_WEBAPP_URL` esté dado de alta en BotFather. Si no lo está, Telegram responde
+400 — así que `telegram_send` y `_dm_admin` **reintentan el mismo mensaje sin el
+botón**. Un botón mal configurado nunca bloquea una señal ni una alerta de salud.
+Y sin `FQ_WEBAPP_URL`, `app_button()` devuelve `None`: cero cambios de
+comportamiento (las notificaciones salen como siempre).
+
+Activación: define `FQ_WEBAPP_URL` y registra el dominio en BotFather
+(`/setmenubutton` ya lo hace). Nada más que cablear.
+
+> Nota: "nuevo suscriptor" sin pago (canje de código de regalo) aún no emite DM
+> al admin — no había un punto de envío existente y añadirlo es más invasivo. El
+> evento de **pago confirmado** cubre el caso de dinero. Queda como mejora.

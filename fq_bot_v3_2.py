@@ -88,6 +88,27 @@ except ImportError:
     TACTICAL_TRACKER_AVAILABLE = False
     tactical_tracker = None
 
+# Mini App (Telegram WebApp): boton "Abrir app" en notificaciones. Opcional y
+# degradado seguro: si webapp/FQ_WEBAPP_URL no estan, las notificaciones salen
+# igual pero sin boton. notify.py solo importa requests (no flask).
+try:
+    from webapp import notify as webapp_notify
+    WEBAPP_NOTIFY_AVAILABLE = True
+except Exception:
+    WEBAPP_NOTIFY_AVAILABLE = False
+    webapp_notify = None
+
+
+def _app_button(view=None):
+    """Markup inline con boton 'Abrir app' (deep-link a una vista) o None.
+    Best-effort: nunca lanza; sin FQ_WEBAPP_URL devuelve None (sin boton)."""
+    if not WEBAPP_NOTIFY_AVAILABLE or webapp_notify is None:
+        return None
+    try:
+        return webapp_notify.app_button(view=view)
+    except Exception:
+        return None
+
 # Modulos FQ v4.1.1 (ICT/SMC Refactor) - cargan solo si flag ON
 try:
     import ict_smc
@@ -487,7 +508,7 @@ def _strip_html_tags(s):
     return re.sub(r"</?[a-zA-Z][^>]*>", "", s)
 
 
-def telegram_send(text, chat_id=None):
+def telegram_send(text, chat_id=None, reply_markup=None):
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
         log.error("Missing TELEGRAM_TOKEN or TELEGRAM_CHAT_ID")
         return False
@@ -509,9 +530,20 @@ def telegram_send(text, chat_id=None):
         "parse_mode": "HTML",
         "disable_web_page_preview": True,
     }
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
     r = _post(payload)
     if r is not None and r.status_code == 200:
         return True
+
+    # Si el boton inline esta mal configurado (dominio no dado de alta en
+    # BotFather), Telegram responde 400. El boton NUNCA debe bloquear la entrega:
+    # reintentar el mismo mensaje sin reply_markup.
+    if reply_markup and r is not None and r.status_code == 400:
+        payload.pop("reply_markup", None)
+        r = _post(payload)
+        if r is not None and r.status_code == 200:
+            return True
 
     # Si fallo por parse de HTML (400 con can't parse entities),
     # reintentar SIN parse_mode para que Telegram lo trate como texto plano.
@@ -534,7 +566,7 @@ def telegram_send(text, chat_id=None):
         log.warning("Telegram send failed {}: {}".format(r.status_code, r.text[:200]))
     return False
 
-def broadcast_to_subscribers(text, include_admin=True, tiers=None):
+def broadcast_to_subscribers(text, include_admin=True, tiers=None, reply_markup=None):
     """
     MISTRAL: Envia un mensaje (tipicamente una senal o anuncio operativo)
     a todos los usuarios con suscripcion activa: VIP, TRIAL, ADMIN.
@@ -574,7 +606,7 @@ def broadcast_to_subscribers(text, include_admin=True, tiers=None):
     # Fallback: si VIP no esta cargado, solo manda al admin
     if not VIP_ENABLED or vip is None:
         if include_admin and TELEGRAM_CHAT_ID:
-            ok = telegram_send(text, TELEGRAM_CHAT_ID)
+            ok = telegram_send(text, TELEGRAM_CHAT_ID, reply_markup=reply_markup)
             return (1 if ok else 0, 0 if ok else 1)
         return (0, 0)
 
@@ -591,7 +623,7 @@ def broadcast_to_subscribers(text, include_admin=True, tiers=None):
         # Asegurar que el admin original siempre reciba (si no esta en BD aun)
         if include_admin and TELEGRAM_CHAT_ID:
             seen.add(str(TELEGRAM_CHAT_ID))
-            ok = telegram_send(text, TELEGRAM_CHAT_ID)
+            ok = telegram_send(text, TELEGRAM_CHAT_ID, reply_markup=reply_markup)
             if ok:
                 sent += 1
             else:
@@ -610,7 +642,7 @@ def broadcast_to_subscribers(text, include_admin=True, tiers=None):
                 pass
             seen.add(cid)
             try:
-                ok = telegram_send(text, cid)
+                ok = telegram_send(text, cid, reply_markup=reply_markup)
                 if ok:
                     sent += 1
                 else:
@@ -626,7 +658,7 @@ def broadcast_to_subscribers(text, include_admin=True, tiers=None):
         log.error("broadcast_to_subscribers fatal: {}".format(e))
         # Fallback final al admin
         if include_admin and TELEGRAM_CHAT_ID:
-            telegram_send(text, TELEGRAM_CHAT_ID)
+            telegram_send(text, TELEGRAM_CHAT_ID, reply_markup=reply_markup)
         return (sent, failed)
 
 def telegram_get_updates(offset, timeout=25):
@@ -2512,7 +2544,7 @@ def evaluate_setup(exchange, tf_id="15m", intra=False):
                                    "p_master": p_master, "session": session}
     msg = build_signal_msg(direction, levels, decoh, masses, session, w_clock, p_master, lap, intra)
     # MISTRAL: broadcast a todos los VIP/trial/admin activos
-    bsent, bfailed = broadcast_to_subscribers(msg)
+    bsent, bfailed = broadcast_to_subscribers(msg, reply_markup=_app_button("signals"))
     if bsent > 0:
         log.info("SIGNAL SENT: {} P_master={:.2f} W={:.2f} intra={} | broadcast sent={} failed={}".format(
             direction.upper(), p_master, w_clock, intra, bsent, bfailed))
@@ -4731,7 +4763,8 @@ def evolution_periodic_hook(exchange):
                                 msg = spt.build_progress_alert(sig, kind, price)
                                 event_tiers = ["vip", "admin"]
                             try:
-                                broadcast_to_subscribers(msg, tiers=event_tiers)
+                                broadcast_to_subscribers(msg, tiers=event_tiers,
+                                                         reply_markup=_app_button("signals"))
                             except Exception as be:
                                 log.error("progress broadcast error: {}".format(be))
                 except Exception as e:
@@ -4750,7 +4783,8 @@ def evolution_periodic_hook(exchange):
                     msg = spt.build_progress_alert(display, kind, price,
                                                    label=tactical_tracker.LABEL)
                     try:
-                        broadcast_to_subscribers(msg, tiers=["vip", "trial", "admin"])
+                        broadcast_to_subscribers(msg, tiers=["vip", "trial", "admin"],
+                                                 reply_markup=_app_button("signals"))
                     except Exception as be:
                         log.error("tactical progress broadcast error: {}".format(be))
             except Exception as e:
@@ -5045,7 +5079,8 @@ def main():
                         telegram_send(
                             "<b>Pago crypto confirmado</b>\n"
                             "Payment #{} verificado on-chain.\n"
-                            "Suscripcion VIP activada.".format(pid))
+                            "Suscripcion VIP activada.".format(pid),
+                            reply_markup=_app_button("subs"))
                 except Exception as e:
                     log.warning("Crypto polling error: {}".format(e))
 

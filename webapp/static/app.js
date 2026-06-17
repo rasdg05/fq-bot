@@ -110,9 +110,22 @@ async function boot() {
   }
   renderWho();
   renderTabs();
-  const start = (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) || location.hash.slice(1);
-  const wanted = tabs().find((t) => t.id === start);
+  const wanted = tabs().find((t) => t.id === wantedView());
   select(wanted ? wanted.id : tabs()[0].id);
+}
+
+// Vista pedida por deep-link. Un boton web_app abre la URL directa, asi que el
+// destino llega por location.search (?startapp=); los deep-links t.me lo dan en
+// start_param; el hash cubre la navegacion interna.
+function wantedView() {
+  if (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) return tg.initDataUnsafe.start_param;
+  try {
+    const q = new URLSearchParams(location.search);
+    if (q.get("startapp")) return q.get("startapp");
+    if (q.get("view")) return q.get("view");
+  } catch (e) {}
+  if (location.hash) return location.hash.slice(1);
+  return null;
 }
 
 function fail(e) {
