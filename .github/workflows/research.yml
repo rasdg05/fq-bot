@@ -421,6 +421,29 @@ jobs:
             NSHARDS=$(nproc)
             OOTARG=""
             [ -n "${OOT}" ] && OOTARG="--out-of-time ${OOT}"
+            # CROSS-ASSET (BTC -> alt): para los ALTS (SOL/ETH) inyectamos las
+            # features lead-lag CAUSALES del LIDER BTC/USDT (xbtc_*) en el analisis
+            # gateado, para MEDIRLAS OOT. BTC se autosalta (--cross-asset==symbol es
+            # no-op). El lider se inyecta SOLO en el analisis sobre el merge
+            # (gated_shard pasa --cross-asset a _gated_cmd, no a los shards). El
+            # leader DEBE existir al TF primario y cubrir la ventana del alt (mismos
+            # meses) o merge_asof no tiene cobertura -> lo bajamos si falta.
+            LEADER="BTC/USDT"
+            XARG=""
+            if [ "$(echo "${SYM}" | cut -d/ -f1)" != "BTC" ]; then
+              LP=$(python -c "import bt_data; print(bt_data.dataset_path('data', '${EX}', '${LEADER}', '${TFID}'))")
+              if [ ! -f "${LP}" ]; then
+                echo "== cross-asset: bajo lider ${LEADER} ${TFID} (${MONTHS} meses, ${EX}) para ${SYM} ==" \
+                  | tee -a research_out/research_real.txt
+                python tools/build_dataset.py --symbol "${LEADER}" --timeframe "${TFID}" \
+                  --market swap --years "$(python -c "print(round(${MONTHS}/12.0,4))")" \
+                  --exchanges "${EX}" 2>&1 | tee -a research_out/research_real.txt
+              else
+                echo "== cross-asset: cache hit lider ${LEADER} ${TFID}: ${LP} ==" \
+                  | tee -a research_out/research_real.txt
+              fi
+              XARG="--cross-asset ${LEADER}"
+            fi
             echo "== GATEADO SHARDED ${SYM}: verify de correctitud (1 vs 2 shards) ==" \
               | tee research_out/research_real.txt
             if python tools/gated_shard.py --exchange "${EX}" --symbol "${SYM}" \
@@ -438,7 +461,7 @@ jobs:
                 --horizon-sweep "${HSWEEP}" --dense-horizon "${DHORIZON}" \
                 --target-level "${TARGETLVL}" \
                 --shards "${NSHARDS}" --workers "${NSHARDS}" \
-                --out "research_out/gated_${SLUG}.txt" ${OOTARG} \
+                --out "research_out/gated_${SLUG}.txt" ${OOTARG} ${XARG} \
                 2>&1 | tee -a research_out/research_real.txt
             else
               echo "== VERIFY FALLO: el sharding no reproduce el gateado -> NO corro la grande ==" \

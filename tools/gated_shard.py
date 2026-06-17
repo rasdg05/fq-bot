@@ -128,6 +128,13 @@ def _gated_cmd(args, states_path):
            "--tp-sl-grid", "--quality-gate", "--vector-ablation"]
     if args.out_of_time:
         cmd += ["--out-of-time", args.out_of_time]
+    # CROSS-ASSET: el lider (p.ej. BTC/USDT) se inyecta SOLO en el analisis sobre
+    # el merge (--states-in). run_research_real anexa las xbtc_* DESPUES de cargar
+    # los estados; los shards (--states-out) retornan ANTES de esa inyeccion, por
+    # eso NO lo lleva _shard_cmd (los estados densos se replayean crudos y el
+    # cross-asset entra una sola vez aqui, sobre el merge global).
+    if args.cross_asset:
+        cmd += ["--cross-asset", args.cross_asset]
     return cmd
 
 
@@ -214,6 +221,11 @@ def main(argv=None):
                    help="velas forward para el label de retorno en ATR (denso)")
     p.add_argument("--out-of-time", default=None,
                    help="fecha de corte (p.ej. 2025-06-01) para la prueba forward")
+    p.add_argument("--cross-asset", default=None,
+                   help="simbolo LIDER cross-asset (p.ej. BTC/USDT) -> features "
+                        "lead-lag CAUSALES (xbtc_*). Se pasa SOLO al analisis "
+                        "--states-in (run_research_real inyecta tras cargar el "
+                        "merge); los shards --states-out van crudos.")
     p.add_argument("--date-start", default=None)
     p.add_argument("--date-end", default=None)
     p.add_argument("--out", default="research_out/research_real.txt",
