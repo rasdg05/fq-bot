@@ -1,6 +1,6 @@
 {
-  "_comment": "Plan de campana para la Marketing API. Editable. Presupuesto en MXN/dia. Los videos referencian archivos en marketing/out/ (renderizados). Todo se crea PAUSED.",
-  "campaignName": "FQ · Reels · test de ganador",
+  "_comment": "Plan de campana (Marketing API). 4 ganchos x 2 encuadres para A/B test. Presupuesto en MXN/dia. Videos en marketing/out/ (corre npm run render:all). Todo se crea PAUSED. Copy orientado a comunidad/atencion, sin promesas de ganancias.",
+  "campaignName": "FQ · Reels · test de ganchos",
   "objective": "OUTCOME_TRAFFIC",
   "dailyBudgetMXN": 150,
   "geo": {
@@ -16,30 +16,19 @@
     {"key": "bot", "name": "AS · Telegram (bot)", "link": "https://t.me/TU_BOT?start=ads", "cta": "LEARN_MORE"},
     {"key": "ig", "name": "AS · Instagram / Linkme", "link": "https://linkme.bio/TU_USUARIO", "cta": "LEARN_MORE"}
   ],
+  "_copy": {
+    "primaryText": "Trading con sistema, no con ego. Fibonacci Cuantico te manda la senal: entrada, stop y target. Unete a la comunidad. No es asesoria financiera.",
+    "headline": "Fibonacci Cuantico",
+    "description": "Comunidad de trading con sistema."
+  },
   "ads": [
-    {
-      "id": "a1-no-al-ruido",
-      "adSet": "bot",
-      "video": "out/a1-no-al-ruido.mp4",
-      "primaryText": "El 90% de las senales son ruido. FQ solo habla cuando hay ventaja en SOL/USDT. Mira el proceso.",
-      "headline": "FQ · Mesa de liquidez",
-      "description": "Disciplina sistematica. No es asesoria financiera."
-    },
-    {
-      "id": "a1b-no-ruido-hook2",
-      "adSet": "bot",
-      "video": "out/a1b-no-ruido-hook2.mp4",
-      "primaryText": "Deja de operar a ciegas. Estructura, zona e invalidacion claras en cada senal.",
-      "headline": "FQ · SOL/USDT",
-      "description": "Disciplina sistematica. No es asesoria financiera."
-    },
-    {
-      "id": "a4-hub-linkme",
-      "adSet": "ig",
-      "video": "out/a4-hub-linkme.mp4",
-      "primaryText": "Canal, Instagram y YouTube en un solo lugar. Entra al ecosistema FQ.",
-      "headline": "Todo FQ en un link",
-      "description": "Sigueme y mira el proceso completo."
-    }
+    {"id": "g1-auto-cover", "adSet": "bot", "video": "out/g1-auto-cover.mp4", "primaryText": "El mercado no te robo: operaste sin sistema. Fibonacci Cuantico es el sistema. Unete a la comunidad. No es asesoria financiera.", "headline": "Fibonacci Cuantico", "description": "Trading con sistema, no con ego."},
+    {"id": "g1-auto-banda", "adSet": "bot", "video": "out/g1-auto-banda.mp4", "primaryText": "El mercado no te robo: operaste sin sistema. Fibonacci Cuantico es el sistema. Unete a la comunidad. No es asesoria financiera.", "headline": "Fibonacci Cuantico", "description": "Trading con sistema, no con ego."},
+    {"id": "g2-pierde-cover", "adSet": "ig", "video": "out/g2-pierde-cover.mp4", "primaryText": "La mayoria pierde por no tener un sistema. Mira el proceso completo y unete a la comunidad. No es asesoria financiera.", "headline": "Fibonacci Cuantico", "description": "Trading con sistema, no con ego."},
+    {"id": "g2-pierde-banda", "adSet": "ig", "video": "out/g2-pierde-banda.mp4", "primaryText": "La mayoria pierde por no tener un sistema. Mira el proceso completo y unete a la comunidad. No es asesoria financiera.", "headline": "Fibonacci Cuantico", "description": "Trading con sistema, no con ego."},
+    {"id": "g3-roto-cover", "adSet": "ig", "video": "out/g3-roto-cover.mp4", "primaryText": "Llevas anios y sigues igual. No es mala suerte: es operar sin metodo. Unete a la comunidad. No es asesoria financiera.", "headline": "Fibonacci Cuantico", "description": "Trading con sistema, no con ego."},
+    {"id": "g3-roto-banda", "adSet": "ig", "video": "out/g3-roto-banda.mp4", "primaryText": "Llevas anios y sigues igual. No es mala suerte: es operar sin metodo. Unete a la comunidad. No es asesoria financiera.", "headline": "Fibonacci Cuantico", "description": "Trading con sistema, no con ego."},
+    {"id": "g4-producto-cover", "adSet": "bot", "video": "out/g4-producto-cover.mp4", "primaryText": "Un bot que te da entrada, stop y target. Cero emocion, pura estructura. Unete a la comunidad. No es asesoria financiera.", "headline": "Fibonacci Cuantico", "description": "Trading con sistema, no con ego."},
+    {"id": "g4-producto-banda", "adSet": "bot", "video": "out/g4-producto-banda.mp4", "primaryText": "Un bot que te da entrada, stop y target. Cero emocion, pura estructura. Unete a la comunidad. No es asesoria financiera.", "headline": "Fibonacci Cuantico", "description": "Trading con sistema, no con ego."}
   ]
 }

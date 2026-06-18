@@ -95,4 +95,26 @@ export const ADS: Ad[] = [
       cta('both'),
     ],
   },
+  {
+    id: 'g3-roto',
+    title: 'Gancho C · "sigues igual de roto" (CTA bot + IG)',
+    scenes: [
+      intro,
+      // IMG_1844: "llevas anios haciendo trading y sigues igual de roto"
+      hook('IMG_1844', 3.0, 7.0, 'Llevas años y sigues igual de roto.'),
+      ...BODY,
+      cta('both'),
+    ],
+  },
+  {
+    id: 'g4-producto',
+    title: 'Gancho D · producto directo (CTA bot)',
+    scenes: [
+      intro,
+      // IMG_1851: "esto es Fibonacci cuantico un bot preciso... entrada, stop, target"
+      hook('IMG_1851', 0.0, 4.0, 'Un bot que te da entrada, stop y target.'),
+      ...BODY,
+      cta('bot'),
+    ],
+  },
 ];
