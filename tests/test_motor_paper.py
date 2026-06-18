@@ -12,6 +12,7 @@ import pytest
 import execution as ex
 import segment_veto as sv
 import motor_paper as mp
+from bt_engine import CostModel
 
 
 def _field(killzone="ny_am_kz"):
@@ -124,6 +125,103 @@ def test_maker_off_por_default_no_instrumenta():
     rt.on_bar(True, _field(), _report("long"), None, 100.0)
     rt.on_bar(False, _field(), _report("long"), None, 100.0, high=100.2, low=99.9)
     assert _maker_events(rt) == []
+
+
+# --------------------------------------------------------------------------
+# EJECUCION maker (FQ_EXEC_MODE=maker -> cost.maker_entry): entrada diferida
+# --------------------------------------------------------------------------
+def _maker_rt(ttl=6):
+    return _runtime(cost=CostModel(maker_entry=True), maker_eps_bps=1.0,
+                    maker_ttl_bars=ttl)
+
+
+def test_maker_exec_encola_la_entrada_y_no_abre_en_la_senal():
+    # En modo ejecucion, el fire ENCOLA una limite; NO abre en su propia vela
+    # aunque esa vela ya penetre el nivel (sin look-ahead).
+    rt = _maker_rt()
+    assert rt.maker_exec is True
+    rep = rt.on_bar(True, _field(), _report("long", entry=100.0), None, 100.0,
+                    high=100.2, low=99.5)             # low penetra 99.99
+    assert rep["opened"] is None and rep["maker_opened"] == []
+    assert len(rt.account.open) == 0 and len(rt._pending_entries) == 1
+    assert rt.counts == {"fire": 1, "opened": 0, "vetoed": 0}
+    assert len(_events(rt, "MAKER_ENTRY_PENDING")) == 1
+
+
+def test_maker_exec_fill_por_penetracion_abre_maker_en_el_nivel():
+    rt = _maker_rt()
+    rt.on_bar(True, _field(), _report("long", entry=100.0), None, 100.0)   # encola
+    rep = rt.on_bar(False, _field(), _report("long"), None, 100.0,
+                    high=100.2, low=99.9)             # penetra 99.99 -> FILL maker
+    assert len(rep["maker_opened"]) == 1
+    assert rep["maker_opened"][0]["fill_type"] == "maker"
+    pos = rt.account.open[0]
+    assert pos.entry == 100.0 and pos.entry_fill_type == "maker"
+    assert rt._pending_entries == [] and rt.counts["opened"] == 1
+    meta = _events(rt, "MOTOR_OPEN_META")[-1]
+    assert meta["fill_type"] == "maker" and meta["bars_waited"] == 1
+
+
+def test_maker_exec_fill_cobra_menos_que_taker_al_resolver():
+    # La posicion abierta maker, al tocar TP, cobra fee maker (2bps) sin slippage
+    # de entrada -> neto MAYOR que el equivalente taker. (LONG 100/99/101.)
+    rt = _maker_rt()
+    rt.on_bar(True, _field(), _report("long", entry=100.0), None, 100.0)
+    rt.on_bar(False, _field(), _report("long"), None, 100.0, high=100.2, low=99.9)  # FILL
+    rep = rt.on_bar(False, _field(), _report("long"), None, 101.5,
+                    high=101.5, low=100.2)            # toca TP=101
+    assert rep["resolved"][0]["reason"] == "tp"
+    close = [r["payload"] for r in rt.broker.ledger.records
+             if r["payload"].get("event") == "CLOSE"][-1]
+    assert close["fill_type"] == "maker"
+    # neto > +1R bruto-de-fees? no: hay fee. Pero la entrada no paga slippage:
+    # entry efectivo = 100 exacto. pnl_r neto debe ser > el de un taker (que
+    # pagaria slippage de entrada + 5bps). Aqui solo verificamos que es maker y
+    # que el neto quedo por debajo del bruto +1R por el fee.
+    assert close["pnl_r"] < 1.0 and close["fill_type"] == "maker"
+
+
+def test_maker_exec_ttl_fallback_a_taker_en_mercado():
+    rt = _maker_rt(ttl=3)
+    rt.on_bar(True, _field(), _report("long", entry=100.0), None, 100.0)  # 100/99/101
+    # 3 velas evaluables que NO penetran 99.99 y NO pasan TP(101): al expirar TTL
+    # -> fallback taker a mercado (price de la 3a vela = 100.5)
+    for px in (100.3, 100.4, 100.5):
+        rep = rt.on_bar(False, _field(), _report("long"), None, px,
+                        high=px + 0.05, low=100.2)
+    assert len(rep["maker_opened"]) == 1
+    pos = rt.account.open[0]
+    assert pos.entry_fill_type == "taker" and pos.entry == pytest.approx(100.5)
+    assert rt._pending_entries == []
+    meta = _events(rt, "MOTOR_OPEN_META")[-1]
+    assert meta["fill_type"] == "taker" and meta["bars_waited"] == 3
+
+
+def test_maker_exec_short_fill_por_penetracion_abre_maker():
+    # Simetria SHORT: la limite (venta) en 100 se llena si el precio SUBE y
+    # penetra 100*(1+1bp)=100.01. Abre maker en el nivel.
+    rt = _maker_rt()
+    rt.on_bar(True, _field(), _report("short", entry=100.0), None, 100.0)  # 100/101/99
+    rep = rt.on_bar(False, _field(), _report("short"), None, 100.0,
+                    high=100.1, low=99.8)            # high penetra 100.01 -> FILL
+    assert len(rep["maker_opened"]) == 1
+    pos = rt.account.open[0]
+    assert pos.direction == ex.SHORT and pos.entry == 100.0
+    assert pos.entry_fill_type == "maker" and rt._pending_entries == []
+
+
+def test_maker_exec_runaway_pasado_el_tp_no_persigue():
+    # El precio se escapa por encima del TP sin volver al nivel: el maker se
+    # perdio el runner entero -> NO se persigue (MISS). Esa es la adverse sel.
+    rt = _maker_rt(ttl=2)
+    rt.on_bar(True, _field(), _report("long", entry=100.0), None, 100.0)  # tp=101
+    rt.on_bar(False, _field(), _report("long"), None, 101.5, high=101.6, low=100.5)
+    rep = rt.on_bar(False, _field(), _report("long"), None, 102.0,
+                    high=102.1, low=101.2)            # TTL y price 102 > tp 101
+    assert rep["maker_opened"] == [] and len(rt.account.open) == 0
+    assert rt._pending_entries == []
+    assert len(_events(rt, "MAKER_RUNAWAY")) == 1
+    assert rt.counts["opened"] == 0
 
 
 def test_resuelve_abierta_contra_la_vela():

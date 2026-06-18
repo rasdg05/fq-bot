@@ -49,6 +49,9 @@ class Position:
     size: float             # unidades del subyacente
     risk_frac: float        # fracción del equity arriesgada al stop
     pid: int = 0
+    entry_fill_type: str = None   # 'maker'|'taker' por-trade (lo fija el ejecutor
+                                  # maker); None -> _settle usa el flag global del
+                                  # cost model. No afecta el sizing.
 
     @property
     def risk_dist(self):
@@ -267,7 +270,13 @@ class PaperBroker:
         if c is None:
             return pos.direction * (exit_price - pos.entry) * pos.size, 0.0, "taker"
         d = pos.direction
-        entry_maker = bool(getattr(c, "maker_entry", False))
+        # Tipo de fill de la ENTRADA: lo fija el ejecutor maker por-trade
+        # (pos.entry_fill_type: 'maker' si la limite penetro, 'taker' si fallback a
+        # mercado). Si no se fijo (modo taker puro / construccion directa) -> flag
+        # global del cost model.
+        ft = pos.entry_fill_type
+        entry_maker = (ft == "maker") if ft is not None \
+            else bool(getattr(c, "maker_entry", False))
         exit_maker = bool(getattr(c, "maker_tp_exit", False)) and reason == "tp"
         eff_entry = pos.entry if entry_maker else pos.entry * (1 + d * c.slippage_frac)
         eff_exit = exit_price if exit_maker else exit_price * (1 - d * c.slippage_frac)

@@ -82,6 +82,12 @@ class MotorPaperRuntime:
         self.maker_eps = float(maker_eps_bps) / 10_000.0
         self.maker_ttl_bars = int(maker_ttl_bars)
         self._maker_pending = []
+        # EJECUCION maker (FQ_EXEC_MODE=maker -> cost.maker_entry): en vez de abrir
+        # taker al instante, encola una limite en el nivel y la abre al PENETRAR
+        # (maker) o, si expira el TTL, a mercado (fallback taker). Deriva del cost
+        # del broker -> 0 cambio cuando no hay maker (todos los tests actuales).
+        self.maker_exec = bool(getattr(self.broker.cost, "maker_entry", False))
+        self._pending_entries = []
 
     @classmethod
     def from_env(cls, symbol, *, notify_fn=None, ledger_path=None):
@@ -148,12 +154,21 @@ class MotorPaperRuntime:
         #    shadow maker contra ESTA vela (antes de abrir: una limite no se
         #    llena en su vela 0).
         resolved = []
+        maker_opened = []
         if high is not None and low is not None:
             for pos in list(self.account.open):
                 out = self.broker.resolve_on_bar(self.account, pos, high, low, ts=ts)
                 if out is not None:
                     resolved.append({"pid": pos.pid, **out})
-            if self.maker_sim and self._maker_pending:
+            # EJECUCION maker: abrir las entradas pendientes que penetraron (maker)
+            # o expiraron el TTL (fallback taker). DESPUES de resolver -> la nueva
+            # no se resuelve en su propia vela (sin look-ahead). SHADOW solo si NO
+            # hay ejecucion (mide sin tocar posiciones = comportamiento historico).
+            if self.maker_exec:
+                if self._pending_entries:
+                    maker_opened = self._process_pending_entries(
+                        high, low, price, ts=ts, tf_id=tf_id)
+            elif self.maker_sim and self._maker_pending:
                 self._maker_pending = gold_paper.process_maker_pending(
                     self._maker_pending, self.broker.ledger, high, low, ts,
                     eps=self.maker_eps, ttl_bars=self.maker_ttl_bars)
@@ -176,29 +191,111 @@ class MotorPaperRuntime:
                     d = self.governor.decide(self.account,
                                              requested_risk=self.requested_risk)
                     if d["approved"]:
-                        pos = self.broker.open(self.account, sig, d["risk_frac"], ts=ts)
-                        self.counts["opened"] += 1
-                        opened = {"pid": pos.pid, "killzone": kz, "tf": tf_id,
-                                  "risk_frac": d["risk_frac"], **sig}
-                        # provenance: liga el pid con killzone/tf para segmentar
-                        # el ledger forward (base vs +veto, por killzone/tf).
-                        self.broker.ledger.append({
-                            "event": "MOTOR_OPEN_META", "ts": ts, "pid": pos.pid,
-                            "tf": tf_id, "killzone": kz})
-                        if self.maker_sim:
-                            self._maker_pending.append({
-                                "pid": pos.pid, "direction": pos.direction,
-                                "limit": pos.entry, "waited": 0})
-                        if self.notify_fn is not None:
-                            try:
-                                self.notify_fn(sig, {"killzone": kz, "tf": tf_id}, pos)
-                            except Exception as e:
-                                log.warning("[motor] notify_fn: %s", e)
+                        if self.maker_exec:
+                            # encola una limite en el nivel; se abre al PENETRAR
+                            # (maker) o, si expira el TTL, a mercado (fallback taker)
+                            # en las velas siguientes (no en esta).
+                            self._pending_entries.append({
+                                "sig": sig, "risk_frac": d["risk_frac"],
+                                "killzone": kz, "tf": tf_id, "waited": 0})
+                            self.broker.ledger.append({
+                                "event": "MAKER_ENTRY_PENDING", "ts": ts, "tf": tf_id,
+                                "killzone": kz, "limit": sig["entry"],
+                                "direction": sig["direction"]})
+                        else:
+                            pos = self.broker.open(self.account, sig, d["risk_frac"], ts=ts)
+                            self.counts["opened"] += 1
+                            opened = {"pid": pos.pid, "killzone": kz, "tf": tf_id,
+                                      "risk_frac": d["risk_frac"], **sig}
+                            # provenance: liga el pid con killzone/tf para segmentar
+                            # el ledger forward (base vs +veto, por killzone/tf).
+                            self.broker.ledger.append({
+                                "event": "MOTOR_OPEN_META", "ts": ts, "pid": pos.pid,
+                                "tf": tf_id, "killzone": kz})
+                            if self.maker_sim:
+                                self._maker_pending.append({
+                                    "pid": pos.pid, "direction": pos.direction,
+                                    "limit": pos.entry, "waited": 0})
+                            if self.notify_fn is not None:
+                                try:
+                                    self.notify_fn(sig, {"killzone": kz, "tf": tf_id}, pos)
+                                except Exception as e:
+                                    log.warning("[motor] notify_fn: %s", e)
                     else:
                         log.info("[motor] fire rechazado por gobernador: %s",
                                  d.get("reason"))
         self._maybe_digest()
-        return {"fire": bool(fire), "opened": opened, "resolved": resolved}
+        return {"fire": bool(fire), "opened": opened, "resolved": resolved,
+                "maker_opened": maker_opened}
+
+    def _process_pending_entries(self, high, low, price, *, ts=None, tf_id=None):
+        """EJECUCION maker (FQ_EXEC_MODE=maker). Por cada entrada pendiente, una
+        limite en sig['entry'] (= nivel de la senal), evaluada desde la vela
+        SIGUIENTE a la del disparo (encolada DESPUES de procesar -> nunca se
+        evalua en su vela 0):
+          · PENETRA dentro de TTL  -> abre MAKER en el nivel (2bps, sin slippage).
+          · TTL sin llenar -> FALLBACK TAKER a mercado (price actual), con el R:R
+            REAL de esa entrada peor (el sizing sale de |price-stop|). Pero si el
+            precio ya REBASO el TP mientras esperaba (el runner se escapo entero),
+            NO se persigue -> MISS: esa es la adverse selection que el maker paga.
+        Devuelve la lista de aperturas de esta vela. Llamada DESPUES de resolver
+        abiertas -> la nueva no se resuelve en su propia vela (sin look-ahead).
+        """
+        still, opened = [], []
+        for pe in self._pending_entries:
+            sig = pe["sig"]
+            d, limit = sig["direction"], sig["entry"]
+            if gold_paper.maker_penetrated(d, limit, high, low, self.maker_eps):
+                pos = self._open_pending(sig, pe, fill_type="maker",
+                                         bars_waited=pe["waited"] + 1, ts=ts)
+                if pos is not None:
+                    opened.append({"pid": pos.pid, "fill_type": "maker",
+                                   "killzone": pe.get("killzone"), "tf": pe.get("tf"),
+                                   "risk_frac": pe["risk_frac"], **sig})
+                continue
+            pe["waited"] += 1
+            if pe["waited"] >= self.maker_ttl_bars:
+                tp = sig["tp"]
+                ran_past_tp = (price >= tp) if d > 0 else (price <= tp)
+                if ran_past_tp:
+                    self.broker.ledger.append({
+                        "event": "MAKER_RUNAWAY", "ts": ts, "tf": pe.get("tf"),
+                        "killzone": pe.get("killzone"), "limit": limit,
+                        "tp": tp, "price": float(price), "bars_waited": pe["waited"]})
+                    continue
+                chase = {**sig, "entry": float(price)}
+                pos = self._open_pending(chase, pe, fill_type="taker",
+                                         bars_waited=pe["waited"], ts=ts)
+                if pos is not None:
+                    opened.append({"pid": pos.pid, "fill_type": "taker",
+                                   "killzone": pe.get("killzone"), "tf": pe.get("tf"),
+                                   "risk_frac": pe["risk_frac"], **chase})
+            else:
+                still.append(pe)
+        self._pending_entries = still
+        return opened
+
+    def _open_pending(self, sig, pe, *, fill_type, bars_waited, ts=None):
+        """Abre una posicion desde una entrada pendiente y la marca con su
+        fill_type (lo lee resolve()->_settle para cobrar maker o taker). Sella
+        MOTOR_OPEN_META (provenance killzone/tf + fill_type + bars_waited) y avisa
+        al admin. Devuelve la Position, o None si el riesgo es nulo (entry==stop)."""
+        if abs(float(sig["entry"]) - float(sig["stop"])) <= 0:
+            return None
+        pos = self.broker.open(self.account, sig, pe["risk_frac"], ts=ts)
+        pos.entry_fill_type = fill_type
+        self.counts["opened"] += 1
+        self.broker.ledger.append({
+            "event": "MOTOR_OPEN_META", "ts": ts, "pid": pos.pid,
+            "tf": pe.get("tf"), "killzone": pe.get("killzone"),
+            "fill_type": fill_type, "bars_waited": bars_waited})
+        if self.notify_fn is not None:
+            try:
+                self.notify_fn(sig, {"killzone": pe.get("killzone"),
+                                     "tf": pe.get("tf"), "fill_type": fill_type}, pos)
+            except Exception as e:
+                log.warning("[motor] notify_fn: %s", e)
+        return pos
 
 
 def ledger_report(path):

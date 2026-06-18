@@ -32,6 +32,15 @@ import gold_live
 log = logging.getLogger("gold_paper")
 
 
+def maker_penetrated(direction, limit, high, low, eps):
+    """Regla de fill maker COMPARTIDA (shadow gold/motor + ejecutor maker del
+    motor): una limite en `limit` se considera llena solo si el precio PENETRA el
+    nivel mas alla de `eps` (un touch NO llena: peor caso de cola / adverse
+    selection). LONG: low < limit*(1-eps); SHORT: high > limit*(1+eps)."""
+    return (low < limit * (1 - eps)) if direction > 0 \
+        else (high > limit * (1 + eps))
+
+
 def process_maker_pending(pending, ledger, high, low, ts, *, eps, ttl_bars):
     """Shadow maker COMPARTIDO (gold_paper ORO + motor_paper): una limite
     descansando en `limit` se considera llena solo si el precio PENETRA el
@@ -42,8 +51,7 @@ def process_maker_pending(pending, ledger, high, low, ts, *, eps, ttl_bars):
     still = []
     for pend in pending:
         d, limit = pend["direction"], pend["limit"]
-        filled = (low < limit * (1 - eps)) if d > 0 \
-            else (high > limit * (1 + eps))
+        filled = maker_penetrated(d, limit, high, low, eps)
         if filled:
             ledger.append({
                 "event": "MAKER_FILL", "ts": ts, "pid": pend["pid"],
