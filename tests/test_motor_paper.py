@@ -255,6 +255,36 @@ def test_ledger_report_y_formato(tmp_path):
     assert "Motor paper" in msg and "fill-rate maker" in msg
 
 
+def test_ledger_report_modo_ejecucion_maker(tmp_path):
+    """En modo EJECUCION maker el /paper distingue fills maker reales, fallback
+    taker y runaways, marca el portfolio NETO, y mide adverse selection exec."""
+    path = str(tmp_path / "mx.jsonl")
+    broker = ex.PaperBroker(ledger=ex.DurableHashLedger.load(path),
+                            cost=CostModel(maker_entry=True))
+    rt = mp.MotorPaperRuntime("SOL/USDT", account=ex.Account("a", 10_000.0),
+                              broker=broker, veto=sv.SegmentVeto(),
+                              maker_eps_bps=1.0, maker_ttl_bars=2)
+    assert rt.maker_exec is True
+    # trade A: encola -> FILL maker -> TP (cierra NETO)
+    rt.on_bar(True, _field(), _report("long", entry=100.0), None, 100.0)
+    rt.on_bar(False, _field(), _report("long"), None, 100.0, high=100.2, low=99.9)   # FILL
+    rt.on_bar(False, _field(), _report("long"), None, 101.5, high=101.5, low=100.2)  # TP
+    # trade B: encola -> runaway (el precio rebasa el TP sin volver al nivel)
+    rt.on_bar(True, _field(), _report("long", entry=200.0), None, 200.0)             # tp=201
+    rt.on_bar(False, _field(), _report("long", entry=200.0), None, 201.5,
+              high=201.6, low=200.5)
+    rt.on_bar(False, _field(), _report("long", entry=200.0), None, 202.0,
+              high=202.1, low=201.2)
+    rep = mp.ledger_report(path)
+    assert rep["exec"] is True and rep["net"] is True
+    assert rep["n_maker"] == 1 and rep["n_taker"] == 0 and rep["n_runaway"] == 1
+    assert rep["exec_fill_rate"] == pytest.approx(0.5)   # 1 maker / (1 + 0 + 1)
+    assert rep["maker"]["n"] == 1
+    assert rep["portfolio"]["mean"] < 1.0                # NETO < +1R bruto (fee)
+    msg = mp.format_report_telegram(rep)
+    assert "ejecución maker" in msg and "NETO" in msg
+
+
 def test_from_env_default_london(monkeypatch, tmp_path):
     monkeypatch.setenv("FQ_MOTOR_PAPER_LEDGER_PATH", str(tmp_path / "m.jsonl"))
     for k in ("FQ_MOTOR_PAPER_VETO_KILLZONES", "FQ_MOTOR_PAPER_VETO_UTC_BLOCKS",

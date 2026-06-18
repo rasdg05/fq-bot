@@ -39,11 +39,11 @@ def _stats(rs):
     return n, mean, wr, total
 
 
-def _fmt(n, mean, wr, total):
+def _fmt(n, mean, wr, total, label="GROSS"):
     if n == 0:
         return "n=0"
-    return "n=%d  exp_r=%+.4f (GROSS)  WR=%.1f%%  total=%+.2fR" % (
-        n, mean, wr * 100.0, total)
+    return "n=%d  exp_r=%+.4f (%s)  WR=%.1f%%  total=%+.2fR" % (
+        n, mean, label, wr * 100.0, total)
 
 
 def main(argv):
@@ -59,21 +59,30 @@ def main(argv):
     recs = [r["payload"] for r in ledger.records]
 
     # join por pid: outcome (CLOSE) + provenance (META) + maker (FILL/MISS)
-    pnl = {}          # pid -> pnl_r (GROSS)
+    pnl = {}          # pid -> pnl_r
     kz = {}           # pid -> killzone
-    maker = {}        # pid -> "FILL" | "MISS"
+    maker = {}        # pid -> "FILL" | "MISS"  (shadow)
+    ftype = {}        # pid -> "maker" | "taker"  (modo EJECUCION)
     vetoed = {}       # killzone -> n
+    n_runaway = 0     # runners perdidos (modo EJECUCION, sin posicion)
+    net = False       # ¿NETO de costes? (resolve con cost model)
     for p in recs:
         ev = p.get("event")
         pid = p.get("pid")
         if ev == "CLOSE":
             pnl[pid] = p.get("pnl_r")
+            if p.get("fill_type") is not None:
+                net = True
         elif ev == "MOTOR_OPEN_META":
             kz[pid] = p.get("killzone")
+            if p.get("fill_type") is not None:
+                ftype[pid] = p.get("fill_type")
         elif ev == "MAKER_FILL":
             maker[pid] = "FILL"
         elif ev == "MAKER_MISS":
             maker[pid] = "MISS"
+        elif ev == "MAKER_RUNAWAY":
+            n_runaway += 1
         elif ev == "MOTOR_VETOED":
             k = p.get("killzone")
             vetoed[k] = vetoed.get(k, 0) + 1
@@ -82,6 +91,7 @@ def main(argv):
     n_open_meta = len(kz)
     n_closed = len(closed)
     n_veto = sum(vetoed.values())
+    lbl = "NETO" if net else "GROSS"
 
     print("[motor-stats] ledger=%s  registros=%d" % (path, len(recs)))
     print("  abiertas(META)=%d  cerradas(CLOSE)=%d  vetadas=%d" %
@@ -96,8 +106,8 @@ def main(argv):
 
     # 1) cartera abierta (post-veto): el motor base operable
     allr = list(closed.values())
-    print("\n  [cartera post-veto] " + _fmt(*_stats(allr)) +
-          "  (GROSS = sin costes; net via matriz §6.10.1)")
+    cap = "" if net else "  (GROSS = sin costes; net via matriz §6.10.1)"
+    print("\n  [cartera post-veto] " + _fmt(*_stats(allr), label=lbl) + cap)
 
     # 2) FILL-RATE maker (el dato que faltaba; techo asumía 100%)
     n_fill = sum(1 for v in maker.values() if v == "FILL")
@@ -108,7 +118,7 @@ def main(argv):
         rate = n_fill / n_eval
         print("\n  [fill-rate maker] FILL=%d  MISS=%d  pendientes/abiertas≈%d  "
               "-> fill_rate=%.1f%%" % (n_fill, n_miss, max(n_pend, 0), rate * 100.0))
-    else:
+    elif not ftype and not n_runaway:
         print("\n  [fill-rate maker] aún sin eventos MAKER_* (¿FQ_MOTOR_PAPER_"
               "MAKER_SIM=1?).")
 
@@ -117,8 +127,8 @@ def main(argv):
     miss_r = [closed[pid] for pid in closed if maker.get(pid) == "MISS"]
     if fill_r or miss_r:
         print("\n  [adverse selection] (lente del caveat §6.10.1 #1)")
-        print("    FILLED (lo que el maker SÍ captura): " + _fmt(*_stats(fill_r)))
-        print("    MISSED (los que se escapan):          " + _fmt(*_stats(miss_r)))
+        print("    FILLED (lo que el maker SÍ captura): " + _fmt(*_stats(fill_r), label=lbl))
+        print("    MISSED (los que se escapan):          " + _fmt(*_stats(miss_r), label=lbl))
         nf, mf, _, _ = _stats(fill_r)
         nm, mm, _, _ = _stats(miss_r)
         if nf and nm:
@@ -129,6 +139,27 @@ def main(argv):
                 print("    ✓ los FILLED NO rinden peor que los MISSED -> sin "
                       "adverse selection evidente (alienta el maker).")
 
+    # 3b) EJECUCION maker (FQ_EXEC_MODE=maker): fill-rate REAL (runaways = miss) +
+    #     maker vs fallback taker -> el numero de adverse selection del modo exec.
+    n_mk = sum(1 for v in ftype.values() if v == "maker")
+    n_tk = sum(1 for v in ftype.values() if v == "taker")
+    exec_total = n_mk + n_tk + n_runaway
+    if exec_total:
+        print("\n  [EJECUCION maker] maker=%d  fallback_taker=%d  runaway=%d  "
+              "-> fill_rate=%.1f%%" % (n_mk, n_tk, n_runaway,
+                                       100.0 * n_mk / exec_total))
+        mk_r = [closed[pid] for pid in closed if ftype.get(pid) == "maker"]
+        tk_r = [closed[pid] for pid in closed if ftype.get(pid) == "taker"]
+        print("    MAKER (fill barato):     " + _fmt(*_stats(mk_r), label=lbl))
+        print("    FALLBACK (taker, chase): " + _fmt(*_stats(tk_r), label=lbl))
+        nmk, mmk, _, _ = _stats(mk_r)
+        ntk, mtk, _, _ = _stats(tk_r)
+        if nmk and ntk and mmk < mtk:
+            print("    ⚠ MAKER rinde MENOS que el FALLBACK -> adverse selection.")
+        if n_runaway:
+            print("    RUNAWAY: %d runners perdidos = el costo real del maker." %
+                  n_runaway)
+
     # 4) segmento por killzone de la cartera operable
     by_kz = {}
     for pid, r in closed.items():
@@ -136,12 +167,13 @@ def main(argv):
     if len(by_kz) > 1:
         print("\n  [por killzone, cartera operable]")
         for k, rs in sorted(by_kz.items(), key=lambda kv: -_stats(kv[1])[1]):
-            print("    %-22s %s" % (k, _fmt(*_stats(rs))))
+            print("    %-22s %s" % (k, _fmt(*_stats(rs), label=lbl)))
 
-    # 5) veredicto de muestra
+    # 5) veredicto de muestra (en EJECUCION manda exec_total: el fill-rate REAL)
+    sample = exec_total if exec_total else n_eval
     print("\n  [muestra] %d fills evaluados (meta §6.10: >=%d-50 para decidir)." %
-          (n_eval, MIN_FILLS))
-    if n_eval < MIN_FILLS:
+          (sample, MIN_FILLS))
+    if sample < MIN_FILLS:
         print("  ⏳ insuficiente: sigue en paper. El +0.10R es TECHO hasta tener "
               "el fill-rate sobre >=%d fills." % MIN_FILLS)
         return 1

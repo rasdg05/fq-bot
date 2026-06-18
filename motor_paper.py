@@ -308,17 +308,25 @@ def ledger_report(path):
         return None
     led = DurableHashLedger.load(path)
     recs = [r["payload"] for r in led.records]
-    pnl, kz, maker, vetoed = {}, {}, {}, {}
+    pnl, kz, maker, vetoed, ftype = {}, {}, {}, {}, {}
+    n_runaway = 0
+    net = False
     for p in recs:
         ev, pid = p.get("event"), p.get("pid")
         if ev == "CLOSE":
             pnl[pid] = p.get("pnl_r")
+            if p.get("fill_type") is not None:        # resolve() con cost -> NETO
+                net = True
         elif ev == "MOTOR_OPEN_META":
             kz[pid] = p.get("killzone")
+            if p.get("fill_type") is not None:        # modo EJECUCION maker
+                ftype[pid] = p.get("fill_type")
         elif ev == "MAKER_FILL":
             maker[pid] = "FILL"
         elif ev == "MAKER_MISS":
             maker[pid] = "MISS"
+        elif ev == "MAKER_RUNAWAY":                   # runner perdido (sin posicion)
+            n_runaway += 1
         elif ev == "MOTOR_VETOED":
             k = p.get("killzone")
             vetoed[k] = vetoed.get(k, 0) + 1
@@ -334,14 +342,25 @@ def ledger_report(path):
 
     n_fill = sum(1 for v in maker.values() if v == "FILL")
     n_miss = sum(1 for v in maker.values() if v == "MISS")
+    # Modo EJECUCION maker (FQ_EXEC_MODE=maker): fills reales vs fallback taker vs
+    # runaway (el runner que el maker se perdio). El fill-rate REAL mete los
+    # runaways en el denominador (son misses de verdad, no instrumentacion).
+    n_mk = sum(1 for v in ftype.values() if v == "maker")
+    n_tk = sum(1 for v in ftype.values() if v == "taker")
+    exec_total = n_mk + n_tk + n_runaway
     return {
         "records": len(recs), "n_open_meta": len(kz), "n_closed": len(closed),
-        "n_vetoed": sum(vetoed.values()), "vetoed_by_kz": vetoed,
+        "n_vetoed": sum(vetoed.values()), "vetoed_by_kz": vetoed, "net": net,
         "portfolio": _agg(list(closed.values())),
         "fill": _agg([closed[p] for p in closed if maker.get(p) == "FILL"]),
         "miss": _agg([closed[p] for p in closed if maker.get(p) == "MISS"]),
         "n_fill": n_fill, "n_miss": n_miss,
         "fill_rate": (n_fill / (n_fill + n_miss)) if (n_fill + n_miss) else None,
+        "exec": bool(exec_total),
+        "n_maker": n_mk, "n_taker": n_tk, "n_runaway": n_runaway,
+        "exec_fill_rate": (n_mk / exec_total) if exec_total else None,
+        "maker": _agg([closed[p] for p in closed if ftype.get(p) == "maker"]),
+        "taker": _agg([closed[p] for p in closed if ftype.get(p) == "taker"]),
     }
 
 
@@ -355,10 +374,22 @@ def format_report_telegram(rep):
                 "(~1-2/sem); cada fire entra aquí.").format(
                     r=rep["records"], o=rep["n_open_meta"], v=rep["n_vetoed"])
     p = rep["portfolio"]
+    label = "NETO" if rep.get("net") else "GROSS"
     out = ["📄 <b>Motor paper (subset correcto §6.10.1)</b>",
-           "cartera: n={n} · exp≈{m:+.3f}R GROSS · WR {w:.0f}%".format(
-               n=p["n"], m=p["mean"], w=p["wr"] * 100.0)]
-    if rep["fill_rate"] is not None:
+           "cartera: n={n} · exp≈{m:+.3f}R {g} · WR {w:.0f}%".format(
+               n=p["n"], m=p["mean"], w=p["wr"] * 100.0, g=label)]
+    if rep.get("exec"):
+        # EJECUCION maker: fill-rate REAL (runaways = miss) + maker vs fallback.
+        out.append("ejecución maker: <b>{r:.0f}%</b> fill "
+                   "(maker {nm} / fallback taker {nt} / runaway {nr})".format(
+                       r=(rep["exec_fill_rate"] or 0.0) * 100.0, nm=rep["n_maker"],
+                       nt=rep["n_taker"], nr=rep["n_runaway"]))
+        mk, tk = rep["maker"], rep["taker"]
+        if mk["n"] and tk["n"]:
+            tag = "⚠ adverse selection" if mk["mean"] < tk["mean"] else "✓ sin adverse sel."
+            out.append("MAKER exp≈{a:+.3f}R vs FALLBACK taker {b:+.3f}R — {t}".format(
+                a=mk["mean"], b=tk["mean"], t=tag))
+    elif rep["fill_rate"] is not None:
         f, m = rep["fill"], rep["miss"]
         out.append("fill-rate maker: <b>{r:.0f}%</b> (FILL {nf} / MISS {nm})".format(
             r=rep["fill_rate"] * 100.0, nf=rep["n_fill"], nm=rep["n_miss"]))
