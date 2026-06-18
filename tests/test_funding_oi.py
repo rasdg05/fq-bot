@@ -328,10 +328,10 @@ def test_attach_with_oi_adds_oi_columns():
 # FETCH MOCKEADO (sin red): paginacion + cache + degradacion OI
 # ============================================================
 class _FakeFundingExchange:
-    """Exchange ccxt-like que sirve funding paginado por 'before' (hacia atras),
-    SIN red. n ventanas de 8h hasta now_ms."""
+    """Exchange ccxt-like que sirve funding paginado por `since` (hacia ADELANTE),
+    SIN red — como bybit/gate/binance. n ventanas de 8h hasta now_ms."""
 
-    id = "okx"
+    id = "bybit"
     has = {"fetchFundingRateHistory": True, "fetchOpenInterestHistory": True}
 
     def __init__(self, now_ms, n=250, step_ms=8 * 3600_000, page=100):
@@ -345,14 +345,12 @@ class _FakeFundingExchange:
 
     def fetch_funding_rate_history(self, symbol, since=None, limit=None, params=None):
         self.calls += 1
-        params = params or {}
-        before = params.get("before")
         limit = limit or self._page
         pool = self._all
-        if before is not None:
-            pool = [r for r in pool if r["timestamp"] < before]
-        # OKX devuelve las MAS RECIENTES bajo 'before' (cola del pool)
-        return pool[-limit:]
+        if since is not None:
+            pool = [r for r in pool if r["timestamp"] >= since]
+        # estilo bybit/gate: las MAS ANTIGUAS desde `since` (cabeza del pool), <=limit
+        return pool[:limit]
 
 
 class _FakeOIExchange:
@@ -415,6 +413,40 @@ def test_fetch_funding_respects_lookback_floor(tmp_path):
     span_days = (df["timestamp"].iloc[-1] - df["timestamp"].iloc[0]).total_seconds() / 86400
     assert span_days <= 10.5, f"no respeto el floor de lookback: {span_days:.1f}d"
     assert len(df) < 250
+
+
+class _IgnoresSinceExchange:
+    """Exchange que IGNORA `since` y devuelve SIEMPRE la ventana mas reciente (el
+    modo de falla real: bybit/binance frente al viejo cursor `before`). El fetch
+    debe cortar limpio por 'sin progreso' y NO colgarse en un loop infinito."""
+
+    id = "bybit"
+    has = {"fetchFundingRateHistory": True}
+
+    def __init__(self, now_ms, n=250, step_ms=8 * 3600_000, page=100):
+        self._all = [{"timestamp": now_ms - (n - 1 - i) * step_ms,
+                      "fundingRate": 0.0001, "symbol": "BTC/USDT:USDT"}
+                     for i in range(n)]
+        self._page = page
+        self.calls = 0
+
+    def fetch_funding_rate_history(self, symbol, since=None, limit=None, params=None):
+        self.calls += 1
+        limit = limit or self._page
+        return self._all[-limit:]   # SIEMPRE las mas recientes; ignora `since`
+
+
+def test_fetch_funding_ignores_since_terminates_no_loop(tmp_path):
+    # Regresion del bug de profundidad: cuando el exchange ignora el cursor, el
+    # fetch NO debe loopear; corta por 'sin progreso' tras un par de llamadas y
+    # devuelve a lo sumo una ventana (page) de filas unicas.
+    now = 1_700_000_000_000 + 8 * 3600_000
+    ex = _IgnoresSinceExchange(1_700_000_000_000, n=250, page=100)
+    df = fo.fetch_funding_history(
+        ex, "BTC/USDT:USDT", data_dir=str(tmp_path), exchange_name="bybit",
+        lookback_days=365, now_ms=now, sleep_s=0.0)
+    assert ex.calls <= 3, f"deberia cortar rapido, no loopear: {ex.calls}"
+    assert 0 < len(df) <= 100
 
 
 def test_fetch_open_interest_history_mocked(tmp_path):

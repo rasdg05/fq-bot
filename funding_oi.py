@@ -53,7 +53,7 @@ DEFAULT_OI_PERIOD = "1H"           # 5m | 1H | 1D (unico set que admite el Rubik
 # reversion es viable hay que medir CUAL exchange da mas MESES. Orden por
 # profundidad esperada (de la fuente de ccxt 4.5.x; validar en Hetzner con red):
 #   bybit         (publicGetV5MarketFundingHistory): ~2 años, paginado backward.
-#   gateio        (publicFuturesGetSettleFundingRate): historia LARGA (>1 año).
+#   gate          (publicFuturesGetSettleFundingRate): historia LARGA (>1 año).
 #   binanceusdm   (fapiPublicGetFundingRate, settled cada 8h): historia LARGA pero
 #                 451 (geo-block) en muchos runners cloud -> se captura + salta.
 #   kucoinfutures (futuresPublicGetContractFundingRates): meses.
@@ -62,14 +62,14 @@ DEFAULT_OI_PERIOD = "1H"           # 5m | 1H | 1D (unico set que admite el Rubik
 # Cada id debe existir en ccxt y soportar fetchFundingRateHistory; los que no,
 # se saltan con aviso (nunca crashea: la idea es PROBARLOS TODOS y reportar).
 FUNDING_EXCHANGE_CANDIDATES = (
-    "okx", "bybit", "gateio", "kucoinfutures", "hyperliquid", "binanceusdm",
+    "okx", "bybit", "gate", "kucoinfutures", "hyperliquid", "binanceusdm",
 )
 # Simbolo de perp por exchange para un base dado (BTC/SOL/ETH). El sufijo de
 # settlement difiere por venue; ccxt normaliza casi todo a 'BASE/USDT:USDT', pero
 # algunos perps son USDC o tienen un quote distinto. Se intenta el candidato y, si
 # el exchange no lo reconoce, el probe degrada (no asume un unico formato).
 FUNDING_PERP_QUOTE = {
-    "okx": "USDT", "bybit": "USDT", "gateio": "USDT",
+    "okx": "USDT", "bybit": "USDT", "gate": "USDT",
     "kucoinfutures": "USDT", "hyperliquid": "USDC", "binanceusdm": "USDT",
 }
 
@@ -127,8 +127,9 @@ def fetch_funding_history(
     page_limit=100, max_pages=100_000, sleep_s=0.0, now_ms=None,
     use_cache=True,
 ):
-    """Descarga el historico de funding de `symbol` paginando hacia atras tan
-    lejos como OKX lo exponga, y lo cachea a Parquet. Si el cache existe, lo CARGA.
+    """Descarga el historico de funding de `symbol` paginando hacia ADELANTE (por
+    `since`) tan lejos como el exchange lo exponga, y lo cachea a Parquet. Si el
+    cache existe, lo CARGA.
 
     exchange : objeto estilo ccxt con .fetch_funding_rate_history(symbol, since,
                limit, params). En tests se mockea -> sin red.
@@ -137,10 +138,13 @@ def fetch_funding_history(
     point-in-time: funding_rate es la tasa PUBLICADA/liquidada (OKX la expone como
     realizedRate via ccxt), sin revisiones ni futuro.
 
-    Paginacion: OKX devuelve paginas de <=100 hacia atras desde `before`. Avanzamos
-    el cursor al timestamp MAS ANTIGUO de cada pagina y pedimos lo anterior, hasta
-    que (a) deja de progresar, (b) cubrimos lookback_days, o (c) la pagina viene
-    vacia (fin del historico disponible). Nunca crashea por pagina vacia.
+    Paginacion FORWARD (idiom unificado de ccxt): arrancamos en
+    `since = now - lookback_days` y avanzamos el cursor al timestamp MAS NUEVO de
+    cada pagina (since = newest+1), pidiendo lo POSTERIOR, hasta que (a) alcanzamos
+    el presente, (b) la pagina no progresa (ya vista, o el exchange IGNORA `since` y
+    repite la ventana reciente), o (c) viene vacia. bybit/gate/binance/kucoin
+    exponen AÑOS por `since`; el viejo `before` hacia atras solo lo respetaba OKX
+    (shallow) y dejaba al resto capado en 100 filas. Nunca crashea por pagina vacia.
     """
     ex_name = exchange_name or getattr(exchange, "id", None) or "okx"
     path = funding_path(data_dir, ex_name, symbol)
@@ -152,35 +156,37 @@ def fetch_funding_history(
     floor_ms = now_ms - int(lookback_days) * 86_400_000
     rows = []
     seen = set()
-    cursor = now_ms        # pedimos lo anterior a `cursor` (before)
+    cursor = floor_ms      # `since`: pedimos lo POSTERIOR a `cursor`, hacia adelante
     pages = 0
     while pages < max_pages:
         batch = exchange.fetch_funding_rate_history(
-            symbol, since=None, limit=page_limit, params={"before": int(cursor)})
+            symbol, since=int(cursor), limit=page_limit)
         pages += 1
         if not batch:
             break
         progressed = False
-        oldest = cursor
+        newest = cursor
         for item in batch:
             ts = item.get("timestamp")
             if ts is None:
                 continue
             ts = int(ts)
-            if ts < oldest:
-                oldest = ts
+            if ts > newest:
+                newest = ts
             if ts in seen:
                 continue
             seen.add(ts)
             rate = item.get("fundingRate")
             rows.append((ts, _to_float(rate)))
             progressed = True
-        # condicion de parada: cubierto el lookback o sin progreso (pagina ya vista)
-        if oldest <= floor_ms:
+        # parada: alcanzamos el presente; o la pagina no avanzo (ya vista, o el
+        # exchange IGNORA `since` y repite la ventana reciente -> corte limpio, sin
+        # loop); o vino vacia (fin del historico). Nunca crashea.
+        if newest >= now_ms:
             break
-        if not progressed or oldest >= cursor:
+        if not progressed or newest <= cursor:
             break
-        cursor = oldest        # siguiente pagina: lo anterior al mas viejo visto
+        cursor = newest + 1    # siguiente pagina: lo posterior al mas nuevo visto
         if sleep_s:
             _sleep(sleep_s)
 

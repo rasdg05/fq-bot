@@ -219,7 +219,8 @@ def test_signal_to_trades_end_to_end_causal_with_funding_oi():
 # PART C: probe multi-exchange de profundidad (fetch MOCKEADO, sin red)
 # ============================================================
 class _FakeFundingExchange:
-    """ccxt-like: sirve n ventanas de 8h hasta now_ms, paginado por 'before'."""
+    """ccxt-like: sirve n ventanas de 8h hasta now_ms, paginado por `since` (hacia
+    adelante), como bybit/gate/binance."""
     def __init__(self, ex_id, now_ms, n, page=100):
         self.id = ex_id
         self.has = {"fetchFundingRateHistory": True}
@@ -230,20 +231,18 @@ class _FakeFundingExchange:
 
     def fetch_funding_rate_history(self, symbol, since=None, limit=None, params=None):
         self.calls += 1
-        params = params or {}
-        before = params.get("before")
         limit = limit or self._page
         pool = self._all
-        if before is not None:
-            pool = [r for r in pool if r["timestamp"] < before]
-        return pool[-limit:]
+        if since is not None:
+            pool = [r for r in pool if r["timestamp"] >= since]
+        return pool[:limit]
 
 
 def test_probe_picks_deepest_exchange(tmp_path):
     """probe_funding_depth elige el exchange con MAS meses y reporta la tabla."""
     now = 1_700_000_000_000 + 8 * 3600_000
     # bybit MAS profundo (600 ventanas ~200 dias) que okx (60 ~20 dias)
-    depths = {"okx": 60, "bybit": 600, "gateio": 300}
+    depths = {"okx": 60, "bybit": 600, "gate": 300}
 
     def fake_make(ex_id):
         if ex_id not in depths:
@@ -251,7 +250,7 @@ def test_probe_picks_deepest_exchange(tmp_path):
         return _FakeFundingExchange(ex_id, now, depths[ex_id])
 
     table = fo.probe_funding_depth(
-        "BTC", exchange_ids=("okx", "bybit", "gateio", "binanceusdm"),
+        "BTC", exchange_ids=("okx", "bybit", "gate", "binanceusdm"),
         make_exchange=fake_make, data_dir=str(tmp_path), now_ms=now,
         lookback_days=365 * 3)
     # ordenada por meses desc; el primero reachable es bybit
@@ -279,7 +278,7 @@ def test_fetch_best_returns_deepest_df(tmp_path):
         "BTC", exchange_ids=("okx", "bybit"), make_exchange=fake_make,
         data_dir=str(tmp_path), now_ms=now, lookback_days=365 * 3)
     assert best["exchange"] == "bybit"
-    # ~400 (la paginacion hacia atras puede soltar la fila del borde -> >=398).
+    # ~400 (la paginacion hacia adelante puede soltar la fila del borde -> >=398).
     assert df is not None and len(df) >= 398
     assert list(df.columns) == ["timestamp", "funding_rate"]
 
