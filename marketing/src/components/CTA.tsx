@@ -5,7 +5,12 @@ import {VAccent} from '../brand/Rule';
 
 export type CtaTarget = 'bot' | 'instagram' | 'both';
 
-const Chip: React.FC<{label: string; value: string; delay: number}> = ({label, value, delay}) => {
+const Chip: React.FC<{label: string; value: string; delay: number; sub?: string}> = ({
+  label,
+  value,
+  delay,
+  sub,
+}) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const e = spring({frame: frame - delay, fps, config: {damping: 200}});
@@ -30,6 +35,11 @@ const Chip: React.FC<{label: string; value: string; delay: number}> = ({label, v
           {label}
         </div>
         <div style={{fontFamily: FONTS.sans, fontSize: 38, fontWeight: 800, color: COLORS.ink}}>{value}</div>
+        {sub ? (
+          <div style={{fontFamily: FONTS.mono, fontSize: 22, color: COLORS.inkDim, marginTop: 4}}>
+            {GLYPHS.bulletChk} {sub}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -59,7 +69,12 @@ export const CTA: React.FC<{target: CtaTarget}> = ({target}) => {
           <Chip label="Abre el bot" value={`@${CTA_CONFIG.botUsername}`} delay={10} />
         )}
         {(target === 'instagram' || target === 'both') && (
-          <Chip label="Siguenos" value={`@${CTA_CONFIG.instagram}`} delay={target === 'both' ? 18 : 10} />
+          <Chip
+            label="Siguenos"
+            value={`@${CTA_CONFIG.instagram}`}
+            sub={`link en bio · ${CTA_CONFIG.linkme}`}
+            delay={target === 'both' ? 18 : 10}
+          />
         )}
       </div>
     </AbsoluteFill>

@@ -68,4 +68,40 @@ export const ADS: Ad[] = [
       {type: 'cta', durationInFrames: s(3.5), target: 'instagram'},
     ],
   },
+  {
+    id: 'a4-hub-linkme',
+    title: 'A4 · Hub (perfil IG -> Linkme)',
+    scenes: [
+      {type: 'intro', durationInFrames: s(1)},
+      {type: 'hook', durationInFrames: s(2.5), kicker: 'Todo en un lugar', text: 'Canal, IG y YouTube. Un solo link.', caption: 'Canal, IG y YouTube. Un solo link.'},
+      {type: 'clip', durationInFrames: s(4), src: 'pix4brain5-SEP', inSec: 2, outSec: 6, note: 'Presentador invitando a seguir', caption: 'Todo el ecosistema FQ en tu perfil.'},
+      {type: 'showcase', durationInFrames: s(4.5), caption: 'Asi trabaja el bot por dentro.'},
+      {type: 'cta', durationInFrames: s(3.5), target: 'instagram'},
+    ],
+  },
+
+  // --- Variantes de hook para A/B test (mismo cuerpo, distinto gancho).
+  // Para encontrar el ganador: misma oferta, cambia solo los primeros 3s.
+  {
+    id: 'a1b-no-ruido-hook2',
+    title: 'A1b · Hook "deja de operar a ciegas"',
+    scenes: [
+      {type: 'intro', durationInFrames: s(1)},
+      {type: 'hook', durationInFrames: s(2.5), kicker: 'SOL/USDT', text: 'Deja de operar a ciegas.', caption: 'Deja de operar a ciegas.'},
+      {type: 'clip', durationInFrames: s(4), src: 'NO', inSec: 2, outSec: 6, note: 'Momento "NO opero": disciplina, no FOMO', caption: 'Cuando no hay ventaja, FQ calla.'},
+      {type: 'showcase', durationInFrames: s(7), caption: 'Cuando la hay, ejecuta con estructura.'},
+      {type: 'cta', durationInFrames: s(3.5), target: 'both'},
+    ],
+  },
+  {
+    id: 'a2b-demo-hook2',
+    title: 'A2b · Hook "una señal de verdad"',
+    scenes: [
+      {type: 'intro', durationInFrames: s(1)},
+      {type: 'hook', durationInFrames: s(2.5), kicker: 'Mesa de liquidez', text: 'Una señal de verdad se ve asi.', caption: 'Una señal de verdad se ve asi.'},
+      {type: 'showcase', durationInFrames: s(8), caption: 'Direccion, zona, invalidacion y gestion.'},
+      {type: 'clip', durationInFrames: s(3), src: 'pix4brain1-SEPT', inSec: 5, outSec: 8, note: 'Talking head: por que importa la estructura', caption: 'Sin emoji, sin humo. Estructura.'},
+      {type: 'cta', durationInFrames: s(3.5), target: 'bot'},
+    ],
+  },
 ];

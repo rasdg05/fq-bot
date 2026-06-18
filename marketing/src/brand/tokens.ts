@@ -60,4 +60,7 @@ export const CTA_CONFIG = {
   botUsername: 'TU_BOT', // sin @ — ver FQ_VIP_BOT_USERNAME en .env
   botDeepLink: 'https://t.me/TU_BOT?start=ads',
   instagram: 'josemanuel.media',
+  // Hub link-in-bio (Linkme): desde el perfil de IG la gente entra aqui y de
+  // ahi va al canal, te sigue en IG/YouTube, etc. Rellena con tu URL real.
+  linkme: 'linkme.bio/TU_USUARIO',
 } as const;

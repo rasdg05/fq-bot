@@ -92,15 +92,38 @@ WhatsApp/IG). Para cada destino:
   `https://t.me/TU_BOT?start=ads` (asi atribuyes la fuente dentro del bot).
 - CTA del boton: "Mas informacion" / "Registrarte".
 
-### Perfil de Instagram
+### Perfil de Instagram → Linkme (hub link-in-bio)
 - Objetivo: **Trafico** a tu perfil, o **Interacciones → visitas al perfil**.
 - Asegura que el anuncio corra desde la **cuenta de IG** correcta (identidad
   del anuncio).
 - CTA: "Seguir" no existe como boton de anuncio; usa "Mas informacion" llevando
   al perfil, y que el video pida seguir.
+- **El embudo real**: anuncio → perfil de IG → en la **bio** tienes tu link de
+  **Linkme** → desde ahi la gente entra a tu **canal**, te **sigue en IG**, va a
+  **YouTube**, etc. Por eso el CTA de las creatividades IG dice
+  *"link en bio · linkme..."* (configurado en `tokens.ts → CTA_CONFIG.linkme`).
+- Acciones: pon el link de Linkme **fijo en la bio** antes de lanzar, y etiqueta
+  con UTMs por canal dentro de Linkme para medir a donde va el trafico.
 
 > Recomendado: separar en **dos conjuntos de anuncios** (uno → bot, otro →
-> perfil) para medir cual convierte mejor, en vez de mezclar destinos.
+> perfil/Linkme) para medir cual convierte mejor, en vez de mezclar destinos.
+
+---
+
+## 7. Como encontrar el anuncio GANADOR
+
+No paramos hasta tener un ganador. Metodo:
+
+1. **Fija todo menos el hook.** Mismo cuerpo, mismo CTA; cambia solo los
+   primeros 3s. El EDL ya trae variantes (`a1b`, `a2b`) justo para esto.
+2. **Una campana, varios anuncios** (ABO o Advantage+ con varias creatividades).
+   Arranca 3–5 hooks por destino.
+3. **Metrica de filtro temprano:** hook rate (3s/thruplays) y CTR. Mata lo que
+   no engancha en 24–48h con presupuesto bajo.
+4. **Metrica de decision:** costo por click al bot / por visita de perfil, y
+   luego suscripciones (atribuidas con `?start=ads` en el bot y UTMs en Linkme).
+5. **Escala** el hook ganador, genera 2–3 variantes nuevas alrededor de el, y
+   repite. El ganador casi siempre es cuestion de hook, no del cuerpo.
 
 ---
 
