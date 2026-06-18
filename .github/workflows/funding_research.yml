@@ -1,0 +1,173 @@
+name: Funding research — depth probe + reversión DEFLACTADA (Hetzner) — 1 tap
+
+# UN TAP. Ejecuta en el runner SELF-HOSTED (Hetzner, IP no geo-bloqueada) el camino
+# ESTRUCTURAL de funding (§6.15), que la red bloqueada del sandbox no puede correr:
+#   1) probe_funding_depth: prueba okx/bybit/gateio/kucoin/hyperliquid/binanceusdm y
+#      reporta la TABLA de profundidad de funding alcanzable (meses por exchange).
+#      Cachea el más profundo a parquet. binance 451 / sin soporte -> se salta.
+#   2) funding_research.py: señal de reversión (funding_strategy) sobre el fund_zscore
+#      causal del cache más profundo -> triple-barrier -> OOS walk-forward purgado ->
+#      FORWARD out-of-time -> [DEFLATED] DSR/PBO. El sweep de z_enter es el conjunto
+#      de intentos del juez anti-suerte.
+#
+# El motor (funding_strategy / funding_research / funding_oi) vive en
+# claude/bascula-hetzner -> este workflow hace checkout EXPLÍCITO de esa rama, así que
+# tapea igual viva en main (para que el botón aparezca en la UI) o en la rama.
+#
+# ANTES DE TAPEAR: encendé Hetzner y esperá a que el runner figure ONLINE (si no, el
+# job queda EN COLA). Comparte runner con poda/cosecha/gated: corren de a una.
+#
+# Salida: artefacto funding-report con la tabla de profundidad + el veredicto
+# deflactado. Lectura honesta: con OKX ~3m el read es ruidoso; bybit/gateio dan la
+# profundidad real. El validador definitivo es el paper-forward (tools/funding_paper.py).
+
+on:
+  workflow_dispatch:
+    inputs:
+      funding_base:
+        description: "Base del perp de funding (BTC / SOL / ETH)"
+        type: choice
+        options: ["BTC", "SOL", "ETH"]
+        default: "BTC"
+      symbol:
+        description: "Símbolo del OHLCV primario (precio/entry). ccxt sin sufijo."
+        default: "BTC/USDT"
+      exchange:
+        description: "Exchange del OHLCV primario (cache)"
+        default: "okx"
+      tf_id:
+        description: "TF primario (define entry_price/entry_ts)"
+        type: choice
+        options: ["5m", "15m", "1h"]
+        default: "15m"
+      months:
+        description: "Meses de historia del OHLCV primario a bajar"
+        default: "36"
+      max_bars:
+        description: "Barrera vertical del triple-barrier (velas del primario)"
+        default: "96"
+      out_of_time:
+        description: "Corte forward YYYY-MM-DD (vacío = deflactado sobre OOS pooled)"
+        default: "2025-09-01"
+      z_enter:
+        description: "Umbral de ENTRADA del fade |z|>=z_enter (config principal)"
+        default: "2.0"
+      z_exit:
+        description: "Umbral de SALIDA |z|<=z_exit (histéresis; < z_enter)"
+        default: "0.5"
+      n_splits:
+        description: "Folds walk-forward del OOS"
+        default: "8"
+
+permissions:
+  contents: read
+
+jobs:
+  funding:
+    runs-on: self-hosted
+    timeout-minutes: 720
+    env:
+      # Defaults benignos para importar el monolito sin secretos reales.
+      TELEGRAM_TOKEN: "ci-dummy"
+      TELEGRAM_TOKEN_PUBLIC: "ci-dummy"
+      TELEGRAM_CHAT_ID: "0"
+      ANTHROPIC_API_KEY: "ci-dummy"
+      FQ_LEDGER_PATH: "/tmp/fq_ledger_ci.db"
+      FQ_USE_THOMPSON: "0"
+      FBASE: ${{ github.event.inputs.funding_base }}
+      SYM: ${{ github.event.inputs.symbol }}
+      EX: ${{ github.event.inputs.exchange }}
+      TFID: ${{ github.event.inputs.tf_id }}
+      MONTHS: ${{ github.event.inputs.months }}
+      MAXBARS: ${{ github.event.inputs.max_bars }}
+      OOT: ${{ github.event.inputs.out_of_time }}
+      ZENTER: ${{ github.event.inputs.z_enter }}
+      ZEXIT: ${{ github.event.inputs.z_exit }}
+      NSPLITS: ${{ github.event.inputs.n_splits }}
+    steps:
+      - name: Checkout del motor de funding (claude/bascula-hetzner)
+        uses: actions/checkout@v4
+        with:
+          ref: claude/bascula-hetzner
+
+      - name: Python 3.12 via uv (self-hosted, OS nuevo sin build de setup-python)
+        # Venv propio (fqvenv_funding) para no chocar con el de research.yml en el
+        # MISMO runner. --clear lo recrea idempotente (el $HOME persiste entre jobs).
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          UV="$HOME/.local/bin/uv"
+          "$UV" python install 3.12
+          "$UV" venv --seed --clear --python 3.12 "$HOME/fqvenv_funding"
+          echo "$HOME/fqvenv_funding/bin" >> "$GITHUB_PATH"
+          "$HOME/fqvenv_funding/bin/python" --version
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y libgomp1 \
+            || echo "[apt skip] sin sudo/apt (self-hosted): asume libgomp1 preinstalado"
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest lightgbm scikit-learn turbovec
+          python -c "import lightgbm, sklearn; from lightgbm import LGBMClassifier; LGBMClassifier(); print('deps OK')"
+
+      - name: Sanity — tests de funding (puro, sin red)
+        run: pytest tests/test_funding_strategy.py tests/test_funding_oi.py tests/test_deflated.py -q
+
+      - name: Descargar OHLCV primario (público)
+        id: download
+        continue-on-error: true
+        run: |
+          mkdir -p research_out
+          YEARS=$(python -c "print(round(${MONTHS}/12.0, 4))")
+          if [ "${TFID}" = "5m" ]; then DL_TFS="5m 15m 1h"; else DL_TFS="15m 1h 4h"; fi
+          for TF in ${DL_TFS}; do
+            P=$(python -c "import bt_data; print(bt_data.dataset_path('data', '${EX}', '${SYM}', '${TF}'))")
+            if [ -f "$P" ]; then echo "== cache hit ${SYM} ${TF} =="; continue; fi
+            echo "== descargando ${SYM} ${TF} (${MONTHS} meses, ${EX}) ==" | tee -a research_out/download.txt
+            python tools/build_dataset.py --symbol "${SYM}" --timeframe "${TF}" \
+              --market swap --years "${YEARS}" --exchanges "${EX}" \
+              2>&1 | tee -a research_out/download.txt
+          done
+
+      - name: Part C — tabla de profundidad de funding (multi-exchange)
+        id: depth
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          python -c "import funding_oi as fo; print(fo.format_depth_table(fo.probe_funding_depth('${FBASE}', data_dir='data')))" \
+            2>&1 | tee research_out/funding_depth_${FBASE}.txt
+
+      - name: Part B2 — backtest deflactado de la reversión (OOS + OOT + DEFLATED)
+        id: research
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          OOT_FLAG=""
+          if [ -n "${OOT}" ]; then OOT_FLAG="--out-of-time ${OOT}"; fi
+          python tools/funding_research.py \
+            --exchange "${EX}" --symbol "${SYM}" --funding-base "${FBASE}" \
+            --tf-id "${TFID}" --max-bars "${MAXBARS}" --n-splits "${NSPLITS}" \
+            --embargo 8 --z-enter "${ZENTER}" --z-exit "${ZEXIT}" ${OOT_FLAG} \
+            2>&1 | tee research_out/funding_research_${FBASE}.txt
+
+      - name: Subir reporte (tabla de profundidad + veredicto deflactado)
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: funding-report-${{ github.event.inputs.funding_base }}
+          path: |
+            research_out/
+            data/**/*_funding.parquet
+          retention-days: 90
+
+      - name: Gate honesto — un crash NO pasa en verde
+        # Distinguir "sin edge / poca profundidad" (read válido) de un CRASH. El probe
+        # y el research degradan con un return limpio cuando no hay datos; sólo fallamos
+        # si el research SALIÓ con error (excepción), no por un veredicto negativo.
+        run: |
+          if [ "${{ steps.research.outcome }}" != "success" ]; then
+            echo "::error::funding_research.py salió con error (crash, no veredicto). Revisa el log."
+            tail -40 research_out/funding_research_${FBASE}.txt 2>/dev/null || true
+            exit 1
+          fi
+          echo "OK: el camino de funding corrió hasta el veredicto (lee el artefacto funding-report-${FBASE})."
