@@ -53,7 +53,7 @@ export const VIDEO = {
  * cortes con `npm run ingest`, pon esto en true. Mientras sea false los
  * clips se renderizan como "slate" de marca, asi el proyecto corre sin video.
  */
-export const FOOTAGE_AVAILABLE = false;
+export const FOOTAGE_AVAILABLE = true;
 
 /** Destinos de CTA. Rellena con tus datos reales. */
 export const CTA_CONFIG = {
