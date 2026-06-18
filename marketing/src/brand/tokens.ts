@@ -6,9 +6,11 @@
 
 export const BRAND = {
   product: 'FQ',
-  pair: 'SOL/USDT',
+  productLong: 'Fibonacci Cuantico',
+  // Motor multi-simbolo: no se ancla a un solo par.
+  symbols: ['SOL/USDT', 'BTC/USDT', 'ETH/USDT'],
   desk: 'Mesa de liquidez',
-  tagline: 'Mesa de liquidez institucional · SOL/USDT',
+  tagline: 'Mesa de liquidez institucional · multi-simbolo',
   promise: 'Cuando hay ventaja, ejecuta. Cuando no, espera.',
   disclaimer: 'Rendimientos pasados no garantizan resultados futuros. No es asesoria financiera.',
 } as const;
@@ -55,11 +57,31 @@ export const VIDEO = {
  */
 export const FOOTAGE_AVAILABLE = true;
 
+/**
+ * Cama musical (esquema mixto). Pon tu pista con licencia en
+ * public/audio/music.mp3. Si no quieres musica, enabled:false.
+ */
+export const MUSIC = {
+  enabled: true,
+  file: 'audio/music.mp3',
+  volume: 0.1,
+} as const;
+
+/**
+ * Cierre orientado a COMUNIDAD / marca personal (no a oferta).
+ * El activo es la atencion: primero tribu, despues el resto.
+ */
+export const COMMUNITY = {
+  join: 'Unete a la comunidad',
+  line: 'Trading con sistema, no con ego',
+  note: 'Estamos abriendo cupos',
+} as const;
+
 /** Destinos de CTA. Rellena con tus datos reales. */
 export const CTA_CONFIG = {
   botUsername: 'TU_BOT', // sin @ — ver FQ_VIP_BOT_USERNAME en .env
   botDeepLink: 'https://t.me/TU_BOT?start=ads',
-  instagram: 'josemanuel.media',
+  instagram: 'diego_gallegosd',
   // Hub link-in-bio (Linkme): desde el perfil de IG la gente entra aqui y de
   // ahi va al canal, te sigue en IG/YouTube, etc. Rellena con tu URL real.
   linkme: 'linkme.bio/TU_USUARIO',

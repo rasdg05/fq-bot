@@ -1,25 +1,29 @@
 import React from 'react';
 import {AbsoluteFill, OffthreadVideo, staticFile, useVideoConfig} from 'remotion';
-import {COLORS, FONTS, FOOTAGE_AVAILABLE, GLYPHS} from '../brand/tokens';
+import {BRAND, COLORS, FONTS, FOOTAGE_AVAILABLE, GLYPHS} from '../brand/tokens';
+
+export type FrameMode = 'cover' | 'band';
 
 export type ClipProps = {
   /** Nombre del archivo sin extension en marketing/public/footage/<src>.mp4 */
   src: string;
-  /** Segundo de inicio dentro del clip fuente. */
   inSec?: number;
-  /** Segundo de fin dentro del clip fuente. */
   outSec?: number;
-  /** Etiqueta visible en el slate cuando aun no hay footage. */
+  /** true = conserva el audio del clip (voz del presentador). */
+  audio?: boolean;
+  /** Encuadre: cover (recorta) o band (clip completo + fondo de marca). */
+  frameMode?: FrameMode;
   note?: string;
 };
 
-/**
- * Segmento de footage. Si FOOTAGE_AVAILABLE es false, muestra un slate de
- * marca con el clip y el rango previsto, asi el anuncio se renderiza completo
- * sin depender de los archivos. Cuando metas el footage y corras `npm run
- * ingest`, pon FOOTAGE_AVAILABLE en true en tokens.ts.
- */
-export const ClipSegment: React.FC<ClipProps> = ({src, inSec = 0, outSec, note}) => {
+export const ClipSegment: React.FC<ClipProps> = ({
+  src,
+  inSec = 0,
+  outSec,
+  audio = false,
+  frameMode = 'cover',
+  note,
+}) => {
   const {fps} = useVideoConfig();
 
   if (!FOOTAGE_AVAILABLE) {
@@ -50,14 +54,41 @@ export const ClipSegment: React.FC<ClipProps> = ({src, inSec = 0, outSec, note})
     );
   }
 
-  return (
-    <AbsoluteFill style={{background: COLORS.bg}}>
-      <OffthreadVideo
-        src={staticFile(`footage/${src}.mp4`)}
-        startFrom={Math.round(inSec * fps)}
-        endAt={outSec ? Math.round(outSec * fps) : undefined}
-        style={{width: '100%', height: '100%', objectFit: 'cover'}}
-      />
-    </AbsoluteFill>
+  const video = (
+    <OffthreadVideo
+      src={staticFile(`footage/${src}.mp4`)}
+      startFrom={Math.round(inSec * fps)}
+      endAt={outSec ? Math.round(outSec * fps) : undefined}
+      muted={!audio}
+      volume={audio ? 1 : 0}
+      style={{width: '100%', height: '100%', objectFit: frameMode === 'band' ? 'contain' : 'cover'}}
+    />
   );
+
+  if (frameMode === 'band') {
+    return (
+      <AbsoluteFill style={{background: COLORS.bg}}>
+        {video}
+        {/* Marca discreta arriba para el look "producido". */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 64,
+            left: 0,
+            right: 0,
+            textAlign: 'center',
+            fontFamily: FONTS.sans,
+            fontWeight: 800,
+            fontSize: 34,
+            letterSpacing: 2,
+            color: COLORS.inkDim,
+          }}
+        >
+          {BRAND.product}
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  return <AbsoluteFill style={{background: COLORS.bg}}>{video}</AbsoluteFill>;
 };

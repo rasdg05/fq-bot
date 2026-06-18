@@ -4,5 +4,8 @@ node_modules/
 out/
 public/footage/
 public/segments/
+public/audio/
+public/contact-sheets/
+public/proxies/
 .cache/
 *.log

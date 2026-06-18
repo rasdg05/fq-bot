@@ -68,7 +68,7 @@ export const AppShowcase: React.FC = () => {
               <div style={{fontFamily: FONTS.sans, fontWeight: 700, color: COLORS.ink, fontSize: 26}}>
                 {BRAND.product} {GLYPHS.title} {BRAND.desk}
               </div>
-              <div style={{fontFamily: FONTS.mono, color: COLORS.inkDim, fontSize: 18}}>{BRAND.pair} · en linea</div>
+              <div style={{fontFamily: FONTS.mono, color: COLORS.inkDim, fontSize: 18}}>multi-simbolo · en linea</div>
             </div>
           </div>
         </div>
@@ -89,7 +89,11 @@ export const AppShowcase: React.FC = () => {
               {GLYPHS.rule}
             </div>
             <Line delay={14} mono size={28}>
-              <span style={{color: COLORS.accent}}>{GLYPHS.title}</span> {BRAND.product} · {BRAND.pair}
+              <span style={{color: COLORS.accent}}>{GLYPHS.title}</span> {BRAND.product} · {BRAND.symbols[0]}
+            </Line>
+            <div style={{height: 6}} />
+            <Line delay={18} mono dim size={20}>
+              {BRAND.symbols.join('  ·  ')}  ·  +
             </Line>
             <div style={{height: 14}} />
             <Line delay={22} size={40}>
@@ -97,13 +101,13 @@ export const AppShowcase: React.FC = () => {
             </Line>
             <div style={{height: 16}} />
             <Line delay={30} mono dim>
-              {GLYPHS.bulletChk} Zona de interes definida
+              {GLYPHS.bulletChk} Entrada definida
             </Line>
             <Line delay={36} mono dim>
-              {GLYPHS.bulletChk} Invalidacion clara
+              {GLYPHS.bulletChk} Stop definido
             </Line>
             <Line delay={42} mono dim>
-              {GLYPHS.bulletChk} Gestion por estructura
+              {GLYPHS.bulletChk} Target por estructura
             </Line>
             <div style={{height: 16}} />
             <div style={{opacity: spring({frame: frame - 48, fps: 30, config: {damping: 200}})}}>
