@@ -202,9 +202,16 @@ class PaperBroker:
     capital. Calcula sizing desde el riesgo aprobado, sella la orden al abrir y
     realiza PnL en R y en quote al resolver."""
 
-    def __init__(self, ledger: HashLedger = None):
+    def __init__(self, ledger: HashLedger = None, cost=None):
         self.ledger = ledger or HashLedger()
         self._pid = 0
+        # Modelo de costes OPCIONAL (duck-typed: maker_entry, maker_tp_exit,
+        # slippage_frac, taker_fee, maker_fee -> p.ej. bt_engine.CostModel).
+        #   None  -> PnL BRUTO (comportamiento historico, sin costos).
+        #   set   -> resolve() resta fees + slippage por lado => el ledger forward
+        #            mide NETO. Es el cimiento honesto del track record y la base
+        #            del A/B taker-vs-maker (FQ_EXEC_MODE). Funding: commit 2.
+        self.cost = cost
 
     def open(self, account: Account, signal: dict, risk_frac: float, ts=None):
         entry, stop = float(signal["entry"]), float(signal["stop"])
@@ -227,17 +234,47 @@ class PaperBroker:
 
     def resolve(self, account: Account, pos: Position, exit_price: float,
                 reason: str = "manual", ts=None):
-        pnl_quote = pos.direction * (exit_price - pos.entry) * pos.size
-        pnl_r = pos.direction * (exit_price - pos.entry) / pos.risk_dist
+        exit_price = float(exit_price)
+        pnl_quote, fees_quote, fill_type = self._settle(pos, exit_price, reason)
+        # R-multiple NETO: PnL en quote / riesgo en quote (size * dist al stop).
+        # Con cost=None es identico al bruto historico (size se cancela).
+        risk_quote = pos.size * pos.risk_dist
+        pnl_r = pnl_quote / risk_quote if risk_quote else 0.0
         account.equity += pnl_quote
         account.peak_equity = max(account.peak_equity, account.equity)
         if pos in account.open:
             account.open.remove(pos)
-        self.ledger.append({"event": "CLOSE", "ts": ts, "account": account.account_id,
-                            "pid": pos.pid, "exit": float(exit_price), "reason": reason,
-                            "pnl_quote": pnl_quote, "pnl_r": pnl_r,
-                            "equity_after": account.equity})
+        close = {"event": "CLOSE", "ts": ts, "account": account.account_id,
+                 "pid": pos.pid, "exit": exit_price, "reason": reason,
+                 "pnl_quote": pnl_quote, "pnl_r": pnl_r,
+                 "equity_after": account.equity}
+        if self.cost is not None:
+            close["fees_quote"] = fees_quote
+            close["fill_type"] = fill_type     # pierna de ENTRADA: 'maker'|'taker'
+        self.ledger.append(close)
         return {"pnl_quote": pnl_quote, "pnl_r": pnl_r, "reason": reason}
+
+    def _settle(self, pos: Position, exit_price: float, reason: str):
+        """PnL en quote tras costes. Replica EXACTO el modelo de bt_engine.simulate
+        (fuente de verdad: bt_engine.py:161-186): slippage adverso por lado + fee
+        taker/maker por lado sobre el notional. Las piernas maker no pagan slippage
+        (pones el precio); el STOP y el timeout cruzan el book -> taker. El TP es
+        maker solo si maker_tp_exit y la salida fue por target. Sin cost model ->
+        PnL BRUTO (compat). Funding (dependiente del hold): commit 2.
+        Devuelve (pnl_quote, fees_quote, fill_type_entrada).
+        """
+        c = self.cost
+        if c is None:
+            return pos.direction * (exit_price - pos.entry) * pos.size, 0.0, "taker"
+        d = pos.direction
+        entry_maker = bool(getattr(c, "maker_entry", False))
+        exit_maker = bool(getattr(c, "maker_tp_exit", False)) and reason == "tp"
+        eff_entry = pos.entry if entry_maker else pos.entry * (1 + d * c.slippage_frac)
+        eff_exit = exit_price if exit_maker else exit_price * (1 - d * c.slippage_frac)
+        gross = d * (eff_exit - eff_entry) * pos.size
+        fees = ((c.maker_fee if entry_maker else c.taker_fee) * pos.size * pos.entry
+                + (c.maker_fee if exit_maker else c.taker_fee) * pos.size * exit_price)
+        return gross - fees, fees, ("maker" if entry_maker else "taker")
 
     def resolve_on_bar(self, account: Account, pos: Position, high: float,
                        low: float, pessimistic: bool = True, ts=None):

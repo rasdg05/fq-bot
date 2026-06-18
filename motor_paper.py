@@ -31,10 +31,30 @@ import logging
 
 from execution import RiskGovernor, Account, PaperBroker, DurableHashLedger
 from live_driver import normalize_fire_report
+from bt_engine import CostModel
 import gold_paper
 import segment_veto
 
 log = logging.getLogger("motor_paper")
+
+
+def cost_from_exec_mode(mode):
+    """Traduce FQ_EXEC_MODE a un CostModel para el PaperBroker (mismo modelo de
+    costes que el backtest, bt_engine.CostModel):
+      ''/otro -> None  : PnL BRUTO (comportamiento historico; default, reversible).
+      'taker' -> neto, ambas piernas taker (fee 5bps + slippage 1bp por lado).
+      'maker' -> neto con ENTRADA maker (fee 2bps, SIN slippage de entrada); stop
+                 y timeout siguen taker. TP maker solo si FQ_MAKER_TP_EXIT=1.
+    El A/B taker-vs-maker sobre el MISMO set de senales mide cuanto edge te
+    devuelve no pagar el spread. Funding: commit 2.
+    """
+    mode = (mode or "").strip().lower()
+    if mode not in ("taker", "maker"):
+        return None
+    maker = (mode == "maker")
+    tp_maker = maker and (os.environ.get("FQ_MAKER_TP_EXIT", "0").strip()
+                          in ("1", "true", "yes"))
+    return CostModel(maker_entry=maker, maker_tp_exit=tp_maker)
 
 
 class MotorPaperRuntime:
@@ -46,11 +66,11 @@ class MotorPaperRuntime:
     def __init__(self, symbol, *, account, governor=None, broker=None,
                  veto=None, tp_key="tp1", notify_fn=None, requested_risk=None,
                  digest_every=0, maker_sim=True, maker_eps_bps=1.0,
-                 maker_ttl_bars=6):
+                 maker_ttl_bars=6, cost=None):
         self.symbol = symbol
         self.account = account
         self.governor = governor or RiskGovernor()
-        self.broker = broker or PaperBroker()
+        self.broker = broker or PaperBroker(cost=cost)
         self.veto = veto if veto is not None else segment_veto.SegmentVeto()
         self.tp_key = tp_key
         self.notify_fn = notify_fn
@@ -84,7 +104,9 @@ class MotorPaperRuntime:
         slug = symbol.replace("/", "_").replace(":", "_")
         led_path = ledger_path or os.environ.get(
             "FQ_MOTOR_PAPER_LEDGER_PATH", "/data/motor_paper_%s.jsonl" % slug)
-        broker = PaperBroker(ledger=DurableHashLedger.load(led_path))
+        exec_mode = os.environ.get("FQ_EXEC_MODE", "")
+        cost = cost_from_exec_mode(exec_mode)
+        broker = PaperBroker(ledger=DurableHashLedger.load(led_path), cost=cost)
         equity = float(os.environ.get("FQ_MOTOR_PAPER_EQUITY", "10000"))
         acc = Account("paper-motor-%s" % symbol, equity)
         # Veto PROPIO: default = el config del techo (+0.10R). "" -> motor base.
@@ -101,8 +123,8 @@ class MotorPaperRuntime:
         maker_sim = os.environ.get("FQ_MOTOR_PAPER_MAKER_SIM", "1").strip() \
             in ("1", "true", "yes")
         log.info("[motor] runtime paper MOTOR BASE activo (%s, veto=%s, "
-                 "maker_shadow=%s, ledger=%s)", symbol, veto.describe(),
-                 maker_sim, led_path)
+                 "maker_shadow=%s, exec=%s, ledger=%s)", symbol, veto.describe(),
+                 maker_sim, exec_mode.strip() or "bruto", led_path)
         return cls(symbol, account=acc, broker=broker, veto=veto, tp_key=tp_key,
                    notify_fn=notify_fn, digest_every=digest_every,
                    maker_sim=maker_sim, maker_eps_bps=maker_eps,
