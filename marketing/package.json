@@ -10,6 +10,8 @@
     "render": "remotion render",
     "render:all": "node scripts/render-all.mjs",
     "ingest": "node scripts/ingest.mjs",
+    "launch": "node api/launch.mjs",
+    "launch:live": "node api/launch.mjs --live",
     "upgrade": "remotion upgrade"
   },
   "dependencies": {

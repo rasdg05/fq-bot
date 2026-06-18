@@ -60,6 +60,21 @@ En **Conjunto de anuncios** → **Audiencia** → **Ubicaciones**:
 - Idioma: si tu creativo es en espanol, fija **Idioma = Espanol** para no pagar
   impresiones fuera de tu mercado.
 
+### Receta: excluir Cuernavaca / Morelos (hometown)
+1. **Incluir**: Mexico (o las regiones que vendas).
+2. **Excluir** (campo "Excluir"): agrega el **estado de Morelos**. Asi sacas todo
+   el estado, no solo la ciudad.
+3. Opcional mas estricto: ademas de la region, excluye **Cuernavaca** como
+   ciudad, o un **pin + radio** (~17–25 km) centrado en Cuernavaca.
+4. Selector: **"Personas que viven en este lugar"** (no "recientemente"), para
+   que la exclusion siga a residentes locales.
+5. Salvedad: alguien de Morelos de viaje dentro de tu zona incluida podria verlo;
+   y no filtra conocidos que vivan fuera del estado. Pero combinado con el
+   *dark post* (no sale en tu feed) quedas bien cubierto frente a tu hometown.
+
+> En la API esto es `excluded_geo_locations` con la `region key` de Morelos
+> (el script la resuelve por nombre via Targeting Search, no se hardcodea).
+
 ---
 
 ## 4. Cripto / productos financieros (LEER antes de lanzar)

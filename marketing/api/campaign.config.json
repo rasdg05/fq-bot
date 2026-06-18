@@ -1,0 +1,45 @@
+{
+  "_comment": "Plan de campana para la Marketing API. Editable. Presupuesto en MXN/dia. Los videos referencian archivos en marketing/out/ (renderizados). Todo se crea PAUSED.",
+  "campaignName": "FQ · Reels · test de ganador",
+  "objective": "OUTCOME_TRAFFIC",
+  "dailyBudgetMXN": 150,
+  "geo": {
+    "includeCountries": ["MX"],
+    "excludeRegions": ["Morelos"],
+    "excludeCities": [{"name": "Cuernavaca", "radiusKm": 20}]
+  },
+  "placements": {
+    "instagramPositions": ["story", "reels"],
+    "facebookPositions": ["story", "facebook_reels"]
+  },
+  "adSets": [
+    {"key": "bot", "name": "AS · Telegram (bot)", "link": "https://t.me/TU_BOT?start=ads", "cta": "LEARN_MORE"},
+    {"key": "ig", "name": "AS · Instagram / Linkme", "link": "https://linkme.bio/TU_USUARIO", "cta": "LEARN_MORE"}
+  ],
+  "ads": [
+    {
+      "id": "a1-no-al-ruido",
+      "adSet": "bot",
+      "video": "out/a1-no-al-ruido.mp4",
+      "primaryText": "El 90% de las senales son ruido. FQ solo habla cuando hay ventaja en SOL/USDT. Mira el proceso.",
+      "headline": "FQ · Mesa de liquidez",
+      "description": "Disciplina sistematica. No es asesoria financiera."
+    },
+    {
+      "id": "a1b-no-ruido-hook2",
+      "adSet": "bot",
+      "video": "out/a1b-no-ruido-hook2.mp4",
+      "primaryText": "Deja de operar a ciegas. Estructura, zona e invalidacion claras en cada senal.",
+      "headline": "FQ · SOL/USDT",
+      "description": "Disciplina sistematica. No es asesoria financiera."
+    },
+    {
+      "id": "a4-hub-linkme",
+      "adSet": "ig",
+      "video": "out/a4-hub-linkme.mp4",
+      "primaryText": "Canal, Instagram y YouTube en un solo lugar. Entra al ecosistema FQ.",
+      "headline": "Todo FQ en un link",
+      "description": "Sigueme y mira el proceso completo."
+    }
+  ]
+}
