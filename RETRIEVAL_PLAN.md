@@ -1118,6 +1118,31 @@ cableándose en el gated run). Siguientes Tier-1: funding+OI, order-flow.
 
 ---
 
+### 6.14 — EL DEFLACTADO MATA LA PREDICCIÓN → pivote a ESTRUCTURAL (run #65, máx historia, sha c129d0e, 18-jun-2026)
+
+> Corrida DEFINITIVA: cross-asset + P1 rolling + sweep, a MÁXIMA densidad (BTC 84m,
+> SOL 60m, ETH 76m step1), con Deflated Sharpe + PBO. SOL (candidato limpio):
+>   P1 rolling top25%: edge −0.050, **delta_vs_static −0.228** (rolling PEOR que estático)
+>   Mejor forward = rolling top10%: edge +0.197 (n=21) PERO **DSR=0.41 (<0.95) + PBO=0.55 (overfit)**
+
+**El +0.197 era el más afortunado de 8 configs — la vara anti-suerte lo probó.** P1
+(adaptividad) NO rompió el drift (peor que el estático). Ni con cross-asset + memoria
+rodante + máxima historia + deflactado hay edge forward real en la predicción.
+
+**VEREDICTO con PRUEBA: el espacio de hipótesis PREDICTIVO está agotado** — no es
+"no lo encontramos", es "probamos que el mejor candidato es indistinguible de la
+suerte tras descontar la búsqueda (DSR 0.41, PBO 0.55)". El NO más limpio posible.
+La disciplina nos salvó de desplegar un espejismo de +0.197 en vivo.
+
+**PIVOTE (en marcha): edge ESTRUCTURAL, no predictivo.** P2 = **funding + OI**
+(carry/posicionamiento — cobrás una prima, no adivinás; no driftea como la
+predicción direccional). Misma vara: OOT + DSR + PBO. Si funding/OI cruza DSR≥0.95
+con PBO bajo → camino a vivo (paper-forward + reconcile + sizing); si no → ejecución
+(maker determinístico) + el harness/track-record honesto como producto. La fábrica
+de edge sigue: tiros independientes, estructura primero, deflactados, matando suerte.
+
+---
+
 ## 7. Roadmap por fases
 
 ### F0 — Datos BTC + harness de índice causal + **test de leakage** (puerta)
