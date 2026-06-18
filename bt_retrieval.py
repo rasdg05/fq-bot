@@ -265,6 +265,17 @@ try:
     DEFAULT_NUMERIC = DEFAULT_NUMERIC + list(_XBTC_FEATURE_COLUMNS)
 except Exception:   # pragma: no cover - bt_features siempre disponible en el bot
     pass
+# FUNDING / OPEN-INTEREST (estructural): features CAUSALES inyectadas con --funding-oi.
+# Mismo patron que XBTC_FEATURE_COLUMNS -> se anexan a DEFAULT_NUMERIC para que el
+# vector del gate ORO las ingiera cuando esten presentes; cuando NO lo estan (flag
+# apagado u OI no disponible), el vectorizer las imputa a 0 (mediana tras centrar)
+# sin romper -- dimension inerte, igual que xbtc_ sin --cross-asset. Single source
+# of truth de las columnas: funding_oi.FUNDING_OI_FEATURE_COLUMNS.
+try:
+    from funding_oi import FUNDING_OI_FEATURE_COLUMNS as _FUNDING_OI_FEATURE_COLUMNS
+    DEFAULT_NUMERIC = DEFAULT_NUMERIC + list(_FUNDING_OI_FEATURE_COLUMNS)
+except Exception:   # pragma: no cover - funding_oi siempre disponible en el bot
+    pass
 # BLOQUE QUANTUM / TIEMPO EMERGENTE (Eje A) — convicción adaptativa, excitación de
 # campo y tiempo complejo. Es el bloque que se ABLACIONA: vector base vs base+qt
 # para medir si los estados cuánticos / fractales de tiempo emergente aportan edge.

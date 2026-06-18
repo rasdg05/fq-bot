@@ -69,6 +69,15 @@ XBTC_FEATURE_COLUMNS = (
     "xbtc_atrpct", "xbtc_trend", "xbtc_relstr",
 )
 
+# Prefijos de las features ESTRUCTURALES de funding-rate / open-interest (modulo
+# funding_oi, --funding-oi). Se reconocen en _numeric_feature_columns para que el
+# GBM del [3/4] las ingiera cuando esten presentes. La definicion canonica de las
+# columnas vive en funding_oi.FUNDING_OI_FEATURE_COLUMNS (single source of truth);
+# aqui solo declaramos los prefijos para evitar un import circular bt_features <->
+# funding_oi. Inerte si el flag esta apagado (columnas ausentes -> no se recogen).
+FUND_PREFIX = "fund_"
+OI_PREFIX = "oi_"
+
 
 def cross_asset_features(
     df_primary, df_cross, *,
@@ -292,13 +301,17 @@ def _numeric_feature_columns(events):
 
     Incluye el prefijo cross-asset XBTC_PREFIX ('xbtc_') para que las features
     lead-lag del activo lider (BTC) entren al GBM del [3/4] cuando esten presentes
-    (--cross-asset). Sin esto, una columna numerica xbtc_ NO se recogeria (la
-    seleccion es por allowlist de prefijos, no por dtype solo)."""
+    (--cross-asset), y los prefijos FUND_PREFIX/OI_PREFIX ('fund_'/'oi_') de las
+    features ESTRUCTURALES de funding/OI (--funding-oi). Sin esto, una columna
+    numerica fund_/oi_/xbtc_ NO se recogeria (la seleccion es por allowlist de
+    prefijos, no por dtype solo). La allowlist es INERTE cuando la columna no esta
+    presente: el conteo de inputs del modelo NO cambia si el flag esta apagado."""
     cols = []
     for c in events.columns:
         if not c.startswith(("p_master", "scorer_", "regime_score",
                              "field_confluence", "field_pd_pct",
-                             "field_w_effective", XBTC_PREFIX)):
+                             "field_w_effective", XBTC_PREFIX,
+                             FUND_PREFIX, OI_PREFIX)):
             continue
         if pd.api.types.is_numeric_dtype(events[c]):
             cols.append(c)

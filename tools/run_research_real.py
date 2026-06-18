@@ -39,6 +39,7 @@ sys.path.insert(0, ".")
 
 import bt_data
 import bt_features as bf
+import funding_oi as fo
 import bt_labeler as lb
 import bt_walkforward as wf
 import bt_engine as eng
@@ -122,6 +123,41 @@ def _load_cross_ohlcv(exchange, symbol, tf, data_dir):
             f"  python tools/build_dataset.py --symbol {symbol} --timeframe {tf} "
             f"--market swap --years 2 --exchanges {exchange}")
     return bt_data.load_parquet(path)
+
+
+def _load_funding_oi(exchange, symbol, data_dir):
+    """Carga el cache de funding (obligatorio) y de OI (opcional) del simbolo.
+
+    funding_oi.fetch_* cachean a Parquet; aqui SOLO leemos el cache (el harness no
+    toca red). Si el cache de funding NO existe -> ERROR CLARO con el comando de
+    descarga (igual que --cross-asset: el funding es una hipotesis medible, no se
+    omite en silencio). El OI es OPCIONAL: si su cache falta o es mas corto que la
+    ventana primaria, devolvemos (df_funding, None, rango) y el caller sigue
+    FUNDING-ONLY (funding es la señal estructural mas larga/fuerte).
+
+    Devuelve (df_funding, df_oi_or_None, oi_range_str).
+    """
+    import funding_oi as fo
+    fpath = fo.funding_path(data_dir, exchange, symbol)
+    if not os.path.exists(fpath):
+        sys.exit(
+            f"--funding-oi {symbol}: falta el cache de funding {fpath}. "
+            f"Descargalo (cachea a Parquet) en el host CON red, p.ej.:\n"
+            f"  python -c \"import funding_oi as fo, bt_data; "
+            f"ex=bt_data.make_exchange('{exchange}', 'swap'); "
+            f"fo.fetch_funding_history(ex, '{symbol}', data_dir='{data_dir}'); "
+            f"fo.fetch_open_interest_history(ex, '{symbol}', data_dir='{data_dir}')\"")
+    df_funding = bt_data.load_parquet(fpath)
+
+    df_oi, oi_range = None, "no disponible"
+    opath = fo.open_interest_path(data_dir, exchange, symbol)
+    if os.path.exists(opath):
+        df_oi_try = bt_data.load_parquet(opath)
+        if df_oi_try is not None and len(df_oi_try):
+            rng = fo._range_of(df_oi_try)
+            df_oi = df_oi_try
+            oi_range = f"{rng[0]} .. {rng[1]} (n={len(df_oi_try)})"
+    return df_funding, df_oi, oi_range
 
 
 def _build_config(monolith, tf_id="15m"):
@@ -504,6 +540,17 @@ def main():
                         "vector de retrieval. Requiere el Parquet del lider al "
                         "MISMO TF/exchange (si falta, error claro; NO se omite en "
                         "silencio). Si == --symbol es no-op con aviso. Default None")
+    p.add_argument("--funding-oi", action="store_true",
+                   help="inyecta features ESTRUCTURALES de funding-rate (+ open "
+                        "interest si disponible) CAUSALES (fund_/oi_) alineadas a "
+                        "cada vela del primario via merge_asof backward (ts<=t, "
+                        "shift 1 ventana = ultimo funding YA LIQUIDADO). Cosecha el "
+                        "premio de reversion de extremos de funding y la "
+                        "confirmacion/squeeze de OI; NO predice direccion. Requiere "
+                        "el cache de funding (si falta, error claro con el comando "
+                        "de descarga). El OI es opcional: si su historia no cubre la "
+                        "ventana, sigue FUNDING-ONLY. Las fund_/oi_ entran al modelo "
+                        "[3/4] Y al vector de retrieval. Default off")
     p.add_argument("--tf-id", default="15m", choices=list(TF_STACK),
                    help="TF primario del motor (5m sube volumen de senales)")
     p.add_argument("--min-lookback", type=int, default=300)
@@ -909,6 +956,33 @@ def main():
                 _cov = 0.0
             print(f"[cross-asset] {args.cross_asset} lider -> {_n_ev} eventos, "
                   f"xbtc_ cobertura {_cov:.1f}%")
+
+    # ===== FUNDING / OPEN-INTEREST (estructural) — inyeccion CAUSAL =====
+    # MISMO punto unico que cross-asset (3 ramas ya convergidas en states/events,
+    # ANTES de labeling/grids/modelo/retrieval/OOT). Anexa fund_/oi_ por
+    # entry_index; `labeled` las HEREDA (lb.label_events preserva toda clave del
+    # evento). Causal por construccion: attach -> funding_oi_features solo lee
+    # funding/OI <= la vela de SU entry_index (merge_asof backward + shift=1, ultimo
+    # funding YA LIQUIDADO); aqui NO se añade ningun merge forward-looking. El OI es
+    # opcional: si su cache no cubre la ventana, se sigue FUNDING-ONLY (oi_ ausentes
+    # -> el vector las imputa a 0). df_primary es el MISMO que indexa entry_index.
+    if args.funding_oi:
+        df_funding, df_oi, oi_range = _load_funding_oi(
+            args.exchange, args.symbol, args.data_dir)
+        if events is not None and len(events):
+            events = fo.attach_funding_oi_features(events, df_primary, df_funding, df_oi)
+        if states is not None and len(states):
+            states = fo.attach_funding_oi_features(states, df_primary, df_funding, df_oi)
+        # cobertura = fraccion non-NaN de fund_rate sobre los eventos fired (misma
+        # poblacion que se etiqueta). NaN = velas previas al primer funding o
+        # entry_index fuera de rango.
+        _n_ev = len(events) if events is not None else 0
+        if _n_ev and "fund_rate" in events.columns:
+            _cov = float(events["fund_rate"].notna().mean()) * 100.0
+        else:
+            _cov = 0.0
+        print(f"[funding-oi] {_n_ev} eventos, fund_ cobertura {_cov:.1f}% | "
+              f"oi: {oi_range}")
 
     base_metric, n_pool, ppy = None, 0, None
     min_for_wf = args.n_splits * 3
