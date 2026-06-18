@@ -564,6 +564,12 @@ def main():
                    help="fecha de corte (p.ej. 2025-06-01): congela el modelo con "
                         "lo ANTERIOR y evalua SOLO la ventana posterior + calibracion "
                         "predicho-vs-realizado. El test sin fuga por construccion")
+    p.add_argument("--rolling-chunks", type=int, default=6,
+                   help="nº de tramos del FORWARD [retrieval-rolling]: gate de "
+                        "retrieval ONLINE con memoria EXPANSIVA (re-ingiere estados "
+                        "resueltos al caminar AFTER; embargo == max_bars). Mide si la "
+                        "adaptatividad recupera el edge que el gate estatico pierde "
+                        "por drift de regimen. No es input del workflow (default 6)")
     # --- replay DENSO unificado (default): UN replay alimenta senales + retrieval.
     # --dense se mantiene por compatibilidad con el workflow, pero ya es implicito.
     p.add_argument("--dense", action="store_true",
@@ -1199,6 +1205,111 @@ def _resolve_lgbm_factory():
     return tr.make_lgbm_classifier
 
 
+# ----------------------------------------------------------------------------
+# ROLLING / ONLINE forward retrieval — piezas PURAS (sin red, sin estado) que
+# definen la MEMORIA causal de cada chunk. Extraidas como funciones puras para
+# que la regla de embargo sea unit-testable (tests/test_rolling_forward.py).
+# ----------------------------------------------------------------------------
+def _rolling_chunk_bounds(after_entry_indexes, n_chunks):
+    """Parte la ventana AFTER en `n_chunks` tramos CRONOLOGICOS (por entry_index)
+    de tamano aproximadamente igual. Devuelve una lista de tuplas
+    (chunk_start, idx_mask) donde:
+      chunk_start : entry_index del PRIMER evento del chunk (frontera temporal;
+                    define que memoria es admisible — todo lo resuelto antes).
+      idx_mask    : mascara booleana (sobre after_entry_indexes) de los eventos
+                    de ESE chunk.
+    Los chunks son disjuntos y cubren todo AFTER en orden de entry_index. Pieza
+    pura: arrays in -> lista de (float, np.ndarray[bool]) out.
+    """
+    ei = np.asarray(after_entry_indexes, dtype="float64")
+    n = len(ei)
+    if n == 0 or n_chunks < 1:
+        return []
+    order = np.argsort(ei, kind="stable")          # cronologico, estable
+    n_chunks = int(min(n_chunks, n))               # no mas chunks que eventos
+    parts = np.array_split(order, n_chunks)        # contiguos en el orden temporal
+    bounds = []
+    for part in parts:
+        if len(part) == 0:
+            continue
+        mask = np.zeros(n, dtype=bool)
+        mask[part] = True
+        chunk_start = float(ei[part].min())        # frontera = primer evento del chunk
+        bounds.append((chunk_start, mask))
+    return bounds
+
+
+def _rolling_memory_mask(memory_entry_indexes, max_bars, chunk_start):
+    """MASCARA de la MEMORIA admisible para un chunk cuya frontera temporal es
+    `chunk_start` (entry_index del primer evento del chunk).
+
+    **Esta es la puerta de leakage del test rolling.** Un evento e SOLO entra en
+    la memoria del chunk si su etiqueta ya estaba RESUELTA antes de que el chunk
+    empiece, esto es:
+
+        e.entry_index + max_bars  <  chunk_start
+
+    `max_bars` es el horizonte de la barrera vertical (el MAXIMO de velas que una
+    etiqueta puede tardar en resolverse). Sumarlo es la cota CONSERVADORA: aunque
+    la etiqueta concreta cerrara antes (bars_held < max_bars), no asumimos saber
+    su desenlace hasta `entry_index + max_bars`. Asi, un evento todavia ABIERTO
+    en la frontera del chunk (cuyo pnl_r aun no se conocia) queda EXCLUIDO, y su
+    desenlace no puede informar ni el indice ni el umbral del chunk.
+
+    Pieza pura: array de entry_index in -> mascara booleana out.
+    """
+    ei = np.asarray(memory_entry_indexes, dtype="float64")
+    return (ei + float(max_bars)) < float(chunk_start)
+
+
+def _gold_threshold_from_memory(memory_res, *, k, sim_floor, n_floor, decay_bars,
+                                backend, bit_width, gold_top_pct, n_splits,
+                                embargo, seed, index=None):
+    """UMBRAL ORO derivado SOLO de `memory_res` (estados ya resueltos). Camino
+    principal = expectancy del vecindario de los folds walk-forward CAUSALES
+    dentro de la memoria (rt.retrieval_oos: ningun fold ve el futuro de la
+    memoria). Fallback (marcado) = percentil de las expectancies del vecindario
+    in-sample de la memoria, consultando su propio indice.
+
+    Es EXACTAMENTE la logica de umbral de _forward_retrieval_gate, extraida para
+    que el gate estatico (BEFORE) y el rolling (MEMORIA por chunk) compartan el
+    MISMO derivador leakage-clean. Devuelve (threshold, thr_source, n_confident).
+    """
+    threshold, thr_source, n_confident = None, "none", 0
+    try:
+        m_folds, m_valid = wf.folds_from_labeled(
+            memory_res, n_splits=n_splits, embargo=embargo)
+        if m_folds:
+            m_oos = rt.retrieval_oos(
+                memory_res, m_folds, m_valid, mode="causal", backend=backend,
+                bit_width=bit_width, k=k, sim_floor=sim_floor, n_floor=n_floor,
+                decay_bars=decay_bars, seed=seed)
+            if len(m_oos):
+                conf = m_oos[~m_oos["retr_abstain"].astype(bool)]
+                n_confident = int(len(conf))
+                threshold = rg.calibrate_gold_threshold(
+                    conf["retr_expectancy_r"].to_numpy(), top_pct=gold_top_pct)
+                if threshold is not None:
+                    thr_source = "memory_oos"
+    except Exception:
+        threshold = None  # cae al fallback in-sample (sigue dentro de la memoria)
+
+    if threshold is None:
+        if index is None:
+            index = rg.StateIndex.build(memory_res, backend=backend,
+                                        bit_width=bit_width)
+        exps = []
+        for _, st in memory_res.iterrows():
+            s = index.query(st, k=k, sim_floor=sim_floor, n_floor=n_floor,
+                            decay_bars=decay_bars)
+            if not s["abstain"] and np.isfinite(s["expectancy_r"]):
+                exps.append(s["expectancy_r"])
+        n_confident = len(exps)
+        threshold = rg.calibrate_gold_threshold(exps, top_pct=gold_top_pct)
+        thr_source = "memory_insample" if threshold is not None else "none"
+    return threshold, thr_source, n_confident
+
+
 def _forward_retrieval_gate(before, after, *, k=50, sim_floor=0.5, n_floor=None,
                             decay_bars=None, backend="exact", bit_width=4,
                             gold_top_pct=0.05, n_splits=8, embargo=8, seed=42):
@@ -1236,39 +1347,16 @@ def _forward_retrieval_gate(before, after, *, k=50, sim_floor=0.5, n_floor=None,
     # 2) UMBRAL ORO: BEFORE-only. Camino principal = expectancy del vecindario de
     #    los folds walk-forward CAUSALES dentro de BEFORE (mismo primitivo vetado
     #    que el --build-index, pero restringido a BEFORE: ningun fold ve AFTER).
-    threshold, thr_source, n_confident = None, "none", 0
-    try:
-        b_folds, b_valid = wf.folds_from_labeled(
-            before_res, n_splits=n_splits, embargo=embargo)
-        if b_folds:
-            b_oos = rt.retrieval_oos(
-                before_res, b_folds, b_valid, mode="causal", backend=backend,
-                bit_width=bit_width, k=k, sim_floor=sim_floor, n_floor=n_floor,
-                decay_bars=decay_bars, seed=seed)
-            if len(b_oos):
-                conf = b_oos[~b_oos["retr_abstain"].astype(bool)]
-                n_confident = int(len(conf))
-                threshold = rg.calibrate_gold_threshold(
-                    conf["retr_expectancy_r"].to_numpy(), top_pct=gold_top_pct)
-                if threshold is not None:
-                    thr_source = "before_oos"
-    except Exception:
-        threshold = None  # cae al fallback in-sample (sigue dentro de BEFORE)
-
-    # Fallback BEFORE-only: percentil de las expectancies del vecindario in-sample
-    # de BEFORE (consulta el propio indice de BEFORE con sus eventos de BEFORE). No
-    # toca AFTER; solo es menos limpio que el OOS (optimismo in-sample), por eso se
-    # marca en thr_source.
-    if threshold is None:
-        exps = []
-        for _, st in before_res.iterrows():
-            s = index.query(st, k=k, sim_floor=sim_floor, n_floor=n_floor,
-                            decay_bars=decay_bars)
-            if not s["abstain"] and np.isfinite(s["expectancy_r"]):
-                exps.append(s["expectancy_r"])
-        n_confident = len(exps)
-        threshold = rg.calibrate_gold_threshold(exps, top_pct=gold_top_pct)
-        thr_source = "before_insample" if threshold is not None else "none"
+    #    Reusa el derivador puro compartido con el gate rolling (memoria==BEFORE);
+    #    aqui la "memoria" es BEFORE, asi que renombramos el origen a before_*.
+    threshold, thr_src_mem, n_confident = _gold_threshold_from_memory(
+        before_res, k=k, sim_floor=sim_floor, n_floor=n_floor,
+        decay_bars=decay_bars, backend=backend, bit_width=bit_width,
+        gold_top_pct=gold_top_pct, n_splits=n_splits, embargo=embargo,
+        seed=seed, index=index)
+    thr_source = {"memory_oos": "before_oos",
+                  "memory_insample": "before_insample",
+                  "none": "none"}[thr_src_mem]
 
     # 3) GATE: clasifica cada evento AFTER contra el indice de BEFORE (causal).
     gate = rg.GoldGate(index, threshold, k=k, sim_floor=sim_floor,
@@ -1285,6 +1373,99 @@ def _forward_retrieval_gate(before, after, *, k=50, sim_floor=0.5, n_floor=None,
         "threshold": threshold, "thr_source": thr_source,
         "n_confident": n_confident, "n_after_scored": int(len(after_res)),
         "tiers": tiers,
+    }
+
+
+def _run_rolling_forward_retrieval(before, after, *, max_bars, n_chunks=6, k=50,
+                                   sim_floor=0.5, n_floor=None, decay_bars=None,
+                                   backend="exact", bit_width=4, gold_top_pct=0.05,
+                                   n_splits=8, embargo=8, seed=42):
+    """Gate de RETRIEVAL ROLLING / ONLINE leakage-clean (memoria EXPANSIVA).
+
+    Ataca el DRIFT DE REGIMEN: el gate estatico congela indice+umbral en BEFORE y
+    los aplica a TODO AFTER, asi que con el tiempo la memoria queda anticuada (el
+    forward se queda SILENCIOSO). Aqui caminamos AFTER cronologicamente en
+    `n_chunks` tramos; para el chunk i la MEMORIA = todos los eventos cuya
+    ETIQUETA se resolvio ANTES de que el chunk i empiece (BEFORE + chunks AFTER
+    previos YA resueltos). La memoria CRECE conforme avanzamos: se mantiene al dia.
+
+    **Puerta de leakage (embargo == max_bars).** Un evento e entra en la memoria
+    del chunk i SOLO si `e.entry_index + max_bars < chunk_i_start` (ver
+    _rolling_memory_mask). `max_bars` es el horizonte de la barrera vertical: la
+    cota conservadora de cuando, COMO MUY TARDE, se conoce el desenlace (pnl_r).
+    Asi un evento todavia ABIERTO en la frontera del chunk (pnl_r aun desconocido)
+    queda EXCLUIDO: su desenlace jamas informa ni el indice ni el umbral ni el
+    gate del chunk i. Cada evento de AFTER se clasifica con un indice construido
+    SOLO con su pasado estricto resuelto (k-NN causal); su propio pnl_r nunca
+    entra. El umbral oro sale de rt.retrieval_oos sobre ESA memoria (folds
+    walk-forward causales) con el mismo fallback in-sample marcado que el estatico.
+
+    Devuelve dict:
+      gate_pass        : union (sobre chunks) de eventos AFTER clasificados ORO.
+      n_after_scored   : nº de eventos AFTER gateados (con pnl_r resuelto).
+      n_chunks_used    : nº de chunks realmente procesados (con memoria valida).
+      n_chunks_skipped : nº de chunks saltados (memoria insuficiente para indice).
+      thr_sources      : conteo {memory_oos, memory_insample, none} sobre chunks.
+      mem_sizes        : tamano de la memoria por chunk procesado (crecimiento).
+    """
+    before_res = before[before["pnl_r"].notna()].reset_index(drop=True)
+    after_res = after[after["pnl_r"].notna()].reset_index(drop=True)
+    if "entry_index" not in after_res.columns:
+        raise ValueError("AFTER sin columna entry_index (no se puede ordenar el rolling)")
+    if len(after_res) == 0:
+        raise ValueError("AFTER sin estados resueltos (pnl_r)")
+
+    after_ei = after_res["entry_index"].to_numpy(dtype="float64")
+    bounds = _rolling_chunk_bounds(after_ei, n_chunks)
+
+    keep = np.zeros(len(after_res), dtype=bool)
+    n_scored = 0
+    thr_sources = {"memory_oos": 0, "memory_insample": 0, "none": 0}
+    mem_sizes, n_used, n_skipped = [], 0, 0
+
+    for chunk_start, chunk_mask in bounds:
+        # MEMORIA del chunk = BEFORE (todo resuelto y anterior) U eventos de AFTER
+        # de chunks previos cuya etiqueta YA cerro antes de la frontera del chunk.
+        # La puerta de leakage es identica para ambos origenes: entry_index +
+        # max_bars < chunk_start. (BEFORE casi siempre cumple por estar pre-corte,
+        # pero lo filtramos por la MISMA regla — no asumimos nada gratis.)
+        b_keep = _rolling_memory_mask(
+            before_res["entry_index"].to_numpy(dtype="float64"), max_bars, chunk_start)
+        a_keep = _rolling_memory_mask(after_ei, max_bars, chunk_start)
+        memory = pd.concat(
+            [before_res[b_keep], after_res[a_keep]], ignore_index=True)
+        # exige al menos un punado de estados resueltos para un indice util
+        if len(memory) < max(10, k // 2):
+            n_skipped += 1
+            continue
+        try:
+            index = rg.StateIndex.build(memory, backend=backend, bit_width=bit_width)
+        except Exception:
+            n_skipped += 1
+            continue
+        threshold, thr_src, _n_conf = _gold_threshold_from_memory(
+            memory, k=k, sim_floor=sim_floor, n_floor=n_floor, decay_bars=decay_bars,
+            backend=backend, bit_width=bit_width, gold_top_pct=gold_top_pct,
+            n_splits=n_splits, embargo=embargo, seed=seed, index=index)
+        thr_sources[thr_src] = thr_sources.get(thr_src, 0) + 1
+        mem_sizes.append(int(len(memory)))
+        n_used += 1
+
+        # GATE de los eventos de ESTE chunk contra el indice de su memoria (causal).
+        gate = rg.GoldGate(index, threshold, k=k, sim_floor=sim_floor,
+                           n_floor=n_floor, decay_bars=decay_bars)
+        pos = np.nonzero(chunk_mask)[0]
+        n_scored += len(pos)
+        for i in pos:
+            verdict = gate.classify(after_res.iloc[i])
+            keep[i] = verdict["tier"] == rg.GOLD
+
+    return {
+        "gate_pass": after_res[keep].reset_index(drop=True),
+        "n_after_scored": int(n_scored),
+        "n_chunks_used": int(n_used), "n_chunks_skipped": int(n_skipped),
+        "thr_sources": thr_sources,
+        "mem_sizes": mem_sizes,
     }
 
 
@@ -1384,6 +1565,7 @@ def _run_out_of_time(labeled, args, sim_kwargs, bar_minutes):
             print("\n  FORWARD [retrieval] (indice + umbral ORO del BEFORE; gate del "
                   "AFTER jamas visto por k-NN causal; SWEEP de ancho del gate):")
             e_all = m.get("expectancy_r") if m else None
+            static_exp = {}   # top_pct -> exp_R estatico (baseline del delta rolling)
             _hdr = False
             for _tp in (0.05, 0.10, 0.25, 0.50):
                 gr = _forward_retrieval_gate(
@@ -1408,17 +1590,77 @@ def _run_out_of_time(labeled, args, sim_kwargs, bar_minutes):
                                         bar_minutes=bar_minutes) if len(gp) else None
                 if mg is not None:
                     e_g = mg.get("expectancy_r")
+                    static_exp[_tp] = e_g
                     edge = (e_g - e_all) if (e_all is not None and e_g is not None) else None
                     print(f"    top {_tp:>5.0%}: thr={_f(gr['threshold'])} "
                           f"gold={len(gp):>4} exp_R={_f(e_g)} "
                           f"edge_vs_all={_f(edge)} PF={_f(mg.get('profit_factor'))}")
                 else:
+                    static_exp[_tp] = None
                     print(f"    top {_tp:>5.0%}: thr={_f(gr['threshold'])} "
                           f"gold={len(gp):>4} (subset forward vacio)")
             print("    >> ¿sobrevive OOT al ensanchar el gate? BEFORE-only (AFTER no "
                   "puede filtrarse); mas gold = lectura mas fiable del edge forward.")
         except Exception as e:
+            static_exp = {}
             print(f"  FORWARD [retrieval]: no se pudo computar ({e})")
+
+    # [RETRIEVAL-ROLLING] FORWARD del gate de RETRIEVAL ONLINE — ataca el DRIFT DE
+    # REGIMEN, causa comun de que el gate ESTATICO se quede silencioso forward (SOL
+    # #61/#62 pasaron 1-2/141 gold). En produccion el bot ACTUALIZA su memoria de
+    # continuo; esto lo mide: caminamos AFTER en K tramos y para cada uno
+    # reconstruimos indice + umbral con la MEMORIA EXPANSIVA = todo lo cuya etiqueta
+    # ya se resolvio antes de la frontera del tramo (BEFORE + tramos AFTER previos
+    # YA cerrados). Embargo == max_bars: un evento abierto en la frontera NUNCA
+    # entra (su pnl_r aun no se sabia). Si el rolling RECUPERA edge que el estatico
+    # pierde, el drift es el asesino y la adaptatividad es el arreglo.
+    if getattr(args, "quality_gate", False):
+        try:
+            K = int(getattr(args, "rolling_chunks", 6))
+            e_all = m.get("expectancy_r") if m else None
+            print(f"\n  FORWARD [retrieval-rolling] (memoria ONLINE/expansiva, K={K} "
+                  f"tramos cronologicos; embargo=max_bars={args.max_bars}; cada tramo "
+                  f"reconstruye indice+umbral con SOLO lo resuelto antes de su "
+                  f"frontera; SWEEP de ancho del gate):")
+            _hdr = False
+            for _tp in (0.05, 0.10, 0.25):
+                rfr = _run_rolling_forward_retrieval(
+                    before, after, max_bars=args.max_bars, n_chunks=K,
+                    k=args.retrieval_k, sim_floor=args.retrieval_sim_floor,
+                    n_floor=args.retrieval_nfloor, decay_bars=args.retrieval_decay_bars,
+                    backend=args.retrieval_backend, bit_width=args.retrieval_bit,
+                    gold_top_pct=_tp, n_splits=args.n_splits,
+                    embargo=args.embargo, seed=args.seed)
+                gp = rfr["gate_pass"]
+                if not _hdr:
+                    mn = min(rfr["mem_sizes"]) if rfr["mem_sizes"] else 0
+                    mx = max(rfr["mem_sizes"]) if rfr["mem_sizes"] else 0
+                    print(f"    AFTER_gateado={rfr['n_after_scored']} "
+                          f"chunks_usados={rfr['n_chunks_used']} "
+                          f"(saltados={rfr['n_chunks_skipped']}) "
+                          f"memoria {mn}->{mx} (crece) k={args.retrieval_k}")
+                    print(f"    umbral por tramo <- {dict(rfr['thr_sources'])} "
+                          f"(memory_oos = OOS walk-forward de la memoria del tramo)")
+                    _hdr = True
+                mg = fw.forward_metrics(gp, sim_kwargs=sim_kwargs,
+                                        bar_minutes=bar_minutes) if len(gp) else None
+                e_st = static_exp.get(_tp)
+                if mg is not None:
+                    e_g = mg.get("expectancy_r")
+                    edge = (e_g - e_all) if (e_all is not None and e_g is not None) else None
+                    d_static = (e_g - e_st) if (e_st is not None and e_g is not None) else None
+                    print(f"    top {_tp:>5.0%}: gold={len(gp):>4} exp_R={_f(e_g)} "
+                          f"total_ret={_f(mg.get('total_return'))} "
+                          f"edge_vs_all={_f(edge)} PF={_f(mg.get('profit_factor'))} "
+                          f"| delta_vs_static={_f(d_static)} (static_exp={_f(e_st)})")
+                else:
+                    print(f"    top {_tp:>5.0%}: gold={len(gp):>4} (subset forward "
+                          f"vacio) | static_exp={_f(e_st)}")
+            print("    >> ¿la MEMORIA AL DIA recupera edge que el gate congelado "
+                  "pierde? delta_vs_static>0 = el drift es el asesino y la "
+                  "adaptatividad lo arregla. Leakage-clean: embargo=max_bars.")
+        except Exception as e:
+            print(f"  FORWARD [retrieval-rolling]: no se pudo computar ({e})")
 
     sc = scored["fwd_score"].to_numpy()
     win = (scored["outcome"] == lb.WIN).astype(float).to_numpy()
