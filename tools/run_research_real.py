@@ -1469,6 +1469,138 @@ def _run_rolling_forward_retrieval(before, after, *, max_bars, n_chunks=6, k=50,
     }
 
 
+def _forward_net_returns(trades, sim_kwargs):
+    """Retornos NET-de-costes por trade de un subset forward (mismos numeros que
+    alimentan el Sharpe de forward_metrics: eng.simulate(...)['returns'] =
+    net_pnl/equity_previo). Devuelve ndarray finito; vacio si no hay resueltos."""
+    import bt_engine as eng
+    if trades is None or len(trades) == 0:
+        return np.array([], dtype="float64")
+    t = trades[trades["outcome"].notna()] if "outcome" in trades.columns else trades
+    if len(t) == 0:
+        return np.array([], dtype="float64")
+    res = eng.simulate(t, **(sim_kwargs or {}))
+    r = np.asarray(res.get("returns"), dtype="float64").ravel()
+    return r[np.isfinite(r)]
+
+
+def _per_period_sharpe(returns):
+    """Sharpe per-period (mean/std, ddof=1) -- mismo estimador que bt_metrics.sharpe
+    SIN anualizar. None si <2 muestras o sd nula. Es la unidad de los 'trials' que
+    arman N_trials/trials_sr_var del Deflated Sharpe."""
+    r = np.asarray(returns, dtype="float64").ravel()
+    r = r[np.isfinite(r)]
+    if len(r) < 2:
+        return None
+    sd = float(r.std(ddof=1))
+    if sd == 0.0:
+        return None
+    return float(r.mean() / sd)
+
+
+def _print_deflated_verdict(fwd_configs, m, args, sim_kwargs):
+    """[DEFLATED] Veredicto ANTI-SUERTE sobre los configs forward evaluados.
+
+    `fwd_configs` = lista de (label, returns_net_por_trade, edge_vs_all) de TODOS
+    los configs forward evaluados (sweep retrieval estatico + rolling + seleccion).
+    Con ~10 intentos, un edge positivo podria ser el mas afortunado de N:
+
+      * N_trials = numero de configs forward con Sharpe per-period medible.
+      * trials_sr_var = VARIANZA de esos Sharpes per-period (su dispersion).
+      Ambos se DERIVAN de los configs realmente evaluados aqui (auditable abajo).
+
+    DSR del MEJOR config (max edge_vs_all con n>=10): P(Sharpe verdadero > barra
+    del maximo-de-N | no-normalidad). Embarque si DSR>=0.95. Si >=3 configs tienen
+    n>=10, ademas PBO (CSCV) sobre su matriz de retornos por trade bucketizada.
+    """
+    import deflated as dfl
+
+    MIN_TRADES = 10
+    # trials = configs con Sharpe per-period medible (n>=2). El conjunto de
+    # intentos para N y su varianza sale de TODOS los configs forward, no solo
+    # los de n>=10 (probar un ancho que salio starved TAMBIEN es un intento).
+    trial_srs = []
+    for _lbl, _ret, _edge in fwd_configs:
+        s = _per_period_sharpe(_ret)
+        if s is not None:
+            trial_srs.append(s)
+    n_trials = len(trial_srs)
+    trials_sr_var = float(np.var(trial_srs, ddof=1)) if n_trials >= 2 else None
+
+    # MEJOR config: el de mayor edge_vs_all con muestra suficiente (n>=10).
+    eligible = [(lbl, ret, edge) for (lbl, ret, edge) in fwd_configs
+                if len(ret) >= MIN_TRADES and edge is not None
+                and np.isfinite(edge)]
+    if not eligible:
+        print("\n  [DEFLATED] sin config forward con n>=%d y edge medible "
+              "(nada que deshinchar)." % MIN_TRADES)
+        return
+    best_lbl, best_ret, best_edge = max(eligible, key=lambda x: x[2])
+
+    res = dfl.deflated_sharpe_ratio(best_ret, n_trials=max(n_trials, 1),
+                                    trials_sr_var=trials_sr_var)
+    dsr = res["dsr"]
+    verdict = "OK" if (dsr is not None and dsr >= 0.95) else "SOSPECHA"
+    flag = "  [var_default: dispersion no medible, default conservador]" \
+        if res.get("sr0_var_default") else ""
+    var_note = (f"{trials_sr_var:.4f}" if trials_sr_var is not None
+                else "n/a(default)")
+    print(f"\n  [DEFLATED] mejor forward = '{best_lbl}' "
+          f"(edge_vs_all={_f(best_edge)} R/trade, n={len(best_ret)})")
+    print(f"    N_trials={n_trials} (configs forward evaluados) "
+          f"trials_sr_var={var_note} (var de sus Sharpes per-period)")
+    print(f"    DSR={_f(dsr)} (P(edge real | N={n_trials} configs, no-normalidad)) "
+          f"| SR={_f(res['sr'])} T={res['T']} skew={_f(res['skew'])} "
+          f"kurt={_f(res['kurt'])} sr0={_f(res['sr0'])}  -> {verdict} "
+          f"(DSR{'>=' if verdict == 'OK' else '<'}0.95){flag}")
+
+    # PBO: necesita >=3 configs con n>=10. Se ALINEA por bucket de trade en
+    # n_splits bins cuantilicos de la ventana forward (las longitudes difieren
+    # entre configs: cada uno opera un subset distinto del after).
+    pbo_pool = [(lbl, ret) for (lbl, ret, _e) in fwd_configs
+                if len(ret) >= MIN_TRADES]
+    if len(pbo_pool) >= 3:
+        try:
+            n_splits = int(getattr(args, "n_splits", 8))
+            M = _bucketize_configs([r for _l, r in pbo_pool], n_splits=n_splits)
+            if M is not None and M.shape[1] >= 3 and M.shape[0] >= n_splits:
+                pres = dfl.probability_backtest_overfitting(M, n_splits=n_splits)
+                pbo = pres.get("pbo")
+                samp = " (muestreado)" if pres.get("sampled") else ""
+                print(f"    PBO={_f(pbo)} (prob. de overfit del ranking IS->OOS; "
+                      f"bajo=robusto, >=0.5=overfit) "
+                      f"sobre {M.shape[1]} configs, {pres.get('n_combos')} combos{samp}")
+            else:
+                print("    PBO: matriz insuficiente tras bucketizar "
+                      f"(configs={0 if M is None else M.shape[1]}, "
+                      f"buckets={0 if M is None else M.shape[0]}, n_splits={n_splits})")
+        except Exception as e:
+            print(f"    PBO: no se pudo computar ({e})")
+    else:
+        print(f"    PBO: solo {len(pbo_pool)} config(s) con n>={MIN_TRADES} "
+              f"(se requieren >=3 para CSCV)")
+
+
+def _bucketize_configs(returns_list, n_splits):
+    """Alinea configs de DISTINTA longitud en una matriz (n_splits filas x configs)
+    para CSCV/PBO: cada serie de retornos por trade se reparte en n_splits bins
+    contiguos (cuantiles de su propio orden temporal) y se promedia dentro del bin.
+    Asi cada columna queda en la MISMA rejilla de n_splits 'tramos' de la ventana
+    forward aunque cada config opere un numero distinto de trades. Devuelve la
+    matriz o None si algun config no llena los bins."""
+    cols = []
+    for r in returns_list:
+        r = np.asarray(r, dtype="float64").ravel()
+        r = r[np.isfinite(r)]
+        if len(r) < n_splits:
+            return None                              # no llena los bins -> aborta
+        # bins contiguos casi-iguales en el orden cronologico del config
+        parts = np.array_split(r, n_splits)
+        col = np.array([float(p.mean()) for p in parts], dtype="float64")
+        cols.append(col)
+    return np.column_stack(cols) if cols else None
+
+
 def _run_out_of_time(labeled, args, sim_kwargs, bar_minutes):
     """[forward] Prueba out-of-time: congela el modelo con lo ANTERIOR al corte y
     evalúa SOLO la ventana posterior (jamás vista) + calibración predicho-vs-
@@ -1498,6 +1630,14 @@ def _run_out_of_time(labeled, args, sim_kwargs, bar_minutes):
     if m is not None:
         print("  Métricas FORWARD (net de costes, ventana posterior):")
         print(met.format_report(m))
+
+    # [DEFLATED] conjunto de INTENTOS forward para el veredicto anti-suerte. Cada
+    # config evaluado abajo (seleccion P2 + sweep retrieval estatico + rolling) se
+    # apila aqui como (label, retornos_net_por_trade, edge_vs_all). Con ~10 intentos
+    # un edge positivo puede ser el mas afortunado de N; DSR/PBO lo cuantifican al
+    # final del bloque forward. e_all es la expectancy de TODO el after (baseline).
+    fwd_configs = []
+    e_all = m.get("expectancy_r") if m else None
 
     # [P2] FORWARD del subset SELECCIONADO — el test SIN FUGA del gate de
     # selectividad. El umbral de score se deriva EXCLUSIVAMENTE de la ventana
@@ -1536,10 +1676,13 @@ def _run_out_of_time(labeled, args, sim_kwargs, bar_minutes):
                       f"total_return={_f(ms.get('total_return'))} "
                       f"sharpe={_f(ms.get('sharpe'))} "
                       f"profit_factor={_f(ms.get('profit_factor'))}")
-                e_all, e_sel = m.get("expectancy_r") if m else None, ms.get("expectancy_r")
+                e_sel = ms.get("expectancy_r")
                 edge = (e_sel - e_all) if (e_all is not None and e_sel is not None) else None
                 print(f"    >> edge_vs_all_forward={_f(edge)} R/trade  "
                       "(¿la selección SOBREVIVE out-of-time? este es EL test)")
+                # intento forward para el veredicto anti-suerte (DSR/PBO)
+                fwd_configs.append(
+                    ("seleccion_P2", _forward_net_returns(sel_after, sim_kwargs), edge))
             else:
                 print("    (subset forward vacío tras la selección; baja "
                       "--select-top-pct o mueve el corte)")
@@ -1595,6 +1738,10 @@ def _run_out_of_time(labeled, args, sim_kwargs, bar_minutes):
                     print(f"    top {_tp:>5.0%}: thr={_f(gr['threshold'])} "
                           f"gold={len(gp):>4} exp_R={_f(e_g)} "
                           f"edge_vs_all={_f(edge)} PF={_f(mg.get('profit_factor'))}")
+                    # intento forward (sweep estatico) para el veredicto anti-suerte
+                    fwd_configs.append(
+                        (f"retr_static_top{_tp:.0%}",
+                         _forward_net_returns(gp, sim_kwargs), edge))
                 else:
                     static_exp[_tp] = None
                     print(f"    top {_tp:>5.0%}: thr={_f(gr['threshold'])} "
@@ -1653,6 +1800,10 @@ def _run_out_of_time(labeled, args, sim_kwargs, bar_minutes):
                           f"total_ret={_f(mg.get('total_return'))} "
                           f"edge_vs_all={_f(edge)} PF={_f(mg.get('profit_factor'))} "
                           f"| delta_vs_static={_f(d_static)} (static_exp={_f(e_st)})")
+                    # intento forward (sweep rolling) para el veredicto anti-suerte
+                    fwd_configs.append(
+                        (f"retr_rolling_top{_tp:.0%}",
+                         _forward_net_returns(gp, sim_kwargs), edge))
                 else:
                     print(f"    top {_tp:>5.0%}: gold={len(gp):>4} (subset forward "
                           f"vacio) | static_exp={_f(e_st)}")
@@ -1661,6 +1812,19 @@ def _run_out_of_time(labeled, args, sim_kwargs, bar_minutes):
                   "adaptatividad lo arregla. Leakage-clean: embargo=max_bars.")
         except Exception as e:
             print(f"  FORWARD [retrieval-rolling]: no se pudo computar ({e})")
+
+    # [DEFLATED] VEREDICTO ANTI-SUERTE — Deflated Sharpe Ratio (Bailey & Lopez de
+    # Prado 2014) + Probability of Backtest Overfitting (CSCV, Bailey et al. 2017).
+    # Se probaron ~10 configs forward (sweep estatico+rolling + seleccion P2); el
+    # mejor edge podria ser el mas afortunado de N. DSR deshincha el Sharpe del
+    # mejor config por N intentos + dispersion + no-normalidad; PBO mide si el
+    # ranking IS->OOS aguanta. N_trials y trials_sr_var salen de los configs
+    # apilados en fwd_configs (auditable en la propia linea impresa).
+    if getattr(args, "quality_gate", False):
+        try:
+            _print_deflated_verdict(fwd_configs, m, args, sim_kwargs)
+        except Exception as e:
+            print(f"  [DEFLATED] no se pudo computar ({e})")
 
     sc = scored["fwd_score"].to_numpy()
     win = (scored["outcome"] == lb.WIN).astype(float).to_numpy()
