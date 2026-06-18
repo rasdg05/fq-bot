@@ -48,6 +48,31 @@ FUNDING_TIMEFRAME = "8h"           # OKX liquida funding cada ~8h
 DEFAULT_FUNDING_LOOKBACK_DAYS = 365 * 3
 DEFAULT_OI_PERIOD = "1H"           # 5m | 1H | 1D (unico set que admite el Rubik)
 
+# CANDIDATOS de exchange para el funding MAS PROFUNDO alcanzable (Part C). OKX
+# expone solo ~3 meses de funding via ccxt; antes de decidir si el backtest de
+# reversion es viable hay que medir CUAL exchange da mas MESES. Orden por
+# profundidad esperada (de la fuente de ccxt 4.5.x; validar en Hetzner con red):
+#   bybit         (publicGetV5MarketFundingHistory): ~2 años, paginado backward.
+#   gateio        (publicFuturesGetSettleFundingRate): historia LARGA (>1 año).
+#   binanceusdm   (fapiPublicGetFundingRate, settled cada 8h): historia LARGA pero
+#                 451 (geo-block) en muchos runners cloud -> se captura + salta.
+#   kucoinfutures (futuresPublicGetContractFundingRates): meses.
+#   hyperliquid   (funding HORARIO, settled cada 1h): historia variable; granular.
+#   okx           (publicGetPublicFundingRateHistory): ~3 meses (shallow, el actual).
+# Cada id debe existir en ccxt y soportar fetchFundingRateHistory; los que no,
+# se saltan con aviso (nunca crashea: la idea es PROBARLOS TODOS y reportar).
+FUNDING_EXCHANGE_CANDIDATES = (
+    "okx", "bybit", "gateio", "kucoinfutures", "hyperliquid", "binanceusdm",
+)
+# Simbolo de perp por exchange para un base dado (BTC/SOL/ETH). El sufijo de
+# settlement difiere por venue; ccxt normaliza casi todo a 'BASE/USDT:USDT', pero
+# algunos perps son USDC o tienen un quote distinto. Se intenta el candidato y, si
+# el exchange no lo reconoce, el probe degrada (no asume un unico formato).
+FUNDING_PERP_QUOTE = {
+    "okx": "USDT", "bybit": "USDT", "gateio": "USDT",
+    "kucoinfutures": "USDT", "hyperliquid": "USDC", "binanceusdm": "USDT",
+}
+
 # Prefijos de TODAS las features. El loader las inyecta en eventos/estados y, por
 # estar en bt_features._numeric_feature_columns (modelo) y en
 # bt_retrieval.DEFAULT_NUMERIC (vector), las consumen el GBM del [3/4] Y el vector
@@ -186,6 +211,162 @@ def _funding_frame(rows, floor_ms):
         "funding_rate": pd.to_numeric(df["funding_rate"], errors="coerce"),
     })
     return out
+
+
+# ============================================================
+# PART C — FUNDING MULTI-EXCHANGE: el MAS PROFUNDO alcanzable.
+# Mockeable: las fabricas de exchange entran por parametro (en tests, sin red).
+# ============================================================
+def perp_symbol_for(exchange_id, base, *, quote=None):
+    """Simbolo de perp ccxt canonico para `base` (BTC/SOL/ETH) en `exchange_id`.
+
+    ccxt unifica casi todo a 'BASE/QUOTE:QUOTE' (perp lineal liquidado en QUOTE).
+    El quote por defecto sale de FUNDING_PERP_QUOTE (USDT salvo hyperliquid=USDC).
+    Devuelve p.ej. 'BTC/USDT:USDT'. No toca red; el caller valida contra
+    exchange.markets si quiere.
+    """
+    q = (quote or FUNDING_PERP_QUOTE.get(exchange_id, "USDT")).upper()
+    return f"{base.upper()}/{q}:{q}"
+
+
+def probe_funding_depth(
+    base, *, exchange_ids=FUNDING_EXCHANGE_CANDIDATES, make_exchange=None,
+    data_dir="data", lookback_days=DEFAULT_FUNDING_LOOKBACK_DAYS,
+    page_limit=100, max_pages=100_000, now_ms=None, use_cache=True, sleep_s=0.0,
+):
+    """Prueba una LISTA de exchanges y mide la PROFUNDIDAD de funding alcanzable
+    para el perp de `base` (BTC/SOL/ETH). Para cada exchange registra
+    [start, end] + n_rows + meses + el simbolo usado, o el motivo de fallo
+    (sin red / 451 geo-block / sin soporte / vacio). NUNCA crashea: cada exchange
+    se prueba en su propio try -> los que fallan se reportan, no abortan el resto.
+
+    make_exchange : callable(exchange_id) -> objeto ccxt-like con
+                    .fetch_funding_rate_history y opcionalmente .markets / .has.
+                    En tests se inyecta un fake (sin red). Si None, usa
+                    bt_data.make_exchange(id, 'swap') (red real, p.ej. en Hetzner).
+    Devuelve una lista de dicts (uno por exchange), ORDENADA por meses descendente
+    (los reachable primero), cada uno:
+      {exchange, symbol, ok, n_rows, start, end, months, source, error}
+    'source' = ruta del Parquet cacheado (si se bajaron filas), si no None.
+    Es la TABLA que decide si el backtest de funding es viable (meses suficientes)
+    o si se va forward-only. El caller la imprime con format_depth_table.
+    """
+    if make_exchange is None:
+        def make_exchange(_id):
+            import bt_data
+            return bt_data.make_exchange(_id, "swap")
+
+    out = []
+    for ex_id in exchange_ids:
+        rec = {"exchange": ex_id, "symbol": None, "ok": False, "n_rows": 0,
+               "start": None, "end": None, "months": 0.0, "source": None,
+               "error": None}
+        try:
+            ex = make_exchange(ex_id)
+        except Exception as e:           # ccxt sin el id, o fabrica falla
+            rec["error"] = f"make_exchange: {type(e).__name__}: {str(e)[:120]}"
+            out.append(rec)
+            continue
+
+        symbol = perp_symbol_for(ex_id, base)
+        rec["symbol"] = symbol
+        try:
+            df = fetch_funding_history(
+                ex, symbol, data_dir=data_dir, exchange_name=ex_id,
+                lookback_days=lookback_days, page_limit=page_limit,
+                max_pages=max_pages, now_ms=now_ms, use_cache=use_cache,
+                sleep_s=sleep_s)
+        except Exception as e:
+            # 451 (geo-block, binance en runners cloud), NetworkError (env sin
+            # red), BadSymbol, etc. -> se reporta y se sigue con el siguiente.
+            rec["error"] = f"{type(e).__name__}: {str(e)[:160]}"
+            out.append(rec)
+            continue
+
+        if df is None or len(df) == 0:
+            rec["error"] = "historico vacio"
+            out.append(rec)
+            continue
+
+        rng = _range_of(df)
+        rec.update({
+            "ok": True, "n_rows": int(len(df)),
+            "start": rng[0], "end": rng[1],
+            "months": _months_between(rng[0], rng[1]),
+            "source": funding_path(data_dir, ex_id, symbol),
+        })
+        out.append(rec)
+
+    # reachable (ok) primero, por meses desc; luego los fallidos (meses 0).
+    out.sort(key=lambda r: (r["ok"], r["months"]), reverse=True)
+    return out
+
+
+def fetch_funding_history_best(
+    base, *, exchange_ids=FUNDING_EXCHANGE_CANDIDATES, make_exchange=None,
+    data_dir="data", **probe_kwargs):
+    """Prueba la lista de exchanges y devuelve el funding del MAS PROFUNDO.
+
+    Atajo sobre probe_funding_depth para el caller que solo quiere los datos: corre
+    el probe, elige el exchange con MAS meses de funding reachable, y devuelve
+    (df_funding, best_record, depth_table). df_funding sale del cache que el probe
+    ya escribio (cero red extra). Si NINGUN exchange fue reachable -> (None, None,
+    depth_table) y el caller decide forward-only / Hetzner. Mockeable: misma
+    inyeccion make_exchange que el probe (tests sin red).
+    """
+    table = probe_funding_depth(
+        base, exchange_ids=exchange_ids, make_exchange=make_exchange,
+        data_dir=data_dir, **probe_kwargs)
+    reachable = [r for r in table if r["ok"]]
+    if not reachable:
+        return None, None, table
+    best = reachable[0]               # tabla ya ordenada por meses desc
+    df = pd.read_parquet(best["source"]) if best["source"] else None
+    return df, best, table
+
+
+def _months_between(start, end):
+    """Meses (~30.44 dias) entre dos timestamps. 0.0 si no computable."""
+    try:
+        days = (pd.Timestamp(end) - pd.Timestamp(start)).total_seconds() / 86_400.0
+        return round(max(days, 0.0) / 30.4375, 2)
+    except Exception:
+        return 0.0
+
+
+def format_depth_table(table):
+    """Formatea la tabla de probe_funding_depth como texto legible (un fondo la
+    mira para decidir backtest-viable vs forward-only). Devuelve un str con una
+    fila por exchange: meses / n / rango / simbolo / estado."""
+    lines = [
+        "  exchange       meses     n   rango (funding)                          "
+        "         simbolo / motivo",
+        "  " + "-" * 104,
+    ]
+    for r in table:
+        if r["ok"]:
+            rng = f"{r['start']} .. {r['end']}"
+            status = r["symbol"] or ""
+            lines.append(
+                f"  {r['exchange']:<12} {r['months']:>6.2f} {r['n_rows']:>6}  "
+                f"{rng:<48} {status}")
+        else:
+            lines.append(
+                f"  {r['exchange']:<12} {'--':>6} {'--':>6}  "
+                f"{'(no alcanzable)':<48} {r.get('symbol') or ''}  "
+                f"<- {r['error']}")
+    reachable = [r for r in table if r["ok"]]
+    if reachable:
+        best = reachable[0]
+        lines.append("  " + "-" * 104)
+        lines.append(
+            f"  >> MAS PROFUNDO: {best['exchange']} con {best['months']:.2f} meses "
+            f"({best['n_rows']} filas) -> fuente del backtest de funding.")
+    else:
+        lines.append("  " + "-" * 104)
+        lines.append("  >> NINGUN exchange alcanzable en este entorno (red bloqueada"
+                     " o geo-block). Corre el probe en Hetzner; mientras, forward-only.")
+    return "\n".join(lines)
 
 
 # ============================================================
