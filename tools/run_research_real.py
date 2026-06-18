@@ -1375,48 +1375,48 @@ def _run_out_of_time(labeled, args, sim_kwargs, bar_minutes):
     # PUERTA DE RETRIEVAL sobrevive out-of-time donde el score del modelo no?
     if getattr(args, "quality_gate", False):
         try:
-            gr = _forward_retrieval_gate(
-                before, after, k=args.retrieval_k,
-                sim_floor=args.retrieval_sim_floor, n_floor=args.retrieval_nfloor,
-                decay_bars=args.retrieval_decay_bars, backend=args.retrieval_backend,
-                bit_width=args.retrieval_bit,
-                gold_top_pct=getattr(args, "gold_top_pct", 0.05),
-                n_splits=args.n_splits, embargo=args.embargo, seed=args.seed)
-            gp = gr["gate_pass"]
-            t = gr["tiers"]
-            print("\n  FORWARD [retrieval] (indice + umbral ORO del BEFORE; "
-                  "gate del AFTER jamás visto por k-NN causal):")
-            src_note = {"before_oos": "OOS walk-forward de BEFORE",
-                        "before_insample": "in-sample de BEFORE (fallback; "
-                        "BEFORE pequeño para folds)",
-                        "none": "n/a"}.get(gr["thr_source"], gr["thr_source"])
-            print(f"    umbral_oro(retr_expectancy_r, top {getattr(args,'gold_top_pct',0.05):.0%}) "
-                  f"={_f(gr['threshold'])} <- {src_note} "
-                  f"(n_confident={gr['n_confident']}) | "
-                  f"k={args.retrieval_k} sim_floor={args.retrieval_sim_floor}")
-            print(f"    AFTER clasificados={gr['n_after_scored']} -> "
-                  f"oro={t.get(rg.GOLD,0)} base={t.get(rg.BASE,0)} "
-                  f"abstain={t.get(rg.ABSTAIN,0)} | gate_pass(oro)={len(gp)}")
-            if gr["thr_source"] == "before_insample":
-                print("    [aviso] umbral del fallback in-sample de BEFORE: limpio "
-                      "vs AFTER (no lo mira) pero con optimismo in-sample en BEFORE.")
-            mg = fw.forward_metrics(gp, sim_kwargs=sim_kwargs,
-                                    bar_minutes=bar_minutes) if len(gp) else None
-            if mg is not None:
-                print(f"    n={mg.get('n_trades')} "
-                      f"expectancy_r={_f(mg.get('expectancy_r'))} "
-                      f"total_return={_f(mg.get('total_return'))} "
-                      f"sharpe={_f(mg.get('sharpe'))} "
-                      f"profit_factor={_f(mg.get('profit_factor'))}")
-                e_all = m.get("expectancy_r") if m else None
-                e_g = mg.get("expectancy_r")
-                edge = (e_g - e_all) if (e_all is not None and e_g is not None) else None
-                print(f"    >> edge_vs_all_forward={_f(edge)} R/trade  "
-                      "(¿la PUERTA DE RETRIEVAL sobrevive out-of-time? "
-                      "el gate es BEFORE-only -> AFTER no puede filtrarse)")
-            else:
-                print("    (subset forward vacío tras el gate de retrieval; baja "
-                      "--gold-top-pct, sube historia BEFORE o mueve el corte)")
+            # SWEEP del ancho del gate: el umbral ORO se calibra del BEFORE a varios
+            # percentiles (top 5/10/25/50%) y se aplica al AFTER jamas visto. A top
+            # 5% el gate puede quedar STARVED forward (1-2 trades, ruido); ensanchar
+            # da una lectura OOT con suficientes gold para JUZGAR si el edge OOS (que
+            # cross-asset subio fuerte en el decil alto) sobrevive out-of-time. CADA
+            # percentil sigue siendo BEFORE-only (leakage-clean); solo cambia el corte.
+            print("\n  FORWARD [retrieval] (indice + umbral ORO del BEFORE; gate del "
+                  "AFTER jamas visto por k-NN causal; SWEEP de ancho del gate):")
+            e_all = m.get("expectancy_r") if m else None
+            _hdr = False
+            for _tp in (0.05, 0.10, 0.25, 0.50):
+                gr = _forward_retrieval_gate(
+                    before, after, k=args.retrieval_k,
+                    sim_floor=args.retrieval_sim_floor, n_floor=args.retrieval_nfloor,
+                    decay_bars=args.retrieval_decay_bars,
+                    backend=args.retrieval_backend, bit_width=args.retrieval_bit,
+                    gold_top_pct=_tp, n_splits=args.n_splits,
+                    embargo=args.embargo, seed=args.seed)
+                gp = gr["gate_pass"]
+                if not _hdr:
+                    src_note = {"before_oos": "OOS walk-forward de BEFORE",
+                                "before_insample": "in-sample de BEFORE (fallback)",
+                                "none": "n/a"}.get(gr["thr_source"], gr["thr_source"])
+                    print(f"    umbral <- {src_note} | AFTER={gr['n_after_scored']} "
+                          f"n_confident_BEFORE={gr['n_confident']} k={args.retrieval_k}")
+                    if gr["thr_source"] == "before_insample":
+                        print("    [aviso] umbral del fallback in-sample de BEFORE "
+                              "(limpio vs AFTER; optimismo in-sample en BEFORE).")
+                    _hdr = True
+                mg = fw.forward_metrics(gp, sim_kwargs=sim_kwargs,
+                                        bar_minutes=bar_minutes) if len(gp) else None
+                if mg is not None:
+                    e_g = mg.get("expectancy_r")
+                    edge = (e_g - e_all) if (e_all is not None and e_g is not None) else None
+                    print(f"    top {_tp:>5.0%}: thr={_f(gr['threshold'])} "
+                          f"gold={len(gp):>4} exp_R={_f(e_g)} "
+                          f"edge_vs_all={_f(edge)} PF={_f(mg.get('profit_factor'))}")
+                else:
+                    print(f"    top {_tp:>5.0%}: thr={_f(gr['threshold'])} "
+                          f"gold={len(gp):>4} (subset forward vacio)")
+            print("    >> ¿sobrevive OOT al ensanchar el gate? BEFORE-only (AFTER no "
+                  "puede filtrarse); mas gold = lectura mas fiable del edge forward.")
         except Exception as e:
             print(f"  FORWARD [retrieval]: no se pudo computar ({e})")
 
