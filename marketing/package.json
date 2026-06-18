@@ -1,0 +1,26 @@
+{
+  "name": "fq-marketing",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Estudio de anuncios FQ (Remotion). Edicion por codigo de creatividades verticales para Meta Ads.",
+  "type": "module",
+  "scripts": {
+    "dev": "remotion studio",
+    "studio": "remotion studio",
+    "render": "remotion render",
+    "render:all": "node scripts/render-all.mjs",
+    "ingest": "node scripts/ingest.mjs",
+    "upgrade": "remotion upgrade"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.1",
+    "ffmpeg-static": "^5.2.0",
+    "typescript": "^5.4.5"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "_comment": "Registro de clips fuente. Pon los .mp4 en marketing/public/footage/<name>.mp4 (mismo nombre, sin extension, que se usa en edl.ts). Los driveId son de tu carpeta de Drive para descargarlos en tu maquina.",
+  "driveFolderId": "1xTN3nwLQu6Mv9F9RljTt7OpBL6o-Yh8S",
+  "clips": [
+    {"name": "NO", "driveId": "1wJeD1hLymq9JMGiswULjSz_w8_1Mhrba", "notes": "candidato hook 'NO opero'"},
+    {"name": "NO-1", "driveId": "1hAetEGEbCowNW3fvebJE1FjSOuvWzYBM", "notes": ""},
+    {"name": "NO-2", "driveId": "1oakBK-CfGxWa09n83g_ddwtiaNubRmq8", "notes": ""},
+    {"name": "pix4brain1-SEPT", "driveId": "1a3KjJsb4MRRn0XB7Cv1dmJHZtnrdEjZh", "notes": ""},
+    {"name": "pix4brain2-SEPT", "driveId": "1_E7jUL69pIQpZmQHruPdKybaLnuU-fQE", "notes": ""},
+    {"name": "pix4brain3-SEPT", "driveId": "1kNyYam0rPr9ITgB4iMG-D6ejYvD8_Oxk", "notes": ""},
+    {"name": "pix4brain4-SEPT", "driveId": "1yxqLpNxKDbBbjd3BWHi2Obr93k3PzUFD", "notes": ""},
+    {"name": "pix4brain5-SEP", "driveId": "1eXTPgczmYh4ZSPfK0NygwgsHhCdqx6MB", "notes": ""},
+    {"name": "pix4brain6-SEP", "driveId": "1GCHzuk5KV0rkzlBI0ccbyVRFpmemaNnw", "notes": ""},
+    {"name": "pix4brain7_SEP", "driveId": "1QGQo6maN2EhQ_ry8iJiBOgdaA5wjeV00", "notes": ""},
+    {"name": "pix4brain26-ags", "driveId": "1iUd9NhMya4imQ_9983C5e4HUWKSeXU-Y", "notes": ""},
+    {"name": "pix4brain27-ags", "driveId": "1bkXhgItF6jWqhgHzkgZ0775NNHNyS1xg", "notes": ""},
+    {"name": "pix4brain28-AGS", "driveId": "1zxaIG3NJQxWJTRVMquQ6iwfgod2s3mLx", "notes": "candidato hook presentador"},
+    {"name": "pix4brain28-AGS-2", "driveId": "1YqgVNslt0cK71p3YEWjna658PIphL5Ir", "notes": ""},
+    {"name": "pix4brain29-AGS", "driveId": "11Sae3P_OEouYcesuWtxLjKnzzewz5n9d", "notes": ""},
+    {"name": "pix4brain29-AGS2", "driveId": "1AI1zLIVbh3QAvz0gzCbQNQPyfpOrNtid", "notes": ""},
+    {"name": "pix4brain30-AGS", "driveId": "1j7rSUcIRvdLmsqNb3RHT40gKvDaJN0vm", "notes": ""},
+    {"name": "pix4brain30-AGS-2", "driveId": "1x5IPsq_twCrw9oHsuHMv3u7h7UqRtMEn", "notes": ""},
+    {"name": "pix4brain31-AGS", "driveId": "1CUbsCXbo4psDsfjKEgZ_e5OeVhDMnCUO", "notes": ""}
+  ]
+}
