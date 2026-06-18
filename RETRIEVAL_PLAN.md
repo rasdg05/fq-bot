@@ -1141,6 +1141,45 @@ con PBO bajo → camino a vivo (paper-forward + reconcile + sizing); si no → e
 (maker determinístico) + el harness/track-record honesto como producto. La fábrica
 de edge sigue: tiros independientes, estructura primero, deflactados, matando suerte.
 
+### 6.15 — CONSTRUIDO el camino estructural de funding: B (señal+paper) + C (depth) (sha dc0859b, 18-jun-2026)
+
+> Ejecución del pivote §6.14. Cuatro piezas, todas causales y juzgadas por el MISMO
+> forward + DSR/PBO (cero métrica nueva que auditar):
+> - **B1** `funding_strategy.py`: `funding_reversion_signal` — fade del extremo con
+>   histéresis (SHORT en +z, LONG en −z, banda de salida, NaN→FLAT). Pura; la
+>   posición en t usa sólo `fund_zscore(t)` (ya causal). `positions_to_trades` →
+>   eventos para `bt_labeler`.
+> - **B2** `tools/funding_research.py`: backtest deflactado standalone
+>   (`--out-of-time` + `[DEFLATED]`). El **sweep de z_enter es el conjunto de
+>   intentos** del juez anti-suerte. Reusa `_print_deflated_verdict` /
+>   `_forward_net_returns` / `_cost_for_symbol` de `run_research_real`.
+> - **B3** `tools/funding_paper.py`: runner FORWARD en papel (`PaperBroker` +
+>   `DurableHashLedger` + reconcile gated por `FQ_FUNDING_PAPER_BASELINE_R`).
+>   `--once/--loop/--report`; systemd documentado en el docstring.
+> - **C** `funding_oi.py`: `probe_funding_depth` / `fetch_funding_history_best`
+>   miden la profundidad ALCANZABLE por exchange; degradación grácil sin red.
+> - 28 tests nuevos (señal/histéresis, **causalidad prefix-invariante**, trades,
+>   probe multi-exchange, runtime paper con fetch mockeado). 59 passed/1 skip;
+>   regresión execution/paper/ledger/reconciler 55 passed.
+
+**Hallazgo honesto (C):** la red está bloqueada en CI (confirmado contra ccxt real:
+todo candidato lanza `NetworkError`); el probe lo captura por-exchange y reporta
+"correr en Hetzner / forward-only" en vez de crashear. **OKX expone ~3 meses de
+funding libre — demasiado poco para un backtest creíble.** Esperado (de la fuente
+ccxt 4.5.x): bybit ~2 años (paginado) y gateio >1 año son los más profundos;
+binanceusdm largo pero 451-geo-block frecuente en cloud; kucoin meses; hyperliquid
+horario variable.
+
+**Decisión que esto abre:** un edge estructural que NO driftea se valida MEJOR
+forward que en backtest. El valor inmediato es el **paper-forward** (`funding_paper.py`
+en Hetzner, 0% real, acumula el track que ningún backtest falsea), mientras
+`funding_research.py` da el read deflactado sobre la profundidad que bybit/gateio
+rindan. **Pendiente del usuario:** (1) generar la tabla de profundidad en Hetzner
+(`probe_funding_depth`), (2) decidir si pagar Coinglass/Laevitas para historia
+profunda real (única vía a un backtest deflactado robusto pre-forward). Si el
+paper-forward cruza DSR≥0.95 con PBO bajo → escalera a vivo; si no → ejecución
+maker + track-record honesto como producto.
+
 ---
 
 ## 7. Roadmap por fases
