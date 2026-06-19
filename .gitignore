@@ -14,3 +14,6 @@ data/
 # Decks generados (artefactos; se regeneran con tools/build_deck.py)
 FQ_*.pdf
 data/okx/
+
+# Diario de lecturas del centinela (local; cada sesion lo regenera)
+lecturas/
