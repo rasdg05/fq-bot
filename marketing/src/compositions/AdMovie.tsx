@@ -1,5 +1,7 @@
 import React from 'react';
-import {AbsoluteFill, Audio, Series, staticFile} from 'remotion';
+import {AbsoluteFill, Audio, staticFile} from 'remotion';
+import {TransitionSeries, linearTiming} from '@remotion/transitions';
+import {fade} from '@remotion/transitions/fade';
 import type {Ad, Scene} from '../../ads/edl';
 import {COLORS, MUSIC} from '../brand/tokens';
 import {Disclaimer} from '../brand/Disclaimer';
@@ -10,6 +12,9 @@ import {ClipSegment, type FrameMode} from '../components/ClipSegment';
 import {AppShowcase} from '../components/AppShowcase';
 import {CTA} from '../components/CTA';
 import {Intro} from '../components/Intro';
+
+/** Frames de crossfade entre escenas. */
+export const TRANSITION = 8;
 
 const renderScene = (scene: Scene, frameMode: FrameMode) => {
   switch (scene.type) {
@@ -38,27 +43,48 @@ const renderScene = (scene: Scene, frameMode: FrameMode) => {
 const caption = (scene: Scene): string | undefined =>
   'caption' in scene ? scene.caption : undefined;
 
+const SceneWithCaption: React.FC<{scene: Scene; frameMode: FrameMode}> = ({scene, frameMode}) => {
+  const cap = caption(scene);
+  return (
+    <AbsoluteFill>
+      {renderScene(scene, frameMode)}
+      {cap ? (
+        scene.type === 'clip' && scene.emphasize ? (
+          <HookCaption text={cap} />
+        ) : (
+          <Captions text={cap} />
+        )
+      ) : null}
+    </AbsoluteFill>
+  );
+};
+
 /**
- * Ensambla un anuncio: escenas en serie, subtitulos por escena, cama musical
- * (mixto: la voz del presentador vive en los clips con audio:true) y microtexto
- * legal persistente. frameMode controla el encuadre del footage.
+ * Ensambla un anuncio con crossfades entre escenas, subtitulos, cama musical
+ * y microtexto legal persistente.
  */
 export const AdMovie: React.FC<{ad: Ad; frameMode?: FrameMode}> = ({ad, frameMode = 'cover'}) => {
   return (
     <AbsoluteFill style={{background: COLORS.bg}}>
       {MUSIC.enabled ? <Audio src={staticFile(MUSIC.file)} volume={MUSIC.volume} loop /> : null}
-      <Series>
-        {ad.scenes.map((scene, i) => (
-          <Series.Sequence key={i} durationInFrames={scene.durationInFrames}>
-            {renderScene(scene, frameMode)}
-            {caption(scene)
-              ? scene.type === 'clip' && scene.emphasize
-                ? <HookCaption text={caption(scene) as string} />
-                : <Captions text={caption(scene) as string} />
-              : null}
-          </Series.Sequence>
-        ))}
-      </Series>
+      <TransitionSeries>
+        {ad.scenes.flatMap((scene, i) => {
+          const seq = (
+            <TransitionSeries.Sequence key={`s${i}`} durationInFrames={scene.durationInFrames}>
+              <SceneWithCaption scene={scene} frameMode={frameMode} />
+            </TransitionSeries.Sequence>
+          );
+          if (i === 0) return [seq];
+          return [
+            <TransitionSeries.Transition
+              key={`t${i}`}
+              timing={linearTiming({durationInFrames: TRANSITION})}
+              presentation={fade()}
+            />,
+            seq,
+          ];
+        })}
+      </TransitionSeries>
       <Disclaimer />
     </AbsoluteFill>
   );

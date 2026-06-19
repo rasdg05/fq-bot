@@ -42,22 +42,19 @@ const s = (sec: number) => Math.round(sec * 30);
 
 const intro: Scene = {type: 'intro', durationInFrames: s(1)};
 
-/** Cuerpo central — se graba/usa una sola vez. */
+/** Cuerpo central — cortes alineados a frases completas (sin cortar a media oración). */
 const BODY: Scene[] = [
-  // [3-8] Reframe brutal. "El mercado no te robo, te robaste tu solo."
-  {type: 'clip', durationInFrames: s(5), src: 'IMG_1849', inSec: 10.0, outSec: 15.0, audio: true,
-    note: 'reframe', caption: 'El mercado no te robo. Te robaste tu solo.'},
-  // [8-14] "...entran y adivinan, compran porque sienten, venden por miedo."
-  {type: 'clip', durationInFrames: s(5.6), src: 'IMG_1848', inSec: 0.9, outSec: 6.5, audio: true,
-    note: 'adivinar / miedo', caption: 'Entraste a adivinar. Vendiste por miedo.'},
-  // [14-19] Ego -> sistema -> FQ (corta antes de "los resultados llegan solos").
-  {type: 'clip', durationInFrames: s(5), src: 'IMG_1846', inSec: 8.6, outSec: 13.6, audio: true,
-    note: 'ego -> FQ', caption: 'Deja el ego. Opera con matematica: Fibonacci Cuantico.'},
-  // [19-25] Senal en vivo (mockup del bot, multi-simbolo, sin cifras inventadas).
-  {type: 'showcase', durationInFrames: s(6), caption: 'Senal lista: entrada, stop, target. Cero emocion.'},
-  // [25-28] Blindaje (parcial — falta la linea exacta del auto, ver nota arriba).
-  {type: 'clip', durationInFrames: s(3.2), src: 'IMG_1850', inSec: 1.8, outSec: 5.0, audio: true,
-    note: 'blindaje parcial', caption: 'No te vendo un sueno. Te doy el sistema que uso.'},
+  // "No, bro. El mercado no te robó, te robaste tú solo por operar sin sistema."
+  {type: 'clip', durationInFrames: s(4.8), src: 'IMG_1849', inSec: 12.0, outSec: 16.8, audio: true,
+    note: 'reframe (frase completa)', caption: 'El mercado no te robó. Te robaste tú solo.'},
+  // "Compran porque sienten que va a subir, venden por miedo."
+  {type: 'clip', durationInFrames: s(3.6), src: 'IMG_1848', inSec: 7.4, outSec: 11.0, audio: true,
+    note: 'corazonada / miedo', caption: 'Compran por corazonada. Venden por miedo.'},
+  // "Cuando dejas de operar y te apoyas en un sistema, en un bot, como Fibonacci."
+  {type: 'clip', durationInFrames: s(6.1), src: 'IMG_1846', inSec: 9.3, outSec: 15.4, audio: true,
+    note: 'ego -> sistema -> FQ (corta antes de la promesa)', caption: 'Apóyate en un sistema. En un bot: Fibonacci Cuántico.'},
+  // Señal en vivo (mockup del bot, multi-simbolo).
+  {type: 'showcase', durationInFrames: s(5), caption: 'Entrada, stop y target. Cero emoción.'},
 ];
 
 /** Gancho: clip corto con voz + subtitulo palabra-por-palabra. */
@@ -80,9 +77,9 @@ export const ADS: Ad[] = [
     title: 'Gancho A · auto (CTA bot)',
     scenes: [
       intro,
-      hook('IMG_1846', 1.6, 4.6, 'Por que la mayoria nunca va a manejar uno de estos?'),
+      hook('IMG_1846', 1.3, 8.5, '¿Por qué la mayoría nunca manejará uno de estos?'),
       ...BODY,
-      cta('bot'),
+      cta('instagram'),
     ],
   },
   {

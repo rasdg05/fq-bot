@@ -99,9 +99,9 @@ export const CTA: React.FC<{target: CtaTarget}> = ({target}) => {
         )}
         {(target === 'instagram' || target === 'both') && (
           <Chip
-            label="Siguenos"
+            label="Sigueme"
             value={`@${CTA_CONFIG.instagram}`}
-            sub={`link en bio · ${CTA_CONFIG.linkme}`}
+            sub={CTA_CONFIG.linkme ? `link en bio · ${CTA_CONFIG.linkme}` : undefined}
             delay={target === 'both' ? 20 : 12}
           />
         )}

@@ -2,8 +2,12 @@ import React from 'react';
 import {Composition} from 'remotion';
 import {ADS, totalFrames} from '../ads/edl';
 import {VIDEO} from './brand/tokens';
-import {AdMovie} from './compositions/AdMovie';
+import {AdMovie, TRANSITION} from './compositions/AdMovie';
 import {AppShowcase} from './components/AppShowcase';
+
+// Las transiciones solapan frames entre escenas: restamos ese solape.
+const adDuration = (ad: (typeof ADS)[number]) =>
+  totalFrames(ad) - Math.max(0, ad.scenes.length - 1) * TRANSITION;
 
 /**
  * Por cada anuncio del EDL se registran DOS composiciones: encuadre "cover"
@@ -18,7 +22,7 @@ export const RemotionRoot: React.FC = () => {
           <Composition
             id={`${ad.id}-cover`}
             component={AdMovie}
-            durationInFrames={totalFrames(ad)}
+            durationInFrames={adDuration(ad)}
             fps={VIDEO.fps}
             width={VIDEO.width}
             height={VIDEO.height}
@@ -27,7 +31,7 @@ export const RemotionRoot: React.FC = () => {
           <Composition
             id={`${ad.id}-banda`}
             component={AdMovie}
-            durationInFrames={totalFrames(ad)}
+            durationInFrames={adDuration(ad)}
             fps={VIDEO.fps}
             width={VIDEO.width}
             height={VIDEO.height}
