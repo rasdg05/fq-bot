@@ -91,6 +91,15 @@ except Exception:
     _VOL_LIQ_AVAILABLE = False
     vol_liq_trigger = None
 
+# Feed de LIQUIDACIONES (Binance !forceOrder@arr, opt-in FQ_LIQ_FEED_ENABLED). El
+# import no requiere websocket-client (se importa lazy al arrancar el feed).
+try:
+    import liquidation_feed
+    _LIQ_AVAILABLE = True
+except Exception:
+    _LIQ_AVAILABLE = False
+    liquidation_feed = None
+
 # QTE + emergent_time (lazy import) para Phase E
 try:
     import quantum_timelines as qt
@@ -739,9 +748,10 @@ def evaluate_signal(
         # siguen midiendo en motor_paper -> VIP recibe y el ledger mide en paralelo.
         if score_result and regime_state and regime_state["state"] == "deriva":
             if _VOL_LIQ_AVAILABLE and vol_liq_trigger.ENABLED:
-                # liquidaciones: fase 2 (liquidation_feed). Sin feed -> None -> el
-                # trigger confirma solo por volumen (degradacion segura).
-                liq_snap = None
+                # liquidaciones: feed Binance opt-in (FQ_LIQ_FEED_ENABLED). Sin feed
+                # -> None -> el trigger confirma solo por volumen (degradacion segura).
+                liq_snap = (liquidation_feed.snapshot((config or {}).get("symbol"))
+                            if (_LIQ_AVAILABLE and liquidation_feed.ENABLED) else None)
                 ok_vl, vl_reason, vl_score = vol_liq_trigger.confirm(
                     df_15m, liq_snap, direction)
                 if not ok_vl:
