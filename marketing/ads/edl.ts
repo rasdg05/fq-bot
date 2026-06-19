@@ -50,9 +50,9 @@ const BODY: Scene[] = [
   // "Compran porque sienten que va a subir, venden por miedo."
   {type: 'clip', durationInFrames: s(3.6), src: 'IMG_1848', inSec: 7.4, outSec: 11.0, audio: true,
     note: 'corazonada / miedo', caption: 'Compran por corazonada. Venden por miedo.'},
-  // "Cuando dejas de operar y te apoyas en un sistema, en un bot, como Fibonacci."
-  {type: 'clip', durationInFrames: s(6.1), src: 'IMG_1846', inSec: 9.3, outSec: 15.4, audio: true,
-    note: 'ego -> sistema -> FQ (corta antes de la promesa)', caption: 'Apóyate en un sistema. En un bot: Fibonacci Cuántico.'},
+  // "Cuando dejas de operar y te apoyas en un sistema, en un bot, como Fibonacci Cuántico."
+  {type: 'clip', durationInFrames: s(6.55), src: 'IMG_1846', inSec: 9.3, outSec: 15.85, audio: true,
+    note: 'ego -> sistema -> FQ (incluye "Cuantico", corta antes de la promesa)', caption: 'Apóyate en un sistema. En un bot: Fibonacci Cuántico.'},
   // Señal en vivo (mockup del bot, multi-simbolo).
   {type: 'showcase', durationInFrames: s(5), caption: 'Entrada, stop y target. Cero emoción.'},
 ];
@@ -79,7 +79,7 @@ export const ADS: Ad[] = [
       intro,
       hook('IMG_1846', 1.3, 8.5, '¿Por qué la mayoría nunca manejará uno de estos?'),
       ...BODY,
-      cta('instagram'),
+      cta('bot'),
     ],
   },
   {

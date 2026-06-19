@@ -79,8 +79,8 @@ export const COMMUNITY = {
 
 /** Destinos de CTA. Rellena con tus datos reales. */
 export const CTA_CONFIG = {
-  botUsername: 'TU_BOT', // sin @ — ver FQ_VIP_BOT_USERNAME en .env
-  botDeepLink: 'https://t.me/TU_BOT?start=ads',
+  botUsername: 'rasdg_quantum_signals_bot',
+  botDeepLink: 'https://t.me/rasdg_quantum_signals_bot?start=ads',
   instagram: 'diego_gallegosd',
   // Hub link-in-bio (Linkme): rellena con tu URL real. Vacio = no se muestra.
   linkme: '',
