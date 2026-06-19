@@ -269,12 +269,112 @@ def _max_drawdown(equity):
     return float(dd.max())
 
 
+def _htf(df, rule, prior, span=50):
+    """Niveles + bias de un timeframe MAYOR (rule '1h'/'4h'), CAUSAL: usa solo barras
+    HTF COMPLETADAS (shift(1)) y reindexa con ffill a cada vela de 5m. Devuelve ph/pl
+    (extremos previos del HTF = imanes pesados) y up/dn (bias del HTF)."""
+    idx = pd.to_datetime(df["timestamp"], unit="ms", utc=True)
+    g = pd.DataFrame({"high": df["high"].astype(float).values,
+                      "low": df["low"].astype(float).values,
+                      "close": df["close"].astype(float).values}, index=idx)
+    o = g.resample(rule).agg({"high": "max", "low": "min", "close": "last"}).dropna()
+    ema = o["close"].ewm(span=span, adjust=False).mean()
+    feat = pd.DataFrame(index=o.index)
+    feat["ph"] = o["high"].rolling(prior, min_periods=2).max().shift(1)
+    feat["pl"] = o["low"].rolling(prior, min_periods=2).min().shift(1)
+    feat["up"] = ((o["close"] > ema) & (ema.diff() > 0)).shift(1).fillna(False)
+    feat["dn"] = ((o["close"] < ema) & (ema.diff() < 0)).shift(1).fillna(False)
+    return feat.reindex(idx, method="ffill")
+
+
+def precompute_v4(df, *, prior_1h=24, prior_4h=12, **kw):
+    """precompute_v2 + RED MULTI-TF: niveles y bias de 1h y 4h (imanes pesados +
+    confluencia de timeframes). Requiere timestamp (resample)."""
+    out = precompute_v2(df, **kw)
+    if "timestamp" not in out.columns:
+        for tf in ("1h", "4h"):
+            for c in ("ph", "pl"):
+                out["%s_%s" % (c, tf)] = float("nan")
+            for c in ("up", "dn"):
+                out["%s_%s" % (c, tf)] = False
+        return out
+    for tf, prior in (("1h", prior_1h), ("4h", prior_4h)):
+        h = _htf(df, tf, prior)
+        out["ph_%s" % tf] = h["ph"].to_numpy()
+        out["pl_%s" % tf] = h["pl"].to_numpy()
+        out["up_%s" % tf] = h["up"].to_numpy()
+        out["dn_%s" % tf] = h["dn"].to_numpy()
+    return out
+
+
+def label_v4(df, *, step=1, min_rr=2.0, max_hold=288, warmup=300, atr_mult=1.5,
+             require_value=True, vol_q=0.5):
+    """Motor v4 (gravedad + silencio): dispara SOLO si 1h Y 4h alinean (red multi-TF),
+    en horas de volumen, entrando en valor (VWAP), hacia el IMAN PESADO de 4h (extremo
+    previo del 4h). Si no hay confluencia/volumen/iman -> el bot CALLA. Stop por ATR."""
+    pc = precompute_v4(df, vol_q=vol_q)
+    highs = pc["high"].to_numpy(float)
+    lows = pc["low"].to_numpy(float)
+    closes = pc["close"].to_numpy(float)
+    vwap = pc["vwap"].to_numpy(float)
+    atr = pc["atr"].to_numpy(float)
+    active = pc["active"].to_numpy(bool)
+    up1 = pc["up_1h"].to_numpy(bool)
+    dn1 = pc["dn_1h"].to_numpy(bool)
+    up4 = pc["up_4h"].to_numpy(bool)
+    dn4 = pc["dn_4h"].to_numpy(bool)
+    ph4 = pc["ph_4h"].to_numpy(float)
+    pl4 = pc["pl_4h"].to_numpy(float)
+    n = len(pc)
+    rows = []
+    i = max(warmup, 300)
+    while i < n - 1:
+        advanced = False
+        price = closes[i]
+        a = atr[i]
+        v = vwap[i]
+        if active[i] and a == a and a > 0:
+            direction = stop = tp = None
+            val_long = (not require_value) or (v == v and price <= v)
+            val_short = (not require_value) or (v == v and price >= v)
+            if up1[i] and up4[i] and val_long and ph4[i] == ph4[i] and ph4[i] > price:
+                direction, tp, stop = 1, ph4[i], price - atr_mult * a
+            elif dn1[i] and dn4[i] and val_short and pl4[i] == pl4[i] and pl4[i] < price:
+                direction, tp, stop = -1, pl4[i], price + atr_mult * a
+            if direction is not None:
+                risk, reward = abs(price - stop), abs(tp - price)
+                if risk > 0 and reward / risk >= min_rr:
+                    exit_px = bars = outcome = None
+                    for j in range(i + 1, min(i + 1 + max_hold, n)):
+                        if direction > 0:
+                            hit_sl, hit_tp = lows[j] <= stop, highs[j] >= tp
+                        else:
+                            hit_sl, hit_tp = highs[j] >= stop, lows[j] <= tp
+                        if hit_sl:
+                            exit_px, bars, outcome = stop, j - i, "loss"
+                            break
+                        if hit_tp:
+                            exit_px, bars, outcome = tp, j - i, "win"
+                            break
+                    if exit_px is not None:
+                        rows.append({"entry_price": price, "stop_price": stop,
+                                     "exit_price": exit_px, "direction": direction,
+                                     "bars_held": bars, "outcome": outcome, "mode": "macro_mtf"})
+                        i += bars
+                        advanced = True
+        if not advanced:
+            i += step
+    return pd.DataFrame(rows)
+
+
 def run(df, *, step=1, min_rr=1.5, bar_minutes=5.0, cost=None, version="v1", **v2kw):
     """Backtest completo: etiqueta -> bt_engine -> metricas. version='v1' (imanes
     micro) o 'v2' (horas de volumen + bias macro + target macro). Devuelve dict con
     n_trades, win_rate, expectancy_r (gross), total_r, max_drawdown (neto),
     final_equity y desglose por modo."""
-    if version == "v2":
+    if version == "v4":
+        trades = label_v4(df, step=step, min_rr=min_rr, **v2kw)
+    elif version == "v2":
         trades = label_v2(df, step=step, min_rr=min_rr, **v2kw)
     else:
         trades = label_fast(df, step=step, min_rr=min_rr)

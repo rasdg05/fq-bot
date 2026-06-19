@@ -81,3 +81,28 @@ def test_label_v2_corre_y_filtro_valor_no_aumenta_trades():
 def test_run_version_v2_devuelve_metricas():
     r = mb.run(_wave(n=900), version="v2", min_rr=2.0, require_value=True)
     assert isinstance(r["n_trades"], int) and 0.0 <= r["max_drawdown"] <= 1.0
+
+
+# --------------------------------------------------------------------------
+# v4 (red multi-TF: 1h + 4h + iman pesado de 4h)
+# --------------------------------------------------------------------------
+def _wave_ts(n=3000, period=200, amp=15.0, base=100.0, start_ms=1_700_000_000_000):
+    i = np.arange(n)
+    close = base + amp * np.sin(2 * np.pi * i / period)
+    return pd.DataFrame({"timestamp": start_ms + i * 300_000,
+                         "open": close, "high": close + 0.3, "low": close - 0.3,
+                         "close": close, "volume": np.full(n, 100.0)})
+
+
+def test_precompute_v4_agrega_capas_multitf():
+    pc = mb.precompute_v4(_wave_ts(2000))
+    for c in ("ph_1h", "pl_1h", "up_4h", "dn_4h"):
+        assert c in pc.columns
+
+
+def test_label_v4_corre_y_es_macro_mtf():
+    t = mb.label_v4(_wave_ts(3000), min_rr=1.5)
+    assert isinstance(t, pd.DataFrame)
+    if not t.empty:
+        assert (t["mode"] == "macro_mtf").all()
+        assert set(t["direction"].unique()) <= {1, -1}
