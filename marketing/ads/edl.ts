@@ -79,7 +79,7 @@ export const ADS: Ad[] = [
       intro,
       hook('IMG_1846', 1.3, 8.5, '¿Por qué la mayoría nunca manejará uno de estos?'),
       ...BODY,
-      cta('bot'),
+      cta('instagram'),
     ],
   },
   {
@@ -87,9 +87,9 @@ export const ADS: Ad[] = [
     title: 'Gancho B · "la mayoria pierde" (CTA bot + IG)',
     scenes: [
       intro,
-      hook('IMG_5979', 0.2, 4.8, 'La mayoria pierde por no tener un sistema.'),
+      hook('IMG_5979', 0.3, 5.3, '¿Por qué la mayoría pierde? No tienen un sistema probado.'),
       ...BODY,
-      cta('both'),
+      cta('instagram'),
     ],
   },
   {
@@ -98,9 +98,9 @@ export const ADS: Ad[] = [
     scenes: [
       intro,
       // IMG_1844: "llevas anios haciendo trading y sigues igual de roto"
-      hook('IMG_1844', 3.0, 7.0, 'Llevas años y sigues igual de roto.'),
+      hook('IMG_1844', 3.0, 6.7, 'Llevas años y sigues igual de roto.'),
       ...BODY,
-      cta('both'),
+      cta('instagram'),
     ],
   },
   {
@@ -109,9 +109,9 @@ export const ADS: Ad[] = [
     scenes: [
       intro,
       // IMG_1851: "esto es Fibonacci cuantico un bot preciso... entrada, stop, target"
-      hook('IMG_1851', 0.0, 4.0, 'Un bot que te da entrada, stop y target.'),
+      hook('IMG_1851', 0.9, 7.5, 'Un bot que te da entrada, stop y target.'),
       ...BODY,
-      cta('bot'),
+      cta('instagram'),
     ],
   },
 ];

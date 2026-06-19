@@ -1,5 +1,5 @@
 import React from 'react';
-import {AbsoluteFill, Audio, staticFile} from 'remotion';
+import {AbsoluteFill, Audio, interpolate, staticFile} from 'remotion';
 import {TransitionSeries, linearTiming} from '@remotion/transitions';
 import {fade} from '@remotion/transitions/fade';
 import type {Ad, Scene} from '../../ads/edl';
@@ -64,9 +64,33 @@ const SceneWithCaption: React.FC<{scene: Scene; frameMode: FrameMode}> = ({scene
  * y microtexto legal persistente.
  */
 export const AdMovie: React.FC<{ad: Ad; frameMode?: FrameMode}> = ({ad, frameMode = 'cover'}) => {
+  // Volumen de musica dinamico: baja bajo la voz, sube cuando no hay voz.
+  // Nunca llega a cero -> siempre hay una "frecuencia presente".
+  const VOICE_VOL = 0.12;
+  const FULL_VOL = 0.5;
+  const starts: number[] = [];
+  let acc = 0;
+  ad.scenes.forEach((s, i) => {
+    starts.push(acc - i * TRANSITION);
+    acc += s.durationInFrames;
+  });
+  const points = ad.scenes.map((s, i) => ({
+    f: starts[i] + s.durationInFrames / 2,
+    v: s.type === 'clip' && s.audio ? VOICE_VOL : FULL_VOL,
+  }));
+  const musicVolume = (f: number) =>
+    points.length > 1
+      ? interpolate(
+          f,
+          points.map((p) => p.f),
+          points.map((p) => p.v),
+          {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}
+        )
+      : FULL_VOL;
+
   return (
     <AbsoluteFill style={{background: COLORS.bg}}>
-      {MUSIC.enabled ? <Audio src={staticFile(MUSIC.file)} volume={MUSIC.volume} loop /> : null}
+      {MUSIC.enabled ? <Audio src={staticFile(MUSIC.file)} volume={musicVolume} loop /> : null}
       <TransitionSeries>
         {ad.scenes.flatMap((scene, i) => {
           const seq = (
