@@ -77,3 +77,55 @@ def test_enumerate_magnets_usa_pools_del_field():
     by_kind = {m.kind: m for m in lm.enumerate_magnets(_df(closes), _Field(), 119.0)}
     assert by_kind["pool_high"].price == 130.0 and by_kind["pool_high"].side == "above"
     assert by_kind["pool_low"].price == 60.0 and by_kind["pool_low"].side == "below"
+
+
+# --------------------------------------------------------------------------
+# DIRECTOR (capa 2): modo + senal
+# --------------------------------------------------------------------------
+def test_context_mode_divergencia_es_reversion():
+    assert lm.context_mode({"below": True, "divergence": True}) == ("reversal", "long")
+    assert lm.context_mode({"below": False, "divergence": True}) == ("reversal", "short")
+
+
+def test_context_mode_sin_divergencia_es_continuacion_con_el_stack():
+    assert lm.context_mode({"below": True, "divergence": False}) == ("continuation", "short")
+    assert lm.context_mode({"below": False, "divergence": False}) == ("continuation", "long")
+
+
+def test_context_mode_none():
+    assert lm.context_mode(None) == ("none", None)
+
+
+class _Pool:
+    def __init__(self, p):
+        self.price = float(p)
+
+
+def test_best_target_continuacion_long_arma_senal_valida():
+    closes = list(range(50, 130))                 # subiendo -> precio sobre el cloud
+
+    class _F:
+        pool_high = _Pool(140.0)                  # liquidez arriba = target
+        pool_low = _Pool(120.0)                   # soporte abajo
+
+    sig = lm.best_target(_df(closes), _F(), 129.0, vol_score=0.8, min_rr=1.0)
+    assert sig is not None
+    assert sig["direction"] == "long" and sig["mode"] == "continuation"
+    assert sig["tp"] == 140.0                     # target = la liquidez arriba
+    assert sig["stop"] < 129.0 and sig["entry"] == 129.0
+    assert sig["rr"] >= 1.0 and 0.0 <= sig["pull"] <= 1.0
+
+
+def test_best_target_filtra_por_rr_minimo():
+    closes = list(range(50, 130))
+
+    class _F:
+        pool_high = _Pool(129.5)                  # target pegado -> R:R minusculo
+        pool_low = _Pool(120.0)
+
+    assert lm.best_target(_df(closes), _F(), 129.0, min_rr=3.0) is None
+
+
+def test_best_target_sin_iman_en_la_direccion_no_dispara():
+    closes = list(range(50, 130))                 # continuation long, pero sin nada arriba
+    assert lm.best_target(_df(closes), None, 129.0, min_rr=1.0) is None

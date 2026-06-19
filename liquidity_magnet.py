@@ -198,3 +198,78 @@ def enumerate_magnets(df, field, price, *, prior_bars=96):
             add(float(window["low"].astype(float).min()), "prior_low", "min previo")
 
     return mags
+
+
+# ============================================================
+# DIRECTOR (capa 2): modo (continuacion/reversion) + target + senal
+# ============================================================
+def context_mode(cloud):
+    """Modo y direccion desde el cloud de MAs (v1; proxy de la entropia multi-TF):
+      · DIVERGENCIA (precio debajo del cloud pero sobre VWMA, o al reves) -> 'reversal':
+        el volumen defiende contra el stack -> sweep & reverse hacia el cloud.
+      · sin divergencia -> 'continuation' en la direccion del stack (precio vs cloud).
+    Devuelve (mode, direction) con direction in {'long','short',None}. La integracion
+    de field.bias_4h/1h + entropy_cognition (entropia multi-TF plena) es refinamiento.
+    """
+    if not cloud:
+        return "none", None
+    below = bool(cloud.get("below"))
+    if cloud.get("divergence"):
+        # below & vwma_above -> compran abajo -> reversion LONG hacia el cloud;
+        # above & vwma_below -> distribuyen arriba -> reversion SHORT hacia el cloud.
+        return "reversal", ("long" if below else "short")
+    return "continuation", ("short" if below else "long")
+
+
+def _heat(liq_snapshot, direction):
+    """Calor de liquidaciones A FAVOR de la direccion [0,1] (tesis squeeze)."""
+    if not liq_snapshot or not liq_snapshot.get("fresh"):
+        return 0.0
+    intensity = max(0.0, min(1.0, float(liq_snapshot.get("intensity", 0.0))))
+    skew = max(-1.0, min(1.0, float(liq_snapshot.get("skew", 0.0))))
+    want = 1.0 if direction == "long" else -1.0
+    return max(0.0, intensity * max(0.0, want * skew))
+
+
+def best_target(df, field, price, *, liq_snapshot=None, vol_score=0.0,
+                min_rr=1.5, stop_buffer=0.0015):
+    """Senal del Motor de Imanes (v1): elige modo+direccion (context_mode), busca la
+    SIGUIENTE liquidez (iman) en esa direccion con R:R >= min_rr, y arma la senal
+    {direction, mode, entry, stop, tp, rr, pull, why}. None si no hay setup valido.
+    tp = la liquidez a tomar (el iman); stop = mas alla del iman opuesto cercano
+    (invalidacion estructural); pull [0,1] = confianza (volumen + calor + modo)."""
+    price = float(price)
+    mode, direction = context_mode(ma_cloud(df))
+    if direction is None:
+        return None
+    mags = enumerate_magnets(df, field, price)
+    want_above = (direction == "long")
+    side = [m for m in mags if (m.price > price) == want_above and m.price != price]
+    opp = [m for m in mags if (m.price < price) == want_above and m.price != price]
+    if not side:
+        return None
+    # target = la liquidez mas CERCANA en la direccion (la proxima a ser buscada)
+    target = min(side, key=lambda m: m.price) if want_above \
+        else max(side, key=lambda m: m.price)
+    tp = target.price
+    # stop = mas alla del iman opuesto mas cercano (o un buffer si no hay)
+    if opp:
+        inval = max(opp, key=lambda m: m.price).price if want_above \
+            else min(opp, key=lambda m: m.price).price
+    else:
+        inval = price
+    stop = inval * (1 - stop_buffer) if want_above else inval * (1 + stop_buffer)
+    risk, reward = abs(price - stop), abs(tp - price)
+    if risk <= 0 or reward <= 0:
+        return None
+    rr = reward / risk
+    if rr < min_rr:
+        return None
+    pull = max(0.0, min(1.0, 0.45 * float(vol_score)
+                        + 0.40 * _heat(liq_snapshot, direction)
+                        + 0.15 * (1.0 if mode == "reversal" else 0.6)))
+    return {"direction": direction, "mode": mode, "entry": price, "stop": float(stop),
+            "tp": float(tp), "rr": float(rr), "pull": float(pull),
+            "target_kind": target.kind,
+            "why": "{} {} -> {} @ {:.4f} (RR {:.2f}, pull {:.2f})".format(
+                mode, direction, target.kind, tp, rr, pull)}
