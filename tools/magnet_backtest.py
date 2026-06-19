@@ -110,6 +110,102 @@ def precompute(df, *, periods=(20, 50, 100, 200), prior_bars=96, vwap_win=288):
     return out
 
 
+def precompute_v2(df, *, macro_span=144, day_bars=288, atr_n=14, vol_q=0.5):
+    """precompute + capas MACRO (feedback RasDG: no operar zonas micro):
+      · macro_up/macro_dn : bias del HTF (EMA larga macro_span ~12h + pendiente) ->
+        operar CON el rio, no con la microestructura 5m.
+      · atr               : para un stop con AIRE (no micro-ajustado).
+      · pday_high/low      : extremos del dia previo = TARGET MACRO (liquidez grande
+        -> RR que vale la pena).
+      · active            : 'horas de volumen' (perfil de volumen por hora UTC; solo
+        las horas en el top (>= cuantil vol_q) = killzones). Asume perfil estable
+        (leve supuesto estructural, no prediccion de precio)."""
+    out = precompute(df)
+    close = out["close"].astype(float)
+    high = out["high"].astype(float)
+    low = out["low"].astype(float)
+    ema = lm._ema(close, macro_span)
+    slope = ema.diff()
+    out["macro_up"] = (close > ema) & (slope > 0)
+    out["macro_dn"] = (close < ema) & (slope < 0)
+    prev_close = close.shift(1)
+    tr = pd.concat([high - low, (high - prev_close).abs(),
+                    (low - prev_close).abs()], axis=1).max(axis=1)
+    out["atr"] = tr.rolling(atr_n).mean()
+    out["pday_high"] = high.rolling(day_bars, min_periods=20).max().shift(1)
+    out["pday_low"] = low.rolling(day_bars, min_periods=20).min().shift(1)
+    if "timestamp" in out.columns:
+        hour = pd.to_datetime(out["timestamp"], unit="ms", utc=True,
+                              errors="coerce").dt.hour
+        prof = out.assign(_h=hour).groupby("_h")["volume"].mean()
+        active_hours = set(prof[prof >= prof.quantile(vol_q)].index.tolist())
+        out["active"] = hour.isin(active_hours)
+    else:
+        out["active"] = True
+    return out
+
+
+def label_v2(df, *, step=1, min_rr=2.0, max_hold=288, warmup=300,
+             atr_mult=1.5, macro_span=144, day_bars=288, vol_q=0.5,
+             require_value=False):
+    """Motor v2/v3: dispara solo en HORAS DE VOLUMEN, CON el bias macro, hacia el
+    TARGET MACRO (extremo del dia previo) con stop por ATR -> RR que vale la pena.
+    require_value=True (v3): exige ENTRAR EN VALOR (long solo en descuento, price<=VWAP;
+    short en premium, price>=VWAP) -> no perseguir, mejor ubicacion -> mejor WR. Trades
+    NO solapados, etiquetado pesimista. mode='macro'."""
+    pc = precompute_v2(df, macro_span=macro_span, day_bars=day_bars, vol_q=vol_q)
+    highs = pc["high"].to_numpy(float)
+    lows = pc["low"].to_numpy(float)
+    closes = pc["close"].to_numpy(float)
+    vwap = pc["vwap"].to_numpy(float)
+    atr = pc["atr"].to_numpy(float)
+    pdh = pc["pday_high"].to_numpy(float)
+    pdl = pc["pday_low"].to_numpy(float)
+    up = pc["macro_up"].to_numpy(bool)
+    dn = pc["macro_dn"].to_numpy(bool)
+    active = pc["active"].to_numpy(bool)
+    n = len(pc)
+    rows = []
+    i = max(warmup, macro_span + 5)
+    while i < n - 1:
+        advanced = False
+        price = closes[i]
+        a = atr[i]
+        v = vwap[i]
+        in_value_long = (not require_value) or (v == v and price <= v)
+        in_value_short = (not require_value) or (v == v and price >= v)
+        if active[i] and a == a and a > 0:
+            direction = stop = tp = None
+            if up[i] and in_value_long and pdh[i] == pdh[i] and pdh[i] > price:
+                direction, tp, stop = 1, pdh[i], price - atr_mult * a
+            elif dn[i] and in_value_short and pdl[i] == pdl[i] and pdl[i] < price:
+                direction, tp, stop = -1, pdl[i], price + atr_mult * a
+            if direction is not None:
+                risk, reward = abs(price - stop), abs(tp - price)
+                if risk > 0 and reward / risk >= min_rr:
+                    exit_px = bars = outcome = None
+                    for j in range(i + 1, min(i + 1 + max_hold, n)):
+                        if direction > 0:
+                            hit_sl, hit_tp = lows[j] <= stop, highs[j] >= tp
+                        else:
+                            hit_sl, hit_tp = highs[j] >= stop, lows[j] <= tp
+                        if hit_sl:
+                            exit_px, bars, outcome = stop, j - i, "loss"
+                            break
+                        if hit_tp:
+                            exit_px, bars, outcome = tp, j - i, "win"
+                            break
+                    if exit_px is not None:
+                        rows.append({"entry_price": price, "stop_price": stop,
+                                     "exit_price": exit_px, "direction": direction,
+                                     "bars_held": bars, "outcome": outcome, "mode": "macro"})
+                        i += bars
+                        advanced = True
+        if not advanced:
+            i += step
+    return pd.DataFrame(rows)
+
+
 def label_fast(df, *, step=1, min_rr=1.5, max_hold=200, warmup=WARMUP):
     """Igual que label_magnet_trades pero O(n): precomputa los imanes una vez y arma
     la senal por vela con lm.build_signal (mismo criterio). Para backtest a escala."""
@@ -173,11 +269,15 @@ def _max_drawdown(equity):
     return float(dd.max())
 
 
-def run(df, *, step=1, min_rr=1.5, bar_minutes=5.0, cost=None):
-    """Backtest completo: etiqueta -> bt_engine -> metricas. Devuelve dict con
+def run(df, *, step=1, min_rr=1.5, bar_minutes=5.0, cost=None, version="v1", **v2kw):
+    """Backtest completo: etiqueta -> bt_engine -> metricas. version='v1' (imanes
+    micro) o 'v2' (horas de volumen + bias macro + target macro). Devuelve dict con
     n_trades, win_rate, expectancy_r (gross), total_r, max_drawdown (neto),
-    final_equity y desglose por modo (continuation/reversal)."""
-    trades = label_fast(df, step=step, min_rr=min_rr)
+    final_equity y desglose por modo."""
+    if version == "v2":
+        trades = label_v2(df, step=step, min_rr=min_rr, **v2kw)
+    else:
+        trades = label_fast(df, step=step, min_rr=min_rr)
     out = {"n_trades": int(len(trades))}
     if trades.empty:
         out.update({"win_rate": None, "expectancy_r": None, "total_r": 0.0,

@@ -55,3 +55,29 @@ def test_run_sin_trades_no_crashea():
                          "volume": [100.0] * 80})
     r = mb.run(flat, step=1, min_rr=1.5)
     assert r["n_trades"] == 0 and r["max_drawdown"] == 0.0
+
+
+# --------------------------------------------------------------------------
+# v2/v3 (macro + horas de volumen + entrar en valor)
+# --------------------------------------------------------------------------
+def test_precompute_v2_agrega_capas_macro():
+    pc = mb.precompute_v2(_wave(n=500))
+    for c in ("macro_up", "macro_dn", "atr", "pday_high", "pday_low", "active"):
+        assert c in pc.columns
+
+
+def test_label_v2_corre_y_filtro_valor_no_aumenta_trades():
+    df = _wave(n=900, period=60, amp=12.0)
+    t_all = mb.label_v2(df, min_rr=1.5, require_value=False, warmup=300)
+    t_val = mb.label_v2(df, min_rr=1.5, require_value=True, warmup=300)
+    assert isinstance(t_all, pd.DataFrame) and isinstance(t_val, pd.DataFrame)
+    assert len(t_val) <= len(t_all)            # entrar en valor solo RESTA trades
+    for t in (t_all, t_val):
+        if not t.empty:
+            assert set(t["direction"].unique()) <= {1, -1}
+            assert (t["mode"] == "macro").all()
+
+
+def test_run_version_v2_devuelve_metricas():
+    r = mb.run(_wave(n=900), version="v2", min_rr=2.0, require_value=True)
+    assert isinstance(r["n_trades"], int) and 0.0 <= r["max_drawdown"] <= 1.0
