@@ -238,14 +238,22 @@ def best_target(df, field, price, *, liq_snapshot=None, vol_score=0.0,
     {direction, mode, entry, stop, tp, rr, pull, why}. None si no hay setup valido.
     tp = la liquidez a tomar (el iman); stop = mas alla del iman opuesto cercano
     (invalidacion estructural); pull [0,1] = confianza (volumen + calor + modo)."""
-    price = float(price)
     mode, direction = context_mode(ma_cloud(df))
     if direction is None:
         return None
-    mags = enumerate_magnets(df, field, price)
+    mags = enumerate_magnets(df, field, float(price))
+    return build_signal(float(price), mags, mode, direction, liq_snapshot=liq_snapshot,
+                        vol_score=vol_score, min_rr=min_rr, stop_buffer=stop_buffer)
+
+
+def build_signal(price, magnets, mode, direction, *, liq_snapshot=None, vol_score=0.0,
+                 min_rr=1.5, stop_buffer=0.0015):
+    """Arma la senal a partir de imanes YA enumerados + modo/direccion. Reutilizado
+    por best_target (vela a vela) y por el backtest vectorizado (mismo criterio)."""
+    price = float(price)
     want_above = (direction == "long")
-    side = [m for m in mags if (m.price > price) == want_above and m.price != price]
-    opp = [m for m in mags if (m.price < price) == want_above and m.price != price]
+    side = [m for m in magnets if (m.price > price) == want_above and m.price != price]
+    opp = [m for m in magnets if (m.price < price) == want_above and m.price != price]
     if not side:
         return None
     # target = la liquidez mas CERCANA en la direccion (la proxima a ser buscada)

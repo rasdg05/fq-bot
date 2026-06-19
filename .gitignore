@@ -13,3 +13,4 @@ data/
 
 # Decks generados (artefactos; se regeneran con tools/build_deck.py)
 FQ_*.pdf
+data/okx/

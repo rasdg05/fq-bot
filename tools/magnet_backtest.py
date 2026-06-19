@@ -49,6 +49,7 @@ def label_magnet_trades(df, *, step=1, min_rr=1.5, max_hold=200, field_fn=None):
         sub = df.iloc[:i + 1]
         field = field_fn(sub) if field_fn else None
         sig = lm.best_target(sub, field, closes[i], min_rr=min_rr)
+        advanced = False
         if sig:
             d = 1 if sig["direction"] == "long" else -1
             entry, stop, tp = sig["entry"], sig["stop"], sig["tp"]
@@ -68,7 +69,98 @@ def label_magnet_trades(df, *, step=1, min_rr=1.5, max_hold=200, field_fn=None):
                 rows.append({"entry_price": entry, "stop_price": stop,
                              "exit_price": exit_px, "direction": d,
                              "bars_held": bars, "outcome": outcome, "mode": sig["mode"]})
-        i += step
+                i += bars                       # NO solapado: saltar hasta el cierre
+                advanced = True
+        if not advanced:
+            i += step
+    return pd.DataFrame(rows)
+
+
+def precompute(df, *, periods=(20, 50, 100, 200), prior_bars=96, vwap_win=288):
+    """Vectoriza (O(n)) las entradas de los imanes por vela para backtest a escala:
+    center del cloud (mediana de EMA/SMA por periodo + Hull9), vwma, below,
+    divergence, vwap (anclado al dia UTC si hay timestamp; si no, rodante vwap_win),
+    prior_high/low. Mismo criterio que ma_cloud/enumerate_magnets (NaN se ignora ->
+    en velas tempranas equivale a usar menos periodos, igual que el camino lento)."""
+    out = df.reset_index(drop=True).copy()
+    close = out["close"].astype(float)
+    vol = out["volume"].astype(float)
+    cols = []
+    for n in periods:
+        if n <= len(out):
+            cols.append(lm._ema(close, n))
+            cols.append(lm._sma(close, n))
+    cols.append(lm._hull(close, 9))
+    out["center"] = pd.concat(cols, axis=1).median(axis=1)
+    out["vwma"] = lm._vwma(close, vol, 20)
+    below = close < out["center"]
+    vwma_above = close > out["vwma"]
+    out["below"] = below
+    out["divergence"] = (below & vwma_above) | ((~below) & (~vwma_above))
+    tp = (out["high"].astype(float) + out["low"].astype(float) + close) / 3.0
+    if "timestamp" in out.columns:
+        day = pd.to_datetime(out["timestamp"], unit="ms", utc=True,
+                             errors="coerce").dt.floor("D")
+        out["vwap"] = (tp * vol).groupby(day).cumsum() / vol.groupby(day).cumsum()
+    else:
+        out["vwap"] = ((tp * vol).rolling(vwap_win, min_periods=20).sum()
+                       / vol.rolling(vwap_win, min_periods=20).sum())
+    out["prior_high"] = out["high"].astype(float).rolling(prior_bars, min_periods=5).max().shift(1)
+    out["prior_low"] = out["low"].astype(float).rolling(prior_bars, min_periods=5).min().shift(1)
+    return out
+
+
+def label_fast(df, *, step=1, min_rr=1.5, max_hold=200, warmup=WARMUP):
+    """Igual que label_magnet_trades pero O(n): precomputa los imanes una vez y arma
+    la senal por vela con lm.build_signal (mismo criterio). Para backtest a escala."""
+    pc = precompute(df)
+    highs = pc["high"].to_numpy(float)
+    lows = pc["low"].to_numpy(float)
+    closes = pc["close"].to_numpy(float)
+    center = pc["center"].to_numpy(float)
+    vwap = pc["vwap"].to_numpy(float)
+    ph = pc["prior_high"].to_numpy(float)
+    pl = pc["prior_low"].to_numpy(float)
+    below = pc["below"].to_numpy()
+    div = pc["divergence"].to_numpy()
+    n = len(pc)
+    rows = []
+    i = warmup
+    while i < n - 1:
+        price = closes[i]
+        advanced = False
+        mode, direction = lm.context_mode({"below": bool(below[i]),
+                                           "divergence": bool(div[i])})
+        if direction is not None:
+            mags = []
+            for p, kind in ((vwap[i], "vwap"), (center[i], "ma_cloud"),
+                            (ph[i], "prior_high"), (pl[i], "prior_low")):
+                if p == p and p > 0:
+                    mags.append(lm.Magnet(float(p), kind, "above" if p >= price else "below"))
+            sig = lm.build_signal(price, mags, mode, direction, min_rr=min_rr)
+            if sig:
+                d = 1 if sig["direction"] == "long" else -1
+                stop, tp = sig["stop"], sig["tp"]
+                exit_px = bars = outcome = None
+                for j in range(i + 1, min(i + 1 + max_hold, n)):
+                    if d > 0:
+                        hit_sl, hit_tp = lows[j] <= stop, highs[j] >= tp
+                    else:
+                        hit_sl, hit_tp = highs[j] >= stop, lows[j] <= tp
+                    if hit_sl:
+                        exit_px, bars, outcome = stop, j - i, "loss"
+                        break
+                    if hit_tp:
+                        exit_px, bars, outcome = tp, j - i, "win"
+                        break
+                if exit_px is not None:
+                    rows.append({"entry_price": price, "stop_price": stop,
+                                 "exit_price": exit_px, "direction": d,
+                                 "bars_held": bars, "outcome": outcome, "mode": sig["mode"]})
+                    i += bars                      # NO solapado: saltar hasta el cierre
+                    advanced = True
+        if not advanced:
+            i += step
     return pd.DataFrame(rows)
 
 
@@ -85,7 +177,7 @@ def run(df, *, step=1, min_rr=1.5, bar_minutes=5.0, cost=None):
     """Backtest completo: etiqueta -> bt_engine -> metricas. Devuelve dict con
     n_trades, win_rate, expectancy_r (gross), total_r, max_drawdown (neto),
     final_equity y desglose por modo (continuation/reversal)."""
-    trades = label_magnet_trades(df, step=step, min_rr=min_rr)
+    trades = label_fast(df, step=step, min_rr=min_rr)
     out = {"n_trades": int(len(trades))}
     if trades.empty:
         out.update({"win_rate": None, "expectancy_r": None, "total_r": 0.0,
