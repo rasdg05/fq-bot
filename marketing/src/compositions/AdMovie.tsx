@@ -67,7 +67,7 @@ export const AdMovie: React.FC<{ad: Ad; frameMode?: FrameMode}> = ({ad, frameMod
   // Volumen de musica dinamico: baja bajo la voz, sube cuando no hay voz.
   // Nunca llega a cero -> siempre hay una "frecuencia presente".
   const VOICE_VOL = 0.12;
-  const FULL_VOL = 0.5;
+  const FULL_VOL = 0.8;
   const starts: number[] = [];
   let acc = 0;
   ad.scenes.forEach((s, i) => {
