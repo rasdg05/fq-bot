@@ -23,14 +23,26 @@ log = logging.getLogger("fq_maintenance")
 BACKUP_INTERVAL_S = int(float(os.environ.get("FQ_BACKUP_HOURS", "6")) * 3600)
 CHECK_INTERVAL_S  = 300          # revisa heartbeats cada 5 min
 
+def _public_enabled():
+    """Misma regla que launcher._bots / entry_public._resolve_public_token:
+    el bot publico solo corre con token PROPIO (distinto del VIP). Si no
+    corre, NO se vigila su latido: el archivo .beat viejo persiste en el
+    Volume y dispararia 'sin latido' eternamente para un proceso apagado a
+    proposito (topologia de un solo bot, jun-2026)."""
+    pub = (os.environ.get("TELEGRAM_TOKEN_PUBLIC") or "").strip()
+    vip = (os.environ.get("TELEGRAM_TOKEN") or "").strip()
+    return bool(pub) and pub != vip
+
+
 # Umbrales de staleness por componente (segundos).
 STALE_THRESHOLDS = {
-    "vip":    int(os.environ.get("FQ_VIP_STALE_MIN", "15")) * 60,
-    "public": int(os.environ.get("FQ_PUBLIC_STALE_MIN", "20")) * 60,
+    "vip": int(os.environ.get("FQ_VIP_STALE_MIN", "15")) * 60,
 }
+if _public_enabled():
+    STALE_THRESHOLDS["public"] = int(os.environ.get("FQ_PUBLIC_STALE_MIN", "20")) * 60
 
 # Estado de alerta para no spamear: solo avisa en la transicion sano->stale.
-_alerted = {"vip": False, "public": False}
+_alerted = {comp: False for comp in STALE_THRESHOLDS}
 
 
 def _dm_admin(text):

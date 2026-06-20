@@ -53,6 +53,178 @@ def htf_window(df_htf, ts, tail=None):
 
 
 # ============================================================
+# CROSS-ASSET LEAD-LAG (BTC -> alt), CAUSAL por construccion
+# ============================================================
+# Prefijo de TODAS las features cross-asset. El loader las inyecta en los eventos
+# /estados y, gracias a que estan en la lista de _numeric_feature_columns (modelo)
+# y en bt_retrieval.DEFAULT_NUMERIC (vector de retrieval), las consume TANTO el GBM
+# del [3/4] COMO el vector k-NN del retrieval + el gate ORO. Ver feasibility.
+XBTC_PREFIX = "xbtc_"
+
+# Columnas xbtc_ que el modelo y el vector deben reconocer. Se declaran aqui (no en
+# DEFAULT_NUMERIC para evitar import circular) y bt_retrieval las anexa. Si anades
+# una xbtc_, agregala aqui: queda numerica -> entra al modelo y al vector.
+XBTC_FEATURE_COLUMNS = (
+    "xbtc_ret_3", "xbtc_ret_12", "xbtc_ret_48",
+    "xbtc_atrpct", "xbtc_trend", "xbtc_relstr",
+)
+
+# Prefijos de las features ESTRUCTURALES de funding-rate / open-interest (modulo
+# funding_oi, --funding-oi). Se reconocen en _numeric_feature_columns para que el
+# GBM del [3/4] las ingiera cuando esten presentes. La definicion canonica de las
+# columnas vive en funding_oi.FUNDING_OI_FEATURE_COLUMNS (single source of truth);
+# aqui solo declaramos los prefijos para evitar un import circular bt_features <->
+# funding_oi. Inerte si el flag esta apagado (columnas ausentes -> no se recogen).
+FUND_PREFIX = "fund_"
+OI_PREFIX = "oi_"
+
+
+def cross_asset_features(
+    df_primary, df_cross, *,
+    ret_bars=(3, 12, 48), atr_bars=14, trend_ma_bars=48, relstr_bars=12,
+    shift_cross=1,
+):
+    """Features lead-lag de un activo CRUZADO (p.ej. BTC) alineadas CAUSALMENTE a
+    cada vela del activo primario (p.ej. SOL/ETH). Pieza PURA: DataFrames in ->
+    DataFrame in (sin red, sin estado, testeable).
+
+    df_primary / df_cross: OHLCV con columna 'timestamp' (datetime), MISMO TF y
+    exchange. El cruzado se usa SOLO con timestamp <= el de la vela primaria.
+
+    DEVUELVE un DataFrame con UNA fila por vela primaria (mismo orden/longitud que
+    df_primary) y columnas:
+      xbtc_ret_3 / xbtc_ret_12 / xbtc_ret_48 : pct-change del close cruzado sobre
+          N velas del TF primario (momentum del lider a 3 horizontes).
+      xbtc_atrpct : volatilidad reciente del cruzado = ATR(atr_bars) Wilder / close
+          (en fraccion del precio; trailing, min_periods).
+      xbtc_trend  : sign(close_cruzado - MA(trend_ma_bars) del cruzado) en {-1,0,1}.
+      xbtc_relstr : FUERZA RELATIVA = ret_primario(relstr_bars) - ret_cruzado(
+          relstr_bars) sobre la MISMA ventana (si el alt sube mas/menos que BTC).
+
+    ---------------------------------------------------------------------------
+    LEAKAGE (el punto que se revisa). Una feature en la vela primaria t SOLO puede
+    leer datos del cruzado con timestamp <= t (jamas el futuro):
+
+    1) ALINEACION via pd.merge_asof(..., direction="backward"): a cada vela
+       primaria t le empareja la fila del cruzado con timestamp MAS RECIENTE que
+       NO sea posterior a t (cross_ts <= t). Nunca rellena desde el futuro
+       (forward-fill), nunca una ventana centrada/adelantada.
+
+    2) CONSERVADOR (shift_cross=1, default): la vela del cruzado fechada EXACTAMENTE
+       en t cierra al final del periodo t (misma convencion open-stamped que la
+       primaria), asi que en el INSTANTE de la decision del alt en t esa vela del
+       cruzado AUN se esta formando -> no es conocible. Por eso desplazamos las
+       features del cruzado UNA vela (se usan valores de cierre del cruzado en
+       t-1cross, ya cerrados) ANTES del merge. Eleccion conservadora y documentada
+       (la alternativa <= t exacta asumiria conocer una vela en formacion).
+
+    3) Las ventanas rolling del cruzado (ret/atr/ma) son TRAILING con min_periods:
+       cada valor en la fila k usa solo filas <= k del cruzado. Sin ventana futura.
+
+    El resultado: el valor xbtc_* en t NO puede reflejar ningun dato del cruzado
+    posterior a t (de hecho, ni siquiera el de t: solo <= t-1cross). La maquinaria
+    temporal OOS/embargo/OOT existente se mantiene honesta porque estas columnas
+    son, por construccion, funcion solo del pasado.
+    """
+    n = len(df_primary)
+    empty = pd.DataFrame(index=range(n))
+    for c in XBTC_FEATURE_COLUMNS:
+        empty[c] = np.nan
+    if df_cross is None or len(df_cross) == 0 or n == 0:
+        return empty
+
+    # --- features del CRUZADO, calculadas SOLO sobre su propia serie (trailing) ---
+    cx = df_cross[["timestamp"]].copy()
+    cx["timestamp"] = pd.to_datetime(df_cross["timestamp"])
+    cx = cx.sort_values("timestamp").reset_index(drop=True)
+    c_close = pd.to_numeric(df_cross["close"], errors="coerce").reset_index(drop=True)
+    c_high = pd.to_numeric(df_cross["high"], errors="coerce").reset_index(drop=True)
+    c_low = pd.to_numeric(df_cross["low"], errors="coerce").reset_index(drop=True)
+    # reordena las series OHLC al mismo orden temporal que cx
+    order = df_cross["timestamp"].reset_index(drop=True).sort_values().index
+    c_close = c_close.iloc[order].reset_index(drop=True)
+    c_high = c_high.iloc[order].reset_index(drop=True)
+    c_low = c_low.iloc[order].reset_index(drop=True)
+
+    feat = pd.DataFrame({"timestamp": cx["timestamp"]})
+    rb = sorted({int(b) for b in ret_bars})
+    # los 3 horizontes pedidos van a xbtc_ret_3/12/48 por convencion de nombre
+    name_for = {3: "xbtc_ret_3", 12: "xbtc_ret_12", 48: "xbtc_ret_48"}
+    for b in rb:
+        col = name_for.get(b, f"xbtc_ret_{b}")
+        feat[col] = c_close.pct_change(b)
+    # ATR(atr_bars) Wilder, trailing -> en fraccion del precio
+    prev = c_close.shift(1)
+    tr = pd.concat([(c_high - c_low),
+                    (c_high - prev).abs(),
+                    (c_low - prev).abs()], axis=1).max(axis=1)
+    atr = tr.ewm(alpha=1.0 / float(atr_bars), adjust=False,
+                 min_periods=atr_bars).mean()
+    feat["xbtc_atrpct"] = (atr / c_close).replace([np.inf, -np.inf], np.nan)
+    # trend: signo de close - MA(trend_ma_bars), trailing
+    ma = c_close.rolling(trend_ma_bars, min_periods=trend_ma_bars).mean()
+    feat["xbtc_trend"] = np.sign(c_close - ma)
+    feat["xbtc_trend"] = feat["xbtc_trend"].where(ma.notna(), np.nan)
+    # guarda el retorno del cruzado para la fuerza relativa (mismo window)
+    feat["_xbtc_ret_rs"] = c_close.pct_change(relstr_bars)
+
+    cols_all = [c for c in feat.columns if c != "timestamp"]
+    # (2) CONSERVADOR: desplaza las features del cruzado shift_cross velas ANTES de
+    # alinear -> la vela del cruzado en formacion en t (cross_ts == t) NO se usa;
+    # se toma la ultima YA CERRADA (cross_ts <= t-shift_cross). NaN inicial limpio.
+    if shift_cross:
+        feat[cols_all] = feat[cols_all].shift(int(shift_cross))
+
+    # --- ALINEACION CAUSAL: merge_asof backward (cross_ts <= primary_ts) ---
+    prim = pd.DataFrame({"timestamp": pd.to_datetime(df_primary["timestamp"]).to_numpy()})
+    prim["_pos"] = np.arange(n)
+    prim = prim.sort_values("timestamp")
+    feat = feat.sort_values("timestamp")
+    merged = pd.merge_asof(prim, feat, on="timestamp", direction="backward")
+    merged = merged.sort_values("_pos").reset_index(drop=True)
+
+    # fuerza relativa = ret_primario(window) - ret_cruzado(window), ambos hasta t
+    p_close = pd.to_numeric(df_primary["close"], errors="coerce").reset_index(drop=True)
+    p_ret = p_close.pct_change(relstr_bars)
+    merged["xbtc_relstr"] = p_ret.to_numpy() - merged["_xbtc_ret_rs"].to_numpy()
+
+    out = pd.DataFrame(index=range(n))
+    for c in XBTC_FEATURE_COLUMNS:
+        out[c] = merged[c].to_numpy() if c in merged.columns else np.nan
+    return out
+
+
+def attach_cross_asset_features(events, df_primary, df_cross, **kwargs):
+    """Inyecta las columnas xbtc_* (cross_asset_features) en un DataFrame de
+    eventos/estados, casando por entry_index (posicion en df_primary).
+
+    events: DataFrame con columna 'entry_index' (posicion de la vela primaria),
+            tal cual lo emiten replay_events / replay_states.
+    Devuelve `events` con las columnas xbtc_* anexadas (no muta el original).
+    Causal: cada fila recibe el valor xbtc_ de SU entry_index, que a su vez solo
+    leyo cruzado <= esa vela (ver cross_asset_features). No reordena los eventos.
+    """
+    if events is None or len(events) == 0:
+        out = events.copy() if events is not None else events
+        if out is not None:
+            for c in XBTC_FEATURE_COLUMNS:
+                if c not in out.columns:
+                    out[c] = np.nan
+        return out
+    xf = cross_asset_features(df_primary, df_cross, **kwargs)
+    ei = pd.to_numeric(events["entry_index"], errors="coerce").to_numpy()
+    out = events.copy()
+    n = len(xf)
+    for c in XBTC_FEATURE_COLUMNS:
+        vals = np.full(len(out), np.nan)
+        ok = np.isfinite(ei) & (ei >= 0) & (ei < n)
+        idx = ei[ok].astype(int)
+        vals[ok] = xf[c].to_numpy()[idx]
+        out[c] = vals
+    return out
+
+
+# ============================================================
 # EXTRACCION DE FEATURES (pura: lee field + report)
 # ============================================================
 def extract_features(field, report):
@@ -88,7 +260,13 @@ def extract_features(field, report):
 
     regime = report.get("regime") or {}
     f["regime_state"] = regime.get("state")
-    f["regime_score"] = regime.get("score")
+    # regime_detector.detect_regime NO emite 'score': su magnitud numerica es
+    # n_flags (0..3 votos de deriva, lo que define el state). Sin este fallback
+    # la columna regime_score llegaba 100% NaN en TODOS los simbolos (dimension
+    # muerta del vector de retrieval + warnings 'All-NaN slice' en el fit).
+    # 'score' se respeta por si un detector futuro lo emite.
+    rs = regime.get("score")
+    f["regime_score"] = rs if rs is not None else regime.get("n_flags")
 
     # BLOQUE QUANTUM / TIEMPO EMERGENTE (Eje A) — magnitudes que el motor YA computa
     # en p_master_data y que codifican convicción adaptativa, excitación de campo y
@@ -119,12 +297,21 @@ def extract_features(field, report):
 
 
 def _numeric_feature_columns(events):
-    """Columnas de features estrictamente numericas (para el modelo)."""
+    """Columnas de features estrictamente numericas (para el modelo).
+
+    Incluye el prefijo cross-asset XBTC_PREFIX ('xbtc_') para que las features
+    lead-lag del activo lider (BTC) entren al GBM del [3/4] cuando esten presentes
+    (--cross-asset), y los prefijos FUND_PREFIX/OI_PREFIX ('fund_'/'oi_') de las
+    features ESTRUCTURALES de funding/OI (--funding-oi). Sin esto, una columna
+    numerica fund_/oi_/xbtc_ NO se recogeria (la seleccion es por allowlist de
+    prefijos, no por dtype solo). La allowlist es INERTE cuando la columna no esta
+    presente: el conteo de inputs del modelo NO cambia si el flag esta apagado."""
     cols = []
     for c in events.columns:
         if not c.startswith(("p_master", "scorer_", "regime_score",
                              "field_confluence", "field_pd_pct",
-                             "field_w_effective")):
+                             "field_w_effective", XBTC_PREFIX,
+                             FUND_PREFIX, OI_PREFIX)):
             continue
         if pd.api.types.is_numeric_dtype(events[c]):
             cols.append(c)
@@ -351,9 +538,34 @@ def replay_states(
             # forward-ATR) queda intacto para el retrieval; label_events re-etiqueta
             # el subset con triple-barrier en su propia tabla.
             "fired": lvl is not None,
+            # Diagnostico de CADENCIA: en que gate murio la vela candidata.
+            # Gratis en el mismo replay; decision_funnel() lo agrupa post-replay
+            # para decidir que modulo relajar (con respaldo OOS de la poda).
+            "decision": report.get("decision"),
+            "failed_at": report.get("failed_at"),
         }
         row.update(extract_features(field, report))
         if lvl is not None:
             row.update(lvl)   # dir/entry/sl/targets reales del motor (sobreescribe LONG)
         rows.append(row)
     return pd.DataFrame(rows)
+
+
+def decision_funnel(states):
+    """FUNNEL de cadencia: cuenta estados del replay denso por (decision,
+    failed_at) del motor -- 'donde mueren las velas candidatas'.
+
+    states: DataFrame de replay_states (necesita la columna 'decision'; los
+    replays anteriores a jun-2026 no la traen -> devuelve vacio).
+    Devuelve DataFrame [decision, failed_at, n, pct] ordenado desc por n.
+    """
+    cols = ["decision", "failed_at", "n", "pct"]
+    if states is None or len(states) == 0 or "decision" not in states.columns:
+        return pd.DataFrame(columns=cols)
+    df = states[["decision"]].copy()
+    fa = states["failed_at"] if "failed_at" in states.columns else None
+    df["failed_at"] = (fa.fillna("") if fa is not None else "")
+    df["decision"] = df["decision"].fillna("?")
+    g = df.groupby(["decision", "failed_at"]).size().reset_index(name="n")
+    g["pct"] = (100.0 * g["n"] / len(states)).round(2)
+    return g.sort_values(["n", "decision"], ascending=[False, True]).reset_index(drop=True)

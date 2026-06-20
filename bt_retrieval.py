@@ -28,7 +28,9 @@
 ================================================================================
 """
 import logging
+import os
 import pickle
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -38,6 +40,21 @@ log = logging.getLogger("bt_retrieval")
 LONG = 1
 SHORT = -1
 WIN = "win"
+
+# Dedupe de telemetria del vectorizer: el walk-forward llama fit() por fold y
+# la MISMA cobertura se re-loguea decenas de veces (los logs del run se leen
+# a mano; el spam entierra lo importante). La clave es (tipo, tupla de
+# features): un set de features NUEVO vuelve a avisar; el mismo set con
+# porcentajes ligeramente distintos, no.
+_warned_coverage = set()
+
+
+def _warn_coverage_once(kind, names, msg, *fmt):
+    key = (kind, tuple(names))
+    if key in _warned_coverage:
+        return
+    _warned_coverage.add(key)
+    log.warning(msg, *fmt)
 
 
 # ============================================================
@@ -207,6 +224,10 @@ class TurbovecBackend:
         obj = cls.__new__(cls)
         obj._tv = turbovec
         obj.dim = int(dim)
+        # mismo padding que __init__: load() salta __init__, hay que reconstruir
+        # _pad/_tdim o _fit_pad (y por tanto search) revienta al consultar.
+        obj._pad = (-obj.dim) % 8
+        obj._tdim = obj.dim + obj._pad
         obj.bit_width = int(bit_width)
         obj._idx = turbovec.IdMapIndex.load(path)
         obj._present = set()
@@ -233,6 +254,28 @@ DEFAULT_NUMERIC = [
     "regime_score",
     "field_confluence_count", "field_pd_pct", "field_w_effective",
 ]
+# CROSS-ASSET (BTC -> alt): features lead-lag CAUSALES inyectadas con --cross-asset.
+# Se anexan a DEFAULT_NUMERIC para que el vector de retrieval (denso + gate ORO +
+# gate forward) las ingiera automaticamente cuando esten presentes; cuando NO lo
+# estan, el vectorizer las imputa a 0 (mediana tras centrar) sin romper -- igual
+# que cualquier feature ausente. Misma lista que alimenta el modelo (bt_features.
+# _numeric_feature_columns reconoce el prefijo xbtc_). Single source of truth alli.
+try:
+    from bt_features import XBTC_FEATURE_COLUMNS as _XBTC_FEATURE_COLUMNS
+    DEFAULT_NUMERIC = DEFAULT_NUMERIC + list(_XBTC_FEATURE_COLUMNS)
+except Exception:   # pragma: no cover - bt_features siempre disponible en el bot
+    pass
+# FUNDING / OPEN-INTEREST (estructural): features CAUSALES inyectadas con --funding-oi.
+# Mismo patron que XBTC_FEATURE_COLUMNS -> se anexan a DEFAULT_NUMERIC para que el
+# vector del gate ORO las ingiera cuando esten presentes; cuando NO lo estan (flag
+# apagado u OI no disponible), el vectorizer las imputa a 0 (mediana tras centrar)
+# sin romper -- dimension inerte, igual que xbtc_ sin --cross-asset. Single source
+# of truth de las columnas: funding_oi.FUNDING_OI_FEATURE_COLUMNS.
+try:
+    from funding_oi import FUNDING_OI_FEATURE_COLUMNS as _FUNDING_OI_FEATURE_COLUMNS
+    DEFAULT_NUMERIC = DEFAULT_NUMERIC + list(_FUNDING_OI_FEATURE_COLUMNS)
+except Exception:   # pragma: no cover - funding_oi siempre disponible en el bot
+    pass
 # BLOQUE QUANTUM / TIEMPO EMERGENTE (Eje A) — convicción adaptativa, excitación de
 # campo y tiempo complejo. Es el bloque que se ABLACIONA: vector base vs base+qt
 # para medir si los estados cuánticos / fractales de tiempo emergente aportan edge.
@@ -253,18 +296,47 @@ DEFAULT_CATEGORICAL = [
 ]
 
 
+# DECOUPLING TEST (§6.6): grupos de features del vector ACOPLADAS a un módulo del
+# motor. Medir el edge OOS del gate SIN ellas responde si el módulo es removible del
+# motor sin romper el gate: si el gate NO cae (o mejora) sin scorer/regime, esas
+# features no lo cargaban → se puede cortar el módulo + reconstruir el índice. Se
+# activa con FQ_RETRIEVAL_DECOUPLE="scorer,regime" (vacío = comportamiento normal).
+DECOUPLE_GROUPS = {
+    "scorer": {"numeric": ["scorer_total", "scorer_volume", "scorer_structure",
+                           "scorer_liquidity", "scorer_concept_stack",
+                           "scorer_history"],
+               "categorical": []},
+    "regime": {"numeric": ["regime_score"], "categorical": ["regime_state"]},
+}
+
+
+def _decouple_groups():
+    """Grupos pedidos vía FQ_RETRIEVAL_DECOUPLE (CSV; ignora desconocidos)."""
+    raw = os.environ.get("FQ_RETRIEVAL_DECOUPLE", "").strip()
+    return [g.strip() for g in raw.split(",") if g.strip() in DECOUPLE_GROUPS]
+
+
 def vector_variants():
-    """Variantes del vector de estado para la ablación del Eje A.
+    """Variantes del vector de estado para la ablación del Eje A (+ decoupling).
 
     base    : el vector validado (convicción + scorer + régimen + estructura).
     quantum : base + BLOQUE QUANTUM (tiempo emergente / excitación de campo /
               convicción adaptativa). Compararlos OOS mide si las ideas del
               Quantum bot, como coordenadas, aportan edge atribuible.
+    no_<g>  : (solo con FQ_RETRIEVAL_DECOUPLE) base SIN las features del grupo g
+              (scorer/regime) → mide si el gate las necesita (decoupling §6.6).
     """
-    return {
+    variants = {
         "base":    StateVectorizer(numeric=DEFAULT_NUMERIC),
         "quantum": StateVectorizer(numeric=DEFAULT_NUMERIC + QUANTUM_BLOCK),
     }
+    for g in _decouple_groups():
+        drop_n = set(DECOUPLE_GROUPS[g]["numeric"])
+        drop_c = set(DECOUPLE_GROUPS[g]["categorical"])
+        variants["no_%s" % g] = StateVectorizer(
+            numeric=[c for c in DEFAULT_NUMERIC if c not in drop_n],
+            categorical=[c for c in DEFAULT_CATEGORICAL if c not in drop_c])
+    return variants
 
 
 class StateVectorizer:
@@ -298,8 +370,38 @@ class StateVectorizer:
 
     def fit(self, df):
         X = self._num_matrix(df)
-        self.center_ = np.nanmedian(X, axis=0)
-        q75, q25 = np.nanpercentile(X, [75, 25], axis=0)
+        # Telemetria de cobertura: avisa que features llegan con muchos/todos NaN.
+        # Una columna all-NaN colapsa esa dimension a 0 (se imputa) -> senal perdida
+        # y 'All-NaN slice' en nanmedian/nanpercentile. Lo logueamos por nombre para
+        # diagnosticar diferencias entre simbolos (p.ej. BTC vs SOL) sin adivinar.
+        if X.size:
+            nan_frac = np.isnan(X).mean(axis=0)
+            bad = [(self.numeric[i], float(nan_frac[i]))
+                   for i in range(len(self.numeric)) if nan_frac[i] >= 0.5]
+            if bad:
+                _warn_coverage_once(
+                    "nan50", [n for n, _ in bad],
+                    "[vectorizer] features con NaN>=50%% (dim se degrada): %s",
+                    ", ".join("%s=%.1f%%" % (n, f * 100) for n, f in bad))
+            # 100% exacto = dimension MUERTA (extractor roto o flag apagado);
+            # distinto del esparso POR DISENO (el motor solo computa la capa ML
+            # cerca del fire -> p.ej. 99.9% NaN en el fit denso). Separarlo
+            # evita confundir bug con cobertura al leer el log (el %.0f de
+            # antes redondeaba 99.98% a "100%").
+            dead = [n for n, f in bad if f >= 1.0]
+            if dead:
+                _warn_coverage_once(
+                    "dead", dead,
+                    "[vectorizer] features 100%% NaN (dimension MUERTA, "
+                    "revisar extractor): %s", ", ".join(dead))
+        # Silencia el 'All-NaN slice' (lo manejamos abajo); ya avisamos por nombre.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            self.center_ = np.nanmedian(X, axis=0)
+            q75, q25 = np.nanpercentile(X, [75, 25], axis=0)
+        # Columnas all-NaN -> center/scale NaN: neutralizalas (centro 0, escala 1)
+        # para que la dimension quede en 0 limpio en vez de propagar NaN.
+        self.center_ = np.where(np.isfinite(self.center_), self.center_, 0.0)
         iqr = q75 - q25
         iqr[~np.isfinite(iqr) | (iqr <= 0)] = 1.0  # evita /0; columnas constantes
         self.scale_ = iqr

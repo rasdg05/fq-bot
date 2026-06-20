@@ -97,6 +97,23 @@ def test_exact_write_load(tmp_path):
     assert int(ids[0, 0]) == 1
 
 
+def test_turbovec_write_load_then_search(tmp_path):
+    """Regresion: load() salta __init__; debe reconstruir _pad/_tdim o search
+    revienta (AttributeError _pad) en el PRIMER classify en vivo. dim=30 (no
+    multiplo de 8) ejercita el padding real del gate de produccion."""
+    pytest.importorskip("turbovec")
+    rng = np.random.default_rng(0)
+    V = rng.standard_normal((20, 30)).astype(np.float32)
+    be = R.TurbovecBackend(30, bit_width=4)
+    be.add_with_ids(V, np.arange(20, dtype=np.uint64))
+    p = tmp_path / "i.turbo"
+    be.write(str(p))
+    be2 = R.TurbovecBackend.load(str(p), dim=30, bit_width=4)
+    assert be2._pad == 2 and be2._tdim == 32        # padding reconstruido
+    s, ids = be2.search(V[3:4], 1)                   # no debe lanzar
+    assert int(ids[0, 0]) == 3
+
+
 # ------------------------------------------------------------
 # Vectorizador causal
 # ------------------------------------------------------------
@@ -123,6 +140,54 @@ def test_vectorizer_categoricas_no_dominan():
     n_num = len(vz.numeric)
     cont_energy = (V[:, :n_num] ** 2).sum(axis=1).mean()
     assert cont_energy > 0.1
+
+
+def test_vectorizer_telemetria_separa_muerta_de_esparsa(caplog):
+    """La telemetria distingue dimension MUERTA (100% NaN exacto: extractor
+    roto, como regime_score hasta jun-2026) del esparso POR DISENO (~99% NaN:
+    el motor solo computa la capa ML cerca del fire). El %.0f de antes
+    redondeaba 99.98%% a '100%%' y los hacia indistinguibles en el log."""
+    import logging
+
+    df = _make_events(200)
+    df["regime_score"] = np.nan                     # 100% exacto -> MUERTA
+    df["scorer_history"] = np.nan
+    df.loc[df.index[:2], "scorer_history"] = 0.5    # 99% -> esparsa, no muerta
+    R._warned_coverage.clear()   # el dedupe es por proceso; aisla del orden de tests
+    with caplog.at_level(logging.WARNING, logger="bt_retrieval"):
+        R.StateVectorizer().fit(df)
+    dead_lines = [r.message for r in caplog.records if "MUERTA" in r.message]
+    assert len(dead_lines) == 1
+    assert "regime_score" in dead_lines[0]
+    assert "scorer_history" not in dead_lines[0]
+    # ambas aparecen en la linea de cobertura NaN>=50%
+    cov = [r.message for r in caplog.records if "NaN>=50%" in r.message]
+    assert cov and "regime_score" in cov[0] and "scorer_history" in cov[0]
+
+
+def test_vectorizer_telemetria_no_spamea_por_fold(caplog):
+    """El walk-forward llama fit() por fold: la MISMA cobertura debe avisar
+    UNA vez por proceso, no decenas (los logs del run se leen a mano). Un set
+    de features distinto si vuelve a avisar."""
+    import logging
+
+    df = _make_events(200)
+    df["regime_score"] = np.nan
+    R._warned_coverage.clear()
+    with caplog.at_level(logging.WARNING, logger="bt_retrieval"):
+        R.StateVectorizer().fit(df)       # fold 1: avisa
+        R.StateVectorizer().fit(df)       # fold 2: misma cobertura -> silencio
+        R.StateVectorizer().fit(df)       # fold 3: idem
+    assert len([r for r in caplog.records if "MUERTA" in r.message]) == 1
+    assert len([r for r in caplog.records if "NaN>=50%" in r.message]) == 1
+
+    # cobertura DISTINTA (otra feature muerta) -> avisa de nuevo
+    df2 = _make_events(200)
+    df2["scorer_total"] = np.nan
+    with caplog.at_level(logging.WARNING, logger="bt_retrieval"):
+        R.StateVectorizer().fit(df2)
+    dead = [r.message for r in caplog.records if "MUERTA" in r.message]
+    assert len(dead) == 2 and "scorer_total" in dead[-1]
 
 
 # ------------------------------------------------------------

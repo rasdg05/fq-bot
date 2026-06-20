@@ -97,8 +97,40 @@ def test_extract_features_defensive_on_empty_report():
     assert f["p_master"] is None
     assert f["scorer_total"] is None
     assert f["regime_state"] is None
+    assert f["regime_score"] is None
     # los atributos de field siguen presentes
     assert f["field_confluence_count"] == 4
+
+
+def test_extract_features_regime_score_from_real_detector_shape():
+    """REGRESION: regime_detector.detect_regime() NO emite 'score' (sus claves
+    son state/flags_fired/n_flags/recommend/details). El extractor leia
+    regime['score'] -> regime_score quedaba 100% NaN en todos los simbolos
+    (All-NaN slice en StateVectorizer.fit, dimension muerta del vector).
+    El fallback debe tomar n_flags."""
+    r = _fire_report()
+    r["regime"] = {            # forma REAL de regime_detector.detect_regime()
+        "state": "shift_moderate",
+        "flags_fired": ["vol_z", "kl_drift"],
+        "n_flags": 2,
+        "recommend": "tighten",
+        "details": {
+            "kl_drift": {"fired": True, "value": 1.8, "detail": "KL=1.80"},
+            "vol_z": {"fired": True, "value": 2.3, "detail": "ATR z=2.30"},
+            "wr_trend": {"fired": False, "value": 0.0, "detail": "n=4 insuf"},
+        },
+    }
+    f = bf.extract_features(_FakeField(), r)
+    assert f["regime_state"] == "shift_moderate"
+    assert f["regime_score"] == 2          # n_flags como magnitud del regimen
+
+
+def test_extract_features_regime_score_explicit_takes_precedence():
+    # si un detector futuro emite 'score', gana sobre n_flags
+    r = _fire_report()
+    r["regime"] = {"state": "stable", "score": 0.9, "n_flags": 1}
+    f = bf.extract_features(_FakeField(), r)
+    assert f["regime_score"] == 0.9
 
 
 # --------------------------------------------------------------------------
@@ -183,6 +215,52 @@ def test_replay_step_subsamples():
     )
     # de 200..259 en pasos de 10 -> 200,210,...,250 = 6 evaluaciones
     assert list(ev["entry_index"]) == [200, 210, 220, 230, 240, 250]
+
+
+# --------------------------------------------------------------------------
+# replay_states: funnel de cadencia (decision/failed_at por vela)
+# --------------------------------------------------------------------------
+def test_replay_states_registra_decision_y_funnel():
+    """El replay denso guarda (decision, failed_at) de CADA vela evaluada y
+    decision_funnel los agrupa: el diagnostico de cadencia (que gate mata
+    candidatos) sale gratis del mismo replay."""
+    df15 = _make_tf(360)
+
+    def fake_eval(w15, w1h, w4h, w1m, dp, lap, cl, cfg):
+        i = len(w15) - 1
+        if i % 3 == 0:
+            return False, _FakeField(), {"decision": "field_only", "failed_at": "D"}
+        if i % 3 == 1:
+            return False, _FakeField(), {"decision": "math_below_threshold",
+                                         "failed_at": "p_master"}
+        return True, _FakeField(), _fire_report()
+
+    states = bf.replay_states(
+        df15, None, None, None,
+        evaluate_fn=fake_eval, detect_pspace_fn=None, laplacian_check_fn=None,
+        calculate_levels_fn=None, config={}, min_lookback=300, horizon_bars=10,
+    )
+    assert "decision" in states.columns and "failed_at" in states.columns
+    assert set(states["decision"].unique()) == {
+        "field_only", "math_below_threshold", "fire"}
+
+    funnel = bf.decision_funnel(states)
+    assert list(funnel.columns) == ["decision", "failed_at", "n", "pct"]
+    assert funnel["n"].sum() == len(states)
+    assert abs(funnel["pct"].sum() - 100.0) < 0.5
+    # ordenado desc: la primera fila es la decision mas frecuente
+    assert funnel.iloc[0]["n"] == funnel["n"].max()
+    # los fire llevan failed_at vacio (None -> "")
+    fire_row = funnel[funnel["decision"] == "fire"].iloc[0]
+    assert fire_row["failed_at"] == ""
+
+
+def test_decision_funnel_vacio_sin_columna():
+    # replays viejos (sin columna decision) -> funnel vacio, no revienta
+    import pandas as pd
+    old = pd.DataFrame({"entry_index": [1, 2], "pnl_r": [0.1, -0.2]})
+    funnel = bf.decision_funnel(old)
+    assert len(funnel) == 0
 
 
 # --------------------------------------------------------------------------

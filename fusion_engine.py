@@ -82,6 +82,24 @@ except ImportError:
     _ML_AVAILABLE = False
     signal_scorer = regime_detector = None
 
+# Trigger VOLUMEN (+ LIQUIDACIONES): reemplaza el veto del scorer over-fit por una
+# confirmacion de microestructura real (FQ_USE_VOL_LIQ_TRIGGER=1). Lazy/defensivo.
+try:
+    import volume_liquidation_trigger as vol_liq_trigger
+    _VOL_LIQ_AVAILABLE = True
+except Exception:
+    _VOL_LIQ_AVAILABLE = False
+    vol_liq_trigger = None
+
+# Feed de LIQUIDACIONES (Binance !forceOrder@arr, opt-in FQ_LIQ_FEED_ENABLED). El
+# import no requiere websocket-client (se importa lazy al arrancar el feed).
+try:
+    import liquidation_feed
+    _LIQ_AVAILABLE = True
+except Exception:
+    _LIQ_AVAILABLE = False
+    liquidation_feed = None
+
 # QTE + emergent_time (lazy import) para Phase E
 try:
     import quantum_timelines as qt
@@ -723,10 +741,27 @@ def evaluate_signal(
             except Exception as e:
                 log.warning("regime error: {}".format(e))
 
-        # Si regime esta en deriva Y scorer < threshold high -> downgrade a no-fire
-        if score_result and regime_state:
-            if (regime_state["state"] == "deriva" and
-                score_result["total_score"] < signal_scorer.ENSEMBLE_MIN_FOR_HIGHTIER):
+        # Si regime esta en deriva Y scorer < threshold high -> downgrade a no-fire.
+        # FQ_USE_VOL_LIQ_TRIGGER: REEMPLAZA ese veto del scorer (over-fit, predictivo)
+        # por una CONFIRMACION sobre VOLUMEN (+ liquidaciones) real -> mas frecuencia
+        # para VIP sin tocar los gates estructurales (ya pasados arriba). Los fires se
+        # siguen midiendo en motor_paper -> VIP recibe y el ledger mide en paralelo.
+        if score_result and regime_state and regime_state["state"] == "deriva":
+            if _VOL_LIQ_AVAILABLE and vol_liq_trigger.ENABLED:
+                # liquidaciones: feed Binance opt-in (FQ_LIQ_FEED_ENABLED). Sin feed
+                # -> None -> el trigger confirma solo por volumen (degradacion segura).
+                liq_snap = (liquidation_feed.snapshot((config or {}).get("symbol"))
+                            if (_LIQ_AVAILABLE and liquidation_feed.ENABLED) else None)
+                ok_vl, vl_reason, vl_score = vol_liq_trigger.confirm(
+                    df_15m, liq_snap, direction)
+                if not ok_vl:
+                    return False, field, _build_report(
+                        decision="vol_liq_block", failed_at="vol_liq",
+                        reason="vol/liq sin confirmar: " + vl_reason,
+                        direction_inferred=direction, p_master_data=pm_data,
+                        levels=levels, masses=masses, lap=lap,
+                        score=score_result, regime=regime_state)
+            elif score_result["total_score"] < signal_scorer.ENSEMBLE_MIN_FOR_HIGHTIER:
                 return False, field, _build_report(
                     decision="regime_deriva_block",
                     failed_at="regime",

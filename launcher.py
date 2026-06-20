@@ -20,6 +20,12 @@
    PUBLIC: TELEGRAM_TOKEN_PUBLIC, FQ_VIP_BOT_USERNAME,
            FQ_PUBLIC_DB_PATH (/data/fq_public.db),
            FQ_VIP_LEDGER_PATH (/data/fq_ledger.db, mismo path que el VIP)
+   FUNDING PAPER (opcional, 0% real, §6.15): FQ_FUNDING_PAPER=1 lanza
+           tools/funding_paper.py --loop como hijo NO-CRITICO (si muere NO baja
+           el bot VIP). Config por ENV: FQ_FUNDING_PAPER_INTERVAL (def 1800),
+           _EXCHANGE (def okx), _BASE (def BTC), _SYMBOL (def BTC/USDT:USDT);
+           ledger/equity/z/baseline los lee FundingPaperRuntime.from_env. El
+           ledger durable va a /data (volumen). Default OFF.
 ================================================================================
 """
 import os
@@ -28,11 +34,55 @@ import signal
 import subprocess
 import time
 
-BOTS = [
-    ("vip",         [sys.executable, "-u", "entry_vip.py"]),
-    ("public",      [sys.executable, "-u", "entry_public.py"]),
-    ("maintenance", [sys.executable, "-u", "-m", "ops.maintenance"]),
-]
+def _public_enabled():
+    """El bot publico solo corre con token PROPIO (distinto del VIP). Sin el,
+    o con el MISMO token del VIP pegado en TELEGRAM_TOKEN_PUBLIC, no se lanza:
+    dos pollers sobre un token = guerra de getUpdates (HTTP 409) + comandos
+    robados. Misma regla que entry_public._resolve_public_token (defensa en
+    profundidad alla; aqui evitamos hasta el proceso parqueado y su ruido de
+    watchdog). Decision jun-2026: topologia de UN solo bot (todo por tiers en
+    el VIP) -> sin token publico propio, 'public' queda fuera a proposito."""
+    pub = (os.environ.get("TELEGRAM_TOKEN_PUBLIC") or "").strip()
+    vip = (os.environ.get("TELEGRAM_TOKEN") or "").strip()
+    return bool(pub) and pub != vip
+
+
+def _funding_paper_enabled():
+    """El paper-forward de funding-reversion (tools/funding_paper.py, §6.15) corre
+    como hijo del launcher SOLO con FQ_FUNDING_PAPER=1. 0% real: acumula el track
+    record FORWARD del edge ESTRUCTURAL (funding extremo revierte) en un ledger
+    durable propio en /data. Default OFF -> no se lanza."""
+    return (os.environ.get("FQ_FUNDING_PAPER") or "0").strip() in ("1", "true", "yes")
+
+
+def _funding_paper_cmd():
+    """Comando del paper-forward de funding. Config por ENV (Railway, sin tocar
+    codigo): FQ_FUNDING_PAPER_INTERVAL/_EXCHANGE/_BASE/_SYMBOL; el resto
+    (ledger/equity/umbrales z/baseline) lo lee FundingPaperRuntime.from_env."""
+    interval = (os.environ.get("FQ_FUNDING_PAPER_INTERVAL") or "1800").strip()
+    exchange = (os.environ.get("FQ_FUNDING_PAPER_EXCHANGE") or "okx").strip()
+    base = (os.environ.get("FQ_FUNDING_PAPER_BASE") or "BTC").strip()
+    # el symbol del precio DERIVA del base si no se fija (evita BASE=SOL con symbol
+    # BTC por defecto = funding SOL contra precio BTC, un mismatch silencioso).
+    symbol = (os.environ.get("FQ_FUNDING_PAPER_SYMBOL")
+              or "{}/USDT:USDT".format(base)).strip()
+    return [sys.executable, "-u", "tools/funding_paper.py", "--loop",
+            "--interval", interval, "--exchange", exchange,
+            "--funding-base", base, "--symbol", symbol]
+
+
+def _bots():
+    # (name, cmd, critical): critical=True -> si muere, baja el container y Railway
+    # reinicia (VIP/public/maintenance SON el producto). critical=False -> hijo
+    # OPCIONAL (paper-forward): si muere se loguea y se deja morir SIN tumbar el
+    # container -> un bug del experimento de funding NUNCA tira el bot VIP.
+    bots = [("vip", [sys.executable, "-u", "entry_vip.py"], True)]
+    if _public_enabled():
+        bots.append(("public", [sys.executable, "-u", "entry_public.py"], True))
+    bots.append(("maintenance", [sys.executable, "-u", "-m", "ops.maintenance"], True))
+    if _funding_paper_enabled():
+        bots.append(("funding-paper", _funding_paper_cmd(), False))
+    return bots
 
 GRACE_SECONDS = 8       # tiempo para que los hijos atiendan SIGTERM
 POLL_INTERVAL = 3       # cada cuantos segundos chequeamos si murio alguien
@@ -52,11 +102,16 @@ def _log(msg):
 
 def _spawn(name, cmd):
     _log("starting {}: {}".format(name, " ".join(cmd)))
+    env = os.environ.copy()
+    # Marca para los hijos: corren BAJO el launcher (VIP + public en el MISMO
+    # container). entry_public la usa para NO caer al fallback del token VIP:
+    # dos pollers de getUpdates con el mismo token = HTTP 409 + comandos perdidos.
+    env["FQ_LAUNCHER"] = "1"
     return subprocess.Popen(
         cmd,
         stdout=sys.stdout,
         stderr=sys.stderr,
-        env=os.environ.copy(),
+        env=env,
     )
 
 
@@ -67,7 +122,7 @@ def _shutdown(signum=None, frame=None):
     _shutting_down = True
     _log("shutdown (signal={}) - terminando hijos".format(signum))
 
-    for name, p in _processes:
+    for name, p, _critical in _processes:
         if p.poll() is None:
             try:
                 p.terminate()
@@ -80,7 +135,7 @@ def _shutdown(signum=None, frame=None):
             break
         time.sleep(0.5)
 
-    for name, p in _processes:
+    for name, p, _critical in _processes:
         if p.poll() is None:
             _log("{} no respondio en {}s - kill -9".format(name, GRACE_SECONDS))
             try:
@@ -95,18 +150,31 @@ def main():
     signal.signal(signal.SIGTERM, _shutdown)
     signal.signal(signal.SIGINT, _shutdown)
 
-    _log("FQ launcher arrancando {} bots".format(len(BOTS)))
-    for name, cmd in BOTS:
-        _processes.append((name, _spawn(name, cmd)))
+    bots = _bots()
+    if not _public_enabled():
+        _log("public: deshabilitado (sin TELEGRAM_TOKEN_PUBLIC propio) — "
+             "topologia de un solo bot; todo por tiers en el VIP")
+    _log("FQ launcher arrancando {} bots".format(len(bots)))
+    for name, cmd, critical in bots:
+        _processes.append((name, _spawn(name, cmd), critical))
 
     while True:
         time.sleep(POLL_INTERVAL)
-        for name, p in _processes:
+        for name, p, critical in list(_processes):
             rc = p.poll()
-            if rc is not None:
+            if rc is None:
+                continue
+            if critical:
                 _log("{} salio con rc={} - saliendo para que Railway reinicie".format(name, rc))
                 _shutdown()
                 sys.exit(rc if rc not in (None, 0) else 1)
+            else:
+                # hijo OPCIONAL (funding paper): se murio -> log y se saca de la
+                # vigilancia; el container (VIP) sigue vivo. SIN respawn: si crasheo
+                # al arrancar, respawnear seria un loop -> el operador ve el log,
+                # corrige el ENV y redeploya.
+                _log("{} (opcional) salio con rc={} - lo dejo morir; el bot VIP sigue".format(name, rc))
+                _processes.remove((name, p, critical))
 
 
 if __name__ == "__main__":

@@ -35,3 +35,29 @@ jobs:
         run: |
           python -c "import branding, legal, ledger_stats, fq_logging, vip_format, public_format, public_content_generator, public_handlers, public_outcome_announcer"
           python -c "from ops import heartbeat, backup_ledger, maintenance"
+
+  # ENGINEERING_PLAN N1 — valida el SET CONGELADO (requirements.lock) en 3.12:
+  # instala bit-a-bit del lock, comprueba conflictos (pip check) y corre la suite.
+  # Guarda de reproducibilidad: si el lock se rompe (o queda desfasado de lo que
+  # requirements.txt resuelve), este job se pone ROJO antes de tocar prod.
+  lockcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install desde requirements.lock (set congelado)
+        run: |
+          # libgomp1: runtime OpenMP que numba (via pandas-ta) puede necesitar.
+          sudo apt-get update && sudo apt-get install -y libgomp1
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock
+          pip check
+
+      - name: Pytest suite (desde el lock)
+        run: pytest tests/ -q
+

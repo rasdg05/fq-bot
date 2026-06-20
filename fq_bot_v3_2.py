@@ -94,10 +94,12 @@ try:
     import killzones_pd
     import fusion_engine
     import field_reports
+    import segment_veto
     ICT_MODULES_AVAILABLE = True
 except ImportError as _e:
     ICT_MODULES_AVAILABLE = False
     ict_smc = killzones_pd = fusion_engine = field_reports = None
+    segment_veto = None
 
 # Modulos FQ v4.2+ (Mistral curated VIP format - v5.0 Quantum)
 try:
@@ -2619,6 +2621,300 @@ def evaluate_setup(exchange, tf_id="15m", intra=False):
     return False
 
 # ============================================================
+# F2.6 — VETO DE SESION en vivo (RETRIEVAL_PLAN §6.8; default OFF)
+# ============================================================
+# Capa de DECISION post evaluate_signal (junto a los gates existentes, JAMAS
+# dentro de fusion_engine): si la killzone de la VELA esta en
+# FQ_SEGMENT_VETO_KILLZONES (o su bloque-UTC/dia en las envs hermanas), la senal
+# VIP NO se difunde. Juzga el timestamp de la VELA, nunca datetime.now()
+# (leccion §6.7). Reversible de una env. Default "" -> .active False -> no-op.
+# OJO: veta la senal VIP a CLIENTES en esa franja, no solo en paper.
+SEGMENT_VETO = segment_veto.from_env() if segment_veto is not None else None
+
+# Veto del track GOLD PAPER (admin-only, 0% real): env PROPIO
+# FQ_GOLD_SEGMENT_VETO_* -> permite vetar SOLO en paper (observar el edge
+# base+veto en el forward) SIN tocar la senal VIP a clientes (paper-first). Si su
+# env esta vacio, cae al SEGMENT_VETO global: asi, si se activa el veto VIP, el
+# gold paper veta igual (consistencia). Default todo OFF -> inerte.
+_GOLD_VETO_OWN = (segment_veto.from_env(prefix="FQ_GOLD_SEGMENT_VETO")
+                  if segment_veto is not None else None)
+GOLD_SEGMENT_VETO = (_GOLD_VETO_OWN if (_GOLD_VETO_OWN is not None
+                     and _GOLD_VETO_OWN.active) else SEGMENT_VETO)
+
+# ============================================================
+# F2 — Gate ORO de retrieval en PAPEL (admin-only; default OFF)
+# ============================================================
+# Por vela del TF primario clasifica el estado con el gate de retrieval (F2) y,
+# si es ORO, abre en PAPEL (sella en el HashLedger que audita el Reconciler) y
+# avisa SOLO al admin. SIN broadcast a VIP. Se activa con FQ_GOLD_LIVE=1 + un
+# artefacto en FQ_RETRIEVAL_DIR. Todo en try/except: jamas rompe el loop de eval.
+GOLD_LIVE_ENABLED = os.environ.get("FQ_GOLD_LIVE", "0").strip() in ("1", "true", "yes")
+GOLD_LIVE_SYMBOL  = os.environ.get("FQ_GOLD_SYMBOL", "SOL/USDT")
+GOLD_LIVE_TF      = os.environ.get("FQ_GOLD_TF", "5m")
+_GOLD_RUNTIME = None
+_GOLD_RUNTIME_TRIED = False
+
+
+def _gold_admin_notify(sig, verdict, pos):
+    """Aviso admin-only del gate ORO en paper. Tres tipos: senal ORO sellada
+    (sig!=None), alerta de cobertura, y digest periodico (sig=None)."""
+    try:
+        if sig is None:
+            v = verdict if isinstance(verdict, dict) else {}
+            if v.get("alert"):
+                msg = "⚠️ <b>Gold gate</b>: {} (faltan: {})".format(
+                    v["alert"], ", ".join(v.get("missing", [])))
+            elif "digest" in v:
+                c = v["digest"]
+                msg = ("📊 <b>Gold paper</b> ({tk} velas) — ORO {g} · BASE {b} · "
+                       "ABSTAIN {a} · VETADO {vt} · abiertas {o}").format(
+                           tk=v.get("ticks", "?"), g=c.get("gold", 0),
+                           b=c.get("base", 0), a=c.get("abstain", 0),
+                           vt=c.get("vetoed", 0), o=v.get("open", 0))
+            else:
+                return
+            broadcast_to_subscribers(msg, tiers=["admin"])
+            return
+        d = "LONG" if sig["direction"] > 0 else "SHORT"
+        exp = verdict.get("expectancy_r")
+        msg = ("🥇 <b>ORO (paper)</b> {sym} {d}\n"
+               "entry {e:.4f} · SL {s:.4f} · TP1 {t:.4f}\n"
+               "vecindario exp≈{x} · n={n} · pid={pid}\n"
+               "<i>Solo registro forward (0% real).</i>").format(
+                   sym=GOLD_LIVE_SYMBOL, d=d, e=sig["entry"], s=sig["stop"],
+                   t=sig["tp"], x=("%.3fR" % exp) if exp is not None else "?",
+                   n=verdict.get("n_in_radius", "?"), pid=pos.pid)
+        broadcast_to_subscribers(msg, tiers=["admin"])
+    except Exception as e:
+        log.warning("[gold] notify admin: %s", e)
+
+
+def _gold_runtime():
+    """Lazy-init del runtime paper (una vez). None si no se puede armar."""
+    global _GOLD_RUNTIME, _GOLD_RUNTIME_TRIED
+    if _GOLD_RUNTIME is not None or _GOLD_RUNTIME_TRIED:
+        return _GOLD_RUNTIME
+    _GOLD_RUNTIME_TRIED = True
+    try:
+        import gold_paper
+        _GOLD_RUNTIME = gold_paper.GoldPaperRuntime.from_env(
+            GOLD_LIVE_SYMBOL, calculate_levels_fn=calculate_levels,
+            notify_fn=_gold_admin_notify)
+        log.info("[gold] runtime paper ORO activo (%s, dir=%s)",
+                 GOLD_LIVE_SYMBOL, os.environ.get("FQ_RETRIEVAL_DIR"))
+    except Exception as e:
+        log.warning("[gold] no se pudo armar el runtime paper: %s", e)
+        _GOLD_RUNTIME = None
+    return _GOLD_RUNTIME
+
+
+def _gold_paper_eval(field, report, df_primary, price, tf_id):
+    """Hook por vela: corre el gate ORO en paper en el TF primario. No-op si
+    FQ_GOLD_LIVE!=1. Nunca rompe el loop (todo en try/except)."""
+    if not GOLD_LIVE_ENABLED or tf_id != GOLD_LIVE_TF:
+        return
+    rt = _gold_runtime()
+    if rt is None:
+        return
+    try:
+        hi = float(df_primary["high"].iloc[-1])
+        lo = float(df_primary["low"].iloc[-1])
+        # §6.8 VETO DE SESION fusionado al track ORO: GOLD_SEGMENT_VETO (env propio
+        # FQ_GOLD_SEGMENT_VETO_*, o el global como fallback) juzga la killzone de
+        # la VELA por su timestamp (no now(), §6.7). Si la franja esta vetada, el
+        # gold paper NO abre la senal ORO -> mide el edge validado (base + veto).
+        # Env propio = se puede vetar en paper sin tocar VIP. Default -> vetoed=False.
+        vetoed = False
+        if GOLD_SEGMENT_VETO is not None and GOLD_SEGMENT_VETO.active:
+            try:
+                _ts = df_primary["timestamp"].iloc[-1]
+                vetoed = bool(GOLD_SEGMENT_VETO.reason(
+                    killzone=getattr(field, "killzone", None), ts_utc=_ts))
+            except Exception:
+                vetoed = False
+        rt.on_bar(field, report, df_primary, price, high=hi, low=lo,
+                  ts=datetime.now(timezone.utc), vetoed=vetoed)
+    except Exception as e:
+        log.warning("[gold] on_bar: %s", e)
+
+
+# ============================================================
+# F2.6/§6.10.1 — MOTOR PAPER (motor base + veto + shadow maker; default OFF)
+# ============================================================
+# Paper del SUBSET CORRECTO (§6.10.1): abre las senales del MOTOR BASE (el `fire`
+# CRUDO de evaluate_signal) filtradas por su propio veto (default london), con
+# shadow maker midiendo el fill-rate REAL — el juez del techo +0.10R. 0% real,
+# ledger durable propio, paralelo al ORO. Activar con FQ_MOTOR_PAPER=1.
+MOTOR_PAPER_ENABLED = os.environ.get("FQ_MOTOR_PAPER", "0").strip() in ("1", "true", "yes")
+MOTOR_PAPER_TF = os.environ.get("FQ_MOTOR_PAPER_TF", "15m")  # TF nativo del fire
+_MOTOR_RUNTIME = None
+_MOTOR_RUNTIME_TRIED = False
+
+
+def _motor_admin_notify(sig, verdict, pos):
+    """Aviso admin-only del motor paper (open + digest). SIN VIP, 0% real."""
+    try:
+        if sig is None:
+            v = verdict if isinstance(verdict, dict) else {}
+            if "digest" in v:
+                c = v["digest"]
+                msg = ("📄 <b>Motor paper</b> ({tk} velas) — fire {f} · abiertas "
+                       "{o} · vetadas {ve} · vivas {ov}").format(
+                           tk=v.get("ticks", "?"), f=c.get("fire", 0),
+                           o=c.get("opened", 0), ve=c.get("vetoed", 0),
+                           ov=v.get("open", 0))
+                broadcast_to_subscribers(msg, tiers=["admin"])
+            return
+        d = "LONG" if sig["direction"] > 0 else "SHORT"
+        msg = ("🧪 <b>Motor base (paper)</b> {sym} {d} [{tf}/{kz}]\n"
+               "entry {e:.4f} · SL {s:.4f} · TP {t:.4f} · pid={pid}\n"
+               "<i>Subset correcto §6.10.1 — 0% real, mide fill maker.</i>").format(
+                   sym=GOLD_LIVE_SYMBOL, d=d, tf=verdict.get("tf", "?"),
+                   kz=verdict.get("killzone", "?"), e=sig["entry"], s=sig["stop"],
+                   t=sig["tp"], pid=pos.pid)
+        broadcast_to_subscribers(msg, tiers=["admin"])
+    except Exception as e:
+        log.warning("[motor] notify admin: %s", e)
+
+
+def _motor_runtime():
+    """Lazy-init del runtime motor paper (una vez). None si no se puede armar."""
+    global _MOTOR_RUNTIME, _MOTOR_RUNTIME_TRIED
+    if _MOTOR_RUNTIME is not None or _MOTOR_RUNTIME_TRIED:
+        return _MOTOR_RUNTIME
+    _MOTOR_RUNTIME_TRIED = True
+    try:
+        import motor_paper
+        _MOTOR_RUNTIME = motor_paper.MotorPaperRuntime.from_env(
+            GOLD_LIVE_SYMBOL, notify_fn=_motor_admin_notify)
+        log.info("[motor] runtime paper MOTOR BASE activo (%s, tf=%s)",
+                 GOLD_LIVE_SYMBOL, MOTOR_PAPER_TF)
+    except Exception as e:
+        log.warning("[motor] no se pudo armar el runtime paper: %s", e)
+        _MOTOR_RUNTIME = None
+    return _MOTOR_RUNTIME
+
+
+def _motor_paper_eval(fire, field, report, df_primary, price, tf_id):
+    """Hook por vela: corre el MOTOR PAPER en el TF configurado. No-op si
+    FQ_MOTOR_PAPER!=1. Juzga el veto con el ts de la VELA (no now()). Nunca
+    rompe el loop (todo en try/except)."""
+    if not MOTOR_PAPER_ENABLED or tf_id != MOTOR_PAPER_TF:
+        return
+    rt = _motor_runtime()
+    if rt is None:
+        return
+    try:
+        hi = float(df_primary["high"].iloc[-1])
+        lo = float(df_primary["low"].iloc[-1])
+        try:
+            cts = df_primary["timestamp"].iloc[-1]   # ts de la VELA (no now())
+        except Exception:
+            cts = None
+        rt.on_bar(fire, field, report, df_primary, price, high=hi, low=lo,
+                  ts=cts, tf_id=tf_id)
+    except Exception as e:
+        log.warning("[motor] on_bar: %s", e)
+
+
+# ============================================================
+# BTC MOTOR PAPER — pipeline PARALELO (paper-only, 0% real, default OFF)
+# ============================================================
+# El bot opera SOL; el research (cosecha 5m, 7 anios) midio en BTC el techo maker
+# MAS ALTO (+0.142R con exit ancho tp4, vs SOL +0.018R). Para VALIDAR forward esa
+# poblacion SIN tocar el VIP/SOL: una pasada de fusion_engine.evaluate_signal
+# (symbol-agnostico) sobre barras BTC, que alimenta un MotorPaperRuntime BTC
+# propio (ledger /data/motor_paper_BTC_USDT.jsonl, separado del SOL). JAMAS
+# broadcastea ni toca el motor/ORO/SOL. Comparte la config del pivote por env
+# (FQ_MOTOR_PAPER_TP=tp4, FQ_MOTOR_PAPER_VETO_KILLZONES="", maker shadow ON).
+# Activar con FQ_MOTOR_PAPER_BTC=1. Default OFF -> _btc_motor_paper_scan es no-op
+# inmediato (ni toca el exchange).
+BTC_MOTOR_PAPER_ENABLED = os.environ.get("FQ_MOTOR_PAPER_BTC", "0").strip() in ("1", "true", "yes")
+BTC_MOTOR_TF = os.environ.get("FQ_MOTOR_PAPER_BTC_TF", "5m")  # TF del research (5m)
+# Ledger BTC SEPARADO del SOL: NO hereda FQ_MOTOR_PAPER_LEDGER_PATH (si ambos
+# simbolos lo compartieran, mezclarian trades en un archivo y corromperian los
+# dos edges). El resto de la config (tp4/veto/maker/equity) SI se comparte a
+# proposito: el unico variable del experimento debe ser el simbolo.
+BTC_MOTOR_LEDGER_PATH = os.environ.get(
+    "FQ_MOTOR_PAPER_BTC_LEDGER_PATH", "/data/motor_paper_BTC_USDT.jsonl")
+_BTC_MOTOR_RUNTIME = None
+_BTC_MOTOR_TRIED = False
+_BTC_MOTOR_LAST_TS = None  # last_signal_ts BTC (Phase E), independiente del SOL
+
+
+def _btc_motor_runtime():
+    """Lazy-init del runtime motor paper BTC (ledger propio). None si no se arma."""
+    global _BTC_MOTOR_RUNTIME, _BTC_MOTOR_TRIED
+    if _BTC_MOTOR_RUNTIME is not None or _BTC_MOTOR_TRIED:
+        return _BTC_MOTOR_RUNTIME
+    _BTC_MOTOR_TRIED = True
+    try:
+        import motor_paper
+        _BTC_MOTOR_RUNTIME = motor_paper.MotorPaperRuntime.from_env(
+            "BTC/USDT", notify_fn=_motor_admin_notify,
+            ledger_path=BTC_MOTOR_LEDGER_PATH)
+        log.info("[motor-btc] runtime paper BTC activo (tf=%s)", BTC_MOTOR_TF)
+    except Exception as e:
+        log.warning("[motor-btc] no se pudo armar el runtime: %s", e)
+        _BTC_MOTOR_RUNTIME = None
+    return _BTC_MOTOR_RUNTIME
+
+
+def _btc_motor_paper_scan(exchange):
+    """Pasada BTC en su TF (default 5m) -> evaluate_signal -> motor paper BTC.
+    Paper-only, 0% real, JAMAS broadcastea ni toca SOL/VIP. No-op si
+    FQ_MOTOR_PAPER_BTC!=1. Nunca rompe el loop (todo en try/except)."""
+    global _BTC_MOTOR_LAST_TS
+    if not BTC_MOTOR_PAPER_ENABLED:
+        return
+    rt = _btc_motor_runtime()
+    if rt is None:
+        return
+    try:
+        tf_id = BTC_MOTOR_TF
+        profile = TF_PROFILES[tf_id]
+        df_primary = add_indicators(fetch_ohlcv(exchange, SYMBOL_BTC, tf_id, limit=200))
+        if df_primary is None or len(df_primary) < 50:
+            return
+        df_ctx_mid = add_indicators(fetch_ohlcv(exchange, SYMBOL_BTC, profile["context_mid"], limit=100))
+        df_ctx_high = add_indicators(fetch_ohlcv(exchange, SYMBOL_BTC, profile["context_high"], limit=100))
+        try:
+            df_sub = add_indicators(fetch_ohlcv(exchange, SYMBOL_BTC, profile["sub_tf"], limit=30))
+        except Exception:
+            df_sub = None
+        price = float(df_primary["close"].iloc[-1])
+        # Misma config que el scan SOL (lineas ~2871), con LAST_SIGNAL_TS propio
+        # de BTC para el cooldown de Phase E (independiente del SOL).
+        config = {
+            "PHI": PHI,
+            "PMASTER_MIN": profile["PMASTER_MIN"],
+            "RR_MIN_TP_DIVINO": profile.get("RR_MIN_TP3", RR_MIN_TP_DIVINO),
+            "TF_ID": tf_id,
+            "TF_LABEL": profile["label"],
+            "PULLBACK_VOL_MULT": profile["PULLBACK_VOL_MULT"],
+            "BREAKOUT_VOL_MULT": profile["BREAKOUT_VOL_MULT"],
+            "LAST_SIGNAL_TS": _BTC_MOTOR_LAST_TS,
+            "PHASE_E_N_PATHS": profile.get("PHASE_E_N_PATHS"),
+            "PHASE_E_COOLDOWN_MIN": profile.get("PHASE_E_COOLDOWN_MIN"),
+        }
+        fire, field, report = fusion_engine.evaluate_signal(
+            df_primary, df_ctx_mid, df_ctx_high, df_sub,
+            detect_pspace, laplacian_check, calculate_levels, config, intra=False)
+        if fire:
+            _BTC_MOTOR_LAST_TS = datetime.now(timezone.utc)
+        hi = float(df_primary["high"].iloc[-1])
+        lo = float(df_primary["low"].iloc[-1])
+        try:
+            cts = df_primary["timestamp"].iloc[-1]   # ts de la VELA (no now())
+        except Exception:
+            cts = None
+        rt.on_bar(fire, field, report, df_primary, price,
+                  high=hi, low=lo, ts=cts, tf_id=tf_id)
+    except Exception as e:
+        log.warning("[motor-btc] scan: %s", e)
+
+
+# ============================================================
 # v4.1.1 — _evaluate_setup_v411 (delegate al fusion_engine)
 # ============================================================
 def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
@@ -2707,6 +3003,38 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
         }
         STATE.last_eval_diagnostic_tf[tf_id] = diag
         STATE.last_eval_diagnostic = diag
+
+        # F2: gate ORO de retrieval en PAPEL (admin-only; no-op si FQ_GOLD_LIVE!=1)
+        _gold_paper_eval(field, report, df_primary, price, tf_id)
+
+        # F2.6/§6.10.1: MOTOR PAPER — mide el SUBSET CORRECTO (motor base + veto
+        # + shadow maker) con el `fire` CRUDO (antes de QTE / veto-VIP de abajo)
+        # = misma poblacion que el replay de research. No-op si FQ_MOTOR_PAPER!=1.
+        _motor_paper_eval(fire, field, report, df_primary, price, tf_id)
+
+        # F2.6 (§6.8): VETO DE SESION — capa de decision POST evaluate_signal,
+        # JAMAS dentro de fusion_engine. Si la killzone de la VELA (field.killzone)
+        # esta vetada (FQ_SEGMENT_VETO_*), la senal VIP NO se difunde. Juzga el ts
+        # de la VELA (df_primary["timestamp"]), nunca datetime.now() (§6.7).
+        # Default OFF (.active False) -> bloque entero saltado.
+        if fire and SEGMENT_VETO is not None and SEGMENT_VETO.active:
+            try:
+                _kz = getattr(field, "killzone", None)
+                try:
+                    _ts = df_primary["timestamp"].iloc[-1]
+                except Exception:
+                    _ts = None
+                _veto_why = SEGMENT_VETO.reason(killzone=_kz, ts_utc=_ts)
+            except Exception as _ve:
+                _veto_why = None
+                log.warning("[{}/{}] veto sesion error: {}".format(tf_label, tf_id, _ve))
+            if _veto_why:
+                log.warning("[{}/{}] VETO sesion [{}] - senal NO difundida".format(
+                    tf_label, tf_id, _veto_why))
+                STATE.last_eval_result_tf[tf_id] = "SEGMENT-VETO [{}] {}".format(
+                    tf_id, _veto_why)
+                STATE.last_eval_result = STATE.last_eval_result_tf[tf_id]
+                fire = False
 
         # 4B. Gate QTE LEGACY (post-fire). Si Phase E (FQ v5.1) esta activo,
         # el QTE ya fue procesado pre-fusion como input al P_master con sync gate,
@@ -3928,7 +4256,7 @@ def command_listener(exchange):
                               "/evolve", "/concepts", "/weekend", "/campo",
                               "/gencode", "/grant", "/broadcast",
                               "/atribucion", "/regimen", "/sweep",
-                              "/timelines"}
+                              "/timelines", "/paper"}
                 if cmd_name in ADMIN_ONLY and str(chat_id) != str(TELEGRAM_CHAT_ID):
                     telegram_send(
                         "Comando no disponible. Usa /help para ver tus comandos.",
@@ -4259,6 +4587,53 @@ def cmd_metrics(exchange=None):
 
 def cmd_ledger(exchange=None):
     return ev.format_ledger_telegram(10)
+
+
+def cmd_paper(exchange=None):
+    """Admin: stats de los ledgers PAPER del Volume (ORO + motor base). 0% real.
+    Surface del forward sin shell: corre los stats donde vive el ledger."""
+    import os
+    slug = GOLD_LIVE_SYMBOL.replace("/", "_").replace(":", "_")
+    out = ["🧾 <b>Paper forward (Volume)</b>"]
+    # ORO (gold): el ledger graba, pero su EDGE (gate ficción NY) NO es fiable
+    try:
+        from execution import DurableHashLedger
+        import reconciler as rc
+        gpath = os.environ.get("FQ_GOLD_LEDGER_PATH",
+                               "/data/gold_ledger_%s.jsonl" % slug)
+        if not os.path.exists(gpath):
+            out.append("🥇 ORO: sin ledger (FQ_GOLD_LIVE off o aún sin velas).")
+        else:
+            led = DurableHashLedger.load(gpath)
+            rs = rc.extract_closed_r(led)
+            if rs:
+                mean = sum(rs) / len(rs)
+                wr = sum(1 for r in rs if r > 0) / len(rs)
+                out.append("🥇 ORO: n={} · exp≈{:+.3f}R · WR {:.0f}% · {} reg "
+                           "(gate ficción NY: edge NO fiable §6.10.1)".format(
+                               len(rs), mean, wr * 100.0, len(led.records)))
+            else:
+                out.append("🥇 ORO: {} registros · 0 cierres aún.".format(
+                    len(led.records)))
+    except Exception as e:
+        out.append("🥇 ORO: error leyendo ledger (%s)" % e)
+    # MOTOR paper — SOL (base, lo que opera el bot) + BTC (pipeline paralelo:
+    # el techo del research, +0.142R maker tp4). Ledgers SEPARADOS.
+    try:
+        import motor_paper
+        spath = os.environ.get("FQ_MOTOR_PAPER_LEDGER_PATH",
+                               "/data/motor_paper_%s.jsonl" % slug)
+        out.append("— <b>SOL</b> (motor base) —")
+        out.append(motor_paper.format_report_telegram(
+            motor_paper.ledger_report(spath)))
+        # BTC: solo si el pipeline esta activo o ya hay ledger (evita ruido off).
+        if BTC_MOTOR_PAPER_ENABLED or os.path.exists(BTC_MOTOR_LEDGER_PATH):
+            out.append("— <b>₿ BTC</b> (techo research: +0.142R maker tp4) —")
+            out.append(motor_paper.format_report_telegram(
+                motor_paper.ledger_report(BTC_MOTOR_LEDGER_PATH)))
+    except Exception as e:
+        out.append("📄 Motor: error (%s)" % e)
+    return "\n".join(out)
 
 def cmd_evolve(exchange=None):
     """Estado del modulador kappa_evo - que buckets estan activos"""
@@ -4911,6 +5286,7 @@ def main():
         "/entropy":   lambda exc=None: cmd_entropy(),
         "/metrics":   lambda exc=None: cmd_metrics(),
         "/ledger":    lambda exc=None: cmd_ledger(),
+        "/paper":     lambda exc=None: cmd_paper(),
         "/evolve":    lambda exc=None: cmd_evolve(),
         "/campo":     cmd_campo,
         "/concepts":  lambda exc=None: cmd_concepts(),
@@ -5004,6 +5380,13 @@ def main():
             # EVOLUTION HOOK - corre si alguno de los TFs cerro vela nueva
             if any_new_candle:
                 evolution_periodic_hook(exchange)
+
+            # BTC MOTOR PAPER (paralelo, paper-only, default OFF): cuando cierra
+            # la vela del TF BTC (5m, que coincide en reloj con la del SOL), corre
+            # una pasada BTC -> motor paper BTC. NO toca VIP/SOL. No-op si
+            # FQ_MOTOR_PAPER_BTC!=1 (ni toca el exchange).
+            if BTC_MOTOR_PAPER_ENABLED and BTC_MOTOR_TF in new_candle_tfs:
+                _btc_motor_paper_scan(exchange)
 
             # RADAR proactivo / ALERTA TACTICA (FQ v5.3):
             #   - Corre en FIELD_TIMEFRAMES (default 5m+15m; 1m opt-in, 3m retirado).

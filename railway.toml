@@ -1,14 +1,36 @@
 [build]
 builder = "NIXPACKS"
 
-# UN SOLO SERVICIO con AMBOS bots (VIP + PUBLIC) corriendo como subprocesos.
-# Razon: Railway no soporta compartir un volumen entre servicios, asi que el
-# bot publico vive en el mismo container que el VIP para poder leer /data/fq_ledger.db.
+# watchPatterns (ENGINEERING_PLAN N1): un push de SOLO documentacion/research
+# tooling NO debe reiniciar el worker en vivo. Estrategia blacklist: se
+# deploya TODO ("**") salvo lo que seguro no toca el runtime — si manana se
+# anade un tipo de archivo nuevo al runtime, deploya por defecto (fallo
+# seguro). OJO: tests/ y tools/ corren en CI de GitHub, no en el worker;
+# .github/ es CI; internal/ y *.md son documentacion.
+watchPatterns = [
+  "**",
+  "!**/*.md",
+  "!internal/**",
+  "!.github/**",
+  "!tests/**",
+  "!tools/**",
+  # EXCEPCION: funding_paper.py SI es runtime (launcher lo lanza como hijo con
+  # FQ_FUNDING_PAPER=1) -> un fix suyo debe redeployar, a diferencia del resto de
+  # tools/ (research, corre en CI). Re-incluir gana por ser el ultimo match.
+  "tools/funding_paper.py",
+]
+
+# UN SOLO SERVICIO. El launcher arranca VIP + maintenance siempre, y el bot
+# PUBLIC solo si tiene token PROPIO (TELEGRAM_TOKEN_PUBLIC distinto del VIP);
+# sin el, topologia de UN solo bot (decision jun-2026: todo por tiers en el
+# VIP). Razon del servicio unico: Railway no comparte volumenes entre
+# servicios y el publico (cuando corre) lee /data/fq_ledger.db del VIP.
 #
 # Variables que el servicio Railway debe tener:
 #   VIP:    TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, ANTHROPIC_API_KEY, FQ_LEDGER_PATH
-#   PUBLIC: TELEGRAM_TOKEN_PUBLIC, FQ_VIP_BOT_USERNAME,
-#           FQ_PUBLIC_DB_PATH=/data/fq_public.db, FQ_VIP_LEDGER_PATH=/data/fq_ledger.db
+#   PUBLIC (OPCIONAL, solo con bot propio de BotFather): TELEGRAM_TOKEN_PUBLIC,
+#           FQ_VIP_BOT_USERNAME, FQ_PUBLIC_DB_PATH=/data/fq_public.db,
+#           FQ_VIP_LEDGER_PATH=/data/fq_ledger.db
 [deploy]
 startCommand = "python launcher.py"
 restartPolicyType = "ALWAYS"

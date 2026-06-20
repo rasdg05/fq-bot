@@ -36,15 +36,57 @@ SHORT = -1
 
 @dataclass
 class CostModel:
-    """Costes de ejecucion. Defaults ~ Binance USDT-perp (taker)."""
+    """Costes de ejecucion. Defaults ~ Binance USDT-perp (taker ambos lados).
+
+    Piernas maker (jun-2026, frontera de ejecucion): el sistema entra cuando
+    el precio LLEGA a un nivel y el TP es un precio conocido — ambos son
+    territorio natural de orden LIMITE (fee maker, sin slippage). OJO: esto
+    asume fill del 100% en el nivel, que es OPTIMISTA (adverse selection: las
+    que se escapan sin llenar suelen ser ganadoras). Por eso estas flags miden
+    el TECHO en research; la captura realista la mide el fill-model del paper
+    (FQ_GOLD_MAKER_SIM). El STOP siempre es taker (cruza el book por diseno) y
+    el timeout tambien (cierre a mercado).
+    """
     taker_fee: float = 0.0005       # 5 bps por lado sobre notional
     slippage_bps: float = 1.0       # 1 bp adverso por lado, sobre precio
     funding_rate_8h: float = 0.0001  # tasa de funding por ventana de 8h
     apply_funding: bool = True
+    maker_fee: float = 0.0002       # 2 bps OKX USDT-perp (tier regular)
+    maker_entry: bool = False       # entrada como limite pasiva en el nivel
+    maker_tp_exit: bool = False     # TP como limite descansando (solo outcome win)
 
     @property
     def slippage_frac(self):
         return self.slippage_bps / 10_000.0
+
+
+def maker_entry_fill_mask(trades, high, low, *, eps, ttl_bars):
+    """¿Se habria LLENADO la entrada como limite pasiva, trade a trade? Version
+    vectorizada (backtest) de la regla de gold_paper.process_maker_pending: una
+    limite descansando en `entry_price` se llena SOLO si una de las `ttl_bars`
+    velas SIGUIENTES PENETRA el nivel mas alla de `eps` (un touch NO llena -> peor
+    caso de cola / adverse selection). LONG: low < entry*(1-eps); SHORT: high >
+    entry*(1+eps). `high`/`low` = arrays posicionales (df_primary); cada trade trae
+    `entry_index` (posicion de su vela de entrada), `entry_price` y `direction`
+    (LONG/SHORT). Solo modela la pierna de ENTRADA (la que el techo asume gratis);
+    stop/timeout siguen taker. Devuelve un bool ndarray alineado a `trades`.
+    """
+    high = np.asarray(high, dtype=float)
+    low = np.asarray(low, dtype=float)
+    n = len(low)
+    ei = trades["entry_index"].to_numpy()
+    ent = trades["entry_price"].to_numpy(dtype=float)
+    dirn = trades["direction"].to_numpy()
+    out = np.zeros(len(trades), dtype=bool)
+    for i in range(len(out)):
+        a = int(ei[i]) + 1                        # la limite se evalua desde la vela SIGUIENTE
+        b = min(int(ei[i]) + int(ttl_bars), n - 1)
+        if a > b:
+            continue                              # sin velas evaluables -> MISS (conservador)
+        e = float(ent[i])
+        out[i] = bool((low[a:b + 1] < e * (1.0 - eps)).any() if int(dirn[i]) > 0
+                      else (high[a:b + 1] > e * (1.0 + eps)).any())
+    return out
 
 
 def simulate(
@@ -112,14 +154,22 @@ def simulate(
                 qty = cap / entry
                 notional_entry = cap
 
+        # Piernas maker: entrada (si esta activado) y TP (solo si el trade
+        # SALIO por target, outcome 'win'); stop y timeout cruzan el book ->
+        # siempre taker. Una pierna maker no paga slippage (el precio lo
+        # pones tu); el fill 100% asumido es el TECHO (ver CostModel).
+        entry_maker = bool(cost.maker_entry)
+        exit_maker = bool(cost.maker_tp_exit) and str(t.get("outcome", "")) == "win"
+
         # Slippage adverso: compras mas caro / vendes mas barato segun lado.
-        eff_entry = entry * (1 + d * cost.slippage_frac)
-        eff_exit = exit_px * (1 - d * cost.slippage_frac)
+        eff_entry = entry if entry_maker else entry * (1 + d * cost.slippage_frac)
+        eff_exit = exit_px if exit_maker else exit_px * (1 - d * cost.slippage_frac)
 
         gross_pnl = d * (eff_exit - eff_entry) * qty
 
         notional_exit = qty * exit_px
-        fees = cost.taker_fee * (notional_entry + notional_exit)
+        fees = ((cost.maker_fee if entry_maker else cost.taker_fee) * notional_entry
+                + (cost.maker_fee if exit_maker else cost.taker_fee) * notional_exit)
 
         funding_cost = 0.0
         if cost.apply_funding:

@@ -134,3 +134,61 @@ def test_max_leverage_caps_notional():
                      cost=_no_cost(), max_leverage=3.0)
     tr = r["trades"].iloc[0]
     assert tr["notional_entry"] <= 10_000 * 3.0 + 1e-6
+
+
+# ------------------------------------------------------------
+# Piernas maker (frontera de ejecucion, jun-2026)
+# ------------------------------------------------------------
+def test_maker_entry_cobra_maker_y_sin_slippage_de_entrada():
+    # win por TP: outcome 'win'. entrada maker = fee 2bps SOLO en la entrada
+    # y sin slippage en esa pierna; la salida sigue taker+slippage.
+    trades = pd.DataFrame([_trade(100, 95, 110, eng.LONG, outcome="win")])
+    cost = eng.CostModel(taker_fee=0.0005, maker_fee=0.0002, slippage_bps=0.0,
+                         apply_funding=False, maker_entry=True)
+    r = eng.simulate(trades, equity0=10_000, risk_frac=0.01, cost=cost)
+    tr = r["trades"].iloc[0]
+    # fees = 0.0002*2000 (entrada maker) + 0.0005*2200 (salida taker) = 1.5
+    assert tr["fees"] == pytest.approx(0.0002 * 2000 + 0.0005 * 2200)
+
+    # con slippage>0, la pierna maker NO lo paga (gross identico al sin-slip)
+    cost_slip = eng.CostModel(taker_fee=0.0, maker_fee=0.0, slippage_bps=2.0,
+                              apply_funding=False, maker_entry=True)
+    r2 = eng.simulate(trades, equity0=10_000, risk_frac=0.01, cost=cost_slip)
+    tr2 = r2["trades"].iloc[0]
+    # solo la salida sufre slippage: exit efectivo 110*(1-2bps)
+    assert tr2["gross_pnl"] == pytest.approx(20.0 * (110 * (1 - 2e-4) - 100))
+
+
+def test_maker_tp_exit_solo_aplica_en_win():
+    cost = eng.CostModel(taker_fee=0.0005, maker_fee=0.0002, slippage_bps=0.0,
+                         apply_funding=False, maker_entry=True,
+                         maker_tp_exit=True)
+    win = pd.DataFrame([_trade(100, 95, 110, eng.LONG, outcome="win")])
+    rw = eng.simulate(win, equity0=10_000, risk_frac=0.01, cost=cost)
+    # ambas piernas maker: 0.0002*(2000+2200)
+    assert rw["trades"].iloc[0]["fees"] == pytest.approx(0.0002 * 4200)
+
+    # el STOP cruza el book: la salida es taker aunque maker_tp_exit=True
+    loss = pd.DataFrame([_trade(100, 95, 95, eng.LONG, outcome="loss")])
+    rl = eng.simulate(loss, equity0=10_000, risk_frac=0.01, cost=cost)
+    assert rl["trades"].iloc[0]["fees"] == pytest.approx(
+        0.0002 * 2000 + 0.0005 * 1900)
+
+    # timeout = cierre a mercado: tambien taker
+    to = pd.DataFrame([_trade(100, 95, 101, eng.LONG, outcome="timeout")])
+    rt = eng.simulate(to, equity0=10_000, risk_frac=0.01, cost=cost)
+    assert rt["trades"].iloc[0]["fees"] == pytest.approx(
+        0.0002 * 2000 + 0.0005 * 2020)
+
+
+def test_maker_flags_apagadas_no_cambian_nada():
+    # backward-compat: defaults reproducen el comportamiento taker/taker exacto
+    trades = pd.DataFrame([_trade(100, 95, 110, eng.LONG, outcome="win")])
+    legacy = eng.CostModel(taker_fee=0.0005, slippage_bps=1.0,
+                           apply_funding=False)
+    r = eng.simulate(trades, equity0=10_000, risk_frac=0.01, cost=legacy)
+    assert r["trades"].iloc[0]["fees"] == pytest.approx(0.0005 * (2000 + 2200))
+    eff_entry = 100 * (1 + 1e-4)
+    eff_exit = 110 * (1 - 1e-4)
+    assert r["trades"].iloc[0]["gross_pnl"] == pytest.approx(
+        20.0 * (eff_exit - eff_entry))
