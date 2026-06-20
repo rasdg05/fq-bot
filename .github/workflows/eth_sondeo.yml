@@ -1,0 +1,56 @@
+name: ETH sondeo (rango OKX) — 1 tap
+
+# UN TAP, CERO inputs. Baja ETH/USDT-SWAP (OKX) en TF diario (rapido, ~segundos)
+# y reporta DESDE CUANDO hay data -> cuantos meses se pueden cosechar sin n=0.
+#
+# Corre en GitHub-hosted (NO usa el runner de Hetzner) y NO toca el schedule de
+# research. El simbolo va hardcodeado: solo darle "Run workflow".
+#
+# (Resultado esperado, ya verificado contra la API publica de OKX: ETH lista el
+#  2019-11-12, igual que BTC -> ~79 meses disponibles. Este job lo CONFIRMA
+#  bajando data real.)
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  sondeo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # Usa el codigo de la rama de research (build_dataset/bt_data probados ahi).
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/turbovec-tp-cube-hardening-fvzdx7
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: "Deps minimas (bt_data autonomo) — ccxt/pandas/pyarrow"
+        run: pip install --quiet ccxt pandas pyarrow numpy
+
+      - name: Bajar ETH diario (7 anos = tope) y reportar rango disponible
+        run: |
+          python tools/build_dataset.py --symbol ETH/USDT --timeframe 1d \
+            --market swap --years 7 --exchanges okx --data-dir /tmp/ethprobe
+          python - <<'PY'
+          import sys; sys.path.insert(0, ".")
+          import bt_data, pandas as pd
+          p = bt_data.dataset_path("/tmp/ethprobe", "okx", "ETH/USDT", "1d")
+          df = bt_data.load_parquet(p)
+          ts = pd.to_datetime(df["timestamp"])
+          meses = (ts.max() - ts.min()).days / 30.44
+          print("=========================================")
+          print("  SONDEO ETH/USDT-SWAP @ OKX")
+          print("=========================================")
+          print(f"  filas (1d)  : {len(df)}")
+          print(f"  primer bar  : {ts.min().date()}")
+          print(f"  ultimo bar  : {ts.max().date()}")
+          print(f"  cobertura   : ~{meses:.0f} meses")
+          print(f"  >>> cosecha SEGURA con sym_months <= {int(meses)}")
+          print("=========================================")
+          PY

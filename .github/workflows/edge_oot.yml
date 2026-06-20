@@ -1,0 +1,40 @@
+name: Edge gateado + OOT (forward) — 1 tap
+
+# UN TAP, CERO inputs. Corre "Research" GATEADO (quality_gate ON por default) con
+# prueba OUT-OF-TIME: calibra/selecciona el gate ORO con data HASTA una fecha de
+# corte y testea en la data POSTERIOR, nunca vista. Es el estándar anti-curve-fit
+# que pide el due diligence de un fondo cuant.
+#
+# Corte: 2025-09-01 -> ~9 meses de forward test (sep-2025 a hoy).
+# Matriz normal BTC 48m + SOL 24m, gate ORO + retrieval ON.
+#
+# Corre GRATIS en GitHub-hosted (NO toca el runner de Hetzner) -> podés taparlo
+# aunque las podas estén ocupando el server. El reporte (edge gateado OOS +
+# veredicto forward OOT por símbolo) sube como artefacto research-report-<sym>.
+#
+# Reusa research.yml de claude/bascula-hetzner (motor con el input out_of_time).
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  actions: write      # para disparar otro workflow_dispatch
+  contents: read
+
+jobs:
+  disparar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Disparar Research — gateado + out-of-time (corte 2025-09-01)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run research.yml \
+            --repo "${{ github.repository }}" \
+            --ref claude/bascula-hetzner \
+            -f out_of_time=2025-09-01
+          echo "OK: disparado Research GATEADO + OOT (corte 2025-09-01) en BTC+SOL."
+          echo "Corre en GitHub-hosted (gratis, no usa Hetzner)."
+          echo "Mira Actions -> 'Research (backtest / walk-forward / poda)'."
+          echo "Reporte = edge gateado OOS + prueba forward out-of-time (artefacto)."

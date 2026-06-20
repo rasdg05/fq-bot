@@ -6,7 +6,7 @@ Sin versiones, sin formulas, sin jerga de motor.
 from datetime import datetime, timezone, timedelta
 
 from branding import (
-    PRODUCT, PAIR, SCUDERIA, GLYPHS, RULE, LUX_RULE, DISCLAIMER,
+    PRODUCT, PAIR, DESK, GLYPHS, RULE, LUX_RULE, DISCLAIMER,
     lux_header, lux_block, lux_item, lux_check, lux_footer,
 )
 
@@ -74,10 +74,10 @@ def build_closure_announcement(signal_row, stats_7d=None):
         "  {} {} · Cierre confirmado".format(G["title"], PRODUCT),
         RULE,
         "  {} {} {}".format(side_glyph, side_label, PAIR),
-        "  {} Disparada    {}".format(G["bullet_act"], ts_emit),
-        "  {} Cerrada      {}".format(G["bullet_act"], ts_close),
-        "  {} Resultado    {}  ·  {:+.2f}R".format(G["bullet_act"], outcome, pnl_r),
-        "  {} Duracion     {}".format(G["bullet_act"], duration),
+        "  Emitida      {}".format(ts_emit),
+        "  Cerrada      {}".format(ts_close),
+        "  Resultado    {}  ·  {:+.2f}R".format(outcome, pnl_r),
+        "  Duracion     {}".format(duration),
         RULE,
     ]
 
@@ -109,14 +109,14 @@ def build_tp3_celebration(signal_row):
 
     return "\n".join([
         RULE,
-        "  \U0001F973 {} · TP3 ALCANZADO".format(PRODUCT),
+        "  {} {} · TP3 ALCANZADO".format(G["title"], PRODUCT),
         RULE,
         "  {} {} {}".format(side_glyph, side_label, PAIR),
-        "  {} Disparada    {}".format(G["bullet_act"], ts_emit),
-        "  {} Corrida      +3R confirmados \U0001F3AF".format(G["bullet_act"]),
+        "  Emitida      {}".format(ts_emit),
+        "  Corrida      +3R confirmados",
         RULE,
-        "  Tercer objetivo tocado.",
-        "  Asi se ve la disciplina sistematica.",
+        "  Tercer objetivo alcanzado.",
+        "  Disciplina sistematica, ejecutada.",
         "",
         "  {} Toma las proximas en vivo   /unirme".format(G["bullet_act"]),
     ])
@@ -147,12 +147,12 @@ def build_new_signal_teaser(signal_row):
 
     return "\n".join([
         RULE,
-        "  {} {} · Senal disparada".format(G["title"], PRODUCT),
+        "  {} {} · Senal emitida".format(G["title"], PRODUCT),
         RULE,
         "  {} {} {}".format(side_glyph, side_label, PAIR),
-        "  {} Sesion       {}".format(G["bullet_act"], session_label),
-        "  {} Conviccion   {}".format(G["bullet_act"], label.title()),
-        "  {} Disparada    {}".format(G["bullet_act"], ts_emit),
+        "  Sesion       {}".format(session_label),
+        "  Conviccion   {}".format(label.title()),
+        "  Emitida      {}".format(ts_emit),
         RULE,
         "  Niveles publicados en el VIP.",
         "",
@@ -188,16 +188,16 @@ PRICE_TIERS = [
 
 def build_pricing():
     lines = [
-        lux_header("{} · Pase VIP".format(PRODUCT), "Tu lugar en la parrilla"),
+        lux_header("{} · Acceso VIP".format(PRODUCT), "Acceso a la mesa"),
         "",
     ]
     for label, price, off in PRICE_TIERS:
         if off:
             lines.append("  {} {:<11} {:<9} {}".format(
-                G["bullet_act"], label, price, off))
+                G["bullet_chk"], label, price, off))
         else:
             lines.append("  {} {:<11} {}".format(
-                G["bullet_act"], label, price))
+                G["bullet_chk"], label, price))
     lines.extend([
         "",
         lux_block("Incluye:"),
@@ -219,15 +219,14 @@ def build_pricing():
 # ============================================================
 def build_welcome():
     return "\n".join([
-        lux_header("{} · {}".format(PRODUCT, SCUDERIA),
-                   "Senales {}".format(PAIR)),
+        lux_header("{} · {}".format(PRODUCT, DESK), PAIR),
         "",
         lux_block(
-            "Bienvenido al box.",
+            "Bienvenido a la mesa.",
             "",
             "Aqui se publican los cierres y el",
             "track record verificable del VIP.",
-            "Las senales en vivo corren adentro.",
+            "Las senales en vivo se publican dentro.",
         ),
         "",
         lux_footer(
@@ -350,7 +349,7 @@ CTA_VARIANTS = [
     ),
     (
         "{} {} · Mientras lees esto".format(G["title"], PRODUCT),
-        "El motor escanea {} sin pausa.".format(PAIR),
+        "El sistema escanea {} sin pausa.".format(PAIR),
         "Las senales del VIP no esperan",
         "a que abras el chat.",
     ),
@@ -392,11 +391,11 @@ def build_cta(variant_idx):
 def build_info():
     return "\n".join([
         lux_header("{} · El sistema".format(PRODUCT),
-                   "Senales {} con precision de pista".format(PAIR)),
+                   "Senales {} de grado institucional".format(PAIR)),
         "",
         lux_block(
-            "Un motor que escanea el mercado",
-            "sin pausa y solo abre boca cuando",
+            "Un sistema que vigila el mercado",
+            "sin pausa y solo actua cuando",
             "hay ventaja real.",
         ),
         "",
@@ -449,7 +448,7 @@ def build_unirme(vip_bot_username):
     else:
         link = "@RasDG_Sol"
     return "\n".join([
-        lux_header("{} · Pase al VIP".format(PRODUCT), "Sube al podio"),
+        lux_header("{} · Acceso VIP".format(PRODUCT), "Acceso a la mesa"),
         "",
         lux_item("/stripe", "Tarjeta"),
         lux_item("/crypto", "USDT"),

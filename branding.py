@@ -1,27 +1,45 @@
 # -*- coding: utf-8 -*-
 """
-Identidad unica de marca FQ. Una sola fuente de verdad para nombre,
-tagline, glyphs, hashtags y separadores visibles al cliente.
+Identidad unica de marca FQ. Una sola fuente de verdad para nombre, voz,
+glifos y separadores visibles al cliente.
 
-Ningun modulo de cara al cliente debe hardcodear versiones, nombres
-de modelos, jerga interna ni firmas tecnicas. Importa de aqui.
+Direccion de diseno (era "Terminal"): mesa de liquidez institucional.
+Limpio, sobrio, sin emoji, sin jerga de motor. Separadores hairline, un
+acento vertical y tipografia con aire. Debe leerse como una terminal
+financiera de grado institucional, no como un grupo de senales.
+
+Ningun modulo de cara al cliente debe hardcodear versiones, nombres de
+modelos ni jerga interna. Importa de aqui.
 """
 
 PRODUCT      = "FQ"
 PAIR         = "SOL/USDT"
-SCUDERIA     = "Scuderia"
-TAGLINE      = "Senales SOL/USDT con precision de pista."
-PROMISE      = "Cuando hay edge, acelera. Cuando no, frena."
-DISCLAIMER   = "Pasados resultados no garantizan futuros."
+DESK         = "Mesa de liquidez"
+TAGLINE      = "Mesa de liquidez institucional · SOL/USDT"
+PROMISE      = "Cuando hay ventaja, ejecuta. Cuando no, espera."
+DISCLAIMER   = "Rendimientos pasados no garantizan resultados futuros."
 
+# Alias de transicion: modulos heredados aun importan SCUDERIA como
+# descriptor de marca. Ahora resuelve al descriptor institucional.
+SCUDERIA     = DESK
+
+# ============================================================
+# SISTEMA DE GLIFOS - hairline, sobrio, sin emoji.
+#   rule        separador fino (hairline)
+#   title       acento de seccion / wordmark
+#   event       subseccion
+#   bullet_act  accion / comando (CTA)
+#   bullet_chk  spec / checklist
+#   long/short  direccion
+# ============================================================
 GLYPHS = {
-    "rule":       "━" * 30,
-    "title":      "◆",
-    "event":      "▰",
-    "bullet_act": "▸",
-    "bullet_chk": "▪",
-    "long":       "▴",
-    "short":      "▾",
+    "rule":       "─" * 30,
+    "title":      "│",
+    "event":      "│",
+    "bullet_act": "›",
+    "bullet_chk": "·",
+    "long":       "▲",
+    "short":      "▼",
 }
 
 RULE = GLYPHS["rule"]
@@ -29,37 +47,29 @@ RULE = GLYPHS["rule"]
 HASHTAGS_SIGNAL = "#FQ #SOLUSDT"
 
 # ============================================================
-# DISENO "FERRARI" - acabado premium para onboarding y documentacion.
-# Lineas limpias, acento de carrera (bandera a cuadros) y rojo Rosso.
-# Pensado SOLO para las vistas de bienvenida/ayuda/info: las senales
-# conservan su propio formato. Importa lux_header/lux_block/lux_footer.
+# TARJETA PREMIUM (lux_*) - encabezado/pie institucional para
+# onboarding, ayuda y documentacion. Hairline + acento vertical,
+# sin emoji ni acento de carrera. Las senales conservan su formato.
+# Importa lux_header/lux_block/lux_footer.
 # ============================================================
-FERRARI = {
-    "flag":  "\U0001F3C1",  # bandera a cuadros - meta/carrera
-    "rosso": "\U0001F534",  # rojo Ferrari - acceso activo
-    "spark": "⚡",      # chispa - velocidad
-    "horse": "\U0001F40E",  # cavallino rampante
-}
-
-LUX_RULE = "━" * 26
+LUX_RULE = "─" * 28
 
 def lux_header(title, subtitle=None):
-    """Encabezado premium con marco de carrera para documentacion.
+    """Encabezado tipo tarjeta institucional.
 
     Render:
-        🏁 ━━━━━━━━━━━━━━━━━━━━━━━━━━
-           ◆ <title>
-           <subtitle>
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━ 🏁
+        ────────────────────────────
+          │ <title>
+            <subtitle>
+        ────────────────────────────
     """
-    flag = FERRARI["flag"]
     lines = [
-        "{} {}".format(flag, LUX_RULE),
-        "   {} {}".format(GLYPHS["title"], title),
+        LUX_RULE,
+        "  {} {}".format(GLYPHS["title"], title),
     ]
     if subtitle:
-        lines.append("   {}".format(subtitle))
-    lines.append("{} {}".format(LUX_RULE, flag))
+        lines.append("    {}".format(subtitle))
+    lines.append(LUX_RULE)
     return "\n".join(lines)
 
 def lux_block(*lines):
@@ -85,7 +95,7 @@ def lux_footer(*lines):
     return "\n".join(out)
 
 def title(text):
-    """Render: ◆ <text>"""
+    """Render: │ <text>"""
     return "{} {}".format(GLYPHS["title"], text)
 
 def header(text):
