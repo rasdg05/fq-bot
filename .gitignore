@@ -17,3 +17,6 @@ data/okx/
 
 # Diario de lecturas del centinela (local; cada sesion lo regenera)
 lecturas/
+
+# Espectros generados (artefactos; se regeneran con tools/spectro_legs.py)
+spectro_*.png
