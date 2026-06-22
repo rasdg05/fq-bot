@@ -73,3 +73,4 @@ término técnico se explica con una imagen mental.
 | `guiones/02-la-liquidez-manda.md` | La tesis central: la liquidez determina el precio |
 | `guiones/03-la-divergencia-macro-vs-vwap.md` | Tu setup favorito: macro vende pero el VWAP/volumen compra |
 | `backlog-ideas.md` | 20+ ideas de videos (título + gancho + beats) para producir en serie |
+| `serie-fisica-del-mercado.md` | **Track avanzado**: la cosmovisión física/cuántica/metafísica del mercado (banco long-form + frases para shorts) |
