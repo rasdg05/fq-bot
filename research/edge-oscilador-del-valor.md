@@ -1,0 +1,72 @@
+# Research sprint — ¿hay edge en la "física del mercado"? (jun 2026)
+
+Hunt honesto de edge tradeable a partir de la cosmovisión física (oscilador alrededor
+del valor, reversión/momentum por régimen). Datos: OKX 5m, 8 símbolos
+(BTC/ETH/SOL/BNB/XRP/DOGE/ADA/LTC), ~7 meses. Split temporal IS(70%)/OOS(30%) por
+símbolo; el **OOS es el juez**. Scripts en `tools/` (espectro, cascada, matriz,
+mr_edge, mom_edge, regime_edge, confluence_edge, edge_htf).
+
+## La pregunta
+La descripción física es real, pero **¿es tradeable?** ¿Se puede sacar plata, o es
+lindo en el gráfico y nada más?
+
+## Lo que se confirmó (la física descriptiva ES real)
+- **Espectro de saltos** (`spectro_legs`): los tamaños de pierna son un **continuo**
+  (unimodal), NO cuantos discretos. Escala característica ~2.78 ATR. → no hay órbitas
+  de Bohr; hay una *escala*, no *cuantos*.
+- **Cascada** (`cascade_laser`): el alcance más allá del sweep es ~exponencial,
+  reach medio **2.54 ATR**, tasa de descuento ρ≈0.39/ATR. Funding como proxy de
+  inversión de población: **null** (sin OI y casi plano → sub-potenciado).
+- **Matriz de transiciones** (`transition_matrix`, Heisenberg): estructura conditional
+  real (entropía 0.556 vs null 0.824) pero confundida por alternancia + clipping. Señal
+  limpia: **repulsión del valor + amplitud característica ~2.5 ATR**. BTC ≈ SOL
+  (decoherencia entre activos NO confirmada).
+- **Convergencia:** los tres dan **~2.5 ATR** = un **oscilador continuo** alrededor del
+  valor, no un átomo discreto. El lado onda/continuo ajusta; el discreto no.
+
+## Lo que se midió como edge (la respuesta honesta: ~no hay)
+Expectancy OOS por trade (R, neto de costos), pooled 8 símbolos:
+
+| Regla | Costos | OOS exp (R) | PF | Veredicto |
+|---|---|---|---|---|
+| Reversión naive (fade z>θ) | taker 6bps | **−0.316** | 0.69 | pierde en los 8 |
+| Momentum naive (Donchian) | taker 6bps | **−0.406** | 0.37 | pierde peor |
+| MR + régimen (ER<0.3) | taker 6bps | **−0.211** | 0.76 | mejora, sigue rojo |
+| MR + régimen | **maker 0bps** | **+0.010** | 1.01 | breakeven |
+| Confluencia≥3 | maker 1bps | **+0.019** | 1.03 | positivo pero **ruido** |
+
+- Confluencia≥3 vs <3 (OOS, maker): **+0.019R (PF 1.03)** vs **−0.056R (PF 0.92)** →
+  el edge **se concentra en la confluencia alta** (valida `confluencia≥3`
+  direccionalmente). PERO: conf=4 no confirma, e **IS de conf≥3 ≈ −0.05R** →
+  **inconsistente IS↔OOS, NO desplegable.**
+- **TF más alto (1h/4h):** no rescata; muestras chicas, nada estable.
+
+## La parte ÚTIL: la descomposición de levers
+Cada lever vale algo medible — y stackean **hacia cero, no arriba**:
+- **Ejecución (taker→maker): ~+0.30R.** El lever más grande. Valida tu "límite en el
+  imán" (maker): es la diferencia entre perder y no perder.
+- **Régimen (right tool, right regime): ~+0.10–0.30R.** La hipótesis MR-en-rango /
+  momentum-en-tendencia se valida direccionalmente.
+- **Selección (confluencia): el multiplicador que falta.** Disparar sobre TODA señal
+  promedia a cero; el subset de alta confluencia es donde vive lo poco que hay.
+
+## Veredicto
+**No hay edge robusto, estable IS↔OOS, en ninguna regla físico-derivada simple** — ni a
+5m/1h/4h, ni con maker, ni con régimen, ni con confluencia. El mercado a estas escalas es
+~eficiente respecto a costos+ruido para factores simples. La física dio un **modelo
+descriptivo real** y **cuantificó dónde está el apalancamiento** (ejecución > selección >
+régimen), pero un edge desplegable exige **más** que estos proxies crudos.
+
+## Qué NO hacer / Qué SÍ
+- **NO** seguir inventando reglas mono-factor a 5m (p-hacking; ya sabemos que no cruzan).
+- **SÍ** medir el edge del **motor real** vía su propio harness (`bt_features` replaya el
+  `fusion_engine` real sobre histórico) — la pregunta correcta es si el stack completo
+  (confluencia + estructura + P_master + scorer) bate el breakeven que tocan los factores
+  sueltos. Ahí, si existe, está el edge.
+- **SÍ** asegurar **ejecución maker** en vivo (el lever más certero, +0.30R).
+- **SÍ** conseguir **OI** (no solo funding) para testear el láser/cascada en serio.
+
+> Moraleja de marca/contenido: *"Sometí mi teoría hermosa a 7 meses de datos y 8 activos.
+> El mercado dijo: la estructura es real, pero el edge fácil no existe — y acá está
+> exactamente cuánto vale cada pieza."* Eso es honestidad que construye más que cualquier
+> feed de ganadores.
