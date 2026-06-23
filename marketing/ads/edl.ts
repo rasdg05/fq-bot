@@ -73,13 +73,25 @@ const cta = (target: CtaTarget): Scene => ({type: 'cta', durationInFrames: s(5),
 
 export const ADS: Ad[] = [
   {
-    id: 'g1-auto',
-    title: 'Gancho A · auto (CTA bot)',
+    // Anuncio 1: manda al PERFIL de IG.
+    id: 'g1-perfil',
+    title: 'A1 · auto -> perfil IG',
     scenes: [
       intro,
       hook('IMG_1846', 1.3, 8.5, '¿Por qué la mayoría nunca manejará uno de estos?'),
       ...BODY,
       cta('instagram'),
+    ],
+  },
+  {
+    // Anuncio 2: mismo creativo, manda al CANAL de Telegram.
+    id: 'g1-canal',
+    title: 'A2 · auto -> canal Telegram',
+    scenes: [
+      intro,
+      hook('IMG_1846', 1.3, 8.5, '¿Por qué la mayoría nunca manejará uno de estos?'),
+      ...BODY,
+      cta('telegram'),
     ],
   },
   {

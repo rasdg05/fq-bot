@@ -3,7 +3,7 @@ import {AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig} from
 import {BRAND, COLORS, CTA_CONFIG, FONTS, GLYPHS, COMMUNITY} from '../brand/tokens';
 import {VAccent} from '../brand/Rule';
 
-export type CtaTarget = 'bot' | 'instagram' | 'both';
+export type CtaTarget = 'bot' | 'instagram' | 'both' | 'telegram';
 
 const Chip: React.FC<{label: string; value: string; delay: number; sub?: string}> = ({
   label,
@@ -96,6 +96,9 @@ export const CTA: React.FC<{target: CtaTarget}> = ({target}) => {
       <div style={{display: 'flex', flexDirection: 'column', gap: 18}}>
         {(target === 'bot' || target === 'both') && (
           <Chip label="Entra al bot" value={`@${CTA_CONFIG.botUsername}`} delay={12} />
+        )}
+        {target === 'telegram' && (
+          <Chip label="Únete al canal" value={CTA_CONFIG.channelHandle} sub="en Telegram" delay={12} />
         )}
         {(target === 'instagram' || target === 'both') && (
           <Chip

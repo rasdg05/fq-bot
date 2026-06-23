@@ -84,4 +84,7 @@ export const CTA_CONFIG = {
   instagram: 'diego_gallegosd',
   // Hub link-in-bio (Linkme): rellena con tu URL real. Vacio = no se muestra.
   linkme: '',
+  // Canal de Telegram (para el anuncio que manda al canal). Rellena con el real.
+  channelHandle: 'RasDG FREE',
+  channelLink: 'https://t.me/TU_CANAL',
 } as const;
