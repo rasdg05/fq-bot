@@ -149,3 +149,35 @@ prueba de fill maker (adverse selection) es ahora CRÍTICA**: si los fills reale
 
 **(c) OI:** OKX rubik solo da OI a 5m de ~días / 1D de ~6 meses → sin profundidad para el
 láser intradía. Requiere fuente paga (Coinglass) o colección forward.
+
+---
+
+## ACTUALIZACIÓN 3 — test make-or-break: fill maker / adverse selection
+
+Simulé fills de límite pasiva contra el OHLC 5m (overlap reciente: **194 señales**,
+2025-11..2026-06). `tools/maker_fill_test.py`.
+
+- **Fill rate alto: 89-97%** (la mayoría llena; la límite descansa ~0.15 ATR en pullback).
+- **Pero adverse selection SEVERA:** las que NO llenan son los **grandes ganadores**
+  (+0.88 a +1.98R) — arrancan sin volver a tu límite. Las que SÍ llenan: **+0.08R**.
+- **Edge realista (filled-only): ~+0.08R** vs +0.126R asumido (all-fill) = **haircut ~35%.**
+- Por símbolo (W=12): SOL filled +0.104R, BTC +0.060R (ambos sobreviven, finos).
+
+**Mecanismo:** la entrada en pullback cambia ahorro-de-fee por **runners perdidos**. Tunable
+(límite más cerca = más runners, peor precio) pero NO se toca ahora (overfit sobre la misma
+muestra). **Caveat:** 194 señales/6 meses → la dirección (adverse selection real) es robusta;
+la magnitud (~0.05R) es incierta.
+
+### Bottom line consolidado (toda la investigación del motor)
+
+| capa | número |
+|---|---|
+| Alfa de selección (gross) | +0.195R (sólido, P≤0=0.000) |
+| neto maker (all-fill) | +0.109R |
+| **neto maker REALISTA (post-fill)** | **~+0.08R** |
+| ejecución taker | −0.02R (muere) |
+
+Edge **real pero frágil**: alfa genuino en la selección, neto desplegable ~+0.08R — fino,
+maker-dependiente, adverse-selection-haircut, BTC-dependiente y no estacionario (2 años flojos
+de 7). **Creíble, no money-printer.** La fuente del edge es la SELECCIÓN; el maker lo preserva;
+el fill se lleva ~35%.
