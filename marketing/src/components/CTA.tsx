@@ -98,7 +98,12 @@ export const CTA: React.FC<{target: CtaTarget}> = ({target}) => {
           <Chip label="Entra al bot" value={`@${CTA_CONFIG.botUsername}`} delay={12} />
         )}
         {target === 'telegram' && (
-          <Chip label="Únete al canal" value={CTA_CONFIG.channelHandle} sub="en Telegram" delay={12} />
+          <Chip
+            label="Escríbeme en Telegram"
+            value={`@${CTA_CONFIG.telegramUser}`}
+            sub={`manda la palabra "${CTA_CONFIG.keyword}"`}
+            delay={12}
+          />
         )}
         {(target === 'instagram' || target === 'both') && (
           <Chip

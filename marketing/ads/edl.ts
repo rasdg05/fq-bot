@@ -84,9 +84,9 @@ export const ADS: Ad[] = [
     ],
   },
   {
-    // Anuncio 2: mismo creativo, manda al CANAL de Telegram.
-    id: 'g1-canal',
-    title: 'A2 · auto -> canal Telegram',
+    // Anuncio 2: mismo creativo, manda a tu DM de Telegram (cierras tu).
+    id: 'g1-dm',
+    title: 'A2 · auto -> DM Telegram',
     scenes: [
       intro,
       hook('IMG_1846', 1.3, 8.5, '¿Por qué la mayoría nunca manejará uno de estos?'),
