@@ -70,3 +70,43 @@ régimen), pero un edge desplegable exige **más** que estos proxies crudos.
 > El mercado dijo: la estructura es real, pero el edge fácil no existe — y acá está
 > exactamente cuánto vale cada pieza."* Eso es honestidad que construye más que cualquier
 > feed de ganadores.
+
+---
+
+## ACTUALIZACIÓN — el MOTOR REAL sí tiene edge (la respuesta a la pregunta)
+
+Medimos el `fusion_engine` real vía sus `cosecha_cubes` (señales evaluadas con outcome):
+**27.504 señales fired, 2019→2026 (7 años, SOL+BTC), ~10.8/día.** (`tools/measure_engine_edge.py`)
+
+| | exp/trade | PF | wr |
+|---|---|---|---|
+| bruto | +0.191R | 1.31 | 38% |
+| **neto MAKER (~4bps)** | **+0.105R** | 1.16 | 38% |
+| neto TAKER (~10bps) | −0.025R | 0.97 | 38% |
+
+- **Estable IS↔OOS:** IS +0.107R / OOS +0.098R (los factores naive cambiaban de signo;
+  este NO). Positivo OOS en SOL (+0.14) y BTC (+0.07).
+- **El maker es TODO el edge:** +0.10R maker vs −0.03R taker. Confirma en el motor real
+  el lever #1 del sprint y tu "límite en el imán": sin maker, no hay negocio.
+
+**El edge está concentrado — ahí está la palanca:**
+- **Selectividad (gate P2, excluir killzones perdedoras): +0.098 → +0.142R OOS.**
+  conf 3-4 + kz-gate → +0.161R. La selección SÍ suma (a diferencia de los factores sueltos).
+- **Mapa de killzones (OOS, neto maker):** ganadoras → ny_pm **+0.40**, asia_kz +0.37,
+  silver_bullet_lo +0.32, sb_ny_am +0.27. Perdedoras → asia_open **−0.68**, ny_close −0.29,
+  sb_ny_pm/fuera −0.11. El edge vive en sesiones específicas.
+- **Asimetría direccional: short +0.16R vs long +0.02R.** Casi todo el edge es del lado
+  corto en esta muestra (2019-26) → entender/explotar la asimetría.
+- **p_master y confluencia NO rankean limpio** (p_master en U, conf no monótona) →
+  headroom: recalibrar la confianza / mejor capa de selección puede subir la expectancy.
+
+**El asterisco honesto (riesgo vivo):** el +0.10R asume que tu límite **llena** al nivel.
+En maker real hay *adverse selection*: llenás en los perdedores y te quedás afuera de
+ganadores que se van sin vos → el edge vivo es **menor** que el backtest. Validar fill-rate
+en paper es obligatorio. (Y el Sharpe anual ~3.5 es naive: trades correlacionados → el real
+es bastante menor.)
+
+**Bottom line:** los factores sueltos tocan cero; **el stack completo del motor, disparando
+maker y selectivo, SÍ cruza a positivo y estable (+0.10→0.16R OOS).** El edge existe — chico,
+maker-dependiente, concentrado en sesiones/cortos — el tipo de edge real que produce un stack
+de confluencia. *La arquitectura funciona.*
