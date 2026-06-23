@@ -50,7 +50,7 @@ def leverage_for_tier(p_master):
 # ============================================================
 # SENAL VIP - simplificada, ejecutable sin exponer motor
 # ============================================================
-def build_vip_signal(field, decision_report, tf_label=None, tf_id=None):
+def build_vip_signal(field, decision_report, tf_label=None, tf_id=None, pair=None):
     """
     Senal lista para copy-paste. NO expone P_master, kappa_evo, Theta(D),
     f_confluencia ni constantes phi/alpha. Solo lo que el VIP necesita ejecutar.
@@ -101,6 +101,7 @@ def build_vip_signal(field, decision_report, tf_label=None, tf_id=None):
 
     risk_pct = (levels["risk"] / levels["entry"]) * 100 if levels.get("risk") else 0
     risk_lbl = risk_band(risk_pct)
+    pair_label = pair or PAIR   # BTC/USDT en la fusion BTC->VIP; SOL/USDT por defecto
 
     return (
         "{rule}\n"
@@ -125,7 +126,7 @@ def build_vip_signal(field, decision_report, tf_label=None, tf_id=None):
         "\n"
         "  {tags} #{side}"
     ).format(
-        rule=RULE, bar=GLYPHS["title"], product=PRODUCT, pair=PAIR, quality=quality, ctx=ctx_line,
+        rule=RULE, bar=GLYPHS["title"], product=PRODUCT, pair=pair_label, quality=quality, ctx=ctx_line,
         arrow=arrow, side=side, conv=conviction, risk=risk_lbl,
         entry=levels["entry"], sl=levels["sl"],
         tp1=levels["tp1"], rr1=levels.get("rr_tp1", 0),
