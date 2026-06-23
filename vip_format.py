@@ -298,7 +298,7 @@ def build_tactical_alert(plan, tps_short, vol_label=None, killzone_name=None,
     # Headline segun veredicto
     if v == "EJECUTAR_AHORA":
         entry_str = "${:.2f}".format(mkt.get("entry") or 0)
-        headline = "EJECUTA {} a mercado ~{}".format(side, entry_str)
+        headline = "EJECUTA {} con LÍMITE (maker) ~{}".format(side, entry_str)
     elif v == "ACUMULAR_EN_ZONA":
         z = plan["primary_zone"]
         headline = "ACUMULA {} en {} ${:.2f}-${:.2f}".format(
