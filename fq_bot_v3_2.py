@@ -2933,6 +2933,108 @@ def _btc_motor_paper_scan(exchange):
         log.warning("[motor-btc] scan: %s", e)
 
 
+# MOTOR PAPER ETH — 3er simbolo (decision RasDG jun-2026: "ETH en el producto").
+# Mirror EXACTO de BTC: ledger propio, 0% real, mide forward; broadcast gated con
+# par ETH/USDT. ETH es +0.201R en el backtest magnet pero NO robusto (IS-/OOS+) ->
+# se mide en vivo ANTES de confiar, igual que BTC. Comparte la config del pivote
+# (tp4/veto/maker/equity); el unico variable del experimento es el simbolo.
+# Activar con FQ_MOTOR_PAPER_ETH=1 (default OFF -> _eth_motor_paper_scan no-op).
+ETH_MOTOR_PAPER_ENABLED = os.environ.get("FQ_MOTOR_PAPER_ETH", "0").strip() in ("1", "true", "yes")
+ETH_MOTOR_TF = os.environ.get("FQ_MOTOR_PAPER_ETH_TF", "5m")  # TF del research (5m)
+# FUSION ETH->VIP: default ON cuando el motor ETH corre; kill-switch sin redeploy
+# FQ_ETH_VIP_BROADCAST=0. OJO: ETH esta MENOS validado que BTC (magnet no robusto,
+# sin forward) -> conviene medir un tiempo con broadcast=0 antes de exponer clientes.
+ETH_VIP_BROADCAST_ENABLED = os.environ.get("FQ_ETH_VIP_BROADCAST", "1").strip() not in ("0", "false", "no")
+ETH_MOTOR_LEDGER_PATH = os.environ.get(
+    "FQ_MOTOR_PAPER_ETH_LEDGER_PATH", "/data/motor_paper_ETH_USDT.jsonl")
+_ETH_MOTOR_RUNTIME = None
+_ETH_MOTOR_TRIED = False
+_ETH_MOTOR_LAST_TS = None  # last_signal_ts ETH (Phase E), independiente de SOL/BTC
+
+
+def _eth_motor_runtime():
+    """Lazy-init del runtime motor paper ETH (ledger propio). None si no se arma."""
+    global _ETH_MOTOR_RUNTIME, _ETH_MOTOR_TRIED
+    if _ETH_MOTOR_RUNTIME is not None or _ETH_MOTOR_TRIED:
+        return _ETH_MOTOR_RUNTIME
+    _ETH_MOTOR_TRIED = True
+    try:
+        import motor_paper
+        _ETH_MOTOR_RUNTIME = motor_paper.MotorPaperRuntime.from_env(
+            "ETH/USDT", notify_fn=_motor_admin_notify,
+            ledger_path=ETH_MOTOR_LEDGER_PATH)
+        log.info("[motor-eth] runtime paper ETH activo (tf=%s)", ETH_MOTOR_TF)
+    except Exception as e:
+        log.warning("[motor-eth] no se pudo armar el runtime: %s", e)
+        _ETH_MOTOR_RUNTIME = None
+    return _ETH_MOTOR_RUNTIME
+
+
+def _eth_motor_paper_scan(exchange):
+    """Pasada ETH en su TF (default 5m) -> evaluate_signal -> motor paper ETH.
+    El ledger paper mide SIEMPRE (0% real). Ademas, FUSION ETH->VIP: si
+    FQ_ETH_VIP_BROADCAST!=0 (default ON cuando el motor ETH corre), los fires se
+    broadcastean a clientes con el MISMO formato que SOL pero par ETH/USDT. La
+    medicion y la entrega son independientes. No-op si FQ_MOTOR_PAPER_ETH!=1.
+    Nunca rompe el loop (todo en try/except)."""
+    global _ETH_MOTOR_LAST_TS
+    if not ETH_MOTOR_PAPER_ENABLED:
+        return
+    rt = _eth_motor_runtime()
+    if rt is None:
+        return
+    try:
+        tf_id = ETH_MOTOR_TF
+        profile = TF_PROFILES[tf_id]
+        df_primary = add_indicators(fetch_ohlcv(exchange, SYMBOL_ETH, tf_id, limit=200))
+        if df_primary is None or len(df_primary) < 50:
+            return
+        df_ctx_mid = add_indicators(fetch_ohlcv(exchange, SYMBOL_ETH, profile["context_mid"], limit=100))
+        df_ctx_high = add_indicators(fetch_ohlcv(exchange, SYMBOL_ETH, profile["context_high"], limit=100))
+        try:
+            df_sub = add_indicators(fetch_ohlcv(exchange, SYMBOL_ETH, profile["sub_tf"], limit=30))
+        except Exception:
+            df_sub = None
+        price = float(df_primary["close"].iloc[-1])
+        config = {
+            "PHI": PHI,
+            "PMASTER_MIN": profile["PMASTER_MIN"],
+            "RR_MIN_TP_DIVINO": profile.get("RR_MIN_TP3", RR_MIN_TP_DIVINO),
+            "TF_ID": tf_id,
+            "TF_LABEL": profile["label"],
+            "PULLBACK_VOL_MULT": profile["PULLBACK_VOL_MULT"],
+            "BREAKOUT_VOL_MULT": profile["BREAKOUT_VOL_MULT"],
+            "LAST_SIGNAL_TS": _ETH_MOTOR_LAST_TS,
+            "PHASE_E_N_PATHS": profile.get("PHASE_E_N_PATHS"),
+            "PHASE_E_COOLDOWN_MIN": profile.get("PHASE_E_COOLDOWN_MIN"),
+        }
+        fire, field, report = fusion_engine.evaluate_signal(
+            df_primary, df_ctx_mid, df_ctx_high, df_sub,
+            detect_pspace, laplacian_check, calculate_levels, config, intra=False)
+        if fire:
+            _ETH_MOTOR_LAST_TS = datetime.now(timezone.utc)
+            # FUSION ETH->VIP: mismo builder/entrega que SOL, par ETH/USDT. Medicion
+            # (rt.on_bar, abajo) intacta. Defensivo: un fallo de entrega no la tumba.
+            if ETH_VIP_BROADCAST_ENABLED and VIP_FORMAT_AVAILABLE and vip_format is not None:
+                try:
+                    msg = vip_format.build_vip_signal(
+                        field, report, tf_label=profile["label"], tf_id=tf_id,
+                        pair="ETH/USDT")
+                    broadcast_to_subscribers(msg)
+                except Exception as e:
+                    log.warning("[motor-eth] broadcast: %s", e)
+        hi = float(df_primary["high"].iloc[-1])
+        lo = float(df_primary["low"].iloc[-1])
+        try:
+            cts = df_primary["timestamp"].iloc[-1]   # ts de la VELA (no now())
+        except Exception:
+            cts = None
+        rt.on_bar(fire, field, report, df_primary, price,
+                  high=hi, low=lo, ts=cts, tf_id=tf_id)
+    except Exception as e:
+        log.warning("[motor-eth] scan: %s", e)
+
+
 # ============================================================
 # v4.1.1 — _evaluate_setup_v411 (delegate al fusion_engine)
 # ============================================================
@@ -4650,6 +4752,11 @@ def cmd_paper(exchange=None):
             out.append("— <b>₿ BTC</b> (techo research: +0.142R maker tp4) —")
             out.append(motor_paper.format_report_telegram(
                 motor_paper.ledger_report(BTC_MOTOR_LEDGER_PATH)))
+        # ETH: idem, solo si el pipeline esta activo o ya hay ledger.
+        if ETH_MOTOR_PAPER_ENABLED or os.path.exists(ETH_MOTOR_LEDGER_PATH):
+            out.append("— <b>Ξ ETH</b> (backtest magnet: +0.201R, NO robusto) —")
+            out.append(motor_paper.format_report_telegram(
+                motor_paper.ledger_report(ETH_MOTOR_LEDGER_PATH)))
     except Exception as e:
         out.append("📄 Motor: error (%s)" % e)
     return "\n".join(out)
@@ -5406,6 +5513,9 @@ def main():
             # FQ_MOTOR_PAPER_BTC!=1 (ni toca el exchange).
             if BTC_MOTOR_PAPER_ENABLED and BTC_MOTOR_TF in new_candle_tfs:
                 _btc_motor_paper_scan(exchange)
+            # ETH (3er simbolo): mismo patron, no-op si FQ_MOTOR_PAPER_ETH!=1.
+            if ETH_MOTOR_PAPER_ENABLED and ETH_MOTOR_TF in new_candle_tfs:
+                _eth_motor_paper_scan(exchange)
 
             # RADAR proactivo / ALERTA TACTICA (FQ v5.3):
             #   - Corre en FIELD_TIMEFRAMES (default 5m+15m; 1m opt-in, 3m retirado).
