@@ -181,3 +181,30 @@ Edge **real pero frágil**: alfa genuino en la selección, neto desplegable ~+0.
 maker-dependiente, adverse-selection-haircut, BTC-dependiente y no estacionario (2 años flojos
 de 7). **Creíble, no money-printer.** La fuente del edge es la SELECCIÓN; el maker lo preserva;
 el fill se lleva ~35%.
+
+---
+
+## ACTUALIZACIÓN 4 — arranque de la validación forward (maker, sellada)
+
+El harness ya existe: `motor_paper.py` (RETRIEVAL_PLAN §6.10.1) — paper del MOTOR BASE,
+**ejecución maker real** (penetración→fill, TTL→fallback taker), costo neto maker, **ledger
+sellado SHA-256** (`DurableHashLedger`, verify()=True), wired en el loop vivo (no-op si
+`FQ_MOTOR_PAPER!=1`). 20 tests verdes; smoke: maker neto > taker, cadena sellada.
+
+**Seguridad:** `FQ_EXEC_MODE` lo lee SOLO `motor_paper` (cost taker/maker). **NO gatea live**
+(eso es `exchange_adapter.mode==LIVE`, que jamás llama `create_order` en paper). Corregido el
+comentario engañoso de `.env.example`. `FQ_EXEC_MODE=maker` = **0% real**.
+
+**Arranque (env vars en Railway — no se puede desde el sandbox efímero):**
+
+    FQ_MOTOR_PAPER=1          # track SOL (motor base, 15m)
+    FQ_EXEC_MODE=maker        # ejecución + costo maker (el techo a validar)
+    FQ_MOTOR_PAPER_BTC=1      # (recomendado) BTC en paralelo — carga el edge full-history
+    FQ_MOTOR_PAPER_TP=tp4     # config del techo (matchea el +0.10R medido)
+    FQ_MOTOR_PAPER_VETO_KILLZONES=   # sin veto de sesión = motor base puro
+
+Ledgers durables en el Volume: `/data/motor_paper_SOL_USDT.jsonl` y `_BTC_USDT.jsonl`.
+
+**Monitoreo:** `python tools/motor_paper_stats.py` → fill-rate real, neto maker, adverse
+selection. **Éxito = neto maker forward ≈ +0.08R con fill ~90%** (confirma el backtest). Si
+deriva a ~0 o el fill empeora → el backtest era optimista. Sellado = incorruptible.
