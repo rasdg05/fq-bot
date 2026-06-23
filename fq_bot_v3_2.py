@@ -2831,6 +2831,10 @@ def _motor_paper_eval(fire, field, report, df_primary, price, tf_id):
 # inmediato (ni toca el exchange).
 BTC_MOTOR_PAPER_ENABLED = os.environ.get("FQ_MOTOR_PAPER_BTC", "0").strip() in ("1", "true", "yes")
 BTC_MOTOR_TF = os.environ.get("FQ_MOTOR_PAPER_BTC_TF", "5m")  # TF del research (5m)
+# FUSION BTC->VIP: cuando el motor BTC corre, sus fires TAMBIEN se broadcastean a
+# clientes (mismo path/formato que SOL, par BTC/USDT). Default ON (decision RasDG
+# jun-2026: "encender ya"). Kill-switch sin redeploy: FQ_BTC_VIP_BROADCAST=0.
+BTC_VIP_BROADCAST_ENABLED = os.environ.get("FQ_BTC_VIP_BROADCAST", "1").strip() not in ("0", "false", "no")
 # Ledger BTC SEPARADO del SOL: NO hereda FQ_MOTOR_PAPER_LEDGER_PATH (si ambos
 # simbolos lo compartieran, mezclarian trades en un archivo y corromperian los
 # dos edges). El resto de la config (tp4/veto/maker/equity) SI se comparte a
@@ -2862,8 +2866,11 @@ def _btc_motor_runtime():
 
 def _btc_motor_paper_scan(exchange):
     """Pasada BTC en su TF (default 5m) -> evaluate_signal -> motor paper BTC.
-    Paper-only, 0% real, JAMAS broadcastea ni toca SOL/VIP. No-op si
-    FQ_MOTOR_PAPER_BTC!=1. Nunca rompe el loop (todo en try/except)."""
+    El ledger paper mide SIEMPRE (0% real). Ademas, FUSION BTC->VIP: si
+    FQ_BTC_VIP_BROADCAST!=0 (default ON cuando el motor BTC corre), los fires se
+    broadcastean a clientes con el MISMO formato que SOL pero par BTC/USDT. La
+    medicion y la entrega son independientes. No-op si FQ_MOTOR_PAPER_BTC!=1.
+    Nunca rompe el loop (todo en try/except)."""
     global _BTC_MOTOR_LAST_TS
     if not BTC_MOTOR_PAPER_ENABLED:
         return
@@ -2902,6 +2909,18 @@ def _btc_motor_paper_scan(exchange):
             detect_pspace, laplacian_check, calculate_levels, config, intra=False)
         if fire:
             _BTC_MOTOR_LAST_TS = datetime.now(timezone.utc)
+            # FUSION BTC->VIP: mismo builder/entrega que SOL, par BTC/USDT. El
+            # filtro admin-only de finde lo aplica broadcast_to_subscribers. La
+            # medicion (rt.on_bar, abajo) sigue intacta -> entrega y ledger
+            # independientes. Defensivo: un fallo de entrega no tumba la medicion.
+            if BTC_VIP_BROADCAST_ENABLED and VIP_FORMAT_AVAILABLE and vip_format is not None:
+                try:
+                    msg = vip_format.build_vip_signal(
+                        field, report, tf_label=profile["label"], tf_id=tf_id,
+                        pair="BTC/USDT")
+                    broadcast_to_subscribers(msg)
+                except Exception as e:
+                    log.warning("[motor-btc] broadcast: %s", e)
         hi = float(df_primary["high"].iloc[-1])
         lo = float(df_primary["low"].iloc[-1])
         try:
