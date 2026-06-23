@@ -71,6 +71,18 @@ def _funding_paper_cmd():
             "--funding-base", base, "--symbol", symbol]
 
 
+def _oi_collect_enabled():
+    """Colector FORWARD de Open Interest (tools/fetch_okx_oi.py, --loop). 0% real:
+    acumula OI 5m en el Volume (/data) para el test de cascada/laser, que el
+    historico corto de OKX no permite hacer hacia atras. Hijo NO-critico (un bug
+    del colector jamas tira el bot VIP). Default OFF."""
+    return (os.environ.get("FQ_OI_COLLECT") or "0").strip() in ("1", "true", "yes")
+
+
+def _oi_collect_cmd():
+    return [sys.executable, "-u", "tools/fetch_okx_oi.py", "--loop"]
+
+
 def _bots():
     # (name, cmd, critical): critical=True -> si muere, baja el container y Railway
     # reinicia (VIP/public/maintenance SON el producto). critical=False -> hijo
@@ -82,6 +94,8 @@ def _bots():
     bots.append(("maintenance", [sys.executable, "-u", "-m", "ops.maintenance"], True))
     if _funding_paper_enabled():
         bots.append(("funding-paper", _funding_paper_cmd(), False))
+    if _oi_collect_enabled():
+        bots.append(("oi-collect", _oi_collect_cmd(), False))
     return bots
 
 GRACE_SECONDS = 8       # tiempo para que los hijos atiendan SIGTERM
