@@ -110,3 +110,42 @@ es bastante menor.)
 maker y selectivo, SÍ cruza a positivo y estable (+0.10→0.16R OOS).** El edge existe — chico,
 maker-dependiente, concentrado en sesiones/cortos — el tipo de edge real que produce un stack
 de confluencia. *La arquitectura funciona.*
+
+---
+
+## ACTUALIZACIÓN 2 — validación robusta (corrige la #1; "de dónde sale el edge")
+
+**Corrección honesta:** el cube tiene **12 variantes de TP por señal** → la medición #1 contó
+cada señal ~12×. Reales: **2.277 señales distintas** (no 27.504). El expectancy no cambia
+(+0.109R neto maker) pero la significancia baja: **Sharpe anual ~1.3** (no 3.5), OOS t≈1.9.
+(`tools/engine_edge_robust.py`)
+
+**¿De dónde sale el edge? — descomposición (1 fila/señal):**
+
+| | exp | PF | bootstrap IC95% |
+|---|---|---|---|
+| GROSS (sin costo) | **+0.195R** | 1.36 | [+0.098, +0.282], P≤0=**0.000** |
+| neto MAKER (límite) | +0.109R | 1.18 | [+0.012, +0.196], P≤0=0.013 |
+| neto TAKER (mercado) | −0.021R | 0.97 | — |
+
+→ **El edge NO sale del límite: sale de la SELECCIÓN** (gross +0.195R, fuertemente
+significativo). El "límite en el imán" hace dos cosas: (1) entra AL precio del imán = buena
+ubicación predictiva (ya está en el gross) y (2) entra MAKER = ahorra costo. **La selección
+es la fuente; el maker PRESERVA** (mantiene 56% del gross; el taker lo funde a −0.02R).
+
+**Robustez (lo más honesto posible):**
+- **Bootstrap por bloques** (robusto a correlación): neto maker IC95% **[+0.012, +0.196]** —
+  sobre 0 pero piso FINO. Gross IC [+0.098,+0.282] = sólido.
+- **Walk-forward 6 folds: 4/6 positivos**, pero **2 años seguidos flojos (2023-2025)** →
+  edge **NO estacionario**, drawdowns de régimen multi-anuales.
+- **Por símbolo: BTC lo carga** (+0.153R, IC [+0.042,+0.260]); **SOL inconcluso** (+0.050R,
+  IC cruza 0).
+- **Fee:** positivo hasta ~8bps, muere en taker. Breakeven ~8.5bps.
+
+**Veredicto robusto:** edge real (la selección predice, gross sólido) pero **modesto,
+BTC-dependiente, no estacionario y maker-dependiente**. Como el piso del IC es +0.01R, **la
+prueba de fill maker (adverse selection) es ahora CRÍTICA**: si los fills reales se comen
+0.05R, el neto desaparece. Test obligatorio antes de creerse cualquier número.
+
+**(c) OI:** OKX rubik solo da OI a 5m de ~días / 1D de ~6 meses → sin profundidad para el
+láser intradía. Requiere fuente paga (Coinglass) o colección forward.
