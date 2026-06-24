@@ -50,13 +50,19 @@ jobs:
           set -x
           for SYM in SOL BTC; do
             python tools/build_dataset.py --symbol ${SYM}/USDT --timeframe 5m \
-              --market swap --years 5 --exchanges okx --data-dir data || true
+              --market swap --years 3 --exchanges okx --data-dir data || true
           done
-          echo "===== regrade CVD SOL (carga ~0.23R) ====="
+          ls -la data/okx/ || true
+          # build_dataset nombra <symbol con / -> ->_<tf>.parquet (no el instId);
+          # globeamos el archivo real en vez de adivinar el nombre.
+          SOL_C=$(ls data/okx/*SOL*_5m.parquet 2>/dev/null | head -1)
+          BTC_C=$(ls data/okx/*BTC*_5m.parquet 2>/dev/null | head -1)
+          echo "===== regrade CVD SOL ($SOL_C · carga ~0.23R) ====="
           python tools/regrade_cvd.py --cube cosecha_cubes/tp_cube_SOL_USDT.parquet \
             --inst SOL-USDT-SWAP --tp tp4 --horizon 576 \
-            --candles data/okx/SOL-USDT-SWAP_5m.parquet --cost-burden-r 0.23 || true
-          echo "===== regrade CVD BTC (carga ~0.28R) ====="
+            --candles "$SOL_C" --cost-burden-r 0.23 || true
+          echo "===== regrade CVD BTC ($BTC_C · carga ~0.28R) ====="
           python tools/regrade_cvd.py --cube cosecha_cubes/tp_cube_BTC_USDT.parquet \
             --inst BTC-USDT-SWAP --tp tp4 --horizon 576 \
-            --candles data/okx/BTC-USDT-SWAP_5m.parquet --cost-burden-r 0.28 || true
+            --candles "$BTC_C" --cost-burden-r 0.28 || true
+
