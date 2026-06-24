@@ -47,6 +47,7 @@ def _wire_fire(monkeypatch, on_bar_sink):
     monkeypatch.setattr(b, "_eth_motor_runtime", lambda: _RT())
     monkeypatch.setattr(b, "fetch_ohlcv", lambda *a, **k: _fake_eth_df())
     monkeypatch.setattr(b, "add_indicators", lambda d: d)
+    monkeypatch.setattr(b, "SEGMENT_VETO", None)   # sin veto de sesion por default
     monkeypatch.setattr(b.fusion_engine, "evaluate_signal",
                         lambda *a, **k: (True, object(), {"direction": "long"}))
 
@@ -77,3 +78,23 @@ def test_eth_fusion_killswitch_measures_but_silent(monkeypatch):
     b._eth_motor_paper_scan("EX")
     assert sent == []        # silencio en clientes
     assert measured == [1]   # pero midio igual
+
+
+def test_eth_fusion_segment_veto_blocks_broadcast(monkeypatch):
+    """Veto de sesion EN VIVO (SEGMENT_VETO): si la killzone de la vela esta
+    vetada, el broadcast ETH se CORTA (paridad con SOL) pero la medicion sigue."""
+    measured, sent = [], []
+    _wire_fire(monkeypatch, measured)
+    monkeypatch.setattr(b, "ETH_VIP_BROADCAST_ENABLED", True)
+    monkeypatch.setattr(b, "VIP_FORMAT_AVAILABLE", True)
+
+    class _Veto:
+        active = True
+        def reason(self, **k):
+            return "killzone=asia_open"   # SIEMPRE vetea
+
+    monkeypatch.setattr(b, "SEGMENT_VETO", _Veto())
+    monkeypatch.setattr(b, "broadcast_to_subscribers", lambda msg, *a, **k: sent.append(msg))
+    b._eth_motor_paper_scan("EX")
+    assert sent == []        # NO difundido (vetado en vivo)
+    assert measured == [1]   # pero SI medido (ledger intacto)

@@ -2909,11 +2909,22 @@ def _btc_motor_paper_scan(exchange):
             detect_pspace, laplacian_check, calculate_levels, config, intra=False)
         if fire:
             _BTC_MOTOR_LAST_TS = datetime.now(timezone.utc)
-            # FUSION BTC->VIP: mismo builder/entrega que SOL, par BTC/USDT. El
-            # filtro admin-only de finde lo aplica broadcast_to_subscribers. La
-            # medicion (rt.on_bar, abajo) sigue intacta -> entrega y ledger
-            # independientes. Defensivo: un fallo de entrega no tumba la medicion.
-            if BTC_VIP_BROADCAST_ENABLED and VIP_FORMAT_AVAILABLE and vip_format is not None:
+            # FUSION BTC->VIP: mismo builder/entrega que SOL, par BTC/USDT, y MISMO
+            # veto de sesion en vivo (SEGMENT_VETO, fq_bot:3141): si la killzone de
+            # la vela esta vetada (FQ_SEGMENT_VETO_*), NO se difunde -> paridad con
+            # SOL (si no, london/asia se le escapaban a clientes en BTC). La MEDICION
+            # (rt.on_bar) tiene su veto propio, no se toca aca. El filtro admin-only
+            # de finde lo aplica broadcast_to_subscribers. Defensivo en todo.
+            _seg_vetoed = False
+            if SEGMENT_VETO is not None and SEGMENT_VETO.active:
+                try:
+                    _seg_vetoed = bool(SEGMENT_VETO.reason(
+                        killzone=getattr(field, "killzone", None),
+                        ts_utc=df_primary["timestamp"].iloc[-1]))
+                except Exception:
+                    _seg_vetoed = False
+            if (not _seg_vetoed and BTC_VIP_BROADCAST_ENABLED
+                    and VIP_FORMAT_AVAILABLE and vip_format is not None):
                 try:
                     msg = vip_format.build_vip_signal(
                         field, report, tf_label=profile["label"], tf_id=tf_id,
@@ -3013,9 +3024,20 @@ def _eth_motor_paper_scan(exchange):
             detect_pspace, laplacian_check, calculate_levels, config, intra=False)
         if fire:
             _ETH_MOTOR_LAST_TS = datetime.now(timezone.utc)
-            # FUSION ETH->VIP: mismo builder/entrega que SOL, par ETH/USDT. Medicion
-            # (rt.on_bar, abajo) intacta. Defensivo: un fallo de entrega no la tumba.
-            if ETH_VIP_BROADCAST_ENABLED and VIP_FORMAT_AVAILABLE and vip_format is not None:
+            # FUSION ETH->VIP: mismo builder/entrega que SOL, par ETH/USDT, y MISMO
+            # veto de sesion en vivo (SEGMENT_VETO): si la killzone de la vela esta
+            # vetada (FQ_SEGMENT_VETO_*), NO se difunde (paridad con SOL/BTC). La
+            # medicion (rt.on_bar) tiene su veto propio, no se toca aca.
+            _seg_vetoed = False
+            if SEGMENT_VETO is not None and SEGMENT_VETO.active:
+                try:
+                    _seg_vetoed = bool(SEGMENT_VETO.reason(
+                        killzone=getattr(field, "killzone", None),
+                        ts_utc=df_primary["timestamp"].iloc[-1]))
+                except Exception:
+                    _seg_vetoed = False
+            if (not _seg_vetoed and ETH_VIP_BROADCAST_ENABLED
+                    and VIP_FORMAT_AVAILABLE and vip_format is not None):
                 try:
                     msg = vip_format.build_vip_signal(
                         field, report, tf_label=profile["label"], tf_id=tf_id,
