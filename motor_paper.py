@@ -6,7 +6,7 @@
 ================================================================================
 Mide el SUBSET CORRECTO para validar FORWARD el techo +0.10R: senales del MOTOR
 BASE (el `fire` de fusion_engine.evaluate_signal) filtradas por el veto de
-sesion (default london_open_kz), abiertas en PAPEL (taker = fill REAL) y
+sesion (default london_open_kz + asia_open), abiertas en PAPEL (taker = fill REAL) y
 midiendo en paralelo si una LIMITE maker en el entry se habria llenado por
 PENETRACION — el dato de ADVERSE SELECTION que decide si el techo es capturable.
 
@@ -94,7 +94,7 @@ class MotorPaperRuntime:
         """Arma el runtime desde el entorno:
           FQ_MOTOR_PAPER_LEDGER_PATH ledger durable (default /data/motor_paper_<slug>.jsonl)
           FQ_MOTOR_PAPER_EQUITY      equity de la cuenta paper (default 10000)
-          FQ_MOTOR_PAPER_VETO_KILLZONES veto propio (default london_open_kz)
+          FQ_MOTOR_PAPER_VETO_KILLZONES veto propio (default london_open_kz,asia_open)
           FQ_MOTOR_PAPER_VETO_UTC_BLOCKS / _WEEKDAYS  vetos secundarios (default "")
           FQ_MOTOR_PAPER_TP          nivel del cubo a usar como TP (default tp1)
           FQ_MOTOR_PAPER_MAKER_SIM   shadow maker (default 1: es el punto del track)
@@ -115,9 +115,11 @@ class MotorPaperRuntime:
         broker = PaperBroker(ledger=DurableHashLedger.load(led_path), cost=cost)
         equity = float(os.environ.get("FQ_MOTOR_PAPER_EQUITY", "10000"))
         acc = Account("paper-motor-%s" % symbol, equity)
-        # Veto PROPIO: default = el config del techo (+0.10R). "" -> motor base.
+        # Veto PROPIO: default = london_open_kz + asia_open (ambos -EV en SOL Y BTC,
+        # OOS; asia_open con n menor -> confianza moderada, lo confirma el forward).
+        # "" -> motor base sin veto.
         veto = segment_veto.parse(
-            killzones=os.environ.get("FQ_MOTOR_PAPER_VETO_KILLZONES", "london_open_kz"),
+            killzones=os.environ.get("FQ_MOTOR_PAPER_VETO_KILLZONES", "london_open_kz,asia_open"),
             utc_blocks=os.environ.get("FQ_MOTOR_PAPER_VETO_UTC_BLOCKS", ""),
             weekdays=os.environ.get("FQ_MOTOR_PAPER_VETO_WEEKDAYS", ""))
         tp_key = os.environ.get("FQ_MOTOR_PAPER_TP", "tp1")
