@@ -22,11 +22,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.resolve(__dirname, '..', 'out');
 
 const AF = [
-  'highpass=f=80',
-  'equalizer=f=120:t=q:w=1.0:g=1.5',
-  'equalizer=f=3000:t=q:w=1.5:g=2.5',
-  'acompressor=threshold=-18dB:ratio=3:attack=20:release=200',
-  'loudnorm=I=-14:TP=-1.5:LRA=11',
+  'highpass=f=85', // quita retumbe
+  'equalizer=f=300:t=q:w=1.2:g=-2', // limpia barro/lodo -> mas nitido
+  'equalizer=f=120:t=q:w=1.0:g=1.5', // calidez/cuerpo
+  'equalizer=f=3500:t=q:w=1.3:g=3', // presencia de voz
+  'treble=g=3:f=9000', // aire/brillo (nitidez)
+  'aexciter=amount=2:blend=2:freq=7500', // armonicos -> mas auditivo e interesante
+  'acompressor=threshold=-18dB:ratio=3:attack=15:release=180', // nivela
+  'alimiter=limit=0.95', // controla picos
+  'loudnorm=I=-13:TP=-1:LRA=10', // volumen parejo y fuerte
 ].join(',');
 
 function master(id) {
