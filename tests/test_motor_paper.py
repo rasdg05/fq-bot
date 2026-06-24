@@ -285,13 +285,16 @@ def test_ledger_report_modo_ejecucion_maker(tmp_path):
     assert "ejecución maker" in msg and "NETO" in msg
 
 
-def test_from_env_default_london(monkeypatch, tmp_path):
+def test_from_env_default_veto_killzones(monkeypatch, tmp_path):
+    """Default = veto london_open_kz + asia_open (ambos -EV en SOL y BTC, OOS)."""
     monkeypatch.setenv("FQ_MOTOR_PAPER_LEDGER_PATH", str(tmp_path / "m.jsonl"))
     for k in ("FQ_MOTOR_PAPER_VETO_KILLZONES", "FQ_MOTOR_PAPER_VETO_UTC_BLOCKS",
               "FQ_MOTOR_PAPER_VETO_WEEKDAYS", "FQ_MOTOR_PAPER_EQUITY"):
         monkeypatch.delenv(k, raising=False)
     rt = mp.MotorPaperRuntime.from_env("SOL/USDT")
-    assert rt.veto.active and "london_open_kz" in rt.veto.killzones
+    assert rt.veto.active
+    assert "london_open_kz" in rt.veto.killzones
+    assert "asia_open" in rt.veto.killzones
     assert rt.maker_sim is True  # shadow ON por default (es el punto del track)
 
 
