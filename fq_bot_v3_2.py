@@ -2746,7 +2746,7 @@ def _gold_paper_eval(field, report, df_primary, price, tf_id):
 # shadow maker midiendo el fill-rate REAL — el juez del techo +0.10R. 0% real,
 # ledger durable propio, paralelo al ORO. Activar con FQ_MOTOR_PAPER=1.
 MOTOR_PAPER_ENABLED = os.environ.get("FQ_MOTOR_PAPER", "0").strip() in ("1", "true", "yes")
-MOTOR_PAPER_TF = os.environ.get("FQ_MOTOR_PAPER_TF", "15m")  # TF nativo del fire
+MOTOR_PAPER_TF = os.environ.get("FQ_MOTOR_PAPER_TF", "5m")  # 5m = TF del research/cubo (=BTC): mide la MISMA poblacion del +0.109. El loop evalua 5m+15m, asi que casa.
 _MOTOR_RUNTIME = None
 _MOTOR_RUNTIME_TRIED = False
 
