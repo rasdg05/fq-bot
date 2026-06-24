@@ -1,0 +1,62 @@
+name: Carry + CVD validation (red abierta) — 1 tap
+
+# UN TAP. Corre las dos validaciones que el SANDBOX no puede (Binance/Bybit/Gate
+# bloqueados alli; OKX limita funding a ~3 meses):
+#   (a) funding CARRY en historia LARGA multi-régimen, POR AÑO -> ¿sobrevive el
+#       bear 2022 o se desploma como SOL?
+#   (b) filtro CVD con velas que SÍ cubren los eventos (build_dataset profundo).
+# GitHub-hosted (red abierta). NO toca el worker en vivo ni el runner de Hetzner.
+# Resultados: en los logs del run (Actions -> este workflow -> job -> step).
+
+on:
+  workflow_dispatch:
+    inputs:
+      since:
+        description: "Funding carry desde (YYYY-MM-DD)"
+        default: "2021-06-01"
+
+permissions:
+  contents: read
+
+jobs:
+  carry:
+    name: "(a) Carry multi-régimen"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Deps mínimas
+        run: pip install --quiet ccxt pandas pyarrow numpy
+      - name: "(a) Validar carry por año (funding profundo via ccxt)"
+        run: python tools/carry_validate.py --since "${{ inputs.since }}"
+
+  cvd:
+    name: "(b) Filtro CVD (best-effort)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Deps (regrade importa cvd/abtest/quality/walkforward)
+        run: pip install --quiet ccxt pandas pyarrow numpy
+      - name: "(b) Velas profundas (OKX) + regrade CVD — SOL y BTC"
+        continue-on-error: true
+        run: |
+          set -x
+          for SYM in SOL BTC; do
+            python tools/build_dataset.py --symbol ${SYM}/USDT --timeframe 5m \
+              --market swap --years 5 --exchanges okx --data-dir data || true
+          done
+          echo "===== regrade CVD SOL (carga ~0.23R) ====="
+          python tools/regrade_cvd.py --cube cosecha_cubes/tp_cube_SOL_USDT.parquet \
+            --inst SOL-USDT-SWAP --tp tp4 --horizon 576 \
+            --candles data/okx/SOL-USDT-SWAP_5m.parquet --cost-burden-r 0.23 || true
+          echo "===== regrade CVD BTC (carga ~0.28R) ====="
+          python tools/regrade_cvd.py --cube cosecha_cubes/tp_cube_BTC_USDT.parquet \
+            --inst BTC-USDT-SWAP --tp tp4 --horizon 576 \
+            --candles data/okx/BTC-USDT-SWAP_5m.parquet --cost-burden-r 0.28 || true
