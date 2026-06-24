@@ -1,19 +1,42 @@
 import React from 'react';
-import {AbsoluteFill, OffthreadVideo, staticFile, useVideoConfig} from 'remotion';
+import {AbsoluteFill, OffthreadVideo, Sequence, interpolate, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
 import {BRAND, COLORS, FONTS, FOOTAGE_AVAILABLE, GLYPHS} from '../brand/tokens';
 
 export type FrameMode = 'cover' | 'band';
 
+/** Overlay (B-roll) que aparece encima los primeros frames, mudo, con fade out. */
+export type Overlay = {src: string; inSec?: number; outSec?: number; frames: number};
+
 export type ClipProps = {
-  /** Nombre del archivo sin extension en marketing/public/footage/<src>.mp4 */
   src: string;
   inSec?: number;
   outSec?: number;
-  /** true = conserva el audio del clip (voz del presentador). */
   audio?: boolean;
-  /** Encuadre: cover (recorta) o band (clip completo + fondo de marca). */
   frameMode?: FrameMode;
+  /** B-roll mudo encima al inicio (la voz del clip base sigue sonando). */
+  overlay?: Overlay;
   note?: string;
+};
+
+const OverlayClip: React.FC<{overlay: Overlay}> = ({overlay}) => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  const opacity = interpolate(frame, [overlay.frames - 10, overlay.frames], [1, 0], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  return (
+    <AbsoluteFill style={{opacity}}>
+      <OffthreadVideo
+        src={staticFile(`footage/${overlay.src}.mp4`)}
+        startFrom={Math.round((overlay.inSec ?? 0) * fps)}
+        endAt={overlay.outSec ? Math.round(overlay.outSec * fps) : undefined}
+        muted
+        volume={0}
+        style={{width: '100%', height: '100%', objectFit: 'cover'}}
+      />
+    </AbsoluteFill>
+  );
 };
 
 export const ClipSegment: React.FC<ClipProps> = ({
@@ -22,6 +45,7 @@ export const ClipSegment: React.FC<ClipProps> = ({
   outSec,
   audio = false,
   frameMode = 'cover',
+  overlay,
   note,
 }) => {
   const {fps} = useVideoConfig();
@@ -41,9 +65,6 @@ export const ClipSegment: React.FC<ClipProps> = ({
         </div>
         <div style={{fontFamily: FONTS.sans, color: COLORS.ink, fontSize: 40, fontWeight: 700, marginTop: 16}}>
           {src}
-        </div>
-        <div style={{fontFamily: FONTS.mono, color: COLORS.inkFaint, fontSize: 24, marginTop: 12}}>
-          {inSec.toFixed(1)}s {GLYPHS.bulletAct} {outSec ? `${outSec.toFixed(1)}s` : 'fin'}
         </div>
         {note ? (
           <div style={{fontFamily: FONTS.sans, color: COLORS.inkDim, fontSize: 26, marginTop: 24, maxWidth: 720, textAlign: 'center'}}>
@@ -65,11 +86,17 @@ export const ClipSegment: React.FC<ClipProps> = ({
     />
   );
 
+  const overlayEl = overlay ? (
+    <Sequence durationInFrames={overlay.frames}>
+      <OverlayClip overlay={overlay} />
+    </Sequence>
+  ) : null;
+
   if (frameMode === 'band') {
     return (
       <AbsoluteFill style={{background: COLORS.bg}}>
         {video}
-        {/* Marca discreta arriba para el look "producido". */}
+        {overlayEl}
         <div
           style={{
             position: 'absolute',
@@ -90,5 +117,10 @@ export const ClipSegment: React.FC<ClipProps> = ({
     );
   }
 
-  return <AbsoluteFill style={{background: COLORS.bg}}>{video}</AbsoluteFill>;
+  return (
+    <AbsoluteFill style={{background: COLORS.bg}}>
+      {video}
+      {overlayEl}
+    </AbsoluteFill>
+  );
 };

@@ -18,12 +18,12 @@
  *    (ahora se cubre con el mockup Remotion, sin cifras inventadas).
  */
 import type {CtaTarget} from '../src/components/CTA';
-import type {FrameMode} from '../src/components/ClipSegment';
+import type {FrameMode, Overlay} from '../src/components/ClipSegment';
 
 export type Scene =
   | {type: 'intro'; durationInFrames: number}
   | {type: 'hook'; durationInFrames: number; text: string; kicker?: string; caption?: string}
-  | {type: 'clip'; durationInFrames: number; src: string; inSec?: number; outSec?: number; audio?: boolean; emphasize?: boolean; note?: string; caption?: string}
+  | {type: 'clip'; durationInFrames: number; src: string; inSec?: number; outSec?: number; audio?: boolean; emphasize?: boolean; overlay?: Overlay; note?: string; caption?: string}
   | {type: 'showcase'; durationInFrames: number; caption?: string}
   | {type: 'cta'; durationInFrames: number; target: CtaTarget};
 
@@ -57,8 +57,8 @@ const BODY: Scene[] = [
   {type: 'showcase', durationInFrames: s(5), caption: 'Entrada, stop y target. Cero emoción.'},
 ];
 
-/** Gancho: clip corto con voz + subtitulo palabra-por-palabra. */
-const hook = (src: string, inSec: number, outSec: number, caption: string): Scene => ({
+/** Gancho: clip corto con voz + subtitulo palabra-por-palabra. Opcional: overlay B-roll. */
+const hook = (src: string, inSec: number, outSec: number, caption: string, overlay?: Overlay): Scene => ({
   type: 'clip',
   durationInFrames: s(outSec - inSec),
   src,
@@ -66,6 +66,7 @@ const hook = (src: string, inSec: number, outSec: number, caption: string): Scen
   outSec,
   audio: true,
   emphasize: true,
+  overlay,
   caption,
 });
 
@@ -78,7 +79,7 @@ export const ADS: Ad[] = [
     title: 'A1 · auto -> perfil IG',
     scenes: [
       intro,
-      hook('IMG_1846', 1.3, 8.5, '¿Por qué la mayoría nunca manejará uno de estos?'),
+      hook('IMG_1846', 1.3, 8.5, '¿Por qué la mayoría nunca manejará uno de estos?', {src: 'IMG_1835', inSec: 3, frames: 90}),
       ...BODY,
       cta('instagram'),
     ],
@@ -89,7 +90,7 @@ export const ADS: Ad[] = [
     title: 'A2 · auto -> DM Telegram',
     scenes: [
       intro,
-      hook('IMG_1846', 1.3, 8.5, '¿Por qué la mayoría nunca manejará uno de estos?'),
+      hook('IMG_1846', 1.3, 8.5, '¿Por qué la mayoría nunca manejará uno de estos?', {src: 'IMG_1835', inSec: 3, frames: 90}),
       ...BODY,
       cta('telegram'),
     ],

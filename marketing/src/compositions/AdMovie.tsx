@@ -30,6 +30,7 @@ const renderScene = (scene: Scene, frameMode: FrameMode) => {
           outSec={scene.outSec}
           audio={scene.audio}
           frameMode={frameMode}
+          overlay={scene.overlay}
           note={scene.note}
         />
       );
