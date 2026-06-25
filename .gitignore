@@ -13,3 +13,11 @@ data/
 
 # Decks generados (artefactos; se regeneran con tools/build_deck.py)
 FQ_*.pdf
+
+# Landing app (marketing/products/landing-app)
+node_modules/
+dist/
+*.db
+__pycache__/
+.venv/
+tsconfig.tsbuildinfo
