@@ -3,7 +3,7 @@ import {AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig} from
 import {BRAND, COLORS, CTA_CONFIG, FONTS, GLYPHS, COMMUNITY} from '../brand/tokens';
 import {VAccent} from '../brand/Rule';
 
-export type CtaTarget = 'bot' | 'instagram' | 'both' | 'telegram';
+export type CtaTarget = 'bot' | 'instagram' | 'both' | 'telegram' | 'web';
 
 const Chip: React.FC<{label: string; value: string; delay: number; sub?: string}> = ({
   label,
@@ -104,6 +104,9 @@ export const CTA: React.FC<{target: CtaTarget}> = ({target}) => {
             sub={`manda la palabra "${CTA_CONFIG.keyword}"`}
             delay={12}
           />
+        )}
+        {target === 'web' && (
+          <Chip label="Descárgala gratis" value="Toca «Más información» ↓" delay={12} />
         )}
         {(target === 'instagram' || target === 'both') && (
           <Chip

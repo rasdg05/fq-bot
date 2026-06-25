@@ -68,13 +68,13 @@ export const MUSIC = {
 } as const;
 
 /**
- * Cierre orientado a COMUNIDAD / marca personal (no a oferta).
- * El activo es la atencion: primero tribu, despues el resto.
+ * Cierre orientado a la OFERTA: guía gratis (lead magnet).
+ * Un regalo específico convierte mejor que "sígueme".
  */
 export const COMMUNITY = {
-  join: 'Unete a la comunidad',
-  line: 'Trading con sistema, no con ego',
-  note: 'Estamos abriendo cupos',
+  join: 'Descarga la guía GRATIS',
+  line: '5 reglas para operar con sistema',
+  note: 'Gratis · sin spam',
 } as const;
 
 /** Destinos de CTA. Rellena con tus datos reales. */

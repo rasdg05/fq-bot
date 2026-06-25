@@ -74,14 +74,14 @@ const cta = (target: CtaTarget): Scene => ({type: 'cta', durationInFrames: s(5),
 
 export const ADS: Ad[] = [
   {
-    // Anuncio 1: manda al PERFIL de IG.
+    // Anuncio 1: guia gratis -> landing (captura de email).
     id: 'g1-perfil',
-    title: 'A1 · auto -> perfil IG',
+    title: 'A1 · auto -> guía gratis (landing)',
     scenes: [
       intro,
       hook('IMG_1846', 1.3, 8.5, '¿Por qué la mayoría nunca manejará uno de estos?', {src: 'IMG_1835', inSec: 3, frames: 90}),
       ...BODY,
-      cta('instagram'),
+      cta('web'),
     ],
   },
   {
