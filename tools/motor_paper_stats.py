@@ -63,6 +63,7 @@ def main(argv):
     kz = {}           # pid -> killzone
     maker = {}        # pid -> "FILL" | "MISS"  (shadow)
     ftype = {}        # pid -> "maker" | "taker"  (modo EJECUCION)
+    regime_m = {}     # pid -> "stable" | "deriva" | ...  (juez de FQ_DERIVA_VETO)
     vetoed = {}       # killzone -> n
     n_runaway = 0     # runners perdidos (modo EJECUCION, sin posicion)
     net = False       # ¿NETO de costes? (resolve con cost model)
@@ -75,6 +76,7 @@ def main(argv):
                 net = True
         elif ev == "MOTOR_OPEN_META":
             kz[pid] = p.get("killzone")
+            regime_m[pid] = p.get("regime")
             if p.get("fill_type") is not None:
                 ftype[pid] = p.get("fill_type")
         elif ev == "MAKER_FILL":
@@ -108,6 +110,17 @@ def main(argv):
     allr = list(closed.values())
     cap = "" if net else "  (GROSS = sin costes; net via matriz §6.10.1)"
     print("\n  [cartera post-veto] " + _fmt(*_stats(allr), label=lbl) + cap)
+
+    # 1b) R por REGIME (stable vs deriva): el juez forward de FQ_DERIVA_VETO=0.
+    #     El +0.10R del cubo es 100% 'stable'; aquí se mide si los fires de 'deriva'
+    #     (que el veto bloquea) aguantan o arrastran cuando se los deja pasar.
+    regs = sorted({r for r in regime_m.values() if r})
+    if regs:
+        print("\n  [R por regime] (¿deriva aguanta como stable, o arrastra?)")
+        for rg in regs:
+            rr = [closed[pid] for pid in closed if regime_m.get(pid) == rg]
+            if rr:
+                print("    %-8s " % rg + _fmt(*_stats(rr), label=lbl))
 
     # 2) FILL-RATE maker (el dato que faltaba; techo asumía 100%)
     n_fill = sum(1 for v in maker.values() if v == "FILL")

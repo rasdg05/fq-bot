@@ -311,3 +311,46 @@ def test_from_env_ledger_path_override_separates_symbols(monkeypatch, tmp_path):
     assert sol.broker.ledger.path == str(sol_path)
     assert btc.broker.ledger.path == str(btc_path)   # el override le gana al env
     assert sol.broker.ledger.path != btc.broker.ledger.path
+
+
+# ============================================================
+# REGIME TAG (juez forward de FQ_DERIVA_VETO=0): el ledger sella el regime de
+# cada fire para medir si los de 'deriva' aguantan como los de 'stable'. El cubo
+# es 100% 'stable'; esto es lo único que mide el R de deriva forward.
+# ============================================================
+def _report_reg(direction="long", *, regime="deriva", entry=100.0):
+    r = _report(direction, entry=entry)
+    r["regime"] = {"state": regime}
+    return r
+
+
+def test_regime_of_helper_defensivo():
+    assert mp._regime_of({"regime": {"state": "deriva"}}) == "deriva"
+    assert mp._regime_of({"regime": "stable"}) == "stable"   # string directo
+    assert mp._regime_of({"regime": None}) is None
+    assert mp._regime_of({}) is None                          # sin la clave
+    assert mp._regime_of(None) is None                        # report None
+
+
+def test_motor_open_meta_sella_regime_taker():
+    rt = _runtime()
+    rt.on_bar(True, _field(), _report_reg("long", regime="deriva"), None, 100.0)
+    meta = _events(rt, "MOTOR_OPEN_META")
+    assert len(meta) == 1 and meta[0]["regime"] == "deriva"
+
+
+def test_regime_ausente_no_crashea_y_queda_none():
+    rt = _runtime()
+    rt.on_bar(True, _field(), _report("long"), None, 100.0)  # report SIN regime
+    meta = _events(rt, "MOTOR_OPEN_META")
+    assert len(meta) == 1 and meta[0]["regime"] is None       # backward-compat
+
+
+def test_regime_fluye_por_el_path_maker():
+    rt = _maker_rt()
+    rt.on_bar(True, _field(), _report_reg("long", regime="deriva", entry=100.0),
+              None, 100.0)                                     # encola pending
+    rt.on_bar(False, _field(), _report("long"), None, 100.0,
+              high=100.2, low=99.9)                            # penetra -> FILL maker
+    meta = _events(rt, "MOTOR_OPEN_META")[-1]
+    assert meta["fill_type"] == "maker" and meta["regime"] == "deriva"
