@@ -9,3 +9,5 @@ public/contact-sheets/
 public/proxies/
 .cache/
 *.log
+
+products/**/cover.png
