@@ -1,5 +1,11 @@
 # Backtest de FUNDING CARRY — OKX perps (ruta con edge comprobado)
 
+> ⚠️ VENTANA CORTA (95d OKX, UN régimen). Para el veredicto real ver
+> **`research/carry_regime.md`** (funding profundo 2021-2026, multi-régimen). OJO:
+> aquí BNB sale +3.2% pero en el historial profundo es **anti-carry** (−0.7%, funding
+> medio negativo). Una sola ventana engaña — por eso el basket de producción es el
+> CLEAN de 6 (sin SOL ni BNB), validado año por año.
+
 Funding real OKX (8h), ~3000 puntos/par. 'always' = short-perp delta-neutral siempre; 'selective' = solo cuando el funding previo > 0.0000%. APY neto de costes (apertura/cambios 5bps). DD = del carry acumulado.
 
 > Honesto: el carry es una PRIMA DE RIESGO, no arbitraje sin riesgo (funding puede ir negativo en bear; hay riesgo de contraparte/liquidacion de la pata short). Pero a diferencia del direccional, no te liquida la cuenta.

@@ -9,6 +9,11 @@ que llega a la inception del contrato; fallback a otros) y corre carry_metrics
 OVERALL + POR AÑO. La lectura clave: ¿el APY se mantiene en el BEAR (2022) o se
 desploma como SOL? Si colapsa, el carry es prima de RÉGIMEN, no all-weather.
 
+FUENTE PRIMARIA (2026-06): data.binance.vision (archivo público S3/CDN, NO la API).
+A diferencia de la API de Binance/Bybit/Gate —geo-bloqueada en sandbox y a veces en
+CI—, el archivo SÍ es alcanzable y trae funding desde la inception. ccxt queda como
+FALLBACK por si el archivo no responde. Asi la validación corre IGUAL en sandbox y CI.
+
 Uso: python tools/carry_validate.py --since 2021-06-01
 """
 import argparse
@@ -20,10 +25,31 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import carry_backtest as cb  # noqa: E402
+import fetch_binance_vision_funding as bvf  # noqa: E402
 
 BASKET = ["BTC", "ETH", "BNB", "XRP", "DOGE", "LTC", "ADA", "SOL"]
 # orden: el de funding mas profundo primero (Binance llega a inception).
 EXCHANGES = ["binance", "bybit", "okx", "gate", "kucoinfutures"]
+
+
+def _try_binance_vision(since_year):
+    """Camino PRIMARIO: archivo público (alcanzable en sandbox y CI). Devuelve True
+    si pudo bajar y reportar; False si el archivo no responde (-> fallback ccxt)."""
+    print("[carry-validate] fuente PRIMARIA: data.binance.vision (archivo público)")
+    end = 2026
+    bvf.download(bvf.SYMS, since_year, end, bvf.DEFAULT_CACHE)
+    data = {}
+    for s in bvf.SYMS:
+        df = bvf.load_funding(s, since_year, end, bvf.DEFAULT_CACHE)
+        if not df.empty:
+            data[s] = df
+    if not data:
+        print("[carry-validate] archivo no respondió -> fallback ccxt")
+        return False
+    print("[carry-validate] cargados: " + ", ".join("%s(%d)" % (s, len(d)) for s, d in data.items()))
+    clean = [s for s in (x.split("-")[0] + "USDT" for x in cb.CLEAN_BASKET) if s in data]
+    bvf.report(data, clean)
+    return True
 
 
 def _pick_exchange():
@@ -64,7 +90,16 @@ def _fetch_funding(ex, base, since_ms):
 def main(argv):
     p = argparse.ArgumentParser(description="Valida el funding carry multi-regimen.")
     p.add_argument("--since", default="2021-06-01", help="ISO date (YYYY-MM-DD)")
+    p.add_argument("--no-archive", action="store_true", help="saltar el archivo, ir directo a ccxt")
     a = p.parse_args(argv)
+
+    since_year = int(a.since[:4])
+    if not a.no_archive:
+        try:
+            if _try_binance_vision(since_year):
+                return 0
+        except Exception as e:
+            print("[carry-validate] archivo falló (%s) -> fallback ccxt" % str(e)[:80])
 
     ex, exname = _pick_exchange()
     if ex is None:
