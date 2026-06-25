@@ -62,6 +62,12 @@ ENFORCE_HIGH_GATE = os.environ.get("FQ_ENFORCE_HIGH_GATE", "0") == "1"
 # Capa ML (FQ v4.3) - scorer + regime, todo additivo
 USE_SCORER        = os.environ.get("FQ_USE_SCORER", "1") == "1"
 USE_REGIME        = os.environ.get("FQ_USE_REGIME", "1") == "1"
+# Veto de regime "deriva" (downgrade a no-fire en lateral): scorer<0.70 o, con
+# FQ_USE_VOL_LIQ_TRIGGER=1, confirmación vol/liq. FQ_DERIVA_VETO=0 lo APAGA por
+# completo -> los setups ESTRUCTURALES (sesgo/liquidez/confluencia≥3/P_master/R:R,
+# ya pasados) disparan también en deriva. Reversible; default 1 (comportamiento
+# previo). Lo predictivo está muerto OOS (research) -> el veto over-fit es opcional.
+DERIVA_VETO_ENABLED = os.environ.get("FQ_DERIVA_VETO", "1") == "1"
 
 # Session bias (FQ v5.4) - modulador suave London/NY/Asia condicionado al
 # sesgo diario. London es fake cuando barre contra el sesgo, real cuando corre
@@ -746,7 +752,7 @@ def evaluate_signal(
         # por una CONFIRMACION sobre VOLUMEN (+ liquidaciones) real -> mas frecuencia
         # para VIP sin tocar los gates estructurales (ya pasados arriba). Los fires se
         # siguen midiendo en motor_paper -> VIP recibe y el ledger mide en paralelo.
-        if score_result and regime_state and regime_state["state"] == "deriva":
+        if DERIVA_VETO_ENABLED and score_result and regime_state and regime_state["state"] == "deriva":
             if _VOL_LIQ_AVAILABLE and vol_liq_trigger.ENABLED:
                 # liquidaciones: feed Binance opt-in (FQ_LIQ_FEED_ENABLED). Sin feed
                 # -> None -> el trigger confirma solo por volumen (degradacion segura).
