@@ -60,6 +60,35 @@ class CostModel:
         return self.slippage_bps / 10_000.0
 
 
+def maker_entry_fill_mask(trades, high, low, *, eps, ttl_bars):
+    """¿Se habria LLENADO la entrada como limite pasiva, trade a trade? Version
+    vectorizada (backtest) de la regla de gold_paper.process_maker_pending: una
+    limite descansando en `entry_price` se llena SOLO si una de las `ttl_bars`
+    velas SIGUIENTES PENETRA el nivel mas alla de `eps` (un touch NO llena -> peor
+    caso de cola / adverse selection). LONG: low < entry*(1-eps); SHORT: high >
+    entry*(1+eps). `high`/`low` = arrays posicionales (df_primary); cada trade trae
+    `entry_index` (posicion de su vela de entrada), `entry_price` y `direction`
+    (LONG/SHORT). Solo modela la pierna de ENTRADA (la que el techo asume gratis);
+    stop/timeout siguen taker. Devuelve un bool ndarray alineado a `trades`.
+    """
+    high = np.asarray(high, dtype=float)
+    low = np.asarray(low, dtype=float)
+    n = len(low)
+    ei = trades["entry_index"].to_numpy()
+    ent = trades["entry_price"].to_numpy(dtype=float)
+    dirn = trades["direction"].to_numpy()
+    out = np.zeros(len(trades), dtype=bool)
+    for i in range(len(out)):
+        a = int(ei[i]) + 1                        # la limite se evalua desde la vela SIGUIENTE
+        b = min(int(ei[i]) + int(ttl_bars), n - 1)
+        if a > b:
+            continue                              # sin velas evaluables -> MISS (conservador)
+        e = float(ent[i])
+        out[i] = bool((low[a:b + 1] < e * (1.0 - eps)).any() if int(dirn[i]) > 0
+                      else (high[a:b + 1] > e * (1.0 + eps)).any())
+    return out
+
+
 def simulate(
     trades,
     equity0=10_000.0,

@@ -5,6 +5,7 @@ execution: capa de paper + gobernador de riesgo. Piezas puras -> tests directos.
 import pytest
 
 import execution as ex
+from bt_engine import CostModel
 
 
 def _acct(eq=10_000.0):
@@ -75,6 +76,44 @@ def test_paper_resolve_win_and_loss_in_R():
     pos2 = b.open(a, _sig(entry=100, stop=99), risk_frac=0.0025)
     r2 = b.resolve(a, pos2, 99.0, "stop")          # -1R
     assert r2["pnl_r"] == pytest.approx(-1.0)
+
+
+# --------------------------------------------------------------------------
+# PaperBroker — costes NETOS (fees + slippage) y A/B taker vs maker
+# --------------------------------------------------------------------------
+def test_resolve_none_cost_is_gross_unchanged():
+    # sin cost model: identico al bruto historico (no rompe nada existente)
+    a, b = _acct(10_000), ex.PaperBroker()
+    pos = b.open(a, _sig(entry=100, stop=99, tp=103), 0.01)   # size=100
+    r = b.resolve(a, pos, 103.0, "tp")
+    assert r["pnl_quote"] == pytest.approx(300.0) and r["pnl_r"] == pytest.approx(3.0)
+    assert "fees_quote" not in b.ledger.records[-1]["payload"]
+
+
+def test_resolve_net_taker_subtracts_fees_and_slippage():
+    # taker: eff_entry=100.01, eff_exit=102.9897 -> gross_slip=297.97 ;
+    # fees=0.0005*100*(100+103)=10.15 -> neto 287.82 (< bruto 300)
+    a, b = _acct(10_000), ex.PaperBroker(cost=CostModel())
+    pos = b.open(a, _sig(entry=100, stop=99, tp=103), 0.01)   # size=100
+    r = b.resolve(a, pos, 103.0, "tp")
+    assert r["pnl_quote"] == pytest.approx(287.82, abs=1e-2)
+    assert r["pnl_quote"] < 300.0
+    pay = b.ledger.records[-1]["payload"]
+    assert pay["fill_type"] == "taker"
+    assert pay["fees_quote"] == pytest.approx(10.15, abs=1e-2)
+
+
+def test_resolve_maker_beats_taker_same_trade():
+    # mismo trade, dos modos: maker entra sin slippage + fee 2bps (vs 5bps) ->
+    # neto MAYOR. Ahorro en este trade (size=100) ~= 4.0 quote.
+    sig = _sig(entry=100, stop=99, tp=103)
+    a_t, b_t = _acct(10_000), ex.PaperBroker(cost=CostModel(maker_entry=False))
+    a_m, b_m = _acct(10_000), ex.PaperBroker(cost=CostModel(maker_entry=True))
+    r_t = b_t.resolve(a_t, b_t.open(a_t, dict(sig), 0.01), 103.0, "tp")
+    r_m = b_m.resolve(a_m, b_m.open(a_m, dict(sig), 0.01), 103.0, "tp")
+    assert r_m["pnl_quote"] > r_t["pnl_quote"]
+    assert b_m.ledger.records[-1]["payload"]["fill_type"] == "maker"
+    assert (r_m["pnl_quote"] - r_t["pnl_quote"]) == pytest.approx(4.0, abs=1e-2)
 
 
 def test_paper_resolve_on_bar_pessimistic_tie():

@@ -1,0 +1,69 @@
+name: Centinela (despertar por sesion)
+
+# Corre "La Lectura" SOLO en las aperturas que el usuario opera y la manda al
+# Telegram admin. CERO infra: el runner gratis de GitHub se prende ~1 min, corre
+# y se apaga. No depende de tener ningun VPS prendido -> no suma vCPU.
+#
+# Horarios (cron en UTC; el centinela calcula CDMX el mismo para etiquetar):
+#   14:00 UTC = 08:00 CDMX -> apertura NY manana   (lun-vie)
+#   23:00 UTC = 17:00 CDMX -> apertura de Asia      (dom-jue; cae despues del
+#                             cierre semanal de las 22:00 UTC del domingo)
+# La apertura de Londres se saltea a proposito (no esta agendada). El viernes de
+# Asia tampoco corre: 23:00 UTC del viernes ya es fin de semana.
+#
+# IMPORTANTE:
+#  · El trigger `schedule` SOLO dispara desde la rama POR DEFECTO del repo. Hay
+#    que mergear este archivo a main para que el cron empiece a correr.
+#  · Entrega a Telegram: requiere los repo secrets TELEGRAM_TOKEN y
+#    TELEGRAM_CHAT_ID (los MISMOS del bot). Settings -> Secrets and variables ->
+#    Actions. Sin ellos el job corre VERDE igual y deja la lectura en el log.
+#  · `--window 180`: tolera el atraso tipico del cron de GitHub (5-15 min, a
+#    veces mas) sin perder la etiqueta de sesion ni el veto de fin de semana.
+
+on:
+  workflow_dispatch:
+    inputs:
+      symbols:
+        description: "Simbolos OKX a leer (CSV)"
+        default: "SOL-USDT-SWAP"
+        type: string
+      force:
+        description: "Forzar entrega aunque no sea horario de apertura (prueba)"
+        default: true
+        type: boolean
+  schedule:
+    - cron: "0 14 * * 1-5"   # 08:00 CDMX — apertura NY (lun-vie)
+    - cron: "0 23 * * 0-4"   # 17:00 CDMX — apertura de Asia (dom-jue)
+
+permissions:
+  contents: read
+
+jobs:
+  lectura:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      SYMBOLS: ${{ github.event.inputs.symbols || 'SOL-USDT-SWAP' }}
+      # En schedule no hay inputs -> FORCE vacio -> sin --force (gate normal por
+      # ventana). En dispatch manual, default true para probar a cualquier hora.
+      FORCE: ${{ github.event.inputs.force }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: "Install (dependency-light: solo pandas + numpy)"
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas numpy
+
+      - name: Despertar — La Lectura -> Telegram
+        run: |
+          FORCE_FLAG=""
+          [ "${FORCE}" = "true" ] && FORCE_FLAG="--force"
+          python centinela.py --once --window 180 --symbols "${SYMBOLS}" ${FORCE_FLAG}

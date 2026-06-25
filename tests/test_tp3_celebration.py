@@ -22,7 +22,6 @@ def test_vip_tp3_celebration_message():
     assert "TP3 ALCANZADO" in msg
     assert "#42" in msg
     assert "+3.00R" in msg
-    assert "\U0001F973" in msg  # 🥳
 
 
 def test_vip_tp3_dispatch_via_build_progress_alert():

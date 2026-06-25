@@ -1,0 +1,47 @@
+name: ETH báscula poda (Hetzner) — 1 tap
+
+# UN TAP, CERO inputs. Dispara "Research" en modo PODA (ablation=true) sobre
+# ETH/USDT: mide qué módulo (scorer / regime / session_bias) VIVE o MUERE en ETH
+# al MÁXIMO edge (regla §6.6: saca lo que no paga su lugar -> más cadencia sin
+# perder edge), SHARDED a densidad máxima (step1) en el runner self-hosted.
+#
+# OJO — NO es la cosecha: la cosecha baja el CUBO de datos (para el F3); la PODA
+# corre la ablación (baseline + 3 toggles) y te da el VEREDICTO por módulo.
+#
+# Meses: 76. ETH lista 2019-11 en OKX (~79m disponibles); 76m = ~6.3 años y queda
+# POST-listing -> no baja n=0 como le pasó a SOL en #37 al pedir de más. A step1
+# son ~1.000+ señales -> veredicto sólido.
+#
+# ANTES DE TAPEAR: encendé Hetzner y esperá runner ONLINE. COMPARTE runner con la
+# poda BTC+SOL (y la cosecha) -> corre cuando se libere (cola).
+#
+# Reusa research.yml de la rama claude/bascula-hetzner (motor con ablation_shard).
+# symbol=ETH fuerza la matriz a UN símbolo; ablation=true -> rama de poda sharded.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  actions: write      # para disparar otro workflow_dispatch
+  contents: read
+
+jobs:
+  disparar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Disparar Research — PODA (ablation) sobre ETH, Hetzner, 76m, step1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run research.yml \
+            --repo "${{ github.repository }}" \
+            --ref claude/bascula-hetzner \
+            -f symbol=ETH/USDT \
+            -f ablation=true \
+            -f sym_months=76 \
+            -f sym_step=1
+          echo "OK: disparada la PODA de ETH (ablation, sharded, step1) sobre Hetzner."
+          echo "Mira la pestana Actions -> 'Research (backtest / walk-forward / poda)'."
+          echo "Veredicto por modulo (scorer/regime/session_bias) en el artefacto."
+          echo "Si no arranca: confirma que el runner de Hetzner este ONLINE."

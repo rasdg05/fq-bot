@@ -26,6 +26,7 @@ Uso:
 """
 import argparse
 import importlib
+import json
 import logging
 import os
 import random
@@ -38,6 +39,7 @@ sys.path.insert(0, ".")
 
 import bt_data
 import bt_features as bf
+import funding_oi as fo
 import bt_labeler as lb
 import bt_walkforward as wf
 import bt_engine as eng
@@ -49,6 +51,38 @@ import bt_optimize as opt
 import bt_quality as ql
 import retrieval_gate as rg
 import segment_veto as sv
+
+
+# [P2] GATE DE SELECTIVIDAD — exclusion ESTRUCTURAL de killzones. Es un PRIOR de
+# liquidez FIJO declarado A PRIORI (operar SOLO dentro de killzones definidas),
+# NO un corte data-minado: "fuera" = ninguna killzone activa, "asia_open" = la
+# ventana mas fina del dia. NO se elige mirando los resultados por segmento; va
+# aqui como constante de modulo justamente para que sea auditable y no toqueteable
+# por el run. La otra mitad de la regla (umbral de score) SI es data-driven pero
+# leakage-clean (OOF para OOS; ventana BEFORE para forward). Ver _select_mask /
+# _print_selectivity_gate y RETRIEVAL_PLAN (palanca P2: "operar solo el subset de
+# alta expectancy").
+SELECT_KILLZONE_EXCLUDE = {"fuera", "asia_open"}
+SELECT_KZ_COL = "field_killzone"
+
+
+def _select_mask(df, scores, score_thr, kz_col=SELECT_KZ_COL):
+    """Mascara del gate de selectividad P2 (bool ndarray alineado a `df`/`scores`):
+
+        seleccionado = (score >= score_thr) AND (killzone es liquida-activa)
+
+    `scores` debe venir YA alineado posicionalmente a `df` (mismo orden de filas);
+    el umbral `score_thr` se deriva FUERA (leakage-clean: OOF para OOS, ventana
+    BEFORE para forward) y aqui solo se APLICA. La pierna de killzone excluye
+    SELECT_KILLZONE_EXCLUDE (prior estructural). Si falta la columna de killzone,
+    la seleccion degrada a SOLO-score (sin la pierna estructural) y el caller avisa.
+    """
+    s = np.asarray(scores, dtype="float64")
+    keep = s >= float(score_thr)
+    if kz_col in df.columns:
+        kz = df[kz_col].astype("object")
+        keep &= ~kz.isin(SELECT_KILLZONE_EXCLUDE).to_numpy()
+    return keep
 
 
 # Stack de TFs por TF primario: (primario, htf_mid, htf_high, sub). El motor
@@ -70,6 +104,60 @@ def _load_tf(exchange, symbol, tf, data_dir):
         return None
     df = bt_data.load_parquet(path)
     return md.add_indicators(df)
+
+
+def _load_cross_ohlcv(exchange, symbol, tf, data_dir):
+    """Carga el OHLCV CRUDO del activo cruzado (lider) al MISMO TF/exchange.
+
+    Reusa bt_data.dataset_path (misma convencion que el primario), pero NO aplica
+    add_indicators: cross_asset_features solo necesita OHLC + timestamp y calcula
+    sus propias ventanas trailing. Si el Parquet NO existe, ERROR CLARO (sys.exit)
+    -- nunca se omite en silencio: el cross-asset es una hipotesis que hay que
+    poder medir o saber por que no se pudo.
+    """
+    path = bt_data.dataset_path(data_dir, exchange, symbol, tf)
+    if not os.path.exists(path):
+        sys.exit(
+            f"--cross-asset {symbol}: falta el dataset {tf} en {path}. "
+            f"Descargalo al MISMO TF/exchange que el primario:\n"
+            f"  python tools/build_dataset.py --symbol {symbol} --timeframe {tf} "
+            f"--market swap --years 2 --exchanges {exchange}")
+    return bt_data.load_parquet(path)
+
+
+def _load_funding_oi(exchange, symbol, data_dir):
+    """Carga el cache de funding (obligatorio) y de OI (opcional) del simbolo.
+
+    funding_oi.fetch_* cachean a Parquet; aqui SOLO leemos el cache (el harness no
+    toca red). Si el cache de funding NO existe -> ERROR CLARO con el comando de
+    descarga (igual que --cross-asset: el funding es una hipotesis medible, no se
+    omite en silencio). El OI es OPCIONAL: si su cache falta o es mas corto que la
+    ventana primaria, devolvemos (df_funding, None, rango) y el caller sigue
+    FUNDING-ONLY (funding es la señal estructural mas larga/fuerte).
+
+    Devuelve (df_funding, df_oi_or_None, oi_range_str).
+    """
+    import funding_oi as fo
+    fpath = fo.funding_path(data_dir, exchange, symbol)
+    if not os.path.exists(fpath):
+        sys.exit(
+            f"--funding-oi {symbol}: falta el cache de funding {fpath}. "
+            f"Descargalo (cachea a Parquet) en el host CON red, p.ej.:\n"
+            f"  python -c \"import funding_oi as fo, bt_data; "
+            f"ex=bt_data.make_exchange('{exchange}', 'swap'); "
+            f"fo.fetch_funding_history(ex, '{symbol}', data_dir='{data_dir}'); "
+            f"fo.fetch_open_interest_history(ex, '{symbol}', data_dir='{data_dir}')\"")
+    df_funding = bt_data.load_parquet(fpath)
+
+    df_oi, oi_range = None, "no disponible"
+    opath = fo.open_interest_path(data_dir, exchange, symbol)
+    if os.path.exists(opath):
+        df_oi_try = bt_data.load_parquet(opath)
+        if df_oi_try is not None and len(df_oi_try):
+            rng = fo._range_of(df_oi_try)
+            df_oi = df_oi_try
+            oi_range = f"{rng[0]} .. {rng[1]} (n={len(df_oi_try)})"
+    return df_funding, df_oi, oi_range
 
 
 def _build_config(monolith, tf_id="15m"):
@@ -231,37 +319,74 @@ def _exposure_fraction(pooled):
     return min(held / span, 1.0)
 
 
-def _print_execution_frontier(labeled, folds, valid_index, sim_kwargs, ppy):
-    """[2.2/4] Frontera de ejecucion: las MISMAS senales OOS bajo escenarios
-    de fees maker/taker (CostModel.maker_*). Gratis (re-simular, no re-replicar).
+def _print_execution_frontier(labeled, folds, valid_index, sim_kwargs, ppy,
+                              df_primary=None):
+    """[2.2/4] Frontera de ejecucion: las MISMAS senales OOS bajo escenarios de
+    fees maker/taker (CostModel.maker_*). Gratis (re-simular, no re-replicar).
 
-    Es el TECHO: asume fill 100% en la limite (adverse selection no modelada).
-    La captura realista la mide el paper con FQ_GOLD_MAKER_SIM (RETRIEVAL_PLAN
-    §6.10). El stop SIEMPRE taker. Sirve para decidir si vale la pena pagar el
-    fill-model forward, no para declarar victoria.
+    DOS lecturas:
+      - [techo]: maker con fill 100% asumido (adverse selection NO modelada).
+      - [fill-sim] (si hay df_primary): descuenta por el FILL-RATE real simulando
+        la limite de ENTRADA contra las velas con la MISMA regla penetracion>eps
+        que el paper (gold_paper.process_maker_pending / FQ_GOLD_MAKER_SIM, §6.10)
+        y regradua SOLO el subset que se HABRIA llenado; mas el chequeo de adverse
+        selection (¿los FILLED rinden menos que los MISSED?). El stop SIEMPRE taker.
+    El techo decide si vale la pena el fill-model; el [fill-sim] es el numero
+    DEFENDIBLE OOS (la captura forward final la sella el paper).
     """
     from dataclasses import replace
     base_cost = sim_kwargs.get("cost") or eng.CostModel()
-    escenarios = [
-        ("taker/taker (actual)", base_cost),
-        ("entrada maker", replace(base_cost, maker_entry=True)),
-        ("entrada+TP maker", replace(base_cost, maker_entry=True,
-                                     maker_tp_exit=True)),
-    ]
-    print("\n[2.2/4] Frontera de ejecucion (techo maker; fill 100% asumido, "
-          f"maker_fee={base_cost.maker_fee}):")
-    rows = []
-    for name, c in escenarios:
+    pooled = ab.pooled_oos_trades(labeled, folds, valid_index=valid_index)
+    mk = replace(base_cost, maker_entry=True)
+    mktp = replace(base_cost, maker_entry=True, maker_tp_exit=True)
+    nan = float("nan")
+
+    def _exp(trades, cost):
+        if trades is None or len(trades) == 0:
+            return {}
         kw = dict(sim_kwargs)
-        kw["cost"] = c
-        m, n, _eq = _oos_metrics(labeled, folds, valid_index, kw, ppy)
-        rows.append({"escenario": name, "n": n,
-                     "exp_R": m.get("expectancy_r"),
-                     "PF": m.get("profit_factor"),
-                     "total_R": m.get("total_r"),
-                     "maxDD": m.get("max_drawdown")})
+        kw["cost"] = cost
+        res = eng.simulate(trades, **kw)
+        return met.metrics_from_result(res, periods_per_year=ppy,
+                                       exposure=_exposure_fraction(trades))
+
+    def _row(name, trades, cost, fill_pct):
+        m = _exp(trades, cost)
+        return {"escenario": name, "n": (0 if trades is None else len(trades)),
+                "fill%": fill_pct, "exp_R": m.get("expectancy_r", nan),
+                "PF": m.get("profit_factor", nan), "total_R": m.get("total_r", nan),
+                "maxDD": m.get("max_drawdown", nan)}
+
+    rows = [_row("taker/taker (actual)", pooled, base_cost, 100.0),
+            _row("entrada maker [techo]", pooled, mk, 100.0),
+            _row("entrada+TP maker [techo]", pooled, mktp, 100.0)]
+
+    fr = None
+    if df_primary is not None and len(pooled):
+        eps = float(os.environ.get("FQ_GOLD_MAKER_EPS_BPS", "1.0")) / 10_000.0
+        ttl = int(os.environ.get("FQ_GOLD_MAKER_TTL_BARS", "6"))
+        mask = eng.maker_entry_fill_mask(
+            pooled, df_primary["high"].to_numpy(), df_primary["low"].to_numpy(),
+            eps=eps, ttl_bars=ttl)
+        fr = float(mask.mean()) if len(mask) else 0.0
+        filled = pooled[mask]
+        rows.append(_row("entrada maker [fill-sim]", filled, mk, fr * 100.0))
+        rows.append(_row("entrada+TP maker [fill-sim]", filled, mktp, fr * 100.0))
+
+    print(f"\n[2.2/4] Frontera de ejecucion (maker_fee={base_cost.maker_fee}; "
+          "[techo]=fill 100% asumido, [fill-sim]=descontado por fill-rate real):")
     print(pd.DataFrame(rows).to_string(
         index=False, float_format=lambda v: f"{v:8.4f}"))
+    if fr is not None and "pnl_r" in pooled.columns and mask.any() and (~mask).any():
+        rf = float(pooled.loc[mask, "pnl_r"].mean())
+        rm = float(pooled.loc[~mask, "pnl_r"].mean())
+        verdict = ("ADVERSE SELECTION: la limite se queda los flojos -> el "
+                   "[fill-sim] aun es OPTIMISTA" if rf < rm
+                   else "sin adverse selection evidente (alienta el maker)")
+        print(f"  fill-rate={fr:.1%} (eps={eps * 1e4:.1f}bps, ttl={ttl} velas)  "
+              f"R_fill={rf:+.4f} vs R_miss={rm:+.4f}  ->  {verdict}")
+    print("  nota: stop/timeout SIEMPRE taker; el [fill-sim] regradua solo lo que "
+          "la limite habria llenado. La captura forward real la mide el paper.")
 
 
 def _oos_metrics(labeled, folds, valid_index, sim_kwargs, ppy):
@@ -277,11 +402,155 @@ def _oos_metrics(labeled, folds, valid_index, sim_kwargs, ppy):
     return metrics, len(pooled), res.get("equity_curve")
 
 
+def _print_selectivity_gate(labeled, folds, valid_index, trained, sim_kwargs,
+                            ppy, df_primary, args):
+    """[P2] GATE DE SELECTIVIDAD (OOS) — "operar SOLO el subset de alta expectancy".
+
+    La tesis P2: el edge se concentra en el TOP del score del modelo Y dentro de
+    las killzones liquidas, mientras la media de TODAS las senales es negativa.
+    Aqui se mide ALL vs SELECTED sobre la MISMA cartera OOS pooled, con el umbral
+    de score derivado de forma LEAKAGE-CLEAN:
+
+      umbral = quantile(OOF scores en filas tested, 1 - select_top_pct)
+
+    Los OOF scores (`trained["oof_scores"]`) ya son out-of-sample por construccion
+    (cada fold predice su test con un modelo ajustado SOLO en su train), igual que
+    el percentil de ql.quality_gate. NO se ajusta nada aqui; solo se rebana y mide.
+    La pierna de killzone usa el prior estructural SELECT_KILLZONE_EXCLUDE.
+
+    Para el subset SELECCIONADO ademas se reporta la expectancy maker [fill-sim]
+    (P1) reusando eng.maker_entry_fill_mask EXACTAMENTE como la frontera [2.2/4]
+    -> se ve P1xP2 apilados sobre el libro ya selectivo.
+    """
+    oof = np.asarray(trained.get("oof_scores"), dtype="float64")
+    tested = np.asarray(trained.get("tested_mask"), dtype=bool)
+
+    # ALINEACION score<->trade (critico): `oof`/`tested` viven en el espacio
+    # POSICIONAL de valid = labeled.loc[valid_index].reset_index(drop=True) (0..N-1),
+    # porque train_walk_forward hizo X = valid[...].reset_index(drop=True). La
+    # cartera pooled es base.iloc[test_positions] ordenada por entry_index, con
+    # base IDENTICO (labeled.loc[valid_index].reset_index(drop=True)). Reproducimos
+    # pooled_oos_trades reteniendo la posicion base de cada fila para indexar `oof`
+    # con el MISMO orden -> score y trade quedan emparejados fila a fila.
+    base = labeled.loc[valid_index].reset_index(drop=True)
+    test_positions = (np.unique(np.concatenate([te for _tr, te in folds]))
+                      if folds else np.array([], dtype=int))
+    pooled = base.iloc[test_positions].copy()
+    pooled["_oof_pos"] = test_positions
+    if "entry_index" in pooled.columns:
+        pooled = pooled.sort_values("entry_index")
+    pooled = pooled.reset_index(drop=True)
+    pos = pooled["_oof_pos"].to_numpy()
+    pooled = pooled.drop(columns=["_oof_pos"])
+    scores = oof[pos]
+
+    # Sanidad: las filas pooled deben ser exactamente las 'tested' (con score OOF).
+    finite = np.isfinite(scores)
+    if not finite.all():
+        print(f"  [P2 aviso] {int((~finite).sum())}/{len(scores)} filas pooled sin "
+              "score OOF (no tested); se excluyen de la seleccion")
+    n_total = int(len(pooled))
+    if n_total == 0:
+        print("\n[P2] Gate de selectividad: sin filas OOS pooled; se omite.")
+        return
+
+    # Umbral leakage-clean: top `select_top_pct` del OOF en las filas tested.
+    top_pct = float(getattr(args, "select_top_pct", 0.50))
+    q = max(0.0, min(1.0, 1.0 - top_pct))
+    valid_scores = scores[finite]
+    score_thr = float(np.quantile(valid_scores, q)) if len(valid_scores) else float("nan")
+
+    kz_present = SELECT_KZ_COL in pooled.columns
+    sel = _select_mask(pooled, scores, score_thr) & finite
+    selected = pooled[sel]
+    n_sel = int(len(selected))
+
+    def _exp(trades, cost):
+        if trades is None or len(trades) == 0:
+            return {}
+        kw = dict(sim_kwargs)
+        kw["cost"] = cost
+        res = eng.simulate(trades, **kw)
+        return met.metrics_from_result(res, periods_per_year=ppy,
+                                       exposure=_exposure_fraction(trades))
+
+    base_cost = sim_kwargs.get("cost") or eng.CostModel()
+    nan = float("nan")
+    m_all = _exp(pooled, base_cost)
+    m_sel = _exp(selected, base_cost)
+    rows = [
+        {"subset": "ALL (todas OOS)", "n": n_total,
+         "exp_R": m_all.get("expectancy_r", nan), "WR": m_all.get("win_rate", nan),
+         "PF": m_all.get("profit_factor", nan), "total_R": m_all.get("total_r", nan)},
+        {"subset": "SELECTED (P2)", "n": n_sel,
+         "exp_R": m_sel.get("expectancy_r", nan), "WR": m_sel.get("win_rate", nan),
+         "PF": m_sel.get("profit_factor", nan), "total_R": m_sel.get("total_r", nan)},
+    ]
+
+    print("\n[3.5/4] Gate de selectividad P2 (operar SOLO el subset de alta "
+          "expectancy; OOS):")
+    print("  regla A PRIORI: score >= umbral(top {:.0%} del OOF) Y killzone "
+          "liquida (excluye {}).".format(top_pct, sorted(SELECT_KILLZONE_EXCLUDE)))
+    if not kz_present:
+        print(f"  [aviso] sin columna '{SELECT_KZ_COL}': seleccion = SOLO-score "
+              "(sin la pierna estructural de killzone).")
+    print(pd.DataFrame(rows).to_string(
+        index=False, float_format=lambda v: f"{v:8.4f}"))
+
+    # P1 x P2: expectancy maker [fill-sim] sobre el subset YA selectivo (misma
+    # regla penetracion>eps que la frontera [2.2/4] y gold_paper; stop/timeout taker).
+    if df_primary is not None and n_sel:
+        eps = float(os.environ.get("FQ_GOLD_MAKER_EPS_BPS", "1.0")) / 10_000.0
+        ttl = int(os.environ.get("FQ_GOLD_MAKER_TTL_BARS", "6"))
+        mask = eng.maker_entry_fill_mask(
+            selected, df_primary["high"].to_numpy(), df_primary["low"].to_numpy(),
+            eps=eps, ttl_bars=ttl)
+        fr = float(mask.mean()) if len(mask) else 0.0
+        from dataclasses import replace
+        mk = replace(base_cost, maker_entry=True)
+        m_fill = _exp(selected[mask], mk)
+        print(f"  [P1xP2 fill-sim] entrada maker sobre el SELECCIONADO: "
+              f"fill-rate={fr:.1%} (eps={eps * 1e4:.1f}bps ttl={ttl}) "
+              f"n_filled={int(mask.sum())} exp_R={_f(m_fill.get('expectancy_r'))} "
+              f"PF={_f(m_fill.get('profit_factor'))} (stop/timeout taker)")
+
+    rate = (n_sel / n_total) if n_total else 0.0
+    edge = ((m_sel.get("expectancy_r") - m_all.get("expectancy_r"))
+            if (m_sel.get("expectancy_r") is not None
+                and m_all.get("expectancy_r") is not None) else None)
+    print(f"  knobs: top_pct={top_pct:.2f} (umbral_OOF={_f(score_thr)}) "
+          f"killzone_excluye={sorted(SELECT_KILLZONE_EXCLUDE) if kz_present else 'n/a'} "
+          f"| seleccion={n_sel}/{n_total} ({rate:.1%}) | "
+          f"edge_vs_all={_f(edge)} R/trade")
+    print("  nota OOS limpia: el umbral sale del OOF (out-of-sample por "
+          "construccion) y la killzone es prior estructural; el test SIN FUGA es "
+          "el forward [seleccion] (--out-of-time).")
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--exchange", default="binance")
     p.add_argument("--symbol", default="SOL/USDT")
     p.add_argument("--data-dir", default="data")
+    p.add_argument("--cross-asset", default=None,
+                   help="simbolo LIDER cross-asset (p.ej. BTC/USDT) para features "
+                        "lead-lag CAUSALES (xbtc_*) alineadas a cada vela del "
+                        "primario via merge_asof backward (cross_ts<=t, shift 1 "
+                        "vela = conservador). Las xbtc_ entran al modelo [3/4] Y al "
+                        "vector de retrieval. Requiere el Parquet del lider al "
+                        "MISMO TF/exchange (si falta, error claro; NO se omite en "
+                        "silencio). Si == --symbol es no-op con aviso. Default None")
+    p.add_argument("--funding-oi", action="store_true",
+                   help="inyecta features ESTRUCTURALES de funding-rate (+ open "
+                        "interest si disponible) CAUSALES (fund_/oi_) alineadas a "
+                        "cada vela del primario via merge_asof backward (ts<=t, "
+                        "shift 1 ventana = ultimo funding YA LIQUIDADO). Cosecha el "
+                        "premio de reversion de extremos de funding y la "
+                        "confirmacion/squeeze de OI; NO predice direccion. Requiere "
+                        "el cache de funding (si falta, error claro con el comando "
+                        "de descarga). El OI es opcional: si su historia no cubre la "
+                        "ventana, sigue FUNDING-ONLY. Las fund_/oi_ entran al modelo "
+                        "[3/4] Y al vector de retrieval. Default off")
     p.add_argument("--tf-id", default="15m", choices=list(TF_STACK),
                    help="TF primario del motor (5m sube volumen de senales)")
     p.add_argument("--min-lookback", type=int, default=300)
@@ -342,6 +611,12 @@ def main():
                    help="fecha de corte (p.ej. 2025-06-01): congela el modelo con "
                         "lo ANTERIOR y evalua SOLO la ventana posterior + calibracion "
                         "predicho-vs-realizado. El test sin fuga por construccion")
+    p.add_argument("--rolling-chunks", type=int, default=6,
+                   help="nº de tramos del FORWARD [retrieval-rolling]: gate de "
+                        "retrieval ONLINE con memoria EXPANSIVA (re-ingiere estados "
+                        "resueltos al caminar AFTER; embargo == max_bars). Mide si la "
+                        "adaptatividad recupera el edge que el gate estatico pierde "
+                        "por drift de regimen. No es input del workflow (default 6)")
     # --- replay DENSO unificado (default): UN replay alimenta senales + retrieval.
     # --dense se mantiene por compatibilidad con el workflow, pero ya es implicito.
     p.add_argument("--dense", action="store_true",
@@ -367,6 +642,43 @@ def main():
                         "selector F3 (TP/horizonte por vecindario); se acumula "
                         "run a run como artefacto. Re-etiquetado post-replay: "
                         "cero replays extra")
+    # --- SHARDING por fecha (cosecha paralela; ver tools/cosecha_shard.py) ---
+    p.add_argument("--date-start", default=None,
+                   help="ISO (YYYY-MM-DD): solo eventos con entry_ts >= esto. El "
+                        "replay recorta los dfs a [date_start-lookback, date_end+"
+                        "horizonte] (indicadores ya computados -> seguro). Permite "
+                        "shardear el replay por fecha y mergear los cubos.")
+    p.add_argument("--date-end", default=None,
+                   help="ISO: solo eventos con entry_ts < esto (rango del shard).")
+    # --- PODA SHARDED (ver tools/ablation_shard.py): emite/consume eventos crudos
+    # para paralelizar la ablacion por fecha SIN reescribir la metrica. ---
+    p.add_argument("--events-out", default=None,
+                   help="ruta parquet: corre SOLO el replay fires-only (rapido, con "
+                        "los toggles de modulo que vengan por env), filtra al rango "
+                        "del shard y vuelca los eventos crudos. NO etiqueta/modela. "
+                        "Es el emisor por-shard de la poda sharded.")
+    p.add_argument("--events-in", default=None,
+                   help="ruta parquet: SALTA el replay y carga eventos ya mergeados; "
+                        "corre el MISMO label+fold+OOS de siempre sobre ellos. Para "
+                        "computar la metrica de una variante sobre el cubo de eventos "
+                        "sharded-mergeado (correctitud: misma ruta que el run normal).")
+    p.add_argument("--metric-out", default=None,
+                   help="ruta json: con --events-in, vuelca {expectancy_r, n_fired, "
+                        "n_oos} de la variante y termina (sin modelo/retrieval).")
+    # --- GATEADO SHARDED (ver tools/gated_shard.py): emite/consume ESTADOS DENSOS
+    # (todas las velas, no solo fired) para paralelizar el replay denso por fecha y
+    # correr el analisis gateado+retrieval+OOT UNA vez sobre el merge. Analogo denso
+    # de --events-out/--events-in (que son fires-only para la poda). ---
+    p.add_argument("--states-out", default=None,
+                   help="ruta parquet: corre SOLO el replay DENSO (estado de CADA "
+                        "vela), filtra los estados al rango del shard por entry_ts y "
+                        "vuelca TODO el DataFrame de estados. NO etiqueta/modela. Es "
+                        "el emisor por-shard del gateado sharded (replay denso).")
+    p.add_argument("--states-in", default=None,
+                   help="ruta parquet: SALTA el replay y carga los estados densos ya "
+                        "mergeados; re-deriva entry_index global y corre el MISMO "
+                        "analisis de siempre (OOS/modelo/retrieval/quality_gate/OOT/"
+                        "grids) sobre el merge. Misma ruta que el run normal.")
     # --- FASE C: grid post-replay de SL (xATR) x TP (tp1..tp4) ---
     p.add_argument("--tp-sl-grid", action="store_true",
                    help="re-etiqueta el MISMO conjunto fired variando ancho de SL "
@@ -381,7 +693,14 @@ def main():
     p.add_argument("--quality-gate", action="store_true",
                    help="aisla el decil/percentil superior del score del modelo y de "
                         "la expectancy del vecindario del retrieval (OOS) y reporta "
-                        "WR/expectancy/total_r/max_dd del subset VIP vs el total")
+                        "WR/expectancy/total_r/max_dd del subset VIP vs el total. "
+                        "Activa TAMBIEN el gate de selectividad P2 (OOS + forward)")
+    p.add_argument("--select-top-pct", type=float, default=0.50,
+                   help="[P2 gate de selectividad] fraccion SUPERIOR del score que se "
+                        "OPERA (0.50 = top 50%% -> umbral = mediana). El umbral se "
+                        "deriva leakage-clean: en OOS del OOF (walk-forward), en "
+                        "forward de la ventana BEFORE; jamas del set evaluado. La "
+                        "killzone se filtra ademas por SELECT_KILLZONE_EXCLUDE.")
     # --- F2: persiste el gate ORO (indice de retrieval + umbral) en una corrida ---
     p.add_argument("--build-index", action="store_true",
                    help="tras el retrieval denso, calibra el umbral oro (top_pct) y "
@@ -389,7 +708,7 @@ def main():
     p.add_argument("--index-out", default=None,
                    help="dir del artefacto del gate (default: retrieval/<ex>/<sym>)")
     p.add_argument("--gold-top-pct", type=float, default=0.05,
-                   help="percentil que define ORO (0.05 = top 5%, lo validado en F1)")
+                   help="percentil que define ORO (0.05 = top 5%%, lo validado en F1)")
     args = p.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -414,6 +733,39 @@ def main():
     df_high = _load_tf(args.exchange, args.symbol, high_tf, args.data_dir)
     df_sub = _load_tf(args.exchange, args.symbol, sub_tf, args.data_dir)
     tfs = (df_primary, df_mid, df_high, df_sub)
+
+    # SHARDING por fecha: recorta los dfs a [date_start-lookback, date_end+horizonte]
+    # (indicadores ya computados en _load_tf sobre el df COMPLETO -> recortar es
+    # seguro). El warmup del replay (min_lookback) consume el buffer-izq y los
+    # eventos arrancan en ~date_start; el buffer-der da la ventana de labeling.
+    # Mas abajo se filtran los eventos a [date_start, date_end). Cero solape entre
+    # shards adyacentes. Ver tools/cosecha_shard.py.
+    _date_start = pd.to_datetime(args.date_start) if args.date_start else None
+    _date_end = pd.to_datetime(args.date_end) if args.date_end else None
+    if _date_start is not None or _date_end is not None:
+        _bm = TF_MINUTES.get(prim_tf, 15.0)
+        _maxh = max([args.dense_horizon, args.max_bars]
+                    + (_parse_int_list(args.horizon_sweep) or []))
+        _lo = (_date_start - pd.Timedelta(minutes=_bm * args.min_lookback)
+               if _date_start is not None else None)
+        _hi = (_date_end + pd.Timedelta(minutes=_bm * _maxh)
+               if _date_end is not None else None)
+
+        def _slice_win(df):
+            if df is None:
+                return None
+            ts = pd.to_datetime(df["timestamp"])
+            keep = pd.Series(True, index=df.index)
+            if _lo is not None:
+                keep &= ts >= _lo
+            if _hi is not None:
+                keep &= ts <= _hi
+            return df[keep.to_numpy()].reset_index(drop=True)
+        df_primary, df_mid, df_high, df_sub = (_slice_win(d) for d in tfs)
+        tfs = (df_primary, df_mid, df_high, df_sub)
+        print(f"[shard] eventos [{args.date_start}..{args.date_end}); ventana "
+              f"{prim_tf}: {len(df_primary)} velas (buffer lookback+horizonte)")
+
     print(f"\nTF primario={prim_tf} (mid={mid_tf} high={high_tf} sub={sub_tf})")
     print(f"velas {prim_tf}: {len(df_primary)} | {mid_tf}: {_n(df_mid)} | "
           f"{high_tf}: {_n(df_high)} | {sub_tf}: {_n(df_sub)}")
@@ -431,26 +783,206 @@ def main():
     # --- Inicializar el ledger (esquema) para que el motor lea memoria ---
     _init_ledger()
 
-    # --- UNIFICADO: UN solo replay DENSO (estado de CADA vela) alimenta las DOS
-    # salidas: las filas fired=True son el track record de senales (frontera +
-    # modelo); TODAS las velas alimentan el retrieval denso. Antes eran dos replays
-    # del mismo motor sobre las mismas velas (fires-only + denso); ahora es UNO. ---
-    print("\n[1/4] replay DENSO del motor (estado de CADA vela; "
-          "un replay -> senales + retrieval denso)...")
-    states = _run_replay(
-        tfs, env_overrides=None, seed=args.seed, tf_id=args.tf_id,
-        dense=True, horizon_bars=args.dense_horizon,
-        min_lookback=args.min_lookback, step=args.step,
-        target_level=args.target_level, progress_every=5000,
-    )
-    n_states = len(states)
-    if n_states == 0:
-        sys.exit("el replay no produjo ningun estado; baja min_lookback / sube el "
-                 "rango historico (--years) o revisa los datos")
-    events = (states[states["fired"]].reset_index(drop=True)
-              if "fired" in states.columns else states.iloc[0:0])
-    print(f"  estados densos: {n_states} | senales disparadas (fired): {len(events)}")
-    _print_decision_funnel(states, args)
+    # PODA SHARDED — EMISOR por-shard (--events-out): SOLO replay fires-only
+    # (rapido), filtra al rango del shard y vuelca eventos crudos. Sin labeling/
+    # modelo/retrieval. Los toggles de modulo (FQ_USE_SCORER/REGIME, FQ_SESSION_BIAS)
+    # llegan por env del subproceso -> _run_replay recarga modulos y los recoge.
+    # Ver tools/ablation_shard.py.
+    if args.events_out:
+        print("\n[poda-shard] replay fires-only del motor (emisor de eventos)...")
+        ev = _run_replay(
+            tfs, env_overrides=None, seed=args.seed, tf_id=args.tf_id,
+            min_lookback=args.min_lookback, step=args.step,
+            target_level=args.target_level,
+        )
+        if (_date_start is not None or _date_end is not None) and len(ev):
+            _ets = pd.to_datetime(ev["entry_ts"])
+            _km = pd.Series(True, index=ev.index)
+            if _date_start is not None:
+                _km &= _ets >= _date_start
+            if _date_end is not None:
+                _km &= _ets < _date_end
+            ev = ev[_km.to_numpy()].reset_index(drop=True)
+        ev.to_parquet(args.events_out, index=False)
+        print(f"[events-out] {len(ev)} eventos -> {args.events_out}")
+        return
+
+    # GATEADO SHARDED — EMISOR por-shard (--states-out): replay DENSO (estado de
+    # CADA vela, igual que la rama 'else' normal), filtra los estados al rango del
+    # shard por entry_ts y vuelca TODO el DataFrame (no solo los fired). El analisis
+    # gateado+retrieval+OOT corre UNA vez sobre el merge via --states-in. Ver
+    # tools/gated_shard.py.
+    if args.states_out:
+        print("\n[gated-shard] replay DENSO del motor (emisor de estados)...")
+        states = _run_replay(
+            tfs, env_overrides=None, seed=args.seed, tf_id=args.tf_id,
+            dense=True, horizon_bars=args.dense_horizon,
+            min_lookback=args.min_lookback, step=args.step,
+            target_level=args.target_level, progress_every=5000,
+        )
+        # SHARD: quedarse SOLO con los estados del rango [date_start, date_end) (los
+        # del warmup-izq y el buffer-der pertenecen a shards vecinos). entry_ts es
+        # global -> el merge por entry_ts no duplica ni pierde. MISMO filtro que los
+        # eventos, pero sobre TODOS los estados (no solo fired).
+        if (_date_start is not None or _date_end is not None) and len(states):
+            _ets = pd.to_datetime(states["entry_ts"])
+            _km = pd.Series(True, index=states.index)
+            if _date_start is not None:
+                _km &= _ets >= _date_start
+            if _date_end is not None:
+                _km &= _ets < _date_end
+            states = states[_km.to_numpy()].reset_index(drop=True)
+        states.to_parquet(args.states_out, index=False)
+        print(f"[states-out] {len(states)} estados -> {args.states_out}")
+        return
+
+    if args.events_in:
+        # PODA SHARDED — CONSUMIDOR (--events-in): SALTA el replay y carga los
+        # eventos ya mergeados (cubo sharded de UNA variante). Todo lo de abajo
+        # (label+fold+OOS) corre IDENTICO al run normal -> la metrica de la variante
+        # es la misma que sin shardear (correctitud por reuso de la ruta).
+        print(f"\n[poda-shard] eventos mergeados (sin replay) <- {args.events_in}")
+        states = None
+        events = pd.read_parquet(args.events_in)
+        events["entry_ts"] = pd.to_datetime(events["entry_ts"])
+        # entry_index viene LOCAL al slice de cada shard; label_events lo usa como
+        # df.iloc[entry_index+1:] y folds_from_labeled ORDENA por el -> hay que
+        # RE-DERIVARLO global: entry_ts -> posicion en el df_primary COMPLETO. Asi
+        # label/fold/OOS reproducen EXACTO el run sin shardear (entry_price/stop/
+        # target del evento son precios -> sobreviven el merge sin tocar).
+        _idx = pd.Series(range(len(df_primary)),
+                         index=pd.to_datetime(df_primary["timestamp"]).to_numpy())
+        events["entry_index"] = events["entry_ts"].map(_idx)
+        _miss = int(events["entry_index"].isna().sum())
+        if _miss:
+            print(f"  [aviso] {_miss} eventos sin match de entry_ts en df_primary "
+                  "(descartados)")
+            events = events[events["entry_index"].notna()]
+        events["entry_index"] = events["entry_index"].astype(int)
+        events = events.sort_values("entry_index").reset_index(drop=True)
+        n_states = len(events)
+    elif args.states_in:
+        # GATEADO SHARDED — CONSUMIDOR (--states-in): SALTA el replay y carga los
+        # ESTADOS DENSOS ya mergeados (cubo sharded de todas las velas). Re-deriva el
+        # entry_index global desde entry_ts (igual que --events-in: el index venia
+        # LOCAL al slice de cada shard, y label_events/folds_from_labeled lo usan) y
+        # deja que el resto de main() corra IDENTICO al run normal (OOS/modelo/
+        # retrieval denso/quality_gate/OOT/grids usan `states` y `events`). Es la
+        # MISMA rama que el `else` de abajo pero sin replay. Ver tools/gated_shard.py.
+        print(f"\n[gated-shard] estados densos mergeados (sin replay) <- {args.states_in}")
+        states = pd.read_parquet(args.states_in)
+        states["entry_ts"] = pd.to_datetime(states["entry_ts"])
+        _idx = pd.Series(range(len(df_primary)),
+                         index=pd.to_datetime(df_primary["timestamp"]).to_numpy())
+        states["entry_index"] = states["entry_ts"].map(_idx)
+        _miss = int(states["entry_index"].isna().sum())
+        if _miss:
+            print(f"  [aviso] {_miss} estados sin match de entry_ts en df_primary "
+                  "(descartados)")
+            states = states[states["entry_index"].notna()]
+        states["entry_index"] = states["entry_index"].astype(int)
+        states = states.sort_values("entry_index").reset_index(drop=True)
+        n_states = len(states)
+        if n_states == 0:
+            sys.exit("el merge de estados vino vacio; revisa los shards / el rango")
+        events = (states[states["fired"]].reset_index(drop=True)
+                  if "fired" in states.columns else states.iloc[0:0])
+        print(f"  estados densos: {n_states} | senales disparadas (fired): {len(events)}")
+    else:
+        # --- UNIFICADO: UN solo replay DENSO (estado de CADA vela) alimenta las DOS
+        # salidas: las filas fired=True son el track record de senales (frontera +
+        # modelo); TODAS las velas alimentan el retrieval denso. Antes eran dos replays
+        # del mismo motor sobre las mismas velas (fires-only + denso); ahora es UNO. ---
+        print("\n[1/4] replay DENSO del motor (estado de CADA vela; "
+              "un replay -> senales + retrieval denso)...")
+        states = _run_replay(
+            tfs, env_overrides=None, seed=args.seed, tf_id=args.tf_id,
+            dense=True, horizon_bars=args.dense_horizon,
+            min_lookback=args.min_lookback, step=args.step,
+            target_level=args.target_level, progress_every=5000,
+        )
+        n_states = len(states)
+        if n_states == 0:
+            sys.exit("el replay no produjo ningun estado; baja min_lookback / sube el "
+                     "rango historico (--years) o revisa los datos")
+        events = (states[states["fired"]].reset_index(drop=True)
+                  if "fired" in states.columns else states.iloc[0:0])
+        # SHARD: quedarse SOLO con los eventos del rango [date_start, date_end) de este
+        # shard (los del warmup-izq y el buffer-der de labeling pertenecen a shards
+        # vecinos). entry_ts es global -> el merge por entry_ts no duplica ni pierde.
+        if (_date_start is not None or _date_end is not None) and len(events):
+            _ets = pd.to_datetime(events["entry_ts"])
+            _km = pd.Series(True, index=events.index)
+            if _date_start is not None:
+                _km &= _ets >= _date_start
+            if _date_end is not None:
+                _km &= _ets < _date_end
+            events = events[_km.to_numpy()].reset_index(drop=True)
+            print(f"  [shard] eventos en rango: {len(events)}")
+        print(f"  estados densos: {n_states} | senales disparadas (fired): {len(events)}")
+    if states is not None:
+        _print_decision_funnel(states, args)
+
+    # ===== CROSS-ASSET LEAD-LAG (BTC -> alt) — inyeccion CAUSAL =====
+    # Punto unico DESPUES de que las 3 ramas (replay normal, --states-in,
+    # --events-in) converjan en `states`/`events` y ANTES de que algo los consuma
+    # (labeling [3-A], grids/cubo, modelo [3/4], retrieval denso [4/4], OOT,
+    # selectividad). Anexa las columnas xbtc_* por entry_index a `events` y
+    # `states`; `labeled` las HEREDA porque lb.label_events preserva toda clave del
+    # evento (ver bt_labeler.label_events). Causal por construccion: attach ->
+    # cross_asset_features solo lee el cruzado <= la vela de SU entry_index
+    # (merge_asof backward + shift_cross=1); aqui NO se añade ningun merge
+    # forward-looking. df_primary es el MISMO cuyas posiciones indexa entry_index
+    # (mismo que lb.label_events de abajo y que re-deriva entry_index en las ramas
+    # sharded), incluido el recorte por --date-start/--date-end.
+    if args.cross_asset:
+        if args.cross_asset == args.symbol:
+            print(f"\n[cross-asset] --cross-asset == --symbol ({args.symbol}); "
+                  "no-op (un activo no es su propio lider).")
+        else:
+            df_cross = _load_cross_ohlcv(
+                args.exchange, args.cross_asset, prim_tf, args.data_dir)
+            if events is not None and len(events):
+                events = bf.attach_cross_asset_features(events, df_primary, df_cross)
+            if states is not None and len(states):
+                states = bf.attach_cross_asset_features(states, df_primary, df_cross)
+            # cobertura = fraccion non-NaN de xbtc_ret_12 sobre los eventos fired
+            # (la MISMA poblacion que se etiqueta -> labeled). NaN inicial = velas
+            # sin ventana suficiente del cruzado / entry_index fuera de rango.
+            _n_ev = len(events) if events is not None else 0
+            if _n_ev and "xbtc_ret_12" in events.columns:
+                _cov = float(events["xbtc_ret_12"].notna().mean()) * 100.0
+            else:
+                _cov = 0.0
+            print(f"[cross-asset] {args.cross_asset} lider -> {_n_ev} eventos, "
+                  f"xbtc_ cobertura {_cov:.1f}%")
+
+    # ===== FUNDING / OPEN-INTEREST (estructural) — inyeccion CAUSAL =====
+    # MISMO punto unico que cross-asset (3 ramas ya convergidas en states/events,
+    # ANTES de labeling/grids/modelo/retrieval/OOT). Anexa fund_/oi_ por
+    # entry_index; `labeled` las HEREDA (lb.label_events preserva toda clave del
+    # evento). Causal por construccion: attach -> funding_oi_features solo lee
+    # funding/OI <= la vela de SU entry_index (merge_asof backward + shift=1, ultimo
+    # funding YA LIQUIDADO); aqui NO se añade ningun merge forward-looking. El OI es
+    # opcional: si su cache no cubre la ventana, se sigue FUNDING-ONLY (oi_ ausentes
+    # -> el vector las imputa a 0). df_primary es el MISMO que indexa entry_index.
+    if args.funding_oi:
+        df_funding, df_oi, oi_range = _load_funding_oi(
+            args.exchange, args.symbol, args.data_dir)
+        if events is not None and len(events):
+            events = fo.attach_funding_oi_features(events, df_primary, df_funding, df_oi)
+        if states is not None and len(states):
+            states = fo.attach_funding_oi_features(states, df_primary, df_funding, df_oi)
+        # cobertura = fraccion non-NaN de fund_rate sobre los eventos fired (misma
+        # poblacion que se etiqueta). NaN = velas previas al primer funding o
+        # entry_index fuera de rango.
+        _n_ev = len(events) if events is not None else 0
+        if _n_ev and "fund_rate" in events.columns:
+            _cov = float(events["fund_rate"].notna().mean()) * 100.0
+        else:
+            _cov = 0.0
+        print(f"[funding-oi] {_n_ev} eventos, fund_ cobertura {_cov:.1f}% | "
+              f"oi: {oi_range}")
 
     base_metric, n_pool, ppy = None, 0, None
     min_for_wf = args.n_splits * 3
@@ -504,8 +1036,20 @@ def main():
         base_metric = base_metrics.get("expectancy_r")
         print("\n[2/4] Metricas OOS de senales (con fees+slippage+funding):")
         print(met.format_report(base_metrics))
+        # PODA SHARDED — con --metric-out volca la metrica de ESTA variante y
+        # termina (sin modelo/retrieval: no hacen falta para el veredicto de poda).
+        # Ver tools/ablation_shard.py.
+        if args.metric_out:
+            with open(args.metric_out, "w") as _fh:
+                json.dump({"expectancy_r": (None if base_metric is None
+                                            else float(base_metric)),
+                           "n_fired": int(len(events)), "n_oos": int(n_pool)}, _fh)
+            print(f"[metric-out] expectancy_r={base_metric} n_fired={len(events)} "
+                  f"n_oos={n_pool} -> {args.metric_out}")
+            return
         _dump_equity_curve(base_equity, args)
-        _print_execution_frontier(labeled, folds, valid_index, sim_kwargs, ppy)
+        _print_execution_frontier(labeled, folds, valid_index, sim_kwargs, ppy,
+                                  df_primary=df_primary)
         _print_segments(labeled, folds, valid_index, args)
 
         # --- modelo entrenado sobre walk-forward ---
@@ -557,6 +1101,12 @@ def main():
                       "(OOS):")
                 print(ql.format_gate(gate, title="VIP modelo"))
 
+            # [P2] gate de selectividad OOS (score top-pct AND killzone liquida).
+            # Default-on con --quality-gate (sin input de workflow nuevo).
+            if trained is not None and args.quality_gate:
+                _print_selectivity_gate(labeled, folds, valid_index, trained,
+                                        sim_kwargs, ppy, df_primary, args)
+
         # retrieval sobre las SENALES fired (esparso; complementa al denso)
         if args.retrieval:
             print("\n  -- retrieval sobre senales fired (esparso) --")
@@ -604,6 +1154,11 @@ def main():
         "regime":        {"FQ_USE_REGIME": "0"},
         "session_bias":  {"FQ_SESSION_BIAS": "0"},
     }
+    # NOTA: la poda GitHub-hosted está sizeada para 3 toggles (="triplica el coste")
+    # bajo el techo de 350min. volume_quality (FQ_VOL_GATE_ENABLED) e ICT
+    # (FQ_ENABLE_ICT) son candidatos a pesar, pero un 4º replay NO cabe ahí → se
+    # miden en una corrida con headroom (self-hosted, sin tope). emergent_time NO
+    # entra nunca: acoplado al gate ORO (qt_sync_score/qt_sigma_tau), sin off limpio.
     # Modulos cuyas features alimentan el VECTOR del gate ORO (DEFAULT_NUMERIC
     # en bt_retrieval): apagarlos en prod desalinea la query del indice aunque
     # su delta de motor sea 0 -> NO son "peso muerto removible" (§6.6). Avisar.
@@ -691,6 +1246,433 @@ def _print_vector_ablation(labeled, folds, valid_index, args):
         print(f"  >> LIFT del bloque quantum = {_f(lift)} R/trade  [{verdict}]")
         print("     (positivo y robusto a leakage = el tiempo emergente / "
               "excitación de campo aporta edge medible)")
+    # DECOUPLING (§6.6): edge del gate SIN scorer/regime (solo si FQ_RETRIEVAL_DECOUPLE
+    # las pidió). Si el edge NO cae vs base, esas features no cargan el gate -> el
+    # módulo es REMOVIBLE del motor (cortar motor + reconstruir índice sin desalinear).
+    if b is not None and not (isinstance(b, float) and np.isnan(b)):
+        for g in ("scorer", "regime"):
+            de = edges.get("no_%s" % g)
+            if de is None or (isinstance(de, float) and np.isnan(de)):
+                continue
+            drop = b - de   # cuánto CAE el edge del gate al sacar la feature
+            print(f"  >> gate SIN {g}: edge={_f(de)} vs base={_f(b)} (cae {_f(drop)}) "
+                  f"-> {'el GATE la NECESITA (no decouplear)' if drop > 0 else 'DECOUPLEABLE (no aporta al gate)'}")
+
+
+def _resolve_lgbm_factory():
+    """Factory del modelo (tr.make_lgbm_classifier) para la prueba forward: la
+    devuelve si lightgbm importa Y el classifier construye (requiere scikit-learn /
+    libgomp1); si no, nombra la causa real y devuelve None (el forward se omite sin
+    romper, no crashea). Misma comprobacion que el modelo del walk-forward [3/4]."""
+    try:
+        import lightgbm  # noqa: F401
+    except ImportError:
+        print("  [skip] lightgbm no instalado; omito el modelo forward.")
+        return None
+    try:
+        tr.make_lgbm_classifier()
+    except Exception as e:
+        print("  [WARN] lightgbm importa pero LGBMClassifier no construye:")
+        print(f"         {type(e).__name__}: {e}")
+        print("         Causa habitual: falta scikit-learn (o libgomp1). Forward OMITIDO.")
+        return None
+    return tr.make_lgbm_classifier
+
+
+# ----------------------------------------------------------------------------
+# ROLLING / ONLINE forward retrieval — piezas PURAS (sin red, sin estado) que
+# definen la MEMORIA causal de cada chunk. Extraidas como funciones puras para
+# que la regla de embargo sea unit-testable (tests/test_rolling_forward.py).
+# ----------------------------------------------------------------------------
+def _rolling_chunk_bounds(after_entry_indexes, n_chunks):
+    """Parte la ventana AFTER en `n_chunks` tramos CRONOLOGICOS (por entry_index)
+    de tamano aproximadamente igual. Devuelve una lista de tuplas
+    (chunk_start, idx_mask) donde:
+      chunk_start : entry_index del PRIMER evento del chunk (frontera temporal;
+                    define que memoria es admisible — todo lo resuelto antes).
+      idx_mask    : mascara booleana (sobre after_entry_indexes) de los eventos
+                    de ESE chunk.
+    Los chunks son disjuntos y cubren todo AFTER en orden de entry_index. Pieza
+    pura: arrays in -> lista de (float, np.ndarray[bool]) out.
+    """
+    ei = np.asarray(after_entry_indexes, dtype="float64")
+    n = len(ei)
+    if n == 0 or n_chunks < 1:
+        return []
+    order = np.argsort(ei, kind="stable")          # cronologico, estable
+    n_chunks = int(min(n_chunks, n))               # no mas chunks que eventos
+    parts = np.array_split(order, n_chunks)        # contiguos en el orden temporal
+    bounds = []
+    for part in parts:
+        if len(part) == 0:
+            continue
+        mask = np.zeros(n, dtype=bool)
+        mask[part] = True
+        chunk_start = float(ei[part].min())        # frontera = primer evento del chunk
+        bounds.append((chunk_start, mask))
+    return bounds
+
+
+def _rolling_memory_mask(memory_entry_indexes, max_bars, chunk_start):
+    """MASCARA de la MEMORIA admisible para un chunk cuya frontera temporal es
+    `chunk_start` (entry_index del primer evento del chunk).
+
+    **Esta es la puerta de leakage del test rolling.** Un evento e SOLO entra en
+    la memoria del chunk si su etiqueta ya estaba RESUELTA antes de que el chunk
+    empiece, esto es:
+
+        e.entry_index + max_bars  <  chunk_start
+
+    `max_bars` es el horizonte de la barrera vertical (el MAXIMO de velas que una
+    etiqueta puede tardar en resolverse). Sumarlo es la cota CONSERVADORA: aunque
+    la etiqueta concreta cerrara antes (bars_held < max_bars), no asumimos saber
+    su desenlace hasta `entry_index + max_bars`. Asi, un evento todavia ABIERTO
+    en la frontera del chunk (cuyo pnl_r aun no se conocia) queda EXCLUIDO, y su
+    desenlace no puede informar ni el indice ni el umbral del chunk.
+
+    Pieza pura: array de entry_index in -> mascara booleana out.
+    """
+    ei = np.asarray(memory_entry_indexes, dtype="float64")
+    return (ei + float(max_bars)) < float(chunk_start)
+
+
+def _gold_threshold_from_memory(memory_res, *, k, sim_floor, n_floor, decay_bars,
+                                backend, bit_width, gold_top_pct, n_splits,
+                                embargo, seed, index=None):
+    """UMBRAL ORO derivado SOLO de `memory_res` (estados ya resueltos). Camino
+    principal = expectancy del vecindario de los folds walk-forward CAUSALES
+    dentro de la memoria (rt.retrieval_oos: ningun fold ve el futuro de la
+    memoria). Fallback (marcado) = percentil de las expectancies del vecindario
+    in-sample de la memoria, consultando su propio indice.
+
+    Es EXACTAMENTE la logica de umbral de _forward_retrieval_gate, extraida para
+    que el gate estatico (BEFORE) y el rolling (MEMORIA por chunk) compartan el
+    MISMO derivador leakage-clean. Devuelve (threshold, thr_source, n_confident).
+    """
+    threshold, thr_source, n_confident = None, "none", 0
+    try:
+        m_folds, m_valid = wf.folds_from_labeled(
+            memory_res, n_splits=n_splits, embargo=embargo)
+        if m_folds:
+            m_oos = rt.retrieval_oos(
+                memory_res, m_folds, m_valid, mode="causal", backend=backend,
+                bit_width=bit_width, k=k, sim_floor=sim_floor, n_floor=n_floor,
+                decay_bars=decay_bars, seed=seed)
+            if len(m_oos):
+                conf = m_oos[~m_oos["retr_abstain"].astype(bool)]
+                n_confident = int(len(conf))
+                threshold = rg.calibrate_gold_threshold(
+                    conf["retr_expectancy_r"].to_numpy(), top_pct=gold_top_pct)
+                if threshold is not None:
+                    thr_source = "memory_oos"
+    except Exception:
+        threshold = None  # cae al fallback in-sample (sigue dentro de la memoria)
+
+    if threshold is None:
+        if index is None:
+            index = rg.StateIndex.build(memory_res, backend=backend,
+                                        bit_width=bit_width)
+        exps = []
+        for _, st in memory_res.iterrows():
+            s = index.query(st, k=k, sim_floor=sim_floor, n_floor=n_floor,
+                            decay_bars=decay_bars)
+            if not s["abstain"] and np.isfinite(s["expectancy_r"]):
+                exps.append(s["expectancy_r"])
+        n_confident = len(exps)
+        threshold = rg.calibrate_gold_threshold(exps, top_pct=gold_top_pct)
+        thr_source = "memory_insample" if threshold is not None else "none"
+    return threshold, thr_source, n_confident
+
+
+def _forward_retrieval_gate(before, after, *, k=50, sim_floor=0.5, n_floor=None,
+                            decay_bars=None, backend="exact", bit_width=4,
+                            gold_top_pct=0.05, n_splits=8, embargo=8, seed=42):
+    """Gate de RETRIEVAL leakage-clean por construccion (BEFORE -> AFTER).
+
+    Esta es la version forward (out-of-time) del gate ORO de retrieval_gate (F2):
+    el indice k-NN, el escalador y el UMBRAL oro se derivan EXCLUSIVAMENTE de la
+    ventana BEFORE (pre-corte); cada evento de AFTER (post-corte, jamas visto) se
+    clasifica consultando ESE indice de BEFORE. Los vecinos de un evento AFTER
+    salen SIEMPRE del BEFORE (k-NN causal: nunca AFTER, nunca el futuro), y el
+    desenlace (pnl_r) de AFTER NO informa ni el indice ni el umbral.
+
+    Umbral oro (tambien BEFORE-only): se calibra con la expectancy del vecindario
+    de los folds walk-forward CAUSALES *dentro de BEFORE* (rt.retrieval_oos sobre
+    BEFORE). Si BEFORE no da para folds, cae al percentil de las expectancies del
+    vecindario in-sample de BEFORE (sigue 100% dentro de BEFORE; se marca el
+    origen en thr_source para la auditoria).
+
+    Pieza PURA (DataFrames in -> DataFrame/numeros out): no toca red ni estado, y
+    consulta UNICAMENTE el indice de BEFORE. Devuelve un dict:
+      gate_pass      : sub-DataFrame de AFTER clasificado ORO (tier == GOLD)
+      threshold      : umbral oro derivado de BEFORE (o None)
+      thr_source     : "before_oos" | "before_insample" | "none"
+      n_confident    : nº de estados confident usados para calibrar el umbral
+      n_after_scored : nº de eventos AFTER clasificados (con pnl_r resuelto)
+      tiers          : conteo {gold, base, abstain} sobre AFTER
+    """
+    # 1) INDICE + ESCALADOR: SOLO BEFORE (StateIndex.build ajusta el vectorizer y
+    #    el indice con el pasado; exige pnl_r resuelto).
+    before_res = before[before["pnl_r"].notna()].reset_index(drop=True)
+    if len(before_res) == 0:
+        raise ValueError("BEFORE sin estados resueltos (pnl_r)")
+    index = rg.StateIndex.build(before_res, backend=backend, bit_width=bit_width)
+
+    # 2) UMBRAL ORO: BEFORE-only. Camino principal = expectancy del vecindario de
+    #    los folds walk-forward CAUSALES dentro de BEFORE (mismo primitivo vetado
+    #    que el --build-index, pero restringido a BEFORE: ningun fold ve AFTER).
+    #    Reusa el derivador puro compartido con el gate rolling (memoria==BEFORE);
+    #    aqui la "memoria" es BEFORE, asi que renombramos el origen a before_*.
+    threshold, thr_src_mem, n_confident = _gold_threshold_from_memory(
+        before_res, k=k, sim_floor=sim_floor, n_floor=n_floor,
+        decay_bars=decay_bars, backend=backend, bit_width=bit_width,
+        gold_top_pct=gold_top_pct, n_splits=n_splits, embargo=embargo,
+        seed=seed, index=index)
+    thr_source = {"memory_oos": "before_oos",
+                  "memory_insample": "before_insample",
+                  "none": "none"}[thr_src_mem]
+
+    # 3) GATE: clasifica cada evento AFTER contra el indice de BEFORE (causal).
+    gate = rg.GoldGate(index, threshold, k=k, sim_floor=sim_floor,
+                       n_floor=n_floor, decay_bars=decay_bars)
+    after_res = after[after["pnl_r"].notna()].reset_index(drop=True)
+    tiers = {rg.GOLD: 0, rg.BASE: 0, rg.ABSTAIN: 0}
+    keep = np.zeros(len(after_res), dtype=bool)
+    for i in range(len(after_res)):
+        verdict = gate.classify(after_res.iloc[i])
+        tiers[verdict["tier"]] = tiers.get(verdict["tier"], 0) + 1
+        keep[i] = verdict["tier"] == rg.GOLD
+    return {
+        "gate_pass": after_res[keep].reset_index(drop=True),
+        "threshold": threshold, "thr_source": thr_source,
+        "n_confident": n_confident, "n_after_scored": int(len(after_res)),
+        "tiers": tiers,
+    }
+
+
+def _run_rolling_forward_retrieval(before, after, *, max_bars, n_chunks=6, k=50,
+                                   sim_floor=0.5, n_floor=None, decay_bars=None,
+                                   backend="exact", bit_width=4, gold_top_pct=0.05,
+                                   n_splits=8, embargo=8, seed=42):
+    """Gate de RETRIEVAL ROLLING / ONLINE leakage-clean (memoria EXPANSIVA).
+
+    Ataca el DRIFT DE REGIMEN: el gate estatico congela indice+umbral en BEFORE y
+    los aplica a TODO AFTER, asi que con el tiempo la memoria queda anticuada (el
+    forward se queda SILENCIOSO). Aqui caminamos AFTER cronologicamente en
+    `n_chunks` tramos; para el chunk i la MEMORIA = todos los eventos cuya
+    ETIQUETA se resolvio ANTES de que el chunk i empiece (BEFORE + chunks AFTER
+    previos YA resueltos). La memoria CRECE conforme avanzamos: se mantiene al dia.
+
+    **Puerta de leakage (embargo == max_bars).** Un evento e entra en la memoria
+    del chunk i SOLO si `e.entry_index + max_bars < chunk_i_start` (ver
+    _rolling_memory_mask). `max_bars` es el horizonte de la barrera vertical: la
+    cota conservadora de cuando, COMO MUY TARDE, se conoce el desenlace (pnl_r).
+    Asi un evento todavia ABIERTO en la frontera del chunk (pnl_r aun desconocido)
+    queda EXCLUIDO: su desenlace jamas informa ni el indice ni el umbral ni el
+    gate del chunk i. Cada evento de AFTER se clasifica con un indice construido
+    SOLO con su pasado estricto resuelto (k-NN causal); su propio pnl_r nunca
+    entra. El umbral oro sale de rt.retrieval_oos sobre ESA memoria (folds
+    walk-forward causales) con el mismo fallback in-sample marcado que el estatico.
+
+    Devuelve dict:
+      gate_pass        : union (sobre chunks) de eventos AFTER clasificados ORO.
+      n_after_scored   : nº de eventos AFTER gateados (con pnl_r resuelto).
+      n_chunks_used    : nº de chunks realmente procesados (con memoria valida).
+      n_chunks_skipped : nº de chunks saltados (memoria insuficiente para indice).
+      thr_sources      : conteo {memory_oos, memory_insample, none} sobre chunks.
+      mem_sizes        : tamano de la memoria por chunk procesado (crecimiento).
+    """
+    before_res = before[before["pnl_r"].notna()].reset_index(drop=True)
+    after_res = after[after["pnl_r"].notna()].reset_index(drop=True)
+    if "entry_index" not in after_res.columns:
+        raise ValueError("AFTER sin columna entry_index (no se puede ordenar el rolling)")
+    if len(after_res) == 0:
+        raise ValueError("AFTER sin estados resueltos (pnl_r)")
+
+    after_ei = after_res["entry_index"].to_numpy(dtype="float64")
+    bounds = _rolling_chunk_bounds(after_ei, n_chunks)
+
+    keep = np.zeros(len(after_res), dtype=bool)
+    n_scored = 0
+    thr_sources = {"memory_oos": 0, "memory_insample": 0, "none": 0}
+    mem_sizes, n_used, n_skipped = [], 0, 0
+
+    for chunk_start, chunk_mask in bounds:
+        # MEMORIA del chunk = BEFORE (todo resuelto y anterior) U eventos de AFTER
+        # de chunks previos cuya etiqueta YA cerro antes de la frontera del chunk.
+        # La puerta de leakage es identica para ambos origenes: entry_index +
+        # max_bars < chunk_start. (BEFORE casi siempre cumple por estar pre-corte,
+        # pero lo filtramos por la MISMA regla — no asumimos nada gratis.)
+        b_keep = _rolling_memory_mask(
+            before_res["entry_index"].to_numpy(dtype="float64"), max_bars, chunk_start)
+        a_keep = _rolling_memory_mask(after_ei, max_bars, chunk_start)
+        memory = pd.concat(
+            [before_res[b_keep], after_res[a_keep]], ignore_index=True)
+        # exige al menos un punado de estados resueltos para un indice util
+        if len(memory) < max(10, k // 2):
+            n_skipped += 1
+            continue
+        try:
+            index = rg.StateIndex.build(memory, backend=backend, bit_width=bit_width)
+        except Exception:
+            n_skipped += 1
+            continue
+        threshold, thr_src, _n_conf = _gold_threshold_from_memory(
+            memory, k=k, sim_floor=sim_floor, n_floor=n_floor, decay_bars=decay_bars,
+            backend=backend, bit_width=bit_width, gold_top_pct=gold_top_pct,
+            n_splits=n_splits, embargo=embargo, seed=seed, index=index)
+        thr_sources[thr_src] = thr_sources.get(thr_src, 0) + 1
+        mem_sizes.append(int(len(memory)))
+        n_used += 1
+
+        # GATE de los eventos de ESTE chunk contra el indice de su memoria (causal).
+        gate = rg.GoldGate(index, threshold, k=k, sim_floor=sim_floor,
+                           n_floor=n_floor, decay_bars=decay_bars)
+        pos = np.nonzero(chunk_mask)[0]
+        n_scored += len(pos)
+        for i in pos:
+            verdict = gate.classify(after_res.iloc[i])
+            keep[i] = verdict["tier"] == rg.GOLD
+
+    return {
+        "gate_pass": after_res[keep].reset_index(drop=True),
+        "n_after_scored": int(n_scored),
+        "n_chunks_used": int(n_used), "n_chunks_skipped": int(n_skipped),
+        "thr_sources": thr_sources,
+        "mem_sizes": mem_sizes,
+    }
+
+
+def _forward_net_returns(trades, sim_kwargs):
+    """Retornos NET-de-costes por trade de un subset forward (mismos numeros que
+    alimentan el Sharpe de forward_metrics: eng.simulate(...)['returns'] =
+    net_pnl/equity_previo). Devuelve ndarray finito; vacio si no hay resueltos."""
+    import bt_engine as eng
+    if trades is None or len(trades) == 0:
+        return np.array([], dtype="float64")
+    t = trades[trades["outcome"].notna()] if "outcome" in trades.columns else trades
+    if len(t) == 0:
+        return np.array([], dtype="float64")
+    res = eng.simulate(t, **(sim_kwargs or {}))
+    r = np.asarray(res.get("returns"), dtype="float64").ravel()
+    return r[np.isfinite(r)]
+
+
+def _per_period_sharpe(returns):
+    """Sharpe per-period (mean/std, ddof=1) -- mismo estimador que bt_metrics.sharpe
+    SIN anualizar. None si <2 muestras o sd nula. Es la unidad de los 'trials' que
+    arman N_trials/trials_sr_var del Deflated Sharpe."""
+    r = np.asarray(returns, dtype="float64").ravel()
+    r = r[np.isfinite(r)]
+    if len(r) < 2:
+        return None
+    sd = float(r.std(ddof=1))
+    if sd == 0.0:
+        return None
+    return float(r.mean() / sd)
+
+
+def _print_deflated_verdict(fwd_configs, m, args, sim_kwargs):
+    """[DEFLATED] Veredicto ANTI-SUERTE sobre los configs forward evaluados.
+
+    `fwd_configs` = lista de (label, returns_net_por_trade, edge_vs_all) de TODOS
+    los configs forward evaluados (sweep retrieval estatico + rolling + seleccion).
+    Con ~10 intentos, un edge positivo podria ser el mas afortunado de N:
+
+      * N_trials = numero de configs forward con Sharpe per-period medible.
+      * trials_sr_var = VARIANZA de esos Sharpes per-period (su dispersion).
+      Ambos se DERIVAN de los configs realmente evaluados aqui (auditable abajo).
+
+    DSR del MEJOR config (max edge_vs_all con n>=10): P(Sharpe verdadero > barra
+    del maximo-de-N | no-normalidad). Embarque si DSR>=0.95. Si >=3 configs tienen
+    n>=10, ademas PBO (CSCV) sobre su matriz de retornos por trade bucketizada.
+    """
+    import deflated as dfl
+
+    MIN_TRADES = 10
+    # trials = configs con Sharpe per-period medible (n>=2). El conjunto de
+    # intentos para N y su varianza sale de TODOS los configs forward, no solo
+    # los de n>=10 (probar un ancho que salio starved TAMBIEN es un intento).
+    trial_srs = []
+    for _lbl, _ret, _edge in fwd_configs:
+        s = _per_period_sharpe(_ret)
+        if s is not None:
+            trial_srs.append(s)
+    n_trials = len(trial_srs)
+    trials_sr_var = float(np.var(trial_srs, ddof=1)) if n_trials >= 2 else None
+
+    # MEJOR config: el de mayor edge_vs_all con muestra suficiente (n>=10).
+    eligible = [(lbl, ret, edge) for (lbl, ret, edge) in fwd_configs
+                if len(ret) >= MIN_TRADES and edge is not None
+                and np.isfinite(edge)]
+    if not eligible:
+        print("\n  [DEFLATED] sin config forward con n>=%d y edge medible "
+              "(nada que deshinchar)." % MIN_TRADES)
+        return
+    best_lbl, best_ret, best_edge = max(eligible, key=lambda x: x[2])
+
+    res = dfl.deflated_sharpe_ratio(best_ret, n_trials=max(n_trials, 1),
+                                    trials_sr_var=trials_sr_var)
+    dsr = res["dsr"]
+    verdict = "OK" if (dsr is not None and dsr >= 0.95) else "SOSPECHA"
+    flag = "  [var_default: dispersion no medible, default conservador]" \
+        if res.get("sr0_var_default") else ""
+    var_note = (f"{trials_sr_var:.4f}" if trials_sr_var is not None
+                else "n/a(default)")
+    print(f"\n  [DEFLATED] mejor forward = '{best_lbl}' "
+          f"(edge_vs_all={_f(best_edge)} R/trade, n={len(best_ret)})")
+    print(f"    N_trials={n_trials} (configs forward evaluados) "
+          f"trials_sr_var={var_note} (var de sus Sharpes per-period)")
+    print(f"    DSR={_f(dsr)} (P(edge real | N={n_trials} configs, no-normalidad)) "
+          f"| SR={_f(res['sr'])} T={res['T']} skew={_f(res['skew'])} "
+          f"kurt={_f(res['kurt'])} sr0={_f(res['sr0'])}  -> {verdict} "
+          f"(DSR{'>=' if verdict == 'OK' else '<'}0.95){flag}")
+
+    # PBO: necesita >=3 configs con n>=10. Se ALINEA por bucket de trade en
+    # n_splits bins cuantilicos de la ventana forward (las longitudes difieren
+    # entre configs: cada uno opera un subset distinto del after).
+    pbo_pool = [(lbl, ret) for (lbl, ret, _e) in fwd_configs
+                if len(ret) >= MIN_TRADES]
+    if len(pbo_pool) >= 3:
+        try:
+            n_splits = int(getattr(args, "n_splits", 8))
+            M = _bucketize_configs([r for _l, r in pbo_pool], n_splits=n_splits)
+            if M is not None and M.shape[1] >= 3 and M.shape[0] >= n_splits:
+                pres = dfl.probability_backtest_overfitting(M, n_splits=n_splits)
+                pbo = pres.get("pbo")
+                samp = " (muestreado)" if pres.get("sampled") else ""
+                print(f"    PBO={_f(pbo)} (prob. de overfit del ranking IS->OOS; "
+                      f"bajo=robusto, >=0.5=overfit) "
+                      f"sobre {M.shape[1]} configs, {pres.get('n_combos')} combos{samp}")
+            else:
+                print("    PBO: matriz insuficiente tras bucketizar "
+                      f"(configs={0 if M is None else M.shape[1]}, "
+                      f"buckets={0 if M is None else M.shape[0]}, n_splits={n_splits})")
+        except Exception as e:
+            print(f"    PBO: no se pudo computar ({e})")
+    else:
+        print(f"    PBO: solo {len(pbo_pool)} config(s) con n>={MIN_TRADES} "
+              f"(se requieren >=3 para CSCV)")
+
+
+def _bucketize_configs(returns_list, n_splits):
+    """Alinea configs de DISTINTA longitud en una matriz (n_splits filas x configs)
+    para CSCV/PBO: cada serie de retornos por trade se reparte en n_splits bins
+    contiguos (cuantiles de su propio orden temporal) y se promedia dentro del bin.
+    Asi cada columna queda en la MISMA rejilla de n_splits 'tramos' de la ventana
+    forward aunque cada config opere un numero distinto de trades. Devuelve la
+    matriz o None si algun config no llena los bins."""
+    cols = []
+    for r in returns_list:
+        r = np.asarray(r, dtype="float64").ravel()
+        r = r[np.isfinite(r)]
+        if len(r) < n_splits:
+            return None                              # no llena los bins -> aborta
+        # bins contiguos casi-iguales en el orden cronologico del config
+        parts = np.array_split(r, n_splits)
+        col = np.array([float(p.mean()) for p in parts], dtype="float64")
+        cols.append(col)
+    return np.column_stack(cols) if cols else None
 
 
 def _run_out_of_time(labeled, args, sim_kwargs, bar_minutes):
@@ -714,7 +1696,7 @@ def _run_out_of_time(labeled, args, sim_kwargs, bar_minutes):
         return
     feat_cols = bf._numeric_feature_columns(labeled)
     try:
-        scored, _ = fw.freeze_predict(before, after, feat_cols, fac)
+        scored, model = fw.freeze_predict(before, after, feat_cols, fac)
     except Exception as e:
         print(f"  (no se pudo congelar el modelo: {e})")
         return
@@ -722,6 +1704,202 @@ def _run_out_of_time(labeled, args, sim_kwargs, bar_minutes):
     if m is not None:
         print("  Métricas FORWARD (net de costes, ventana posterior):")
         print(met.format_report(m))
+
+    # [DEFLATED] conjunto de INTENTOS forward para el veredicto anti-suerte. Cada
+    # config evaluado abajo (seleccion P2 + sweep retrieval estatico + rolling) se
+    # apila aqui como (label, retornos_net_por_trade, edge_vs_all). Con ~10 intentos
+    # un edge positivo puede ser el mas afortunado de N; DSR/PBO lo cuantifican al
+    # final del bloque forward. e_all es la expectancy de TODO el after (baseline).
+    fwd_configs = []
+    e_all = m.get("expectancy_r") if m else None
+
+    # [P2] FORWARD del subset SELECCIONADO — el test SIN FUGA del gate de
+    # selectividad. El umbral de score se deriva EXCLUSIVAMENTE de la ventana
+    # BEFORE (congelada): se puntua BEFORE con el MISMO modelo frozen y se toma el
+    # quantile top-pct de ESOS scores; jamas se mira el 'after'. Ese umbral fijo se
+    # APLICA al 'after' (columna fwd_score, nunca vista) y se cruza con el prior
+    # estructural de killzone. forward_metrics mide el subset resultante.
+    if getattr(args, "quality_gate", False):
+        try:
+            top_pct = float(getattr(args, "select_top_pct", 0.50))
+            q = max(0.0, min(1.0, 1.0 - top_pct))
+            Xb = before[feat_cols].reset_index(drop=True).fillna(0.0)
+            before_scores = fw._predict_scores(model, Xb)   # umbral SOLO del BEFORE
+            bs = np.asarray(before_scores, dtype="float64")
+            bs = bs[np.isfinite(bs)]
+            if len(bs) == 0:
+                raise ValueError("sin scores finitos en la ventana BEFORE")
+            score_thr = float(np.quantile(bs, q))
+            fwd_scores = scored["fwd_score"].to_numpy()
+            kz_present = SELECT_KZ_COL in scored.columns
+            sel = _select_mask(scored, fwd_scores, score_thr)
+            sel_after = scored[sel]
+            n_sel, n_after = int(len(sel_after)), int(len(scored))
+            ms = fw.forward_metrics(sel_after, sim_kwargs=sim_kwargs,
+                                    bar_minutes=bar_minutes)
+            print("\n  FORWARD [selección] P2 (umbral del BEFORE aplicado al after "
+                  "jamás visto + killzone líquida):")
+            print(f"    umbral_score(top {top_pct:.0%} del BEFORE)={_f(score_thr)} "
+                  f"killzone_excluye="
+                  f"{sorted(SELECT_KILLZONE_EXCLUDE) if kz_present else 'n/a (solo-score)'} "
+                  f"| seleccion={n_sel}/{n_after} "
+                  f"({(n_sel / n_after if n_after else 0.0):.1%})")
+            if ms is not None:
+                print(f"    n={ms.get('n_trades')} "
+                      f"expectancy_r={_f(ms.get('expectancy_r'))} "
+                      f"total_return={_f(ms.get('total_return'))} "
+                      f"sharpe={_f(ms.get('sharpe'))} "
+                      f"profit_factor={_f(ms.get('profit_factor'))}")
+                e_sel = ms.get("expectancy_r")
+                edge = (e_sel - e_all) if (e_all is not None and e_sel is not None) else None
+                print(f"    >> edge_vs_all_forward={_f(edge)} R/trade  "
+                      "(¿la selección SOBREVIVE out-of-time? este es EL test)")
+                # intento forward para el veredicto anti-suerte (DSR/PBO)
+                fwd_configs.append(
+                    ("seleccion_P2", _forward_net_returns(sel_after, sim_kwargs), edge))
+            else:
+                print("    (subset forward vacío tras la selección; baja "
+                      "--select-top-pct o mueve el corte)")
+        except Exception as e:
+            print(f"  FORWARD [selección]: no se pudo computar ({e})")
+
+    # [RETRIEVAL] FORWARD del gate de RETRIEVAL — el test SIN FUGA de la PUERTA
+    # densa de analogia (k-NN). A diferencia de [selección] (score del modelo, que
+    # NO sobrevivio forward en #60), aqui el indice k-NN, el escalador y el umbral
+    # ORO se construyen EXCLUSIVAMENTE con la ventana BEFORE; cada evento AFTER
+    # (jamas visto) se clasifica consultando ESE indice de BEFORE. Los vecinos de
+    # un evento AFTER salen SIEMPRE del BEFORE (causal), y el desenlace de AFTER NO
+    # informa ni el indice ni el umbral. Es la pregunta abierta decisiva: ¿la
+    # PUERTA DE RETRIEVAL sobrevive out-of-time donde el score del modelo no?
+    if getattr(args, "quality_gate", False):
+        try:
+            # SWEEP del ancho del gate: el umbral ORO se calibra del BEFORE a varios
+            # percentiles (top 5/10/25/50%) y se aplica al AFTER jamas visto. A top
+            # 5% el gate puede quedar STARVED forward (1-2 trades, ruido); ensanchar
+            # da una lectura OOT con suficientes gold para JUZGAR si el edge OOS (que
+            # cross-asset subio fuerte en el decil alto) sobrevive out-of-time. CADA
+            # percentil sigue siendo BEFORE-only (leakage-clean); solo cambia el corte.
+            print("\n  FORWARD [retrieval] (indice + umbral ORO del BEFORE; gate del "
+                  "AFTER jamas visto por k-NN causal; SWEEP de ancho del gate):")
+            e_all = m.get("expectancy_r") if m else None
+            static_exp = {}   # top_pct -> exp_R estatico (baseline del delta rolling)
+            _hdr = False
+            for _tp in (0.05, 0.10, 0.25, 0.50):
+                gr = _forward_retrieval_gate(
+                    before, after, k=args.retrieval_k,
+                    sim_floor=args.retrieval_sim_floor, n_floor=args.retrieval_nfloor,
+                    decay_bars=args.retrieval_decay_bars,
+                    backend=args.retrieval_backend, bit_width=args.retrieval_bit,
+                    gold_top_pct=_tp, n_splits=args.n_splits,
+                    embargo=args.embargo, seed=args.seed)
+                gp = gr["gate_pass"]
+                if not _hdr:
+                    src_note = {"before_oos": "OOS walk-forward de BEFORE",
+                                "before_insample": "in-sample de BEFORE (fallback)",
+                                "none": "n/a"}.get(gr["thr_source"], gr["thr_source"])
+                    print(f"    umbral <- {src_note} | AFTER={gr['n_after_scored']} "
+                          f"n_confident_BEFORE={gr['n_confident']} k={args.retrieval_k}")
+                    if gr["thr_source"] == "before_insample":
+                        print("    [aviso] umbral del fallback in-sample de BEFORE "
+                              "(limpio vs AFTER; optimismo in-sample en BEFORE).")
+                    _hdr = True
+                mg = fw.forward_metrics(gp, sim_kwargs=sim_kwargs,
+                                        bar_minutes=bar_minutes) if len(gp) else None
+                if mg is not None:
+                    e_g = mg.get("expectancy_r")
+                    static_exp[_tp] = e_g
+                    edge = (e_g - e_all) if (e_all is not None and e_g is not None) else None
+                    print(f"    top {_tp:>5.0%}: thr={_f(gr['threshold'])} "
+                          f"gold={len(gp):>4} exp_R={_f(e_g)} "
+                          f"edge_vs_all={_f(edge)} PF={_f(mg.get('profit_factor'))}")
+                    # intento forward (sweep estatico) para el veredicto anti-suerte
+                    fwd_configs.append(
+                        (f"retr_static_top{_tp:.0%}",
+                         _forward_net_returns(gp, sim_kwargs), edge))
+                else:
+                    static_exp[_tp] = None
+                    print(f"    top {_tp:>5.0%}: thr={_f(gr['threshold'])} "
+                          f"gold={len(gp):>4} (subset forward vacio)")
+            print("    >> ¿sobrevive OOT al ensanchar el gate? BEFORE-only (AFTER no "
+                  "puede filtrarse); mas gold = lectura mas fiable del edge forward.")
+        except Exception as e:
+            static_exp = {}
+            print(f"  FORWARD [retrieval]: no se pudo computar ({e})")
+
+    # [RETRIEVAL-ROLLING] FORWARD del gate de RETRIEVAL ONLINE — ataca el DRIFT DE
+    # REGIMEN, causa comun de que el gate ESTATICO se quede silencioso forward (SOL
+    # #61/#62 pasaron 1-2/141 gold). En produccion el bot ACTUALIZA su memoria de
+    # continuo; esto lo mide: caminamos AFTER en K tramos y para cada uno
+    # reconstruimos indice + umbral con la MEMORIA EXPANSIVA = todo lo cuya etiqueta
+    # ya se resolvio antes de la frontera del tramo (BEFORE + tramos AFTER previos
+    # YA cerrados). Embargo == max_bars: un evento abierto en la frontera NUNCA
+    # entra (su pnl_r aun no se sabia). Si el rolling RECUPERA edge que el estatico
+    # pierde, el drift es el asesino y la adaptatividad es el arreglo.
+    if getattr(args, "quality_gate", False):
+        try:
+            K = int(getattr(args, "rolling_chunks", 6))
+            e_all = m.get("expectancy_r") if m else None
+            print(f"\n  FORWARD [retrieval-rolling] (memoria ONLINE/expansiva, K={K} "
+                  f"tramos cronologicos; embargo=max_bars={args.max_bars}; cada tramo "
+                  f"reconstruye indice+umbral con SOLO lo resuelto antes de su "
+                  f"frontera; SWEEP de ancho del gate):")
+            _hdr = False
+            for _tp in (0.05, 0.10, 0.25):
+                rfr = _run_rolling_forward_retrieval(
+                    before, after, max_bars=args.max_bars, n_chunks=K,
+                    k=args.retrieval_k, sim_floor=args.retrieval_sim_floor,
+                    n_floor=args.retrieval_nfloor, decay_bars=args.retrieval_decay_bars,
+                    backend=args.retrieval_backend, bit_width=args.retrieval_bit,
+                    gold_top_pct=_tp, n_splits=args.n_splits,
+                    embargo=args.embargo, seed=args.seed)
+                gp = rfr["gate_pass"]
+                if not _hdr:
+                    mn = min(rfr["mem_sizes"]) if rfr["mem_sizes"] else 0
+                    mx = max(rfr["mem_sizes"]) if rfr["mem_sizes"] else 0
+                    print(f"    AFTER_gateado={rfr['n_after_scored']} "
+                          f"chunks_usados={rfr['n_chunks_used']} "
+                          f"(saltados={rfr['n_chunks_skipped']}) "
+                          f"memoria {mn}->{mx} (crece) k={args.retrieval_k}")
+                    print(f"    umbral por tramo <- {dict(rfr['thr_sources'])} "
+                          f"(memory_oos = OOS walk-forward de la memoria del tramo)")
+                    _hdr = True
+                mg = fw.forward_metrics(gp, sim_kwargs=sim_kwargs,
+                                        bar_minutes=bar_minutes) if len(gp) else None
+                e_st = static_exp.get(_tp)
+                if mg is not None:
+                    e_g = mg.get("expectancy_r")
+                    edge = (e_g - e_all) if (e_all is not None and e_g is not None) else None
+                    d_static = (e_g - e_st) if (e_st is not None and e_g is not None) else None
+                    print(f"    top {_tp:>5.0%}: gold={len(gp):>4} exp_R={_f(e_g)} "
+                          f"total_ret={_f(mg.get('total_return'))} "
+                          f"edge_vs_all={_f(edge)} PF={_f(mg.get('profit_factor'))} "
+                          f"| delta_vs_static={_f(d_static)} (static_exp={_f(e_st)})")
+                    # intento forward (sweep rolling) para el veredicto anti-suerte
+                    fwd_configs.append(
+                        (f"retr_rolling_top{_tp:.0%}",
+                         _forward_net_returns(gp, sim_kwargs), edge))
+                else:
+                    print(f"    top {_tp:>5.0%}: gold={len(gp):>4} (subset forward "
+                          f"vacio) | static_exp={_f(e_st)}")
+            print("    >> ¿la MEMORIA AL DIA recupera edge que el gate congelado "
+                  "pierde? delta_vs_static>0 = el drift es el asesino y la "
+                  "adaptatividad lo arregla. Leakage-clean: embargo=max_bars.")
+        except Exception as e:
+            print(f"  FORWARD [retrieval-rolling]: no se pudo computar ({e})")
+
+    # [DEFLATED] VEREDICTO ANTI-SUERTE — Deflated Sharpe Ratio (Bailey & Lopez de
+    # Prado 2014) + Probability of Backtest Overfitting (CSCV, Bailey et al. 2017).
+    # Se probaron ~10 configs forward (sweep estatico+rolling + seleccion P2); el
+    # mejor edge podria ser el mas afortunado de N. DSR deshincha el Sharpe del
+    # mejor config por N intentos + dispersion + no-normalidad; PBO mide si el
+    # ranking IS->OOS aguanta. N_trials y trials_sr_var salen de los configs
+    # apilados en fwd_configs (auditable en la propia linea impresa).
+    if getattr(args, "quality_gate", False):
+        try:
+            _print_deflated_verdict(fwd_configs, m, args, sim_kwargs)
+        except Exception as e:
+            print(f"  [DEFLATED] no se pudo computar ({e})")
+
     sc = scored["fwd_score"].to_numpy()
     win = (scored["outcome"] == lb.WIN).astype(float).to_numpy()
     tab, err = fw.calibration_table(sc, win, n_bins=5)

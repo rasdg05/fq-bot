@@ -1,0 +1,108 @@
+# -*- coding: utf-8 -*-
+"""magnet_backtest: etiqueta senales del motor de imanes y mide drawdown via
+bt_engine. Pipeline self-contained (sin pandas_ta) -> testeable en sandbox."""
+import os
+import sys
+
+import numpy as np
+import pandas as pd
+import pytest
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tools"))
+import magnet_backtest as mb
+
+
+def _wave(n=400, period=40, amp=10.0, base=100.0):
+    """Onda (rango oscilante): el motor dispara hacia los max/min previos y la
+    oscilacion resuelve TP/STOP -> genera trades y un drawdown real."""
+    i = np.arange(n)
+    close = base + amp * np.sin(2 * np.pi * i / period)
+    high = close + 0.3
+    low = close - 0.3
+    return pd.DataFrame({"open": close, "high": high, "low": low,
+                         "close": close, "volume": np.full(n, 100.0)})
+
+
+def test_max_drawdown_conocido():
+    assert mb._max_drawdown([100, 110, 90, 95]) == pytest.approx(20.0 / 110.0)
+    assert mb._max_drawdown([100, 101, 102]) == 0.0
+    assert mb._max_drawdown([]) == 0.0
+
+
+def test_label_devuelve_columnas_para_bt_engine():
+    trades = mb.label_magnet_trades(_wave(), step=1, min_rr=1.0)
+    if not trades.empty:
+        for col in ("entry_price", "stop_price", "exit_price", "direction",
+                    "bars_held", "mode", "outcome"):
+            assert col in trades.columns
+        assert set(trades["direction"].unique()) <= {1, -1}
+
+
+def test_run_pipeline_devuelve_metricas_validas():
+    r = mb.run(_wave(), step=1, min_rr=1.0)
+    assert isinstance(r["n_trades"], int) and r["n_trades"] >= 0
+    assert 0.0 <= r["max_drawdown"] <= 1.0
+    if r["n_trades"] > 0:
+        assert 0.0 <= r["win_rate"] <= 1.0
+        assert r["expectancy_r"] is not None
+        assert isinstance(r["by_mode"], dict)
+
+
+def test_run_sin_trades_no_crashea():
+    # df plano: sin estructura -> sin imanes utiles -> sin trades, pero responde
+    flat = pd.DataFrame({"open": [100.0] * 80, "high": [100.0] * 80,
+                         "low": [100.0] * 80, "close": [100.0] * 80,
+                         "volume": [100.0] * 80})
+    r = mb.run(flat, step=1, min_rr=1.5)
+    assert r["n_trades"] == 0 and r["max_drawdown"] == 0.0
+
+
+# --------------------------------------------------------------------------
+# v2/v3 (macro + horas de volumen + entrar en valor)
+# --------------------------------------------------------------------------
+def test_precompute_v2_agrega_capas_macro():
+    pc = mb.precompute_v2(_wave(n=500))
+    for c in ("macro_up", "macro_dn", "atr", "pday_high", "pday_low", "active"):
+        assert c in pc.columns
+
+
+def test_label_v2_corre_y_filtro_valor_no_aumenta_trades():
+    df = _wave(n=900, period=60, amp=12.0)
+    t_all = mb.label_v2(df, min_rr=1.5, require_value=False, warmup=300)
+    t_val = mb.label_v2(df, min_rr=1.5, require_value=True, warmup=300)
+    assert isinstance(t_all, pd.DataFrame) and isinstance(t_val, pd.DataFrame)
+    assert len(t_val) <= len(t_all)            # entrar en valor solo RESTA trades
+    for t in (t_all, t_val):
+        if not t.empty:
+            assert set(t["direction"].unique()) <= {1, -1}
+            assert (t["mode"] == "macro").all()
+
+
+def test_run_version_v2_devuelve_metricas():
+    r = mb.run(_wave(n=900), version="v2", min_rr=2.0, require_value=True)
+    assert isinstance(r["n_trades"], int) and 0.0 <= r["max_drawdown"] <= 1.0
+
+
+# --------------------------------------------------------------------------
+# v4 (red multi-TF: 1h + 4h + iman pesado de 4h)
+# --------------------------------------------------------------------------
+def _wave_ts(n=3000, period=200, amp=15.0, base=100.0, start_ms=1_700_000_000_000):
+    i = np.arange(n)
+    close = base + amp * np.sin(2 * np.pi * i / period)
+    return pd.DataFrame({"timestamp": start_ms + i * 300_000,
+                         "open": close, "high": close + 0.3, "low": close - 0.3,
+                         "close": close, "volume": np.full(n, 100.0)})
+
+
+def test_precompute_v4_agrega_capas_multitf():
+    pc = mb.precompute_v4(_wave_ts(2000))
+    for c in ("ph_1h", "pl_1h", "up_4h", "dn_4h"):
+        assert c in pc.columns
+
+
+def test_label_v4_corre_y_es_macro_mtf():
+    t = mb.label_v4(_wave_ts(3000), min_rr=1.5)
+    assert isinstance(t, pd.DataFrame)
+    if not t.empty:
+        assert (t["mode"] == "macro_mtf").all()
+        assert set(t["direction"].unique()) <= {1, -1}

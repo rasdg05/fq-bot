@@ -743,11 +743,29 @@ VIVO nunca tuvo este bug** (su reloj de pared es el correcto).
 
 ---
 
-## 6.8 F2.6 — GATE POR SEGMENTO de sesión (diseño, 12-jun-2026; pendiente de #31)
+## 6.8 F2.6 — GATE POR SEGMENTO de sesión (CÓDIGO, 13-jun-2026)
 
-> Estado: **DISEÑO, sin código**. Se construye solo después del veredicto de
-> la poda (#31) y se valida con el protocolo de abajo ANTES de tocar prod.
-> Paper primero, 0% real. El gate ORO NUNCA se degrada para esto.
+> Estado: **CÓDIGO en producción (default OFF)**, 13-jun-2026. La poda (#31)
+> dijo que no se mata nada (§6.6) → F2.6 se construye ENCIMA del motor. Se
+> valida con el protocolo de abajo ANTES de activar en vivo. Paper primero,
+> 0% real. El gate ORO NUNCA se degrada para esto.
+>
+> **Implementado** (`segment_veto.py`, módulo puro, default OFF
+> `FQ_SEGMENT_VETO_KILLZONES=""`): predicado que veta por killzone / bloque-UTC
+> / día, juzgando el TIMESTAMP DE LA VELA (nunca `datetime.now()`; en la guarda
+> `tests/test_no_wallclock.py` con baseline 0). MISMO predicado en los TRES
+> consumidores → cero divergencia:
+> - **research** (`run_research_real`): filtra la población etiquetada tras
+>   `label_events`, antes de OOS/[2.2/4]/[2.5/4]/retrieval (cubo `events`
+>   INTACTO para el regrade); el run mide el veto INTEGRADO.
+> - **offline** (`tools/regrade_events._veto_mask`): delega en `segment_veto`
+>   → sus números reproducen lo que mide la corrida integrada.
+> - **vivo** (`fq_bot_v3_2`): capa de decisión post `evaluate_signal` (junto al
+>   gate QTE), JAMÁS dentro de `fusion_engine`; veta la señal VIP. Default OFF.
+>
+> El protocolo paso 2 (corrida de confirmación) ya es LANZABLE: input
+> `segment_veto_killzones` en `research.yml` → `FQ_SEGMENT_VETO_KILLZONES` del
+> replay (ver runbook §9.4).
 
 **Evidencia (la que sobrevivió la prueba anti-espejismo SOL #30 × BTC #30,
 OOS pooled, pnl_r PRE-coste; los netos restan ~0.23R en SOL / ~0.28R en BTC):**
@@ -807,11 +825,49 @@ OOS pooled, pnl_r PRE-coste; los netos restan ~0.23R en SOL / ~0.28R en BTC):**
    neta usa la carga MEDIA de costes — el neto real por subset lo da la
    corrida de confirmación. Decisión de diseño intacta: primario primero;
    el apilado solo si el primario sobrevive forward.
-2. **UNA corrida de confirmación** con el veto ON (env en el workflow):
-   funnel + OOS + segmentos de la población restante + **gate ORO de esa
-   config re-validado (denso `leakage_ok`)**. Vara §6.6: el veto se queda
-   solo si mejora expectancy OOS sin degradar WR de forma no compensada.
-3. **Paper forward 2–4 semanas** con el ledger ORO (la vara de siempre).
+
+   ✅ **Replicación cross-muestra (13-jun-2026, `regrade_events` sobre el cubo
+   del #31 = SOL step 3, muestra DISTINTA al #30/#32 step 2; n=106 vs 156):**
+   el veto **primario REPLICA**, el **secundario NO**. Matriz maker real:
+
+   | SOL, lift del veto london | #30 (step2, n=156) | #31 (step3, n=106) |
+   |---|---|---|
+   | bucket london (pre-coste) | −0.066 (tóxico) | −0.083 (tóxico) ✓ |
+   | taker base → +veto | −0.095 → −0.003 (**+0.092**) | +0.018 → +0.098 (**+0.080**) |
+   | entrada+TP maker base → +veto | +0.021 → +0.109 (**+0.088**) | +0.144 → +0.224 (**+0.080**) |
+   | secundario: bucket extra (lun/00-08) | −0.076 (tóxico) | **+0.011 (NO tóxico)** |
+
+   Lectura: el **lift del primario es ~+0.08R estable** en ambas muestras (taker
+   Y maker) y su bucket es tóxico en ambas → sobrevive "replicar en datos
+   frescos". El **secundario NO replica**: en #31 corta trades ~breakeven (no
+   tóxicos) ⇒ su +0.036R del #30 huele a multiple-comparisons. Refuerza la regla:
+   solo el primario; el secundario NO se apila. (Nota: #31 base es +0.018, no
+   −0.095: step 3 es muestra más favorable; lo que replica es el LIFT, no el
+   absoluto.)
+2. ✅ **CONFIRMACIÓN INTEGRADA CROSS-SÍMBOLO — run #33 (13-jun-2026,
+   `segment_veto_killzones=london_open_kz`).** El replay aplicó el veto integrado
+   en AMBOS símbolos (`caen 47/183` SOL · `caen 41/223` BTC) y re-foldeó la
+   población restante. Reproduce la matriz offline §6.10.1 end-to-end:
+
+   | OOS post-veto (folds re-pooled) | SOL (n=116) | BTC (n=156) |
+   |---|---|---|
+   | base (sin veto, §6.10.1) | −0.095 | −0.068 |
+   | **taker/taker +veto** | **+0.0122** (WR 0.543) | **−0.0273** (WR 0.558) |
+   | entrada maker +veto | +0.0857 | +0.0585 |
+   | **entrada+TP maker +veto** | **+0.1245** (PF 1.21) | **+0.1046** (PF 1.19) |
+
+   **Veredicto §6.6: PASA en ambos.** El veto sube expectancy OOS y WR sin
+   degradar; killzones restantes ≥0 (london eliminado en los dos; mejor franja
+   BTC = `ny_am_kz +0.455`). **Caveats que lo mantienen TECHO:** (a) el taker
+   sigue ≤0 (SOL +0.012 breakeven, **BTC −0.027 NEGATIVO**) → el +0.10R EXIGE
+   maker con fill 100% asumido → la vara real es el fill-rate del motor paper;
+   BTC depende MÁS del maker que SOL. (b) **Leakage denso = REVISAR en ambos**
+   (SOL causal −0.0098 / BTC +0.0067; placebo no colapsa) → el gate k-NN NO se
+   reconstruye → la espada es **motor base + veto + maker**, NO el gate (§6.10.1
+   #3). (c) Lunes tóxico en #33 pero NO en #31 (fresca) → secundario frágil, no
+   apilar. **Hito: primera config con +0.10R OOS positivo INTEGRADO y replicado
+   cross-símbolo** — pendiente solo el fill-rate forward.
+3. **Paper forward 2–4 semanas** con el ledger del **motor paper** (`/paper`).
 4. Prod por env, con confirmación explícita del usuario y rollback de una
    línea. Cada paso documenta sus números aquí.
 
@@ -936,11 +992,193 @@ palancas legibles sí.
 4. **Cadencia baja con el veto** (SOL 156→113, −28%). Calidad por cadencia:
    aceptable para el objetivo, pero acerca el problema de densidad para F3.
 
-**Implicación para el camino a vivo:** el paper hoy mide fills sobre las
-señales del gate ORO (ficción NY). Para validar ESTA espada forward, el paper
-debe medir el subset correcto: **motor base + veto london + shadow maker**.
-Es un cambio de cableado del runtime paper (no del motor) — se plantea al
-usuario antes de tocar (§9.3); 0% real, reversible.
+**Implicación para el camino a vivo — RESUELTO en CÓDIGO (13-jun-2026):** el
+paper ORO mide fills sobre el gate de la ficción NY (población incorrecta). Para
+validar ESTA espada forward se cableó `motor_paper.py` (`MotorPaperRuntime`,
+default OFF `FQ_MOTOR_PAPER`): un track PARALELO al ORO que abre en paper el
+**motor base** (el `fire` CRUDO de `evaluate_signal`, misma población que el
+replay) filtrado por su **veto propio** (default `london_open_kz`, independiente
+del veto VIP en vivo → desacopla la validación del impacto a clientes) y mide el
+**shadow maker** (fill por penetración). `tools/motor_paper_stats.py` reporta el
+fill-rate maker REAL + adverse selection (FILL vs MISS). Es cableado del runtime
+paper, NO del motor; 0% real, reversible. El edge neto = matriz §6.10.1 escalada
+por el fill-rate realizado. Runbook §9.4. Meta: ≥30-50 fills (regla §6.10).
+
+---
+
+### 6.11 — STEP1 GATED + OOT + FILL-SIM HONESTO (runs #58/#59, sha 57594bf, 17-jun-2026)
+
+> Primer gateado+OOT a densidad MÁXIMA (step1) en Hetzner, con el fill-sim maker
+> honesto (`bt_engine.maker_entry_fill_mask`, misma regla penetración>eps que el
+> paper) ya cableado en la frontera `[2.2/4]`. Cierra la incógnita #1 de §6.10.1.
+
+**Frontera de ejecución BTC (48m, step1, 594 trades OOS):**
+
+| ejecución | exp_R | nota |
+|---|---|---|
+| taker/taker (hoy) | −0.1066 | realidad |
+| entrada+TP maker **[techo]** | +0.0286 | fill 100% (optimista) |
+| entrada+TP maker **[fill-sim]** | **−0.0254** | fill-rate 89% real |
+
+`R_fill=+0.119` vs `R_miss=+0.616` → **ADVERSE SELECTION confirmada**: la límite
+se queda los flojos, los ganadores se escapan sin llenar. **Cierra el caveat #1
+de §6.10.1: el +0.10R era techo; el número honesto NO cruza cero con maker naive.**
+Maker recorta el sangrado (−0.107→−0.025) pero no basta solo.
+
+**OOT forward (BTC, 137 trades nunca vistos, corte 2025-09-01):** exp_R −0.05,
+−7.6% total. NEGATIVO en promedio — PERO el bin superior de score del modelo dio
+**+0.784R** forward (bin2 +0.38). SOL forward peor (−15.7%). El promedio pierde;
+**el tope de la selección gana.**
+
+**Dónde está el edge (todos los lentes coinciden, OOS):**
+- Score del modelo: umbral 0.70 → +0.218R; bin forward top +0.78R.
+- Retrieval denso (gate ORO): decil top-10% **+0.53 edge** (BTC), top-25% +0.38.
+- Killzones: asia_kz +0.57, ny_pm +0.33, ny_am +0.27; `fuera` −0.14, `asia_open` −0.25.
+- Bloque quantum: lift **+0.0123 [SUMA]** AUNQUE `qt_sync_score` está 100% NaN
+  (extractor MUERTO) → arreglarlo es upside gratis.
+
+**TESIS (sello): el edge del motor está en la SELECCIÓN, no en el promedio.** El
+libro all-in es negativo neto de costes; el tope de cada ranking (score, decil de
+retrieval, killzone líquida) es netamente positivo. Ganar la temporada = ser
+selectivos + bajar coste sobre lo seleccionado.
+
+**Planeación (próximos pasos, por puntos esperados):**
+1. **P2 — Gate de selectividad (EN CONSTRUCCIÓN):** disparar solo si
+   `score_modelo ≥ top-quantil` (OOF walk-forward) Y `killzone ∉ {fuera, asia_open}`
+   (prior estructural). Medido OOS + **OOT forward del subset seleccionado** (la
+   vara anti-leakage). Extiende F2.6. Es la palanca que puede cruzar el signo NETO.
+2. **P1b — Maker consciente de adverse selection:** no postear límite pasiva en
+   señales de momentum que se escapan; postear maker solo donde el fill no es
+   adversamente seleccionado. Rescata el hueco −0.107→0 que el maker naive deja.
+3. **Paso 3 — arreglar `qt_sync_score` (100% NaN, extractor muerto):** el bloque
+   quantum ya suma +0.012 con esa feature muerta; repararla = más lift sin coste.
+4. **ETH al mismo harness:** poda #55 dio baseline ungated **−0.0382** (el MENOS
+   negativo de los 3 → mejor candidato a cruzar a positivo con selectividad).
+   Faltan su gated/OOT/maker/segmentos: se añade ETH 48m step1 a la matriz gated_shard.
+
+---
+
+### 6.12 — EL FORWARD TUMBA LA SELECCIÓN POR SCORE (run #60, step1 BTC+SOL+ETH, sha 7119fc2, 17-jun-2026)
+
+> Primer test FORWARD del gate de selectividad P2 (score top-50% del OOF +
+> killzone líquida). Veredicto: NO hay edge de selección estable out-of-time; el
+> juez OOT atrapó el sobreajuste ANTES de arriesgar capital.
+
+| símbolo | SELECTED OOS exp_R (+maker) | FORWARD [selección] exp_R | edge_vs_all fwd |
+|---|---|---|---|
+| ETH | +0.0283 (maker +0.0431) | **−0.1746** | **−0.081** |
+| SOL | −0.1498 (maker −0.1557) | −0.0071 | +0.108 |
+
+**La selección por score del modelo NO generaliza forward y se CONTRADICE entre
+símbolos:** ETH ayuda OOS / hunde forward; SOL hunde OOS / ayuda forward. Un efecto
+que cambia de signo entre muestra y símbolo = RUIDO, no edge. La calibración
+forward de ETH lo explica: el bin de MENOR score rindió +0.46R y el de mayor +0.34
+→ el orden del modelo se INVIRTIÓ out-of-time (decay / regime drift). (BTC #60 verde,
+mismo set; su FORWARD[selección] no se extrajo, pero ETH↔SOL ya es concluyente.)
+
+**Lo único limpio (pero SIN probar forward):** el gate de retrieval DENSO da
+leakage_ok en ETH (causal +0.066) y SOL (causal +0.091; fired +0.109) y concentra
+expectancy en deciles altos — PERO el forward de arriba usó SCORE DEL MODELO, no el
+retrieval. Quantum inconsistente (BTC +0.012, ETH +0.006, SOL −0.082 NO SUMA).
+
+**Veredicto honesto: HOY no hay edge forward-estable con estos selectores. NO
+desplegar selección/maker en vivo.** El harness hizo su trabajo: atrapó el
+sobreajuste barato (~1.5h en el box) en vez de en capital real.
+
+**Próximo test decisivo (EN CONSTRUCCIÓN):** forward del selector de RETRIEVAL
+(índice desde BEFORE, gateo del AFTER jamás visto). Si tampoco sobrevive → el edge
+durable NO está en el feature set actual → toca señal nueva (order-flow / funding /
+cross-asset). Si sobrevive → primer edge forward-limpio del proyecto.
+
+---
+
+### 6.13 — EL RETRIEVAL TAMPOCO SOBREVIVE FORWARD → SEÑAL NUEVA (run #61, sha 86360b3, 17-jun-2026)
+
+> Cierra §6.12: probado el forward del gate de RETRIEVAL (índice + umbral ORO del
+> BEFORE, gate del AFTER jamás visto). SOL — el candidato LIMPIO (fired +0.109 OOS,
+> leakage_ok) — NO sobrevive:
+>   AFTER=141 → oro=2 base=125 abstain=14 | n=2 exp_R=−0.2137 edge_vs_all=−0.099
+
+El gate no se equivoca forward: se queda **MUDO**. El umbral ORO del BEFORE (0.5515)
+casi no reconoce nada en el AFTER (2/141 oro) → la memoria del BEFORE deja de
+parecerse al mundo del AFTER. Es **REGIME DRIFT**, lo mismo que invirtió el score
+del modelo (§6.12, bin bajo +0.46R).
+
+**VEREDICTO COMPLETO: ningún selector del feature set actual (score del modelo NI
+gate de retrieval) tiene edge forward-estable.** Las ventajas OOS eran específicas
+de régimen y decaen out-of-time. NO es tuning → es **SEÑAL**. El harness eliminó
+honestamente todo el espacio de hipótesis del feature set actual (precio/estructura)
+en horas de cómputo, no en pérdidas vivas.
+
+**PIVOTE (en marcha): SEÑAL ORTOGONAL.** Primer frente cableado: cross-asset BTC→alt
+(commit ce09965; features `xbtc_` causales: trailing + shift_cross=1 + merge_asof
+backward, probado anti-leakage). Vara: ¿le da al alt el edge FORWARD que sus propias
+features no tienen? Se mide OOT por el MISMO harness (`--cross-asset BTC/USDT`,
+cableándose en el gated run). Siguientes Tier-1: funding+OI, order-flow.
+
+---
+
+### 6.14 — EL DEFLACTADO MATA LA PREDICCIÓN → pivote a ESTRUCTURAL (run #65, máx historia, sha c129d0e, 18-jun-2026)
+
+> Corrida DEFINITIVA: cross-asset + P1 rolling + sweep, a MÁXIMA densidad (BTC 84m,
+> SOL 60m, ETH 76m step1), con Deflated Sharpe + PBO. SOL (candidato limpio):
+>   P1 rolling top25%: edge −0.050, **delta_vs_static −0.228** (rolling PEOR que estático)
+>   Mejor forward = rolling top10%: edge +0.197 (n=21) PERO **DSR=0.41 (<0.95) + PBO=0.55 (overfit)**
+
+**El +0.197 era el más afortunado de 8 configs — la vara anti-suerte lo probó.** P1
+(adaptividad) NO rompió el drift (peor que el estático). Ni con cross-asset + memoria
+rodante + máxima historia + deflactado hay edge forward real en la predicción.
+
+**VEREDICTO con PRUEBA: el espacio de hipótesis PREDICTIVO está agotado** — no es
+"no lo encontramos", es "probamos que el mejor candidato es indistinguible de la
+suerte tras descontar la búsqueda (DSR 0.41, PBO 0.55)". El NO más limpio posible.
+La disciplina nos salvó de desplegar un espejismo de +0.197 en vivo.
+
+**PIVOTE (en marcha): edge ESTRUCTURAL, no predictivo.** P2 = **funding + OI**
+(carry/posicionamiento — cobrás una prima, no adivinás; no driftea como la
+predicción direccional). Misma vara: OOT + DSR + PBO. Si funding/OI cruza DSR≥0.95
+con PBO bajo → camino a vivo (paper-forward + reconcile + sizing); si no → ejecución
+(maker determinístico) + el harness/track-record honesto como producto. La fábrica
+de edge sigue: tiros independientes, estructura primero, deflactados, matando suerte.
+
+### 6.15 — CONSTRUIDO el camino estructural de funding: B (señal+paper) + C (depth) (sha dc0859b, 18-jun-2026)
+
+> Ejecución del pivote §6.14. Cuatro piezas, todas causales y juzgadas por el MISMO
+> forward + DSR/PBO (cero métrica nueva que auditar):
+> - **B1** `funding_strategy.py`: `funding_reversion_signal` — fade del extremo con
+>   histéresis (SHORT en +z, LONG en −z, banda de salida, NaN→FLAT). Pura; la
+>   posición en t usa sólo `fund_zscore(t)` (ya causal). `positions_to_trades` →
+>   eventos para `bt_labeler`.
+> - **B2** `tools/funding_research.py`: backtest deflactado standalone
+>   (`--out-of-time` + `[DEFLATED]`). El **sweep de z_enter es el conjunto de
+>   intentos** del juez anti-suerte. Reusa `_print_deflated_verdict` /
+>   `_forward_net_returns` / `_cost_for_symbol` de `run_research_real`.
+> - **B3** `tools/funding_paper.py`: runner FORWARD en papel (`PaperBroker` +
+>   `DurableHashLedger` + reconcile gated por `FQ_FUNDING_PAPER_BASELINE_R`).
+>   `--once/--loop/--report`; systemd documentado en el docstring.
+> - **C** `funding_oi.py`: `probe_funding_depth` / `fetch_funding_history_best`
+>   miden la profundidad ALCANZABLE por exchange; degradación grácil sin red.
+> - 28 tests nuevos (señal/histéresis, **causalidad prefix-invariante**, trades,
+>   probe multi-exchange, runtime paper con fetch mockeado). 59 passed/1 skip;
+>   regresión execution/paper/ledger/reconciler 55 passed.
+
+**Hallazgo honesto (C):** la red está bloqueada en CI (confirmado contra ccxt real:
+todo candidato lanza `NetworkError`); el probe lo captura por-exchange y reporta
+"correr en Hetzner / forward-only" en vez de crashear. **OKX expone ~3 meses de
+funding libre — demasiado poco para un backtest creíble.** Esperado (de la fuente
+ccxt 4.5.x): bybit ~2 años (paginado) y gateio >1 año son los más profundos;
+binanceusdm largo pero 451-geo-block frecuente en cloud; kucoin meses; hyperliquid
+horario variable.
+
+**Decisión que esto abre:** un edge estructural que NO driftea se valida MEJOR
+forward que en backtest. El valor inmediato es el **paper-forward** (`funding_paper.py`
+en Hetzner, 0% real, acumula el track que ningún backtest falsea), mientras
+`funding_research.py` da el read deflactado sobre la profundidad que bybit/gateio
+rindan. **Pendiente del usuario:** (1) generar la tabla de profundidad en Hetzner
+(`probe_funding_depth`), (2) decidir si pagar Coinglass/Laevitas para historia
+profunda real (única vía a un backtest deflactado robusto pre-forward). Si el
+paper-forward cruza DSR≥0.95 con PBO bajo → escalera a vivo; si no → ejecución
+maker + track-record honesto como producto.
 
 ---
 
@@ -984,6 +1222,14 @@ usuario antes de tocar (§9.3); 0% real, reversible.
 - Comparar contra la escalera TP1–TP4 fija y `max_bars` único.
 - Gate de entrada: ≥~1000 eventos fired en el cubo post-poda + gate ORO
   re-validado de esa config (§6.6); validación forward ≥40–50 trades.
+- ✅ **CÓDIGO construido (13-jun-2026): `bt_tp_selector.py`** — k-NN causal
+  walk-forward sobre el cubo (reusa `StateVectorizer` + folds purgados),
+  elige la celda `(tp,horizonte)` de mayor expectancy del vecindario, abstiene
+  a baseline si es ralo. 5 tests (lift +0.40R en cubo sintético estructurado).
+  **Smoke sobre el #33 (183 eventos): lift −0.053R (WR 50→40%)** → confirma
+  EMPÍRICAMENTE el gate §6.6: con <1000 eventos el vecindario k=50 es ruido y
+  el argmax sobreajusta. La máquina está lista; falta la **cosecha**
+  (`cosecha=true` → SOL 36m/step1, ~1.4–1.9k eventos) para tener señal real.
 
 ### F4 — Comparativa y **decisión de migración**
 - Ablación completa (`+todo`) y tabla BTC vs SOL con métricas idénticas.
@@ -1067,6 +1313,44 @@ if sig:  # solo ORO + direccion de campo
 ```
 Default **OFF** (`FQ_GOLD_LIVE=0`) hasta validar cadencia/calidad en paper. La
 señal sale en el formato del `PaperBroker`/`live_driver` — sin adaptaciones.
+
+### 9.4 Runbooks F2.6 (veto de sesión + motor paper) — 13-jun-2026
+
+Tres acciones, en orden de seguridad. El código ya está en producción (default
+OFF). Paper primero; nada de dinero real.
+
+**A) Corrida de CONFIRMACIÓN del veto (§6.8 paso 2) — CI, 0% impacto.**
+Actions → Research → Run workflow → branch
+`claude/turbovec-tp-cube-hardening-fvzdx7` → setear input
+`segment_veto_killzones = london_open_kz` (dejar el resto por default) → Run.
+El replay filtra la población etiquetada por el veto ANTES de medir → el
+REPORTE trae OOS [2/4] + frontera maker [2.2/4] + segmentos [2.5/4] +
+`leakage_ok` del ORO de la población restante. Vara §6.6: el veto se queda solo
+si mejora la expectancy OOS sin degradar WR de forma no compensada.
+> Nota GitHub: el form renderiza inputs desde `main`. Si `segment_veto_killzones`
+> no aparece al seleccionar la rama, hay que mergear esta rama a `main` primero
+> (o, fallback puntual, hardcodear `FQ_SEGMENT_VETO_KILLZONES` en el `env:` del
+> workflow como se hizo con `BUILDIDX`).
+
+**B) MOTOR PAPER forward (§6.10.1, mide el fill-rate REAL) — Railway, 0% real,
+admin-only.** worker → Variables: `FQ_MOTOR_PAPER=1` (+ opcional
+`FQ_MOTOR_PAPER_TF=15m`, `FQ_MOTOR_PAPER_VETO_KILLZONES=london_open_kz` ya es
+default). Redeploy. Confirmar en logs: `[motor] runtime paper MOTOR BASE
+activo`. Tras 2-4 semanas: `python tools/motor_paper_stats.py` (lee el ledger
+del Volume) → fill-rate maker + adverse selection + muestra vs la meta ≥30-50.
+NO toca VIP ni dinero; es el juez del techo +0.10R. Rollback: borrar la env.
+
+**C) VETO LONDON EN VIVO (provisional, §6.8 paso 4) — Railway, IMPACTA CLIENTES.**
+worker → Variables: `FQ_SEGMENT_VETO_KILLZONES=london_open_kz`. Redeploy.
+⚠️ Esto VETA señales VIP a CLIENTES en la franja london (1:00-5:00 CDMX), no
+solo paper → CONFIRMAR con el usuario (captura del dashboard) antes de activar.
+Confirmar en logs: `VETO sesion [killzone=london_open_kz] - señal NO difundida`
+en la franja. Rollback de una línea: borrar la env. Idealmente solo tras (B)
+dar fill-rate y/o el forward respaldar el veto.
+
+**Siguiente (post-confirmación, NO antes):** cosecha F3 — editar la matriz de
+`research.yml` (SOL `months: 24→36`, `step: 2→1`) para ≥~1000 eventos del cubo
+de la config estable, base de F3 (selector TP/horizonte). Es el camino a ≥0.133R.
 
 ---
 

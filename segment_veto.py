@@ -205,12 +205,16 @@ def parse(killzones="", utc_blocks="", weekdays=""):
     )
 
 
-def from_env(env=None):
-    """Lee FQ_SEGMENT_VETO_KILLZONES / _UTC_BLOCKS / _WEEKDAYS. Default OFF."""
+def from_env(env=None, prefix="FQ_SEGMENT_VETO"):
+    """Lee <prefix>_KILLZONES / _UTC_BLOCKS / _WEEKDAYS. Default OFF.
+
+    prefix permite un veto INDEPENDIENTE por consumidor sin tocar el global: el
+    track gold paper usa prefix='FQ_GOLD_SEGMENT_VETO' para vetar SOLO en paper
+    (admin) sin afectar la senal VIP a clientes (paper-first)."""
     import os
     env = os.environ if env is None else env
     return parse(
-        killzones=env.get(ENV_KILLZONES, ""),
-        utc_blocks=env.get(ENV_UTC_BLOCKS, ""),
-        weekdays=env.get(ENV_WEEKDAYS, ""),
+        killzones=env.get(prefix + "_KILLZONES", ""),
+        utc_blocks=env.get(prefix + "_UTC_BLOCKS", ""),
+        weekdays=env.get(prefix + "_WEEKDAYS", ""),
     )

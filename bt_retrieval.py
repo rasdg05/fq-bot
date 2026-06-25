@@ -28,6 +28,7 @@
 ================================================================================
 """
 import logging
+import os
 import pickle
 import warnings
 
@@ -253,6 +254,28 @@ DEFAULT_NUMERIC = [
     "regime_score",
     "field_confluence_count", "field_pd_pct", "field_w_effective",
 ]
+# CROSS-ASSET (BTC -> alt): features lead-lag CAUSALES inyectadas con --cross-asset.
+# Se anexan a DEFAULT_NUMERIC para que el vector de retrieval (denso + gate ORO +
+# gate forward) las ingiera automaticamente cuando esten presentes; cuando NO lo
+# estan, el vectorizer las imputa a 0 (mediana tras centrar) sin romper -- igual
+# que cualquier feature ausente. Misma lista que alimenta el modelo (bt_features.
+# _numeric_feature_columns reconoce el prefijo xbtc_). Single source of truth alli.
+try:
+    from bt_features import XBTC_FEATURE_COLUMNS as _XBTC_FEATURE_COLUMNS
+    DEFAULT_NUMERIC = DEFAULT_NUMERIC + list(_XBTC_FEATURE_COLUMNS)
+except Exception:   # pragma: no cover - bt_features siempre disponible en el bot
+    pass
+# FUNDING / OPEN-INTEREST (estructural): features CAUSALES inyectadas con --funding-oi.
+# Mismo patron que XBTC_FEATURE_COLUMNS -> se anexan a DEFAULT_NUMERIC para que el
+# vector del gate ORO las ingiera cuando esten presentes; cuando NO lo estan (flag
+# apagado u OI no disponible), el vectorizer las imputa a 0 (mediana tras centrar)
+# sin romper -- dimension inerte, igual que xbtc_ sin --cross-asset. Single source
+# of truth de las columnas: funding_oi.FUNDING_OI_FEATURE_COLUMNS.
+try:
+    from funding_oi import FUNDING_OI_FEATURE_COLUMNS as _FUNDING_OI_FEATURE_COLUMNS
+    DEFAULT_NUMERIC = DEFAULT_NUMERIC + list(_FUNDING_OI_FEATURE_COLUMNS)
+except Exception:   # pragma: no cover - funding_oi siempre disponible en el bot
+    pass
 # BLOQUE QUANTUM / TIEMPO EMERGENTE (Eje A) — convicción adaptativa, excitación de
 # campo y tiempo complejo. Es el bloque que se ABLACIONA: vector base vs base+qt
 # para medir si los estados cuánticos / fractales de tiempo emergente aportan edge.
@@ -273,18 +296,47 @@ DEFAULT_CATEGORICAL = [
 ]
 
 
+# DECOUPLING TEST (§6.6): grupos de features del vector ACOPLADAS a un módulo del
+# motor. Medir el edge OOS del gate SIN ellas responde si el módulo es removible del
+# motor sin romper el gate: si el gate NO cae (o mejora) sin scorer/regime, esas
+# features no lo cargaban → se puede cortar el módulo + reconstruir el índice. Se
+# activa con FQ_RETRIEVAL_DECOUPLE="scorer,regime" (vacío = comportamiento normal).
+DECOUPLE_GROUPS = {
+    "scorer": {"numeric": ["scorer_total", "scorer_volume", "scorer_structure",
+                           "scorer_liquidity", "scorer_concept_stack",
+                           "scorer_history"],
+               "categorical": []},
+    "regime": {"numeric": ["regime_score"], "categorical": ["regime_state"]},
+}
+
+
+def _decouple_groups():
+    """Grupos pedidos vía FQ_RETRIEVAL_DECOUPLE (CSV; ignora desconocidos)."""
+    raw = os.environ.get("FQ_RETRIEVAL_DECOUPLE", "").strip()
+    return [g.strip() for g in raw.split(",") if g.strip() in DECOUPLE_GROUPS]
+
+
 def vector_variants():
-    """Variantes del vector de estado para la ablación del Eje A.
+    """Variantes del vector de estado para la ablación del Eje A (+ decoupling).
 
     base    : el vector validado (convicción + scorer + régimen + estructura).
     quantum : base + BLOQUE QUANTUM (tiempo emergente / excitación de campo /
               convicción adaptativa). Compararlos OOS mide si las ideas del
               Quantum bot, como coordenadas, aportan edge atribuible.
+    no_<g>  : (solo con FQ_RETRIEVAL_DECOUPLE) base SIN las features del grupo g
+              (scorer/regime) → mide si el gate las necesita (decoupling §6.6).
     """
-    return {
+    variants = {
         "base":    StateVectorizer(numeric=DEFAULT_NUMERIC),
         "quantum": StateVectorizer(numeric=DEFAULT_NUMERIC + QUANTUM_BLOCK),
     }
+    for g in _decouple_groups():
+        drop_n = set(DECOUPLE_GROUPS[g]["numeric"])
+        drop_c = set(DECOUPLE_GROUPS[g]["categorical"])
+        variants["no_%s" % g] = StateVectorizer(
+            numeric=[c for c in DEFAULT_NUMERIC if c not in drop_n],
+            categorical=[c for c in DEFAULT_CATEGORICAL if c not in drop_c])
+    return variants
 
 
 class StateVectorizer:

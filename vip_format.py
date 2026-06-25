@@ -9,8 +9,8 @@ Modulo inerte: no envia, no consulta DB.
 from datetime import datetime, timezone, timedelta
 
 from branding import (
-    PRODUCT, PAIR, SCUDERIA, HASHTAGS_SIGNAL, RULE, LUX_RULE, GLYPHS, DISCLAIMER,
-    FERRARI, lux_header, lux_block, lux_item, lux_check, lux_footer,
+    PRODUCT, PAIR, DESK, HASHTAGS_SIGNAL, RULE, LUX_RULE, GLYPHS, DISCLAIMER,
+    lux_header, lux_block, lux_item, lux_check, lux_footer,
 )
 import qte_verdict  # veredicto canonico compartido con el bloque QTE admin
 
@@ -50,7 +50,7 @@ def leverage_for_tier(p_master):
 # ============================================================
 # SENAL VIP - simplificada, ejecutable sin exponer motor
 # ============================================================
-def build_vip_signal(field, decision_report, tf_label=None, tf_id=None):
+def build_vip_signal(field, decision_report, tf_label=None, tf_id=None, pair=None):
     """
     Senal lista para copy-paste. NO expone P_master, kappa_evo, Theta(D),
     f_confluencia ni constantes phi/alpha. Solo lo que el VIP necesita ejecutar.
@@ -59,7 +59,7 @@ def build_vip_signal(field, decision_report, tf_label=None, tf_id=None):
     pilares del motor, pero el usuario VIP no ve la fuente.
 
     Este ES el formato unico de la SENAL real gateada: admin y VIP reciben lo
-    mismo (limpio). El encabezado iconico (🎯 Senal FQ VIP ◆) + la insignia de
+    mismo (limpio). El encabezado (│ Senal VIP) + la insignia de
     CALIDAD la distinguen de un vistazo de las alertas tacticas y las lecturas
     de campo. tf_label/tf_id son opcionales (contexto en el header).
     """
@@ -80,10 +80,11 @@ def build_vip_signal(field, decision_report, tf_label=None, tf_id=None):
     )
     momentum_ok = field.confluence_count >= 3 and field.node_type == "colapso"
 
+    chk = GLYPHS["bullet_chk"]
     pilares = "\n".join([
-        "  ▪ Estructura  {}".format("OK" if estruct_ok else "—"),
-        "  ▪ Liquidez    {}".format("OK" if liquidez_ok else "—"),
-        "  ▪ Momentum    {}".format("OK" if momentum_ok else "—"),
+        "  {} Estructura   {}".format(chk, "OK" if estruct_ok else "—"),
+        "  {} Liquidez     {}".format(chk, "OK" if liquidez_ok else "—"),
+        "  {} Momentum     {}".format(chk, "OK" if momentum_ok else "—"),
     ])
 
     when = datetime.now(CDMX_TZ).strftime("%H:%M CDMX")
@@ -100,31 +101,32 @@ def build_vip_signal(field, decision_report, tf_label=None, tf_id=None):
 
     risk_pct = (levels["risk"] / levels["entry"]) * 100 if levels.get("risk") else 0
     risk_lbl = risk_band(risk_pct)
+    pair_label = pair or PAIR   # BTC/USDT en la fusion BTC->VIP; SOL/USDT por defecto
 
     return (
         "{rule}\n"
-        "  🎯 Senal {product} VIP ◆ {pair}\n"
+        "  {bar} {product} · Senal VIP · {pair}\n"
         "  {quality}\n"
         "  {ctx}\n"
         "{rule}\n"
         "  {arrow} {side}        Conviccion {conv}\n"
         "\n"
-        "  ▸ Entry    ${entry:.2f}\n"
-        "  ▸ Stop     ${sl:.2f}    Riesgo {risk}\n"
+        "  Entry    ${entry:.2f}\n"
+        "  Stop     ${sl:.2f}    Riesgo {risk}\n"
         "\n"
-        "  ▸ TP1      ${tp1:.2f}    R {rr1:.2f}\n"
-        "  ▸ TP2      ${tp2:.2f}    R {rr2:.2f}\n"
-        "  ▸ TP3      ${tp3:.2f}    R {rr3:.2f}\n"
-        "  ▸ TP4      ${tp4:.2f}    R {rr4:.2f}\n"
+        "  TP1      ${tp1:.2f}    R {rr1:.2f}\n"
+        "  TP2      ${tp2:.2f}    R {rr2:.2f}\n"
+        "  TP3      ${tp3:.2f}    R {rr3:.2f}\n"
+        "  TP4      ${tp4:.2f}    R {rr4:.2f}\n"
         "{rule}\n"
         "{pilares}\n"
         "{rule}\n"
-        "  Leverage {lev}   Size {sizing}\n"
+        "  Leverage {lev}   ·   Size {sizing}\n"
         "  SL inmutable.\n"
         "\n"
         "  {tags} #{side}"
     ).format(
-        rule=RULE, product=PRODUCT, pair=PAIR, quality=quality, ctx=ctx_line,
+        rule=RULE, bar=GLYPHS["title"], product=PRODUCT, pair=pair_label, quality=quality, ctx=ctx_line,
         arrow=arrow, side=side, conv=conviction, risk=risk_lbl,
         entry=levels["entry"], sl=levels["sl"],
         tp1=levels["tp1"], rr1=levels.get("rr_tp1", 0),
@@ -199,21 +201,22 @@ def build_battle_block(plan):
     p_market = _prob_label(1.0 - (mkt.get("p_sl") or 0.5))
     ev_market = _ev_label(mkt.get("ev"))
 
+    c = GLYPHS["bullet_chk"]
     lines = [
         RULE,
-        "  ▰ Plan · {}".format(PAIR),
+        "  {} Plan · {}".format(GLYPHS["event"], PAIR),
         RULE,
-        "  {} <b>{}</b>".format(plan["emoji"], plan["headline"]),
+        "  <b>{}</b>".format(plan["headline"]),
         "",
     ]
 
     if v == "EJECUTAR_AHORA":
         lines += [
-            "  ▸ Entry      ${:.2f}".format(mkt["entry"]),
-            "  ▸ Invalida   ${:.2f}".format(plan["invalidation"]),
-            "  ▸ Objetivos  {}".format(tps_str),
+            "  Entry      ${:.2f}".format(mkt["entry"]),
+            "  Invalida   ${:.2f}".format(plan["invalidation"]),
+            "  Objetivos  {}".format(tps_str),
             "",
-            "  ◆ {} · probabilidad {}".format(ev_market, p_market.lower()),
+            "  {} {} · probabilidad {}".format(c, ev_market, p_market.lower()),
         ]
     elif v == "ACUMULAR_EN_ZONA":
         z = plan["primary_zone"]
@@ -224,29 +227,29 @@ def build_battle_block(plan):
         p_zone = _prob_label(1.0 - (z.get("p_sl_cond") or 0.5))
         ev_zone = _ev_label(z.get("ev_cond"))
         p_reach = _prob_label(z.get("reach_prob"))
-        lines += ["  ▸ Acumula", acc]
+        lines += ["  Acumula", acc]
         if plan.get("trigger"):
-            lines.append("  ▸ Gatillo    {}".format(plan["trigger"]))
+            lines.append("  Gatillo    {}".format(plan["trigger"]))
         lines += [
-            "  ▸ Invalida   ${:.2f}".format(plan["invalidation"]),
-            "  ▸ Objetivos  {}".format(tps_str),
+            "  Invalida   ${:.2f}".format(plan["invalidation"]),
+            "  Objetivos  {}".format(tps_str),
             "",
-            "  ◆ Regreso a zona: {}".format(p_reach.lower()),
-            "  ◆ Desde zona:    {} · prob. {}".format(ev_zone, p_zone.lower()),
-            "  ◆ A mercado:     {} · prob. {}".format(ev_market, p_market.lower()),
+            "  {} Regreso a zona: {}".format(c, p_reach.lower()),
+            "  {} Desde zona:    {} · prob. {}".format(c, ev_zone, p_zone.lower()),
+            "  {} A mercado:     {} · prob. {}".format(c, ev_market, p_market.lower()),
             "  → Mejor entrar acumulando en zona.",
         ]
     elif v == "ESPERAR_GATILLO":
         lines += [
-            "  ▸ Gatillo    {}".format(plan.get("trigger") or "confirmacion a favor"),
-            "  ▸ Invalida   ${:.2f}".format(plan["invalidation"]),
-            "  ▸ Objetivos  {}".format(tps_str),
+            "  Gatillo    {}".format(plan.get("trigger") or "confirmacion a favor"),
+            "  Invalida   ${:.2f}".format(plan["invalidation"]),
+            "  Objetivos  {}".format(tps_str),
             "",
-            "  ◆ {}".format(plan["rationale"]),
+            "  {} {}".format(c, plan["rationale"]),
         ]
     else:  # STAND_DOWN
         lines += [
-            "  ◆ {}".format(plan["rationale"]),
+            "  {} {}".format(c, plan["rationale"]),
         ]
 
     return "\n".join(lines) + "\n"
@@ -296,17 +299,14 @@ def build_tactical_alert(plan, tps_short, vol_label=None, killzone_name=None,
     # Headline segun veredicto
     if v == "EJECUTAR_AHORA":
         entry_str = "${:.2f}".format(mkt.get("entry") or 0)
-        emoji_head = "🟢"
-        headline = "EJECUTA {} a mercado ~{}".format(side, entry_str)
+        headline = "EJECUTA {} con LÍMITE (maker) ~{}".format(side, entry_str)
     elif v == "ACUMULAR_EN_ZONA":
         z = plan["primary_zone"]
-        emoji_head = "🟡"
         headline = "ACUMULA {} en {} ${:.2f}-${:.2f}".format(
             side, z["label"], z["low"], z["high"])
         entry_str = "${:.2f}".format(z["ref"])
     else:
         # No deberia llegar otro verdict, pero defensive
-        emoji_head = "⚡"
         headline = plan.get("headline", "ALERTA TACTICA")
         entry_str = "${:.2f}".format(mkt.get("entry") or 0)
 
@@ -322,12 +322,12 @@ def build_tactical_alert(plan, tps_short, vol_label=None, killzone_name=None,
 
     arrow = GLYPHS["long"] if plan["direction"] == "long" else GLYPHS["short"]
 
-    # Mismo acabado premium que la senal FQ VIP, con CLASE propia (⚡ TACTICA):
-    # encabezado iconico, regla, flecha de lado. Sin tags ni jerga.
+    # Mismo acabado institucional que la senal FQ VIP, con CLASE propia
+    # (ALERTA TACTICA): encabezado, regla, flecha de lado. Sin jerga de motor.
     lines = [
         RULE,
-        "  ⚡ ALERTA TACTICA FQ ◆ {}".format(PAIR),
-        "  {} {}".format(emoji_head, headline),
+        "  {} {} · ALERTA TACTICA · {}".format(GLYPHS["title"], PRODUCT, PAIR),
+        "  {}".format(headline),
         "  {}".format(ctx_line),
         RULE,
         "  {} {}".format(arrow, side),
@@ -336,23 +336,23 @@ def build_tactical_alert(plan, tps_short, vol_label=None, killzone_name=None,
 
     # Entrada / acumulacion
     if v == "EJECUTAR_AHORA":
-        lines.append("  ▸ Entry      {}".format(entry_str))
+        lines.append("  Entry      {}".format(entry_str))
     elif v == "ACUMULAR_EN_ZONA":
         acc = plan["primary_zone"].get("accumulate") or []
-        lines.append("  ▸ Acumula")
+        lines.append("  Acumula")
         for a in acc:
             lines.append("     {:>3}%  ${:.2f}".format(a.get("weight_pct", 0),
                                                           a.get("price", 0)))
         if plan.get("trigger"):
-            lines.append("  ▸ Gatillo    {}".format(plan["trigger"]))
+            lines.append("  Gatillo    {}".format(plan["trigger"]))
 
     if invalidation is not None:
-        lines.append("  ▸ Invalida   ${:.2f}".format(invalidation))
+        lines.append("  Invalida   ${:.2f}".format(invalidation))
 
     # TPs cortos con % de cierre (40/35/25) y RR
     for i, tp in enumerate(tps_short, start=1):
         wp = tp.get("weight_pct", 0)
-        lines.append("  ▸ TP{} ({:>2}%) ${:.2f}    R:R {:.2f}".format(
+        lines.append("  TP{} ({:>2}%) ${:.2f}    R:R {:.2f}".format(
             i, wp, tp.get("price", 0), tp.get("rr", 0)))
 
     # Resumen cualitativo
@@ -360,7 +360,7 @@ def build_tactical_alert(plan, tps_short, vol_label=None, killzone_name=None,
     if vol_label:
         summary_bits.append("volumen {}".format(vol_label.lower()))
     lines.append(RULE)
-    lines.append("  ◆ " + " · ".join(summary_bits))
+    lines.append("  {} ".format(GLYPHS["bullet_chk"]) + " · ".join(summary_bits))
     lines.append("  Tactica rapida · no sustituye la senal FQ VIP.")
     lines.append(RULE)
     lines.append("  #FQ #SOLUSDT #Tactica #{}".format(side))
@@ -434,14 +434,14 @@ def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None, plan=None
     tp_lines = []
     for i in range(min(3, len(tp_meta))):
         kind_lbl = TP_KIND_LABEL_VIP.get(tp_meta[i]["kind"], tp_meta[i]["kind"])
-        tp_lines.append("  ▸ TP{n}     ${p:.2f}   R {rr:.2f}   {k}".format(
+        tp_lines.append("  TP{n}     ${p:.2f}   R {rr:.2f}   {k}".format(
             n=i+1, p=tp_meta[i]["price"], rr=tp_meta[i]["rr"], k=kind_lbl))
     if not tp_lines:
         for i in range(1, 4):
             p = levels.get("tp{}".format(i))
             rr = levels.get("rr_tp{}".format(i), 0)
             if p is not None:
-                tp_lines.append("  ▸ TP{n}     ${p:.2f}   R {rr:.2f}".format(
+                tp_lines.append("  TP{n}     ${p:.2f}   R {rr:.2f}".format(
                     n=i, p=p, rr=rr))
     tps_block = "\n".join(tp_lines)
 
@@ -449,17 +449,19 @@ def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None, plan=None
     tone = _market_tone(qa, direction)
     horizon_h = qa.get("horizon_hours") if qa else None
     quality = _quality_note(qa)
+    c = GLYPHS["bullet_chk"]
     tbits = []
     if tone:
-        tbits.append("  ◆ {}".format(tone))
+        tbits.append("  {} {}".format(c, tone))
     if horizon_h:
-        tbits.append("  ◆ Horizonte ~{:.0f}h".format(horizon_h))
+        tbits.append("  {} Horizonte ~{:.0f}h".format(c, horizon_h))
     if quality:
-        tbits.append("  ◆ {}".format(quality))
+        tbits.append("  {} {}".format(c, quality))
     tone_block = ("\n".join(tbits) + "\n{}\n".format(RULE)) if tbits else ""
 
     battle = build_battle_block(plan)
-    detalle_hdr = "  ▰ Detalle" if battle else "  ▰ Analisis · {}".format(PAIR)
+    detalle_hdr = ("  {} Detalle".format(GLYPHS["event"]) if battle
+                   else "  {} Analisis · {}".format(GLYPHS["event"], PAIR))
     # Si no hay plan que lidere, una linea de accion clara desde el veredicto.
     hint = None if battle else _decision_hint(qa, direction)
     decision_line = "  → {}\n".format(hint) if hint else ""
@@ -472,15 +474,15 @@ def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None, plan=None
         "  {arrow} Sesgo {side}     Conviccion {conv}\n"
         "{decision}"
         "\n"
-        "  ▸ Entry   ${entry:.2f}\n"
-        "  ▸ Stop    ${sl:.2f}   Riesgo {risk} ({riskpct:.1f}% al stop)\n"
+        "  Entry   ${entry:.2f}\n"
+        "  Stop    ${sl:.2f}   Riesgo {risk} ({riskpct:.1f}% al stop)\n"
         "    anclado a {sla}\n"
         "\n"
         "{tps}\n"
         "{rule}\n"
         "{tone}"
-        "  ◆ SL estructural\n"
-        "  ◆ TPs en liquidez real\n"
+        "  {c} SL estructural\n"
+        "  {c} TPs en liquidez real\n"
         "{rule}\n"
         "  {tags}"
     ).format(
@@ -488,35 +490,36 @@ def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None, plan=None
         decision=decision_line, riskpct=risk_pct,
         arrow=arrow, side=side, conv=conviction, risk=risk_lbl,
         entry=entry, sl=sl, sla=sla_lbl,
-        tps=tps_block, tone=tone_block, tags=HASHTAGS_SIGNAL,
+        tps=tps_block, tone=tone_block, tags=HASHTAGS_SIGNAL, c=c,
     )
 
 # ============================================================
 # /resultados - track record verificable (VIP/admin)
 # ============================================================
 def _fmt_results_window(label, w):
+    c = GLYPHS["bullet_chk"]
     if not w:
-        return "  {}\n  ▪ sin cierres aun".format(label)
+        return "  {}\n  {} sin cierres aun".format(label, c)
     pf = w["profit_factor"]
     pf_str = "inf" if pf == float("inf") else "{:.2f}".format(pf)
     return (
         "  {label}\n"
-        "  ▪ Senales      {n}\n"
-        "  ▪ Win rate     {wr:.0%}\n"
-        "  ▪ Expectancy   {ex:+.2f}R\n"
-        "  ▪ Profit fctr  {pf}"
-    ).format(label=label, n=w["n"], wr=w["win_rate"], ex=w["expectancy"], pf=pf_str)
+        "  {c} Senales      {n}\n"
+        "  {c} Win rate     {wr:.0%}\n"
+        "  {c} Expectancy   {ex:+.2f}R\n"
+        "  {c} Profit fctr  {pf}"
+    ).format(label=label, n=w["n"], wr=w["win_rate"], ex=w["expectancy"], pf=pf_str, c=c)
 
 def build_resultados(summary):
     """Track record VIP. summary = dict de get_results_summary, o None."""
     if not summary or not summary.get("total"):
         return (
-            "{rule}\n  ◆ {product} · Resultados\n{rule}\n"
+            "{rule}\n  {bar} {product} · Resultados\n{rule}\n"
             "  Aun no hay cierres registrados.\n{rule}"
-        ).format(rule=RULE, product=PRODUCT)
+        ).format(rule=RULE, product=PRODUCT, bar=GLYPHS["title"])
     lines = [
         RULE,
-        "  ◆ {} · Resultados".format(PRODUCT),
+        "  {} {} · Resultados".format(GLYPHS["title"], PRODUCT),
         RULE,
         _fmt_results_window("Ultimos 30 dias", summary.get("w30")),
         "",
@@ -526,7 +529,7 @@ def build_resultados(summary):
     ]
     streak = summary.get("longest_streak") or 0
     if streak >= 2:
-        lines += ["", "  ▪ Mejor racha   {} cierres".format(streak)]
+        lines += ["", "  {} Mejor racha   {} cierres".format(GLYPHS["bullet_chk"], streak)]
     lines += [RULE, "  {}".format(DISCLAIMER)]
     return "\n".join(lines)
 
@@ -573,7 +576,7 @@ def build_help_admin():
 
 def build_help_free():
     return "\n".join([
-        lux_header("{} · Acceso".format(PRODUCT), "Sube a la parrilla"),
+        lux_header("{} · Acceso".format(PRODUCT), "Activa tu acceso"),
         "",
         lux_item("/precio", "Tarifas"),
         lux_item("/vip", "Activar acceso"),
@@ -586,12 +589,12 @@ def build_help_free():
 def build_about_vip():
     """About VIP. Una pantalla, sin mecanica interna, sin versionado."""
     return "\n".join([
-        lux_header("{} · {}".format(PRODUCT, SCUDERIA),
-                   "Senales {} con precision de pista".format(PAIR)),
+        lux_header("{} · {}".format(PRODUCT, DESK),
+                   "Senales {} de grado institucional".format(PAIR)),
         "",
         lux_block(
-            "Cuando hay edge, acelera.",
-            "Cuando no, frena.",
+            "Cuando hay ventaja, ejecuta.",
+            "Cuando no, espera.",
         ),
         "",
         lux_check("SL anclado a estructura"),
@@ -638,14 +641,13 @@ def build_about_admin():
 # ============================================================
 def build_welcome():
     return "\n".join([
-        lux_header("{} · {}".format(PRODUCT, SCUDERIA),
-                   "Senales {}".format(PAIR)),
+        lux_header("{} · {}".format(PRODUCT, DESK), PAIR),
         "",
         lux_block(
-            "Bienvenido al box.",
+            "Bienvenido a la mesa.",
             "",
-            "Cuando hay edge, acelera.",
-            "Cuando no, frena.",
+            "Cuando hay ventaja, ejecuta.",
+            "Cuando no, espera.",
         ),
         "",
         lux_footer(
@@ -662,7 +664,7 @@ def build_welcome_for_tier(tier):
     if tier in ("vip", "admin", "trial"):
         return "\n".join([
             lux_header("{} · Acceso activo".format(PRODUCT),
-                       "{} en pista".format(FERRARI["rosso"])),
+                       "Canal operativo"),
             "",
             lux_block("Tu canal de senales esta encendido."),
             "",

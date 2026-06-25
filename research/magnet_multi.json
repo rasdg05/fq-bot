@@ -1,0 +1,170 @@
+[
+  {
+    "n_trades": 431,
+    "win_rate": 0.31554524361948955,
+    "expectancy_r": 0.23017398497638925,
+    "total_r": 99.20498752482376,
+    "max_drawdown": 0.8216723720146065,
+    "final_equity": 2481.3898284795264,
+    "by_mode": {
+      "continuation": {
+        "n": 416,
+        "expectancy_r": 0.19438291097867447
+      },
+      "reversal": {
+        "n": 15,
+        "expectancy_r": 1.222779770513012
+      }
+    },
+    "symbol": "BNB-USDT-SWAP",
+    "bars": 12099,
+    "days": 42.00694444444444
+  },
+  {
+    "n_trades": 598,
+    "win_rate": 0.27759197324414714,
+    "expectancy_r": 0.11950932774291059,
+    "total_r": 71.46657799026053,
+    "max_drawdown": 0.9044526789746037,
+    "final_equity": 996.5926266818055,
+    "by_mode": {
+      "continuation": {
+        "n": 575,
+        "expectancy_r": 0.11386595618745016
+      },
+      "reversal": {
+        "n": 23,
+        "expectancy_r": 0.2605936166294221
+      }
+    },
+    "symbol": "DOGE-USDT-SWAP",
+    "bars": 12099,
+    "days": 42.00694444444444
+  },
+  {
+    "n_trades": 607,
+    "win_rate": 0.25370675453047775,
+    "expectancy_r": 0.016969652412515978,
+    "total_r": 10.300579014397199,
+    "max_drawdown": 0.9388711871794121,
+    "final_equity": 641.6987022028163,
+    "by_mode": {
+      "continuation": {
+        "n": 585,
+        "expectancy_r": 0.03203981011254755
+      },
+      "reversal": {
+        "n": 22,
+        "expectancy_r": -0.38375954097468645
+      }
+    },
+    "symbol": "ADA-USDT-SWAP",
+    "bars": 12099,
+    "days": 42.00694444444444
+  },
+  {
+    "n_trades": 466,
+    "win_rate": 0.2553648068669528,
+    "expectancy_r": -0.002621500594877024,
+    "total_r": -1.2216192772126933,
+    "max_drawdown": 0.920846775347806,
+    "final_equity": 841.9282833041719,
+    "by_mode": {
+      "continuation": {
+        "n": 448,
+        "expectancy_r": -0.023075332201081915
+      },
+      "reversal": {
+        "n": 18,
+        "expectancy_r": 0.5064516416039998
+      }
+    },
+    "symbol": "ETH-USDT-SWAP",
+    "bars": 12099,
+    "days": 42.00694444444444
+  },
+  {
+    "n_trades": 606,
+    "win_rate": 0.24917491749174916,
+    "expectancy_r": -0.04660025065266719,
+    "total_r": -28.239751895516314,
+    "max_drawdown": 0.9664661577120036,
+    "final_equity": 344.53635250320974,
+    "by_mode": {
+      "continuation": {
+        "n": 586,
+        "expectancy_r": -0.04876566218584879
+      },
+      "reversal": {
+        "n": 20,
+        "expectancy_r": 0.01684630726955404
+      }
+    },
+    "symbol": "XRP-USDT-SWAP",
+    "bars": 12099,
+    "days": 42.00694444444444
+  },
+  {
+    "n_trades": 573,
+    "win_rate": 0.2164048865619546,
+    "expectancy_r": -0.05307859389703087,
+    "total_r": -30.414034302998687,
+    "max_drawdown": 0.9582656235987036,
+    "final_equity": 420.87874670680714,
+    "by_mode": {
+      "continuation": {
+        "n": 551,
+        "expectancy_r": -0.03533974928802528
+      },
+      "reversal": {
+        "n": 22,
+        "expectancy_r": -0.49735602024076153
+      }
+    },
+    "symbol": "SOL-USDT-SWAP",
+    "bars": 12099,
+    "days": 42.00694444444444
+  },
+  {
+    "n_trades": 583,
+    "win_rate": 0.21612349914236706,
+    "expectancy_r": -0.10244725973434023,
+    "total_r": -59.72675242512035,
+    "max_drawdown": 0.9753912876778782,
+    "final_equity": 250.2265806952276,
+    "by_mode": {
+      "continuation": {
+        "n": 560,
+        "expectancy_r": -0.11128712242590286
+      },
+      "reversal": {
+        "n": 23,
+        "expectancy_r": 0.11278417971240196
+      }
+    },
+    "symbol": "LTC-USDT-SWAP",
+    "bars": 12099,
+    "days": 42.00694444444444
+  },
+  {
+    "n_trades": 389,
+    "win_rate": 0.23136246786632392,
+    "expectancy_r": -0.1832648606216962,
+    "total_r": -71.29003078183982,
+    "max_drawdown": 0.9444225791537411,
+    "final_equity": 560.0353085648927,
+    "by_mode": {
+      "continuation": {
+        "n": 375,
+        "expectancy_r": -0.2009125401555844
+      },
+      "reversal": {
+        "n": 14,
+        "expectancy_r": 0.28944084117888114
+      }
+    },
+    "symbol": "BTC-USDT-SWAP",
+    "bars": 12099,
+    "days": 42.00694444444444
+  }
+]

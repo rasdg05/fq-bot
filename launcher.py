@@ -20,6 +20,12 @@
    PUBLIC: TELEGRAM_TOKEN_PUBLIC, FQ_VIP_BOT_USERNAME,
            FQ_PUBLIC_DB_PATH (/data/fq_public.db),
            FQ_VIP_LEDGER_PATH (/data/fq_ledger.db, mismo path que el VIP)
+   FUNDING PAPER (opcional, 0% real, §6.15): FQ_FUNDING_PAPER=1 lanza
+           tools/funding_paper.py --loop como hijo NO-CRITICO (si muere NO baja
+           el bot VIP). Config por ENV: FQ_FUNDING_PAPER_INTERVAL (def 1800),
+           _EXCHANGE (def okx), _BASE (def BTC), _SYMBOL (def BTC/USDT:USDT);
+           ledger/equity/z/baseline los lee FundingPaperRuntime.from_env. El
+           ledger durable va a /data (volumen). Default OFF.
 ================================================================================
 """
 import os
@@ -41,11 +47,55 @@ def _public_enabled():
     return bool(pub) and pub != vip
 
 
+def _funding_paper_enabled():
+    """El paper-forward de funding-reversion (tools/funding_paper.py, §6.15) corre
+    como hijo del launcher SOLO con FQ_FUNDING_PAPER=1. 0% real: acumula el track
+    record FORWARD del edge ESTRUCTURAL (funding extremo revierte) en un ledger
+    durable propio en /data. Default OFF -> no se lanza."""
+    return (os.environ.get("FQ_FUNDING_PAPER") or "0").strip() in ("1", "true", "yes")
+
+
+def _funding_paper_cmd():
+    """Comando del paper-forward de funding. Config por ENV (Railway, sin tocar
+    codigo): FQ_FUNDING_PAPER_INTERVAL/_EXCHANGE/_BASE/_SYMBOL; el resto
+    (ledger/equity/umbrales z/baseline) lo lee FundingPaperRuntime.from_env."""
+    interval = (os.environ.get("FQ_FUNDING_PAPER_INTERVAL") or "1800").strip()
+    exchange = (os.environ.get("FQ_FUNDING_PAPER_EXCHANGE") or "okx").strip()
+    base = (os.environ.get("FQ_FUNDING_PAPER_BASE") or "BTC").strip()
+    # el symbol del precio DERIVA del base si no se fija (evita BASE=SOL con symbol
+    # BTC por defecto = funding SOL contra precio BTC, un mismatch silencioso).
+    symbol = (os.environ.get("FQ_FUNDING_PAPER_SYMBOL")
+              or "{}/USDT:USDT".format(base)).strip()
+    return [sys.executable, "-u", "tools/funding_paper.py", "--loop",
+            "--interval", interval, "--exchange", exchange,
+            "--funding-base", base, "--symbol", symbol]
+
+
+def _oi_collect_enabled():
+    """Colector FORWARD de Open Interest (tools/fetch_okx_oi.py, --loop). 0% real:
+    acumula OI 5m en el Volume (/data) para el test de cascada/laser, que el
+    historico corto de OKX no permite hacer hacia atras. Hijo NO-critico (un bug
+    del colector jamas tira el bot VIP). Default OFF."""
+    return (os.environ.get("FQ_OI_COLLECT") or "0").strip() in ("1", "true", "yes")
+
+
+def _oi_collect_cmd():
+    return [sys.executable, "-u", "tools/fetch_okx_oi.py", "--loop"]
+
+
 def _bots():
-    bots = [("vip", [sys.executable, "-u", "entry_vip.py"])]
+    # (name, cmd, critical): critical=True -> si muere, baja el container y Railway
+    # reinicia (VIP/public/maintenance SON el producto). critical=False -> hijo
+    # OPCIONAL (paper-forward): si muere se loguea y se deja morir SIN tumbar el
+    # container -> un bug del experimento de funding NUNCA tira el bot VIP.
+    bots = [("vip", [sys.executable, "-u", "entry_vip.py"], True)]
     if _public_enabled():
-        bots.append(("public", [sys.executable, "-u", "entry_public.py"]))
-    bots.append(("maintenance", [sys.executable, "-u", "-m", "ops.maintenance"]))
+        bots.append(("public", [sys.executable, "-u", "entry_public.py"], True))
+    bots.append(("maintenance", [sys.executable, "-u", "-m", "ops.maintenance"], True))
+    if _funding_paper_enabled():
+        bots.append(("funding-paper", _funding_paper_cmd(), False))
+    if _oi_collect_enabled():
+        bots.append(("oi-collect", _oi_collect_cmd(), False))
     return bots
 
 GRACE_SECONDS = 8       # tiempo para que los hijos atiendan SIGTERM
@@ -86,7 +136,7 @@ def _shutdown(signum=None, frame=None):
     _shutting_down = True
     _log("shutdown (signal={}) - terminando hijos".format(signum))
 
-    for name, p in _processes:
+    for name, p, _critical in _processes:
         if p.poll() is None:
             try:
                 p.terminate()
@@ -99,7 +149,7 @@ def _shutdown(signum=None, frame=None):
             break
         time.sleep(0.5)
 
-    for name, p in _processes:
+    for name, p, _critical in _processes:
         if p.poll() is None:
             _log("{} no respondio en {}s - kill -9".format(name, GRACE_SECONDS))
             try:
@@ -119,17 +169,26 @@ def main():
         _log("public: deshabilitado (sin TELEGRAM_TOKEN_PUBLIC propio) — "
              "topologia de un solo bot; todo por tiers en el VIP")
     _log("FQ launcher arrancando {} bots".format(len(bots)))
-    for name, cmd in bots:
-        _processes.append((name, _spawn(name, cmd)))
+    for name, cmd, critical in bots:
+        _processes.append((name, _spawn(name, cmd), critical))
 
     while True:
         time.sleep(POLL_INTERVAL)
-        for name, p in _processes:
+        for name, p, critical in list(_processes):
             rc = p.poll()
-            if rc is not None:
+            if rc is None:
+                continue
+            if critical:
                 _log("{} salio con rc={} - saliendo para que Railway reinicie".format(name, rc))
                 _shutdown()
                 sys.exit(rc if rc not in (None, 0) else 1)
+            else:
+                # hijo OPCIONAL (funding paper): se murio -> log y se saca de la
+                # vigilancia; el container (VIP) sigue vivo. SIN respawn: si crasheo
+                # al arrancar, respawnear seria un loop -> el operador ve el log,
+                # corrige el ENV y redeploya.
+                _log("{} (opcional) salio con rc={} - lo dejo morir; el bot VIP sigue".format(name, rc))
+                _processes.remove((name, p, critical))
 
 
 if __name__ == "__main__":

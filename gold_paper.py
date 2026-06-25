@@ -32,6 +32,41 @@ import gold_live
 log = logging.getLogger("gold_paper")
 
 
+def maker_penetrated(direction, limit, high, low, eps):
+    """Regla de fill maker COMPARTIDA (shadow gold/motor + ejecutor maker del
+    motor): una limite en `limit` se considera llena solo si el precio PENETRA el
+    nivel mas alla de `eps` (un touch NO llena: peor caso de cola / adverse
+    selection). LONG: low < limit*(1-eps); SHORT: high > limit*(1+eps)."""
+    return (low < limit * (1 - eps)) if direction > 0 \
+        else (high > limit * (1 + eps))
+
+
+def process_maker_pending(pending, ledger, high, low, ts, *, eps, ttl_bars):
+    """Shadow maker COMPARTIDO (gold_paper ORO + motor_paper): una limite
+    descansando en `limit` se considera llena solo si el precio PENETRA el
+    nivel mas alla de `eps` (touch NO llena: peor caso de cola/adverse
+    selection). TTL en barras evaluables; al expirar -> MISS. Sella
+    MAKER_FILL/MAKER_MISS por pid en `ledger` y devuelve la lista de pendientes
+    que siguen vivas. Instrumentacion pura: no toca posiciones."""
+    still = []
+    for pend in pending:
+        d, limit = pend["direction"], pend["limit"]
+        filled = maker_penetrated(d, limit, high, low, eps)
+        if filled:
+            ledger.append({
+                "event": "MAKER_FILL", "ts": ts, "pid": pend["pid"],
+                "limit": limit, "bars_waited": pend["waited"] + 1})
+            continue
+        pend["waited"] += 1
+        if pend["waited"] >= ttl_bars:
+            ledger.append({
+                "event": "MAKER_MISS", "ts": ts, "pid": pend["pid"],
+                "limit": limit, "bars_waited": pend["waited"]})
+        else:
+            still.append(pend)
+    return still
+
+
 class GoldPaperRuntime:
     """Orquesta, por vela: resolver abiertas -> reconciliar -> clasificar y, si
     ORO, abrir en paper + avisar admin. Track record en un ledger durable."""
@@ -156,31 +191,17 @@ class GoldPaperRuntime:
                 log.warning("[gold] digest: %s", e)
 
     def _process_maker_pending(self, high, low, ts):
-        """Shadow maker: una limite descansando en `limit` se considera llena
-        solo si el precio PENETRA el nivel mas alla de eps (touch no llena:
-        peor caso de cola). TTL en barras evaluables; al expirar -> MISS."""
-        still = []
-        for pend in self._maker_pending:
-            d, limit = pend["direction"], pend["limit"]
-            filled = (low < limit * (1 - self.maker_eps)) if d > 0 \
-                else (high > limit * (1 + self.maker_eps))
-            if filled:
-                self.broker.ledger.append({
-                    "event": "MAKER_FILL", "ts": ts, "pid": pend["pid"],
-                    "limit": limit, "bars_waited": pend["waited"] + 1})
-                continue
-            pend["waited"] += 1
-            if pend["waited"] >= self.maker_ttl_bars:
-                self.broker.ledger.append({
-                    "event": "MAKER_MISS", "ts": ts, "pid": pend["pid"],
-                    "limit": limit, "bars_waited": pend["waited"]})
-            else:
-                still.append(pend)
-        self._maker_pending = still
+        """Shadow maker del ORO (delega en el helper compartido)."""
+        self._maker_pending = process_maker_pending(
+            self._maker_pending, self.broker.ledger, high, low, ts,
+            eps=self.maker_eps, ttl_bars=self.maker_ttl_bars)
 
-    def on_bar(self, field, report, df_primary, price, *, high=None, low=None, ts=None):
-        """Procesa una vela. high/low resuelven posiciones abiertas. Devuelve
-        {tier, opened, resolved}."""
+    def on_bar(self, field, report, df_primary, price, *, high=None, low=None,
+               ts=None, vetoed=False):
+        """Procesa una vela. high/low resuelven posiciones abiertas. `vetoed` lo
+        decide el llamador (capa de decision, con el ts de la VELA — §6.7): si la
+        senal es ORO pero la killzone esta vetada, NO se abre. Devuelve
+        {tier, opened, resolved, vetoed}."""
         # 1) resolver abiertas contra la vela real (empate pesimista)
         resolved = []
         if high is not None and low is not None:
@@ -210,7 +231,22 @@ class GoldPaperRuntime:
             self._check_coverage(gold_live.live_state_row(field, report))
 
         opened = None
-        if sig is not None:
+        vetoed_now = bool(sig is not None and vetoed)
+        if vetoed_now:
+            # §6.8 VETO DE SESION (capa de decision; el llamador lo decidio con la
+            # killzone de la VELA): la senal ORO NO se abre — consistente con el
+            # edge validado (base + veto). Se SELLA para el track record forward
+            # (mismo patron que el shadow maker) y se cuenta, pero no entra al
+            # broker. Resolucion/maker/reconcile de arriba siguen corriendo.
+            self.counts["vetoed"] = self.counts.get("vetoed", 0) + 1
+            try:
+                self.broker.ledger.append({
+                    "event": "GOLD_VETO", "ts": str(ts),
+                    "direction": sig.get("direction"), "entry": sig.get("entry")})
+            except Exception as e:
+                log.warning("[gold] sello veto: %s", e)
+            log.info("[gold] ORO VETADO por sesion (no se abre)")
+        elif sig is not None:
             d = self.governor.decide(self.account, requested_risk=self.requested_risk)
             if d["approved"]:
                 pos = self.broker.open(self.account, sig, d["risk_frac"], ts=ts)
@@ -228,4 +264,5 @@ class GoldPaperRuntime:
                 log.info("[gold] ORO rechazado por gobernador: %s", d["reason"])
 
         self._maybe_digest()
-        return {"tier": tier, "opened": opened, "resolved": resolved}
+        return {"tier": tier, "opened": opened, "resolved": resolved,
+                "vetoed": vetoed_now}

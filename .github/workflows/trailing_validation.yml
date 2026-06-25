@@ -1,0 +1,49 @@
+name: Trailing exit validation (full history) — 1 tap
+
+# Valida en HISTORIA COMPLETA si una salida con trailing stop le gana al tp4 fijo
+# (el radar reciente dio +0.4R pooled con trailing ~2.5-3R). Camina las velas
+# reales por trade respetando el stop -> NO usa el mfe_r/mae_r confundido del cubo.
+#
+# PESO: liviano. El sim son segundos (numpy); lo unico lento es bajar velas
+# profundas (build_dataset, ~15-30 min). Corre ENTERO en GitHub-hosted — NO
+# necesita Hetzner. (Hetzner solo lo necesita la COSECHA del cubo de ETH.)
+#
+# MULTI-SIMBOLO / ETH "a punto": el job loopea sobre TODOS los cubos en
+# cosecha_cubes/. Hoy SOL+BTC; cuando se commitee tp_cube_ETH_USDT.parquet, ETH
+# entra SOLO, sin tocar este workflow. Resultados: en los logs del run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      years:
+        description: "Años de velas a bajar (cobertura del cubo)"
+        default: "5"
+
+permissions:
+  contents: read
+
+jobs:
+  trailing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Deps mínimas
+        run: pip install --quiet ccxt pandas pyarrow numpy
+      - name: Velas profundas (por cada cubo presente) + trailing backtest
+        run: |
+          set -x
+          for CUBE in cosecha_cubes/tp_cube_*.parquet; do
+            [ -e "$CUBE" ] || continue
+            SYM=$(basename "$CUBE" | sed 's/tp_cube_//;s/\.parquet//')   # p.ej. SOL_USDT
+            BASE=${SYM%%_*}                                              # p.ej. SOL
+            echo "== bajando velas 5m de ${BASE}/USDT (${{ inputs.years }} años) =="
+            python tools/build_dataset.py --symbol ${BASE}/USDT --timeframe 5m \
+              --market swap --years ${{ inputs.years }} --exchanges okx --data-dir data || true
+          done
+          ls -la data/okx/ || true
+          echo "===================== TRAILING BACKTEST ====================="
+          python tools/trailing_backtest.py

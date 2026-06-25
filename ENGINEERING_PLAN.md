@@ -47,32 +47,35 @@ El hallazgo: `requirements.txt` tiene cotas abiertas (`pandas>=2.3.2`,
 puede saltar versiones mayores SIN cambio de código. Para un bot de dinero es
 una bomba de relojería silenciosa.
 
-- [ ] **Lockfile**: congelar el set completo (`pip-compile` →
-      `requirements.lock`, o `uv lock`). Railway y CI instalan del lock;
-      `requirements.txt` queda como declaración de intención. Actualizar el
-      lock = PR consciente, con suite verde.
-- [ ] **Pin de runtime**: CI usa Python 3.12; fijar la MISMA versión en
-      Nixpacks (`NIXPACKS_PYTHON_VERSION` o `runtime.txt`) para que prod, CI
-      y research no diverjan (hoy es implícito).
-- [ ] **Docs no redeployan**: `railway.toml` → `watchPatterns` que excluyan
-      `**/*.md` (y `internal/`). Hoy cada commit de documentación reinicia el
-      worker en vivo sin necesidad. (Cambio de 3 líneas; aplicar con el
-      usuario mirando el dashboard.)
-- [ ] CI: job de `pip install` desde el lock + `pip check` (detecta conflictos
-      de dependencias en el acto).
+- [x] **Lockfile**: `requirements.lock` (57 paquetes, set completo pinneado ==),
+      generado con `uv pip compile requirements.txt --python-version 3.12`
+      (= la versión de CI/prod). Captura el set vivo hoy (pandas==3.0.3,
+      numpy==2.2.6, ccxt==4.5.58, anthropic==0.109.1…). `requirements.txt` queda
+      como declaración de intención. Regenerar = PR consciente con suite verde.
+- [ ] **Pin de runtime** (FASE 2, supervisada): fijar Python 3.12 en Nixpacks
+      (`runtime.txt`/`NIXPACKS_PYTHON_VERSION`) para que prod=CI=research.
+      Pendiente: cambia el build de prod → aplicar con el usuario mirando el
+      dashboard, junto al switch de Railway al lock.
+- [x] **Docs no redeployan**: `railway.toml` → `watchPatterns` (excluye
+      `**/*.md`, `internal/`, `.github/`, `tests/`, `tools/`). Ya en producción.
+- [x] CI: job **`lockcheck`** (`ci.yml`) — instala desde `requirements.lock` en
+      3.12, corre `pip check` (conflictos) + la suite. Si el lock se rompe o se
+      desfasa, CI rojo ANTES de tocar prod.
 
 **Criterio de salida**: dos deploys consecutivos sin cambio de código instalan
-bit-a-bit las mismas versiones.
+bit-a-bit las mismas versiones. **Estado: lock CONSTRUIDO y validado en CI
+(cero riesgo de prod). FASE 2 (supervisada con dashboard):** apuntar Railway/
+Nixpacks a `requirements.lock` + pin de runtime 3.12 → ahí se cumple el criterio.
+El lock listo + `lockcheck` verde es el prerequisito que vuelve esa fase segura.
 
 ## N2. Guardas que codifican lecciones (tests de invariantes)
 
-- [ ] **Guarda de reloj de pared**: test que parsea (AST) los módulos del path
-      del motor (`fusion_engine`, `killzones_pd`, `volume_quality`,
-      `session_bias`, `market_context`, `ict_smc`, …) y FALLA si aparece un
-      `datetime.now()/utcnow()/date.today()` fuera de la allowlist explícita.
-      Es la versión permanente de la regla "§6.7: todo reloj nuevo en el motor
-      es sospechoso". El replay inyecta `_BarClockDatetime`; la guarda evita
-      que un módulo nuevo se quede fuera de la inyección.
+- [x] **Guarda de reloj de pared** (`tests/test_no_wallclock.py`): parsea (AST)
+      los módulos del path del motor y FALLA si aparece un
+      `datetime.now()/utcnow()/date.today()/Timestamp.now()` por encima del
+      BASELINE auditado. Es la versión permanente de "§6.7: todo reloj nuevo en
+      el motor es sospechoso". 13-jun-2026: añadido `segment_veto.py` (baseline
+      0) — el veto de sesión juzga el ts de la VELA, jamás el reloj de pared.
 - [ ] **Guarda de esquema del vector**: si `meta.json` declara N features, el
       vectorizer debe rechazar (no rellenar en silencio) una query con otro
       esquema. Ya hay telemetría de dims muertas; falta el contrato duro.
@@ -127,14 +130,12 @@ en el log de boot como env desconocida, no como default silencioso.
       con id, sha, inputs, veredictos clave (#26 ficción NY / #28 ficción
       madrugada / #30 baseline honesto / #31 poda…). Los artefactos de
       GitHub expiran (~90 días): los runs-hito se archivan al Volume o Drive.
-- [ ] **`tools/regrade_events.py`** (lo pide F2.6 §6.8 paso 1): cargar
-      events/cubo persistidos de un run y re-medir OOS con un filtro/veto,
-      SIN replay. Convierte cada pregunta "¿y si vetamos X?" de 4h de CI a
-      segundos locales. Mismo motor de costes (`bt_engine`/`bt_metrics`).
-      Semilla ya construida: `tools/regrade_cvd.py` (jun-2026, §6.9 del
-      RETRIEVAL_PLAN) reconstruye labels+folds del cubo con verificación
-      exacta contra los números sellados del run; generalizarla es extraer
-      el predicado.
+- [x] **`tools/regrade_events.py`** (F2.6 §6.8 paso 1): carga el cubo de un run
+      y re-mide OOS con un filtro/veto SIN replay; mismo motor de costes
+      (`bt_engine`/`bt_metrics`) + matriz maker×veto. 13-jun-2026: su predicado
+      `_veto_mask` se EXTRAJO a `segment_veto.py` (módulo puro), ahora COMPARTIDO
+      por el regrade offline, el replay integrado (`run_research_real`) y el loop
+      vivo (`fq_bot_v3_2`) → cero divergencia. (Falta el comparador de runs.)
 - [ ] **Comparador de runs**: `tools/compare_runs.py run30/ run31/` → tabla
       lado a lado (funnel, OOS, leakage, segmentos top). Hoy se hace a ojo
       entre logs de 500 líneas.
@@ -164,6 +165,47 @@ plan solo añade el ORDEN respecto a la poda:
       mensaje al admin con el motivo exacto (hoy: revisar logs).
 - [ ] Alerta si el ledger paper ORO no recibe eventos en N días (detecta gate
       muerto en silencio).
+
+## N8. Programa de cosecha de evidencia (la fábrica de números honestos)
+
+Objetivo: convertir el research en una BATERÍA de evidencia reproducible que
+(a) enriquezca el sistema y (b) sostenga, con números medidos, la tesis de
+inversión. Siete corridas; cada una deja un artefacto versionado (sha + inputs)
+y una lámina para el deck. Orden pensado para que 1–6 alimenten el 7 (el forward).
+
+1. [ ] **Cosecha multi-símbolo** (ETH/USDT, BNB, majors perp). Reutiliza
+   `tools/build_dataset.py --symbol X` + `tools/cosecha_shard.py --symbol X`
+   (symbol-agnóstico; sólo cambia la ruta del artefacto). Entrega un **portafolio
+   de edges candidatos** por símbolo/TF → diversificación medible, no narrada.
+   [coste: runner self-hosted, ~horas/símbolo].
+2. [x] **Walk-forward / OOS purgado**. Folds en `cosecha_shard` (`--n-splits 7
+   --embargo 8`) + `tools/walkforward_report.py`: expectancy y dispersión FOLD A
+   FOLD + lámina → evidencia de que el edge es estable y NO un overfit.
+3. [x] **Monte Carlo de la curva** (`tools/montecarlo_curve.py`). Bootstrap de
+   la serie de R por-trade → distribución de **drawdown máximo**, **risk-of-ruin**
+   y **bandas de equity** (p5–p95). La lámina de riesgo que todo LP exige.
+4. [x] **Análisis de capacidad** (`tools/capacity_analysis.py`). Modela el
+   decaimiento del edge vs. tamaño de orden (impacto raíz-cuadrada sobre la
+   participación de volumen) → **cuánto capital absorbe** el edge antes de
+   comérselo (C½ y C0). Define el techo de despliegue y el tamaño honesto de la
+   ronda. Paramétrico: `avg_bar_notional`/`impact_coef` se CALIBRAN con volumen y
+   fills reales (el forward maker los dará).
+5. [x] **Segmentación por régimen**. `tools/regime_report.py` segmenta el cubo
+   por régimen/volatilidad/sesión (numérica → bins; categórica → grupos) y mide
+   expectancy OOS por segmento + lámina → dónde VIVE el alpha y dónde abstenerse.
+6. [x] **Atribución de features** (la joya analítica). `tools/attribution_report.py`
+   cablea `bt_ablation.run_ablation` (que estaba sin usar) en un reporte +
+   **lámina** ranqueada: qué componentes del motor (P_master, regime, session_bias,
+   volume_quality…) generan realmente la expectancy, SOLO en OOS walk-forward con
+   costes reales, con veredicto VIVE/MATAR. Vuelve el motor transparente y
+   defendible, no mágico. Requiere columnas-gate por módulo en el cubo (si no, se
+   re-cosecha guardándolas, o ablación por replay con toggles de env).
+7. [→] **Forward vivo** (en curso). El motor paper SOL+BTC ya corre a 0% real;
+   es la **prioridad #1 de datos**. 1–6 lo contextualizan (régimen, capacidad,
+   riesgo); el forward lo confirma. El `fill-rate maker` es el sello final.
+
+**Criterio de salida**: cada paso deja artefacto reproducible + lámina; el deck
+se arma SÓLO con lo medido (no se extrapola el forward antes de tiempo).
 
 ## Secuencia recomendada
 

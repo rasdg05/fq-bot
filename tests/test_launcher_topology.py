@@ -11,7 +11,7 @@ def test_public_deshabilitado_sin_token(monkeypatch):
     monkeypatch.delenv("TELEGRAM_TOKEN_PUBLIC", raising=False)
     monkeypatch.setenv("TELEGRAM_TOKEN", "vip-tok")
     assert launcher._public_enabled() is False
-    assert [n for n, _ in launcher._bots()] == ["vip", "maintenance"]
+    assert [n for n, *_ in launcher._bots()] == ["vip", "maintenance"]
 
 
 def test_public_deshabilitado_con_token_duplicado(monkeypatch):
@@ -19,14 +19,14 @@ def test_public_deshabilitado_con_token_duplicado(monkeypatch):
     monkeypatch.setenv("TELEGRAM_TOKEN_PUBLIC", "mismo-tok")
     monkeypatch.setenv("TELEGRAM_TOKEN", "mismo-tok")
     assert launcher._public_enabled() is False
-    assert [n for n, _ in launcher._bots()] == ["vip", "maintenance"]
+    assert [n for n, *_ in launcher._bots()] == ["vip", "maintenance"]
 
 
 def test_public_corre_con_token_propio(monkeypatch):
     monkeypatch.setenv("TELEGRAM_TOKEN_PUBLIC", "pub-tok")
     monkeypatch.setenv("TELEGRAM_TOKEN", "vip-tok")
     assert launcher._public_enabled() is True
-    assert [n for n, _ in launcher._bots()] == ["vip", "public", "maintenance"]
+    assert [n for n, *_ in launcher._bots()] == ["vip", "public", "maintenance"]
 
 
 def test_watchdog_usa_la_misma_regla(monkeypatch):

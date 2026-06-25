@@ -14,6 +14,10 @@ watchPatterns = [
   "!.github/**",
   "!tests/**",
   "!tools/**",
+  # EXCEPCION: funding_paper.py SI es runtime (launcher lo lanza como hijo con
+  # FQ_FUNDING_PAPER=1) -> un fix suyo debe redeployar, a diferencia del resto de
+  # tools/ (research, corre en CI). Re-incluir gana por ser el ultimo match.
+  "tools/funding_paper.py",
 ]
 
 # UN SOLO SERVICIO. El launcher arranca VIP + maintenance siempre, y el bot

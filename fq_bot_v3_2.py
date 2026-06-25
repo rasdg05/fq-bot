@@ -1553,11 +1553,11 @@ def build_signal_msg(direction, levels, decoh, masses, session, w_clock, p_maste
     side_glyph = G["long"] if direction == "long" else G["short"]
 
     if p_master >= PHI_CB:
-        leverage, sizing, tier = "8x", "10%", "phi^3 (alta conviccion)"
+        leverage, sizing, tier = "8x", "10%", "Maxima"
     elif p_master >= PHI_SQ:
-        leverage, sizing, tier = "5x", "5%",  "phi^2 (standard)"
+        leverage, sizing, tier = "5x", "5%",  "Estandar"
     else:
-        leverage, sizing, tier = "3x", "2%",  "phi (scalp)"
+        leverage, sizing, tier = "3x", "2%",  "Exploratoria"
 
     # Asia penalty warning
     asia_warn = ""
@@ -1578,25 +1578,25 @@ def build_signal_msg(direction, levels, decoh, masses, session, w_clock, p_maste
     elif risk_pct_val < 2.0:  risk_lbl = "Medio"
     else:                     risk_lbl = "Alto"
 
-    rule = "━" * 30
+    rule = "─" * 30
     intra_note = "\n  Confirmar al cierre 15m" if intra else ""
 
     msg = (
         "{rule}\n"
-        "  ▰ Senal FQ · SOL/USDT\n"
+        "  │ FQ · Senal VIP · SOL/USDT\n"
         "  {when}{intra}\n"
         "{rule}\n"
         "  {arrow} {side}        Conviccion {tier}\n"
         "\n"
-        "  ▸ Entry    ${entry:.2f}\n"
-        "  ▸ Stop     ${sl:.2f}    Riesgo {risk}\n"
+        "  Entry    ${entry:.2f}\n"
+        "  Stop     ${sl:.2f}    Riesgo {risk}\n"
         "\n"
-        "  ▸ TP1  30%   ${tp1:.2f}    R {rr1:.2f}\n"
-        "  ▸ TP2  30%   ${tp2:.2f}    R {rr2:.2f}\n"
-        "  ▸ TP3  25%   ${tp3:.2f}    R {rr3:.2f}\n"
-        "  ▸ TP4  15%   ${tp4:.2f}    R {rr4:.2f}\n"
+        "  TP1  30%   ${tp1:.2f}    R {rr1:.2f}\n"
+        "  TP2  30%   ${tp2:.2f}    R {rr2:.2f}\n"
+        "  TP3  25%   ${tp3:.2f}    R {rr3:.2f}\n"
+        "  TP4  15%   ${tp4:.2f}    R {rr4:.2f}\n"
         "{rule}\n"
-        "  Leverage {lev}   Size {size}\n"
+        "  Leverage {lev}   ·   Size {size}\n"
         "  SL inmutable.\n"
         "{rule}\n"
         "  #FQ #SOLUSDT #{tag}"
@@ -1675,7 +1675,7 @@ def cmd_status(exchange):
                 abs(STATE.last_eth_chg) > MACRO_THRESHOLD_PCT * 100)
 
     return (
-        "<b>STATUS - FQ</b>\n"
+        "<b>FQ · Status</b>\n"
         "{fence}\n\n"
         "{when}\n"
         "Uptime: {h}h {m}m  |  Exchange: OKX live\n\n"
@@ -2578,7 +2578,7 @@ def evaluate_setup(exchange, tf_id="15m", intra=False):
                 log.info("Triggering Opus co-pilot for high-conviction signal")
                 broadcast_to_subscribers(
                     "<b>Senal de alta conviccion detectada</b>\n"
-                    "Activando co-pilot Opus 4.6 para revision final..."
+                    "Activando co-piloto de IA para revision final..."
                 )
                 signal_data = {
                     "direction":    direction,
@@ -2603,12 +2603,12 @@ def evaluate_setup(exchange, tf_id="15m", intra=False):
                 opus_reading = _escape_claude(claude_ai.signal_copilot(snapshot))
                 if opus_reading:
                     opus_msg = (
-                        "<b>OPUS 4.6 - REVISION FINAL DE SENAL</b>\n"
+                        "<b>FQ · Revision final de senal</b>\n"
                         "{thin}\n\n{r}\n\n"
                         "{thin}\nDecision final: SIEMPRE tuya.\n"
                         "El gate matematico ya valido el setup.\n"
                         "Esta lectura es para AFINAR, no validar.\n\n"
-                        "#FQ #Opus #SenalAltaConviccion"
+                        "#FQ #SOLUSDT"
                     ).format(thin=G["thin"], r=opus_reading)
                     # Split si es muy largo
                     parts = split_telegram_message(opus_msg)
@@ -2630,6 +2630,16 @@ def evaluate_setup(exchange, tf_id="15m", intra=False):
 # (leccion §6.7). Reversible de una env. Default "" -> .active False -> no-op.
 # OJO: veta la senal VIP a CLIENTES en esa franja, no solo en paper.
 SEGMENT_VETO = segment_veto.from_env() if segment_veto is not None else None
+
+# Veto del track GOLD PAPER (admin-only, 0% real): env PROPIO
+# FQ_GOLD_SEGMENT_VETO_* -> permite vetar SOLO en paper (observar el edge
+# base+veto en el forward) SIN tocar la senal VIP a clientes (paper-first). Si su
+# env esta vacio, cae al SEGMENT_VETO global: asi, si se activa el veto VIP, el
+# gold paper veta igual (consistencia). Default todo OFF -> inerte.
+_GOLD_VETO_OWN = (segment_veto.from_env(prefix="FQ_GOLD_SEGMENT_VETO")
+                  if segment_veto is not None else None)
+GOLD_SEGMENT_VETO = (_GOLD_VETO_OWN if (_GOLD_VETO_OWN is not None
+                     and _GOLD_VETO_OWN.active) else SEGMENT_VETO)
 
 # ============================================================
 # F2 — Gate ORO de retrieval en PAPEL (admin-only; default OFF)
@@ -2657,10 +2667,10 @@ def _gold_admin_notify(sig, verdict, pos):
             elif "digest" in v:
                 c = v["digest"]
                 msg = ("📊 <b>Gold paper</b> ({tk} velas) — ORO {g} · BASE {b} · "
-                       "ABSTAIN {a} · abiertas {o}").format(
+                       "ABSTAIN {a} · VETADO {vt} · abiertas {o}").format(
                            tk=v.get("ticks", "?"), g=c.get("gold", 0),
                            b=c.get("base", 0), a=c.get("abstain", 0),
-                           o=v.get("open", 0))
+                           vt=c.get("vetoed", 0), o=v.get("open", 0))
             else:
                 return
             broadcast_to_subscribers(msg, tiers=["admin"])
@@ -2709,10 +2719,342 @@ def _gold_paper_eval(field, report, df_primary, price, tf_id):
     try:
         hi = float(df_primary["high"].iloc[-1])
         lo = float(df_primary["low"].iloc[-1])
+        # §6.8 VETO DE SESION fusionado al track ORO: GOLD_SEGMENT_VETO (env propio
+        # FQ_GOLD_SEGMENT_VETO_*, o el global como fallback) juzga la killzone de
+        # la VELA por su timestamp (no now(), §6.7). Si la franja esta vetada, el
+        # gold paper NO abre la senal ORO -> mide el edge validado (base + veto).
+        # Env propio = se puede vetar en paper sin tocar VIP. Default -> vetoed=False.
+        vetoed = False
+        if GOLD_SEGMENT_VETO is not None and GOLD_SEGMENT_VETO.active:
+            try:
+                _ts = df_primary["timestamp"].iloc[-1]
+                vetoed = bool(GOLD_SEGMENT_VETO.reason(
+                    killzone=getattr(field, "killzone", None), ts_utc=_ts))
+            except Exception:
+                vetoed = False
         rt.on_bar(field, report, df_primary, price, high=hi, low=lo,
-                  ts=datetime.now(timezone.utc))
+                  ts=datetime.now(timezone.utc), vetoed=vetoed)
     except Exception as e:
         log.warning("[gold] on_bar: %s", e)
+
+
+# ============================================================
+# F2.6/§6.10.1 — MOTOR PAPER (motor base + veto + shadow maker; default OFF)
+# ============================================================
+# Paper del SUBSET CORRECTO (§6.10.1): abre las senales del MOTOR BASE (el `fire`
+# CRUDO de evaluate_signal) filtradas por su propio veto (default london), con
+# shadow maker midiendo el fill-rate REAL — el juez del techo +0.10R. 0% real,
+# ledger durable propio, paralelo al ORO. Activar con FQ_MOTOR_PAPER=1.
+MOTOR_PAPER_ENABLED = os.environ.get("FQ_MOTOR_PAPER", "0").strip() in ("1", "true", "yes")
+MOTOR_PAPER_TF = os.environ.get("FQ_MOTOR_PAPER_TF", "5m")  # 5m = TF del research/cubo (=BTC): mide la MISMA poblacion del +0.109. El loop evalua 5m+15m, asi que casa.
+_MOTOR_RUNTIME = None
+_MOTOR_RUNTIME_TRIED = False
+
+
+def _motor_admin_notify(sig, verdict, pos):
+    """Aviso admin-only del motor paper (open + digest). SIN VIP, 0% real."""
+    try:
+        if sig is None:
+            v = verdict if isinstance(verdict, dict) else {}
+            if "digest" in v:
+                c = v["digest"]
+                msg = ("📄 <b>Motor paper</b> ({tk} velas) — fire {f} · abiertas "
+                       "{o} · vetadas {ve} · vivas {ov}").format(
+                           tk=v.get("ticks", "?"), f=c.get("fire", 0),
+                           o=c.get("opened", 0), ve=c.get("vetoed", 0),
+                           ov=v.get("open", 0))
+                broadcast_to_subscribers(msg, tiers=["admin"])
+            return
+        d = "LONG" if sig["direction"] > 0 else "SHORT"
+        msg = ("🧪 <b>Motor base (paper)</b> {sym} {d} [{tf}/{kz}]\n"
+               "entry {e:.4f} · SL {s:.4f} · TP {t:.4f} · pid={pid}\n"
+               "<i>Subset correcto §6.10.1 — 0% real, mide fill maker.</i>").format(
+                   sym=GOLD_LIVE_SYMBOL, d=d, tf=verdict.get("tf", "?"),
+                   kz=verdict.get("killzone", "?"), e=sig["entry"], s=sig["stop"],
+                   t=sig["tp"], pid=pos.pid)
+        broadcast_to_subscribers(msg, tiers=["admin"])
+    except Exception as e:
+        log.warning("[motor] notify admin: %s", e)
+
+
+def _motor_runtime():
+    """Lazy-init del runtime motor paper (una vez). None si no se puede armar."""
+    global _MOTOR_RUNTIME, _MOTOR_RUNTIME_TRIED
+    if _MOTOR_RUNTIME is not None or _MOTOR_RUNTIME_TRIED:
+        return _MOTOR_RUNTIME
+    _MOTOR_RUNTIME_TRIED = True
+    try:
+        import motor_paper
+        _MOTOR_RUNTIME = motor_paper.MotorPaperRuntime.from_env(
+            GOLD_LIVE_SYMBOL, notify_fn=_motor_admin_notify)
+        log.info("[motor] runtime paper MOTOR BASE activo (%s, tf=%s)",
+                 GOLD_LIVE_SYMBOL, MOTOR_PAPER_TF)
+    except Exception as e:
+        log.warning("[motor] no se pudo armar el runtime paper: %s", e)
+        _MOTOR_RUNTIME = None
+    return _MOTOR_RUNTIME
+
+
+def _motor_paper_eval(fire, field, report, df_primary, price, tf_id):
+    """Hook por vela: corre el MOTOR PAPER en el TF configurado. No-op si
+    FQ_MOTOR_PAPER!=1. Juzga el veto con el ts de la VELA (no now()). Nunca
+    rompe el loop (todo en try/except)."""
+    if not MOTOR_PAPER_ENABLED or tf_id != MOTOR_PAPER_TF:
+        return
+    rt = _motor_runtime()
+    if rt is None:
+        return
+    try:
+        hi = float(df_primary["high"].iloc[-1])
+        lo = float(df_primary["low"].iloc[-1])
+        try:
+            cts = df_primary["timestamp"].iloc[-1]   # ts de la VELA (no now())
+        except Exception:
+            cts = None
+        rt.on_bar(fire, field, report, df_primary, price, high=hi, low=lo,
+                  ts=cts, tf_id=tf_id)
+    except Exception as e:
+        log.warning("[motor] on_bar: %s", e)
+
+
+# ============================================================
+# BTC MOTOR PAPER — pipeline PARALELO (paper-only, 0% real, default OFF)
+# ============================================================
+# El bot opera SOL; el research (cosecha 5m, 7 anios) midio en BTC el techo maker
+# MAS ALTO (+0.142R con exit ancho tp4, vs SOL +0.018R). Para VALIDAR forward esa
+# poblacion SIN tocar el VIP/SOL: una pasada de fusion_engine.evaluate_signal
+# (symbol-agnostico) sobre barras BTC, que alimenta un MotorPaperRuntime BTC
+# propio (ledger /data/motor_paper_BTC_USDT.jsonl, separado del SOL). JAMAS
+# broadcastea ni toca el motor/ORO/SOL. Comparte la config del pivote por env
+# (FQ_MOTOR_PAPER_TP=tp4, FQ_MOTOR_PAPER_VETO_KILLZONES="", maker shadow ON).
+# Activar con FQ_MOTOR_PAPER_BTC=1. Default OFF -> _btc_motor_paper_scan es no-op
+# inmediato (ni toca el exchange).
+BTC_MOTOR_PAPER_ENABLED = os.environ.get("FQ_MOTOR_PAPER_BTC", "0").strip() in ("1", "true", "yes")
+BTC_MOTOR_TF = os.environ.get("FQ_MOTOR_PAPER_BTC_TF", "5m")  # TF del research (5m)
+# FUSION BTC->VIP: cuando el motor BTC corre, sus fires TAMBIEN se broadcastean a
+# clientes (mismo path/formato que SOL, par BTC/USDT). Default ON (decision RasDG
+# jun-2026: "encender ya"). Kill-switch sin redeploy: FQ_BTC_VIP_BROADCAST=0.
+BTC_VIP_BROADCAST_ENABLED = os.environ.get("FQ_BTC_VIP_BROADCAST", "1").strip() not in ("0", "false", "no")
+# Ledger BTC SEPARADO del SOL: NO hereda FQ_MOTOR_PAPER_LEDGER_PATH (si ambos
+# simbolos lo compartieran, mezclarian trades en un archivo y corromperian los
+# dos edges). El resto de la config (tp4/veto/maker/equity) SI se comparte a
+# proposito: el unico variable del experimento debe ser el simbolo.
+BTC_MOTOR_LEDGER_PATH = os.environ.get(
+    "FQ_MOTOR_PAPER_BTC_LEDGER_PATH", "/data/motor_paper_BTC_USDT.jsonl")
+_BTC_MOTOR_RUNTIME = None
+_BTC_MOTOR_TRIED = False
+_BTC_MOTOR_LAST_TS = None  # last_signal_ts BTC (Phase E), independiente del SOL
+
+
+def _btc_motor_runtime():
+    """Lazy-init del runtime motor paper BTC (ledger propio). None si no se arma."""
+    global _BTC_MOTOR_RUNTIME, _BTC_MOTOR_TRIED
+    if _BTC_MOTOR_RUNTIME is not None or _BTC_MOTOR_TRIED:
+        return _BTC_MOTOR_RUNTIME
+    _BTC_MOTOR_TRIED = True
+    try:
+        import motor_paper
+        _BTC_MOTOR_RUNTIME = motor_paper.MotorPaperRuntime.from_env(
+            "BTC/USDT", notify_fn=_motor_admin_notify,
+            ledger_path=BTC_MOTOR_LEDGER_PATH)
+        log.info("[motor-btc] runtime paper BTC activo (tf=%s)", BTC_MOTOR_TF)
+    except Exception as e:
+        log.warning("[motor-btc] no se pudo armar el runtime: %s", e)
+        _BTC_MOTOR_RUNTIME = None
+    return _BTC_MOTOR_RUNTIME
+
+
+def _btc_motor_paper_scan(exchange):
+    """Pasada BTC en su TF (default 5m) -> evaluate_signal -> motor paper BTC.
+    El ledger paper mide SIEMPRE (0% real). Ademas, FUSION BTC->VIP: si
+    FQ_BTC_VIP_BROADCAST!=0 (default ON cuando el motor BTC corre), los fires se
+    broadcastean a clientes con el MISMO formato que SOL pero par BTC/USDT. La
+    medicion y la entrega son independientes. No-op si FQ_MOTOR_PAPER_BTC!=1.
+    Nunca rompe el loop (todo en try/except)."""
+    global _BTC_MOTOR_LAST_TS
+    if not BTC_MOTOR_PAPER_ENABLED:
+        return
+    rt = _btc_motor_runtime()
+    if rt is None:
+        return
+    try:
+        tf_id = BTC_MOTOR_TF
+        profile = TF_PROFILES[tf_id]
+        df_primary = add_indicators(fetch_ohlcv(exchange, SYMBOL_BTC, tf_id, limit=200))
+        if df_primary is None or len(df_primary) < 50:
+            return
+        df_ctx_mid = add_indicators(fetch_ohlcv(exchange, SYMBOL_BTC, profile["context_mid"], limit=100))
+        df_ctx_high = add_indicators(fetch_ohlcv(exchange, SYMBOL_BTC, profile["context_high"], limit=100))
+        try:
+            df_sub = add_indicators(fetch_ohlcv(exchange, SYMBOL_BTC, profile["sub_tf"], limit=30))
+        except Exception:
+            df_sub = None
+        price = float(df_primary["close"].iloc[-1])
+        # Misma config que el scan SOL (lineas ~2871), con LAST_SIGNAL_TS propio
+        # de BTC para el cooldown de Phase E (independiente del SOL).
+        config = {
+            "PHI": PHI,
+            "PMASTER_MIN": profile["PMASTER_MIN"],
+            "RR_MIN_TP_DIVINO": profile.get("RR_MIN_TP3", RR_MIN_TP_DIVINO),
+            "TF_ID": tf_id,
+            "TF_LABEL": profile["label"],
+            "PULLBACK_VOL_MULT": profile["PULLBACK_VOL_MULT"],
+            "BREAKOUT_VOL_MULT": profile["BREAKOUT_VOL_MULT"],
+            "LAST_SIGNAL_TS": _BTC_MOTOR_LAST_TS,
+            "PHASE_E_N_PATHS": profile.get("PHASE_E_N_PATHS"),
+            "PHASE_E_COOLDOWN_MIN": profile.get("PHASE_E_COOLDOWN_MIN"),
+        }
+        fire, field, report = fusion_engine.evaluate_signal(
+            df_primary, df_ctx_mid, df_ctx_high, df_sub,
+            detect_pspace, laplacian_check, calculate_levels, config, intra=False)
+        if fire:
+            _BTC_MOTOR_LAST_TS = datetime.now(timezone.utc)
+            # FUSION BTC->VIP: mismo builder/entrega que SOL, par BTC/USDT, y MISMO
+            # veto de sesion en vivo (SEGMENT_VETO, fq_bot:3141): si la killzone de
+            # la vela esta vetada (FQ_SEGMENT_VETO_*), NO se difunde -> paridad con
+            # SOL (si no, london/asia se le escapaban a clientes en BTC). La MEDICION
+            # (rt.on_bar) tiene su veto propio, no se toca aca. El filtro admin-only
+            # de finde lo aplica broadcast_to_subscribers. Defensivo en todo.
+            _seg_vetoed = False
+            if SEGMENT_VETO is not None and SEGMENT_VETO.active:
+                try:
+                    _seg_vetoed = bool(SEGMENT_VETO.reason(
+                        killzone=getattr(field, "killzone", None),
+                        ts_utc=df_primary["timestamp"].iloc[-1]))
+                except Exception:
+                    _seg_vetoed = False
+            if (not _seg_vetoed and BTC_VIP_BROADCAST_ENABLED
+                    and VIP_FORMAT_AVAILABLE and vip_format is not None):
+                try:
+                    msg = vip_format.build_vip_signal(
+                        field, report, tf_label=profile["label"], tf_id=tf_id,
+                        pair="BTC/USDT")
+                    broadcast_to_subscribers(msg)
+                except Exception as e:
+                    log.warning("[motor-btc] broadcast: %s", e)
+        hi = float(df_primary["high"].iloc[-1])
+        lo = float(df_primary["low"].iloc[-1])
+        try:
+            cts = df_primary["timestamp"].iloc[-1]   # ts de la VELA (no now())
+        except Exception:
+            cts = None
+        rt.on_bar(fire, field, report, df_primary, price,
+                  high=hi, low=lo, ts=cts, tf_id=tf_id)
+    except Exception as e:
+        log.warning("[motor-btc] scan: %s", e)
+
+
+# MOTOR PAPER ETH — 3er simbolo (decision RasDG jun-2026: "ETH en el producto").
+# Mirror EXACTO de BTC: ledger propio, 0% real, mide forward; broadcast gated con
+# par ETH/USDT. ETH es +0.201R en el backtest magnet pero NO robusto (IS-/OOS+) ->
+# se mide en vivo ANTES de confiar, igual que BTC. Comparte la config del pivote
+# (tp4/veto/maker/equity); el unico variable del experimento es el simbolo.
+# Activar con FQ_MOTOR_PAPER_ETH=1 (default OFF -> _eth_motor_paper_scan no-op).
+ETH_MOTOR_PAPER_ENABLED = os.environ.get("FQ_MOTOR_PAPER_ETH", "0").strip() in ("1", "true", "yes")
+ETH_MOTOR_TF = os.environ.get("FQ_MOTOR_PAPER_ETH_TF", "5m")  # TF del research (5m)
+# FUSION ETH->VIP: default ON cuando el motor ETH corre; kill-switch sin redeploy
+# FQ_ETH_VIP_BROADCAST=0. OJO: ETH esta MENOS validado que BTC (magnet no robusto,
+# sin forward) -> conviene medir un tiempo con broadcast=0 antes de exponer clientes.
+ETH_VIP_BROADCAST_ENABLED = os.environ.get("FQ_ETH_VIP_BROADCAST", "1").strip() not in ("0", "false", "no")
+ETH_MOTOR_LEDGER_PATH = os.environ.get(
+    "FQ_MOTOR_PAPER_ETH_LEDGER_PATH", "/data/motor_paper_ETH_USDT.jsonl")
+_ETH_MOTOR_RUNTIME = None
+_ETH_MOTOR_TRIED = False
+_ETH_MOTOR_LAST_TS = None  # last_signal_ts ETH (Phase E), independiente de SOL/BTC
+
+
+def _eth_motor_runtime():
+    """Lazy-init del runtime motor paper ETH (ledger propio). None si no se arma."""
+    global _ETH_MOTOR_RUNTIME, _ETH_MOTOR_TRIED
+    if _ETH_MOTOR_RUNTIME is not None or _ETH_MOTOR_TRIED:
+        return _ETH_MOTOR_RUNTIME
+    _ETH_MOTOR_TRIED = True
+    try:
+        import motor_paper
+        _ETH_MOTOR_RUNTIME = motor_paper.MotorPaperRuntime.from_env(
+            "ETH/USDT", notify_fn=_motor_admin_notify,
+            ledger_path=ETH_MOTOR_LEDGER_PATH)
+        log.info("[motor-eth] runtime paper ETH activo (tf=%s)", ETH_MOTOR_TF)
+    except Exception as e:
+        log.warning("[motor-eth] no se pudo armar el runtime: %s", e)
+        _ETH_MOTOR_RUNTIME = None
+    return _ETH_MOTOR_RUNTIME
+
+
+def _eth_motor_paper_scan(exchange):
+    """Pasada ETH en su TF (default 5m) -> evaluate_signal -> motor paper ETH.
+    El ledger paper mide SIEMPRE (0% real). Ademas, FUSION ETH->VIP: si
+    FQ_ETH_VIP_BROADCAST!=0 (default ON cuando el motor ETH corre), los fires se
+    broadcastean a clientes con el MISMO formato que SOL pero par ETH/USDT. La
+    medicion y la entrega son independientes. No-op si FQ_MOTOR_PAPER_ETH!=1.
+    Nunca rompe el loop (todo en try/except)."""
+    global _ETH_MOTOR_LAST_TS
+    if not ETH_MOTOR_PAPER_ENABLED:
+        return
+    rt = _eth_motor_runtime()
+    if rt is None:
+        return
+    try:
+        tf_id = ETH_MOTOR_TF
+        profile = TF_PROFILES[tf_id]
+        df_primary = add_indicators(fetch_ohlcv(exchange, SYMBOL_ETH, tf_id, limit=200))
+        if df_primary is None or len(df_primary) < 50:
+            return
+        df_ctx_mid = add_indicators(fetch_ohlcv(exchange, SYMBOL_ETH, profile["context_mid"], limit=100))
+        df_ctx_high = add_indicators(fetch_ohlcv(exchange, SYMBOL_ETH, profile["context_high"], limit=100))
+        try:
+            df_sub = add_indicators(fetch_ohlcv(exchange, SYMBOL_ETH, profile["sub_tf"], limit=30))
+        except Exception:
+            df_sub = None
+        price = float(df_primary["close"].iloc[-1])
+        config = {
+            "PHI": PHI,
+            "PMASTER_MIN": profile["PMASTER_MIN"],
+            "RR_MIN_TP_DIVINO": profile.get("RR_MIN_TP3", RR_MIN_TP_DIVINO),
+            "TF_ID": tf_id,
+            "TF_LABEL": profile["label"],
+            "PULLBACK_VOL_MULT": profile["PULLBACK_VOL_MULT"],
+            "BREAKOUT_VOL_MULT": profile["BREAKOUT_VOL_MULT"],
+            "LAST_SIGNAL_TS": _ETH_MOTOR_LAST_TS,
+            "PHASE_E_N_PATHS": profile.get("PHASE_E_N_PATHS"),
+            "PHASE_E_COOLDOWN_MIN": profile.get("PHASE_E_COOLDOWN_MIN"),
+        }
+        fire, field, report = fusion_engine.evaluate_signal(
+            df_primary, df_ctx_mid, df_ctx_high, df_sub,
+            detect_pspace, laplacian_check, calculate_levels, config, intra=False)
+        if fire:
+            _ETH_MOTOR_LAST_TS = datetime.now(timezone.utc)
+            # FUSION ETH->VIP: mismo builder/entrega que SOL, par ETH/USDT, y MISMO
+            # veto de sesion en vivo (SEGMENT_VETO): si la killzone de la vela esta
+            # vetada (FQ_SEGMENT_VETO_*), NO se difunde (paridad con SOL/BTC). La
+            # medicion (rt.on_bar) tiene su veto propio, no se toca aca.
+            _seg_vetoed = False
+            if SEGMENT_VETO is not None and SEGMENT_VETO.active:
+                try:
+                    _seg_vetoed = bool(SEGMENT_VETO.reason(
+                        killzone=getattr(field, "killzone", None),
+                        ts_utc=df_primary["timestamp"].iloc[-1]))
+                except Exception:
+                    _seg_vetoed = False
+            if (not _seg_vetoed and ETH_VIP_BROADCAST_ENABLED
+                    and VIP_FORMAT_AVAILABLE and vip_format is not None):
+                try:
+                    msg = vip_format.build_vip_signal(
+                        field, report, tf_label=profile["label"], tf_id=tf_id,
+                        pair="ETH/USDT")
+                    broadcast_to_subscribers(msg)
+                except Exception as e:
+                    log.warning("[motor-eth] broadcast: %s", e)
+        hi = float(df_primary["high"].iloc[-1])
+        lo = float(df_primary["low"].iloc[-1])
+        try:
+            cts = df_primary["timestamp"].iloc[-1]   # ts de la VELA (no now())
+        except Exception:
+            cts = None
+        rt.on_bar(fire, field, report, df_primary, price,
+                  high=hi, low=lo, ts=cts, tf_id=tf_id)
+    except Exception as e:
+        log.warning("[motor-eth] scan: %s", e)
 
 
 # ============================================================
@@ -2807,6 +3149,11 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
 
         # F2: gate ORO de retrieval en PAPEL (admin-only; no-op si FQ_GOLD_LIVE!=1)
         _gold_paper_eval(field, report, df_primary, price, tf_id)
+
+        # F2.6/§6.10.1: MOTOR PAPER — mide el SUBSET CORRECTO (motor base + veto
+        # + shadow maker) con el `fire` CRUDO (antes de QTE / veto-VIP de abajo)
+        # = misma poblacion que el replay de research. No-op si FQ_MOTOR_PAPER!=1.
+        _motor_paper_eval(fire, field, report, df_primary, price, tf_id)
 
         # F2.6 (§6.8): VETO DE SESION — capa de decision POST evaluate_signal,
         # JAMAS dentro de fusion_engine. Si la killzone de la VELA (field.killzone)
@@ -2969,8 +3316,8 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
                 if claude_ai.is_available() and claude_ai.is_high_conviction(pm_data["p_master"]):
                     try:
                         broadcast_to_subscribers(
-                            "<b>Senal alta conviccion v4.1.1</b>\n"
-                            "Activando Opus 4.6 para revision final..."
+                            "<b>Senal de alta conviccion detectada</b>\n"
+                            "Activando co-piloto de IA para revision final..."
                         )
                         signal_data = {
                             "direction": direction, "p_master": pm_data["p_master"],
@@ -2993,10 +3340,10 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
                         opus_reading = _escape_claude(claude_ai.signal_copilot(snapshot))
                         if opus_reading:
                             opus_msg = (
-                                "<b>OPUS 4.6 — REVISION v4.1.1</b>\n"
+                                "<b>FQ · Revision final</b>\n"
                                 "{thin}\n\n{r}\n\n"
                                 "{thin}\nDecision final: TUYA.\n"
-                                "#FQ1 #Opus"
+                                "#FQ #SOLUSDT"
                             ).format(thin=G["thin"], r=opus_reading)
                             for p in split_telegram_message(opus_msg):
                                 broadcast_to_subscribers(p)
@@ -3159,9 +3506,9 @@ def claude_followup_general(exchange):
         snapshot = mctx.snapshot_for_general(df, basic_state)
         reading = _escape_claude(claude_ai.tactical_general(snapshot))
         return (
-            "<b>CLAUDE - Lectura tactica del analisis</b>\n"
+            "<b>FQ · Lectura tactica</b>\n"
             "{thin}\n\n{r}\n\n"
-            "{thin}\nModelo: Sonnet 4.5\n#FQ #Claude"
+            "{thin}\n#FQ #SOLUSDT"
         ).format(thin=G["thin"], r=reading)
     except Exception as e:
         log.error("Claude followup analisis error: {}".format(e))
@@ -3577,7 +3924,7 @@ def radar_check(exchange, tf_id="15m"):
                                                   killzone_name=kz_name,
                                                   tf_label=tf_label)
             if flip_replace:
-                msg = ("<b>⚠️ FLIP — REEMPLAZA anterior {}</b>\n"
+                msg = ("<b>FLIP · REEMPLAZA anterior {}</b>\n"
                        "<i>El radar previo del {} queda invalidado por mayor edge.</i>\n\n").format(
                     "LONG→SHORT" if direction == "short" else "SHORT→LONG",
                     tf_id) + msg
@@ -3630,12 +3977,12 @@ def radar_check(exchange, tf_id="15m"):
         tf_tag = " [{}]".format(tf_id) if tf_id in _FIELD_FAST_TFS else ""
         flip_header = ""
         if flip_replace:
-            flip_header = ("<b>⚠️ FLIP — REEMPLAZA anterior {}</b>\n"
+            flip_header = ("<b>FLIP · REEMPLAZA anterior {}</b>\n"
                            "<i>El radar previo del {} queda invalidado por mayor edge.</i>\n\n").format(
                 "LONG→SHORT" if direction == "short" else "SHORT→LONG",
                 tf_id)
         msg = (flip_header +
-               "<b>📡 RADAR FQ{tf} — setup armandose</b>\n"
+               "<b>RADAR FQ{tf} · setup armandose</b>\n"
                "<i>No es senal automatica. Inteligencia anticipada.</i>\n\n"
                "{body}{suffix}").format(tf=tf_tag, body=body, suffix=suffix)
         telegram_send(msg, TELEGRAM_CHAT_ID)
@@ -3807,10 +4154,10 @@ def claude_followup_analisis_vip(exchange, ctx=None):
         reading = _escape_claude(claude_ai.tactical_analisis_vip(snapshot))
         if not reading:
             return None
-        rule = "━" * 30
+        rule = "─" * 30
         return (
             "{rule}\n"
-            "  ◆ Claude — Lectura breve\n"
+            "  │ Lectura del dia\n"
             "{rule}\n"
             "{r}\n"
             "{rule}"
@@ -3841,9 +4188,9 @@ def claude_followup_pspace(exchange):
         snapshot = mctx.snapshot_for_pspace(df, basic_state, ps)
         reading = _escape_claude(claude_ai.tactical_pspace(snapshot))
         return (
-            "<b>CLAUDE - Lectura P-Space + libro</b>\n"
+            "<b>FQ · Lectura P-Space</b>\n"
             "{thin}\n\n{r}\n\n"
-            "{thin}\nModelo: Sonnet 4.5\n#FQ #Claude"
+            "{thin}\n#FQ #SOLUSDT"
         ).format(thin=G["thin"], r=reading)
     except Exception as e:
         log.error("Claude followup pspace error: {}".format(e))
@@ -3878,9 +4225,9 @@ def claude_followup_niveles(exchange):
         snapshot = mctx.snapshot_for_niveles(df, basic_state, plan_primary, plan_secondary)
         reading = _escape_claude(claude_ai.tactical_niveles(snapshot))
         return (
-            "<b>CLAUDE - Afinacion del plan</b>\n"
+            "<b>FQ · Afinacion del plan</b>\n"
             "{thin}\n\n{r}\n\n"
-            "{thin}\nModelo: Sonnet 4.5\n#FQ #Claude"
+            "{thin}\n#FQ #SOLUSDT"
         ).format(thin=G["thin"], r=reading)
     except Exception as e:
         log.error("Claude followup niveles error: {}".format(e))
@@ -3984,7 +4331,7 @@ def command_listener(exchange):
                             ok, msg_r, days = vip.redeem_code(code, chat_id, username)
                             if ok:
                                 telegram_send(
-                                    "<b>Codigo aplicado</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                                    "<b>Codigo aplicado</b>\n──────────────────────────────\n\n"
                                     "{m}\n\nAcceso VIP activo. Usa /help para comandos.".format(m=msg_r),
                                     chat_id)
                             else:
@@ -4022,11 +4369,11 @@ def command_listener(exchange):
                         if tier not in ("vip", "trial", "admin"):
                             telegram_send(
                                 "<b>Acceso VIP requerido</b>\n"
-                                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                                "──────────────────────────────\n\n"
                                 "El comando {} requiere suscripcion VIP.\n\n"
-                                "▸ /precio para ver planes\n"
-                                "▸ /codigo XXXX para canjear codigo\n"
-                                "▸ /vip para adquirir acceso".format(cmd_name), chat_id)
+                                "› /precio para ver planes\n"
+                                "› /codigo XXXX para canjear codigo\n"
+                                "› /vip para adquirir acceso".format(cmd_name), chat_id)
                             continue
                 else:
                     # Sin VIP system: solo admin (chat_id original)
@@ -4052,7 +4399,7 @@ def command_listener(exchange):
                               "/evolve", "/concepts", "/weekend", "/campo",
                               "/gencode", "/grant", "/broadcast",
                               "/atribucion", "/regimen", "/sweep",
-                              "/timelines"}
+                              "/timelines", "/paper"}
                 if cmd_name in ADMIN_ONLY and str(chat_id) != str(TELEGRAM_CHAT_ID):
                     telegram_send(
                         "Comando no disponible. Usa /help para ver tus comandos.",
@@ -4082,7 +4429,7 @@ def command_listener(exchange):
                             secs = int(remaining % 60)
                             telegram_send(
                                 "<b>/analisis en cooldown</b>\n"
-                                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                                "──────────────────────────────\n\n"
                                 "Espera <b>{}m {:02d}s</b> antes del siguiente analisis.\n\n"
                                 "Cooldown VIP = {} min por usuario. Protege la API y\n"
                                 "asegura que cada lectura que pidas sea fresca.\n\n"
@@ -4092,7 +4439,7 @@ def command_listener(exchange):
                             continue
                         _VIP_ANALISIS_LAST[str(chat_id)] = now_s
 
-                    telegram_send("Lectura tactica en proceso - Claude Sonnet 4.6...", chat_id)
+                    telegram_send("Lectura en proceso...", chat_id)
                     try:
                         # Contexto pesado (QTE 2000 + battle plan) UNA sola vez,
                         # compartido entre mensaje curado y lectura de Claude.
@@ -4109,7 +4456,7 @@ def command_listener(exchange):
                         if claude_ai.is_available():
                             def _send_fu_analisis(fn=fu_fn, cid=chat_id, ctx=analisis_ctx):
                                 try:
-                                    telegram_send("Claude interpretando datos...", cid)
+                                    telegram_send("Interpretando datos...", cid)
                                     # El follow-up VIP reutiliza el ctx; el admin no lo usa.
                                     fu = fn(exchange, ctx=ctx) if ctx is not None else fn(exchange)
                                     if fu:
@@ -4128,12 +4475,12 @@ def command_listener(exchange):
                     handler = COMMANDS[cmd_name]
                     try:
                         loading_map = {
-                            "/lectura":  "Lectura tactica en proceso - Claude Sonnet 4.6...",
-                            "/analisis": "Lectura tactica en proceso - Claude Sonnet 4.6...",
-                            "/niveles":  "Lectura tactica en proceso - Claude Sonnet 4.6...",
-                            "/pspace":   "Lectura tactica en proceso - Claude Sonnet 4.6...",
-                            "/claude":   "Lectura tactica en proceso - Claude Sonnet 4.6...",
-                            "/ia":       "Lectura tactica en proceso - Claude Sonnet 4.6...",
+                            "/lectura":  "Lectura en proceso...",
+                            "/analisis": "Lectura en proceso...",
+                            "/niveles":  "Lectura en proceso...",
+                            "/pspace":   "Lectura en proceso...",
+                            "/claude":   "Lectura en proceso...",
+                            "/ia":       "Lectura en proceso...",
                         }
                         if cmd_name in loading_map:
                             telegram_send(loading_map[cmd_name], chat_id)
@@ -4146,7 +4493,7 @@ def command_listener(exchange):
                         if cmd_name in CLAUDE_FOLLOWUP and claude_ai.is_available():
                             def _send_claude_fu(c=cmd_name, cid=chat_id):
                                 try:
-                                    telegram_send("Claude interpretando datos...", cid)
+                                    telegram_send("Interpretando datos...", cid)
                                     fu = CLAUDE_FOLLOWUP[c](exchange)
                                     if fu:
                                         send_long(fu, cid)
@@ -4175,8 +4522,8 @@ def _cmd_vip_flow(exchange, chat_id, args):
         return
     if not args:
         msg = (
-            "<b>ADQUIRIR VIP</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "<b>FQ · Acceso VIP</b>\n"
+            "──────────────────────────────\n\n"
         )
         for pid, info in vip.PLAN_PRICES.items():
             if pid == "trial_7d":
@@ -4220,7 +4567,7 @@ def _cmd_vip_flow(exchange, chat_id, args):
             return
         telegram_send(
             "<b>{}</b> - USDT-{}\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "──────────────────────────────\n\n"
             "Monto exacto: <code>{:.4f}</code> USDT\n\n"
             "<b>Wallet:</b>\n<code>{}</code>\n\n"
             "Ref: {}\nExpira en {} horas.\n\n"
@@ -4255,7 +4602,7 @@ def _cmd_admin_gencode(admin_cid, args):
     code = vip.generate_code(duration_days=days, plan=plan, kind=kind,
                              created_by=admin_cid, note=note)
     telegram_send(
-        "<b>Codigo generado</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "<b>Codigo generado</b>\n──────────────────────────────\n\n"
         "Codigo: <code>{code}</code>\n"
         "Duracion: {d} dias | Plan: {p}\n"
         "{note}\n"
@@ -4303,7 +4650,7 @@ def _cmd_admin_broadcast(admin_cid, raw_args):
     sent = failed = 0
     for u in users:
         ok = telegram_send(
-            "<b>RasDG_Sol</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n{}".format(message),
+            "<b>RasDG_Sol</b>\n──────────────────────────────\n\n{}".format(message),
             u["chat_id"])
         if ok: sent += 1
         else:  failed += 1
@@ -4361,7 +4708,7 @@ def cmd_audit_manual(exchange):
         return "No hay data suficiente para audit."
 
     telegram_send(
-        "<b>AUDIT MANUAL - OPUS 4.6</b>\n"
+        "<b>FQ · Auditoria</b>\n"
         "Procesando {} senales cerradas...".format(n)
     )
     response = ev_claude.self_audit(prompt)
@@ -4369,7 +4716,7 @@ def cmd_audit_manual(exchange):
     ev.save_audit(n, metrics, response)
 
     return (
-        "<b>AUDIT MANUAL - OPUS 4.6</b>\n"
+        "<b>FQ · Auditoria</b>\n"
         "{thin}\n\n{r}\n\n"
         "{thin}\nSugerencias - RasDG decide.\n"
         "#SelfAudit #FQ"
@@ -4383,6 +4730,58 @@ def cmd_metrics(exchange=None):
 
 def cmd_ledger(exchange=None):
     return ev.format_ledger_telegram(10)
+
+
+def cmd_paper(exchange=None):
+    """Admin: stats de los ledgers PAPER del Volume (ORO + motor base). 0% real.
+    Surface del forward sin shell: corre los stats donde vive el ledger."""
+    import os
+    slug = GOLD_LIVE_SYMBOL.replace("/", "_").replace(":", "_")
+    out = ["🧾 <b>Paper forward (Volume)</b>"]
+    # ORO (gold): el ledger graba, pero su EDGE (gate ficción NY) NO es fiable
+    try:
+        from execution import DurableHashLedger
+        import reconciler as rc
+        gpath = os.environ.get("FQ_GOLD_LEDGER_PATH",
+                               "/data/gold_ledger_%s.jsonl" % slug)
+        if not os.path.exists(gpath):
+            out.append("🥇 ORO: sin ledger (FQ_GOLD_LIVE off o aún sin velas).")
+        else:
+            led = DurableHashLedger.load(gpath)
+            rs = rc.extract_closed_r(led)
+            if rs:
+                mean = sum(rs) / len(rs)
+                wr = sum(1 for r in rs if r > 0) / len(rs)
+                out.append("🥇 ORO: n={} · exp≈{:+.3f}R · WR {:.0f}% · {} reg "
+                           "(gate ficción NY: edge NO fiable §6.10.1)".format(
+                               len(rs), mean, wr * 100.0, len(led.records)))
+            else:
+                out.append("🥇 ORO: {} registros · 0 cierres aún.".format(
+                    len(led.records)))
+    except Exception as e:
+        out.append("🥇 ORO: error leyendo ledger (%s)" % e)
+    # MOTOR paper — SOL (base, lo que opera el bot) + BTC (pipeline paralelo:
+    # el techo del research, +0.142R maker tp4). Ledgers SEPARADOS.
+    try:
+        import motor_paper
+        spath = os.environ.get("FQ_MOTOR_PAPER_LEDGER_PATH",
+                               "/data/motor_paper_%s.jsonl" % slug)
+        out.append("— <b>SOL</b> (motor base) —")
+        out.append(motor_paper.format_report_telegram(
+            motor_paper.ledger_report(spath)))
+        # BTC: solo si el pipeline esta activo o ya hay ledger (evita ruido off).
+        if BTC_MOTOR_PAPER_ENABLED or os.path.exists(BTC_MOTOR_LEDGER_PATH):
+            out.append("— <b>₿ BTC</b> (techo research: +0.142R maker tp4) —")
+            out.append(motor_paper.format_report_telegram(
+                motor_paper.ledger_report(BTC_MOTOR_LEDGER_PATH)))
+        # ETH: idem, solo si el pipeline esta activo o ya hay ledger.
+        if ETH_MOTOR_PAPER_ENABLED or os.path.exists(ETH_MOTOR_LEDGER_PATH):
+            out.append("— <b>Ξ ETH</b> (backtest magnet: +0.201R, NO robusto) —")
+            out.append(motor_paper.format_report_telegram(
+                motor_paper.ledger_report(ETH_MOTOR_LEDGER_PATH)))
+    except Exception as e:
+        out.append("📄 Motor: error (%s)" % e)
+    return "\n".join(out)
 
 def cmd_evolve(exchange=None):
     """Estado del modulador kappa_evo - que buckets estan activos"""
@@ -4728,7 +5127,7 @@ def cmd_timelines(exchange):
         hist_block = "\n".join(hist_lines)
 
         block = qt.build_qte_block_admin(qa)
-        rule = "━" * 30
+        rule = "─" * 30
 
         return (
             "<b>QTE DEEP DIVE</b>\n"
@@ -4923,7 +5322,7 @@ def evolution_periodic_hook(exchange):
             log.info("Triggering self-audit Opus (n={})".format(n))
             broadcast_to_subscribers(
                 "<b>SELF-AUDIT EVOLUTIVO ACTIVADO</b>\n"
-                "{} senales cerradas. Opus 4.6 auditando ledger...".format(n)
+                "{} senales cerradas. Auditando ledger...".format(n)
             )
             prompt = ev.build_audit_prompt_v3() if hasattr(ev, "build_audit_prompt_v3") else ev.build_audit_prompt()
             if prompt:
@@ -4931,7 +5330,7 @@ def evolution_periodic_hook(exchange):
                 metrics = ev.get_global_metrics()
                 ev.save_audit(n, metrics, opus_response)
                 audit_msg = (
-                    "<b>AUDIT EVOLUTIVO - OPUS 4.6</b>\n"
+                    "<b>FQ · Auditoria evolutiva</b>\n"
                     "{thin}\n\n{r}\n\n"
                     "{thin}\n"
                     "Estas son SUGERENCIAS. RasDG decide.\n"
@@ -5035,6 +5434,7 @@ def main():
         "/entropy":   lambda exc=None: cmd_entropy(),
         "/metrics":   lambda exc=None: cmd_metrics(),
         "/ledger":    lambda exc=None: cmd_ledger(),
+        "/paper":     lambda exc=None: cmd_paper(),
         "/evolve":    lambda exc=None: cmd_evolve(),
         "/campo":     cmd_campo,
         "/concepts":  lambda exc=None: cmd_concepts(),
@@ -5059,10 +5459,10 @@ def main():
     telegram_send(
         "{header}\n"
         "\n"
-        "  Motor en pista · eval cada 15 min\n"
+        "  Vigilancia continua · eval cada 15 min\n"
         "  SOL/USDT · OKX\n"
-        "  Claude: <b>{cs}</b>".format(
-            header=_brand.lux_header("FQ · Bot online", "Luces verdes"),
+        "  IA: <b>{cs}</b>".format(
+            header=_brand.lux_header("FQ · En linea", "Sistema operativo"),
             cs=claude_status)
     )
 
@@ -5128,6 +5528,16 @@ def main():
             # EVOLUTION HOOK - corre si alguno de los TFs cerro vela nueva
             if any_new_candle:
                 evolution_periodic_hook(exchange)
+
+            # BTC MOTOR PAPER (paralelo, paper-only, default OFF): cuando cierra
+            # la vela del TF BTC (5m, que coincide en reloj con la del SOL), corre
+            # una pasada BTC -> motor paper BTC. NO toca VIP/SOL. No-op si
+            # FQ_MOTOR_PAPER_BTC!=1 (ni toca el exchange).
+            if BTC_MOTOR_PAPER_ENABLED and BTC_MOTOR_TF in new_candle_tfs:
+                _btc_motor_paper_scan(exchange)
+            # ETH (3er simbolo): mismo patron, no-op si FQ_MOTOR_PAPER_ETH!=1.
+            if ETH_MOTOR_PAPER_ENABLED and ETH_MOTOR_TF in new_candle_tfs:
+                _eth_motor_paper_scan(exchange)
 
             # RADAR proactivo / ALERTA TACTICA (FQ v5.3):
             #   - Corre en FIELD_TIMEFRAMES (default 5m+15m; 1m opt-in, 3m retirado).
