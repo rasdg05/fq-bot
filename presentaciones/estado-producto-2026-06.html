@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FQ Bot — Estado del producto · Junio 2026</title>
+<style>
+  :root{
+    --bg:#0b0e14; --card:#11161f; --card2:#0e131b; --ink:#e6edf3; --mut:#8b98a9;
+    --line:#1e2733; --grn:#3fb950; --grn2:#2ea043; --amb:#d29922; --red:#f85149;
+    --blu:#58a6ff; --vio:#bc8cff; --accent:#3fb950;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.55;-webkit-font-smoothing:antialiased}
+  .deck{max-width:980px;margin:0 auto;padding:0 20px}
+  section{min-height:100vh;display:flex;flex-direction:column;justify-content:center;
+    padding:72px 0;border-bottom:1px solid var(--line)}
+  section:last-child{border-bottom:none}
+  h1{font-size:clamp(30px,5vw,52px);line-height:1.08;margin:0 0 14px;letter-spacing:-.02em}
+  h2{font-size:clamp(22px,3.4vw,34px);margin:0 0 8px;letter-spacing:-.01em}
+  h3{font-size:15px;text-transform:uppercase;letter-spacing:.14em;color:var(--accent);
+    margin:0 0 22px;font-weight:700}
+  p{margin:0 0 14px;color:#cdd7e2;font-size:17px}
+  .lead{font-size:20px;color:var(--ink)}
+  .mut{color:var(--mut)}
+  .tag{display:inline-block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;
+    padding:4px 10px;border-radius:999px;border:1px solid var(--line);color:var(--mut);
+    margin-bottom:26px;font-weight:600}
+  .grid{display:grid;gap:16px}
+  .g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr 1fr 1fr}
+  @media(max-width:720px){.g2,.g3{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+  .card.in{border-color:rgba(63,185,80,.35)}
+  .card.fw{border-color:rgba(210,153,34,.35)}
+  .card.no{border-color:rgba(248,81,73,.30)}
+  .kpi{font-size:38px;font-weight:800;letter-spacing:-.02em;margin:2px 0 2px}
+  .kpi.grn{color:var(--grn)}.kpi.amb{color:var(--amb)}.kpi.red{color:var(--red)}.kpi.blu{color:var(--blu)}
+  .klbl{font-size:13px;color:var(--mut);text-transform:uppercase;letter-spacing:.08em}
+  table{width:100%;border-collapse:collapse;margin:8px 0 6px;font-size:15.5px}
+  th,td{text-align:right;padding:10px 12px;border-bottom:1px solid var(--line)}
+  th:first-child,td:first-child{text-align:left}
+  thead th{color:var(--mut);font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:.05em}
+  tbody tr:hover{background:rgba(255,255,255,.02)}
+  .pos{color:var(--grn);font-weight:700}.neg{color:var(--red);font-weight:700}
+  .hl{background:rgba(63,185,80,.08)}
+  ul{margin:6px 0 0;padding-left:20px}li{margin:7px 0;color:#cdd7e2;font-size:16px}
+  .pill{font-size:12px;font-weight:700;padding:2px 8px;border-radius:6px;margin-left:8px}
+  .pill.v{background:rgba(63,185,80,.15);color:var(--grn)}
+  .pill.f{background:rgba(210,153,34,.15);color:var(--amb)}
+  .pill.k{background:rgba(248,81,73,.15);color:var(--red)}
+  .note{font-size:14px;color:var(--mut);border-left:3px solid var(--line);padding:4px 0 4px 16px;margin-top:14px}
+  .big{font-size:clamp(40px,8vw,86px);font-weight:800;letter-spacing:-.03em;line-height:1}
+  .flow{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:10px 0}
+  .flow .step{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:12px 16px;font-weight:600}
+  .arr{color:var(--mut);font-size:22px}
+  .foot{font-size:13px;color:var(--mut);margin-top:30px}
+  .toc{position:fixed;top:0;left:0;right:0;background:rgba(11,14,20,.86);
+    backdrop-filter:blur(8px);border-bottom:1px solid var(--line);z-index:9;font-size:13px}
+  .toc .deck{display:flex;gap:18px;padding:11px 20px;overflow-x:auto;white-space:nowrap}
+  .toc a{color:var(--mut);text-decoration:none;font-weight:600}
+  .toc a:hover{color:var(--ink)}
+  .num{color:var(--accent);font-variant-numeric:tabular-nums}
+  @media print{
+    .toc{display:none}
+    body{background:#0b0e14;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    section{min-height:auto;height:auto;page-break-after:always;break-after:page;
+      padding:34px 0;justify-content:flex-start;border-bottom:none}
+    section:last-child{page-break-after:auto}
+    h1{font-size:38px}h2{font-size:26px}
+    .kpi{font-size:30px}.big{font-size:60px}
+  }
+  @page{size:1280px 920px;margin:0}
+</style>
+</head>
+<body>
+
+<nav class="toc"><div class="deck">
+  <a href="#cover">FQ Bot</a>
+  <a href="#viaje">1 · El viaje</a>
+  <a href="#producto">2 · Dos motores</a>
+  <a href="#r">3 · Expectancy R</a>
+  <a href="#lab">4 · Lo que matamos</a>
+  <a href="#carry">5 · Carry</a>
+  <a href="#mexc">6 · El espejo</a>
+  <a href="#val">7 · Valuación</a>
+  <a href="#next">8 · La palanca</a>
+</div></nav>
+
+<div class="deck">
+
+<!-- COVER -->
+<section id="cover">
+  <span class="tag">Estado del producto · 25 jun 2026 · interno / equipo</span>
+  <h1>FQ Bot: dos motores,<br>un edge probado a fuego.</h1>
+  <p class="lead">No vendemos promesas. Medimos el filo, matamos lo que no aguanta, y
+  desplegamos sólo lo que sobrevive fuera de muestra. Este es el estado honesto —
+  lo validado, lo que está en medición forward, y lo que cuesta el producto.</p>
+  <div class="grid g3" style="margin-top:24px">
+    <div class="card in"><div class="klbl">Motor direccional (OOS)</div><div class="kpi grn">+0.10R</div><div class="mut">por trade · techo medido, midiéndose forward</div></div>
+    <div class="card in"><div class="klbl">Motor carry (market-neutral)</div><div class="kpi grn">+12.5%</div><div class="mut">APY · Sharpe 13.6 · sobrevive el bear 2022</div></div>
+    <div class="card no"><div class="klbl">"Edges" probados y descartados</div><div class="kpi red">5</div><div class="mut">muertos con honestidad antes de tocar clientes</div></div>
+  </div>
+</section>
+
+<!-- 1 · EL VIAJE -->
+<section id="viaje">
+  <h3>1 · El viaje</h3>
+  <h2>De "el edge moría en costes" a "dos motores que aguantan".</h2>
+  <p>El sistema entró el año con señales direccionales cuyo edge bruto <b>se lo comían
+  los costes</b> (stops apretados ≈ 10 bps round-trip ≈ 0.23–0.28R). El trabajo no fue
+  inventar otra estrategia mágica — fue <b>ingeniería de filo</b>: encontrar las palancas
+  legibles que vuelven el sistema positivo, y <b>probar cada idea hasta que se rompe</b>.</p>
+  <div class="grid g2">
+    <div class="card">
+      <div class="klbl">Lo que cambió en el motor que ya teníamos</div>
+      <ul>
+        <li><b>Ejecución maker</b> (límite en el nivel) en vez de taker a mercado <span class="pill v">+R</span></li>
+        <li><b>Veto de sesión</b>: fuera London open y Asia open (segmentos −EV medidos) <span class="pill v">+R</span></li>
+        <li>Motor alineado a <b>5m</b> (research, cubo y BTC en la misma TF)</li>
+        <li>Veto vivo arreglado para cortar <b>BTC y ETH</b>, no sólo SOL</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="klbl">Lo que se sumó como activo nuevo</div>
+      <ul>
+        <li><b>Carry market-neutral</b> validado multi-régimen (2021–2026) <span class="pill v">validado</span></li>
+        <li><b>Colector forward</b> del carry, 0% real, midiendo en vivo <span class="pill f">forward</span></li>
+        <li>Análisis del <b>historial real MEXC</b> del operador (el espejo)</li>
+        <li>Infra de cosecha + medición forward <b>reutilizable</b> por símbolo</li>
+      </ul>
+    </div>
+  </div>
+  <p class="note">La disciplina central: <b>validar antes de construir, y nunca exponer
+  a clientes lo que no sobrevivió fuera de muestra.</b> Esa regla nos ahorró cinco errores
+  este ciclo (sección 4).</p>
+</section>
+
+<!-- 2 · DOS MOTORES -->
+<section id="producto">
+  <h3>2 · La arquitectura del producto</h3>
+  <h2>Dos motores descorrelacionados.</h2>
+  <p>No dependen del mismo clima de mercado. Uno acierta dirección en las killzones; el
+  otro cobra una prima estructural sin importar a dónde vaya el precio. Juntos, el producto
+  no vive ni muere con una sola apuesta.</p>
+  <div class="grid g2">
+    <div class="card in">
+      <div class="klbl">Motor 1 — DIRECCIONAL <span class="pill v">producto vivo</span></div>
+      <p style="font-size:16px"><b>Qué es:</b> señales de entrada/TP/stop en las ventanas
+      de liquidez (ICT/SMC), filtradas por veto de sesión y ejecutadas como maker.</p>
+      <p style="font-size:16px"><b>Métrica:</b> <span class="num">+0.10R</span> por trade OOS
+      (techo). <b>Cadencia:</b> ~1.8 señales/semana por símbolo.</p>
+      <p class="mut" style="font-size:14px">Es lo que reciben los VIP hoy. Su número real
+      se está sellando con la medición de fill-rate maker (sección 3).</p>
+    </div>
+    <div class="card in">
+      <div class="klbl">Motor 2 — CARRY (market-neutral) <span class="pill f">forward, 0% real</span></div>
+      <p style="font-size:16px"><b>Qué es:</b> short-perp delta-neutral sobre un basket
+      líquido; cobra el funding cuando es positivo. No apuesta dirección.</p>
+      <p style="font-size:16px"><b>Métrica:</b> <span class="num">+12.5%</span> APY,
+      Sharpe 13.6, maxDD 1.7%. <b>Correlación con el motor 1:</b> ~0.</p>
+      <p class="mut" style="font-size:14px">Validado en backtest multi-régimen; mide forward
+      desde hoy. Aún NO desplegado a clientes — primero track forward.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 3 · EXPECTANCY DE R -->
+<section id="r">
+  <h3>3 · La nueva expectancy de R</h3>
+  <h2>De sangrar −0.09R a ganar +0.10R. Dos palancas, no magia.</h2>
+  <p>Expectancy = ganancia esperada por trade en múltiplos de riesgo (R). El motor base,
+  ejecutado a taker y sin veto, era <b>negativo OOS</b>. Apilando las dos palancas legibles
+  cruza a positivo — y <b>replica en ambos símbolos</b> (la prueba anti-espejismo).</p>
+  <table>
+    <thead><tr><th>Ejecución (OOS, bt_engine real)</th><th>SOL</th><th>BTC</th></tr></thead>
+    <tbody>
+      <tr><td>Taker a mercado, sin veto <span class="mut">(el "antes")</span></td><td class="neg">−0.095</td><td class="neg">−0.068</td></tr>
+      <tr><td>+ Veto de sesión (fuera London)</td><td class="neg">−0.003</td><td class="neg">−0.031</td></tr>
+      <tr><td>+ Entrada maker</td><td class="pos">+0.070</td><td class="pos">+0.055</td></tr>
+      <tr class="hl"><td><b>+ Entrada y TP maker</b> <span class="mut">(la config)</span></td><td class="pos">+0.109</td><td class="pos">+0.102</td></tr>
+    </tbody>
+  </table>
+  <div class="grid g2" style="margin-top:18px">
+    <div class="card">
+      <div class="klbl">El titular honesto</div>
+      <div class="kpi grn">+0.10R / trade</div>
+      <p class="mut" style="font-size:15px">Motor base + veto London/Asia + ejecución maker.
+      Primera config con +0.10R OOS positivo en <b>ambos</b> símbolos.</p>
+    </div>
+    <div class="card fw">
+      <div class="klbl">El asterisco que lo gobierna</div>
+      <p style="font-size:16px"><b>+0.10R es un TECHO</b> (asume que la orden límite se llena
+      el 100% de las veces). El edge real = techo × <b>fill-rate maker</b>. Si los fills se
+      concentran en perdedores (adverse selection), baja.</p>
+      <p style="font-size:15px;color:var(--amb)"><b>Se está midiendo forward AHORA</b> (motor
+      paper). Decisión a 30–50 fills. Ese número decide si el filo es de verdad.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 4 · EL LABORATORIO HONESTO -->
+<section id="lab">
+  <h3>4 · El laboratorio honesto</h3>
+  <h2>Cinco "edges" que se veían bien — y por qué los matamos.</h2>
+  <p>Matar un edge falso ES producto: cada uno habría metido pérdidas o ruido a los clientes.
+  Esto es lo que nos separa de un canal de señales cualquiera.</p>
+  <div class="grid g2">
+    <div class="card no"><b>Selector F3 (mejor TP dinámico)</b> <span class="pill k">muerto</span><p class="mut" style="font-size:15px">Pierde contra el TP fijo tp4. La elección "inteligente" no batía a la simple.</p></div>
+    <div class="card no"><b>Confluencia de volumen</b> <span class="pill k">muerto</span><p class="mut" style="font-size:15px">No robusto cross-símbolo. Mejoraba uno, rompía otro.</p></div>
+    <div class="card no"><b>Filtro momentum/ruptura en longs</b> <span class="pill k">muerto</span><p class="mut" style="font-size:15px">Los longs del bot son <i>pullback en descuento</i> — lo opuesto al momentum. El filtro remaba contra el edge.</p></div>
+    <div class="card no"><b>Trailing stop</b> <span class="pill k">muerto</span><p class="mut" style="font-size:15px">El radar reciente mostró +0.4R; la historia completa, sólo +0.07R. Era overfit a la tendencia reciente.</p></div>
+    <div class="card no"><b>Pairs stat-arb BTC-ETH</b> <span class="pill k">muerto</span><p class="mut" style="font-size:15px">Sharpe 0.69 maker, cointegración marginal. Los costes se lo comían.</p></div>
+    <div class="card in"><b>Carry market-neutral</b> <span class="pill v">SOBREVIVIÓ</span><p class="mut" style="font-size:15px">El único que pasó multi-régimen limpio. Por eso es el motor 2.</p></div>
+  </div>
+  <p class="note">Tasa de supervivencia 1 de 6. Eso no es fracaso — es el <b>filtro</b>
+  funcionando. Un equipo que despliega las 6 ideas pierde dinero en 5.</p>
+</section>
+
+<!-- 5 · CARRY -->
+<section id="carry">
+  <h3>5 · Motor 2 — el carry, a fondo</h3>
+  <h2>Sobrevive el bear. Pero hay que limpiar el basket.</h2>
+  <p>Funding profundo 2021–2026 (archivo público de Binance — la API está geo-bloqueada,
+  el archivo no). La pregunta que mató al pairs y al trailing: <b>¿aguanta fuera de su
+  régimen?</b> El carry sí — <b>pero sólo el basket limpio.</b></p>
+  <table>
+    <thead><tr><th>Año</th><th>Régimen</th><th>APY</th><th>Sharpe</th><th>maxDD</th></tr></thead>
+    <tbody>
+      <tr><td>2021</td><td class="mut">bull</td><td class="pos">+39.1%</td><td>21.8</td><td>0.9%</td></tr>
+      <tr class="hl"><td>2022</td><td class="mut">BEAR brutal</td><td class="pos">+1.7%</td><td>5.6</td><td>1.3%</td></tr>
+      <tr><td>2023</td><td class="mut">recuperación</td><td class="pos">+8.5%</td><td>30.0</td><td>0.2%</td></tr>
+      <tr><td>2024</td><td class="mut">bull</td><td class="pos">+13.6%</td><td>29.8</td><td>0.0%</td></tr>
+      <tr><td>2025</td><td class="mut">lateral</td><td class="pos">+4.6%</td><td>25.3</td><td>0.2%</td></tr>
+      <tr><td>2026</td><td class="mut">corrección</td><td class="pos">+0.5%</td><td>3.1</td><td>0.5%</td></tr>
+    </tbody>
+  </table>
+  <div class="grid g3" style="margin-top:8px">
+    <div class="card in"><div class="klbl">Basket CLEAN, full history</div><div class="kpi grn">+12.5%</div><div class="mut">APY · Sharpe 13.6 · 82% intervalos +</div></div>
+    <div class="card"><div class="klbl">Basket de producción</div><div style="font-size:17px;font-weight:700">BTC · ETH · XRP<br>LTC · DOGE · ADA</div><div class="mut" style="margin-top:6px">SOL y BNB FUERA</div></div>
+    <div class="card fw"><div class="klbl">El haircut honesto</div><div class="kpi amb">−2 a −4pp</div><div class="mut">costes de ejecución reales (fees 2 patas + borrow). El backtest es el techo bruto.</div></div>
+  </div>
+  <p class="note"><b>Por qué SOL y BNB fuera:</b> SOL es carry muerto (Sharpe 0.27, maxDD 43%);
+  BNB tiene funding medio <b>negativo</b> (ahí cobra el long). La ventana corta de OKX mostraba
+  BNB +3.2% — <b>un solo régimen miente</b>; por eso validamos profundo. Es una <b>prima de
+  régimen</b>, no arbitraje sin riesgo: en 2026 se comprime a ~0.</p>
+</section>
+
+<!-- 6 · EL ESPEJO MEXC -->
+<section id="mexc">
+  <h3>6 · El espejo — el historial real del operador</h3>
+  <h2>El edge era real. El leverage lo borraba.</h2>
+  <p>Analizamos 1 año del historial MEXC real de RasDG (6.397 órdenes). El hallazgo no es
+  dirección ni timing — es <b>asimetría de riesgo</b>: corta perdedores chico, deja correr
+  ganadores. Y prueba la tesis del bot por el lado del operador humano.</p>
+  <div class="grid g3">
+    <div class="card"><div class="klbl">Ratio win/loss</div><div class="kpi blu">2.5 : 1</div><div class="mut">+41.6 medio vs −16.4 medio</div></div>
+    <div class="card"><div class="klbl">Win rate vs breakeven</div><div class="kpi amb">27.7%</div><div class="mut">BE 28.3% → a 0.6 pp de rentable</div></div>
+    <div class="card no"><div class="klbl">El año cerró</div><div class="kpi red">−847 USDT</div><div class="mut">no por falta de edge — por leverage</div></div>
+  </div>
+  <table style="margin-top:16px">
+    <thead><tr><th>Leverage</th><th>Ratio win/loss</th><th>EV / trade</th></tr></thead>
+    <tbody>
+      <tr class="hl"><td>≤25x <span class="mut">(sano)</span></td><td class="pos">7.44</td><td class="pos">+31.70</td></tr>
+      <tr><td>25–50x</td><td>2.89</td><td class="neg">−1.90</td></tr>
+      <tr><td>50–100x</td><td>2.17</td><td class="neg">−1.36</td></tr>
+      <tr><td>&gt;100x</td><td class="neg">1.87</td><td class="neg">−2.54</td></tr>
+    </tbody>
+  </table>
+  <p class="note">El leverage no agrega riesgo — <b>borra la asimetría que ES el edge</b>
+  (la liquidación saca del ganador antes de que corra). Las peores sesiones del operador
+  (London, 2 PM) son <b>exactamente las killzones que el bot vetea</b>. El bot ≈ el operador
+  a ≤25x, sin tradear el chop, dejando correr — su disciplina, cableada.</p>
+</section>
+
+<!-- 7 · VALUACIÓN -->
+<section id="val">
+  <h3>7 · Valuación del producto</h3>
+  <h2>El valor está atado a la prueba forward — igual que el edge.</h2>
+  <p>Honestidad primero: el producto es de etapa temprana. No fabrico un número de
+  suscriptores. Doy el <b>marco</b> con supuestos explícitos para que el equipo enchufe los
+  reales, y el <b>driver</b> que mueve el múltiplo.</p>
+  <table>
+    <thead><tr><th>Escenario (ilustrativo)</th><th>Subs × precio/mes</th><th>ARR</th><th>× múltiplo</th><th>Valuación</th></tr></thead>
+    <tbody>
+      <tr><td>Conservador</td><td>50 × $39</td><td>$23.4k</td><td>2.5×</td><td class="num">~$59k</td></tr>
+      <tr class="hl"><td>Base</td><td>250 × $44</td><td>$132k</td><td>3.5×</td><td class="num pos">~$460k</td></tr>
+      <tr><td>Agresivo</td><td>1.000 × $49</td><td>$588k</td><td>5.0×</td><td class="num">~$2.9M</td></tr>
+    </tbody>
+  </table>
+  <div class="grid g2" style="margin-top:16px">
+    <div class="card">
+      <div class="klbl">Qué mueve el múltiplo (de 2.5× a 5×+)</div>
+      <ul>
+        <li><b>Track forward del +0.10R</b> sellado (de backtest → vivo)</li>
+        <li><b>Segundo motor (carry)</b> desplegado y rindiendo</li>
+        <li>Baja <b>churn</b> (retención = LTV = múltiplo)</li>
+        <li>Más símbolos / más cadencia = más valor por suscriptor</li>
+      </ul>
+    </div>
+    <div class="card in">
+      <div class="klbl">El activo que no aparece en el ARR</div>
+      <p style="font-size:16px">Una <b>máquina de validación</b> que mata 5 de 6 ideas falsas
+      antes de que cuesten dinero, + dos motores con edge medido + infra de cosecha reutilizable.
+      Eso es el <b>moat</b>: no es el canal de señales, es el <b>proceso que prueba el filo</b>.</p>
+    </div>
+  </div>
+  <p class="note"><b>Ancla honesta:</b> hoy, pre-prueba-forward, el valor defendible está en la
+  <b>optionalidad</b> — un servicio con camino creíble a un +0.10R <i>probado</i> y un carry
+  market-neutral +12%. <b>La acción #1 que crea valor es cerrar la medición forward.</b>
+  Re-ratea el múltiplo de golpe. Supuestos de precio/subs ilustrativos — reemplazar con reales.</p>
+</section>
+
+<!-- 8 · LA PALANCA REAL -->
+<section id="next">
+  <h3>8 · La palanca real — a dónde apuntamos</h3>
+  <h2>El producto no mejora con otra estrategia. Mejora haciendo el filo que YA tenemos
+  más grande, más probado y más ancho.</h2>
+  <div class="flow">
+    <div class="step">Cerrar fill-rate maker <span class="pill f">midiendo</span></div>
+    <span class="arr">→</span>
+    <div class="step">Sellar el +0.10R real</div>
+    <span class="arr">→</span>
+    <div class="step">Portar a más símbolos</div>
+    <span class="arr">→</span>
+    <div class="step">+ cadencia = + valor VIP</div>
+  </div>
+  <div class="grid g3" style="margin-top:18px">
+    <div class="card fw"><div class="klbl">Prioridad 1 — medir</div><p style="font-size:16px"><b>Fill-rate maker forward.</b> Es el único número que convierte el techo +0.10R en edge real. Ya corre. Decisión a 30–50 fills. Sin research nuevo — paciencia + leer el medidor.</p></div>
+    <div class="card in"><div class="klbl">Prioridad 2 — ensanchar</div><p style="font-size:16px"><b>Portar el motor a más símbolos.</b> El carry probó que BTC/ETH/XRP/LTC/DOGE/ADA son perps líquidos sanos. Si el +0.10R replica (testeable con la maquinaria que ya tenemos) = más señales/semana al mismo R.</p></div>
+    <div class="card"><div class="klbl">Prioridad 3 — el carry forward</div><p style="font-size:16px"><b>Dejar correr el track del carry.</b> 4–8 semanas de medición 0% real. Cuando tenga prueba forward, lanzarlo como <b>oferta nueva market-neutral</b> (tier aparte), sin tocar el direccional.</p></div>
+  </div>
+  <p class="note">Regla que no se negocia: <b>nada a clientes que pagan sin track forward.</b>
+  El direccional +0.10R es el producto hoy; el carry entra cuando se lo gane en vivo.</p>
+  <p class="foot">FQ Bot · estado al 25-jun-2026 · números OOS de RETRIEVAL_PLAN §6.10.1 ·
+  carry de research/carry_regime.md · MEXC de research/edge_rasdg.md · radar honesto, no promesa.</p>
+</section>
+
+</div>
+</body>
+</html>
