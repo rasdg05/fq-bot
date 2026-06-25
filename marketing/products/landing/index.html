@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FQ · Trading con sistema, no con ego</title>
+<meta name="description" content="Guía gratis: 5 reglas para dejar de operar a corazonada. Comunidad de trading sistemático con Fibonacci Cuántico." />
+<style>
+  :root{
+    --bg:#080a0e; --panel:#11151c; --panel2:#161b24; --hair:#222a35;
+    --ink:#eef1f4; --muted:#9aa3b1; --faint:#5e6775;
+    --accent:#19b88c; --accent2:#12a37f; --glow:rgba(25,184,140,.22);
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html{ scroll-behavior:smooth; }
+  body{ background:var(--bg); color:var(--ink); font-family:"Helvetica Neue",Arial,system-ui,sans-serif; line-height:1.55; -webkit-font-smoothing:antialiased; }
+  .mono{ font-family:"SF Mono","JetBrains Mono",Menlo,Consolas,monospace; }
+  .wrap{ max-width:760px; margin:0 auto; padding:0 22px; }
+  a{ color:inherit; }
+
+  /* top glow */
+  header.hero{ position:relative; overflow:hidden; padding:54px 0 30px; text-align:center;
+    background:radial-gradient(120% 70% at 50% -10%, var(--glow), transparent 60%); }
+  .brand{ display:inline-flex; align-items:center; gap:12px; margin-bottom:30px; }
+  .brand .bar{ width:5px; height:42px; background:var(--accent); border-radius:3px; }
+  .brand .fq{ font-weight:800; font-size:30px; letter-spacing:-1px; }
+  .kicker{ font-family:"SF Mono",monospace; color:var(--accent); letter-spacing:3px; text-transform:uppercase; font-size:12px; }
+  h1{ font-size:40px; line-height:1.06; letter-spacing:-1px; margin:14px 0 12px; }
+  h1 .hl{ color:var(--accent); }
+  .sub{ color:var(--muted); font-size:18px; max-width:560px; margin:0 auto; }
+
+  /* video */
+  .video{ margin:30px auto 8px; max-width:680px; }
+  .video .frame{ position:relative; aspect-ratio:16/9; border-radius:16px; overflow:hidden;
+    background:linear-gradient(160deg,#10151d,#0a0d12); border:1px solid var(--hair);
+    display:flex; align-items:center; justify-content:center; }
+  .video .frame .play{ width:74px; height:74px; border-radius:50%; background:var(--accent);
+    display:flex; align-items:center; justify-content:center; box-shadow:0 8px 40px var(--glow); }
+  .video .frame .play:after{ content:""; border-style:solid; border-width:13px 0 13px 22px; border-color:transparent transparent transparent #07140f; margin-left:5px; }
+  .video .note{ text-align:center; color:var(--faint); font-size:12px; margin-top:10px; }
+  /* Para incrustar tu video: reemplaza .frame por:
+     <iframe src="URL_DE_TU_VIDEO" allowfullscreen></iframe> (YouTube/Vimeo) */
+
+  /* offer card */
+  .card{ background:var(--panel); border:1px solid var(--hair); border-radius:20px; padding:30px 26px; margin:26px auto; }
+  .card h2{ font-size:24px; letter-spacing:-.4px; }
+  .card .pts{ list-style:none; margin:16px 0 22px; }
+  .card .pts li{ display:flex; gap:10px; align-items:flex-start; color:var(--muted); margin:9px 0; font-size:15px; }
+  .card .pts li b{ color:var(--ink); font-weight:600; }
+  .chk{ color:var(--accent); font-family:"SF Mono",monospace; }
+
+  form{ display:flex; gap:10px; flex-wrap:wrap; }
+  input[type=email]{ flex:1; min-width:200px; background:#0c0f14; border:1px solid var(--hair); color:var(--ink);
+    padding:15px 16px; border-radius:12px; font-size:16px; }
+  input[type=email]::placeholder{ color:var(--faint); }
+  .btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; cursor:pointer; border:0;
+    font-family:inherit; font-weight:800; font-size:16px; padding:15px 22px; border-radius:12px; text-decoration:none; }
+  .btn.primary{ background:var(--accent); color:#06140f; }
+  .btn.tg{ background:#229ED9; color:#fff; }
+  .btn.ghost{ background:transparent; border:1px solid var(--hair); color:var(--ink); }
+  .btn.full{ width:100%; margin-top:12px; }
+  .or{ text-align:center; color:var(--faint); font-size:13px; margin:16px 0 4px; letter-spacing:1px; }
+  .formnote{ color:var(--faint); font-size:12px; margin-top:10px; }
+
+  /* value */
+  section.value{ padding:18px 0 6px; }
+  section.value h3{ font-size:13px; letter-spacing:2px; text-transform:uppercase; color:var(--faint); text-align:center; margin-bottom:18px; }
+  .grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .item{ background:var(--panel); border:1px solid var(--hair); border-radius:14px; padding:16px; }
+  .item .n{ font-family:"SF Mono",monospace; color:var(--accent); font-size:13px; }
+  .item .t{ font-weight:700; margin:6px 0 4px; }
+  .item .d{ color:var(--muted); font-size:13.5px; }
+
+  /* secondary cta */
+  .links{ display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:24px 0; }
+  .links a{ background:var(--panel); border:1px solid var(--hair); border-radius:999px; padding:10px 16px; font-size:14px; text-decoration:none; color:var(--muted); }
+  .links a b{ color:var(--ink); }
+
+  footer{ border-top:1px solid var(--hair); margin-top:30px; padding:24px 0 50px; text-align:center; }
+  footer .dis{ color:var(--faint); font-size:11.5px; max-width:600px; margin:0 auto; }
+
+  @media (max-width:560px){ h1{ font-size:31px; } .grid{ grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="brand"><div class="bar"></div><div class="fq">FQ</div></div>
+    <div class="kicker">Fibonacci Cuántico</div>
+    <h1>Deja de operar <span class="hl">a corazonada</span>.<br/>Empieza con sistema.</h1>
+    <p class="sub">Te regalo la guía con las <b>5 reglas</b> que separan al que opera
+    con método del que opera con el ego. Sin humo. Sin promesas.</p>
+
+    <!-- ===== SLOT DE VIDEO DE INTRO =====
+         Reemplaza el bloque .frame por tu iframe de YouTube/Vimeo:
+         <iframe width="100%" height="100%" src="https://www.youtube.com/embed/TU_ID"
+            title="Intro" frameborder="0" allowfullscreen></iframe> -->
+    <div class="video">
+      <div class="frame"><div class="play"></div></div>
+      <div class="note">▲ Aquí va tu video de introducción (1–2 min)</div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- OFERTA + CAPTURA -->
+  <div class="card" id="guia">
+    <h2>Descarga la guía gratis</h2>
+    <ul class="pts">
+      <li><span class="chk">›</span> <span><b>Regla 1–5</b> del trading con sistema, explicadas con ejemplos reales.</span></li>
+      <li><span class="chk">›</span> <span>Gestión de riesgo, R:R y <b>tamaño de posición</b> (con números).</span></li>
+      <li><span class="chk">›</span> <span>Checklist de trade + cómo <b>medir y mejorar</b>.</span></li>
+    </ul>
+
+    <!-- Conecta tu herramienta de email (MailerLite/ConvertKit/Formspree):
+         pon la URL en action y deja que entregue el PDF automáticamente. -->
+    <form action="REEMPLAZA_CON_TU_FORM_ENDPOINT" method="post">
+      <input type="email" name="email" placeholder="Tu mejor correo" required />
+      <button class="btn primary" type="submit">Quiero la guía ›</button>
+    </form>
+    <div class="formnote">Cero spam. Te llega al correo y entras a la comunidad.</div>
+
+    <div class="or">— o entra directo —</div>
+    <a class="btn tg full" href="https://t.me/RASDG05">Escríbeme «FQ» en Telegram</a>
+  </div>
+
+  <!-- VALOR -->
+  <section class="value">
+    <h3>Lo que vas a aprender</h3>
+    <div class="grid">
+      <div class="item"><div class="n">01</div><div class="t">Define tu invalidación</div><div class="d">Dónde te equivocas, antes de entrar. El stop no es opcional.</div></div>
+      <div class="item"><div class="n">02</div><div class="t">Arriesga siempre lo mismo</div><div class="d">El tamaño de posición que te mantiene en el juego.</div></div>
+      <div class="item"><div class="n">03</div><div class="t">Plan: entrada, stop, target</div><div class="d">R:R que te hace rentable sin adivinar.</div></div>
+      <div class="item"><div class="n">04</div><div class="t">Reglas, no emociones</div><div class="d">Proceso por encima del resultado. Cero ego.</div></div>
+      <div class="item"><div class="n">05</div><div class="t">Mide y mejora</div><div class="d">Bitácora + backtesting. Datos, no fe.</div></div>
+      <div class="item" style="border-color:var(--accent2)"><div class="n">+</div><div class="t">El bot FQ</div><div class="d">Señal lista: entrada, stop y target, multi-símbolo.</div></div>
+    </div>
+  </section>
+
+  <!-- LINKS SECUNDARIOS -->
+  <div class="links">
+    <a href="https://instagram.com/diego_gallegosd">Instagram <b>@diego_gallegosd</b></a>
+    <a href="https://t.me/RASDG05">Telegram <b>@RASDG05</b></a>
+    <a href="https://t.me/rasdg_quantum_signals_bot">Bot <b>@rasdg_quantum_signals_bot</b></a>
+  </div>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="dis">Contenido educativo. No es asesoría financiera ni recomendación de
+    inversión. El trading conlleva alto riesgo: puedes perder todo tu capital.
+    Rendimientos pasados no garantizan resultados futuros. © RasDG · Fibonacci Cuántico.</div>
+  </div>
+</footer>
+
+</body>
+</html>
