@@ -5527,6 +5527,16 @@ def main():
     # eval DINÁMICO: refleja TIMEFRAMES real (default 5m·15m, vela nueva), no un
     # "15 min" hardcodeado (engañaba: el motor sí evalúa 5m cada vela de 5m).
     _eval_tfs = "·".join(TIMEFRAMES) if TIMEFRAMES else "5m·15m"
+    # símbolos ACTIVOS a VIP: SOL (primario, siempre) + BTC/ETH sólo si su motor
+    # corre Y broadcastea. Si aparece sólo SOL es porque FQ_MOTOR_PAPER_BTC/ETH (o
+    # sus _VIP_BROADCAST) están OFF — el boot ahora dice la verdad, no "multi" fijo.
+    def _lbl(inst):
+        return inst.replace("-USDT-SWAP", "/USDT").replace("-USDT", "/USDT")
+    _active = [_lbl(SYMBOL)]
+    if BTC_MOTOR_PAPER_ENABLED and BTC_VIP_BROADCAST_ENABLED:
+        _active.append(_lbl(SYMBOL_BTC))
+    if ETH_MOTOR_PAPER_ENABLED and ETH_VIP_BROADCAST_ENABLED:
+        _active.append(_lbl(SYMBOL_ETH))
     telegram_send(
         "{header}\n"
         "\n"
@@ -5534,7 +5544,7 @@ def main():
         "  {sym} · OKX\n"
         "  IA: <b>{cs}</b>".format(
             header=_brand.lux_header("FQ · En linea", "Sistema operativo"),
-            tfs=_eval_tfs, sym=SYMBOL.replace("-USDT-SWAP", "/USDT"),
+            tfs=_eval_tfs, sym=" · ".join(_active),
             cs=claude_status)
     )
 
