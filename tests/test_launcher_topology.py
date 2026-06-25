@@ -29,6 +29,28 @@ def test_public_corre_con_token_propio(monkeypatch):
     assert [n for n, *_ in launcher._bots()] == ["vip", "public", "maintenance"]
 
 
+def test_carry_paper_off_por_defecto(monkeypatch):
+    # 2do motor (market-neutral): NO se lanza sin FQ_CARRY_PAPER=1
+    monkeypatch.delenv("TELEGRAM_TOKEN_PUBLIC", raising=False)
+    monkeypatch.setenv("TELEGRAM_TOKEN", "vip-tok")
+    monkeypatch.delenv("FQ_CARRY_PAPER", raising=False)
+    assert launcher._carry_paper_enabled() is False
+    assert "carry-paper" not in [n for n, *_ in launcher._bots()]
+
+
+def test_carry_paper_on_es_no_critico(monkeypatch):
+    monkeypatch.delenv("TELEGRAM_TOKEN_PUBLIC", raising=False)
+    monkeypatch.setenv("TELEGRAM_TOKEN", "vip-tok")
+    monkeypatch.setenv("FQ_CARRY_PAPER", "1")
+    assert launcher._carry_paper_enabled() is True
+    bots = launcher._bots()
+    assert [n for n, *_ in bots] == ["vip", "maintenance", "carry-paper"]
+    # un bug del colector JAMAS debe tirar el bot VIP -> critical=False
+    crit = {n: c for n, _cmd, c in bots}
+    assert crit["carry-paper"] is False
+    assert crit["vip"] is True
+
+
 def test_watchdog_usa_la_misma_regla(monkeypatch):
     # maintenance._public_enabled comparte la regla (los umbrales del modulo
     # se fijan al importar; aqui validamos la regla viva).
