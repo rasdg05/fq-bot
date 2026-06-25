@@ -181,6 +181,7 @@ class MotorPaperRuntime:
         if fire:
             self.counts["fire"] += 1
             kz = getattr(field, "killzone", None)
+            regime = _regime_of(report)   # stable/deriva/... para segmentar el R forward
             why = self.veto.reason(killzone=kz, ts_utc=ts) if self.veto.active else None
             if why:
                 self.counts["vetoed"] += 1
@@ -199,7 +200,7 @@ class MotorPaperRuntime:
                             # en las velas siguientes (no en esta).
                             self._pending_entries.append({
                                 "sig": sig, "risk_frac": d["risk_frac"],
-                                "killzone": kz, "tf": tf_id, "waited": 0})
+                                "killzone": kz, "regime": regime, "tf": tf_id, "waited": 0})
                             self.broker.ledger.append({
                                 "event": "MAKER_ENTRY_PENDING", "ts": ts, "tf": tf_id,
                                 "killzone": kz, "limit": sig["entry"],
@@ -213,7 +214,7 @@ class MotorPaperRuntime:
                             # el ledger forward (base vs +veto, por killzone/tf).
                             self.broker.ledger.append({
                                 "event": "MOTOR_OPEN_META", "ts": ts, "pid": pos.pid,
-                                "tf": tf_id, "killzone": kz})
+                                "tf": tf_id, "killzone": kz, "regime": regime})
                             if self.maker_sim:
                                 self._maker_pending.append({
                                     "pid": pos.pid, "direction": pos.direction,
@@ -290,6 +291,7 @@ class MotorPaperRuntime:
         self.broker.ledger.append({
             "event": "MOTOR_OPEN_META", "ts": ts, "pid": pos.pid,
             "tf": pe.get("tf"), "killzone": pe.get("killzone"),
+            "regime": pe.get("regime"),
             "fill_type": fill_type, "bars_waited": bars_waited})
         if self.notify_fn is not None:
             try:
@@ -300,17 +302,29 @@ class MotorPaperRuntime:
         return pos
 
 
+def _regime_of(report):
+    """Extrae el regime ('stable'/'deriva'/...) del report del motor. Defensivo:
+    acepta dict {'state':...}, string, o None. Se sella en MOTOR_OPEN_META para
+    medir el R FORWARD segmentado por regime (clave si FQ_DERIVA_VETO=0: ¿los fires
+    de deriva aguantan como los de stable, o arrastran? — eso NO está en el cubo)."""
+    try:
+        r = report.get("regime") if isinstance(report, dict) else None
+        return r.get("state") if isinstance(r, dict) else r
+    except Exception:
+        return None
+
+
 def ledger_report(path):
     """Lee el ledger del motor paper y devuelve un dict de stats (cartera +
-    fill-rate maker + adverse selection). Reusado por el comando /paper del bot
-    y por tools/motor_paper_stats.py. Devuelve None si el ledger no existe.
-    DurableHashLedger.load verifica la cadena SHA-256 (LANZA si está rota)."""
+    fill-rate maker + adverse selection + R por regime). Reusado por el comando
+    /paper del bot y por tools/motor_paper_stats.py. Devuelve None si el ledger no
+    existe. DurableHashLedger.load verifica la cadena SHA-256 (LANZA si está rota)."""
     import os
     if not os.path.exists(path):
         return None
     led = DurableHashLedger.load(path)
     recs = [r["payload"] for r in led.records]
-    pnl, kz, maker, vetoed, ftype = {}, {}, {}, {}, {}
+    pnl, kz, maker, vetoed, ftype, regime_m = {}, {}, {}, {}, {}, {}
     n_runaway = 0
     net = False
     for p in recs:
@@ -321,6 +335,7 @@ def ledger_report(path):
                 net = True
         elif ev == "MOTOR_OPEN_META":
             kz[pid] = p.get("killzone")
+            regime_m[pid] = p.get("regime")
             if p.get("fill_type") is not None:        # modo EJECUCION maker
                 ftype[pid] = p.get("fill_type")
         elif ev == "MAKER_FILL":
@@ -363,6 +378,9 @@ def ledger_report(path):
         "exec_fill_rate": (n_mk / exec_total) if exec_total else None,
         "maker": _agg([closed[p] for p in closed if ftype.get(p) == "maker"]),
         "taker": _agg([closed[p] for p in closed if ftype.get(p) == "taker"]),
+        # R FORWARD segmentado por regime (stable vs deriva): el juez de FQ_DERIVA_VETO=0.
+        "by_regime": {rg: _agg([closed[p] for p in closed if regime_m.get(p) == rg])
+                      for rg in sorted({r for r in regime_m.values() if r})},
     }
 
 
@@ -399,6 +417,17 @@ def format_report_telegram(rep):
             tag = "⚠ adverse selection" if f["mean"] < m["mean"] else "✓ sin adverse sel."
             out.append("FILLED exp≈{ff:+.3f}R vs MISSED {mm:+.3f}R — {t}".format(
                 ff=f["mean"], mm=m["mean"], t=tag))
+    by_reg = rep.get("by_regime") or {}
+    closed_reg = {rg: a for rg, a in by_reg.items() if a["n"]}
+    if closed_reg:
+        seg = " · ".join("{rg} n={n} {m:+.3f}R WR{w:.0f}%".format(
+            rg=rg, n=a["n"], m=a["mean"], w=a["wr"] * 100.0)
+            for rg, a in sorted(closed_reg.items()))
+        out.append("por regime: " + seg)
+        if "deriva" in closed_reg and "stable" in closed_reg:
+            dv, sv = closed_reg["deriva"]["mean"], closed_reg["stable"]["mean"]
+            tag = "✓ deriva aguanta" if dv >= sv - 0.02 else "⚠ deriva ARRASTRA (revisar FQ_DERIVA_VETO)"
+            out.append("  → {t}: deriva {d:+.3f}R vs stable {s:+.3f}R".format(t=tag, d=dv, s=sv))
     if rep["n_vetoed"]:
         out.append("vetadas: %d" % rep["n_vetoed"])
     out.append("<i>0% real · meta ≥30-50 fills para decidir (§6.10)</i>")

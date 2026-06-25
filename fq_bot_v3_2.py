@@ -56,6 +56,7 @@ import time
 import logging
 import threading
 import traceback
+from collections import deque
 from datetime import datetime, timezone, timedelta
 import ccxt
 import pandas as pd
@@ -451,7 +452,20 @@ class BotState:
         self.last_sol_price       = 0.0
         self.telegram_offset      = 0
         self.day_marker           = None
+        # Historial rotativo del STAGE de decisión de cada eval (para /cadencia,
+        # admin-only): convierte "siento que no dispara" en datos. (ts, tf_id, stage).
+        # Sólo diagnóstico — NO toca la lógica de señal.
+        self.eval_stage_history   = deque(maxlen=600)
         self.lock                 = threading.Lock()
+
+    def record_eval_stage(self, tf_id, stage, ts=None):
+        """Apila el stage de decisión del motor (p.ej. 'regime_deriva_block',
+        'fire', 'low_confluence') para el tally de /cadencia. Defensivo: jamás
+        rompe el eval. ts = el de la VELA/eval ya capturado (sin reloj nuevo)."""
+        try:
+            self.eval_stage_history.append((ts, str(tf_id), str(stage)))
+        except Exception:
+            pass
 
 STATE = BotState()
 
@@ -1706,6 +1720,55 @@ def cmd_status(exchange):
         gate="DECOHERENTE" if macro_ok else "EN SUPERPOSICION",
         evr=STATE.last_eval_result,
     )
+
+# ============================================================
+# COMMAND: /cadencia (admin-only) — tally de stages de decisión
+# ============================================================
+def cmd_cadencia(exchange=None):
+    """Convierte 'siento que no dispara' en DATOS. Tabula el STAGE de decisión
+    del motor en los últimos N evals (incl. 'regime_deriva_block', el veto
+    predictivo que ahoga la cadencia en lateral) vs las señales reales. Sólo
+    diagnóstico, admin-only; no toca la lógica de señal."""
+    from collections import Counter
+    with STATE.lock:
+        hist = list(STATE.eval_stage_history)
+        sig_today, sig_total = STATE.signals_today, STATE.signals_total
+    if not hist:
+        return ("<b>FQ · Cadencia</b>\n" + G["fence"] +
+                "\n\nSin evals registrados aún (se llena con cada vela).")
+    stages = [h[2] for h in hist]
+    tss = [h[0] for h in hist if h[0] is not None]
+    n = len(stages)
+    span = ""
+    if tss:
+        try:
+            span = "  ·  ~{:.0f}h".format((max(tss) - min(tss)).total_seconds() / 3600.0)
+        except Exception:
+            span = ""
+    cnt = Counter(stages)
+    lines = ["<b>FQ · Cadencia</b> (admin)", G["fence"], "",
+             "Stage de decisión · últimos <b>{}</b> evals{}".format(n, span), ""]
+    for stage, c in cnt.most_common(12):
+        pct = c / n * 100
+        bar = "▮" * max(1, int(round(pct / 5)))
+        flag = ""
+        if stage == "regime_deriva_block":
+            flag = "  ← ahoga en lateral"
+        elif stage == "vol_liq_block":
+            flag = "  ← vol/liq bajo"
+        lines.append("{:<22} {:>3} ({:>2.0f}%) {}{}".format(stage[:22], c, pct, bar, flag))
+    deriva = cnt.get("regime_deriva_block", 0) + cnt.get("vol_liq_block", 0)
+    lines += ["", "Señales reales · hoy <b>{}</b> · total <b>{}</b>".format(sig_today, sig_total), ""]
+    if n >= 10 and deriva / n > 0.25:
+        lines.append("Lectura: <b>{:.0f}%</b> muere en el veto de 'deriva' (predictivo). "
+                     "En lateral ahoga la cadencia → evaluá <b>FQ_USE_VOL_LIQ_TRIGGER=1</b> "
+                     "(lo reemplaza por confirmación de microestructura; research-backed).".format(
+                         deriva / n * 100))
+    else:
+        lines.append("Lectura: sin veto oculto dominante; la cadencia la marcan los "
+                     "gates estructurales (setup real) y tu veto de sesión.")
+    lines.append("\n#FQ #Cadencia")
+    return "\n".join(lines)
 
 # ============================================================
 # COMMAND: /sesion - REESCRITO COMPLETO
@@ -3146,6 +3209,10 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
         }
         STATE.last_eval_diagnostic_tf[tf_id] = diag
         STATE.last_eval_diagnostic = diag
+        # tally de cadencia (admin /cadencia): registra el STAGE crudo del motor
+        # (incl. 'regime_deriva_block') ANTES del veto de sesión de abajo. Sólo
+        # diagnóstico; no altera el flujo. 'now' = ts del eval ya capturado arriba.
+        STATE.record_eval_stage(tf_id, decision, now)
 
         # F2: gate ORO de retrieval en PAPEL (admin-only; no-op si FQ_GOLD_LIVE!=1)
         _gold_paper_eval(field, report, df_primary, price, tf_id)
@@ -4399,7 +4466,7 @@ def command_listener(exchange):
                               "/evolve", "/concepts", "/weekend", "/campo",
                               "/gencode", "/grant", "/broadcast",
                               "/atribucion", "/regimen", "/sweep",
-                              "/timelines", "/paper"}
+                              "/timelines", "/paper", "/cadencia"}
                 if cmd_name in ADMIN_ONLY and str(chat_id) != str(TELEGRAM_CHAT_ID):
                     telegram_send(
                         "Comando no disponible. Usa /help para ver tus comandos.",
@@ -5435,6 +5502,7 @@ def main():
         "/metrics":   lambda exc=None: cmd_metrics(),
         "/ledger":    lambda exc=None: cmd_ledger(),
         "/paper":     lambda exc=None: cmd_paper(),
+        "/cadencia":  lambda exc=None: cmd_cadencia(),
         "/evolve":    lambda exc=None: cmd_evolve(),
         "/campo":     cmd_campo,
         "/concepts":  lambda exc=None: cmd_concepts(),
@@ -5456,13 +5524,17 @@ def main():
     }
 
     claude_status = "ACTIVO" if claude_ai.is_available() else "INACTIVO"
+    # eval DINÁMICO: refleja TIMEFRAMES real (default 5m·15m, vela nueva), no un
+    # "15 min" hardcodeado (engañaba: el motor sí evalúa 5m cada vela de 5m).
+    _eval_tfs = "·".join(TIMEFRAMES) if TIMEFRAMES else "5m·15m"
     telegram_send(
         "{header}\n"
         "\n"
-        "  Vigilancia continua · eval cada 15 min\n"
-        "  SOL/USDT · OKX\n"
+        "  Vigilancia continua · eval por vela {tfs}\n"
+        "  {sym} · OKX\n"
         "  IA: <b>{cs}</b>".format(
             header=_brand.lux_header("FQ · En linea", "Sistema operativo"),
+            tfs=_eval_tfs, sym=SYMBOL.replace("-USDT-SWAP", "/USDT"),
             cs=claude_status)
     )
 

@@ -34,6 +34,17 @@ BASKET = [
     "DOGE-USDT-SWAP", "BNB-USDT-SWAP", "LTC-USDT-SWAP", "ADA-USDT-SWAP",
 ]
 
+# Subconjunto VALIDADO multi-régimen (funding profundo Binance 2021-2026, por año):
+# estos 6 cobran funding POSITIVO en TODOS los años, incluido el bear 2022 (+1.7% APY).
+# Se excluyen SOL (carry muerto: Sharpe 0.27, maxDD 43%) y BNB (funding MEDIO negativo:
+# 22% positivo -> es anti-carry, el long cobra). Fuente: fetch_binance_vision_funding.
+# Basket CLEAN always-on full-history: +12.5% APY, Sharpe 13.6, maxDD 1.7%, 82% positivo.
+CLEAN_BASKET = [
+    "BTC-USDT-SWAP", "ETH-USDT-SWAP", "XRP-USDT-SWAP",
+    "LTC-USDT-SWAP", "DOGE-USDT-SWAP", "ADA-USDT-SWAP",
+]
+ANTI_CARRY = ["SOL-USDT-SWAP", "BNB-USDT-SWAP"]   # excluidos del basket (medido)
+
 
 def carry_metrics(funding, *, intervals_per_day=3, cost_bps_per_switch=5.0,
                   entry_cost_bps=5.0, threshold=0.0, selective=False):

@@ -26,6 +26,12 @@
            _EXCHANGE (def okx), _BASE (def BTC), _SYMBOL (def BTC/USDT:USDT);
            ledger/equity/z/baseline los lee FundingPaperRuntime.from_env. El
            ledger durable va a /data (volumen). Default OFF.
+   CARRY PAPER (opcional, 0% real, 2do motor market-neutral): FQ_CARRY_PAPER=1
+           lanza tools/carry_paper.py --loop como hijo NO-CRITICO. Acumula el
+           funding REALIZADO del basket CLEAN (validado multi-régimen) en un
+           parquet durable en /data y mide el carry FORWARD. Config por ENV:
+           FQ_CARRY_INTERVAL (def 3600), FQ_CARRY_BACKFILL (def 200),
+           FQ_CARRY_DIR (def /data). Default OFF.
 ================================================================================
 """
 import os
@@ -83,6 +89,19 @@ def _oi_collect_cmd():
     return [sys.executable, "-u", "tools/fetch_okx_oi.py", "--loop"]
 
 
+def _carry_paper_enabled():
+    """SEGUNDO motor (market-neutral): colector FORWARD del funding CARRY
+    (tools/carry_paper.py, --loop). 0% real: acumula el funding REALIZADO del basket
+    CLEAN (BTC/ETH/XRP/LTC/DOGE/ADA — validado multi-régimen, ver research/
+    carry_regime.md) en un parquet durable en /data y mide el carry hacia adelante.
+    Hijo NO-critico (un bug del colector jamas tira el bot VIP). Default OFF."""
+    return (os.environ.get("FQ_CARRY_PAPER") or "0").strip() in ("1", "true", "yes")
+
+
+def _carry_paper_cmd():
+    return [sys.executable, "-u", "tools/carry_paper.py", "--loop"]
+
+
 def _bots():
     # (name, cmd, critical): critical=True -> si muere, baja el container y Railway
     # reinicia (VIP/public/maintenance SON el producto). critical=False -> hijo
@@ -96,6 +115,8 @@ def _bots():
         bots.append(("funding-paper", _funding_paper_cmd(), False))
     if _oi_collect_enabled():
         bots.append(("oi-collect", _oi_collect_cmd(), False))
+    if _carry_paper_enabled():
+        bots.append(("carry-paper", _carry_paper_cmd(), False))
     return bots
 
 GRACE_SECONDS = 8       # tiempo para que los hijos atiendan SIGTERM
