@@ -5524,13 +5524,17 @@ def main():
     }
 
     claude_status = "ACTIVO" if claude_ai.is_available() else "INACTIVO"
+    # eval DINÁMICO: refleja TIMEFRAMES real (default 5m·15m, vela nueva), no un
+    # "15 min" hardcodeado (engañaba: el motor sí evalúa 5m cada vela de 5m).
+    _eval_tfs = "·".join(TIMEFRAMES) if TIMEFRAMES else "5m·15m"
     telegram_send(
         "{header}\n"
         "\n"
-        "  Vigilancia continua · eval cada 15 min\n"
-        "  SOL/USDT · OKX\n"
+        "  Vigilancia continua · eval por vela {tfs}\n"
+        "  {sym} · OKX\n"
         "  IA: <b>{cs}</b>".format(
             header=_brand.lux_header("FQ · En linea", "Sistema operativo"),
+            tfs=_eval_tfs, sym=SYMBOL.replace("-USDT-SWAP", "/USDT"),
             cs=claude_status)
     )
 
