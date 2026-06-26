@@ -47,11 +47,21 @@ def leverage_for_tier(p_master):
     if p_master >= PHI_SQ:      return "5x", "5%"
     return "3x", "2%"
 
+def bump_tier(p_master):
+    """Sube p_master al SIGUIENTE umbral de tier — el boost de order-flow confirmado
+    (FQ_CVD_BOOST_TIER): una senal con order-flow a favor sube +1 nivel de conviccion
+    y de size. Topa en phi^3 (= leverage cap 8x, CONSTRAINTS §1.5: nunca lo rebasa)."""
+    if p_master is None:        return None
+    if p_master < PHI:          return PHI       # Exploratoria -> Media
+    if p_master < PHI_SQ:       return PHI_SQ    # Media -> Alta (3x -> 5x)
+    if p_master < PHI_CB:       return PHI_CB    # Alta  -> Extrema (5x -> 8x)
+    return p_master                              # Extrema: ya en el tope
+
 # ============================================================
 # SENAL VIP - simplificada, ejecutable sin exponer motor
 # ============================================================
 def build_vip_signal(field, decision_report, tf_label=None, tf_id=None, pair=None,
-                     cvd_confirmed=None):
+                     cvd_confirmed=None, boost_tier=False):
     """
     Senal lista para copy-paste. NO expone P_master, kappa_evo, Theta(D),
     f_confluencia ni constantes phi/alpha. Solo lo que el VIP necesita ejecutar.
@@ -71,8 +81,12 @@ def build_vip_signal(field, decision_report, tf_label=None, tf_id=None, pair=Non
     side  = "LONG" if direction == "long" else "SHORT"
     arrow = GLYPHS["long"] if direction == "long" else GLYPHS["short"]
 
-    conviction = conviction_label(pm["p_master"])
-    lev, sizing = leverage_for_tier(pm["p_master"])
+    # Boost de order-flow (capa 3 -> motor 1, FQ_CVD_BOOST_TIER): la senal con
+    # order-flow CONFIRMADO sube +1 tier de conviccion y de size. Es lo que vuelve
+    # el +0.34R del backtest en producto (la confirmada PESA mas, no solo se marca).
+    p_eff = bump_tier(pm["p_master"]) if boost_tier else pm["p_master"]
+    conviction = conviction_label(p_eff)
+    lev, sizing = leverage_for_tier(p_eff)
 
     estruct_ok  = field.bias_aligned and field.pd_zone in ("discount", "premium")
     liquidez_ok = field.has_fuel and (
