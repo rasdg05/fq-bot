@@ -1,0 +1,60 @@
+name: global_ls deep-dive (6 años + ortogonalidad) — 1 tap
+
+# UN TAP. El escrutinio DURO del único superviviente de los metrics: global_ls (fadear
+# al retail). Pasó el DSR en BTC pero solo a 3 años y solo BTC -> ahora la prueba real:
+#   1) 6 AÑOS completos (no 3): ¿aguanta el DSR con más data?
+#   2) ¿aparece en SOL, o se queda BTC-only? (lo definitivo)
+#   3) ORTOGONALIDAD vs CVD: ¿suma DENTRO de lo ya CVD-confirmado, o es redundante?
+#
+# Baja metrics (liviano) + CVD (aggTrades, pesado) para el cruce. GitHub-hosted. NO
+# toca el worker vivo. Resultado en los logs (step "veredicto + ortogonalidad").
+
+on:
+  workflow_dispatch:
+    inputs:
+      since:
+        description: "Histórico desde (YYYY-MM-DD) — 6 años por default"
+        default: "2021-01-01"
+      symbols:
+        description: "Símbolos (CSV, sin USDT)"
+        default: "SOL,BTC"
+
+permissions:
+  contents: read
+
+jobs:
+  deepdive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Deps mínimas
+        run: pip install --quiet pandas pyarrow numpy
+      - name: global_ls 6 años + ortogonalidad vs CVD — por símbolo
+        run: |
+          set -x
+          END=$(date -u +%Y-%m-%d)
+          IFS=',' read -ra SYMS <<< "${{ inputs.symbols }}"
+          for S in "${SYMS[@]}"; do
+            S=$(echo "$S" | tr -d ' ' | tr '[:lower:]' '[:upper:]')
+            CUBE="cosecha_cubes/tp_cube_${S}_USDT.parquet"
+            [ -e "$CUBE" ] || { echo "== sin cube para ${S}, skip =="; continue; }
+            echo "===== ${S}: bajando metrics 6 años (${{ inputs.since }}) ====="
+            python tools/fetch_binance_vision_oi.py "${S}USDT" \
+              --start "${{ inputs.since }}" --end "${END}" --out-dir data || { echo "fetch metrics ${S} falló"; continue; }
+            echo "===== ${S}: bajando CVD 6 años (pesado) para la ortogonalidad ====="
+            python tools/fetch_binance_vision_cvd.py "${S}USDT" \
+              --start "${{ inputs.since }}" --end "${END}" --out-dir data || echo "fetch CVD ${S} falló (la ortogonalidad se salta)"
+            MET="data/oi_hist_${S}USDT.parquet"
+            CVD="data/cvd_hist_${S}USDT.parquet"
+            # global_ls contrarian en los umbrales que pasaron (0.10/0.20) + ortogonalidad CVD.
+            for THR in 0.10 0.20; do
+              echo "===== ${S}: global_ls contrarian thr=${THR} (6 años) + ortogonalidad ====="
+              python tools/validate_metric_flow.py --cube "${CUBE}" --metric "${MET}" \
+                --col global_ls --rule contrarian --thr "${THR}" --cvd "${CVD}" \
+                --imb-min 0.50 --tp tp4 --horizon 576 || echo "validate ${S}/global_ls@${THR} falló"
+            done
+          done

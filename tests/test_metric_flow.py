@@ -38,3 +38,24 @@ def test_rising_es_direction_agnostico():
     up = M.metric_features(_df([100, 110, 120], "oi_usd"), "oi_usd", win=3)
     assert M.metric_confirms(up, 1, rule="rising", thr=0.0) is True
     assert M.metric_confirms(up, -1, rule="rising", thr=0.0) is True
+
+
+def test_evaluate_con_cvd_apila_y_ortogonalidad_no_crashea(tmp_path, capsys):
+    import numpy as np
+    base = 1_700_000_000_000
+    n = 80
+    ev_ts = [base + i * 3_600_000 for i in range(n)]
+    cube = pd.DataFrame({"tp": ["tp4"] * n, "horizon": [576] * n, "entry_index": range(n),
+                         "entry_ts": pd.to_datetime(ev_ts, unit="ms"),
+                         "direction": [1, -1] * (n // 2),
+                         "pnl_r": np.random.default_rng(2).normal(0.1, 1, n)})
+    cube_p = tmp_path / "cube.parquet"; cube.to_parquet(cube_p)
+    mt_ts = list(range(base - 200 * 300000, base + n * 3_600_000, 300000))
+    met = pd.DataFrame({"ts": mt_ts, "global_ls": [1.3] * len(mt_ts)})   # retail largo
+    met_p = tmp_path / "met.parquet"; met.to_parquet(met_p)
+    cvd = pd.DataFrame({"ts": mt_ts, "buy_vol": [60.0] * len(mt_ts), "sell_vol": [40.0] * len(mt_ts)})
+    cvd_p = tmp_path / "cvd.parquet"; cvd.to_parquet(cvd_p)
+    df = M.evaluate(str(cube_p), str(met_p), "global_ls", rule="contrarian", thr=0.0, cvd_path=str(cvd_p))
+    assert len(df) > 20 and df["cvd_conf"].notna().any()
+    M.report_orthogonality(df, "global_ls", 0.50)
+    assert "Ortogonalidad" in capsys.readouterr().out

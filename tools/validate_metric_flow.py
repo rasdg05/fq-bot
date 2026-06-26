@@ -62,7 +62,9 @@ def metric_confirms(feat, direction, rule="directional", thr=0.0):
 
 
 def evaluate(cube_path, metric_path, col, rule="directional", thr=0.0,
-             tp="tp4", horizon=576, win=24, lookback=48):
+             tp="tp4", horizon=576, win=24, lookback=48, cvd_path=None, imb_min=0.50):
+    """Confirma el medidor por evento (causal). Si cvd_path, TAMBIEN confirma CVD en el
+    mismo evento -> habilita la ortogonalidad (¿el medidor suma DENTRO de lo CVD-confirmado?)."""
     cube = pd.read_parquet(cube_path)
     cube["tp"] = cube["tp"].astype(str)
     cube["horizon"] = cube["horizon"].astype(int)
@@ -73,6 +75,11 @@ def evaluate(cube_path, metric_path, col, rule="directional", thr=0.0,
         raise SystemExit("columna '%s' no está en %s (tiene: %s)" % (col, metric_path, list(m.columns)))
     m = m.dropna(subset=[col])
     m_ts = m.ts.values
+    cvd = cvd_ts = fetch_cvd = None
+    if cvd_path and os.path.exists(cvd_path):
+        import fetch_cvd  # noqa: F811
+        cvd = pd.read_parquet(cvd_path).sort_values("ts").reset_index(drop=True)
+        cvd_ts = cvd.ts.values
     lo, hi = m.ts.min(), m.ts.max()
     ev = e[(e.ts >= lo + lookback * 300000) & (e.ts <= hi)].sort_values("ts")
     rows = []
@@ -82,10 +89,54 @@ def evaluate(cube_path, metric_path, col, rule="directional", thr=0.0,
         if len(w) < win:
             continue
         f = metric_features(w, col, win=win)
-        rows.append({"pnl_r": float(r.pnl_r),
-                     "confirma": bool(metric_confirms(f, int(r.direction), rule=rule, thr=thr)),
-                     "dir": int(r.direction)})
+        row = {"pnl_r": float(r.pnl_r),
+               "confirma": bool(metric_confirms(f, int(r.direction), rule=rule, thr=thr)),
+               "dir": int(r.direction), "cvd_conf": None}
+        if cvd is not None:
+            k = int(np.searchsorted(cvd_ts, r.ts))
+            wc = cvd.iloc[max(0, k - lookback):k]
+            if len(wc) >= win:
+                fc = fetch_cvd.cvd_features(wc, win=win)
+                row["cvd_conf"] = bool(fetch_cvd.confirms_direction(fc, int(r.direction), imb_min=imb_min))
+        rows.append(row)
     return pd.DataFrame(rows)
+
+
+def report_orthogonality(df, col, imb_min, n_trials=20):
+    """¿El medidor apila con el CVD? 2×2 (CVD✓/✗ × medidor✓/✗) + el test clave: DENTRO
+    de CVD-confirmado, ¿el medidor-confirmado bate al no-confirmado? Si sí -> ortogonal."""
+    d = df[df.cvd_conf.notna()].copy()
+    print("\n=== Ortogonalidad %s × CVD (imb=%.2f) ===" % (col, imb_min))
+    if len(d) < 40:
+        print("eventos con %s Y CVD: %d (<40) — más historia." % (col, len(d)))
+        return
+    d["cvd"] = d.cvd_conf.astype(bool)
+    d["mt"] = d.confirma.astype(bool)
+    print("eventos con %s Y CVD: %d" % (col, len(d)))
+    for cv in (True, False):
+        s1 = d[(d.cvd == cv) & (d.mt)]["pnl_r"]
+        s0 = d[(d.cvd == cv) & (~d.mt)]["pnl_r"]
+        print("  CVD%s |  %s✓ n=%-4d %+.3fR    %s✗ n=%-4d %+.3fR" % (
+            "✓" if cv else "✗", col, len(s1), s1.mean() if len(s1) else float("nan"),
+            col, len(s0), s0.mean() if len(s0) else float("nan")))
+    cc_y = d[(d.cvd) & (d.mt)]["pnl_r"]
+    cc_n = d[(d.cvd) & (~d.mt)]["pnl_r"]
+    if len(cc_y) >= 10 and len(cc_n) >= 10:
+        up = cc_y.mean() - cc_n.mean()
+        print("\n  DENTRO de CVD-confirmado:  %s✓ %+.3fR  vs  %s✗ %+.3fR  ->  uplift %+.3fR" % (
+            col, cc_y.mean(), col, cc_n.mean(), up))
+        print("  -> %s" % ("ORTOGONAL ✓ — suma algo distinto, APILAN"
+                           if up > 0.02 else "redundante / no suma sobre el CVD"))
+    else:
+        print("\n  pocos en CVD✓ para el test interno.")
+    prem = d[(d.cvd) & (d.mt)]["pnl_r"]
+    if len(prem) >= 20:
+        base = d["pnl_r"]
+        sr_std = float(np.std([base.mean() / base.std(ddof=1) if base.std(ddof=1) else 0.0,
+                               prem.mean() / prem.std(ddof=1) if prem.std(ddof=1) else 0.0], ddof=0)) or 0.02
+        dd = vg.deflated_sharpe_ratio(prem.values, n_trials=n_trials, sr_trials_std=max(sr_std, 0.01))
+        print("  TIER PREMIUM (CVD✓ & %s✓): n=%d exp=%+.3fR  DSR=%.3f %s" % (
+            col, len(prem), prem.mean(), dd["dsr"], "✓" if dd["significant"] else ""))
 
 
 def report(df, col, rule, thr, n_trials=16):
@@ -124,12 +175,17 @@ def main(argv):
     p.add_argument("--col", required=True, help="toptrader_ls | taker_ls | global_ls | oi_usd")
     p.add_argument("--rule", default="directional", choices=["rising", "directional", "contrarian"])
     p.add_argument("--thr", type=float, default=0.0)
+    p.add_argument("--cvd", default=None, help="cvd_hist_<SYM>.parquet -> activa la ortogonalidad medidor×CVD")
+    p.add_argument("--imb-min", type=float, default=0.50)
     p.add_argument("--tp", default="tp4")
     p.add_argument("--horizon", type=int, default=576)
     p.add_argument("--n-trials", type=int, default=16)
     a = p.parse_args(argv)
-    df = evaluate(a.cube, a.metric, a.col, rule=a.rule, thr=a.thr, tp=a.tp, horizon=a.horizon)
+    df = evaluate(a.cube, a.metric, a.col, rule=a.rule, thr=a.thr, tp=a.tp, horizon=a.horizon,
+                  cvd_path=a.cvd, imb_min=a.imb_min)
     report(df, a.col, a.rule, a.thr, n_trials=a.n_trials)
+    if a.cvd:
+        report_orthogonality(df, a.col, a.imb_min)
     return 0
 
 
