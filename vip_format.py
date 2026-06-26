@@ -50,7 +50,8 @@ def leverage_for_tier(p_master):
 # ============================================================
 # SENAL VIP - simplificada, ejecutable sin exponer motor
 # ============================================================
-def build_vip_signal(field, decision_report, tf_label=None, tf_id=None, pair=None):
+def build_vip_signal(field, decision_report, tf_label=None, tf_id=None, pair=None,
+                     cvd_confirmed=None):
     """
     Senal lista para copy-paste. NO expone P_master, kappa_evo, Theta(D),
     f_confluencia ni constantes phi/alpha. Solo lo que el VIP necesita ejecutar.
@@ -102,11 +103,20 @@ def build_vip_signal(field, decision_report, tf_label=None, tf_id=None, pair=Non
     risk_pct = (levels["risk"] / levels["entry"]) * 100 if levels.get("risk") else 0
     risk_lbl = risk_band(risk_pct)
     pair_label = pair or PAIR   # BTC/USDT en la fusion BTC->VIP; SOL/USDT por defecto
+    # Insignia de order-flow (capa 3, FQ_CVD_VIP_CONVICTION): SOLO si el flujo firmado
+    # CONFIRMA la direccion en vivo. Es un HECHO (no promesa de R): la senal pertenece
+    # al subset premium que en backtest 5y (DSR) rinde mas. "" cuando no -> la senal
+    # queda byte-identica a la historica (default OFF en el monolito).
+    cvd_line = ""
+    if cvd_confirmed:
+        cvd_line = "  {d} ORDER-FLOW CONFIRMADO  ·  conviccion ALTA\n".format(
+            d=GLYPHS["premium"])
 
     return (
         "{rule}\n"
         "  {bar} {product} · Senal VIP · {pair}\n"
         "  {quality}\n"
+        "{cvd_line}"
         "  {ctx}\n"
         "{rule}\n"
         "  {arrow} {side}        Conviccion {conv}\n"
@@ -126,7 +136,8 @@ def build_vip_signal(field, decision_report, tf_label=None, tf_id=None, pair=Non
         "\n"
         "  {tags} #{side}"
     ).format(
-        rule=RULE, bar=GLYPHS["title"], product=PRODUCT, pair=pair_label, quality=quality, ctx=ctx_line,
+        rule=RULE, bar=GLYPHS["title"], product=PRODUCT, pair=pair_label, quality=quality,
+        cvd_line=cvd_line, ctx=ctx_line,
         arrow=arrow, side=side, conv=conviction, risk=risk_lbl,
         entry=levels["entry"], sl=levels["sl"],
         tp1=levels["tp1"], rr1=levels.get("rr_tp1", 0),
