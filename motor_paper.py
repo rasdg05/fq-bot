@@ -240,7 +240,8 @@ class MotorPaperRuntime:
                                     "limit": pos.entry, "waited": 0})
                             if self.notify_fn is not None:
                                 try:
-                                    self.notify_fn(sig, {"killzone": kz, "tf": tf_id}, pos)
+                                    self.notify_fn(sig, {"killzone": kz, "tf": tf_id,
+                                                         "symbol": self.symbol}, pos)
                                 except Exception as e:
                                     log.warning("[motor] notify_fn: %s", e)
                     else:
@@ -315,8 +316,8 @@ class MotorPaperRuntime:
             **_cvd_meta(pe.get("cvd"))})
         if self.notify_fn is not None:
             try:
-                self.notify_fn(sig, {"killzone": pe.get("killzone"),
-                                     "tf": pe.get("tf"), "fill_type": fill_type}, pos)
+                self.notify_fn(sig, {"killzone": pe.get("killzone"), "tf": pe.get("tf"),
+                                     "fill_type": fill_type, "symbol": self.symbol}, pos)
             except Exception as e:
                 log.warning("[motor] notify_fn: %s", e)
         return pos
