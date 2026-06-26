@@ -408,6 +408,33 @@ def _cvd_meta(cvd):
             "cvd_imbalance": cvd.get("imbalance")}
 
 
+def cvd_confirm_live(symbol, ts, direction, imb_min=None):
+    """Confirmacion de order-flow CAUSAL para UNA senal en vivo, resolviendo el
+    colector desde el entorno (igual que from_env). Para el badge VIP del monolito
+    (FQ_CVD_VIP_CONVICTION). Devuelve dict {confirmed, imbalance, ...} o None si el
+    filtro esta off / no hay parquet / sin direccion. JAMAS lanza (defensivo)."""
+    if os.environ.get("FQ_CVD_FILTER", "0").strip() not in ("1", "true", "yes"):
+        return None
+    if direction is None:
+        return None
+    try:
+        cvd_dir = os.environ.get("FQ_CVD_DIR") or (
+            "/data" if os.path.isdir("/data") else "data/okx")
+        cvd_path = os.path.join(cvd_dir, "cvd.parquet")
+        if not os.path.exists(cvd_path):
+            return None
+        ms = _ts_ms(ts)
+        if ms is None:
+            return None
+        if imb_min is None:
+            imb_min = float(os.environ.get("FQ_CVD_IMB_MIN", "0.50"))
+        return _fetch_cvd().cvd_confirmation(
+            cvd_path, _ccy_of(symbol), ms, direction, imb_min=imb_min)
+    except Exception as e:
+        log.debug("[motor] cvd_confirm_live: %s", e)
+        return None
+
+
 def ledger_report(path):
     """Lee el ledger del motor paper y devuelve un dict de stats (cartera +
     fill-rate maker + adverse selection + R por regime). Reusado por el comando

@@ -2813,6 +2813,26 @@ MOTOR_PAPER_TF = os.environ.get("FQ_MOTOR_PAPER_TF", "5m")  # 5m = TF del resear
 _MOTOR_RUNTIME = None
 _MOTOR_RUNTIME_TRIED = False
 
+# Badge de order-flow en la senal VIP (capa 3). Default OFF: la senal queda
+# byte-identica. ON (+ FQ_CVD_FILTER/COLLECT) marca las confirmadas como tier
+# premium SIN cortar cadencia ni prometer un R al cliente (es un hecho, no promesa).
+CVD_VIP_CONVICTION = os.environ.get("FQ_CVD_VIP_CONVICTION", "0").strip() in ("1", "true", "yes")
+
+
+def _cvd_vip_confirmed(report, ts, pair):
+    """True si el order-flow firmado CONFIRMA la direccion de esta senal VIP, en
+    vivo y CAUSAL. None si el badge esta off / sin data (no badge). Defensivo: el
+    badge JAMAS rompe el broadcast."""
+    if not CVD_VIP_CONVICTION:
+        return None
+    try:
+        import motor_paper
+        c = motor_paper.cvd_confirm_live(pair, ts, report.get("direction"))
+        return bool(c and c.get("confirmed"))
+    except Exception as e:
+        log.debug("[cvd-vip] %s", e)
+        return None
+
 
 def _motor_admin_notify(sig, verdict, pos):
     """Aviso admin-only del motor paper (open + digest). SIN VIP, 0% real."""
@@ -2989,9 +3009,10 @@ def _btc_motor_paper_scan(exchange):
             if (not _seg_vetoed and BTC_VIP_BROADCAST_ENABLED
                     and VIP_FORMAT_AVAILABLE and vip_format is not None):
                 try:
+                    _cvd_ok = _cvd_vip_confirmed(report, df_primary["timestamp"].iloc[-1], "BTC/USDT")
                     msg = vip_format.build_vip_signal(
                         field, report, tf_label=profile["label"], tf_id=tf_id,
-                        pair="BTC/USDT")
+                        pair="BTC/USDT", cvd_confirmed=_cvd_ok)
                     broadcast_to_subscribers(msg)
                 except Exception as e:
                     log.warning("[motor-btc] broadcast: %s", e)
@@ -3102,9 +3123,10 @@ def _eth_motor_paper_scan(exchange):
             if (not _seg_vetoed and ETH_VIP_BROADCAST_ENABLED
                     and VIP_FORMAT_AVAILABLE and vip_format is not None):
                 try:
+                    _cvd_ok = _cvd_vip_confirmed(report, df_primary["timestamp"].iloc[-1], "ETH/USDT")
                     msg = vip_format.build_vip_signal(
                         field, report, tf_label=profile["label"], tf_id=tf_id,
-                        pair="ETH/USDT")
+                        pair="ETH/USDT", cvd_confirmed=_cvd_ok)
                     broadcast_to_subscribers(msg)
                 except Exception as e:
                     log.warning("[motor-eth] broadcast: %s", e)
@@ -3289,8 +3311,9 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
             # asi que el detalle tecnico no se pierde. Fallback al reporte Capa 5
             # si vip_format no esta disponible.
             if VIP_FORMAT_AVAILABLE and vip_format is not None:
+                _cvd_ok = _cvd_vip_confirmed(report, df_primary["timestamp"].iloc[-1], SYMBOL)
                 msg = vip_format.build_vip_signal(
-                    field, report, tf_label=tf_label, tf_id=tf_id)
+                    field, report, tf_label=tf_label, tf_id=tf_id, cvd_confirmed=_cvd_ok)
             else:
                 msg = field_reports.build_signal_report(
                     field, report, tf_label=tf_label, tf_id=tf_id, pmin=tf_pmin)
