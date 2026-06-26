@@ -19,8 +19,8 @@ on:
         description: "Histórico desde (YYYY-MM-DD)"
         default: "2023-06-01"
       symbols:
-        description: "Símbolos (CSV, sin USDT)"
-        default: "SOL,BTC"
+        description: "Símbolos (CSV, sin USDT). ETH se salta hasta que tenga cube."
+        default: "SOL,BTC,ETH"
 
 permissions:
   contents: read
