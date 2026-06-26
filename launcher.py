@@ -115,6 +115,19 @@ def _agg_oi_collect_cmd():
     return [sys.executable, "-u", "tools/fetch_agg_oi.py", "--loop"]
 
 
+def _cvd_collect_enabled():
+    """Colector FORWARD de CVD REAL (tools/fetch_cvd.py, --loop): taker buy/sell por
+    barra (order-flow FIRMADO) de OKX(+Binance en Railway). El research lo marcó como
+    el signal de microestructura evidenciado (vs el volumen sin firmar del trigger
+    actual). 0% real; junta el dato para validar forward antes de cablear a la señal.
+    Hijo NO-critico. Default OFF."""
+    return (os.environ.get("FQ_CVD_COLLECT") or "0").strip() in ("1", "true", "yes")
+
+
+def _cvd_collect_cmd():
+    return [sys.executable, "-u", "tools/fetch_cvd.py", "--loop"]
+
+
 def _bots():
     # (name, cmd, critical): critical=True -> si muere, baja el container y Railway
     # reinicia (VIP/public/maintenance SON el producto). critical=False -> hijo
@@ -132,6 +145,8 @@ def _bots():
         bots.append(("carry-paper", _carry_paper_cmd(), False))
     if _agg_oi_collect_enabled():
         bots.append(("agg-oi", _agg_oi_collect_cmd(), False))
+    if _cvd_collect_enabled():
+        bots.append(("cvd-collect", _cvd_collect_cmd(), False))
     return bots
 
 GRACE_SECONDS = 8       # tiempo para que los hijos atiendan SIGTERM
