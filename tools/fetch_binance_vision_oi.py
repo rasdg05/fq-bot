@@ -35,7 +35,7 @@ import pandas as pd
 
 BASE = "https://data.binance.vision/data/futures/um/daily/metrics"
 DEFAULT_DIR = os.environ.get("FQ_AGG_OI_DIR") or ("/data" if os.path.isdir("/data") else "data/okx")
-COLS = ["ts", "oi_usd", "toptrader_ls", "taker_ls"]
+COLS = ["ts", "oi_usd", "toptrader_ls", "taker_ls", "global_ls"]
 
 
 def _days(start, end):
@@ -68,6 +68,7 @@ def _day(sym, d):
         "oi_usd": pd.to_numeric(df["sum_open_interest_value"], errors="coerce"),
         "toptrader_ls": pd.to_numeric(df.get("sum_toptrader_long_short_ratio"), errors="coerce"),
         "taker_ls": pd.to_numeric(df.get("sum_taker_long_short_vol_ratio"), errors="coerce"),
+        "global_ls": pd.to_numeric(df.get("count_long_short_ratio"), errors="coerce"),
     })
     return out.dropna(subset=["oi_usd"])
 
