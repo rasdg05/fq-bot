@@ -103,6 +103,9 @@ def build_vip_signal(field, decision_report, tf_label=None, tf_id=None, pair=Non
     risk_pct = (levels["risk"] / levels["entry"]) * 100 if levels.get("risk") else 0
     risk_lbl = risk_band(risk_pct)
     pair_label = pair or PAIR   # BTC/USDT en la fusion BTC->VIP; SOL/USDT por defecto
+    # Hashtag DINAMICO por par. Antes era HASHTAGS_SIGNAL hardcodeado a #SOLUSDT -> las
+    # senales BTC/ETH salian con el tag de SOL. BTC/USDT -> "#FQ #BTCUSDT".
+    sym_tags = "#FQ #" + (pair_label or PAIR).split(":")[0].replace("/", "")
     # Insignia de order-flow (capa 3, FQ_CVD_VIP_CONVICTION): SOLO si el flujo firmado
     # CONFIRMA la direccion en vivo. Es un HECHO (no promesa de R): la senal pertenece
     # al subset premium que en backtest 5y (DSR) rinde mas. "" cuando no -> la senal
@@ -144,7 +147,7 @@ def build_vip_signal(field, decision_report, tf_label=None, tf_id=None, pair=Non
         tp3=levels["tp3"], rr3=levels.get("rr_tp3", 0),
         tp4=levels["tp4"], rr4=levels.get("rr_tp4", 0),
         pilares=pilares, lev=lev, sizing=sizing,
-        tags=HASHTAGS_SIGNAL,
+        tags=sym_tags,
     )
 
 # ============================================================

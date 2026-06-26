@@ -2852,7 +2852,7 @@ def _motor_admin_notify(sig, verdict, pos):
         msg = ("🧪 <b>Motor base (paper)</b> {sym} {d} [{tf}/{kz}]\n"
                "entry {e:.4f} · SL {s:.4f} · TP {t:.4f} · pid={pid}\n"
                "<i>Subset correcto §6.10.1 — 0% real, mide fill maker.</i>").format(
-                   sym=GOLD_LIVE_SYMBOL, d=d, tf=verdict.get("tf", "?"),
+                   sym=verdict.get("symbol") or GOLD_LIVE_SYMBOL, d=d, tf=verdict.get("tf", "?"),
                    kz=verdict.get("killzone", "?"), e=sig["entry"], s=sig["stop"],
                    t=sig["tp"], pid=pos.pid)
         broadcast_to_subscribers(msg, tiers=["admin"])

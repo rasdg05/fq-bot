@@ -52,3 +52,13 @@ def test_cvd_confirm_live_off_devuelve_none(monkeypatch):
 def test_cvd_confirm_live_sin_direccion_es_none(monkeypatch):
     monkeypatch.setenv("FQ_CVD_FILTER", "1")
     assert mp.cvd_confirm_live("BTC/USDT", 1_700_000_000_000, None) is None
+
+
+def test_hashtag_dinamico_por_par():
+    # antes HASHTAGS_SIGNAL hardcodeado a #SOLUSDT -> BTC/ETH salian con tag de SOL
+    btc = vip_format.build_vip_signal(_F(), _decision(), pair="BTC/USDT")
+    assert "#BTCUSDT" in btc and "#SOLUSDT" not in btc
+    eth = vip_format.build_vip_signal(_F(), _decision(), pair="ETH/USDT")
+    assert "#ETHUSDT" in eth
+    sol = vip_format.build_vip_signal(_F(), _decision())   # default -> SOL/USDT
+    assert "#SOLUSDT" in sol
