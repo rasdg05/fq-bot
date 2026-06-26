@@ -31,8 +31,28 @@ def test_sin_cvd_la_senal_es_identica_a_la_historica():
     base = vip_format.build_vip_signal(_F(), _decision())
     none_ = vip_format.build_vip_signal(_F(), _decision(), cvd_confirmed=None)
     false_ = vip_format.build_vip_signal(_F(), _decision(), cvd_confirmed=False)
-    assert base == none_ == false_              # backward-compat: byte-identica
+    noboost = vip_format.build_vip_signal(_F(), _decision(), boost_tier=False)
+    assert base == none_ == false_ == noboost   # backward-compat: byte-identica
     assert "ORDER-FLOW" not in base
+
+
+def test_bump_tier_sube_un_nivel():
+    vf = vip_format
+    assert vf.bump_tier(1.0) == vf.PHI            # Exploratoria -> Media
+    assert vf.bump_tier(2.0) == vf.PHI_SQ         # Media -> Alta (3x -> 5x)
+    assert vf.bump_tier(3.0) == vf.PHI_CB         # Alta -> Extrema (5x -> 8x)
+    assert vf.bump_tier(5.0) == 5.0               # Extrema: tope, no rebasa 8x
+    assert vf.bump_tier(None) is None
+
+
+def test_boost_tier_sube_conviccion_y_size():
+    # capa 3 -> motor 1: la confirmada (boost ON) sube +1 tier. p=2.0 = Media (3x/2%).
+    dec = _decision()
+    dec["p_master_data"]["p_master"] = 2.0
+    base = vip_format.build_vip_signal(_F(), dec)
+    boosted = vip_format.build_vip_signal(_F(), dec, boost_tier=True)
+    assert "Conviccion Media" in base and "Leverage 3x" in base and "Size 2%" in base
+    assert "Conviccion Alta" in boosted and "Leverage 5x" in boosted and "Size 5%" in boosted
 
 
 def test_cvd_confirmado_agrega_el_badge():
