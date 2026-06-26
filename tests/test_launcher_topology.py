@@ -51,6 +51,19 @@ def test_carry_paper_on_es_no_critico(monkeypatch):
     assert crit["vip"] is True
 
 
+def test_agg_oi_off_por_defecto_y_no_critico(monkeypatch):
+    monkeypatch.delenv("TELEGRAM_TOKEN_PUBLIC", raising=False)
+    monkeypatch.setenv("TELEGRAM_TOKEN", "vip-tok")
+    monkeypatch.delenv("FQ_AGG_OI_COLLECT", raising=False)
+    assert launcher._agg_oi_collect_enabled() is False
+    assert "agg-oi" not in [n for n, *_ in launcher._bots()]
+    monkeypatch.setenv("FQ_AGG_OI_COLLECT", "1")
+    bots = launcher._bots()
+    assert "agg-oi" in [n for n, *_ in bots]
+    crit = {n: c for n, _cmd, c in bots}
+    assert crit["agg-oi"] is False and crit["vip"] is True   # un bug del colector no tira el VIP
+
+
 def test_watchdog_usa_la_misma_regla(monkeypatch):
     # maintenance._public_enabled comparte la regla (los umbrales del modulo
     # se fijan al importar; aqui validamos la regla viva).

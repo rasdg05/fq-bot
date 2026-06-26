@@ -102,6 +102,19 @@ def _carry_paper_cmd():
     return [sys.executable, "-u", "tools/carry_paper.py", "--loop"]
 
 
+def _agg_oi_collect_enabled():
+    """Colector FORWARD de OI AGREGADO multi-exchange (tools/fetch_agg_oi.py, --loop).
+    Railway NO está geo-bloqueado -> le pega directo a OKX+Binance+Bybit y suma el OI
+    en USD (el sandbox no puede: Binance/Bybit geo). 0% real, parquet durable en /data;
+    junta OI agregado 5m para medir cambio/divergencia vs precio. Hijo NO-critico
+    (un bug jamas tira el bot VIP). Default OFF. Supersede a FQ_OI_COLLECT (incluye OKX)."""
+    return (os.environ.get("FQ_AGG_OI_COLLECT") or "0").strip() in ("1", "true", "yes")
+
+
+def _agg_oi_collect_cmd():
+    return [sys.executable, "-u", "tools/fetch_agg_oi.py", "--loop"]
+
+
 def _bots():
     # (name, cmd, critical): critical=True -> si muere, baja el container y Railway
     # reinicia (VIP/public/maintenance SON el producto). critical=False -> hijo
@@ -117,6 +130,8 @@ def _bots():
         bots.append(("oi-collect", _oi_collect_cmd(), False))
     if _carry_paper_enabled():
         bots.append(("carry-paper", _carry_paper_cmd(), False))
+    if _agg_oi_collect_enabled():
+        bots.append(("agg-oi", _agg_oi_collect_cmd(), False))
     return bots
 
 GRACE_SECONDS = 8       # tiempo para que los hijos atiendan SIGTERM
