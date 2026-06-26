@@ -1,0 +1,68 @@
+name: Metrics validation (gratis, real) — 1 tap
+
+# UN TAP. Valida TODOS los medidores gratis del dataset `metrics` de Binance Vision
+# (mismo archivo que el OI, ya bajado) con su hipótesis correcta + veredicto DSR:
+#   toptrader_ls  -> directional  (¿las POSICIONES de top-traders van con el trade?)
+#   taker_ls      -> directional  (¿el flujo agresivo va con el trade?)
+#   global_ls     -> contrarian   (¿conviene FADEAR a la multitud/retail?)
+#
+# Mismo método y disciplina que CVD/OI: el DSR mata el espejismo de muestra chica. Lo
+# que pase es candidato a 2do medidor; lo que no, al cementerio. GitHub-hosted (red
+# abierta). NO toca el worker vivo.
+#
+# Resultado: en los logs del run (Actions -> este workflow -> job -> step "veredictos").
+
+on:
+  workflow_dispatch:
+    inputs:
+      since:
+        description: "Histórico desde (YYYY-MM-DD)"
+        default: "2023-06-01"
+      symbols:
+        description: "Símbolos (CSV, sin USDT)"
+        default: "SOL,BTC"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Deps mínimas
+        run: pip install --quiet pandas pyarrow numpy
+      - name: Bajar metrics real (gratis) + validar cada medidor con DSR
+        run: |
+          set -x
+          END=$(date -u +%Y-%m-%d)
+          IFS=',' read -ra SYMS <<< "${{ inputs.symbols }}"
+          for S in "${SYMS[@]}"; do
+            S=$(echo "$S" | tr -d ' ' | tr '[:lower:]' '[:upper:]')
+            CUBE="cosecha_cubes/tp_cube_${S}_USDT.parquet"
+            [ -e "$CUBE" ] || { echo "== sin cube para ${S}, skip =="; continue; }
+            echo "===== ${S}: bajando metrics real (${{ inputs.since }} -> ${END}) ====="
+            python tools/fetch_binance_vision_oi.py "${S}USDT" \
+              --start "${{ inputs.since }}" --end "${END}" --out-dir data || { echo "fetch ${S} falló"; continue; }
+            MET="data/oi_hist_${S}USDT.parquet"
+            # toptrader_ls (smart money) + taker_ls (flujo agresivo): regla directional.
+            for COL in toptrader_ls taker_ls; do
+              for THR in 0.0 0.05 0.10 0.20; do
+                echo "===== ${S}: ${COL} directional thr=${THR} ====="
+                python tools/validate_metric_flow.py --cube "${CUBE}" --metric "${MET}" \
+                  --col "${COL}" --rule directional --thr "${THR}" --tp tp4 --horizon 576 \
+                  || echo "validate ${S}/${COL}@${THR} falló"
+              done
+            done
+            # global_ls (retail): regla contrarian (fade a la multitud).
+            for THR in 0.0 0.05 0.10 0.20; do
+              echo "===== ${S}: global_ls contrarian thr=${THR} ====="
+              python tools/validate_metric_flow.py --cube "${CUBE}" --metric "${MET}" \
+                --col global_ls --rule contrarian --thr "${THR}" --tp tp4 --horizon 576 \
+                || echo "validate ${S}/global_ls@${THR} falló"
+            done
+          done
