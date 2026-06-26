@@ -40,6 +40,7 @@ GLYPHS = {
     "bullet_chk": "·",
     "long":       "▲",
     "short":      "▼",
+    "premium":    "◆",
 }
 
 RULE = GLYPHS["rule"]
