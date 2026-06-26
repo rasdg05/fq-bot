@@ -31,6 +31,7 @@ import os
 import sys
 import urllib.request
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 
 import numpy as np
@@ -68,23 +69,26 @@ def _agg_day_to_5m(sym, d):
     return g
 
 
-def fetch(sym, start, end, out_dir=DEFAULT_DIR):
+def fetch(sym, start, end, out_dir=DEFAULT_DIR, workers=None):
     path = os.path.join(out_dir, "cvd_hist_%s.parquet" % sym)
     os.makedirs(out_dir, exist_ok=True)
     have = pd.read_parquet(path) if os.path.exists(path) else pd.DataFrame(columns=["ts", "buy_vol", "sell_vol"])
     done_days = set((pd.to_datetime(have["ts"], unit="ms").dt.date.unique()).tolist()) if len(have) else set()
     parts = [have] if len(have) else []
+    todo = [d for d in _days(start, end) if d not in done_days]
+    # descarga CONCURRENTE: el job es network-bound (bajar aggTrades) -> paralelizar
+    # baja 5 años de ~2h a ~25min. Cada día es independiente (download+agg). Override
+    # workers por env (FQ_CVD_WORKERS); default 12 (acota memoria con días grandes de BTC).
+    w = workers or int(os.environ.get("FQ_CVD_WORKERS", "12"))
     n_new = 0
-    for d in _days(start, end):
-        if d in done_days:
-            continue
-        g = _agg_day_to_5m(sym, d)
-        if g is None:
-            continue
-        parts.append(g)
-        n_new += 1
-        if n_new % 10 == 0:
-            print("[cvd-hist] %s: %d días nuevos..." % (sym, n_new))
+    with ThreadPoolExecutor(max_workers=max(1, w)) as ex:
+        for g in ex.map(lambda d: _agg_day_to_5m(sym, d), todo):
+            if g is None:
+                continue
+            parts.append(g)
+            n_new += 1
+            if n_new % 50 == 0:
+                print("[cvd-hist] %s: %d días nuevos..." % (sym, n_new))
     if not parts:
         print("[cvd-hist] %s: sin data" % sym)
         return path
