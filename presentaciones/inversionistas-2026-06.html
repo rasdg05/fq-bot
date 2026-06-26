@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FQ — Inversionistas y colaboradores · Junio 2026</title>
+<style>
+  :root{
+    --bg:#0b0e14; --card:#11161f; --card2:#0e131b; --ink:#e6edf3; --mut:#8b98a9;
+    --line:#1e2733; --grn:#3fb950; --amb:#d29922; --red:#f85149; --blu:#58a6ff; --vio:#bc8cff; --accent:#3fb950;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.55;-webkit-font-smoothing:antialiased}
+  .deck{max-width:1000px;margin:0 auto;padding:0 20px}
+  section{min-height:100vh;display:flex;flex-direction:column;justify-content:center;
+    padding:74px 0;border-bottom:1px solid var(--line)}
+  section:last-child{border-bottom:none}
+  h1{font-size:clamp(32px,5.4vw,56px);line-height:1.06;margin:0 0 16px;letter-spacing:-.025em}
+  h2{font-size:clamp(23px,3.5vw,35px);margin:0 0 10px;letter-spacing:-.01em}
+  h3{font-size:14px;text-transform:uppercase;letter-spacing:.16em;color:var(--accent);margin:0 0 22px;font-weight:700}
+  p{margin:0 0 14px;color:#cdd7e2;font-size:17px}
+  .lead{font-size:20px;color:var(--ink)}
+  .mut{color:var(--mut)}
+  .tag{display:inline-block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;padding:4px 11px;
+    border-radius:999px;border:1px solid var(--line);color:var(--mut);margin-bottom:26px;font-weight:600}
+  .grid{display:grid;gap:16px}.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr 1fr 1fr}
+  @media(max-width:760px){.g2,.g3{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px}
+  .card.in{border-color:rgba(63,185,80,.35)}.card.fw{border-color:rgba(210,153,34,.35)}.card.no{border-color:rgba(248,81,73,.30)}
+  .kpi{font-size:40px;font-weight:800;letter-spacing:-.02em;margin:2px 0}
+  .kpi.grn{color:var(--grn)}.kpi.amb{color:var(--amb)}.kpi.blu{color:var(--blu)}.kpi.vio{color:var(--vio)}
+  .klbl{font-size:13px;color:var(--mut);text-transform:uppercase;letter-spacing:.08em}
+  table{width:100%;border-collapse:collapse;margin:8px 0;font-size:15.5px}
+  th,td{text-align:right;padding:10px 12px;border-bottom:1px solid var(--line)}
+  th:first-child,td:first-child{text-align:left}
+  thead th{color:var(--mut);font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:.05em}
+  .pos{color:var(--grn);font-weight:700}.neg{color:var(--red);font-weight:700}.hl{background:rgba(63,185,80,.08)}
+  ul{margin:6px 0 0;padding-left:20px}li{margin:8px 0;color:#cdd7e2;font-size:16px}
+  .pill{font-size:12px;font-weight:700;padding:2px 8px;border-radius:6px;margin-left:6px}
+  .pill.v{background:rgba(63,185,80,.15);color:var(--grn)}.pill.f{background:rgba(210,153,34,.15);color:var(--amb)}.pill.k{background:rgba(248,81,73,.15);color:var(--red)}
+  .note{font-size:14px;color:var(--mut);border-left:3px solid var(--line);padding:6px 0 6px 16px;margin-top:16px}
+  .big{font-size:clamp(40px,8vw,80px);font-weight:800;letter-spacing:-.03em;line-height:1}
+  .foot{font-size:13px;color:var(--mut);margin-top:30px}
+  .toc{position:fixed;top:0;left:0;right:0;background:rgba(11,14,20,.86);backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);z-index:9;font-size:13px}
+  .toc .deck{display:flex;gap:18px;padding:11px 20px;overflow-x:auto;white-space:nowrap}
+  .toc a{color:var(--mut);text-decoration:none;font-weight:600}.toc a:hover{color:var(--ink)}
+  .num{font-variant-numeric:tabular-nums}
+  @media print{.toc{display:none}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    section{min-height:auto;height:auto;page-break-after:always;break-after:page;padding:34px 0;justify-content:flex-start;border-bottom:none}
+    section:last-child{page-break-after:auto}h1{font-size:40px}h2{font-size:27px}.kpi{font-size:32px}}
+  @page{size:1280px 940px;margin:0}
+</style>
+</head>
+<body>
+<nav class="toc"><div class="deck">
+  <a href="#cover">FQ</a><a href="#moat">1 · El moat</a><a href="#e1">2 · Motor 1</a>
+  <a href="#e2">3 · Motor 2</a><a href="#up">4 · El upside</a><a href="#risk">5 · Qué está probado</a>
+  <a href="#val">6 · Valuación</a><a href="#ask">7 · El pedido</a>
+</div></nav>
+<div class="deck">
+
+<!-- COVER -->
+<section id="cover">
+  <span class="tag">Inversionistas y colaboradores · Junio 2026 · confidencial</span>
+  <h1>Un sistema de trading crypto<br>que <span style="color:var(--grn)">prueba</span> su edge — no lo promete.</h1>
+  <p class="lead">El 90% de los "bots de señales" muestran wins cherry-picked sin validación. FQ es lo
+  opuesto: dos motores con edge MEDIDO, una máquina de validación de fondo quant que mata lo que
+  no aguanta, y honestidad como producto. Esto es el estado real — lo probado, lo que se mide, y la
+  optionalidad.</p>
+  <div class="grid g3" style="margin-top:22px">
+    <div class="card in"><div class="klbl">Motor 1 · direccional (OOS)</div><div class="kpi grn">+0.10R</div><div class="mut">por trade · <b>pasó el Deflated Sharpe</b> (BTC 1.00, SOL 0.97)</div></div>
+    <div class="card in"><div class="klbl">Motor 2 · market-neutral</div><div class="kpi grn">+12.5%</div><div class="mut">APY · Sharpe 13.6 · positivo los 6 años, incl. bear 2022</div></div>
+    <div class="card fw"><div class="klbl">Lead nuevo · order-flow firmado</div><div class="kpi amb">~6-7×</div><div class="mut">el R en el subset confirmado · preliminar, validándose</div></div>
+  </div>
+</section>
+
+<!-- 1 · EL MOAT -->
+<section id="moat">
+  <h3>1 · El moat — no es una señal, es el PROCESO</h3>
+  <h2>Validamos como un fondo. Casi ningún competidor retail puede.</h2>
+  <p>El modo de fallo #1 en quant (López de Prado) es el <b>overfitting</b>: probás 20 estrategias y
+  una "gana" por puro azar. La defensa es el <b>Deflated Sharpe Ratio</b> — deflacta el resultado por
+  cuántas cosas probaste. <b>Lo construimos y lo corrimos sobre nuestro propio edge.</b></p>
+  <div class="grid g2">
+    <div class="card in">
+      <div class="klbl">El veredicto sobre el +0.10R</div>
+      <p style="font-size:16px">Probamos ~7 estrategias esta etapa; 2 sobrevivieron, 5 murieron. El
+      direccional <b>pasó el Deflated Sharpe</b> tras corregir el multiple-testing:</p>
+      <table><tbody>
+        <tr><td>BTC</td><td class="pos">DSR 1.000</td><td class="mut">rock-solid</td></tr>
+        <tr><td>SOL</td><td class="pos">DSR 0.972</td><td class="mut">significativo</td></tr>
+      </tbody></table>
+      <p class="mut" style="font-size:14px">El edge NO es artefacto de cherry-pick. Eso casi nadie lo demuestra.</p>
+    </div>
+    <div class="card">
+      <div class="klbl">La disciplina, en hechos</div>
+      <ul>
+        <li><b>5 de 6 ideas, muertas</b> antes de tocar capital (F3, volumen, trailing, pairs, momentum)</li>
+        <li>Validación <b>multi-régimen + purged/embargo CV + DSR/CPCV</b></li>
+        <li>Todo lo nuevo se mide <b>forward, 0% real</b>, antes de cablear</li>
+        <li>Honestidad: reportamos <b>27-30% win-rate con expectancy positiva</b>, no un 85% inventado</li>
+      </ul>
+    </div>
+  </div>
+  <p class="note">El activo defendible no es el canal de señales — es la <b>máquina que prueba el filo y
+  mata lo falso</b>. Reduce el riesgo de cada peso desplegado.</p>
+</section>
+
+<!-- 2 · MOTOR 1 -->
+<section id="e1">
+  <h3>2 · Motor 1 — direccional</h3>
+  <h2>De sangrar −0.09R a ganar +0.10R, validado.</h2>
+  <p>El edge bruto moría en costes. Dos palancas legibles —veto de sesión + ejecución maker— lo
+  cruzan a positivo, y <b>replica en ambos símbolos</b> (anti-espejismo).</p>
+  <table>
+    <thead><tr><th>Ejecución (OOS)</th><th>SOL</th><th>BTC</th></tr></thead>
+    <tbody>
+      <tr><td>Taker, sin veto <span class="mut">(antes)</span></td><td class="neg">−0.095</td><td class="neg">−0.068</td></tr>
+      <tr class="hl"><td><b>+ veto + maker</b> (config)</td><td class="pos">+0.109</td><td class="pos">+0.102</td></tr>
+      <tr><td>Deflated Sharpe</td><td class="pos">0.97 ✓</td><td class="pos">1.00 ✓</td></tr>
+    </tbody>
+  </table>
+  <p class="note">Hoy en producción: SOL + BTC a clientes; ETH midiéndose. El número real se sella con
+  la medición forward del fill-rate maker (en curso) — el único gate que falta cerrar.</p>
+</section>
+
+<!-- 3 · MOTOR 2 -->
+<section id="e2">
+  <h3>3 · Motor 2 — market-neutral (carry)</h3>
+  <h2>Rinde sin acertar dirección. Sobrevive el bear.</h2>
+  <p>Short-perp delta-neutral que cobra funding sobre un basket líquido validado año por año con
+  funding profundo 2021-2026. <b>Descorrelacionado del Motor 1.</b></p>
+  <table>
+    <thead><tr><th>Año</th><th>Régimen</th><th>APY</th><th>Sharpe</th></tr></thead>
+    <tbody>
+      <tr><td>2021</td><td class="mut">bull</td><td class="pos">+39.1%</td><td>21.8</td></tr>
+      <tr class="hl"><td>2022</td><td class="mut">BEAR</td><td class="pos">+1.7%</td><td>5.6</td></tr>
+      <tr><td>2023-2024</td><td class="mut">recup/bull</td><td class="pos">+8.5 / +13.6%</td><td>30</td></tr>
+      <tr><td>2025-2026</td><td class="mut">lateral</td><td class="pos">+4.6 / +0.5%</td><td>25 / 3</td></tr>
+    </tbody>
+  </table>
+  <div class="grid g3" style="margin-top:8px">
+    <div class="card in"><div class="klbl">Full history</div><div class="kpi grn">+12.5%</div><div class="mut">APY, Sharpe 13.6</div></div>
+    <div class="card in"><div class="klbl">Drawdown máx</div><div class="kpi grn">1.7%</div><div class="mut">~1/10 del direccional</div></div>
+    <div class="card fw"><div class="klbl">Honesto: neto de costes</div><div class="kpi amb">−2-4pp</div><div class="mut">prima de régimen, no arbitraje</div></div>
+  </div>
+</section>
+
+<!-- 4 · EL UPSIDE -->
+<section id="up">
+  <h3>4 · El upside — order-flow firmado (lead nuevo)</h3>
+  <h2>Cuando el flujo confirma, el R se multiplica ~6-7×.</h2>
+  <p>La investigación 2026 señaló el <b>order-flow FIRMADO</b> (CVD) como el signal de microestructura
+  evidenciado. Lo testeamos con dato REAL —gratis, del archivo público de Binance, 2 años— sobre el cube:</p>
+  <table>
+    <thead><tr><th>Símbolo</th><th>baseline</th><th>CVD-confirmado</th><th>uplift</th></tr></thead>
+    <tbody>
+      <tr><td>SOL</td><td>+0.156R</td><td class="pos">+1.205R</td><td class="pos">7.7×</td></tr>
+      <tr><td>BTC</td><td>+0.187R</td><td class="pos">+1.137R</td><td class="pos">6.1×</td></tr>
+    </tbody>
+  </table>
+  <div class="card fw" style="margin-top:14px">
+    <div class="klbl">La honestidad que nos define</div>
+    <p style="font-size:16px"><b>Preliminar, no probado.</b> Sólo 8-11 eventos confirmados en 2 años —
+    insuficiente para el Deflated Sharpe (exige ≥20). Es un <b>lead potentísimo y consistente en ambos
+    símbolos</b>, pero se valida con la historia completa (5 años) antes de cablearse. <b>No lo vendemos
+    como hecho — lo medimos.</b> Esa disciplina es exactamente el moat.</p>
+  </div>
+  <p class="note">Y la infra de datos ya está: colectores forward (OI agregado, CVD, carry) + el pipeline
+  que baja data histórica GRATIS (Binance) en vez de pagar vendors — sólo se paga (Tardis.dev, OFI L2)
+  si el dato gratis ya demostró el edge.</p>
+</section>
+
+<!-- 5 · QUÉ ESTÁ PROBADO -->
+<section id="risk">
+  <h3>5 · El mapa honesto — qué está probado vs qué se mide</h3>
+  <h2>Para que sepas exactamente qué comprás.</h2>
+  <div class="grid g3">
+    <div class="card in"><div class="klbl">✓ Probado (OOS + DSR)</div><ul>
+      <li>Direccional +0.10R (DSR ✓)</li><li>Carry +12.5% multi-régimen</li><li>5 edges falsos descartados</li></ul></div>
+    <div class="card fw"><div class="klbl">◷ Midiéndose forward</div><ul>
+      <li>Fill-rate maker (sella el +0.10R)</li><li>Carry en vivo (neto)</li><li>ETH como 3er símbolo</li></ul></div>
+    <div class="card no"><div class="klbl">⚗ Lead / optionalidad</div><ul>
+      <li>CVD order-flow (6-7×, preliminar)</li><li>OI agregado divergencia</li><li>OFI L2 (si CVD valida)</li></ul></div>
+  </div>
+  <p class="note">Riesgos reales: escala chica, sin track live largo aún, el +0.10R es techo gated por
+  fill-rate (en medición). No es un money-printer probado — es una <b>operación sistemática construida a
+  estándar institucional, validándose forward</b>. Esa claridad es el punto.</p>
+</section>
+
+<!-- 6 · VALUACIÓN -->
+<section id="val">
+  <h3>6 · Valuación</h3>
+  <h2>El valor sube con la prueba forward — y con la optionalidad del CVD.</h2>
+  <p>Marco con supuestos explícitos (no un número inventado). El driver del múltiplo: cerrar la prueba
+  forward + desplegar los dos motores + el lead CVD si valida.</p>
+  <table>
+    <thead><tr><th>Escenario (ilustrativo)</th><th>Subs × precio/mes</th><th>ARR</th><th>× múltiplo</th><th>Valuación</th></tr></thead>
+    <tbody>
+      <tr><td>Conservador</td><td>50 × $39</td><td>$23k</td><td>2.5×</td><td class="num">~$59k</td></tr>
+      <tr class="hl"><td>Base</td><td>250 × $44</td><td>$132k</td><td>4×</td><td class="num pos">~$528k</td></tr>
+      <tr><td>Agresivo</td><td>1.000 × $49</td><td>$588k</td><td>6×</td><td class="num">~$3.5M</td></tr>
+    </tbody>
+  </table>
+  <p class="note">Lo que mueve el múltiplo de 2.5× a 6×: <b>track forward del +0.10R sellado</b>, el
+  <b>carry desplegado</b>, el <b>CVD validado</b> (multiplicador de R), y baja churn. El activo que no
+  aparece en el ARR: la <b>máquina de validación</b> reutilizable. Supuestos de precio/subs ilustrativos.</p>
+</section>
+
+<!-- 7 · EL PEDIDO -->
+<section id="ask">
+  <h3>7 · El pedido — qué destraba el capital/colaboración</h3>
+  <h2>Convertir leads medidos en edge desplegado.</h2>
+  <div class="grid g2">
+    <div class="card">
+      <div class="klbl">Próximos 90 días (sin capital extra)</div>
+      <ul>
+        <li>Cerrar el <b>fill-rate maker</b> (sella el +0.10R real)</li>
+        <li>Validar el <b>CVD a 5 años</b> con DSR (¿el 6-7× aguanta?)</li>
+        <li>Desplegar el <b>carry</b> como tier market-neutral</li>
+        <li>ETH como 3er símbolo · más cadencia</li>
+      </ul>
+    </div>
+    <div class="card in">
+      <div class="klbl">Qué acelera capital / colaboradores</div>
+      <ul>
+        <li><b>Datos OFI L2</b> (Tardis) si el CVD valida → de 6× a más</li>
+        <li><b>Cosecha multi-símbolo</b> (cómputo) → ensanchar el edge</li>
+        <li><b>Ejecución en vivo</b> (sub-cuenta) → de paper a real</li>
+        <li><b>Distribución</b> → escalar la base de suscriptores</li>
+      </ul>
+    </div>
+  </div>
+  <p class="note" style="font-size:15px;color:#cdd7e2"><b>En una línea:</b> dos motores validados (+0.10R
+  que pasó el Deflated Sharpe + carry market-neutral), un lead de order-flow que multiplica el R ~6-7×
+  (midiéndose), y la máquina de validación de un fondo quant — construida, corriendo sobre nuestro
+  propio edge, sin vender humo.</p>
+  <p class="foot">FQ · jun-2026 · números OOS de research interno (RETRIEVAL_PLAN §6.10.1, carry_regime,
+  validación CVD real Binance). Radar honesto, no promesa. Confidencial.</p>
+</section>
+
+</div>
+</body>
+</html>
