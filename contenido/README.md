@@ -73,9 +73,20 @@ término técnico se explica con una imagen mental.
    (estilo TJR)**, la matemática a la vista. Sale de las sesiones reales de backend, y **nunca revela
    la receta** (cada idea marca 🎁 lo que regalamos vs 🔒 lo que queda dentro).
 
-El **ebook** (`ebook/como-se-construye-una-ventaja.html`) es el primer lead magnet de la pista pro:
-los 6 pasos para construir una estrategia con ventaja medible, con la matemática limpia a la vista y
-el moat de validación como regalo de valor. Se renderiza a PDF con Chromium (`--print-to-pdf`).
+## Lead magnets (PDF de captación)
+
+El lead magnet **se optimiza para CONVERTIR**, no para enseñar todo. El que abre esto es un usuario
+de redes en LATAM, en el celular, con poca atención: **corto, letra grande, una idea por pantallazo,
+y el bot como héroe del CTA.** Damos el aperitivo (3 reglas simples que generan confianza), no el
+curso completo. Se renderizan a PDF con Chromium (`--print-to-pdf`).
+
+| Archivo | Para qué |
+|---|---|
+| **`ebook/guia-3-reglas.html`** ⭐ | **Lead magnet PRINCIPAL** (frío/masivo): "Por qué sigues perdiendo", 6 pantallazos, letra grande, 3 reglas → CTA fuerte al bot. **Convierte.** |
+| `ebook/como-se-construye-una-ventaja.html` | Versión LARGA/avanzada (10 págs): los 6 pasos + matemática + moat de validación. Para lead **tibio/sofisticado** (no para tráfico frío). |
+
+> Regla de oro de conversión: el frío recibe lo simple; lo profundo (validación, order-flow) se
+> reserva para el lead ya enganchado. No regalar "todo el pedo" de entrada.
 
 ## Índice
 
@@ -87,4 +98,5 @@ el moat de validación como regalo de valor. Se renderiza a PDF con Chromium (`-
 | `guiones/03-la-divergencia-macro-vs-vwap.md` | Tu setup favorito: macro vende pero el VWAP/volumen compra |
 | `backlog-ideas.md` | 20+ ideas de videos novato (título + gancho + beats) para producir en serie |
 | **`backlog-quant-2026.md`** | **Pista PRO**: ideas decompuestas de las sesiones de backend (validación, order-flow, carry) con su frontera de revelado |
-| **`ebook/como-se-construye-una-ventaja.html`** | **Lead magnet #1** (pista pro): "Cómo se construye una ventaja", 10 págs → PDF |
+| **`ebook/guia-3-reglas.html`** ⭐ | **Lead magnet principal** (frío/comercial): 6 pantallazos, letra grande, 3 reglas → CTA |
+| `ebook/como-se-construye-una-ventaja.html` | Lead magnet largo/avanzado (10 págs) para lead tibio |
