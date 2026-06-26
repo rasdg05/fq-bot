@@ -1,0 +1,57 @@
+name: CVD signed-flow validation (gratis, real) — 1 tap
+
+# UN TAP. Contesta —SIN comprar data ni esperar el colector forward— si la confirmación
+# de order-flow FIRMADO (CVD real) mejora el edge del motor, con veredicto DSR.
+#
+# CÓMO: baja los aggTrades históricos de Binance (data.binance.vision, GRATIS, traen el
+# lado agresor), los agrega a CVD 5m, los alinea CAUSAL a cada evento del cube y corre el
+# Deflated Sharpe sobre el subset CVD-confirmado. GitHub-hosted (red abierta; el sandbox
+# tiene Binance geo-bloqueado). NO toca el worker vivo ni Hetzner.
+#
+# RANGO: default 2 años (suficientes eventos del cube para el DSR, descarga manejable).
+# Para los 5 años completos subí `since` a 2021-06-01 (más lento, ~1-2h).
+#
+# Resultado: en los logs del run (Actions -> este workflow -> job -> step "veredicto").
+
+on:
+  workflow_dispatch:
+    inputs:
+      since:
+        description: "CVD histórico desde (YYYY-MM-DD)"
+        default: "2024-06-01"
+      symbols:
+        description: "Símbolos (CSV, sin USDT)"
+        default: "SOL,BTC"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Deps mínimas
+        run: pip install --quiet pandas pyarrow numpy
+      - name: Bajar CVD real (gratis) + validar con DSR — por símbolo
+        run: |
+          set -x
+          END=$(date -u +%Y-%m-%d)
+          IFS=',' read -ra SYMS <<< "${{ inputs.symbols }}"
+          for S in "${SYMS[@]}"; do
+            S=$(echo "$S" | tr -d ' ' | tr '[:lower:]' '[:upper:]')
+            CUBE="cosecha_cubes/tp_cube_${S}_USDT.parquet"
+            [ -e "$CUBE" ] || { echo "== sin cube para ${S}, skip =="; continue; }
+            echo "===== ${S}: bajando CVD real (${{ inputs.since }} -> ${END}) ====="
+            python tools/fetch_binance_vision_cvd.py "${S}USDT" \
+              --start "${{ inputs.since }}" --end "${END}" --out-dir data || { echo "fetch ${S} falló"; continue; }
+            echo "===== ${S}: veredicto DSR del CVD firmado ====="
+            python tools/validate_cvd_signed_flow.py \
+              --cube "${CUBE}" --cvd "data/cvd_hist_${S}USDT.parquet" \
+              --tp tp4 --horizon 576 || echo "validate ${S} falló"
+          done
+          echo "===== FIN: el veredicto está arriba (EDGE REAL ✓ = cablear; NO pasa = no) ====="
