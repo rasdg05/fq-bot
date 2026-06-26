@@ -109,8 +109,7 @@ def build_vip_signal(field, decision_report, tf_label=None, tf_id=None, pair=Non
     # queda byte-identica a la historica (default OFF en el monolito).
     cvd_line = ""
     if cvd_confirmed:
-        cvd_line = "  {d} ORDER-FLOW CONFIRMADO  ·  conviccion ALTA\n".format(
-            d=GLYPHS["premium"])
+        cvd_line = "  {d} ORDER-FLOW CONFIRMADO\n".format(d=GLYPHS["premium"])
 
     return (
         "{rule}\n"
