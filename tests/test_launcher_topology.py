@@ -77,6 +77,25 @@ def test_cvd_off_por_defecto_y_no_critico(monkeypatch):
     assert crit["cvd-collect"] is False and crit["vip"] is True
 
 
+def test_all_processes_exited_desempaqueta_3_tuplas(monkeypatch):
+    # _processes son (name, Popen, critical). El shutdown debe desempaquetar 3, no 2
+    # (regresión: `for _, p in _processes` daba ValueError y crasheaba el apagado).
+    class _FakeProc:
+        def __init__(self, code):
+            self._c = code
+
+        def poll(self):
+            return self._c          # None = vivo, int = terminado
+
+    monkeypatch.setattr(launcher, "_processes",
+                        [("vip", _FakeProc(0), True), ("carry-paper", _FakeProc(143), False)])
+    assert launcher._all_processes_exited() is True     # ambos terminados, SIN ValueError
+
+    monkeypatch.setattr(launcher, "_processes",
+                        [("vip", _FakeProc(None), True), ("agg-oi", _FakeProc(0), False)])
+    assert launcher._all_processes_exited() is False    # uno sigue vivo
+
+
 def test_watchdog_usa_la_misma_regla(monkeypatch):
     # maintenance._public_enabled comparte la regla (los umbrales del modulo
     # se fijan al importar; aqui validamos la regla viva).

@@ -180,6 +180,14 @@ def _spawn(name, cmd):
     )
 
 
+def _all_processes_exited():
+    """True si TODOS los hijos terminaron. _processes son tuplas de 3
+    (name, Popen, critical) -> hay que desempaquetar 3, no 2. (Antes:
+    `for _, p in _processes` -> ValueError: too many values to unpack, crasheaba
+    el apagado limpio en cada SIGTERM/deploy de Railway.)"""
+    return all(p.poll() is not None for _name, p, _crit in _processes)
+
+
 def _shutdown(signum=None, frame=None):
     global _shutting_down
     if _shutting_down:
@@ -196,7 +204,7 @@ def _shutdown(signum=None, frame=None):
 
     deadline = time.time() + GRACE_SECONDS
     while time.time() < deadline:
-        if all(p.poll() is not None for _, p in _processes):
+        if _all_processes_exited():
             break
         time.sleep(0.5)
 
