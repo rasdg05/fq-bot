@@ -56,4 +56,18 @@ jobs:
                 --cube "${CUBE}" --oi "data/oi_hist_${S}USDT.parquet" \
                 --tp tp4 --horizon 576 --min-change "${MC}" || echo "validate ${S}@${MC} falló"
             done
+            # ORTOGONALIDAD OI×CVD: ¿el OI suma DENTRO de lo ya CVD-confirmado, o es
+            # redundante? Baja TAMBIEN el CVD (aggTrades, más pesado) y cruza. min_change=0
+            # (2×2 con más muestra) e imb=0.50 (el umbral CVD validado).
+            echo "===== ${S}: bajando CVD real para el cruce de ortogonalidad ====="
+            if python tools/fetch_binance_vision_cvd.py "${S}USDT" \
+                 --start "${{ inputs.since }}" --end "${END}" --out-dir data; then
+              echo "===== ${S}: ORTOGONALIDAD OI × CVD ====="
+              python tools/validate_oi_flow.py \
+                --cube "${CUBE}" --oi "data/oi_hist_${S}USDT.parquet" \
+                --cvd "data/cvd_hist_${S}USDT.parquet" \
+                --tp tp4 --horizon 576 --min-change 0.0 --imb-min 0.50 || echo "ortogonalidad ${S} falló"
+            else
+              echo "== fetch CVD ${S} falló; salto la ortogonalidad =="
+            fi
           done
