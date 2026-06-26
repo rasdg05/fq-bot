@@ -7,35 +7,38 @@ Habla de adulto a adulto. **Sin promesas de rentabilidad.** 60–80s.
 
 ---
 
-## TELEPROMPTER (palabra por palabra)
+## TELEPROMPTER (palabra por palabra) · v3 TJR-smart
 
-**[0–8 s · ENTRADA — directo, sin sonrisa, sin frase motivacional]**
-> Tocaste el enlace, así que vamos a hablar como adultos. Sin frases de coach,
-> sin humo. Te voy a ahorrar los dos años que a mí me costó entender esto.
+**[0–7 s · ENTRADA — directo, media sonrisa de lado, autoridad relajada]**
+> Tocaste el enlace. Bien — eso ya te separa del que consume contenido todo el
+> día y nunca ejecuta nada. Hablemos sin humo.
 
-**[8–30 s · LA TESIS — la idea que lo hace ver inteligente]**
-> La industria te dice que el 90% pierde por "psicología". Es una verdad a
-> medias. La razón de fondo es matemática: la gente optimiza para tener la razón,
-> cuando el juego se gana optimizando expectativa — cuánto ganas cuando aciertas
-> contra cuánto pierdes cuando no. Puedes acertar el 40% de las veces y ser muy
-> sólido si tu asimetría es correcta; y puedes acertar el 70% y quebrar.
+**[7–30 s · LA TESIS — el insight que lo hace ver inteligente]**
+> Todos repiten que el 90% pierde "por psicología". Cómodo, pero es flojo. La
+> verdad es más simple y más incómoda: la gente optimiza por tener la razón. Y el
+> mercado no te paga por tener la razón — te paga por asimetría. Cuánto te llevas
+> cuando aciertas contra cuánto sueltas cuando no. Acierta el 40% con la asimetría
+> correcta y vas arriba; acierta el 70% sin ella y estás muerto. Casi nadie corre
+> ese número.
 
 **[30–48 s · EL REFRAME — operador, no apostador]**
-> Operar no es predecir. Es ejecutar un proceso con expectativa positiva y riesgo
-> controlado, repetido muchas veces. Como la casa en un casino: ninguna mano
-> importa, la ventaja se cobra en el volumen. El problema es que casi toda la
-> "educación" de trading vende dopamina, no proceso. Te da señales, no un sistema.
+> Porque operar no es predecir: es administrar probabilidades. Eres la casa, no el
+> jugador. A la casa le da igual una mano — su ventaja se cobra en mil. El día que
+> dejas de cazar el trade perfecto y empiezas a ejecutar un proceso repetible, todo
+> cambia. Pero eso no se vende bien; por eso te venden señales y adrenalina en vez
+> de un sistema.
 
-**[48–66 s · POR QUÉ YO / TRANSPARENCIA — sin presumir]**
-> Por eso muestro también las operaciones que pierden. Un edge real no necesita
-> esconder las pérdidas: sobrevive a ellas. Y para que quede claro: esto tiene
-> riesgo, no hay nada garantizado, y nadie serio te va a prometer lo contrario.
+**[48–66 s · TRANSPARENCIA — sin presumir, con filo]**
+> Yo te muestro las que pierdo. No por humilde — por matemática: un edge de verdad
+> sobrevive a las rachas malas, no las esconde. Y para que quede claro: esto tiene
+> riesgo, puedes perder, y cualquiera que te jure lo contrario te está viendo la
+> cara.
 
-**[66–82 s · LA GUÍA + CTA — cierre firme]**
-> Lo que armé no es motivación. Es el marco operativo: cómo definir tu
-> invalidación, cómo dimensionar el riesgo, cómo construir asimetría y cómo medir
-> tu expectativa real con datos. Déjame tu correo y te lo mando gratis. Si piensas
-> como operador y no como jugador, vas a encajar aquí.
+**[66–82 s · LA GUÍA + CTA — cierre firme que filtra]**
+> Lo que te dejo no es una charla motivacional. Es el marco con el que opero:
+> invalidación, tamaño de riesgo, asimetría y cómo medir tu expectativa con datos,
+> no con sensaciones. Déjame tu correo y te lo mando. Si piensas como operador,
+> este es tu lugar. Si buscas el botón de hacerte rico, no lo es.
 
 ---
 

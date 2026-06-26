@@ -5,60 +5,72 @@
 <title>El Sistema sobre el Ego — FQ</title>
 <style>
   :root{
-    --ink:#15181d; --muted:#5b6470; --faint:#8a93a2;
-    --accent:#0f6b54; --accent2:#117a60;
-    --bg:#ffffff; --panel:#f4f6f5; --hair:#dfe4e2;
-    --dark:#0a0c10; --darkpanel:#11151c; --darkhair:#222a35; --darkink:#e7eaee;
+    /* Identidad en match con la landing */
+    --ink:#14181d; --muted:#586170; --faint:#8c95a3;
+    --accent:#0e9e76; --accent-d:#0b7e5e; --accentglow:rgba(25,184,140,.10);
+    --bg:#ffffff; --panel:#f3f7f5; --hair:#e2e8e5;
+    --dark:#080a0e; --darkpanel:#11151c; --darkhair:#222a35; --darkink:#eef1f4;
+    --emerald:#19b88c;
   }
   *{ -webkit-print-color-adjust:exact; print-color-adjust:exact; box-sizing:border-box; }
-  @page { size:A4; margin:17mm 16mm 16mm 16mm; }
+  @page { size:A4; margin:18mm 17mm 16mm 17mm; }
   @page cover { margin:0; }
   @page back { margin:0; }
   html,body{ margin:0; padding:0; }
-  body{ font-family:Georgia,"Times New Roman",serif; color:var(--ink); font-size:11.4pt; line-height:1.62; }
-  h1,h2,h3,.sans{ font-family:"Helvetica Neue",Arial,sans-serif; }
+  body{ font-family:Georgia,"Times New Roman",serif; color:var(--ink); font-size:11.4pt; line-height:1.66; }
+  h1,h2,h3,.sans,.kick{ font-family:"Helvetica Neue",Arial,sans-serif; }
   .mono{ font-family:"SF Mono","JetBrains Mono",Menlo,Consolas,monospace; }
 
-  /* COVER */
-  .cover{ page:cover; background:var(--dark); color:var(--darkink); height:297mm; padding:30mm 24mm; position:relative; }
+  /* ===== COVER ===== */
+  .cover{ page:cover; background:
+      radial-gradient(120% 60% at 50% 0%, rgba(25,184,140,.18), transparent 60%), var(--dark);
+      color:var(--darkink); height:297mm; padding:32mm 24mm; position:relative; }
   .cover .mark{ display:flex; align-items:center; gap:14px; }
-  .cover .bar{ width:6px; height:64px; background:var(--accent2); border-radius:3px; }
-  .cover .fq{ font-family:"Helvetica Neue",Arial,sans-serif; font-weight:800; font-size:40pt; letter-spacing:-1px; }
-  .cover .kicker{ font-family:"SF Mono",monospace; color:#8a93a2; letter-spacing:3px; text-transform:uppercase; font-size:10pt; margin-top:46mm; }
-  .cover h1{ font-size:40pt; line-height:1.05; margin:10px 0 0; letter-spacing:-1px; }
-  .cover .sub{ font-size:15pt; color:#b9c0c9; margin-top:18px; max-width:150mm; font-family:Georgia,serif; }
-  .cover .free{ position:absolute; bottom:42mm; left:24mm; display:inline-block; border:1px solid var(--darkhair); border-radius:999px; padding:8px 18px; font-family:"SF Mono",monospace; font-size:10pt; letter-spacing:2px; color:#7fddb9; text-transform:uppercase; }
-  .cover .by{ position:absolute; bottom:24mm; left:24mm; color:#8a93a2; font-family:"Helvetica Neue",Arial,sans-serif; font-size:11pt; }
+  .cover .bar{ width:6px; height:60px; background:var(--emerald); border-radius:3px; box-shadow:0 0 26px rgba(25,184,140,.5); }
+  .cover .fq{ font-family:"Helvetica Neue",Arial,sans-serif; font-weight:800; font-size:38pt; letter-spacing:-1px; }
+  .cover .kick{ color:var(--emerald); letter-spacing:4px; text-transform:uppercase; font-size:10pt; margin-top:48mm; font-weight:700; }
+  .cover h1{ font-size:42pt; line-height:1.03; margin:12px 0 0; letter-spacing:-1.2px; }
+  .cover h1 em{ font-style:normal; color:var(--emerald); }
+  .cover .sub{ font-size:14.5pt; color:#aeb6c0; margin-top:18px; max-width:150mm; font-family:Georgia,serif; }
+  .cover .meta{ position:absolute; bottom:28mm; left:24mm; right:24mm; display:flex; justify-content:space-between; align-items:flex-end; }
+  .cover .free{ border:1px solid var(--darkhair); border-radius:999px; padding:8px 18px; font-family:"SF Mono",monospace; font-size:9.5pt; letter-spacing:2px; color:#7fddb9; text-transform:uppercase; }
+  .cover .by{ color:#8a93a2; font-family:"Helvetica Neue",Arial,sans-serif; font-size:11pt; text-align:right; }
   .cover .by b{ color:var(--darkink); }
 
-  h2{ font-size:21pt; color:var(--ink); margin:0 0 4px; letter-spacing:-.3px; page-break-before:always; padding-top:2mm; }
-  h2 .n{ color:var(--accent); }
-  h2 + .lead{ color:var(--muted); font-size:12pt; margin:0 0 14px; }
-  h3{ font-size:13pt; margin:18px 0 4px; color:var(--accent2); }
+  /* ===== INTERIOR ===== */
+  .kicker{ font-family:"Helvetica Neue",Arial,sans-serif; font-weight:700; color:var(--accent); letter-spacing:3px; text-transform:uppercase; font-size:9pt; }
+  h2{ font-size:22pt; color:var(--ink); margin:2px 0 2px; letter-spacing:-.4px; page-break-before:always; padding-top:2mm; }
+  h2 .badge{ display:inline-block; font-family:"SF Mono",monospace; font-size:11pt; color:#fff; background:var(--accent); border-radius:7px; padding:2px 9px; margin-right:10px; vertical-align:middle; letter-spacing:0; }
+  .urule{ width:54px; height:3px; background:var(--accent); border-radius:2px; margin:10px 0 12px; }
+  .lead{ color:var(--muted); font-size:12.5pt; font-style:italic; margin:0 0 14px; }
+  h3{ font-size:12.5pt; margin:18px 0 4px; color:var(--accent-d); font-family:"Helvetica Neue",Arial,sans-serif; }
   p{ margin:0 0 11px; }
-  .rule{ font-family:"SF Mono",monospace; font-size:9.5pt; color:var(--faint); letter-spacing:2px; text-transform:uppercase; }
   hr{ border:0; border-top:1px solid var(--hair); margin:16px 0; }
-  ul,ol{ margin:0 0 12px; padding-left:20px; } li{ margin:4px 0; }
-  .panel{ background:var(--panel); border:1px solid var(--hair); border-left:3px solid var(--accent); border-radius:8px; padding:14px 16px; margin:14px 0; }
-  .panel .t{ font-family:"Helvetica Neue",Arial,sans-serif; font-weight:700; font-size:10pt; letter-spacing:1px; text-transform:uppercase; color:var(--accent); margin-bottom:6px; }
-  .ej{ background:#0a0c10; color:#e7eaee; border-radius:8px; padding:14px 16px; margin:14px 0; font-size:10.5pt; }
-  .ej .t{ font-family:"SF Mono",monospace; color:#7fddb9; letter-spacing:2px; text-transform:uppercase; font-size:9pt; margin-bottom:8px; }
-  .ej b{ color:#fff; } .ej .mono{ color:#cfe9e0; }
-  .warn{ border:1px solid #e7c9c9; background:#fbf3f3; border-left:3px solid #b23b3b; border-radius:8px; padding:14px 16px; color:#5a2a2a; font-size:10pt; }
+  ul,ol{ margin:0 0 12px; padding-left:20px; } li{ margin:5px 0; }
+  .panel{ background:var(--panel); border:1px solid var(--hair); border-left:3px solid var(--accent); border-radius:10px; padding:14px 16px; margin:14px 0; }
+  .panel .t{ font-family:"Helvetica Neue",Arial,sans-serif; font-weight:700; font-size:9.5pt; letter-spacing:1.5px; text-transform:uppercase; color:var(--accent-d); margin-bottom:6px; }
+  .ej{ background:var(--dark); color:var(--darkink); border-radius:10px; padding:15px 17px; margin:14px 0; font-size:10.5pt; line-height:1.7; }
+  .ej .t{ font-family:"SF Mono",monospace; color:var(--emerald); letter-spacing:2px; text-transform:uppercase; font-size:9pt; margin-bottom:9px; }
+  .ej b{ color:#fff; } .ej .mono{ color:#bfe9dc; }
+  .warn{ border:1px solid #e7cdcd; background:#fbf4f4; border-left:3px solid #b23b3b; border-radius:10px; padding:14px 16px; color:#5a2a2a; font-size:10pt; }
   .warn .t{ font-weight:700; color:#b23b3b; font-family:"Helvetica Neue",Arial,sans-serif; letter-spacing:1px; text-transform:uppercase; font-size:9.5pt; margin-bottom:5px; }
-  .toc li{ margin:7px 0; } .toc .num{ color:var(--accent); font-family:"SF Mono",monospace; }
-  .center{ text-align:center; }
+  .toc li{ margin:8px 0; } .toc .num{ color:var(--accent); font-family:"SF Mono",monospace; font-weight:700; }
   .small{ font-size:9.5pt; color:var(--faint); }
+  .drop:first-letter{ font-size:34pt; font-family:"Helvetica Neue",Arial,sans-serif; font-weight:800; color:var(--accent); float:left; line-height:.8; padding:4px 8px 0 0; }
 
-  /* BACK / CTA */
-  .back{ page:back; background:var(--dark); color:var(--darkink); height:297mm; padding:34mm 24mm; }
-  .back h2{ color:#fff; page-break-before:auto; font-size:26pt; }
+  /* ===== BACK / CTA ===== */
+  .back{ page:back; background:
+      radial-gradient(120% 55% at 50% 100%, rgba(25,184,140,.16), transparent 60%), var(--dark);
+      color:var(--darkink); height:297mm; padding:34mm 24mm; }
+  .back .kick{ color:var(--emerald); letter-spacing:3px; text-transform:uppercase; font-size:10pt; font-weight:700; }
+  .back h2{ color:#fff; page-break-before:auto; font-size:28pt; margin:6px 0 6px; }
+  .back .intro{ color:#aeb6c0; font-size:12.5pt; max-width:150mm; }
   .back a{ text-decoration:none; color:inherit; }
-  .back .bigbtn{ display:block; text-align:center; background:var(--accent2); color:#fff; font-family:"Helvetica Neue",Arial,sans-serif; font-weight:800; font-size:15pt; padding:16px 18px; border-radius:12px; margin:18px 0 22px; letter-spacing:.3px; }
-  .back .chip{ display:block; background:var(--darkpanel); border:1px solid var(--darkhair); border-radius:12px; padding:14px 18px; margin:12px 0; }
+  .back .bigbtn{ display:block; text-align:center; background:var(--emerald); color:#062018; font-family:"Helvetica Neue",Arial,sans-serif; font-weight:800; font-size:15pt; padding:17px 18px; border-radius:13px; margin:22px 0 22px; box-shadow:0 10px 40px rgba(25,184,140,.25); }
+  .back .chip{ display:flex; justify-content:space-between; align-items:center; background:var(--darkpanel); border:1px solid var(--darkhair); border-radius:12px; padding:13px 18px; margin:11px 0; }
   .back .chip .l{ font-family:"SF Mono",monospace; color:#8a93a2; font-size:9pt; letter-spacing:2px; text-transform:uppercase; }
-  .back .chip .v{ font-family:"Helvetica Neue",Arial,sans-serif; font-weight:800; font-size:16pt; color:#fff; }
-  .back .dis{ position:absolute; }
+  .back .chip .v{ font-family:"Helvetica Neue",Arial,sans-serif; font-weight:800; font-size:14pt; color:#fff; }
+  .back .dis{ color:#7d8694; font-size:9pt; margin-top:24mm; line-height:1.5; }
 </style>
 </head>
 <body>
@@ -66,216 +78,197 @@
 <!-- ===== COVER ===== -->
 <section class="cover">
   <div class="mark"><div class="bar"></div><div class="fq">FQ</div></div>
-  <div class="kicker">Guía gratuita · Fibonacci Cuántico</div>
-  <h1>El sistema<br/>sobre el ego</h1>
-  <div class="sub">5 reglas para dejar de operar a corazonada y empezar a operar con método.</div>
-  <div class="free">Lead magnet · RasDG</div>
-  <div class="by">por <b>Diego Gallegos · RasDG</b></div>
+  <div class="kick">Guía · Fibonacci Cuántico</div>
+  <h1>El sistema<br/>sobre el <em>ego</em></h1>
+  <div class="sub">5 reglas para dejar de adivinar y empezar a operar como la casa, no como el jugador.</div>
+  <div class="meta">
+    <div class="free">Gratis · RasDG</div>
+    <div class="by">por <b>Diego Gallegos · RasDG</b></div>
+  </div>
 </section>
 
-<!-- ===== AVISO ===== -->
+<!-- ===== AVISO + TOC ===== -->
 <section>
-  <div class="rule">— Antes de empezar</div>
+  <div class="kicker">Antes de empezar</div>
+  <div class="urule"></div>
   <div class="warn">
     <div class="t">Aviso de riesgo</div>
     El trading de criptomonedas y activos apalancados conlleva alto riesgo: puedes
     perder todo tu capital. Esta guía es <b>educativa</b>, no es asesoría financiera
-    ni una recomendación de inversión. <b>No existen ganancias garantizadas</b> y los
+    ni recomendación de inversión. <b>No existen ganancias garantizadas</b> y los
     resultados pasados no aseguran resultados futuros. Opera solo capital que puedas
-    permitirte perder, y bajo tu propia responsabilidad.
+    permitirte perder.
   </div>
-  <h3>Para quién es esta guía</h3>
-  <p>Para el trader principiante o intermedio que está cansado de operar por
-  impulso, que ha probado de todo y sigue igual, y que sospecha — con razón — que
-  el problema no es el mercado: es la <b>falta de método</b>.</p>
-  <p>No vas a encontrar promesas de hacerte rico. Vas a encontrar las cinco reglas
-  que separan a quien opera con un sistema de quien opera con el ego. Son simples.
-  Lo difícil es la disciplina de seguirlas.</p>
-
+  <h3>Para quién es esto</h3>
+  <p>Para el que ya entendió que consumir más contenido no lo está volviendo
+  rentable, y sospecha — con razón — que el problema no es el mercado: es que está
+  <b>apostando con pasos extra</b> en lugar de operar un sistema.</p>
+  <p>No hay promesas de hacerte rico. Hay un marco operativo: cinco reglas que
+  separan al operador del jugador. Son simples. Lo difícil es la disciplina.</p>
   <div class="panel">
     <div class="t">Contenido</div>
     <ol class="toc">
-      <li><span class="num">00 ·</span> El mercado no te robó</li>
-      <li><span class="num">01 ·</span> Regla 1 — Define tu invalidación antes de entrar</li>
-      <li><span class="num">02 ·</span> Regla 2 — Arriesga siempre lo mismo</li>
-      <li><span class="num">03 ·</span> Regla 3 — Plan de trade: entrada, stop, target</li>
-      <li><span class="num">04 ·</span> Regla 4 — Opera reglas, no emociones</li>
-      <li><span class="num">05 ·</span> Regla 5 — Mide y mejora</li>
-      <li><span class="num">06 ·</span> Bonus: cómo se ve una operación con sistema</li>
+      <li><span class="num">00 ·</span> El mercado no te paga por tener la razón</li>
+      <li><span class="num">01 ·</span> Define tu invalidación antes de entrar</li>
+      <li><span class="num">02 ·</span> Arriesga siempre lo mismo</li>
+      <li><span class="num">03 ·</span> Plan de trade: entrada, stop, target</li>
+      <li><span class="num">04 ·</span> Opera reglas, no emociones</li>
+      <li><span class="num">05 ·</span> Mide y mejora</li>
+      <li><span class="num">06 ·</span> Bonus: una operación con sistema</li>
     </ol>
   </div>
 </section>
 
-<!-- ===== INTRO ===== -->
+<!-- ===== INTRO (tesis inteligente) ===== -->
 <section>
-  <h2>El mercado no te robó</h2>
-  <p class="lead">Te robaste tú solo. Y esa es la mejor noticia.</p>
-  <p>Si llevas años en el trading y sigues igual, lo más fácil es culpar al
-  mercado, a los "manipuladores", a la mala suerte. Pero la verdad incómoda es
-  esta: <b>el mercado no te robó. Compraste porque "sentías" que iba a subir,
-  vendiste por miedo, y luego le echaste la culpa a todo menos a tu falta de
-  método.</b></p>
-  <p>Es buena noticia porque significa que la solución está en tus manos. No
-  necesitas adivinar el futuro. Necesitas un <b>sistema</b>: un conjunto de reglas
-  que decidan por ti cuándo entrar, cuánto arriesgar, dónde salir y cuándo no
-  operar. El sistema es tu copiloto; no tu niñera. Tú ejecutas, él calcula.</p>
-  <p>Operar con el ego es predecir. Operar con sistema es <b>ejecutar un proceso</b>
-  con ventaja estadística y gestión de riesgo. Las siguientes cinco reglas son la
-  base de ese proceso.</p>
+  <h2>El mercado no te paga por tener la razón</h2>
+  <div class="urule"></div>
+  <p class="lead">Te paga por asimetría. Y casi nadie corre ese número.</p>
+  <p class="drop">Todos repiten que el 90% pierde "por psicología". Es cómodo, pero
+  es flojo. La verdad es más simple y más incómoda: la gente <b>optimiza por tener
+  la razón</b> — busca acertar. Pero el mercado no premia el acierto; premia la
+  <b>asimetría</b>: cuánto te llevas cuando aciertas contra cuánto sueltas cuando no.</p>
+  <p>Puedes acertar el <b>40%</b> de las veces y ser sólido si tu asimetría es
+  correcta. Y puedes acertar el <b>70%</b> y quebrar si cada error te cuesta lo que
+  tres aciertos te dieron. El acierto sin asimetría es una trampa.</p>
+  <p>Por eso operar no es predecir: es <b>administrar probabilidades</b>. Eres la
+  casa, no el jugador. A la casa le da igual una mano — su ventaja se cobra en mil.
+  El día que dejas de cazar el trade perfecto y empiezas a ejecutar un proceso
+  repetible con ventaja, todo cambia.</p>
+  <p>Las siguientes cinco reglas son ese proceso. No son motivación; son el sistema.</p>
 </section>
 
 <!-- ===== REGLA 1 ===== -->
 <section>
-  <h2><span class="n">Regla 1</span> — Define tu invalidación antes de entrar</h2>
+  <h2><span class="badge">01</span> Define tu invalidación antes de entrar</h2>
+  <div class="urule"></div>
   <p class="lead">Si no sabes dónde te equivocas, no tienes un trade: tienes una apuesta.</p>
-  <p>El stop-loss no es opcional ni es "por si acaso". Es la pieza que define la
-  operación. <b>Antes</b> de entrar tienes que poder responder: "¿Qué tiene que
-  pasar para que admita que estaba equivocado?" Ese punto — donde tu idea deja de
-  ser válida — es tu invalidación. Ahí va el stop, por estructura, no por cuánto
-  estás dispuesto a perder emocionalmente.</p>
+  <p>El stop-loss no es "por si acaso". Es lo que <b>define</b> la operación. Antes
+  de entrar tienes que poder responder: "¿Qué tiene que pasar para que admita que
+  me equivoqué?". Ese punto — donde tu idea deja de ser válida — es tu invalidación.
+  Ahí va el stop, por estructura, no por cuánto te duele perder.</p>
   <h3>Por qué casi todos lo hacen mal</h3>
-  <p>El ego no quiere admitir el error, así que mueve el stop "un poquito más"
-  para no aceptar la pérdida. Resultado: una pérdida chica y planeada se convierte
-  en una pérdida grande y descontrolada. El sistema elimina esa decisión: el stop
-  se define antes y no se toca.</p>
-  <div class="panel">
-    <div class="t">Acción</div>
-    Antes de tu próxima entrada, escribe en una nota: "Mi idea se invalida si el
-    precio llega a ___." Si no puedes completar la frase, no entres.
-  </div>
+  <p>El ego no quiere aceptar el error, así que mueve el stop "un poquito más". Una
+  pérdida chica y planeada se vuelve una grande y descontrolada. El sistema elimina
+  esa decisión: el stop se define antes y no se toca.</p>
+  <div class="panel"><div class="t">Acción</div>
+    Antes de tu próxima entrada completa esta frase: "Mi idea se invalida si el
+    precio llega a ___." Si no puedes completarla, no entres.</div>
 </section>
 
 <!-- ===== REGLA 2 ===== -->
 <section>
-  <h2><span class="n">Regla 2</span> — Arriesga siempre lo mismo</h2>
-  <p class="lead">El tamaño de la posición es lo que te mantiene vivo, no el acierto.</p>
-  <p>La mayoría piensa en "cuánto puedo ganar". El profesional piensa primero en
-  "cuánto puedo perder". La regla: arriesga un <b>porcentaje fijo y pequeño</b> de
-  tu cuenta por operación — típicamente <b>0.5% a 1%</b>. Así, una racha de
-  pérdidas (que va a llegar) no te saca del juego.</p>
-  <p>El tamaño de la posición no es un número arbitrario: sale de tu riesgo y de la
-  distancia a tu stop.</p>
-  <div class="ej">
-    <div class="t">Ejemplo · tamaño de posición</div>
-    Cuenta: <b>$1,000</b> · Riesgo por trade: <b>1% = $10</b><br/>
-    Entrada: <span class="mono">$100.00</span> · Stop: <span class="mono">$95.00</span> → distancia <b>5%</b><br/>
-    Tamaño = Riesgo ÷ distancia = <span class="mono">$10 ÷ 0.05 = $200</span> de posición.<br/>
-    Si el precio toca el stop, pierdes <b>$10</b> (tu 1%), no más. Decisión tomada
-    <b>antes</b> de entrar, sin emoción.
-  </div>
-  <div class="panel">
-    <div class="t">Acción</div>
-    Define HOY tu riesgo fijo por operación (sugerido: 1%). Escríbelo. Esa cifra no
-    se negocia "porque este trade se ve muy seguro".
-  </div>
+  <h2><span class="badge">02</span> Arriesga siempre lo mismo</h2>
+  <div class="urule"></div>
+  <p class="lead">El tamaño de la posición te mantiene vivo. El acierto, no.</p>
+  <p>La mayoría piensa "cuánto puedo ganar". El operador piensa primero "cuánto
+  puedo perder". Regla: arriesga un porcentaje <b>fijo y pequeño</b> por operación
+  —típicamente <b>0.5% a 1%</b>—. Así una racha mala (que va a llegar) no te saca
+  del juego. El tamaño sale de tu riesgo y de la distancia a tu stop, no del
+  entusiasmo.</p>
+  <div class="ej"><div class="t">Ejemplo · tamaño de posición</div>
+    Cuenta <b>$1,000</b> · Riesgo <b>1% = $10</b><br/>
+    Entrada <span class="mono">$100.00</span> · Stop <span class="mono">$95.00</span> → distancia <b>5%</b><br/>
+    Tamaño = riesgo ÷ distancia = <span class="mono">$10 ÷ 0.05 = $200</span><br/>
+    Si toca el stop pierdes <b>$10</b> (tu 1%), no más. Decidido <b>antes</b> de entrar.</div>
+  <div class="panel"><div class="t">Acción</div>
+    Define hoy tu riesgo fijo por operación (sugerido 1%). No se negocia "porque
+    este trade se ve muy seguro".</div>
 </section>
 
 <!-- ===== REGLA 3 ===== -->
 <section>
-  <h2><span class="n">Regla 3</span> — Plan de trade: entrada, stop, target</h2>
+  <h2><span class="badge">03</span> Plan de trade: entrada, stop, target</h2>
+  <div class="urule"></div>
   <p class="lead">Un trade sin plan es una emoción con dinero encima.</p>
-  <p>Toda operación necesita tres niveles definidos antes de entrar: <b>entrada</b>
-  (dónde), <b>stop</b> (dónde te equivocas), <b>target</b> (dónde tomas ganancia).
-  Con eso calculas la relación riesgo/beneficio (<b>R:R</b>): cuántas veces tu
-  riesgo puedes ganar si la idea funciona.</p>
-  <div class="ej">
-    <div class="t">Ejemplo · R:R</div>
+  <p>Tres niveles definidos antes de entrar: <b>entrada</b>, <b>stop</b> (dónde te
+  equivocas) y <b>target</b>. Con eso calculas la relación riesgo/beneficio
+  (<b>R:R</b>): tu asimetría hecha número.</p>
+  <div class="ej"><div class="t">Ejemplo · asimetría (R:R)</div>
     Entrada <span class="mono">$100</span> · Stop <span class="mono">$95</span> (riesgo $5) · Target <span class="mono">$115</span> (beneficio $15)<br/>
-    R:R = <b>15 ÷ 5 = 3:1</b>. Con 3:1 puedes acertar solo el <b>40%</b> de las veces
-    y aún así ser rentable. <span class="mono">Eso es ventaja estructural, no adivinanza.</span>
-  </div>
+    R:R = <b>15 ÷ 5 = 3:1</b>. Con 3:1 aciertas el <b>40%</b> y aún así vas arriba.
+    <span class="mono">Eso es ventaja estructural, no adivinanza.</span></div>
   <h3>Checklist antes de cada trade</h3>
   <ul>
     <li>¿Tengo entrada, stop y target definidos?</li>
     <li>¿El R:R es de al menos 2:1?</li>
     <li>¿El tamaño respeta mi riesgo fijo (Regla 2)?</li>
-    <li>¿Esta operación cumple las reglas de mi sistema, o la estoy forzando?</li>
+    <li>¿Esto cumple mis reglas, o lo estoy forzando?</li>
   </ul>
   <p class="small">Si una respuesta es "no", no hay trade. Esperar también es operar.</p>
 </section>
 
 <!-- ===== REGLA 4 ===== -->
 <section>
-  <h2><span class="n">Regla 4</span> — Opera reglas, no emociones</h2>
+  <h2><span class="badge">04</span> Opera reglas, no emociones</h2>
+  <div class="urule"></div>
   <p class="lead">El proceso es lo que controlas. El resultado, no.</p>
-  <p>No puedes controlar si un trade gana o pierde — eso depende del mercado. Lo
-  que sí controlas es <b>seguir tu proceso</b>. Un buen trade es el que respetó tus
-  reglas, aunque pierda. Un mal trade es el que las rompió, aunque gane (porque te
-  enseña el hábito equivocado).</p>
-  <p>Aquí es donde la automatización ayuda: un bot o un sistema de reglas no siente
-  miedo ni euforia. Cero emoción, pura estructura. Cuando dejas de operar desde el
-  ego y te apoyas en un sistema, la consistencia deja de depender de tu estado de
-  ánimo.</p>
-  <div class="panel">
-    <div class="t">Acción</div>
-    Después de cada operación, califícala de 0 a 10 por <b>cuánto respetaste tu
-    proceso</b> — no por si ganó o perdió. Persigue 10 de proceso; el dinero llega
-    como consecuencia.
-  </div>
+  <p>No controlas si un trade gana o pierde — eso es del mercado. Controlas
+  <b>seguir tu proceso</b>. Un buen trade es el que respetó tus reglas, aunque
+  pierda. Un mal trade es el que las rompió, aunque gane: te enseña el hábito
+  equivocado.</p>
+  <p>Aquí la automatización ayuda: un bot o un sistema de reglas no siente miedo ni
+  euforia. Cero emoción, pura estructura. Cuando te apoyas en el sistema, la
+  consistencia deja de depender de tu estado de ánimo.</p>
+  <div class="panel"><div class="t">Acción</div>
+    Califica cada operación de 0 a 10 por <b>cuánto respetaste tu proceso</b>, no
+    por si ganó. Persigue el 10 de proceso; el dinero es consecuencia.</div>
 </section>
 
 <!-- ===== REGLA 5 ===== -->
 <section>
-  <h2><span class="n">Regla 5</span> — Mide y mejora</h2>
-  <p class="lead">Lo que no mides, no lo puedes mejorar. Y operas a ciegas.</p>
-  <p>Sin datos, repites los mismos errores con más convicción. Dos herramientas:</p>
-  <h3>Bitácora (journaling)</h3>
-  <p>Registra cada operación: fecha, activo, entrada/stop/target, R:R, resultado en
-  R (no en dinero), y una nota de qué hiciste bien o mal. En 30 operaciones vas a
-  ver tu patrón con claridad brutal.</p>
+  <h2><span class="badge">05</span> Mide y mejora</h2>
+  <div class="urule"></div>
+  <p class="lead">Lo que no mides, lo repites a ciegas.</p>
+  <h3>Bitácora</h3>
+  <p>Registra cada operación: activo, entrada/stop/target, R:R, resultado <b>en R</b>
+  (no en dinero) y una nota. En 30 trades vas a ver tu patrón con claridad brutal.</p>
   <h3>Backtesting</h3>
-  <p>Antes de arriesgar dinero real, prueba tu sistema contra datos históricos.
-  ¿Cuántas veces habría funcionado? ¿Cuál fue la peor racha (drawdown)? El
-  backtesting convierte "creo que esto funciona" en "los datos dicen que esto tiene
-  ventaja". Es la diferencia entre fe y método.</p>
-  <div class="panel">
-    <div class="t">Métricas que importan</div>
-    Win rate · R:R promedio · Expectativa por trade · Máximo drawdown · Nº de
-    operaciones. Una estrategia con 45% de aciertos y 2.5:1 de R:R bate a una de
-    70% con 1:1.
-  </div>
+  <p>Antes de arriesgar real, prueba tu sistema contra datos históricos. ¿Cuántas
+  veces habría funcionado? ¿Cuál fue la peor racha (drawdown)? El backtesting
+  convierte "creo que funciona" en "los datos dicen que tiene ventaja". Es la
+  diferencia entre fe y método.</p>
+  <div class="panel"><div class="t">Métricas que importan</div>
+    Win rate · R:R promedio · <b>Expectativa por trade</b> · Máximo drawdown · Nº de
+    operaciones. Una estrategia de 45% con 2.5:1 le gana a una de 70% con 1:1.</div>
 </section>
 
 <!-- ===== BONUS ===== -->
 <section>
-  <h2><span class="n">Bonus</span> — Cómo se ve una operación con sistema</h2>
+  <h2><span class="badge">06</span> Una operación con sistema</h2>
+  <div class="urule"></div>
   <p class="lead">Las cinco reglas, juntas, en un solo trade (ejemplo ilustrativo).</p>
   <p>Así trabaja un sistema como <b>Fibonacci Cuántico</b>: no adivina, define
-  estructura. Una señal lista trae los tres niveles y respeta el riesgo:</p>
-  <div class="ej">
-    <div class="t">Señal ilustrativa · no es recomendación</div>
-    Activo: <span class="mono">SOL/USDT</span> · Dirección: <b>▲ Long</b><br/>
-    Entrada: <span class="mono">zona de interés definida</span><br/>
-    Stop: <span class="mono">debajo de la invalidación estructural</span> (Regla 1)<br/>
-    Target: <span class="mono">por estructura, R:R ≥ 2:1</span> (Regla 3)<br/>
-    Tamaño: <span class="mono">ajustado a 1% de riesgo</span> (Regla 2)<br/>
-    Ejecución: <span class="mono">por reglas, cero emoción</span> (Regla 4)<br/>
-    Registro: <span class="mono">a la bitácora, gane o pierda</span> (Regla 5)
-  </div>
-  <p>El bot te entrega esto listo: entrada, stop y target, multi-símbolo. Tú solo
-  ejecutas. <b>No te promete que ganarás</b> — te da el sistema y la estructura.
-  Lo demás depende de tu disciplina.</p>
-  <div class="warn">
-    <div class="t">Recordatorio</div>
+  estructura y entrega los niveles listos.</p>
+  <div class="ej"><div class="t">Señal ilustrativa · no es recomendación</div>
+    Activo <span class="mono">SOL/USDT</span> · Dirección <b>▲ Long</b><br/>
+    Entrada <span class="mono">zona de interés definida</span><br/>
+    Stop <span class="mono">bajo la invalidación estructural</span> (Regla 1)<br/>
+    Target <span class="mono">por estructura, R:R ≥ 2:1</span> (Regla 3)<br/>
+    Tamaño <span class="mono">ajustado a 1% de riesgo</span> (Regla 2)<br/>
+    Ejecución <span class="mono">por reglas, cero emoción</span> (Regla 4)<br/>
+    Registro <span class="mono">a la bitácora, gane o pierda</span> (Regla 5)</div>
+  <div class="warn"><div class="t">Recordatorio</div>
     Ningún sistema gana siempre. La ventaja se ve en muchas operaciones, con riesgo
-    controlado y disciplina. Si alguien te promete ganancias seguras, está mintiendo.
-  </div>
+    controlado y disciplina. Si alguien te promete ganancias seguras, te está
+    viendo la cara.</div>
 </section>
 
-<!-- ===== CIERRE / CTA ===== -->
+<!-- ===== BACK / CTA ===== -->
 <section class="back">
-  <h2>Tu siguiente paso</h2>
-  <p style="color:#b9c0c9; font-size:12.5pt;">Ya tienes el método. Ahora llévalo a
-  la práctica con la comunidad FQ. Empieza aquí:</p>
+  <div class="kick">Tu siguiente paso</div>
+  <h2>Piensa como operador.</h2>
+  <p class="intro">Ya tienes el marco. Si quieres ver cómo se aplica en vivo y con
+  qué herramientas, este es el lugar:</p>
 
   <a class="bigbtn" href="https://t.me/RASDG05">› Escríbeme «FQ» en Telegram</a>
 
-  <a class="chip" href="https://t.me/RASDG05"><div class="l">Habla conmigo · manda "FQ"</div><div class="v">Telegram @RASDG05</div></a>
-  <a class="chip" href="https://t.me/rasdg_quantum_signals_bot"><div class="l">El bot de señales</div><div class="v">@rasdg_quantum_signals_bot</div></a>
-  <a class="chip" href="https://instagram.com/diego_gallegosd"><div class="l">Sígueme</div><div class="v">Instagram @diego_gallegosd</div></a>
+  <a class="chip" href="https://t.me/RASDG05"><span class="l">Habla conmigo · manda "FQ"</span><span class="v">@RASDG05</span></a>
+  <a class="chip" href="https://t.me/rasdg_quantum_signals_bot"><span class="l">El bot de señales</span><span class="v">@rasdg_quantum_signals_bot</span></a>
+  <a class="chip" href="https://instagram.com/diego_gallegosd"><span class="l">Sígueme</span><span class="v">@diego_gallegosd</span></a>
 
-  <p style="color:#8a93a2; font-size:9.5pt; margin-top:18mm;">Esta guía es material
-  educativo. No es asesoría financiera. El trading conlleva riesgo de pérdida total.
+  <p class="dis">Esta guía es material educativo. No es asesoría financiera ni
+  recomendación de inversión. El trading conlleva riesgo de pérdida total.
   Rendimientos pasados no garantizan resultados futuros. © RasDG · Fibonacci Cuántico.</p>
 </section>
 
