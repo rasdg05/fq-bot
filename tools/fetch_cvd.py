@@ -92,6 +92,32 @@ def confirms_direction(feat, direction, imb_min=0.55):
     return False
 
 
+def cvd_confirmation(cvd_path, ccy, ts_ms, direction, lookback=48, win=24, imb_min=0.50):
+    """¿El order-flow firmado confirma la dirección EN ts_ms? Lee el CVD del colector
+    (FQ_CVD_COLLECT), toma la ventana CAUSAL (barras con ts < ts_ms, sin look-ahead),
+    agrega venues y confirma. imb_min default 0.50 = el umbral VALIDADO con DSR (SOL/BTC,
+    5 años). Devuelve dict {confirmed, imbalance, cvd_slope, n} o None si no hay data
+    suficiente. Defensivo: jamás lanza (si falta el parquet/ccy/ventana -> None)."""
+    import os
+    if not cvd_path or not os.path.exists(cvd_path):
+        return None
+    try:
+        df = pd.read_parquet(cvd_path)
+        d = df[df["ccy"] == ccy]
+        if d.empty:
+            return None
+        agg = (d[d["ts"] < int(ts_ms)]
+               .groupby("ts", as_index=False)[["buy_vol", "sell_vol"]].sum())
+        w = agg.sort_values("ts").tail(lookback)
+        if len(w) < win:
+            return None
+        f = cvd_features(w, win=win)
+        return {"confirmed": bool(confirms_direction(f, direction, imb_min=imb_min)),
+                "imbalance": f["imbalance"], "cvd_slope": f["cvd_slope"], "n": f["n"]}
+    except Exception:
+        return None
+
+
 # ----------------------------- colector forward -----------------------------
 def append_dedupe(path, new):
     if new.empty:
