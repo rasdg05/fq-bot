@@ -64,12 +64,27 @@ término técnico se explica con una imagen mental.
 - **Sin IA:** guion como apoyo, no como libreto rígido. Hablá como le explicarías a un
   amigo. Los tropiezos humanos generan más confianza que la perfección.
 
+## Dos pistas de contenido
+
+1. **Pista NOVATO — "La liquidez manda"** (esta serie): fundamentos en simple, imagen antes que
+   fórmula, para el que se ahogó en indicadores. Voz cálida de mentor.
+2. **Pista PRO — "Quant"** (`backlog-quant-2026.md`): para el operador que ya pasó el novato y
+   quiere ver *cómo piensa una mesa* — validación, order-flow, econofísica. Voz **confiada y directa
+   (estilo TJR)**, la matemática a la vista. Sale de las sesiones reales de backend, y **nunca revela
+   la receta** (cada idea marca 🎁 lo que regalamos vs 🔒 lo que queda dentro).
+
+El **ebook** (`ebook/como-se-construye-una-ventaja.html`) es el primer lead magnet de la pista pro:
+los 6 pasos para construir una estrategia con ventaja medible, con la matemática limpia a la vista y
+el moat de validación como regalo de valor. Se renderiza a PDF con Chromium (`--print-to-pdf`).
+
 ## Índice
 
 | Archivo | Qué es |
 |---|---|
-| `serie-maestra.md` | El arco de la serie (módulos) + plantilla de guion + principios |
+| `serie-maestra.md` | El arco de la serie novato (módulos) + plantilla de guion + principios |
 | `guiones/01-la-receta-de-2-cosas.md` | **Flagship**: operar leyendo el medidor + el libro de órdenes |
 | `guiones/02-la-liquidez-manda.md` | La tesis central: la liquidez determina el precio |
 | `guiones/03-la-divergencia-macro-vs-vwap.md` | Tu setup favorito: macro vende pero el VWAP/volumen compra |
-| `backlog-ideas.md` | 20+ ideas de videos (título + gancho + beats) para producir en serie |
+| `backlog-ideas.md` | 20+ ideas de videos novato (título + gancho + beats) para producir en serie |
+| **`backlog-quant-2026.md`** | **Pista PRO**: ideas decompuestas de las sesiones de backend (validación, order-flow, carry) con su frontera de revelado |
+| **`ebook/como-se-construye-una-ventaja.html`** | **Lead magnet #1** (pista pro): "Cómo se construye una ventaja", 10 págs → PDF |
