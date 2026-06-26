@@ -16,17 +16,20 @@
 
 ## FASE 1 — MAX EDGE (próximos ~30-45 días, sin capital extra)
 
-### 1.1 Cablear el filtro CVD validado (la prioridad)
+### 1.1 Cablear el filtro CVD validado (la prioridad) — ✅ CABLEADO (midiendo)
 El CVD-confirmado (imb≥0.50) pasó el DSR → es legítimo. **Disciplina: medición-primero.**
-1. **Integrar `cvd_features`/`confirms_direction` al pipeline de señal** como capa de
-   CALIDAD/CONVICCIÓN (no veto): las señales con order-flow confirmado suben de
-   conviction → más sizing/tier. Las no-confirmadas siguen saliendo (no se corta cadencia).
-2. **Fuente en vivo:** leer el parquet del colector `FQ_CVD_COLLECT` (o computar CVD fresco
-   del taker-volume reciente) en el momento de la señal, CAUSAL.
-3. **Gate `FQ_CVD_FILTER` (default OFF):** primero mide en `motor_paper` (taguea cada fire
-   con confirmado/no + el R forward), como el regime tag. Cuando la integración EN VIVO
-   replique el +0.1R de uplift forward → graduar a client-facing.
-4. **Criterio de graduación:** ≥30 fires confirmados forward, uplift ≥ el del cube, DSR ✓.
+1. **Integrado a `motor_paper`** (`_cvd_confirm` → `tools/fetch_cvd.cvd_confirmation`): cada
+   fire se taguea con order-flow confirmado/no, **CAUSAL** (ventana de barras con `ts<entrada`),
+   tag PARALELO al de regime. Hoy mide; mañana sube conviction/sizing (no veto: la cadencia
+   no se corta). ✅
+2. **Fuente en vivo:** lee el parquet del colector `FQ_CVD_COLLECT` (`cvd.parquet`) en el
+   instante de la señal. `FQ_CVD_IMB_MIN` (default 0.50 = el umbral validado). ✅
+3. **Gate `FQ_CVD_FILTER` (default OFF):** OFF → ledger byte-idéntico al histórico (sin claves
+   `cvd_*`). ON → `MOTOR_OPEN_META` sella `cvd_confirmed`; `ledger_report` agrega `by_cvd`
+   (confirmado vs no) y `/paper` imprime el uplift forward. ✅
+4. **Pendiente — encender y medir:** poner `FQ_CVD_COLLECT=1` + `FQ_CVD_FILTER=1` en Railway
+   (no-crítico, no toca al VIP). **Criterio de graduación:** ≥30 fires confirmados forward,
+   uplift ≥ el del cube (+0.1R), DSR ✓ → recién ahí sube conviction client-facing.
 
 ### 1.2 Sellar el fill-rate maker
 El +0.10R es un techo gated por adverse selection. `motor_paper` lo mide; **a 30-50 fills**

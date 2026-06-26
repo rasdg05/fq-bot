@@ -7,6 +7,7 @@ resolucion contra la vela. Sin red ni monolito (broker/governor/veto inyectados)
 """
 from types import SimpleNamespace
 
+import pandas as pd
 import pytest
 
 import execution as ex
@@ -354,3 +355,109 @@ def test_regime_fluye_por_el_path_maker():
               high=100.2, low=99.9)                            # penetra -> FILL maker
     meta = _events(rt, "MOTOR_OPEN_META")[-1]
     assert meta["fill_type"] == "maker" and meta["regime"] == "deriva"
+
+
+# ============================================================
+# CVD ORDER-FLOW TAG (capa 3 -> capa 1, measurement-first FQ_CVD_FILTER): el ledger
+# sella si el order-flow FIRMADO confirmo la direccion del fire (CAUSAL), para medir
+# FORWARD si el +0.1R de uplift (validado 5 anos, DSR ✓) se replica EN VIVO. Default
+# OFF -> sin claves cvd_* -> ledger backward-compatible.
+# ============================================================
+def _cvd_parquet(tmp_path, *, ccy="BTC", base_ms=1_700_000_000_000,
+                 buy=60.0, sell=40.0, n=30):
+    """Parquet sintetico del colector CVD: n barras 5m ANTES de base_ms con buy/sell
+    fijos. buy>sell -> CVD sube + imbalance comprador (confirma LONG / NO un SHORT)."""
+    rows = [{"ts": base_ms - (n - k) * 300_000, "ccy": ccy, "exchange": "okx",
+             "buy_vol": buy, "sell_vol": sell} for k in range(n)]
+    pq = tmp_path / "cvd.parquet"
+    pd.DataFrame(rows).to_parquet(pq, index=False)
+    return str(pq), base_ms
+
+
+def test_ccy_of_mapea_simbolo_a_ccy():
+    assert mp._ccy_of("SOL/USDT:USDT") == "SOL"
+    assert mp._ccy_of("BTCUSDT") == "BTC"
+    assert mp._ccy_of("ETH/USDC:USDC") == "ETH"
+    assert mp._ccy_of("SOL") == "SOL"
+    assert mp._ccy_of(None) == ""
+
+
+def test_ts_ms_normaliza_heterogeneo():
+    base = 1_700_000_000_000
+    assert mp._ts_ms(pd.Timestamp(base, unit="ms", tz="UTC")) == base   # pandas Timestamp
+    assert mp._ts_ms(base) == base                                       # int ms ya
+    assert mp._ts_ms(1_700_000_000) == 1_700_000_000_000                 # int seg -> ms
+    assert mp._ts_ms(None) is None
+
+
+def test_cvd_off_por_default_no_taggea():
+    # sin cvd_path -> MOTOR_OPEN_META IDENTICO al historico (sin claves cvd_*)
+    rt = _runtime()
+    rt.on_bar(True, _field(), _report("long"), None, 100.0,
+              ts=pd.Timestamp(1_700_000_000_000, unit="ms", tz="UTC"))
+    meta = _events(rt, "MOTOR_OPEN_META")[0]
+    assert "cvd_confirmed" not in meta and "cvd_imbalance" not in meta
+
+
+def test_cvd_taggea_confirmado_taker(tmp_path):
+    pq, base_ms = _cvd_parquet(tmp_path, ccy="BTC", buy=60.0, sell=40.0)   # confirma LONG
+    rt = _runtime(cvd_path=pq, cvd_imb_min=0.50)
+    rt.on_bar(True, _field(), _report("long"), None, 100.0,
+              ts=pd.Timestamp(base_ms, unit="ms", tz="UTC"))
+    meta = _events(rt, "MOTOR_OPEN_META")[0]
+    assert meta["cvd_confirmed"] is True
+    assert meta["cvd_imbalance"] == pytest.approx(0.60, abs=1e-6)
+
+
+def test_cvd_taggea_no_confirmado_con_flujo_opuesto(tmp_path):
+    pq, base_ms = _cvd_parquet(tmp_path, ccy="BTC", buy=40.0, sell=60.0)   # vendedor -> NO LONG
+    rt = _runtime(cvd_path=pq, cvd_imb_min=0.50)
+    rt.on_bar(True, _field(), _report("long"), None, 100.0,
+              ts=pd.Timestamp(base_ms, unit="ms", tz="UTC"))
+    meta = _events(rt, "MOTOR_OPEN_META")[0]
+    assert meta["cvd_confirmed"] is False
+
+
+def test_cvd_fluye_por_el_path_maker(tmp_path):
+    pq, base_ms = _cvd_parquet(tmp_path, ccy="BTC", buy=60.0, sell=40.0)
+    rt = _maker_rt()
+    rt.cvd_path, rt.cvd_imb_min = pq, 0.50      # arma el filtro en el rt maker
+    rt.on_bar(True, _field(), _report("long", entry=100.0), None, 100.0,
+              ts=pd.Timestamp(base_ms, unit="ms", tz="UTC"))           # encola pending
+    rt.on_bar(False, _field(), _report("long"), None, 100.0,
+              high=100.2, low=99.9)                                    # penetra -> FILL maker
+    meta = _events(rt, "MOTOR_OPEN_META")[-1]
+    assert meta["fill_type"] == "maker" and meta["cvd_confirmed"] is True
+
+
+def test_cvd_sin_data_no_crashea_y_no_taggea(tmp_path):
+    # cvd_path a un parquet inexistente -> cvd_confirmation None -> sin claves cvd_*
+    rt = _runtime(cvd_path=str(tmp_path / "noexiste.parquet"), cvd_imb_min=0.50)
+    rt.on_bar(True, _field(), _report("long"), None, 100.0,
+              ts=pd.Timestamp(1_700_000_000_000, unit="ms", tz="UTC"))
+    meta = _events(rt, "MOTOR_OPEN_META")[0]
+    assert "cvd_confirmed" not in meta          # defensivo: jamas rompe el motor
+
+
+def test_ledger_report_by_cvd_segmenta(tmp_path):
+    """by_cvd separa el R de fires con order-flow confirmado vs no. Mismo flujo
+    comprador (parquet): el LONG queda confirmado y el SHORT NO -> un trade en cada
+    cubeta tras cerrar ambos a TP. format taguea la linea order-flow."""
+    pq, base_ms = _cvd_parquet(tmp_path, ccy="BTC", buy=60.0, sell=40.0)
+    path = str(tmp_path / "led.jsonl")
+    broker = ex.PaperBroker(ledger=ex.DurableHashLedger.load(path))
+    rt = mp.MotorPaperRuntime("BTC/USDT:USDT", account=ex.Account("a", 10_000.0),
+                              broker=broker, veto=sv.SegmentVeto(),
+                              maker_sim=False, cvd_path=pq, cvd_imb_min=0.50)
+    tsb = pd.Timestamp(base_ms, unit="ms", tz="UTC")
+    # LONG confirmado -> cierra TP (+1R)
+    rt.on_bar(True, _field(), _report("long", entry=100.0), None, 100.0, ts=tsb)
+    rt.on_bar(False, _field(), _report("long"), None, 101.5, high=101.5, low=100.2)
+    # SHORT NO confirmado (flujo comprador) -> cierra TP (+1R)
+    rt.on_bar(True, _field(), _report("short", entry=100.0), None, 100.0, ts=tsb)
+    rt.on_bar(False, _field(), _report("short"), None, 98.5, high=99.5, low=98.5)
+    rep = mp.ledger_report(path)
+    by = rep["by_cvd"]
+    assert by["n_tagged"] == 2
+    assert by["confirmed"]["n"] == 1 and by["unconfirmed"]["n"] == 1
+    assert "order-flow CVD" in mp.format_report_telegram(rep)

@@ -66,7 +66,7 @@ class MotorPaperRuntime:
     def __init__(self, symbol, *, account, governor=None, broker=None,
                  veto=None, tp_key="tp1", notify_fn=None, requested_risk=None,
                  digest_every=0, maker_sim=True, maker_eps_bps=1.0,
-                 maker_ttl_bars=6, cost=None):
+                 maker_ttl_bars=6, cost=None, cvd_path=None, cvd_imb_min=0.50):
         self.symbol = symbol
         self.account = account
         self.governor = governor or RiskGovernor()
@@ -88,6 +88,13 @@ class MotorPaperRuntime:
         # del broker -> 0 cambio cuando no hay maker (todos los tests actuales).
         self.maker_exec = bool(getattr(self.broker.cost, "maker_entry", False))
         self._pending_entries = []
+        # Capa 3 (order-flow CVD) como MEDICION paralela al regime tag: si
+        # FQ_CVD_FILTER=1, cada fire se taguea con confirmado/no (CAUSAL) + su R
+        # forward -> mide si el uplift +0.1R (validado 5 anos, DSR ✓) se replica EN
+        # VIVO antes de graduar a conviction/sizing. cvd_path=None -> inerte (default).
+        self.cvd_path = cvd_path
+        self.cvd_ccy = _ccy_of(symbol)
+        self.cvd_imb_min = float(cvd_imb_min)
 
     @classmethod
     def from_env(cls, symbol, *, notify_fn=None, ledger_path=None):
@@ -130,13 +137,23 @@ class MotorPaperRuntime:
         maker_ttl = int(os.environ.get("FQ_GOLD_MAKER_TTL_BARS", "6"))
         maker_sim = os.environ.get("FQ_MOTOR_PAPER_MAKER_SIM", "1").strip() \
             in ("1", "true", "yes")
+        # Capa 3 order-flow (measurement-first): FQ_CVD_FILTER=1 lee el parquet del
+        # colector FQ_CVD_COLLECT y taguea cada fire (confirmado/no, CAUSAL). Default
+        # OFF -> path None -> inerte. imb_min 0.50 = umbral VALIDADO (DSR, 5 anos).
+        cvd_path = None
+        if os.environ.get("FQ_CVD_FILTER", "0").strip() in ("1", "true", "yes"):
+            cvd_dir = os.environ.get("FQ_CVD_DIR") or (
+                "/data" if os.path.isdir("/data") else "data/okx")
+            cvd_path = os.path.join(cvd_dir, "cvd.parquet")
+        cvd_imb_min = float(os.environ.get("FQ_CVD_IMB_MIN", "0.50"))
         log.info("[motor] runtime paper MOTOR BASE activo (%s, veto=%s, "
-                 "maker_shadow=%s, exec=%s, ledger=%s)", symbol, veto.describe(),
-                 maker_sim, exec_mode.strip() or "bruto", led_path)
+                 "maker_shadow=%s, exec=%s, cvd=%s, ledger=%s)", symbol, veto.describe(),
+                 maker_sim, exec_mode.strip() or "bruto",
+                 ("on@%.2f" % cvd_imb_min) if cvd_path else "off", led_path)
         return cls(symbol, account=acc, broker=broker, veto=veto, tp_key=tp_key,
                    notify_fn=notify_fn, digest_every=digest_every,
                    maker_sim=maker_sim, maker_eps_bps=maker_eps,
-                   maker_ttl_bars=maker_ttl)
+                   maker_ttl_bars=maker_ttl, cvd_path=cvd_path, cvd_imb_min=cvd_imb_min)
 
     def _maybe_digest(self):
         if self.digest_every and self._ticks % self.digest_every == 0 \
@@ -191,6 +208,7 @@ class MotorPaperRuntime:
             else:
                 sig = normalize_fire_report(report, self.symbol, tp_key=self.tp_key)
                 if sig is not None:
+                    cvd = self._cvd_confirm(sig.get("direction"), ts)  # tag CAUSAL (None si filtro off)
                     d = self.governor.decide(self.account,
                                              requested_risk=self.requested_risk)
                     if d["approved"]:
@@ -199,8 +217,8 @@ class MotorPaperRuntime:
                             # (maker) o, si expira el TTL, a mercado (fallback taker)
                             # en las velas siguientes (no en esta).
                             self._pending_entries.append({
-                                "sig": sig, "risk_frac": d["risk_frac"],
-                                "killzone": kz, "regime": regime, "tf": tf_id, "waited": 0})
+                                "sig": sig, "risk_frac": d["risk_frac"], "killzone": kz,
+                                "regime": regime, "cvd": cvd, "tf": tf_id, "waited": 0})
                             self.broker.ledger.append({
                                 "event": "MAKER_ENTRY_PENDING", "ts": ts, "tf": tf_id,
                                 "killzone": kz, "limit": sig["entry"],
@@ -214,7 +232,8 @@ class MotorPaperRuntime:
                             # el ledger forward (base vs +veto, por killzone/tf).
                             self.broker.ledger.append({
                                 "event": "MOTOR_OPEN_META", "ts": ts, "pid": pos.pid,
-                                "tf": tf_id, "killzone": kz, "regime": regime})
+                                "tf": tf_id, "killzone": kz, "regime": regime,
+                                **_cvd_meta(cvd)})
                             if self.maker_sim:
                                 self._maker_pending.append({
                                     "pid": pos.pid, "direction": pos.direction,
@@ -292,7 +311,8 @@ class MotorPaperRuntime:
             "event": "MOTOR_OPEN_META", "ts": ts, "pid": pos.pid,
             "tf": pe.get("tf"), "killzone": pe.get("killzone"),
             "regime": pe.get("regime"),
-            "fill_type": fill_type, "bars_waited": bars_waited})
+            "fill_type": fill_type, "bars_waited": bars_waited,
+            **_cvd_meta(pe.get("cvd"))})
         if self.notify_fn is not None:
             try:
                 self.notify_fn(sig, {"killzone": pe.get("killzone"),
@@ -300,6 +320,24 @@ class MotorPaperRuntime:
             except Exception as e:
                 log.warning("[motor] notify_fn: %s", e)
         return pos
+
+    def _cvd_confirm(self, direction, ts):
+        """Confirmacion de order-flow CAUSAL en el ts del fire (measurement-first,
+        FQ_CVD_FILTER). Devuelve dict {confirmed, imbalance, cvd_slope, n} o None
+        (filtro off / sin data / sin direccion). JAMAS rompe el motor (defensivo).
+        Tag PARALELO a `regime`: mide FORWARD si el +0.1R de uplift del CVD (validado
+        5 anos, DSR ✓) se replica antes de graduar a conviction/sizing client-facing."""
+        if not self.cvd_path or direction is None:
+            return None
+        try:
+            ms = _ts_ms(ts)
+            if ms is None:
+                return None
+            return _fetch_cvd().cvd_confirmation(
+                self.cvd_path, self.cvd_ccy, ms, direction, imb_min=self.cvd_imb_min)
+        except Exception as e:
+            log.debug("[motor] cvd_confirm: %s", e)
+            return None
 
 
 def _regime_of(report):
@@ -314,6 +352,62 @@ def _regime_of(report):
         return None
 
 
+_FETCH_CVD = None
+
+
+def _fetch_cvd():
+    """Importa tools/fetch_cvd LAZY (solo si FQ_CVD_FILTER=1 alguna vez dispara la
+    medicion). 'tools' no es paquete -> mete tools/ en sys.path 1 vez, mismo patron
+    que el validador. Cacheado a nivel modulo. Si falla (sin pandas) -> el caller
+    lo atrapa y el filtro queda inerte (nunca rompe el motor)."""
+    global _FETCH_CVD
+    if _FETCH_CVD is None:
+        import sys
+        td = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tools")
+        if td not in sys.path:
+            sys.path.insert(0, td)
+        import fetch_cvd as _mod
+        _FETCH_CVD = _mod
+    return _FETCH_CVD
+
+
+def _ccy_of(symbol):
+    """'SOL/USDT:USDT' / 'BTCUSDT' / 'SOL' -> 'SOL': mapea el simbolo del motor al
+    ccy del colector CVD (BTC/ETH/SOL/...)."""
+    s = str(symbol or "").upper().split("/")[0].split(":")[0]
+    for q in ("USDT", "USDC", "USD", "PERP"):
+        if s.endswith(q) and len(s) > len(q):
+            return s[:-len(q)]
+    return s
+
+
+def _ts_ms(ts):
+    """epoch-ms desde un ts heterogeneo (pandas Timestamp / datetime / int seg|ms /
+    None). El colector CVD indexa en ms; el motor pasa el ts de la VELA (Timestamp).
+    Defensivo: None si no se puede convertir."""
+    if ts is None:
+        return None
+    try:
+        v = getattr(ts, "value", None)                    # pandas Timestamp -> ns
+        if isinstance(v, int):
+            return v // 1_000_000
+        if hasattr(ts, "timestamp"):                      # datetime
+            return int(ts.timestamp() * 1000)
+        n = int(ts)
+        return n if n > 1_000_000_000_000 else n * 1000   # ms ya vs seg->ms
+    except Exception:
+        return None
+
+
+def _cvd_meta(cvd):
+    """Campos CVD para MOTOR_OPEN_META. {} si no hubo medicion (filtro off / sin
+    data) -> ledger IDENTICO al historico cuando FQ_CVD_FILTER=0 (backward-compat)."""
+    if not cvd:
+        return {}
+    return {"cvd_confirmed": bool(cvd.get("confirmed")),
+            "cvd_imbalance": cvd.get("imbalance")}
+
+
 def ledger_report(path):
     """Lee el ledger del motor paper y devuelve un dict de stats (cartera +
     fill-rate maker + adverse selection + R por regime). Reusado por el comando
@@ -324,7 +418,7 @@ def ledger_report(path):
         return None
     led = DurableHashLedger.load(path)
     recs = [r["payload"] for r in led.records]
-    pnl, kz, maker, vetoed, ftype, regime_m = {}, {}, {}, {}, {}, {}
+    pnl, kz, maker, vetoed, ftype, regime_m, cvd_m = {}, {}, {}, {}, {}, {}, {}
     n_runaway = 0
     net = False
     for p in recs:
@@ -336,6 +430,8 @@ def ledger_report(path):
         elif ev == "MOTOR_OPEN_META":
             kz[pid] = p.get("killzone")
             regime_m[pid] = p.get("regime")
+            if p.get("cvd_confirmed") is not None:    # solo si FQ_CVD_FILTER taggeo
+                cvd_m[pid] = bool(p.get("cvd_confirmed"))
             if p.get("fill_type") is not None:        # modo EJECUCION maker
                 ftype[pid] = p.get("fill_type")
         elif ev == "MAKER_FILL":
@@ -381,6 +477,13 @@ def ledger_report(path):
         # R FORWARD segmentado por regime (stable vs deriva): el juez de FQ_DERIVA_VETO=0.
         "by_regime": {rg: _agg([closed[p] for p in closed if regime_m.get(p) == rg])
                       for rg in sorted({r for r in regime_m.values() if r})},
+        # R FORWARD por order-flow (CVD confirmado vs no): el juez de FQ_CVD_FILTER.
+        # ¿el +0.1R de uplift del backtest 5y se replica EN VIVO? Vacio si filtro off.
+        "by_cvd": {
+            "confirmed": _agg([closed[p] for p in closed if cvd_m.get(p) is True]),
+            "unconfirmed": _agg([closed[p] for p in closed if cvd_m.get(p) is False]),
+            "n_tagged": len(cvd_m),
+        },
     }
 
 
@@ -428,6 +531,18 @@ def format_report_telegram(rep):
             dv, sv = closed_reg["deriva"]["mean"], closed_reg["stable"]["mean"]
             tag = "✓ deriva aguanta" if dv >= sv - 0.02 else "⚠ deriva ARRASTRA (revisar FQ_DERIVA_VETO)"
             out.append("  → {t}: deriva {d:+.3f}R vs stable {s:+.3f}R".format(t=tag, d=dv, s=sv))
+    by_cvd = rep.get("by_cvd") or {}
+    cf, un = by_cvd.get("confirmed") or {}, by_cvd.get("unconfirmed") or {}
+    if cf.get("n") or un.get("n"):
+        def _seg(a):
+            return ("n={n} {m:+.3f}R WR{w:.0f}%".format(
+                n=a["n"], m=a["mean"], w=a["wr"] * 100.0)) if a.get("n") else "n=0"
+        out.append("order-flow CVD: confirmado %s · no-conf %s" % (_seg(cf), _seg(un)))
+        if cf.get("n") and un.get("n"):
+            upl = cf["mean"] - un["mean"]
+            tag = "✓ replica uplift (DSR pendiente)" if upl >= 0.08 else "· aún sin separación"
+            out.append("  → uplift {u:+.3f}R {t} — meta ≥30 conf para graduar".format(
+                u=upl, t=tag))
     if rep["n_vetoed"]:
         out.append("vetadas: %d" % rep["n_vetoed"])
     out.append("<i>0% real · meta ≥30-50 fills para decidir (§6.10)</i>")
