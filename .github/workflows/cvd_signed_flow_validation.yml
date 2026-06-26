@@ -49,9 +49,13 @@ jobs:
             echo "===== ${S}: bajando CVD real (${{ inputs.since }} -> ${END}) ====="
             python tools/fetch_binance_vision_cvd.py "${S}USDT" \
               --start "${{ inputs.since }}" --end "${END}" --out-dir data || { echo "fetch ${S} falló"; continue; }
-            echo "===== ${S}: veredicto DSR del CVD firmado ====="
-            python tools/validate_cvd_signed_flow.py \
-              --cube "${CUBE}" --cvd "data/cvd_hist_${S}USDT.parquet" \
-              --tp tp4 --horizon 576 || echo "validate ${S} falló"
+            # SWEEP de umbral (la descarga ya se pagó; validar es <1s): la frontera
+            # precisión/cadencia. imbalance bajo = más señales, R menor; alto = raras, R alto.
+            for IMB in 0.50 0.52 0.55 0.58; do
+              echo "===== ${S}: veredicto DSR del CVD firmado (imb_min=${IMB}) ====="
+              python tools/validate_cvd_signed_flow.py \
+                --cube "${CUBE}" --cvd "data/cvd_hist_${S}USDT.parquet" \
+                --tp tp4 --horizon 576 --imb-min "${IMB}" || echo "validate ${S}@${IMB} falló"
+            done
           done
           echo "===== FIN: el veredicto está arriba (EDGE REAL ✓ = cablear; NO pasa = no) ====="
