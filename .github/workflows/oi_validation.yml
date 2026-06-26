@@ -1,0 +1,59 @@
+name: OI validation (gratis, real) — 1 tap
+
+# UN TAP. Contesta —SIN comprar data ni esperar el colector forward— si la confirmación
+# de OI (posicionamiento: OI subiendo = dinero nuevo entrando) mejora el edge del motor,
+# con veredicto DSR. Mismo método que el CVD; misma fuente gratis (data.binance.vision).
+#
+# CÓMO: baja el OI histórico de Binance Vision (dataset `metrics`, 5m, GRATIS, desde
+# ~2020-09), lo alinea CAUSAL a cada evento del cube y corre el Deflated Sharpe sobre el
+# subset OI-confirmado. GitHub-hosted (red abierta; el sandbox tiene Binance geo-bloqueado).
+# NO toca el worker vivo ni Hetzner.
+#
+# RANGO: default 3 años. Para historia completa subí `since` a 2021-01-01.
+# Resultado: en los logs del run (Actions -> este workflow -> job -> step "veredicto").
+
+on:
+  workflow_dispatch:
+    inputs:
+      since:
+        description: "OI histórico desde (YYYY-MM-DD)"
+        default: "2023-06-01"
+      symbols:
+        description: "Símbolos (CSV, sin USDT)"
+        default: "SOL,BTC"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Deps mínimas
+        run: pip install --quiet pandas pyarrow numpy
+      - name: Bajar OI real (gratis) + validar con DSR — por símbolo
+        run: |
+          set -x
+          END=$(date -u +%Y-%m-%d)
+          IFS=',' read -ra SYMS <<< "${{ inputs.symbols }}"
+          for S in "${SYMS[@]}"; do
+            S=$(echo "$S" | tr -d ' ' | tr '[:lower:]' '[:upper:]')
+            CUBE="cosecha_cubes/tp_cube_${S}_USDT.parquet"
+            [ -e "$CUBE" ] || { echo "== sin cube para ${S}, skip =="; continue; }
+            echo "===== ${S}: bajando OI real (${{ inputs.since }} -> ${END}) ====="
+            python tools/fetch_binance_vision_oi.py "${S}USDT" \
+              --start "${{ inputs.since }}" --end "${END}" --out-dir data || { echo "fetch ${S} falló"; continue; }
+            # SWEEP del umbral de alza de OI (la descarga ya se pagó; validar es <1s):
+            # 0 = cualquier OI subiendo; 0.5%/1%/2% = exige más posicionamiento nuevo.
+            for MC in 0.0 0.005 0.01 0.02; do
+              echo "===== ${S}: veredicto DSR del OI (min_change=${MC}) ====="
+              python tools/validate_oi_flow.py \
+                --cube "${CUBE}" --oi "data/oi_hist_${S}USDT.parquet" \
+                --tp tp4 --horizon 576 --min-change "${MC}" || echo "validate ${S}@${MC} falló"
+            done
+          done

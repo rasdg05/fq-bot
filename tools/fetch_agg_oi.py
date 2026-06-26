@@ -77,6 +77,37 @@ def fetch_bybit(ccy):
 SOURCES = {"okx": fetch_okx, "binance": fetch_binance, "bybit": fetch_bybit}
 
 
+# ----------------------------- feature de posicionamiento (OI) -----------------------------
+def oi_features(df, win=24):
+    """Dado [ts, oi_usd] (un símbolo; agregado o un venue), devuelve el estado de OI
+    de las últimas `win` barras:
+      oi            — open interest (USD) al final
+      oi_slope      — pendiente del OI en la ventana (signo = posicionamiento neto)
+      oi_change_pct — cambio fraccional del OI en la ventana
+    Hipótesis a validar (DSR): OI SUBIENDO = dinero nuevo entrando = el movimiento tiene
+    combustible. Puro, sin red. Mismo patrón que cvd_features."""
+    import numpy as np
+    d = df.sort_values("ts")
+    oi = d["oi_usd"].to_numpy(float)
+    w = min(int(win), len(oi))
+    if w < 2:
+        return {"oi": float(oi[-1]) if len(oi) else 0.0, "oi_slope": 0.0,
+                "oi_change_pct": 0.0, "n": int(len(oi))}
+    seg = oi[-w:]
+    slope = float(np.polyfit(np.arange(w), seg, 1)[0])
+    chg = float((seg[-1] - seg[0]) / seg[0]) if seg[0] else 0.0
+    return {"oi": float(oi[-1]), "oi_slope": slope, "oi_change_pct": chg, "n": int(len(oi))}
+
+
+def oi_confirms(feat, direction=None, min_change=0.0):
+    """¿El OI confirma convicción? Hipótesis v1 (a validar con DSR antes de cablear):
+    OI subiendo durante el setup = posicionamiento NUEVO = el movimiento tiene fuelle.
+    Direction-agnóstico por ahora (subir OI = combustible, vaya largo o corto);
+    `direction` se acepta por simetría con confirms_direction y para variantes futuras.
+    min_change>0 exige un alza mínima (la frontera precisión/cadencia, como el imb del CVD)."""
+    return feat["oi_change_pct"] > float(min_change)
+
+
 def append_dedupe(path, new):
     """Espejo de fetch_okx_oi.append_dedupe; clave (ts, ccy, exchange)."""
     if new.empty:
