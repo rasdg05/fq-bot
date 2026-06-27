@@ -25,5 +25,18 @@ Data: 2021-01-01 → 2026-06-27 (2003 días). SOL 976 ev (base +0.165R, WR26%), 
 - BTC F2 `revert` (anti-persistencia): DSR=0.000, R fuertemente negativo (−0.21 a −0.28R). Persistencia=bueno, anti=malo. Signo consistente → confirma.
 - BTC F2 `hurst`: standalone 0.984/0.970✓ pero redundante within-CVD (la versión ac1=`persist` es la que apila, no el Hurst).
 
-## CAVEAT obligatorio
-DSR reportado con n_trials=16. Barrido ~22 configs/símbolo. Re-confirmar BTC F2 persist con n_trials=44 antes de cablear. Con 0.997/0.995 + robustez en 3 umbrales, muy probable que aguante — confirmar, no asumir.
+## CONFIRMADO — re-corrida honesta n_trials=44 (run 28298460194, 2026-06-27)
+La vara real de multiple-testing del barrido es 44, no 16. Re-corrido BTC F2 persist:
+| thr | standalone DSR(44) | within-CVD | premium DSR(44) | veredicto |
+|-----|--------------------|------------|-----------------|-----------|
+| **0.0** | **0.988 ✓** | +0.607R ORTOGONAL ✓ | n=299 +0.562R **0.985 ✓** | **SOBREVIVE** |
+| 0.05 | 0.933 ✗ | +0.339R ortogonal | 0.917 | al cementerio |
+| 0.10 | 0.929 ✗ | +0.287R ortogonal | 0.914 | al cementerio |
+→ **thr=0.0 aguanta el bar honesto** (standalone Y premium). Es además el límite natural
+de la teoría (ac1>0) y el de mayor muestra (n=299) — no un threshold cherry-picked. Los
+umbrales más altos NO sobreviven n=44 (por eso se hizo el re-check). 2×2 fuera del CVD:
+F2✓ +0.307 vs F2✗ +0.149R (n=22, no se cuelga de eso).
+
+LUZ VERDE para cablear BTC thr=0.0 (FQ_PERSIST_THR=0.0 ya es el default). Activación:
+FQ_CVD_FILTER=1 + FQ_CVD_BOOST_TIER=1 + FQ_PERSIST_BOOST=BTC en Railway. El motor paper
+lo sigue midiendo forward.
