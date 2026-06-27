@@ -29,7 +29,8 @@ Invariantes:
 import os
 import logging
 
-from execution import RiskGovernor, Account, PaperBroker, DurableHashLedger
+from execution import (RiskGovernor, Account, PaperBroker, DurableHashLedger,
+                       SqliteHashLedger, open_motor_ledger, _motor_db_path, _symbol_from_jsonl)
 from live_driver import normalize_fire_report
 from bt_engine import CostModel
 import gold_paper
@@ -119,7 +120,7 @@ class MotorPaperRuntime:
             "FQ_MOTOR_PAPER_LEDGER_PATH", "/data/motor_paper_%s.jsonl" % slug)
         exec_mode = os.environ.get("FQ_EXEC_MODE", "")
         cost = cost_from_exec_mode(exec_mode)
-        broker = PaperBroker(ledger=DurableHashLedger.load(led_path), cost=cost)
+        broker = PaperBroker(ledger=open_motor_ledger(led_path, symbol), cost=cost)
         equity = float(os.environ.get("FQ_MOTOR_PAPER_EQUITY", "10000"))
         acc = Account("paper-motor-%s" % symbol, equity)
         # Veto PROPIO: default = london_open_kz + asia_open (ambos -EV en SOL Y BTC,
@@ -469,9 +470,15 @@ def ledger_report(path):
     /paper del bot y por tools/motor_paper_stats.py. Devuelve None si el ledger no
     existe. DurableHashLedger.load verifica la cadena SHA-256 (LANZA si está rota)."""
     import os
-    if not os.path.exists(path):
-        return None
-    led = DurableHashLedger.load(path)
+    if os.environ.get("FQ_LEDGER_SQLITE", "0").strip() in ("1", "true", "yes"):
+        db = _motor_db_path(path)                         # SQLite multi-símbolo
+        if not os.path.exists(db):
+            return None
+        led = SqliteHashLedger.load(db, _symbol_from_jsonl(path))
+    else:
+        if not os.path.exists(path):                      # JSONL legacy por símbolo
+            return None
+        led = DurableHashLedger.load(path)
     recs = [r["payload"] for r in led.records]
     pnl, kz, maker, vetoed, ftype, regime_m, cvd_m = {}, {}, {}, {}, {}, {}, {}
     n_runaway = 0
