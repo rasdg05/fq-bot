@@ -1,0 +1,38 @@
+name: DOGE cosecha (Hetzner) — 1 tap
+
+# UN TAP, CERO inputs. Dispara "Research" para DOGE/USDT a MAXIMA data (84 meses, step1)
+# en el runner self-hosted (Hetzner). Espejo de eth_cosecha; solo cambia el simbolo.
+#
+# IMPORTANTE: ENCENDE el CCX33 (Hetzner) y espera a que el runner figure ONLINE ANTES
+# de darle Run. Si no, el job de research queda EN COLA hasta que aparezca.
+#
+# DOGE = volumen enorme + el activo RETAIL por excelencia -> desempata la hipotesis de
+# global_ls ("fade al retail funciona en alts"). Si aparece como en SOL, confirma el
+# patron y se cabla por simbolo. Cuando exista su cube, los validators lo incluyen solos.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  actions: write      # para disparar otro workflow_dispatch
+  contents: read
+
+jobs:
+  disparar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Disparar Research — DOGE, cosecha, Hetzner, 84m, step1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run research.yml \
+            --repo "${{ github.repository }}" \
+            --ref claude/turbovec-tp-cube-hardening-fvzdx7 \
+            -f symbol=DOGE/USDT \
+            -f cosecha=true \
+            -f sym_months=84 \
+            -f sym_step=1
+          echo "OK: disparado research.yml para DOGE/USDT (cosecha, 84m, step1)."
+          echo "Mira la pestana Actions -> 'Research' (corre en self-hosted/Hetzner)."
+          echo "Si no arranca: confirma que el runner de Hetzner este ONLINE."
