@@ -1,0 +1,59 @@
+name: Top-20 perps cosecha (Hetzner) — batch
+
+# UN TAP. Dispara la cosecha del cube (84 meses, step1) para TODOS los perps del top-20
+# que aún no tienen cube — para el barrido cross-asset (la tesis del "premio": ¿la fuerza
+# del edge de persistencia/impacto escala con la institucional-idad del activo?) y para
+# alimentar el cerebro + la memoria.
+#
+# Tienen cube: BTC, SOL.  En curso: ETH.  Default aquí = los 17 que faltan.
+#
+# REALIDAD honesta del runner (léela):
+#  - Hay UN runner self-hosted (CCX33). Los jobs corren EN SERIE: ~2-3h c/u -> los 17 son
+#    ~2 días de wall-clock. El CCX33 debe quedarse ENCENDIDO todo ese tiempo (~$0.12/h).
+#  - Cada cube sale como ARTEFACTO (research-report-<SYM>_USDT), NO se auto-commitea. Hay
+#    que bajarlo y commitearlo a cosecha_cubes/ (lo hace el monitor de Claude conforme caen).
+#  - RECOMENDADO: corre en TANDAS (edita 'symbols' a 4-5 por vez) para controlar costo y
+#    bajar/commitear los cubes por lote. O para paralelizar: registra el runner 2 veces
+#    (ops/SELF_HOSTED_RUNNER.md) o usa un CCX43 (16 núcleos).
+#  - Mejora futura (haría esto hands-off): que research.yml COMMITEE el cube en cosecha=true
+#    en vez de subirlo como artefacto.
+
+on:
+  workflow_dispatch:
+    inputs:
+      symbols:
+        description: "Símbolos a cosechar (CSV, con /USDT). Default = top-20 faltantes. Edita para tandas."
+        default: "XRP/USDT,DOGE/USDT,BNB/USDT,AVAX/USDT,LINK/USDT,ADA/USDT,DOT/USDT,LTC/USDT,TRX/USDT,NEAR/USDT,SUI/USDT,BCH/USDT,APT/USDT,ARB/USDT,OP/USDT,TON/USDT,INJ/USDT"
+
+permissions:
+  actions: write      # para disparar research.yml por símbolo
+  contents: read
+
+jobs:
+  disparar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Disparar Research (cosecha 84m/step1) por símbolo — se encolan en Hetzner
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          IFS=',' read -ra SYMS <<< "${{ inputs.symbols }}"
+          n=0
+          for S in "${SYMS[@]}"; do
+            S=$(echo "$S" | tr -d ' ')
+            [ -z "$S" ] && continue
+            echo "== disparando cosecha: $S =="
+            gh workflow run research.yml \
+              --repo "${{ github.repository }}" \
+              --ref claude/turbovec-tp-cube-hardening-fvzdx7 \
+              -f symbol="$S" \
+              -f cosecha=true \
+              -f sym_months=84 \
+              -f sym_step=1 \
+              && n=$((n+1)) || echo "  (falló el dispatch de $S)"
+            sleep 2
+          done
+          echo "OK: $n cosechas disparadas. Corren EN SERIE en el runner self-hosted (Hetzner)."
+          echo "Mira Actions -> 'Research'. Si quedan en Queued: confirma que el CCX33 esté ONLINE/Idle."
+          echo "Cada cube sale como artefacto; Claude los baja y commitea a cosecha_cubes/ conforme caen."
