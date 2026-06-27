@@ -11,6 +11,7 @@ import os
 import glob
 import shutil
 import sqlite3
+import tarfile
 import tempfile
 import logging
 from datetime import datetime, timezone
@@ -107,57 +108,57 @@ def _backup_one(tmp_path, fname, caption, s3_key):
     return sent_tg or sent_s3
 
 
-def _backup_jsonl_ledgers(stamp):
-    """Respalda cada motor_paper_*.jsonl (snapshot estable del append-only)."""
-    sent_any = False
-    for src in _resolve_jsonl_ledgers():
-        stem = os.path.splitext(os.path.basename(src))[0]
-        fname = "{}-{}.jsonl".format(stem, stamp)
-        tmp_path = os.path.join(tempfile.gettempdir(), fname)
-        try:
-            shutil.copy2(src, tmp_path)            # snapshot estable (un torn-tail lo sana load())
-            kb = os.path.getsize(tmp_path) / 1024.0
-            cap = "FQ backup {} · {} · {:.0f} KB".format(os.path.basename(src), stamp, kb)
-            sent_any = _backup_one(tmp_path, fname, cap, "ledger/{}".format(fname)) or sent_any
-        except Exception as e:
-            log.error("backup jsonl {} error: {}".format(src, e))
-        finally:
-            try:
-                os.remove(tmp_path)
-            except OSError:
-                pass
-    return sent_any
-
-
 def run_backup():
-    """Backup completo: el SQLite VIP (SOL) + los JSONL motor_paper de TODOS los
-    símbolos (BTC/ETH/SOL). Devuelve True si al menos un destino recibió algo."""
+    """Backup completo en UN SOLO archivo (tar.gz): el SQLite VIP (SOL) + los JSONL
+    motor_paper de TODOS los símbolos. Antes mandaba un archivo por ledger -> con
+    10-20 símbolos eso spamea el DM. Ahora = 1 documento por corrida, escale a lo que
+    escale. Devuelve True si al menos un destino recibió algo."""
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    ok = False
+    staging = tempfile.mkdtemp(prefix="fqbk-")
+    staged = []
+    try:
+        # 1) SQLite (ledger VIP, SOL) — copia consistente
+        src = _resolve_ledger_path()
+        if os.path.isfile(src):
+            dst = os.path.join(staging, "fq_ledger.db")
+            try:
+                _consistent_copy(src, dst)
+                staged.append(dst)
+            except Exception as e:
+                log.error("backup sqlite fallo: {}".format(e))
+        else:
+            log.warning("backup: SQLite no existe en {}".format(src))
 
-    # 1) SQLite (ledger VIP, SOL)
-    src = _resolve_ledger_path()
-    if os.path.isfile(src):
-        fname = "fq_ledger-{}.db".format(stamp)
-        tmp_path = os.path.join(tempfile.gettempdir(), fname)
+        # 2) JSONL motor_paper (BTC/ETH/SOL/...) — snapshot estable de cada append-only
+        for j in _resolve_jsonl_ledgers():
+            try:
+                shutil.copy2(j, os.path.join(staging, os.path.basename(j)))
+                staged.append(os.path.join(staging, os.path.basename(j)))
+            except Exception as e:
+                log.error("backup jsonl {} error: {}".format(j, e))
+
+        if not staged:
+            log.warning("backup: nada que respaldar")
+            return False
+
+        # 3) UN solo tar.gz con todo
+        arch = os.path.join(tempfile.gettempdir(), "fq_backup-{}.tar.gz".format(stamp))
+        with tarfile.open(arch, "w:gz") as tar:
+            for f in staged:
+                tar.add(f, arcname=os.path.basename(f))
         try:
-            _consistent_copy(src, tmp_path)
-            kb = os.path.getsize(tmp_path) / 1024.0
-            cap = "FQ backup ledger · {} · {:.0f} KB".format(stamp, kb)
-            ok = _backup_one(tmp_path, fname, cap, "ledger/{}".format(fname)) or ok
-        except Exception as e:
-            log.error("backup sqlite fallo: {}".format(e))
+            kb = os.path.getsize(arch) / 1024.0
+            cap = "FQ backup · {} · {} ledgers · {:.0f} KB".format(stamp, len(staged), kb)
+            ok = _backup_one(arch, os.path.basename(arch), cap,
+                             "ledger/{}".format(os.path.basename(arch)))
         finally:
             try:
-                os.remove(tmp_path)
+                os.remove(arch)
             except OSError:
                 pass
-    else:
-        log.warning("backup: SQLite no existe en {}".format(src))
-
-    # 2) JSONL motor_paper (BTC/ETH/SOL) — el registro forward que faltaba respaldar
-    ok = _backup_jsonl_ledgers(stamp) or ok
-    return ok
+        return ok
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
 
 
 if __name__ == "__main__":
