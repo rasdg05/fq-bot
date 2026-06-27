@@ -60,3 +60,35 @@ def test_append_dedupe_idempotente(tmp_path):
 def test_ventana_corta_no_crashea():
     f = cvd.cvd_features(_bars([10], [5]), win=24)
     assert f["imbalance"] == 0.5 and f["cvd_slope"] == 0.0
+
+
+# ----- 2o medidor: persistencia / memoria del flujo (BFL; VALIDADO ortogonal en BTC) -----
+def _persist_bars(deltas, base=10.0, t0=1_700_000_000_000, step=300_000):
+    """ledger sintetico: buy = base+delta, sell = base (signo del flujo = signo del delta)."""
+    return pd.DataFrame({"ts": [t0 + i * step for i in range(len(deltas))],
+                         "buy_vol": [base + d for d in deltas],
+                         "sell_vol": [base] * len(deltas)})
+
+
+def test_flow_persistence_corridas_dan_ac1_positivo():
+    # corridas de mismo signo (order-splitting) + presion NETA positiva -> ac1>0, netdir=+1
+    f = cvd.flow_persistence(_persist_bars([3, 3, 3, 3, -1, -1] * 5), win=24)
+    assert f["ac1"] > 0 and f["netdir"] == 1
+
+
+def test_confirms_persistence_alineado():
+    f = cvd.flow_persistence(_persist_bars([3, 3, 3, 3, -1, -1] * 5), win=24)
+    assert cvd.confirms_persistence(f, 1, thr=0.0) is True       # persistente y comprador -> LONG
+    assert cvd.confirms_persistence(f, -1, thr=0.0) is False
+    assert cvd.confirms_persistence(f, "long") is True
+
+
+def test_persistence_confirmation_causal(tmp_path):
+    path = str(tmp_path / "cvd.parquet")
+    led = _persist_bars([3, 3, 3, 3, -1, -1] * 10).assign(ccy="BTC", exchange="okx")
+    led.to_parquet(path)
+    ts_after = int(led["ts"].iloc[-1]) + 300_000
+    r = cvd.persistence_confirmation(path, "BTC", ts_after, 1)
+    assert r is not None and r["persistent"] is True and r["netdir"] == 1
+    assert cvd.persistence_confirmation(path, "BTC", ts_after, -1)["persistent"] is False
+    assert cvd.persistence_confirmation(path, "ETH", ts_after, 1) is None   # sin ese ccy -> None

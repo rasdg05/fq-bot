@@ -2823,6 +2823,20 @@ _MOTOR_RUNTIME_TRIED = False
 CVD_VIP_CONVICTION = os.environ.get("FQ_CVD_VIP_CONVICTION", "0").strip() in ("1", "true", "yes")
 CVD_BOOST_TIER = os.environ.get("FQ_CVD_BOOST_TIER", "0").strip() in ("1", "true", "yes")
 
+# 2o medidor (capa 3): persistencia/memoria del flujo (Bouchaud-Farmer-Lillo), VALIDADO
+# ORTOGONAL al CVD en BTC (F2 persist DSR 0.997; tier premium CVD✓&persist✓ +0.562R DSR
+# 0.995 — el CVD✓ pero NO-persistente es break-even, no merece boost). CSV de ccys donde
+# el boost EXIGE ADEMAS persistencia. Vacio/0 = OFF -> boost = solo CVD (byte-identico).
+# Ej: FQ_PERSIST_BOOST=BTC. Requiere FQ_CVD_FILTER + el re-confirm n_trials=44 ANTES de prender.
+PERSIST_BOOST = set(c.strip().upper() for c in
+                    os.environ.get("FQ_PERSIST_BOOST", "").replace(",", " ").split()
+                    if c.strip() and c.strip().lower() not in ("0", "false", "no", "off"))
+
+
+def _persist_ccy(pair):
+    """'BTC/USDT' / 'BTCUSDT:USDT' -> 'BTC' para casar contra FQ_PERSIST_BOOST."""
+    return str(pair or "").upper().split("/")[0].split(":")[0]
+
 
 def _cvd_vip_kwargs(report, ts, pair):
     """kwargs de capa 3 para build_vip_signal: badge y/o boost de tier, SOLO si el
@@ -2835,11 +2849,18 @@ def _cvd_vip_kwargs(report, ts, pair):
         import motor_paper
         c = motor_paper.cvd_confirm_live(pair, ts, report.get("direction"))
         ok = bool(c and c.get("confirmed"))
+        boost = ok and CVD_BOOST_TIER
+        # 2o medidor (VALIDADO ortogonal en BTC): en los ccys de FQ_PERSIST_BOOST el boost
+        # EXIGE ademas persistencia del flujo. OFF (set vacio) -> boost intacto (solo CVD).
+        if boost and PERSIST_BOOST and _persist_ccy(pair) in PERSIST_BOOST:
+            p = motor_paper.persist_confirm_live(pair, ts, report.get("direction"))
+            boost = bool(p and p.get("persistent"))
     except Exception as e:
         log.debug("[cvd-vip] %s", e)
         ok = False
+        boost = False
     return {"cvd_confirmed": ok if CVD_VIP_CONVICTION else None,
-            "boost_tier": ok and CVD_BOOST_TIER}
+            "boost_tier": boost}
 
 
 def _motor_admin_notify(sig, verdict, pos):

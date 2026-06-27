@@ -1,0 +1,55 @@
+name: F2 persist — re-confirm n_trials=44 (BTC) — 1 tap
+
+# UN TAP. El re-confirm HONESTO del unico superviviente del barrido de fisica moderna:
+# BTC F2 "persist" (memoria/persistencia del flujo firmado), que paso el DSR Y fue
+# ORTOGONAL al CVD en 3 umbrales (0.0/0.05/0.10) con n_trials=16.
+#
+# El barrido completo probo ~44 configs (2 reglas-familia × umbrales × 2 simbolos), asi
+# que la vara honesta de multiple-testing es n_trials=44, no 16. Esto re-corre SOLO BTC
+# F2 persist a esos 3 umbrales con --n-trials 44 (standalone Y tier premium). Si el DSR
+# sigue >0.95 -> luz verde para cablear (FQ_PERSIST_BOOST=BTC). Si no -> al cementerio,
+# honesto.
+#
+# F2 lee SOLO cvd_hist (no klines) -> baja solo el aggTrades de BTC (~13 min). El cube de
+# BTC ya esta en el repo. GitHub-hosted, NO toca el worker vivo. Resultado en los logs.
+
+on:
+  workflow_dispatch:
+    inputs:
+      since:
+        description: "Histórico desde (YYYY-MM-DD) — cubre el span del cube"
+        default: "2021-01-01"
+      n_trials:
+        description: "Vara de multiple-testing (configs barridas)"
+        default: "44"
+
+permissions:
+  contents: read
+
+jobs:
+  confirm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Deps mínimas
+        run: pip install --quiet pandas pyarrow numpy
+      - name: BTC F2 persist — re-confirm con n_trials honesto
+        run: |
+          set -x
+          END=$(date -u +%Y-%m-%d)
+          CUBE="cosecha_cubes/tp_cube_BTC_USDT.parquet"
+          [ -e "$CUBE" ] || { echo "== sin cube para BTC =="; exit 1; }
+          echo "===== BTC: bajando CVD 5m (aggTrades) ${{ inputs.since }} -> ${END} ====="
+          python tools/fetch_binance_vision_cvd.py BTCUSDT \
+            --start "${{ inputs.since }}" --end "${END}" --out-dir data || { echo "fetch CVD falló"; exit 1; }
+          CVD="data/cvd_hist_BTCUSDT.parquet"
+          for THR in 0.0 0.05 0.10; do
+            echo "===== BTC: F2 persist thr=${THR}  (n_trials=${{ inputs.n_trials }}) ====="
+            python tools/validate_persistence_flow.py --cube "${CUBE}" --cvd "${CVD}" \
+              --rule persist --thr "${THR}" --imb-min 0.50 --tp tp4 --horizon 576 \
+              --n-trials "${{ inputs.n_trials }}" || echo "confirm thr=${THR} falló"
+          done
