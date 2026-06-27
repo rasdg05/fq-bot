@@ -1,29 +1,34 @@
-name: Top-20 perps cosecha (Hetzner) — batch
+name: Cross-asset cosecha (10 curadas, Hetzner) — tandas
 
-# UN TAP. Dispara la cosecha del cube (84 meses, step1) para TODOS los perps del top-20
-# que aún no tienen cube — para el barrido cross-asset (la tesis del "premio": ¿la fuerza
-# del edge de persistencia/impacto escala con la institucional-idad del activo?) y para
-# alimentar el cerebro + la memoria.
+# UN TAP por TANDA. Cosecha el cube (alta densidad: 84m / step1) de los símbolos elegidos
+# para el barrido CROSS-ASSET — la tesis del "premio": ¿la fuerza del edge de persistencia/
+# impacto ESCALA con la institucional-idad / order-splitting del activo? Para mapear esa curva
+# necesitamos SPREAD (de institucional a retail) y DATA PROFUNDA por símbolo.
 #
-# Tienen cube: BTC, SOL.  En curso: ETH.  Default aquí = los 17 que faltan.
+# Ancla que ya tenemos: BTC (institucional, F2 apiló) · SOL (retail-ish, NO apiló) · ETH (en curso).
 #
-# REALIDAD honesta del runner (léela):
-#  - Hay UN runner self-hosted (CCX33). Los jobs corren EN SERIE: ~2-3h c/u -> los 17 son
-#    ~2 días de wall-clock. El CCX33 debe quedarse ENCENDIDO todo ese tiempo (~$0.12/h).
-#  - Cada cube sale como ARTEFACTO (research-report-<SYM>_USDT), NO se auto-commitea. Hay
-#    que bajarlo y commitearlo a cosecha_cubes/ (lo hace el monitor de Claude conforme caen).
-#  - RECOMENDADO: corre en TANDAS (edita 'symbols' a 4-5 por vez) para controlar costo y
-#    bajar/commitear los cubes por lote. O para paralelizar: registra el runner 2 veces
-#    (ops/SELF_HOSTED_RUNNER.md) o usa un CCX43 (16 núcleos).
-#  - Mejora futura (haría esto hands-off): que research.yml COMMITEE el cube en cosecha=true
-#    en vez de subirlo como artefacto.
+# LAS 10 CURADAS (todas ~2020 de inception en perp -> ~5-6 años, cube DENSO de verdad), por
+# espectro institucional -> retail:
+#   institucional/lento (tipo BTC):  LTC, BCH
+#   large-cap alts (medio):          BNB, LINK, DOT, ADA, AVAX
+#   retail/alta-velocidad:           XRP, DOGE, TRX
+# EXCLUIDAS a propósito (poca historia -> cube fino, ruido para la tesis): SUI, APT, ARB, OP,
+# TON, INJ, NEAR. RasDG: "hay crypto con menos historia... no apostemos 2 días a algo que sale fino".
+#
+# TANDAS (1 runner = serie, ~2-3h c/u; el CCX33 debe quedarse ON la tanda):
+#   Tanda 1 (default, espectro extremo para señal temprana): DOGE, XRP, LTC, BCH, BNB
+#   Tanda 2 (los medios): LINK, DOT, ADA, AVAX, TRX
+#   (o 3+3+4 si prefieres lotes más chicos — edita 'symbols').
+#
+# Cada cube sale como ARTEFACTO; Claude lo baja y commitea a cosecha_cubes/ conforme cae.
+# Si quedan en Queued: confirma que el runner Hetzner esté ONLINE/Idle.
 
 on:
   workflow_dispatch:
     inputs:
       symbols:
-        description: "Símbolos a cosechar (CSV, con /USDT). Default = top-20 faltantes. Edita para tandas."
-        default: "XRP/USDT,DOGE/USDT,BNB/USDT,AVAX/USDT,LINK/USDT,ADA/USDT,DOT/USDT,LTC/USDT,TRX/USDT,NEAR/USDT,SUI/USDT,BCH/USDT,APT/USDT,ARB/USDT,OP/USDT,TON/USDT,INJ/USDT"
+        description: "Tanda a cosechar (CSV con /USDT). Default = Tanda 1. Para Tanda 2 edita a: LINK/USDT,DOT/USDT,ADA/USDT,AVAX/USDT,TRX/USDT"
+        default: "DOGE/USDT,XRP/USDT,LTC/USDT,BCH/USDT,BNB/USDT"
 
 permissions:
   actions: write      # para disparar research.yml por símbolo
@@ -54,6 +59,6 @@ jobs:
               && n=$((n+1)) || echo "  (falló el dispatch de $S)"
             sleep 2
           done
-          echo "OK: $n cosechas disparadas. Corren EN SERIE en el runner self-hosted (Hetzner)."
+          echo "OK: $n cosechas disparadas (Tanda). Corren EN SERIE en el runner self-hosted (Hetzner)."
           echo "Mira Actions -> 'Research'. Si quedan en Queued: confirma que el CCX33 esté ONLINE/Idle."
           echo "Cada cube sale como artefacto; Claude los baja y commitea a cosecha_cubes/ conforme caen."
