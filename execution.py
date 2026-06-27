@@ -25,6 +25,7 @@
 """
 import os
 import json
+import sqlite3
 import hashlib
 import logging
 from dataclasses import dataclass, field, asdict
@@ -220,6 +221,79 @@ class DurableHashLedger(HashLedger):
         if healed_tail:                            # quita la cola rota del archivo (atómico)
             obj._rewrite_atomic()
         return obj
+
+
+# ============================================================
+# LEDGER SQLITE MULTI-SÍMBOLO (consolidación)
+# ============================================================
+class SqliteHashLedger(HashLedger):
+    """HashLedger persistido en SQLite multi-símbolo: UN archivo para TODOS los
+    símbolos (consultable, 1 backup), preservando la cadena SHA-256 en columnas
+    prev/hash. Reemplaza el JSONL-por-símbolo -> registro forward unificado y base
+    del cerebro. MISMA interfaz (.records / append / verify) -> reconciler y
+    ledger_report no cambian. Reversible: el bot solo lo usa con FQ_LEDGER_SQLITE=1.
+    """
+
+    def __init__(self, db_path, symbol):
+        super().__init__()
+        self.db_path = db_path
+        self.symbol = symbol
+        d = os.path.dirname(db_path)
+        if d:
+            os.makedirs(d, exist_ok=True)
+        self._conn = sqlite3.connect(db_path, timeout=30)
+        self._conn.execute("PRAGMA journal_mode=WAL")     # lectores concurrentes (backup/cerebro)
+        self._conn.execute(
+            "CREATE TABLE IF NOT EXISTS motor_ledger ("
+            "symbol TEXT NOT NULL, seq INTEGER NOT NULL, prev TEXT NOT NULL, "
+            "hash TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(symbol, seq))")
+        self._conn.commit()
+
+    def append(self, payload: dict):
+        rec = super().append(payload)                     # encadena en RAM (self.records[-1])
+        self._conn.execute(
+            "INSERT INTO motor_ledger(symbol, seq, prev, hash, payload) VALUES (?,?,?,?,?)",
+            (self.symbol, rec["seq"], rec["prev"], rec["hash"],
+             json.dumps(rec["payload"], sort_keys=True, default=str)))
+        self._conn.commit()                               # commit = durable (journal/WAL)
+        return rec
+
+    @classmethod
+    def load(cls, db_path, symbol):
+        """Rehidrata la cadena de UN símbolo desde la tabla y la verifica (LANZA si
+        está manipulada). Las filas SQLite son atómicas -> no hay torn-write que sanar."""
+        obj = cls(db_path, symbol)
+        cur = obj._conn.execute(
+            "SELECT seq, prev, hash, payload FROM motor_ledger WHERE symbol=? ORDER BY seq",
+            (symbol,))
+        obj.records = [{"seq": s, "prev": p, "hash": h, "payload": json.loads(pl)}
+                       for (s, p, h, pl) in cur.fetchall()]
+        if obj.records and not obj.verify():
+            raise ValueError("cadena del ledger SQLite corrupta (symbol=%s)" % symbol)
+        return obj
+
+
+def _motor_db_path(jsonl_path):
+    """Ruta del SQLite multi-símbolo: FQ_MOTOR_DB, o fq_motor.db junto al JSONL."""
+    return os.environ.get("FQ_MOTOR_DB") or os.path.join(
+        os.path.dirname(jsonl_path) or "/data", "fq_motor.db")
+
+
+def _symbol_from_jsonl(jsonl_path):
+    """motor_paper_BTC_USDT.jsonl -> 'BTC/USDT' (el 1er '_' vuelve a ser '/')."""
+    base = os.path.basename(jsonl_path)
+    if base.startswith("motor_paper_") and base.endswith(".jsonl"):
+        base = base[len("motor_paper_"):-len(".jsonl")]
+    return base.replace("_", "/", 1)
+
+
+def open_motor_ledger(jsonl_path, symbol):
+    """Ledger del motor (CARGADO) según FQ_LEDGER_SQLITE: SQLite multi-símbolo (1
+    archivo, consultable) o el JSONL legacy por símbolo. Reversible (default OFF=JSONL,
+    byte-idéntico al comportamiento previo)."""
+    if os.environ.get("FQ_LEDGER_SQLITE", "0").strip() in ("1", "true", "yes"):
+        return SqliteHashLedger.load(_motor_db_path(jsonl_path), symbol)
+    return DurableHashLedger.load(jsonl_path)
 
 
 # ============================================================
