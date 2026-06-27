@@ -101,6 +101,19 @@ def _resolve_jsonl_ledgers():
     return sorted(x for x in paths if os.path.isfile(x))
 
 
+def _resolve_sqlite_motor_dbs():
+    """El SQLite multi-símbolo del motor (fq_motor.db) — el registro forward CONSOLIDADO
+    tras el corte FQ_LEDGER_SQLITE. Antes no se respaldaba (solo el VIP y los JSONL)."""
+    paths = set()
+    v = os.environ.get("FQ_MOTOR_DB", "").strip()
+    if v:
+        paths.add(v)
+    base = "/data" if os.path.isdir("/data") else tempfile.gettempdir()
+    for p in glob.glob(os.path.join(base, "fq_motor*.db")):
+        paths.add(p)
+    return sorted(x for x in paths if os.path.isfile(x))
+
+
 def _backup_one(tmp_path, fname, caption, s3_key):
     sent_tg = _send_to_telegram(tmp_path, caption)
     sent_s3 = _maybe_upload_s3(tmp_path, s3_key)
@@ -129,7 +142,16 @@ def run_backup():
         else:
             log.warning("backup: SQLite no existe en {}".format(src))
 
-        # 2) JSONL motor_paper (BTC/ETH/SOL/...) — snapshot estable de cada append-only
+        # 1b) SQLite motor consolidado (fq_motor.db) — el registro forward unificado
+        for mdb in _resolve_sqlite_motor_dbs():
+            dst = os.path.join(staging, os.path.basename(mdb))
+            try:
+                _consistent_copy(mdb, dst)
+                staged.append(dst)
+            except Exception as e:
+                log.error("backup motor-sqlite {} error: {}".format(mdb, e))
+
+        # 2) JSONL motor_paper (BTC/ETH/SOL/...) — snapshot estable de cada append-only (legacy)
         for j in _resolve_jsonl_ledgers():
             try:
                 shutil.copy2(j, os.path.join(staging, os.path.basename(j)))
