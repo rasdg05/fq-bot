@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<style>
+  :root{ --bg:#080a0e; --hair:#222a35; --ink:#f2f5f8; --muted:#9aa3b1; --faint:#5e6775;
+    --accent:#19b88c; --red:#f06363; --glow:rgba(25,184,140,.20); }
+  *{ margin:0; padding:0; box-sizing:border-box; -webkit-print-color-adjust:exact; }
+  html,body{ background:#000; }
+  .slide{ display:none; width:1080px; height:1350px; position:relative; overflow:hidden;
+    background:radial-gradient(90% 55% at 50% -8%, var(--glow), transparent 60%), var(--bg);
+    color:var(--ink); font-family:"Helvetica Neue",Arial,sans-serif; padding:84px 78px; flex-direction:column; }
+  .grid{ position:absolute; inset:0; background-image:
+      linear-gradient(var(--hair) 1px, transparent 1px), linear-gradient(90deg, var(--hair) 1px, transparent 1px);
+    background-size:90px 90px; opacity:.06; }
+  .mono{ font-family:"SF Mono","JetBrains Mono",Menlo,Consolas,monospace; }
+  .top{ display:flex; justify-content:space-between; align-items:center; position:relative; z-index:2; }
+  .brand{ display:flex; align-items:center; gap:13px; }
+  .brand .bar{ width:6px; height:42px; background:var(--accent); border-radius:3px; box-shadow:0 0 22px rgba(25,184,140,.6); }
+  .brand .fq{ font-weight:800; font-size:38px; letter-spacing:-1px; }
+  .num{ font-family:"SF Mono",monospace; color:var(--faint); font-size:24px; letter-spacing:2px; }
+  .body{ flex:1; display:flex; flex-direction:column; justify-content:center; position:relative; z-index:2; }
+  .kick{ font-family:"SF Mono",monospace; color:var(--accent); letter-spacing:5px; text-transform:uppercase; font-size:24px; font-weight:700; margin-bottom:26px; }
+  h1{ font-size:94px; line-height:1.0; letter-spacing:-2.5px; font-weight:800; }
+  h1.sm{ font-size:80px; }
+  h1 em{ font-style:normal; color:var(--accent); }
+  h1 .r{ color:var(--red); font-style:normal; }
+  .sub{ font-size:38px; color:var(--muted); margin-top:30px; line-height:1.3; max-width:880px; }
+  .sub b{ color:var(--ink); }
+  .swipe{ position:absolute; bottom:78px; left:78px; font-family:"SF Mono",monospace; color:var(--faint); font-size:24px; letter-spacing:2px; z-index:2; }
+  .swipe span{ color:var(--accent); }
+  .footbar{ position:absolute; bottom:0; left:0; right:0; height:14px; background:linear-gradient(90deg,var(--accent),transparent); opacity:.7; }
+</style>
+</head>
+<body>
+
+<!-- A · jugador vs casa -->
+<section class="slide" id="hA">
+  <div class="grid"></div>
+  <div class="top"><div class="brand"><div class="bar"></div><div class="fq">FQ</div></div><div class="num">1/5</div></div>
+  <div class="body">
+    <div class="kick">Trading sin humo</div>
+    <h1>Operas como <span class="r">jugador</span>.<br/>Por eso la casa <em>gana</em>.</h1>
+    <div class="sub">Y la casa no adivina: <b>administra probabilidades.</b></div>
+  </div>
+  <div class="swipe">Desliza <span>→</span></div>
+  <div class="footbar"></div>
+</section>
+
+<!-- B · contrarian matemático -->
+<section class="slide" id="hB">
+  <div class="grid"></div>
+  <div class="top"><div class="brand"><div class="bar"></div><div class="fq">FQ</div></div><div class="num">1/5</div></div>
+  <div class="body">
+    <div class="kick">La verdad incómoda</div>
+    <h1>El 90% pierde.<br/>No es "psicología".<br/>Es <em>matemática</em>.</h1>
+    <div class="sub">Optimizas por tener razón. <b>El mercado paga asimetría.</b></div>
+  </div>
+  <div class="swipe">Desliza <span>→</span></div>
+  <div class="footbar"></div>
+</section>
+
+<!-- C · profesional ocupado / solución -->
+<section class="slide" id="hC">
+  <div class="grid"></div>
+  <div class="top"><div class="brand"><div class="bar"></div><div class="fq">FQ</div></div><div class="num">1/5</div></div>
+  <div class="body">
+    <div class="kick">Para el que no tiene tiempo</div>
+    <h1 class="sm">No tienes que ver gráficos todo el día.<br/>El sistema lo hace <em>por ti</em>.</h1>
+    <div class="sub">Tú trabajas. <b>Él vigila el mercado y te avisa.</b></div>
+  </div>
+  <div class="swipe">Desliza <span>→</span></div>
+  <div class="footbar"></div>
+</section>
+
+<!-- D · rueda / esfuerzo -->
+<section class="slide" id="hD">
+  <div class="grid"></div>
+  <div class="top"><div class="brand"><div class="bar"></div><div class="fq">FQ</div></div><div class="num">1/5</div></div>
+  <div class="body">
+    <div class="kick">¿Te suena?</div>
+    <h1>Trabajas <span class="r">más</span>.<br/>Avanzas <em>menos</em>.</h1>
+    <div class="sub">Das vueltas todo el día y nada cambia. <b>No te falta esfuerzo: te falta ventaja.</b></div>
+  </div>
+  <div class="swipe">Desliza <span>→</span></div>
+  <div class="footbar"></div>
+</section>
+
+<script>
+  var map = {a:'hA',b:'hB',c:'hC',d:'hD'};
+  var k = (location.hash.slice(1) || 'a').toLowerCase();
+  var el = document.getElementById(map[k] || 'hA');
+  if (el) el.style.display = 'flex';
+</script>
+</body>
+</html>
