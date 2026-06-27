@@ -77,6 +77,20 @@ def test_factory_env_gated(tmp_path, monkeypatch):
     assert ex._symbol_from_jsonl(jp) == "BTC/USDT"
 
 
+def test_auto_migra_al_prender_flag(tmp_path, monkeypatch):
+    # FQ_LEDGER_SQLITE=1 + SQLite vacío + JSONL existente -> auto-importa al abrir (corte 1-flag)
+    jp = str(tmp_path / "motor_paper_SOL_USDT.jsonl")
+    src = ex.DurableHashLedger(jp)
+    for i in range(3):
+        src.append({"event": "CLOSE", "pid": i, "pnl_r": float(i)})
+    monkeypatch.setenv("FQ_MOTOR_DB", str(tmp_path / "fq_motor.db"))
+    monkeypatch.setenv("FQ_LEDGER_SQLITE", "1")
+    led = ex.open_motor_ledger(jp, "SOL/USDT")
+    assert isinstance(led, ex.SqliteHashLedger) and len(led.records) == 3 and led.verify()
+    assert led.records[-1]["hash"] == src.records[-1]["hash"]       # cadena idéntica
+    assert len(ex.open_motor_ledger(jp, "SOL/USDT").records) == 3   # idempotente (no re-importa)
+
+
 def test_migracion_idempotente_y_paridad(tmp_path, capsys):
     # crea un JSONL real, migra, y verifica head-hash idéntico + idempotencia
     jp = str(tmp_path / "motor_paper_ETH_USDT.jsonl")
