@@ -218,7 +218,7 @@ def main(argv):
                   cvd_path=a.cvd, imb_min=a.imb_min)
     report(df, a.rule, a.thr, n_trials=a.n_trials)
     if a.cvd:
-        report_orthogonality(df, a.imb_min)
+        report_orthogonality(df, a.imb_min, n_trials=a.n_trials)
     return 0
 
 

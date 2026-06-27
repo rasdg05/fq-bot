@@ -118,6 +118,57 @@ def cvd_confirmation(cvd_path, ccy, ts_ms, direction, lookback=48, win=24, imb_m
         return None
 
 
+# ----------------------------- 2o medidor: persistencia / memoria del flujo -----------------------------
+def flow_persistence(df, win=24):
+    """Memoria del flujo firmado en las ultimas `win` barras [ts, buy_vol, sell_vol]:
+      ac1    — autocorrelacion lag-1 del SIGNO del flujo (order-splitting; >0 = persistente)
+      netdir — signo de la presion neta reciente (sum buy-sell)
+    Es el 2o medidor VALIDADO ortogonal al CVD (BFL 2008; BTC F2 persist DSR 0.997,
+    premium CVD✓&persist✓ +0.562R DSR 0.995). ac1 = la medida canonica y robusta."""
+    d = df.sort_values("ts")
+    delta = d["buy_vol"].to_numpy(float) - d["sell_vol"].to_numpy(float)
+    w = min(int(win), len(delta))
+    if w < 4:
+        return {"ac1": 0.0, "netdir": 0, "n": int(len(delta))}
+    seg = delta[-w:]
+    s = np.sign(seg).astype(float)
+    s = s - s.mean()
+    den = float((s * s).sum())
+    ac1 = float((s[1:] * s[:-1]).sum() / den) if den > 0 else 0.0
+    return {"ac1": ac1, "netdir": int(np.sign(seg.sum())), "n": int(len(delta))}
+
+
+def confirms_persistence(feat, direction, thr=0.0):
+    """El flujo firmado es PERSISTENTE y alineado con la direccion? ac1>thr (signos
+    agrupados = metaorden trabajandose) y la presion neta va con el trade."""
+    want = 1 if direction in (1, "long", "buy") else -1
+    return feat["ac1"] > thr and feat["netdir"] == want
+
+
+def persistence_confirmation(cvd_path, ccy, ts_ms, direction, lookback=48, win=24, thr=0.0):
+    """Persistencia del flujo CAUSAL en ts_ms (espejo de cvd_confirmation). Lee el
+    colector, agrega venues, toma la ventana causal (barras con ts < ts_ms) y confirma.
+    Devuelve {persistent, ac1, netdir, n} o None. Defensivo: jamas lanza."""
+    import os
+    if not cvd_path or not os.path.exists(cvd_path):
+        return None
+    try:
+        df = pd.read_parquet(cvd_path)
+        d = df[df["ccy"] == ccy]
+        if d.empty:
+            return None
+        agg = (d[d["ts"] < int(ts_ms)]
+               .groupby("ts", as_index=False)[["buy_vol", "sell_vol"]].sum())
+        w = agg.sort_values("ts").tail(lookback)
+        if len(w) < win:
+            return None
+        f = flow_persistence(w, win=win)
+        return {"persistent": bool(confirms_persistence(f, direction, thr=thr)),
+                "ac1": f["ac1"], "netdir": f["netdir"], "n": f["n"]}
+    except Exception:
+        return None
+
+
 # ----------------------------- colector forward -----------------------------
 def append_dedupe(path, new):
     if new.empty:

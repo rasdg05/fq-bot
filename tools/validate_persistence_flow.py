@@ -231,7 +231,7 @@ def main(argv):
     a = p.parse_args(argv)
     df = evaluate(a.cube, a.cvd, rule=a.rule, thr=a.thr, tp=a.tp, horizon=a.horizon, imb_min=a.imb_min)
     report(df, a.rule, a.thr, n_trials=a.n_trials)
-    report_orthogonality(df, a.imb_min)
+    report_orthogonality(df, a.imb_min, n_trials=a.n_trials)
     return 0
 
 
