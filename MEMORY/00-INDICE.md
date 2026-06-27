@@ -12,6 +12,12 @@ con suscriptores reales. Símbolos: SOL (pilar), BTC, ETH. Disciplina central:
 **measure-first** — nada se cree ni se despliega sin pasar el gate de validación; lo
 que no pasa va al cementerio, honesto.
 
+## Ruteo por ROL (el ecosistema, una sola verdad)
+La memoria es el **cerebro compartido** de todo el equipo. Cada función entra por su vista, pero
+todas leen el MISMO registro — Marketing no puede afirmar lo que Ingeniería no validó, y viceversa.
+- **Marketing / contenido / ventas** → `ROLES/MARKETING.md` (qué SÍ afirmar, qué NO, el track record).
+- **Ingeniería / backend** → `ROLES/INGENIERIA.md` (invariantes, decisiones, build rules, arquitectura).
+
 ## Cómo usar esta carpeta
 1. Empieza aquí (`00-INDICE.md`).
 2. ¿Vas a tocar el motor / la config / una invariante? → `CONSTITUCION.md`.
