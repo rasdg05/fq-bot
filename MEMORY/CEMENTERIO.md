@@ -43,6 +43,21 @@
 - **Caveat:** **BTC-only**. SOL no apila (firma retail/momentum, no memoria larga institucional).
   Símbolo-específico, como `global_ls`.
 
+### KL — irreversibilidad temporal como CONDICIONADOR de régimen — **DSR ✓ cross-símbolo (cube)**
+- **Idea:** la flecha del tiempo (termodinámica estocástica). KL(forward‖backward) de las
+  distribuciones de grado del **grafo de visibilidad** = qué tan lejos del equilibrio está el
+  mercado. **Sin parámetros libres** (no hay dónde hacer overfit).
+- **Validador:** `tools/validate_regime_irreversibility.py` (klines, gratis).
+- **Resultado (cube, historia completa):** el edge vive en irreversibilidad **BAJA**
+  (reversible/mean-reverting), **NO** en trending. BTC low-irrev +0.348R **DSR 0.999**; SOL
+  +0.225R **DSR 0.950**. **Monótono por cuartil en AMBOS**. **Cross-símbolo** (a diferencia de F2).
+- **Ortogonal:** el `regime_state` del bot es todo "stable" → KL separa DENTRO de él (agrega).
+  Triple cruce **CVD✓ & persist✓ & KL-bajo** (BTC 2024-06→26): **+0.874R, DSR 0.992** — pero
+  **n=39 (< piso duro de 100)** → **prometedor, NO cableáble aún**.
+- **Por qué sobrevive:** Kawai-Parrondo-Van den Broeck 2007 (KL = entropía producida); Lacasa
+  et al. 2012 (estimador por grafo de visibilidad). Era el hilo de termo-estocástica del research.
+- **Status:** **VALIDADO en cube, PENDIENTE forward.** No cableado. Falta ETH + forward + n_trials honesto.
+
 ### F1 — residual de impacto raíz-cuadrada — **REAL pero REDUNDANTE con CVD**
 - **Idea:** ley δ≈0.5: impacto ∝ σ·√(Q/V). Si el precio se mueve MENOS de lo predicho →
   absorción (continuación). Reglas: coiled / extended / fragile.
