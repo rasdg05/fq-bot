@@ -464,6 +464,44 @@ def persist_confirm_live(symbol, ts, direction, thr=None):
         return None
 
 
+_KL_MOD = None
+
+
+def _kl_mod():
+    """Importa tools/validate_regime_irreversibility LAZY (solo si el filtro KL está activo).
+    Mismo patrón que _fetch_cvd. Cacheado a nivel módulo."""
+    global _KL_MOD
+    if _KL_MOD is None:
+        import sys
+        td = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tools")
+        if td not in sys.path:
+            sys.path.insert(0, td)
+        import validate_regime_irreversibility as _m
+        _KL_MOD = _m
+    return _KL_MOD
+
+
+def kl_regime_live(closes, thr=None):
+    """Régimen por irreversibilidad temporal (grafo de visibilidad + KL) sobre la ventana de
+    precio que el bot YA tiene en mano (sin red). low=True -> régimen reversible/mean-reverting
+    (donde el edge de FQ paga: KL DSR 0.999 BTC / 0.950 SOL en el cube); False -> trending/
+    irreversible (el edge muere). thr default FQ_KL_THR=0.34 (la mediana medida en el cube).
+    Devuelve {low, irrev} o None. JAMAS lanza (defensivo)."""
+    try:
+        import numpy as np
+        y = np.asarray(closes, dtype=float)
+        y = y[np.isfinite(y)]
+        if len(y) < 16:
+            return None
+        irr = float(_kl_mod().irreversibility(y[-64:]))
+        if thr is None:
+            thr = float(os.environ.get("FQ_KL_THR", "0.34"))
+        return {"low": bool(irr <= thr), "irrev": irr}
+    except Exception as e:
+        log.debug("[motor] kl_regime_live: %s", e)
+        return None
+
+
 def ledger_report(path):
     """Lee el ledger del motor paper y devuelve un dict de stats (cartera +
     fill-rate maker + adverse selection + R por regime). Reusado por el comando

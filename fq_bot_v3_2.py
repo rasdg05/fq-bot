@@ -2838,6 +2838,37 @@ def _persist_ccy(pair):
     return str(pair or "").upper().split("/")[0].split(":")[0]
 
 
+# Filtro de RÉGIMEN KL-bajo (irreversibilidad temporal). El edge de FQ vive en régimen
+# reversible/mean-reverting (KL DSR 0.999 BTC / 0.950 SOL en el cube); en trending muere.
+# FQ_KL_FILTER=BTC,SOL -> en esos ccys SOLO se difunde al VIP en régimen KL-bajo (tier
+# CALIDAD). Vacío = OFF (señal byte-idéntica). FQ_KL_THR=0.34 (mediana del cube). El triple
+# (CVD&persist&KL) viene cuando haya más cadencia por símbolos + medición forward.
+KL_FILTER = set(c.strip().upper() for c in
+                os.environ.get("FQ_KL_FILTER", "").replace(",", " ").split()
+                if c.strip() and c.strip().lower() not in ("0", "false", "no", "off"))
+
+
+def _kl_pass(df_primary, pair):
+    """¿Pasa el filtro KL-bajo? True = difundir (régimen reversible donde el edge paga, o
+    símbolo no filtrado); False = SUPRIMIR el broadcast (régimen trending/irreversible). Solo
+    activo para los ccys de FQ_KL_FILTER. Defensivo: cualquier problema -> True (no suprime,
+    jamás corta una señal por un error)."""
+    if not KL_FILTER or _persist_ccy(pair) not in KL_FILTER:
+        return True
+    try:
+        import motor_paper
+        r = motor_paper.kl_regime_live(df_primary["close"].to_numpy(float))
+        if r is None:
+            return True
+        if not r["low"]:
+            log.info("[kl] %s suprimida — régimen irreversible/trending (irrev=%.3f > thr)",
+                     pair, r["irrev"])
+        return bool(r["low"])
+    except Exception as e:
+        log.debug("[kl-filter] %s", e)
+        return True
+
+
 def _cvd_vip_kwargs(report, ts, pair):
     """kwargs de capa 3 para build_vip_signal: badge y/o boost de tier, SOLO si el
     order-flow firmado CONFIRMA la direccion (causal, en vivo). {} si ningun flag de
@@ -3041,7 +3072,8 @@ def _btc_motor_paper_scan(exchange):
                     msg = vip_format.build_vip_signal(
                         field, report, tf_label=profile["label"], tf_id=tf_id, pair="BTC/USDT",
                         **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], "BTC/USDT"))
-                    broadcast_to_subscribers(msg)
+                    if _kl_pass(df_primary, "BTC/USDT"):     # tier KL-bajo (calidad)
+                        broadcast_to_subscribers(msg)
                 except Exception as e:
                     log.warning("[motor-btc] broadcast: %s", e)
         hi = float(df_primary["high"].iloc[-1])
@@ -3344,7 +3376,10 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
             else:
                 msg = field_reports.build_signal_report(
                     field, report, tf_label=tf_label, tf_id=tf_id, pmin=tf_pmin)
-            bsent, _ = broadcast_to_subscribers(msg)
+            if _kl_pass(df_primary, SYMBOL):
+                bsent, _ = broadcast_to_subscribers(msg)
+            else:
+                bsent = 0                                  # suprimida por régimen KL (tier calidad)
             if bsent > 0:
                 pm_data = report["p_master_data"]
                 levels = report["levels"]
