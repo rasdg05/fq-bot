@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<style>
+  :root{
+    --bg:#080a0e; --panel:#11151c; --panel2:#161b24; --hair:#222a35;
+    --ink:#f2f5f8; --muted:#9aa3b1; --faint:#5e6775;
+    --accent:#19b88c; --accent2:#12a37f; --red:#f06363; --glow:rgba(25,184,140,.20);
+  }
+  *{ margin:0; padding:0; box-sizing:border-box; -webkit-print-color-adjust:exact; }
+  html,body{ background:#000; }
+  .slide{ display:none; width:1080px; height:1350px; position:relative; overflow:hidden;
+    background:radial-gradient(90% 55% at 50% -8%, var(--glow), transparent 60%), var(--bg);
+    color:var(--ink); font-family:"Helvetica Neue",Arial,sans-serif; padding:84px 78px; flex-direction:column; }
+  .grid{ position:absolute; inset:0; background-image:
+      linear-gradient(var(--hair) 1px, transparent 1px),
+      linear-gradient(90deg, var(--hair) 1px, transparent 1px);
+    background-size:90px 90px; opacity:.06; }
+  .mono{ font-family:"SF Mono","JetBrains Mono",Menlo,Consolas,monospace; }
+
+  .top{ display:flex; justify-content:space-between; align-items:center; position:relative; z-index:2; }
+  .brand{ display:flex; align-items:center; gap:13px; }
+  .brand .bar{ width:6px; height:42px; background:var(--accent); border-radius:3px; box-shadow:0 0 22px rgba(25,184,140,.6); }
+  .brand .fq{ font-weight:800; font-size:38px; letter-spacing:-1px; }
+  .num{ font-family:"SF Mono",monospace; color:var(--faint); font-size:24px; letter-spacing:2px; }
+
+  .body{ flex:1; display:flex; flex-direction:column; justify-content:center; position:relative; z-index:2; }
+  .kick{ font-family:"SF Mono",monospace; color:var(--accent); letter-spacing:5px; text-transform:uppercase; font-size:24px; font-weight:700; margin-bottom:26px; }
+  h1{ font-size:96px; line-height:1.0; letter-spacing:-2.5px; font-weight:800; }
+  h1 em{ font-style:normal; color:var(--accent); }
+  h1.sm{ font-size:78px; }
+  .sub{ font-size:38px; color:var(--muted); margin-top:30px; line-height:1.3; max-width:880px; }
+  .sub b{ color:var(--ink); }
+
+  .swipe{ position:absolute; bottom:78px; left:78px; font-family:"SF Mono",monospace; color:var(--faint); font-size:24px; letter-spacing:2px; z-index:2; }
+  .swipe span{ color:var(--accent); }
+  .footbar{ position:absolute; bottom:0; left:0; right:0; height:14px; background:linear-gradient(90deg,var(--accent),transparent); opacity:.7; }
+
+  /* day-in-life rows */
+  .row{ display:flex; align-items:center; gap:28px; padding:26px 0; border-bottom:1px solid var(--hair); }
+  .row:last-child{ border-bottom:0; }
+  .row .t{ font-family:"SF Mono",monospace; color:var(--accent); font-size:40px; font-weight:700; width:150px; }
+  .row .d{ font-size:40px; color:var(--ink); }
+  .row .x{ margin-left:auto; font-family:"SF Mono",monospace; color:var(--red); font-size:26px; letter-spacing:1px; border:1px solid rgba(240,99,99,.4); border-radius:999px; padding:8px 18px; }
+
+  .note{ margin-top:40px; font-size:36px; color:var(--muted); line-height:1.35; }
+  .note b{ color:var(--accent); }
+
+  /* signal card */
+  .card{ background:var(--panel); border:1px solid var(--hair); border-radius:24px; padding:40px 44px; margin-top:38px; }
+  .card .hd{ display:flex; align-items:center; gap:16px; border-bottom:1px solid var(--hair); padding-bottom:22px; margin-bottom:24px; }
+  .card .hd .dot{ width:46px; height:46px; border-radius:12px; background:var(--panel2); border:1px solid var(--hair); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:22px; }
+  .card .hd .nm{ font-weight:700; font-size:30px; }
+  .card .hd .st{ font-family:"SF Mono",monospace; color:var(--muted); font-size:22px; }
+  .card .li{ font-family:"SF Mono",monospace; font-size:30px; color:var(--muted); margin:14px 0; }
+  .card .li b{ color:var(--ink); } .card .lng{ color:var(--accent); font-weight:800; font-size:40px; }
+
+  .chips{ margin-top:36px; display:flex; flex-direction:column; gap:18px; }
+  .chip{ display:flex; align-items:center; gap:16px; background:var(--panel); border:1px solid var(--hair); border-radius:16px; padding:22px 28px; }
+  .chip .l{ font-family:"SF Mono",monospace; color:var(--faint); font-size:22px; letter-spacing:2px; text-transform:uppercase; }
+  .chip .v{ font-weight:800; font-size:34px; margin-left:auto; }
+  .disc{ position:absolute; bottom:74px; left:78px; right:78px; font-size:22px; color:var(--faint); line-height:1.4; z-index:2; }
+</style>
+</head>
+<body>
+
+<!-- 1 / HOOK -->
+<section class="slide" id="s1">
+  <div class="grid"></div>
+  <div class="top"><div class="brand"><div class="bar"></div><div class="fq">FQ</div></div><div class="num">1/5</div></div>
+  <div class="body">
+    <div class="kick">Fibonacci Cuántico</div>
+    <h1>Mientras trabajas, el mercado opera <em>sin ti</em>.</h1>
+    <div class="sub">Y no, <b>no es mala suerte.</b></div>
+  </div>
+  <div class="swipe">Desliza <span>→</span></div>
+  <div class="footbar"></div>
+</section>
+
+<!-- 2 / AGITACIÓN -->
+<section class="slide" id="s2">
+  <div class="grid"></div>
+  <div class="top"><div class="brand"><div class="bar"></div><div class="fq">FQ</div></div><div class="num">2/5</div></div>
+  <div class="body">
+    <div class="kick">Un día cualquiera</div>
+    <div class="row"><div class="t">09:00</div><div class="d">Junta. El mercado se mueve.</div><div class="x">perdida</div></div>
+    <div class="row"><div class="t">14:00</div><div class="d">Comida. Se mueve otra vez.</div><div class="x">perdida</div></div>
+    <div class="row"><div class="t">18:00</div><div class="d">Llegas agotado. Ya pasó.</div><div class="x">perdida</div></div>
+    <div class="note">El mercado no espera. Y tú <b>no puedes vivir en la pantalla</b>.</div>
+  </div>
+  <div class="swipe">Desliza <span>→</span></div>
+  <div class="footbar"></div>
+</section>
+
+<!-- 3 / REFRAME -->
+<section class="slide" id="s3">
+  <div class="grid"></div>
+  <div class="top"><div class="brand"><div class="bar"></div><div class="fq">FQ</div></div><div class="num">3/5</div></div>
+  <div class="body">
+    <div class="kick">La verdad incómoda</div>
+    <h1 class="sm">No te falta esfuerzo.<br/>Te falta una <em>ventaja</em>.</h1>
+    <div class="sub">Más gráficos, más cursos, más indicadores… y sigues en la misma rueda.
+    El problema no es trabajar más: es <b>no tener un sistema con expectativa positiva</b>
+    que trabaje por ti.</div>
+  </div>
+  <div class="swipe">Desliza <span>→</span></div>
+  <div class="footbar"></div>
+</section>
+
+<!-- 4 / SOLUCIÓN -->
+<section class="slide" id="s4">
+  <div class="grid"></div>
+  <div class="top"><div class="brand"><div class="bar"></div><div class="fq">FQ</div></div><div class="num">4/5</div></div>
+  <div class="body">
+    <div class="kick">El sistema vigila por ti</div>
+    <h1 class="sm">Tú vives tu vida.<br/>Él <em>calcula</em>.</h1>
+    <div class="card">
+      <div class="hd"><div class="dot">FQ</div><div><div class="nm">Fibonacci Cuántico</div><div class="st mono">multi-símbolo · en línea</div></div></div>
+      <div class="li"><span class="lng">▲ LONG</span></div>
+      <div class="li">· Entrada definida</div>
+      <div class="li">· Stop definido</div>
+      <div class="li">· Target por estructura</div>
+    </div>
+  </div>
+  <div class="disc">Señal ilustrativa, no es recomendación. Contenido educativo, no es asesoría financiera. El trading conlleva riesgo de pérdida total.</div>
+  <div class="footbar"></div>
+</section>
+
+<!-- 5 / CTA + TRANSPARENCIA -->
+<section class="slide" id="s5">
+  <div class="grid"></div>
+  <div class="top"><div class="brand"><div class="bar"></div><div class="fq">FQ</div></div><div class="num">5/5</div></div>
+  <div class="body">
+    <div class="kick">Sin humo</div>
+    <h1 class="sm">No te vendo un sueño.<br/>Te doy el <em>método</em>.</h1>
+    <div class="sub">Muestro las que gano <b>y las que pierdo</b>: un edge real sobrevive a las
+    pérdidas. Descarga gratis las <b>5 reglas para operar con sistema</b>.</div>
+    <div class="chips">
+      <div class="chip"><div class="l">Toca el enlace</div><div class="v" style="color:var(--accent)">Guía GRATIS</div></div>
+      <div class="chip"><div class="l">Sígueme</div><div class="v">@diego_gallegosd</div></div>
+    </div>
+  </div>
+  <div class="disc">Contenido educativo. No es asesoría financiera. No hay ganancias garantizadas. Rendimientos pasados no garantizan resultados futuros.</div>
+  <div class="footbar"></div>
+</section>
+
+<script>
+  var n = (location.hash.slice(1) || '1');
+  var el = document.getElementById('s' + n);
+  if (el) el.style.display = 'flex';
+</script>
+</body>
+</html>
