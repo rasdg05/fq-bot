@@ -1,0 +1,98 @@
+name: Física moderna (F1 impacto + F2 persistencia) — 1 tap
+
+# UN TAP. Valida los DOS features que el deep-research de física/mate moderna marcó como
+# los de MAYOR probabilidad de pasar el DSR — ambos de la familia del CVD, ambos GRATIS:
+#
+#   F1  impacto raíz-cuadrada (Donier-Bonart BTC; Sato-Kanazawa PRL 2025, δ=0.489):
+#       el CVD da el SIGNO; la √-law dice cuánto DEBERÍA moverse el precio. El residual
+#       (absorción vs fragilidad) es el feature. Reglas: coiled / extended / fragile.
+#       Data: klines 5m (trae taker_buy_base -> flujo firmado del mismo archivo liviano).
+#
+#   F2  persistencia / memoria larga del flujo firmado (Bouchaud-Farmer-Lillo 2008):
+#       autocorrelación lag-1 del signo (order-splitting) + Hurst. Reglas: persist /
+#       revert / hurst. Data: cvd_hist 5m (aggTrades, ya cacheado por otros workflows).
+#
+# Mismo gate y disciplina que CVD/OI/metrics: el DSR mata el espejismo de muestra chica,
+# y la ORTOGONALIDAD vs CVD dice si SUMA dentro de lo ya CVD-confirmado o es redundante.
+# Lo que pase Y sea ortogonal -> candidato a capa 3 -> motor 1. Lo que no, al cementerio.
+# GitHub-hosted (red abierta). NO toca el worker vivo. Resultado en los logs del run.
+#
+# NOTA de honestidad multiple-testing: cada validador reporta su DSR con --n-trials=16;
+# el SUPERVIVIENTE del barrido completo (reglas×umbrales×símbolos) hay que re-correrlo
+# con --n-trials = nº total de configs probadas antes de cablear nada.
+
+on:
+  workflow_dispatch:
+    inputs:
+      since:
+        description: "Histórico desde (YYYY-MM-DD) — cubre el span del cube"
+        default: "2021-01-01"
+      symbols:
+        description: "Símbolos (CSV, sin USDT). Se salta el que no tenga cube."
+        default: "SOL,BTC,ETH"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Deps mínimas
+        run: pip install --quiet pandas pyarrow numpy
+      - name: Bajar klines + CVD real (gratis) y validar F1/F2 con DSR + ortogonalidad
+        run: |
+          set -x
+          END=$(date -u +%Y-%m-%d)
+          IFS=',' read -ra SYMS <<< "${{ inputs.symbols }}"
+          for S in "${SYMS[@]}"; do
+            S=$(echo "$S" | tr -d ' ' | tr '[:lower:]' '[:upper:]')
+            CUBE="cosecha_cubes/tp_cube_${S}_USDT.parquet"
+            [ -e "$CUBE" ] || { echo "== sin cube para ${S}, skip =="; continue; }
+            echo "===== ${S}: bajando klines 5m (liviano, ${{ inputs.since }} -> ${END}) ====="
+            python tools/fetch_binance_vision_klines.py "${S}USDT" \
+              --start "${{ inputs.since }}" --end "${END}" --out-dir data || { echo "fetch klines ${S} falló"; continue; }
+            echo "===== ${S}: bajando CVD 5m (aggTrades, pesado) para la ortogonalidad ====="
+            python tools/fetch_binance_vision_cvd.py "${S}USDT" \
+              --start "${{ inputs.since }}" --end "${END}" --out-dir data || echo "fetch CVD ${S} falló (F2 y la ortogonalidad se saltan)"
+            KL="data/kl_hist_${S}USDT.parquet"
+            CVD="data/cvd_hist_${S}USDT.parquet"
+
+            # ---- F1: residual de impacto raíz-cuadrada (klines; ortogonalidad vs CVD) ----
+            for RULE in coiled extended; do
+              for THR in 0.0 0.10 0.20 0.30; do
+                echo "===== ${S}: F1 impacto ${RULE} thr=${THR} ====="
+                python tools/validate_impact_flow.py --cube "${CUBE}" --klines "${KL}" \
+                  --rule "${RULE}" --thr "${THR}" --cvd "${CVD}" --imb-min 0.50 --tp tp4 --horizon 576 \
+                  || echo "F1 ${S}/${RULE}@${THR} falló"
+              done
+            done
+            for THR in 0.5 1.0 2.0; do
+              echo "===== ${S}: F1 impacto fragile thr=${THR} ====="
+              python tools/validate_impact_flow.py --cube "${CUBE}" --klines "${KL}" \
+                --rule fragile --thr "${THR}" --cvd "${CVD}" --imb-min 0.50 --tp tp4 --horizon 576 \
+                || echo "F1 ${S}/fragile@${THR} falló"
+            done
+
+            # ---- F2: persistencia/memoria del flujo firmado (cvd_hist; ortogonalidad interna) ----
+            [ -e "$CVD" ] || { echo "== sin CVD para ${S}, F2 skip =="; continue; }
+            for RULE in persist revert; do
+              for THR in 0.0 0.05 0.10 0.20; do
+                echo "===== ${S}: F2 persistencia ${RULE} thr=${THR} ====="
+                python tools/validate_persistence_flow.py --cube "${CUBE}" --cvd "${CVD}" \
+                  --rule "${RULE}" --thr "${THR}" --imb-min 0.50 --tp tp4 --horizon 576 \
+                  || echo "F2 ${S}/${RULE}@${THR} falló"
+              done
+            done
+            for THR in 0.0 0.05 0.10; do
+              echo "===== ${S}: F2 persistencia hurst thr=${THR} ====="
+              python tools/validate_persistence_flow.py --cube "${CUBE}" --cvd "${CVD}" \
+                --rule hurst --thr "${THR}" --imb-min 0.50 --tp tp4 --horizon 576 \
+                || echo "F2 ${S}/hurst@${THR} falló"
+            done
+          done
