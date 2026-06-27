@@ -177,23 +177,48 @@ class DurableHashLedger(HashLedger):
         rec = super().append(payload)
         with open(self.path, "a") as fh:
             fh.write(json.dumps(rec, sort_keys=True, default=str) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())          # durabilidad: la línea queda EN DISCO antes de volver
         return rec
+
+    def _rewrite_atomic(self):
+        """Reescribe el JSONL saneado desde self.records, atómico (tmp + os.replace),
+        mismo patrón crash-safe que los fetchers. Usado para limpiar una cola rota."""
+        tmp = self.path + ".tmp"
+        with open(tmp, "w") as fh:
+            for rec in self.records:
+                fh.write(json.dumps(rec, sort_keys=True, default=str) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, self.path)
 
     @classmethod
     def load(cls, path):
-        """Rehidrata desde el JSONL (si existe) y verifica la cadena. Lanza si
-        está corrupta (manipulación o escritura parcial)."""
+        """Rehidrata desde el JSONL y verifica la cadena. SANA un torn-write de la
+        ÚLTIMA línea (JSON parcial de un crash a media escritura → se descarta y se
+        reescribe atómico), pero LANZA ante manipulación del pasado (cadena rota =
+        tamper-evidente). Antes brickeaba el ledger ante cualquier línea parcial."""
         obj = cls(path)
-        if os.path.exists(path):
-            recs = []
-            with open(path) as fh:
-                for line in fh:
-                    line = line.strip()
-                    if line:
-                        recs.append(json.loads(line))
-            obj.records = recs
-            if recs and not obj.verify():
-                raise ValueError("cadena del ledger durable corrupta al cargar")
+        if not os.path.exists(path):
+            return obj
+        with open(path) as fh:
+            lines = [ln.strip() for ln in fh.readlines()]
+        idxs = [i for i, s in enumerate(lines) if s]
+        recs = []
+        healed_tail = False
+        for k, i in enumerate(idxs):
+            try:
+                recs.append(json.loads(lines[i]))
+            except ValueError:                     # JSONDecodeError ⊂ ValueError
+                if k == len(idxs) - 1:             # inválida en la ÚLTIMA línea -> torn write
+                    healed_tail = True
+                    break
+                raise ValueError("ledger durable corrupto: línea inválida no-terminal #%d" % i)
+        obj.records = recs
+        if recs and not obj.verify():
+            raise ValueError("cadena del ledger durable corrupta al cargar")
+        if healed_tail:                            # quita la cola rota del archivo (atómico)
+            obj._rewrite_atomic()
         return obj
 
 

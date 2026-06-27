@@ -8,6 +8,8 @@ por tiempo (cada 6h), no por conteo.
 Sin dependencias nuevas: requests para Telegram, boto3 solo si hay S3 config.
 """
 import os
+import glob
+import shutil
 import sqlite3
 import tempfile
 import logging
@@ -83,34 +85,79 @@ def _maybe_upload_s3(file_path, key):
         return False
 
 
-def run_backup():
-    """Ejecuta un backup completo. Devuelve True si al menos un destino recibio."""
-    src = _resolve_ledger_path()
-    if not os.path.isfile(src):
-        log.warning("backup: ledger no existe en {}".format(src))
-        return False
+def _resolve_jsonl_ledgers():
+    """Los ledgers motor_paper (JSONL hash-chain) de TODOS los símbolos — el único
+    registro forward de BTC/ETH (2/3 del producto), que antes NO se respaldaba."""
+    paths = set()
+    for env in ("FQ_MOTOR_PAPER_LEDGER_PATH", "FQ_MOTOR_PAPER_BTC_LEDGER_PATH",
+                "FQ_MOTOR_PAPER_ETH_LEDGER_PATH"):
+        v = os.environ.get(env, "").strip()
+        if v:
+            paths.add(v)
+    base = "/data" if os.path.isdir("/data") else tempfile.gettempdir()
+    for p in glob.glob(os.path.join(base, "motor_paper_*.jsonl")):
+        paths.add(p)
+    return sorted(x for x in paths if os.path.isfile(x))
 
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    fname = "fq_ledger-{}.db".format(stamp)
-    tmp_path = os.path.join(tempfile.gettempdir(), fname)
 
-    try:
-        _consistent_copy(src, tmp_path)
-        size_kb = os.path.getsize(tmp_path) / 1024.0
-        caption = "FQ backup ledger · {} · {:.0f} KB".format(stamp, size_kb)
-        sent_tg = _send_to_telegram(tmp_path, caption)
-        sent_s3 = _maybe_upload_s3(tmp_path, "ledger/{}".format(fname))
-        ok = sent_tg or sent_s3
-        log.info("backup {} -> telegram={} s3={}".format(fname, sent_tg, sent_s3))
-        return ok
-    except Exception as e:
-        log.error("backup fallo: {}".format(e))
-        return False
-    finally:
+def _backup_one(tmp_path, fname, caption, s3_key):
+    sent_tg = _send_to_telegram(tmp_path, caption)
+    sent_s3 = _maybe_upload_s3(tmp_path, s3_key)
+    log.info("backup {} -> telegram={} s3={}".format(fname, sent_tg, sent_s3))
+    return sent_tg or sent_s3
+
+
+def _backup_jsonl_ledgers(stamp):
+    """Respalda cada motor_paper_*.jsonl (snapshot estable del append-only)."""
+    sent_any = False
+    for src in _resolve_jsonl_ledgers():
+        stem = os.path.splitext(os.path.basename(src))[0]
+        fname = "{}-{}.jsonl".format(stem, stamp)
+        tmp_path = os.path.join(tempfile.gettempdir(), fname)
         try:
-            os.remove(tmp_path)
-        except OSError:
-            pass
+            shutil.copy2(src, tmp_path)            # snapshot estable (un torn-tail lo sana load())
+            kb = os.path.getsize(tmp_path) / 1024.0
+            cap = "FQ backup {} · {} · {:.0f} KB".format(os.path.basename(src), stamp, kb)
+            sent_any = _backup_one(tmp_path, fname, cap, "ledger/{}".format(fname)) or sent_any
+        except Exception as e:
+            log.error("backup jsonl {} error: {}".format(src, e))
+        finally:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+    return sent_any
+
+
+def run_backup():
+    """Backup completo: el SQLite VIP (SOL) + los JSONL motor_paper de TODOS los
+    símbolos (BTC/ETH/SOL). Devuelve True si al menos un destino recibió algo."""
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    ok = False
+
+    # 1) SQLite (ledger VIP, SOL)
+    src = _resolve_ledger_path()
+    if os.path.isfile(src):
+        fname = "fq_ledger-{}.db".format(stamp)
+        tmp_path = os.path.join(tempfile.gettempdir(), fname)
+        try:
+            _consistent_copy(src, tmp_path)
+            kb = os.path.getsize(tmp_path) / 1024.0
+            cap = "FQ backup ledger · {} · {:.0f} KB".format(stamp, kb)
+            ok = _backup_one(tmp_path, fname, cap, "ledger/{}".format(fname)) or ok
+        except Exception as e:
+            log.error("backup sqlite fallo: {}".format(e))
+        finally:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+    else:
+        log.warning("backup: SQLite no existe en {}".format(src))
+
+    # 2) JSONL motor_paper (BTC/ETH/SOL) — el registro forward que faltaba respaldar
+    ok = _backup_jsonl_ledgers(stamp) or ok
+    return ok
 
 
 if __name__ == "__main__":
