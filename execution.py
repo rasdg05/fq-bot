@@ -290,9 +290,18 @@ def _symbol_from_jsonl(jsonl_path):
 def open_motor_ledger(jsonl_path, symbol):
     """Ledger del motor (CARGADO) según FQ_LEDGER_SQLITE: SQLite multi-símbolo (1
     archivo, consultable) o el JSONL legacy por símbolo. Reversible (default OFF=JSONL,
-    byte-idéntico al comportamiento previo)."""
+    byte-idéntico al comportamiento previo). AUTO-MIGRA one-time: si el SQLite está vacío
+    para el símbolo pero existe su JSONL, importa la historia al cargar -> el corte es
+    un solo flag, sin riesgo de arrancar con el store vacío."""
     if os.environ.get("FQ_LEDGER_SQLITE", "0").strip() in ("1", "true", "yes"):
-        return SqliteHashLedger.load(_motor_db_path(jsonl_path), symbol)
+        led = SqliteHashLedger.load(_motor_db_path(jsonl_path), symbol)
+        if not led.records and jsonl_path and os.path.exists(jsonl_path):
+            src = DurableHashLedger.load(jsonl_path)      # cadena verificada
+            for rec in src.records:
+                led.append(rec["payload"])               # re-aplica payloads -> cadena idéntica
+            if src.records:
+                log.info("[ledger] auto-migrado %s: %d filas JSONL -> SQLite", symbol, len(led.records))
+        return led
     return DurableHashLedger.load(jsonl_path)
 
 
