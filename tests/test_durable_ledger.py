@@ -45,6 +45,22 @@ def test_load_missing_file_is_empty(tmp_path):
     assert led.records == [] and led.verify() is True
 
 
+def test_torn_tail_write_heals_not_bricks(tmp_path):
+    # A0 crash-safety: un crash a media escritura deja una última línea JSON parcial.
+    # Antes load() LANZABA -> ledger brickeado. Ahora SANA la cola y conserva lo válido.
+    p = str(tmp_path / "led.jsonl")
+    led = ex.DurableHashLedger(p)
+    led.append({"event": "OPEN", "pid": 1})
+    led.append({"event": "CLOSE", "pid": 1, "pnl_r": 1.0})
+    with open(p, "a") as fh:
+        fh.write('{"seq": 2, "prev": "x", "hash')     # torn write (JSON sin cerrar)
+    led2 = ex.DurableHashLedger.load(p)               # NO lanza
+    assert led2.verify() is True and len(led2.records) == 2
+    assert len(open(p).read().splitlines()) == 2       # archivo saneado (cola removida)
+    led2.append({"event": "OPEN", "pid": 2})           # la cadena sigue creciendo
+    assert ex.DurableHashLedger.load(p).verify() is True
+
+
 def test_paperbroker_with_durable_ledger_survives_reload(tmp_path):
     p = str(tmp_path / "led.jsonl")
     broker = ex.PaperBroker(ledger=ex.DurableHashLedger(p))

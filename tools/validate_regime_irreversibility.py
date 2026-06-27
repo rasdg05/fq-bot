@@ -134,12 +134,17 @@ def report(df, n_trials=16):
     for nombre, seg in (("RÉGIMEN irrev-ALTO ", hi), ("RÉGIMEN irrev-BAJO ", lo)):
         s = seg["pnl_r"]
         print("  %s n=%-4d exp=%+.3fR  WR=%.0f%%" % (nombre, len(s), s.mean(), (s > 0).mean() * 100))
-    sep = hi["pnl_r"].mean() - lo["pnl_r"].mean()
-    dd = _dsr(hi["pnl_r"], base, n_trials)
-    print("\n  separación (alto − bajo): %+.3fR   DSR(régimen alto)=%s" % (
-        sep, ("%.3f" % dd["dsr"]) if dd else "n/a"))
-    print("  -> %s" % ("CONDICIONADOR ✓ — el edge se concentra en régimen irreversible/trending"
-                       if (sep > 0.05 and dd and dd["significant"]) else
+    hr = hi["pnl_r"]; lr = lo["pnl_r"]
+    sep = hr.mean() - lr.mean()
+    # el régimen GANADOR es el de mayor R (el edge puede vivir en CUALQUIER lado —
+    # en BTC resultó vivir en irrev-BAJO/reversible, lo opuesto a la intuición de trending).
+    win_name, win = (("irrev-ALTO (trending)", hr) if hr.mean() >= lr.mean()
+                     else ("irrev-BAJO (reversible/choppy)", lr))
+    dw = _dsr(win, base, n_trials)
+    print("\n  separación |alto−bajo| = %.3fR   régimen ganador: %s  DSR=%s" % (
+        abs(sep), win_name, ("%.3f" % dw["dsr"]) if dw else "n/a"))
+    print("  -> %s" % (("CONDICIONADOR ✓ — el edge se concentra en %s" % win_name)
+                       if (abs(sep) > 0.05 and dw and dw["significant"]) else
                        "no separa de forma significativa — al cementerio (o ya cubierto por tu KL de régimen)"))
     d = df[df.cvd_conf.notna()]
     if len(d) >= 60:
