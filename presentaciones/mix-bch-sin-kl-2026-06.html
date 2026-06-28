@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>Mix: 3×Calidad + BCH sin KL — $1000 · 2 semanas · 3.6%</title>
+<style>
+  @page { size: 1280px 720px; margin: 0; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root{
+    --bg:#f7f5f0; --ink:#1c2420; --muted:#5d6b63; --line:#d8d2c6;
+    --em:#0f6f4d; --em2:#0a5238; --gold:#b08338; --red:#a23b2e; --card:#fffdf8;
+  }
+  body{ font-family:"Georgia","Times New Roman",serif; color:var(--ink); background:#333; }
+  .slide{ width:1280px; height:720px; background:var(--bg); position:relative;
+    padding:64px 80px; overflow:hidden; page-break-after:always; }
+  .kick{ font-family:"Helvetica Neue",Arial,sans-serif; font-size:13px; letter-spacing:.32em;
+    text-transform:uppercase; color:var(--em); font-weight:700; }
+  h1{ font-size:56px; line-height:1.05; letter-spacing:-.015em; margin-top:12px; }
+  h2{ font-size:38px; line-height:1.1; letter-spacing:-.01em; margin-top:6px; }
+  .sub{ font-size:21px; color:var(--muted); font-style:italic; margin-top:18px; }
+  .rule{ height:2px; background:var(--ink); width:64px; margin:22px 0; }
+  .foot{ position:absolute; left:80px; right:80px; bottom:34px; display:flex;
+    justify-content:space-between; font-family:"Helvetica Neue",Arial,sans-serif;
+    font-size:12px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted);
+    border-top:1px solid var(--line); padding-top:14px; }
+  p{ font-size:21px; line-height:1.5; color:#2b332e; }
+  table{ width:100%; border-collapse:collapse; margin-top:18px; }
+  td,th{ text-align:left; padding:13px 12px; border-bottom:1px solid var(--line); font-size:20px; }
+  th{ font-family:"Helvetica Neue",Arial,sans-serif; font-size:13px; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--muted); font-weight:700; }
+  td.num,th.num{ text-align:right; font-variant-numeric:tabular-nums; }
+  td.win{ color:var(--em); font-weight:700; } td.warn{ color:var(--red); font-weight:700; }
+  .em{ color:var(--em); font-weight:700; } .gold{ color:var(--gold); font-weight:700; }
+  .red{ color:var(--red); font-weight:700; }
+  .grid{ display:flex; gap:18px; margin-top:24px; }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:10px; padding:20px 22px; flex:1; }
+  .card .n{ font-family:"Helvetica Neue",Arial,sans-serif; font-size:13px; letter-spacing:.12em;
+    text-transform:uppercase; color:var(--em); font-weight:700; }
+  .card .v{ font-size:34px; font-weight:700; letter-spacing:-.02em; margin:8px 0 4px; }
+  .card .d{ font-size:16px; color:var(--muted); line-height:1.35; }
+  .note{ font-size:16px; color:var(--muted); font-style:italic; margin-top:16px; }
+  .pill{ display:inline-block; font-family:"Helvetica Neue",Arial,sans-serif; font-size:12px;
+    letter-spacing:.1em; text-transform:uppercase; background:#e7efe9; color:var(--em2);
+    padding:5px 11px; border-radius:20px; font-weight:700; }
+  .pill.gold{ background:#f3ead7; color:#7a5a1f; }
+  ul{ margin:12px 0 0 22px; } li{ font-size:19px; line-height:1.5; margin-bottom:8px; }
+</style></head><body>
+
+<!-- 1 — Cover -->
+<section class="slide">
+  <div class="kick">FQ · Escenario · Mix multi-tier</div>
+  <h1>3×Calidad + BCH<br>sin filtro</h1>
+  <div class="rule"></div>
+  <p class="sub">$1,000 · 2 semanas · 3.6% riesgo/trade · tope 25x. BTC·SOL·ETH siguen con KL (Calidad)
+  como están hoy; <b>BCH entra crudo</b> (su base es el más fuerte, +0.34R, pero KL no le aplica).</p>
+  <div class="grid" style="margin-top:40px">
+    <div class="card"><div class="n">Cadencia total</div><div class="v em">10.7 <span style="font-size:20px">señales/sem</span></div>
+      <div class="d">6.3 (los 3 con KL) + <b>4.45 (BCH base)</b> → ~21 trades en 2 semanas.</div></div>
+    <div class="card"><div class="n">vs hoy (solo 3×Calidad)</div><div class="v">+8 trades</div>
+      <div class="d">BCH casi duplica el flujo — porque entra sin filtro (todas sus señales).</div></div>
+  </div>
+  <div class="foot"><span>40,000 caminos Monte-Carlo · R real del cube · coste 0.15R</span><span>BCH = cube, NO forward aún</span></div>
+</section>
+
+<!-- 2 — comparativa -->
+<section class="slide">
+  <div class="kick">$1,000 · 2 semanas · 3.6%/trade · tope 25x</div>
+  <h2>Qué cambia al añadir BCH</h2>
+  <div class="rule"></div>
+  <table>
+    <tr><th>&nbsp;</th><th class="num">Hoy (3×Calidad)</th><th class="num">+ BCH base</th></tr>
+    <tr><td>Señales / 2 sem</td><td class="num">13</td><td class="num win">21</td></tr>
+    <tr><td>Mediana</td><td class="num">$1,021 (+2%)</td><td class="num win">$1,059 (+6%)</td></tr>
+    <tr><td>Media</td><td class="num">$1,085 (+8%)</td><td class="num win">$1,153 (+15%)</td></tr>
+    <tr><td>P(verde)</td><td class="num">53%</td><td class="num win">57%</td></tr>
+    <tr><td>Upside p90</td><td class="num">$1,498</td><td class="num win">$1,716</td></tr>
+    <tr><td>Drawdown mediana / p95</td><td class="num">19% / 34%</td><td class="num warn">26% / 43%</td></tr>
+    <tr><td>P(pierde &gt;25%)</td><td class="num">11%</td><td class="num warn">15%</td></tr>
+  </table>
+  <p class="note">Más señales al mismo riesgo = más compounding (mejor mediana, media y P(verde)) <b>pero más
+  drawdown</b>. Sigue sin riesgo de ruina a 3.6% (P(pierde&gt;50%) = 0%).</p>
+  <div class="foot"><span>Mix neto meanR +0.184R (vs +0.176 los 3)</span><span>lev real ~6.8x · 25x = tope, no apuesta</span></div>
+</section>
+
+<!-- 3 — el trade-off honesto -->
+<section class="slide">
+  <div class="kick">La letra honesta</div>
+  <h2>El trade-off (y los avisos)</h2>
+  <div class="rule"></div>
+  <ul>
+    <li><b>BCH sube la expectativa</b> — su base (+0.34R) es el edge más fuerte de los 6, y entra sin
+    filtro, así que aporta cadencia Y R. Mediana +6% vs +2%; media +15% vs +8%.</li>
+    <li><b>…a costa de más drawdown.</b> 21 trades al mismo 3.6% acumulan más varianza: DD mediana
+    26% (vs 19%), p95 43% (vs 34%). Se siente más. A 6.9% ya es too hot (DD p95 67%, 11% de perder &gt;½).</li>
+    <li><b>BCH es cube, NO forward.</b> A diferencia de BTC/SOL/ETH-Calidad (KL validado DSR), el edge
+    de BCH es de backtest. Por eso entra <b>sin KL</b> (KL no le valida) y <b>se mide forward</b> al prenderlo.</li>
+    <li><b>KL no le aplica solo:</b> BCH no está en <code>FQ_KL_FILTER</code> → difunde todas sus señales.
+    El motor mide forward desde el día 1; si paga, lo confirmamos con registro real, no con esta proyección.</li>
+  </ul>
+  <p class="note">Veredicto: a 3.6% el mix mejora el caso esperado con drawdown manejable. Sano encenderlo
+  midiendo forward; la prueba será el registro, no este Monte-Carlo.</p>
+  <div class="foot"><span>FQ · perpetuos cripto · measure-first</span><span>Todo medido o al cementerio</span></div>
+</section>
+
+</body></html>
