@@ -161,6 +161,7 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
 SYMBOL      = "SOL-USDT-SWAP"
 SYMBOL_BTC  = "BTC-USDT-SWAP"
 SYMBOL_ETH  = "ETH-USDT-SWAP"
+SYMBOL_BCH  = "BCH-USDT-SWAP"
 
 LOOP_SECONDS = 60
 
@@ -3186,7 +3187,8 @@ def _eth_motor_paper_scan(exchange):
                     msg = vip_format.build_vip_signal(
                         field, report, tf_label=profile["label"], tf_id=tf_id, pair="ETH/USDT",
                         **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], "ETH/USDT"))
-                    broadcast_to_subscribers(msg)
+                    if _kl_pass(df_primary, "ETH/USDT"):   # tier KL-bajo (calidad) — honra FQ_KL_FILTER
+                        broadcast_to_subscribers(msg)
                 except Exception as e:
                     log.warning("[motor-eth] broadcast: %s", e)
         hi = float(df_primary["high"].iloc[-1])
@@ -3199,6 +3201,116 @@ def _eth_motor_paper_scan(exchange):
                   high=hi, low=lo, ts=cts, tf_id=tf_id)
     except Exception as e:
         log.warning("[motor-eth] scan: %s", e)
+
+
+# ============================================================
+# BCH MOTOR PAPER + FUSION BCH->VIP (4o simbolo, SIN filtro KL)
+# ============================================================
+# par BCH/USDT. Del barrido cross-asset (tools/cross_asset_sweep.py): BCH tiene el
+# BASE mas fuerte de los 6 (+0.344R), pero KL NO le valida (su edge vive en
+# irrev-ALTO, no BAJO) -> entra SIN filtro KL (difunde todas sus senales). Es cube,
+# NO forward: el motor lo mide forward desde el dia 1. Activar con
+# FQ_MOTOR_PAPER_BCH=1 (default OFF -> _bch_motor_paper_scan no-op, byte-identico).
+BCH_MOTOR_PAPER_ENABLED = os.environ.get("FQ_MOTOR_PAPER_BCH", "0").strip() in ("1", "true", "yes")
+BCH_MOTOR_TF = os.environ.get("FQ_MOTOR_PAPER_BCH_TF", "5m")  # TF del research (5m)
+# FUSION BCH->VIP: default ON cuando el motor BCH corre; kill-switch sin redeploy
+# FQ_BCH_VIP_BROADCAST=0. OJO: BCH es cube (no forward) y SIN KL -> es el menos
+# probado; conviene medir un tiempo con broadcast=0 antes de exponer clientes.
+BCH_VIP_BROADCAST_ENABLED = os.environ.get("FQ_BCH_VIP_BROADCAST", "1").strip() not in ("0", "false", "no")
+BCH_MOTOR_LEDGER_PATH = os.environ.get(
+    "FQ_MOTOR_PAPER_BCH_LEDGER_PATH", "/data/motor_paper_BCH_USDT.jsonl")
+_BCH_MOTOR_RUNTIME = None
+_BCH_MOTOR_TRIED = False
+_BCH_MOTOR_LAST_TS = None  # last_signal_ts BCH, independiente de SOL/BTC/ETH
+
+
+def _bch_motor_runtime():
+    """Lazy-init del runtime motor paper BCH (ledger propio). None si no se arma."""
+    global _BCH_MOTOR_RUNTIME, _BCH_MOTOR_TRIED
+    if _BCH_MOTOR_RUNTIME is not None or _BCH_MOTOR_TRIED:
+        return _BCH_MOTOR_RUNTIME
+    _BCH_MOTOR_TRIED = True
+    try:
+        import motor_paper
+        _BCH_MOTOR_RUNTIME = motor_paper.MotorPaperRuntime.from_env(
+            "BCH/USDT", notify_fn=_motor_admin_notify,
+            ledger_path=BCH_MOTOR_LEDGER_PATH)
+        log.info("[motor-bch] runtime paper BCH activo (tf=%s)", BCH_MOTOR_TF)
+    except Exception as e:
+        log.warning("[motor-bch] no se pudo armar el runtime: %s", e)
+        _BCH_MOTOR_RUNTIME = None
+    return _BCH_MOTOR_RUNTIME
+
+
+def _bch_motor_paper_scan(exchange):
+    """Pasada BCH en su TF (default 5m) -> evaluate_signal -> motor paper BCH.
+    El ledger paper mide SIEMPRE. Ademas, FUSION BCH->VIP: si FQ_BCH_VIP_BROADCAST!=0
+    (default ON cuando el motor BCH corre), los fires se broadcastean a clientes con
+    el MISMO formato que SOL pero par BCH/USDT. SIN filtro KL a proposito (KL no
+    valida en BCH). No-op si FQ_MOTOR_PAPER_BCH!=1. Nunca rompe el loop."""
+    global _BCH_MOTOR_LAST_TS
+    if not BCH_MOTOR_PAPER_ENABLED:
+        return
+    rt = _bch_motor_runtime()
+    if rt is None:
+        return
+    try:
+        tf_id = BCH_MOTOR_TF
+        profile = TF_PROFILES[tf_id]
+        df_primary = add_indicators(fetch_ohlcv(exchange, SYMBOL_BCH, tf_id, limit=200))
+        if df_primary is None or len(df_primary) < 50:
+            return
+        df_ctx_mid = add_indicators(fetch_ohlcv(exchange, SYMBOL_BCH, profile["context_mid"], limit=100))
+        df_ctx_high = add_indicators(fetch_ohlcv(exchange, SYMBOL_BCH, profile["context_high"], limit=100))
+        try:
+            df_sub = add_indicators(fetch_ohlcv(exchange, SYMBOL_BCH, profile["sub_tf"], limit=30))
+        except Exception:
+            df_sub = None
+        price = float(df_primary["close"].iloc[-1])
+        config = {
+            "PHI": PHI,
+            "PMASTER_MIN": profile["PMASTER_MIN"],
+            "RR_MIN_TP_DIVINO": profile.get("RR_MIN_TP3", RR_MIN_TP_DIVINO),
+            "TF_ID": tf_id,
+            "TF_LABEL": profile["label"],
+            "PULLBACK_VOL_MULT": profile["PULLBACK_VOL_MULT"],
+            "BREAKOUT_VOL_MULT": profile["BREAKOUT_VOL_MULT"],
+            "LAST_SIGNAL_TS": _BCH_MOTOR_LAST_TS,
+            "PHASE_E_N_PATHS": profile.get("PHASE_E_N_PATHS"),
+            "PHASE_E_COOLDOWN_MIN": profile.get("PHASE_E_COOLDOWN_MIN"),
+        }
+        fire, field, report = fusion_engine.evaluate_signal(
+            df_primary, df_ctx_mid, df_ctx_high, df_sub,
+            detect_pspace, laplacian_check, calculate_levels, config, intra=False)
+        if fire:
+            _BCH_MOTOR_LAST_TS = datetime.now(timezone.utc)
+            _seg_vetoed = False
+            if SEGMENT_VETO is not None and SEGMENT_VETO.active:
+                try:
+                    _seg_vetoed = bool(SEGMENT_VETO.reason(
+                        killzone=getattr(field, "killzone", None),
+                        ts_utc=df_primary["timestamp"].iloc[-1]))
+                except Exception:
+                    _seg_vetoed = False
+            if (not _seg_vetoed and BCH_VIP_BROADCAST_ENABLED
+                    and VIP_FORMAT_AVAILABLE and vip_format is not None):
+                try:
+                    msg = vip_format.build_vip_signal(
+                        field, report, tf_label=profile["label"], tf_id=tf_id, pair="BCH/USDT",
+                        **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], "BCH/USDT"))
+                    broadcast_to_subscribers(msg)   # SIN _kl_pass a proposito: BCH va sin filtro KL
+                except Exception as e:
+                    log.warning("[motor-bch] broadcast: %s", e)
+        hi = float(df_primary["high"].iloc[-1])
+        lo = float(df_primary["low"].iloc[-1])
+        try:
+            cts = df_primary["timestamp"].iloc[-1]   # ts de la VELA (no now())
+        except Exception:
+            cts = None
+        rt.on_bar(fire, field, report, df_primary, price,
+                  high=hi, low=lo, ts=cts, tf_id=tf_id)
+    except Exception as e:
+        log.warning("[motor-bch] scan: %s", e)
 
 
 # ============================================================
@@ -5622,6 +5734,8 @@ def main():
         _active.append(_lbl(SYMBOL_BTC))
     if ETH_MOTOR_PAPER_ENABLED and ETH_VIP_BROADCAST_ENABLED:
         _active.append(_lbl(SYMBOL_ETH))
+    if BCH_MOTOR_PAPER_ENABLED and BCH_VIP_BROADCAST_ENABLED:
+        _active.append(_lbl(SYMBOL_BCH))
     telegram_send(
         "{header}\n"
         "\n"
@@ -5705,6 +5819,9 @@ def main():
             # ETH (3er simbolo): mismo patron, no-op si FQ_MOTOR_PAPER_ETH!=1.
             if ETH_MOTOR_PAPER_ENABLED and ETH_MOTOR_TF in new_candle_tfs:
                 _eth_motor_paper_scan(exchange)
+            # BCH (4o simbolo, SIN KL): mismo patron, no-op si FQ_MOTOR_PAPER_BCH!=1.
+            if BCH_MOTOR_PAPER_ENABLED and BCH_MOTOR_TF in new_candle_tfs:
+                _bch_motor_paper_scan(exchange)
 
             # RADAR proactivo / ALERTA TACTICA (FQ v5.3):
             #   - Corre en FIELD_TIMEFRAMES (default 5m+15m; 1m opt-in, 3m retirado).
