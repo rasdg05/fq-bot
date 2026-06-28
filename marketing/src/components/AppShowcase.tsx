@@ -67,7 +67,7 @@ export const AppShowcase: React.FC<{lang?: 'es' | 'en'}> = ({lang = 'es'}) => {
             </div>
             <div>
               <div style={{fontFamily: FONTS.sans, fontWeight: 700, color: COLORS.ink, fontSize: 26}}>
-                {BRAND.product} {GLYPHS.title} {BRAND.desk}
+                {BRAND.product} {GLYPHS.title} {en ? BRAND_EN.desk : BRAND.desk}
               </div>
               <div style={{fontFamily: FONTS.mono, color: COLORS.inkDim, fontSize: 18}}>
                 {en ? BRAND_EN.online : 'multi-simbolo · en linea'}

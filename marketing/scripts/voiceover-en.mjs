@@ -1,12 +1,14 @@
 /**
- * Build the English voiceover track for the car ad (g1-en), perfectly synced
- * to the Remotion scene layout. Each line is synthesized with piper (offline,
- * free) and placed at the exact start time of its scene (frame offsets account
- * for the 8-frame crossfades, same math as AdMovie's `starts[]`).
+ * Build the English voiceover tracks for the car ad, perfectly synced to the
+ * Remotion scene layout. Each line is synthesized with piper (offline, free)
+ * and placed at the exact start time of its scene + a small LEAD so the voice
+ * lands as the caption/crossfade settles (not ahead of the subtitles).
  *
  *   node scripts/voiceover-en.mjs
  *
- * Output: public/audio/vo-en-g1.wav  (loudness-normalized, full ad length)
+ * Outputs (loudness-normalized, full ad length, car-engine ambience folded in):
+ *   public/audio/vo-en-g1.wav      → Telegram CTA ("text me FQ")
+ *   public/audio/vo-en-g1-web.wav  → landing CTA ("get the free guide below")
  */
 import {execFileSync} from 'node:child_process';
 import {mkdirSync, rmSync} from 'node:fs';
@@ -16,62 +18,59 @@ const require = createRequire(import.meta.url);
 const ffmpeg = require('ffmpeg-static');
 const VOICE = `${process.cwd()}/tts/voices/en_US-ryan-high.onnx`;
 const PARTS = `${process.cwd()}/tts/parts`;
-const OUT = `${process.cwd()}/public/audio/vo-en-g1.wav`;
-// Car engine/ambience rescued from the car B-roll (IMG_1835), synced to the
-// on-screen car shot (overlay inSec 3). Sits low under the VO during the hook.
 const CAR = `${process.cwd()}/public/audio/IMG_1835.wav`;
-const CAR_SS = 3.0; // start in the source (matches the overlay)
-const CAR_LEN = 3.6; // covers the car shot + a touch of tail
-const CAR_DELAY = 800; // ms — lands just as the hook/car shot comes in
+const CAR_SS = 3.0;
+const CAR_LEN = 3.6;
 
-rmSync(PARTS, {recursive: true, force: true});
-mkdirSync(PARTS, {recursive: true});
+// Lead-in: captions fade in over ~8 frames and the scenes crossfade by 8 frames,
+// so the voice must arrive ~0.37s AFTER the raw scene start to feel in time.
+const LEAD = 367; // ms
 
-// Lines + start time (ms) of the scene they sit on. length_scale < 1 = faster.
-// Windows (next start - this start): hook 6.93s, b1 4.5s, b2 3.3s, b3 6.3s,
-// showcase 4.7s, cta 5.0s. Lines written to fit; a slight bridge is fine.
-const LINES = [
+// Shared lines + the scene start time (ms). The 6th line (CTA) is per-variant.
+const COMMON = [
   {t: 'Why will most people never drive one of these? It is not luck. And it is not the market.', delay: 733, ls: 1.0},
   {t: 'The market did not rob you. You robbed yourself. No system, pure emotion.', delay: 7667, ls: 1.0},
   {t: 'They buy on a feeling. They sell on fear.', delay: 12200, ls: 1.0},
   {t: 'The day you lean on a system instead of your ego, a bot, like Fibonacci Quantum, everything changes.', delay: 15533, ls: 1.02},
   {t: 'It hands you the trade ready. Entry, stop, target. Zero emotion.', delay: 21833, ls: 1.0},
-  {t: 'I do not sell a dream. I show the wins and the losses. Text me F Q on Telegram.', delay: 26567, ls: 1.0},
 ];
+const CTA_LINE = {
+  telegram: {t: 'I do not sell a dream. I show the wins and the losses. Text me F Q on Telegram.', delay: 26567, ls: 1.0},
+  web: {t: 'I do not sell a dream. I show the wins and the losses. Get the free guide below.', delay: 26567, ls: 1.0},
+};
 const TOTAL_MS = 31567;
+const CAR_DELAY = 733 + LEAD; // engine bed lands with the car shot
 
-LINES.forEach((l, i) => {
-  const f = `${PARTS}/line${i}.wav`;
-  execFileSync('piper', ['-m', VOICE, '--length_scale', String(l.ls), '-f', f], {input: l.t});
-  l.file = f;
-  process.stdout.write(`  synth line ${i}\n`);
-});
+rmSync(PARTS, {recursive: true, force: true});
+mkdirSync(PARTS, {recursive: true});
 
-// Inputs: the 6 VO lines + the car ambience clip (last input).
-const inputs = [...LINES.flatMap((l) => ['-i', l.file]), '-ss', String(CAR_SS), '-t', String(CAR_LEN), '-i', CAR];
-const carIdx = LINES.length;
+const synth = (text, ls, file) =>
+  execFileSync('piper', ['-m', VOICE, '--length_scale', String(ls), '-f', file], {input: text});
 
-// VO chain: each line delayed to its scene, mixed, lightly mastered. The VO is
-// the lead — clean, present, the bed never fights it.
-const voDelays = LINES.map((l, i) => `[${i}:a]adelay=${l.delay}|${l.delay}[d${i}]`).join(';');
-const voMixIn = LINES.map((_, i) => `[d${i}]`).join('');
+const buildStem = (lines, out) => {
+  lines.forEach((l, i) => {
+    l.file = `${PARTS}/${out.replace(/[^a-z0-9]/gi, '_')}_${i}.wav`;
+    synth(l.t, l.ls, l.file);
+  });
 
-// Car bed: tame the harshness, fade in/out, keep it low, delay to the car shot.
-const carChain =
-  `[${carIdx}:a]highpass=f=70,lowpass=f=5200,afade=t=in:st=0:d=0.4,afade=t=out:st=${CAR_LEN - 0.7}:d=0.7,` +
-  `volume=0.42,adelay=${CAR_DELAY}|${CAR_DELAY}[car]`;
+  const inputs = [...lines.flatMap((l) => ['-i', l.file]), '-ss', String(CAR_SS), '-t', String(CAR_LEN), '-i', CAR];
+  const carIdx = lines.length;
+  const voDelays = lines.map((l, i) => `[${i}:a]adelay=${l.delay + LEAD}|${l.delay + LEAD}[d${i}]`).join(';');
+  const voMixIn = lines.map((_, i) => `[d${i}]`).join('');
+  const carChain =
+    `[${carIdx}:a]highpass=f=70,lowpass=f=5200,afade=t=in:st=0:d=0.4,afade=t=out:st=${CAR_LEN - 0.7}:d=0.7,` +
+    `volume=0.42,adelay=${CAR_DELAY}|${CAR_DELAY}[car]`;
+  const filter =
+    `${voDelays};${voMixIn}amix=inputs=${lines.length}:normalize=0:dropout_transition=0[vo];` +
+    `${carChain};` +
+    `[vo]highpass=f=90,equalizer=f=3200:t=q:w=1.6:g=2.5,` +
+    `acompressor=threshold=-18dB:ratio=3:attack=8:release=160[vom];` +
+    `[vom][car]amix=inputs=2:normalize=0:dropout_transition=0[mx];` +
+    `[mx]apad,atrim=0:${(TOTAL_MS / 1000).toFixed(3)},alimiter=limit=0.92,loudnorm=I=-15:TP=-1.5:LRA=11[out]`;
+  execFileSync(ffmpeg, ['-y', ...inputs, '-filter_complex', filter, '-map', '[out]', '-ar', '48000', '-ac', '1', out],
+    {stdio: 'inherit'});
+  process.stdout.write(`\nVO written: ${out}\n`);
+};
 
-const filter =
-  `${voDelays};${voMixIn}amix=inputs=${LINES.length}:normalize=0:dropout_transition=0[vo];` +
-  `${carChain};` +
-  // VO mastering before the merge so the engine reads as ambience, not as VO.
-  `[vo]highpass=f=90,equalizer=f=3200:t=q:w=1.6:g=2.5,` +
-  `acompressor=threshold=-18dB:ratio=3:attack=8:release=160[vom];` +
-  // Merge VO (lead) + car bed, then final true-peak-safe loudness pass.
-  `[vom][car]amix=inputs=2:normalize=0:dropout_transition=0[mx];` +
-  `[mx]apad,atrim=0:${(TOTAL_MS / 1000).toFixed(3)},` +
-  `alimiter=limit=0.92,loudnorm=I=-15:TP=-1.5:LRA=11[out]`;
-
-execFileSync(ffmpeg, ['-y', ...inputs, '-filter_complex', filter, '-map', '[out]', '-ar', '48000', '-ac', '1', OUT],
-  {stdio: 'inherit'});
-process.stdout.write(`\nVO written: ${OUT}\n`);
+buildStem([...COMMON, CTA_LINE.telegram], `${process.cwd()}/public/audio/vo-en-g1.wav`);
+buildStem([...COMMON, CTA_LINE.web], `${process.cwd()}/public/audio/vo-en-g1-web.wav`);
