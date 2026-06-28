@@ -162,6 +162,8 @@ SYMBOL      = "SOL-USDT-SWAP"
 SYMBOL_BTC  = "BTC-USDT-SWAP"
 SYMBOL_ETH  = "ETH-USDT-SWAP"
 SYMBOL_BCH  = "BCH-USDT-SWAP"
+SYMBOL_LINK = "LINK-USDT-SWAP"
+SYMBOL_BNB  = "BNB-USDT-SWAP"
 
 LOOP_SECONDS = 60
 
@@ -3314,6 +3316,124 @@ def _bch_motor_paper_scan(exchange):
 
 
 # ============================================================
+# MOTOR PAPER GENÉRICO (símbolos extra: LINK, BNB) — tier CALIDAD (KL)
+# ============================================================
+# LINK y BNB pasaron el bar de tier Calidad en el barrido cross-asset
+# (research/cross_asset_kl_2026-06.md): su edge vive en irrev-BAJO con DSR>0.95
+# (BNB sep 0.285R/DSR 0.992; LINK DSR 0.969). Se cablean como ETH pero por UN scan
+# genérico (mismo logic, parametrizado) para no duplicar el scaffold por 5a vez.
+# kl_gated=True -> broadcast SOLO en KL-bajo (honra FQ_KL_FILTER), igual que BTC/SOL/ETH.
+# Son cube (NO forward): el motor mide forward desde el dia 1. Default OFF -> no-op.
+_XSYM_MOTOR = {}      # pair -> runtime (lazy)
+_XSYM_TRIED = set()   # pairs ya intentados (no re-armar si falló)
+_XSYM_LAST_TS = {}    # pair -> last_signal_ts (Phase E), independiente por símbolo
+
+
+def _xsym_motor_runtime(pair, ledger_path):
+    """Lazy-init del runtime motor paper para un símbolo extra (ledger propio)."""
+    if pair in _XSYM_MOTOR:
+        return _XSYM_MOTOR[pair]
+    if pair in _XSYM_TRIED:
+        return None
+    _XSYM_TRIED.add(pair)
+    try:
+        import motor_paper
+        rt = motor_paper.MotorPaperRuntime.from_env(
+            pair, notify_fn=_motor_admin_notify, ledger_path=ledger_path)
+        _XSYM_MOTOR[pair] = rt
+        log.info("[motor-%s] runtime paper activo", pair.split("/")[0].lower())
+        return rt
+    except Exception as e:
+        log.warning("[motor-xsym] %s: no se pudo armar el runtime: %s", pair, e)
+        return None
+
+
+def _xsym_motor_paper_scan(exchange, *, enabled, symbol_inst, pair, tf_id,
+                           ledger_path, broadcast_enabled, kl_gated):
+    """Scan genérico (espejo EXACTO del de ETH) para símbolos extra. El ledger paper
+    mide SIEMPRE. FUSIÓN ->VIP: si broadcast_enabled, los fires se difunden con par
+    propio. kl_gated=True -> SOLO en régimen KL-bajo (tier Calidad, honra FQ_KL_FILTER).
+    No-op si enabled=False. Nunca rompe el loop (todo en try/except)."""
+    if not enabled:
+        return
+    rt = _xsym_motor_runtime(pair, ledger_path)
+    if rt is None:
+        return
+    try:
+        profile = TF_PROFILES[tf_id]
+        df_primary = add_indicators(fetch_ohlcv(exchange, symbol_inst, tf_id, limit=200))
+        if df_primary is None or len(df_primary) < 50:
+            return
+        df_ctx_mid = add_indicators(fetch_ohlcv(exchange, symbol_inst, profile["context_mid"], limit=100))
+        df_ctx_high = add_indicators(fetch_ohlcv(exchange, symbol_inst, profile["context_high"], limit=100))
+        try:
+            df_sub = add_indicators(fetch_ohlcv(exchange, symbol_inst, profile["sub_tf"], limit=30))
+        except Exception:
+            df_sub = None
+        price = float(df_primary["close"].iloc[-1])
+        config = {
+            "PHI": PHI,
+            "PMASTER_MIN": profile["PMASTER_MIN"],
+            "RR_MIN_TP_DIVINO": profile.get("RR_MIN_TP3", RR_MIN_TP_DIVINO),
+            "TF_ID": tf_id,
+            "TF_LABEL": profile["label"],
+            "PULLBACK_VOL_MULT": profile["PULLBACK_VOL_MULT"],
+            "BREAKOUT_VOL_MULT": profile["BREAKOUT_VOL_MULT"],
+            "LAST_SIGNAL_TS": _XSYM_LAST_TS.get(pair),
+            "PHASE_E_N_PATHS": profile.get("PHASE_E_N_PATHS"),
+            "PHASE_E_COOLDOWN_MIN": profile.get("PHASE_E_COOLDOWN_MIN"),
+        }
+        fire, field, report = fusion_engine.evaluate_signal(
+            df_primary, df_ctx_mid, df_ctx_high, df_sub,
+            detect_pspace, laplacian_check, calculate_levels, config, intra=False)
+        if fire:
+            _XSYM_LAST_TS[pair] = datetime.now(timezone.utc)
+            _seg_vetoed = False
+            if SEGMENT_VETO is not None and SEGMENT_VETO.active:
+                try:
+                    _seg_vetoed = bool(SEGMENT_VETO.reason(
+                        killzone=getattr(field, "killzone", None),
+                        ts_utc=df_primary["timestamp"].iloc[-1]))
+                except Exception:
+                    _seg_vetoed = False
+            if (not _seg_vetoed and broadcast_enabled
+                    and VIP_FORMAT_AVAILABLE and vip_format is not None):
+                try:
+                    msg = vip_format.build_vip_signal(
+                        field, report, tf_label=profile["label"], tf_id=tf_id, pair=pair,
+                        **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], pair))
+                    if (not kl_gated) or _kl_pass(df_primary, pair):   # tier KL-bajo (calidad)
+                        broadcast_to_subscribers(msg)
+                except Exception as e:
+                    log.warning("[motor-xsym] %s broadcast: %s", pair, e)
+        hi = float(df_primary["high"].iloc[-1])
+        lo = float(df_primary["low"].iloc[-1])
+        try:
+            cts = df_primary["timestamp"].iloc[-1]   # ts de la VELA (no now())
+        except Exception:
+            cts = None
+        rt.on_bar(fire, field, report, df_primary, price,
+                  high=hi, low=lo, ts=cts, tf_id=tf_id)
+    except Exception as e:
+        log.warning("[motor-xsym] %s scan: %s", pair, e)
+
+
+# LINK y BNB — tier Calidad (KL), default OFF -> byte-idéntico hasta prenderlos.
+# Activar: FQ_MOTOR_PAPER_LINK=1 / FQ_MOTOR_PAPER_BNB=1 (+ meter LINK,BNB a FQ_KL_FILTER
+# para el gate de calidad). Kill-switch de broadcast: FQ_LINK_VIP_BROADCAST=0 /
+# FQ_BNB_VIP_BROADCAST=0 (mide forward sin exponer clientes — recomendado al principio,
+# son cube no forward). Ledger propio por símbolo.
+LINK_MOTOR_PAPER_ENABLED = os.environ.get("FQ_MOTOR_PAPER_LINK", "0").strip() in ("1", "true", "yes")
+LINK_MOTOR_TF = os.environ.get("FQ_MOTOR_PAPER_LINK_TF", "5m")
+LINK_VIP_BROADCAST_ENABLED = os.environ.get("FQ_LINK_VIP_BROADCAST", "1").strip() not in ("0", "false", "no")
+LINK_MOTOR_LEDGER_PATH = os.environ.get("FQ_MOTOR_PAPER_LINK_LEDGER_PATH", "/data/motor_paper_LINK_USDT.jsonl")
+BNB_MOTOR_PAPER_ENABLED = os.environ.get("FQ_MOTOR_PAPER_BNB", "0").strip() in ("1", "true", "yes")
+BNB_MOTOR_TF = os.environ.get("FQ_MOTOR_PAPER_BNB_TF", "5m")
+BNB_VIP_BROADCAST_ENABLED = os.environ.get("FQ_BNB_VIP_BROADCAST", "1").strip() not in ("0", "false", "no")
+BNB_MOTOR_LEDGER_PATH = os.environ.get("FQ_MOTOR_PAPER_BNB_LEDGER_PATH", "/data/motor_paper_BNB_USDT.jsonl")
+
+
+# ============================================================
 # v4.1.1 — _evaluate_setup_v411 (delegate al fusion_engine)
 # ============================================================
 def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
@@ -5736,6 +5856,10 @@ def main():
         _active.append(_lbl(SYMBOL_ETH))
     if BCH_MOTOR_PAPER_ENABLED and BCH_VIP_BROADCAST_ENABLED:
         _active.append(_lbl(SYMBOL_BCH))
+    if LINK_MOTOR_PAPER_ENABLED and LINK_VIP_BROADCAST_ENABLED:
+        _active.append(_lbl(SYMBOL_LINK))
+    if BNB_MOTOR_PAPER_ENABLED and BNB_VIP_BROADCAST_ENABLED:
+        _active.append(_lbl(SYMBOL_BNB))
     telegram_send(
         "{header}\n"
         "\n"
@@ -5822,6 +5946,17 @@ def main():
             # BCH (4o simbolo, SIN KL): mismo patron, no-op si FQ_MOTOR_PAPER_BCH!=1.
             if BCH_MOTOR_PAPER_ENABLED and BCH_MOTOR_TF in new_candle_tfs:
                 _bch_motor_paper_scan(exchange)
+            # LINK / BNB (tier Calidad, KL-gated): scan genérico, no-op si su flag!=1.
+            if LINK_MOTOR_PAPER_ENABLED and LINK_MOTOR_TF in new_candle_tfs:
+                _xsym_motor_paper_scan(
+                    exchange, enabled=LINK_MOTOR_PAPER_ENABLED, symbol_inst=SYMBOL_LINK,
+                    pair="LINK/USDT", tf_id=LINK_MOTOR_TF, ledger_path=LINK_MOTOR_LEDGER_PATH,
+                    broadcast_enabled=LINK_VIP_BROADCAST_ENABLED, kl_gated=True)
+            if BNB_MOTOR_PAPER_ENABLED and BNB_MOTOR_TF in new_candle_tfs:
+                _xsym_motor_paper_scan(
+                    exchange, enabled=BNB_MOTOR_PAPER_ENABLED, symbol_inst=SYMBOL_BNB,
+                    pair="BNB/USDT", tf_id=BNB_MOTOR_TF, ledger_path=BNB_MOTOR_LEDGER_PATH,
+                    broadcast_enabled=BNB_VIP_BROADCAST_ENABLED, kl_gated=True)
 
             # RADAR proactivo / ALERTA TACTICA (FQ v5.3):
             #   - Corre en FIELD_TIMEFRAMES (default 5m+15m; 1m opt-in, 3m retirado).
