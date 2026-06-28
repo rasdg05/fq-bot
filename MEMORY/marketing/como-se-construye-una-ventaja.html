@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FQ · Cómo se construye una ventaja</title>
+<style>
+  :root{
+    --paper:#fbfaf7; --panel:#f3f1ea; --ink:#16181d; --soft:#3d4350; --mut:#6b7280;
+    --line:#e4e0d7; --grn:#1f7a4d; --grn2:#27935d; --gold:#b07d1e; --red:#b3402f;
+    --mono:"SFMono-Regular",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#d9d6cf;color:var(--ink);
+    font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
+    -webkit-font-smoothing:antialiased;line-height:1.62}
+  .page{width:210mm;min-height:297mm;background:var(--paper);margin:14px auto;
+    padding:24mm 22mm;position:relative;box-shadow:0 2px 18px rgba(0,0,0,.18)}
+  .sans{font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  h1,h2,h3,.kick,.tag,.lbl,.cta,.foot,.toc,.num,.pill,.chip,table,.mathlbl{
+    font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .kick{font-size:12px;letter-spacing:.34em;text-transform:uppercase;color:var(--grn);font-weight:700}
+  h1{font-size:46px;line-height:1.04;letter-spacing:-.02em;margin:14px 0 14px;font-weight:800;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  h2{font-size:27px;line-height:1.12;letter-spacing:-.01em;margin:0 0 4px;font-weight:800}
+  h3{font-size:15px;margin:18px 0 7px;font-weight:800;letter-spacing:.01em}
+  p{margin:0 0 9px;font-size:16.5px;color:#23262e}
+  .lead{font-size:19px;color:#1b1e25}
+  .dek{font-size:18px;color:var(--grn);font-style:italic;margin:1px 0 9px;font-family:"Iowan Old Style",Georgia,serif}
+  .mut{color:var(--mut)}
+  .step{font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:var(--mut);font-weight:700}
+  .stepnum{font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:var(--grn);font-weight:800}
+  .rule{height:2px;background:var(--ink);width:54px;margin:0 0 18px;border:0}
+  .panel{background:#f4f2ec;border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:12px 0}
+  .panel.grn{border-color:rgba(31,122,77,.4);background:#eef5f0}
+  .panel.gold{border-color:rgba(176,125,30,.4);background:#f8f3e7}
+  .panel.dark{background:#14171d;border-color:#14171d;color:#eef0f3}
+  .panel.dark p,.panel.dark li{color:#dfe3ea}
+  .panel .lbl{font-size:11px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:var(--grn);margin-bottom:8px}
+  .panel.gold .lbl{color:var(--gold)}
+  .panel.dark .lbl{color:#5fd699}
+  .math{font-family:var(--mono);font-size:18px;text-align:center;letter-spacing:.01em;
+    color:#10131a;background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px 12px;margin:12px 0}
+  .math .v{color:var(--grn);font-weight:700}.math .r{color:var(--red);font-weight:700}.math .g{color:var(--gold);font-weight:700}
+  .mathlbl{font-size:12px;color:var(--mut);text-align:center;margin:-6px 0 12px}
+  ul{margin:6px 0 12px;padding-left:20px}li{margin:7px 0;font-size:16px;color:#23262e}
+  ol{margin:6px 0 12px;padding-left:22px}
+  .chk li{list-style:none;position:relative;padding-left:6px;margin:9px 0}
+  .chk li::before{content:"□";position:absolute;left:-20px;color:var(--grn);font-weight:800}
+  .chip{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+    padding:3px 10px;border:1px solid var(--line);border-radius:999px;color:var(--soft);margin:0 6px 6px 0}
+  .toc{list-style:none;padding:0;margin:18px 0 0}
+  .toc li{display:flex;align-items:baseline;gap:14px;padding:9px 0;border-bottom:1px solid var(--line);font-size:17px}
+  .toc .n{font-family:var(--mono);font-size:15px;color:var(--grn);font-weight:700;min-width:34px}
+  .toc .t{font-weight:700}.toc .d{color:var(--mut);font-size:14px;margin-left:auto;font-style:italic;font-family:"Iowan Old Style",Georgia,serif}
+  .cta{font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .ctabox{background:#14171d;color:#eef0f3;border-radius:16px;padding:30px 30px;margin-top:10px}
+  .ctabox a{color:#5fd699;text-decoration:none;font-weight:700}
+  .ctabox .h{font-size:26px;font-weight:800;letter-spacing:-.01em;margin:0 0 6px}
+  .ctarow{display:flex;flex-direction:column;gap:10px;margin-top:18px;font-size:16px}
+  .ctarow b{color:#fff}
+  .foot{font-size:11.5px;color:var(--mut);line-height:1.5;border-top:1px solid var(--line);padding-top:12px;margin-top:26px}
+  .pgnum{position:absolute;bottom:12mm;right:22mm;font-size:12px;color:var(--mut);font-family:var(--mono)}
+  .brandfoot{position:absolute;bottom:12mm;left:22mm;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--mut);font-weight:700;font-family:-apple-system,"Segoe UI",sans-serif}
+  .big{font-size:64px;line-height:1.0;font-weight:800;letter-spacing:-.03em}
+  .cover{display:flex;flex-direction:column;justify-content:center;min-height:249mm}
+  .cover .sub{font-size:20px;color:#2b2f38;max-width:30ch;margin-top:6px}
+  .cover .by{margin-top:auto;font-size:14px;color:var(--soft);letter-spacing:.02em}
+  .free{display:inline-block;border:1.5px solid var(--grn);color:var(--grn);font-weight:800;
+    font-size:12px;letter-spacing:.18em;text-transform:uppercase;padding:6px 14px;border-radius:999px;margin-bottom:24px;font-family:-apple-system,"Segoe UI",sans-serif}
+  em{font-style:italic}
+  strong{font-weight:800;color:#16181d}
+  @media print{
+    body{background:#fff}
+    .page{margin:0;box-shadow:none;width:auto;min-height:auto;page-break-after:always;padding:13mm 17mm}
+    .page:last-child{page-break-after:auto}
+    .cover{min-height:235mm}
+  }
+  @page{size:A4;margin:0}
+</style>
+</head>
+<body>
+
+<!-- ===================== COVER ===================== -->
+<section class="page cover">
+  <div class="kick">FQ · Fibonacci Cuántico</div>
+  <h1>Cómo se construye<br>una ventaja</h1>
+  <hr class="rule" style="width:80px;height:3px;margin-top:6px">
+  <p class="sub">Los 6 pasos para convertir una idea en un sistema con ventaja <em>medible</em>. El mismo proceso que sigue una mesa cuant — en simple, sin humo.</p>
+  <div style="margin-top:28px"><span class="free">Guía gratuita</span></div>
+  <div class="by">por <b>Diego Gallegos · RasDG</b> &nbsp;·&nbsp; @rasdg05</div>
+  <div class="brandfoot">El bot que mide, no adivina</div>
+</section>
+
+<!-- ===================== ANTES DE EMPEZAR ===================== -->
+<section class="page">
+  <div class="kick">Antes de empezar</div>
+  <h2>Para quién es esto</h2>
+  <div class="dek">Para el que ya entendió que consumir más contenido no lo está volviendo rentable.</div>
+  <p>Y sospecha —con razón— que el problema no es el mercado. Es que está <strong>apostando con pasos extra</strong> en lugar de <strong>operar un sistema</strong>.</p>
+  <p>Acá no hay promesas de hacerte rico. Hay algo más útil: el <strong>proceso real</strong> con el que se construye una ventaja, explicado para que lo puedas replicar. Seis pasos. Son simples. Lo difícil —siempre— es la disciplina de seguirlos.</p>
+  <p class="mut" style="font-size:15.5px">Sin misticismo, sin "señales que nunca fallan", con la matemática a la vista. Si al final cambias <em>una</em> cosa de cómo operas, esta guía hizo su trabajo.</p>
+
+  <div class="panel gold">
+    <div class="lbl">Aviso de riesgo</div>
+    <p style="margin:0;font-size:15px;color:#3a3327">El trading de criptomonedas y activos apalancados conlleva <strong>alto riesgo</strong>: puedes perder todo tu capital. Esta guía es <strong>educativa</strong>, no es asesoría financiera ni recomendación de inversión. No existen ganancias garantizadas y los resultados pasados no aseguran resultados futuros. Opera solo capital que puedas permitirte perder.</p>
+  </div>
+
+  <h3>El contenido</h3>
+  <ul class="toc">
+    <li><span class="n">00</span><span class="t">El mercado no te paga por tener razón</span><span class="d">te paga por asimetría</span></li>
+    <li><span class="n">01</span><span class="t">Define dónde tu idea es falsa</span><span class="d">antes de entrar</span></li>
+    <li><span class="n">02</span><span class="t">El tamaño es matemática de sobrevivir</span><span class="d">no de ganar</span></li>
+    <li><span class="n">03</span><span class="t">Tres niveles convierten opinión en plan</span><span class="d">entrada · stop · target</span></li>
+    <li><span class="n">04</span><span class="t">Automatiza el proceso</span><span class="d">aquí nace el bot</span></li>
+    <li><span class="n">05</span><span class="t">Mide, valida y desconfía de tu backtest</span><span class="d">el paso que casi nadie da</span></li>
+    <li><span class="n">06</span><span class="t">Una operación con todo el sistema encima</span><span class="d">ejemplo ilustrativo</span></li>
+  </ul>
+  <span class="pgnum">02</span><span class="brandfoot">Fibonacci Cuántico</span>
+</section>
+
+<!-- ===================== 00 ===================== -->
+<section class="page">
+  <div class="stepnum">Paso 00</div>
+  <h2>El mercado no te paga por tener razón</h2>
+  <div class="dek">Te paga por asimetría. Y casi nadie corre ese número.</div>
+
+  <p>Todos repiten que el 90% pierde "por psicología". Es cómodo, pero es flojo. La verdad es más simple y más incómoda: la gente optimiza por <strong>tener la razón</strong> —busca acertar—. Pero el mercado no premia el acierto. Premia la <strong>asimetría</strong>: cuánto te llevas cuando aciertas contra cuánto sueltas cuando no.</p>
+
+  <p>Y eso se puede escribir. Es la única ecuación que un fondo mira de verdad — la <strong>expectativa</strong>, medida en <em>R</em> (múltiplos de tu riesgo):</p>
+
+  <div class="math"><span class="v">E</span> = p · b − (1 − p)</div>
+  <div class="mathlbl"><b>p</b> = tu tasa de acierto &nbsp;·&nbsp; <b>b</b> = cuántas R ganas cuando aciertas &nbsp;·&nbsp; <b>E</b> = lo que rinde cada trade, en promedio</div>
+
+  <p>Métela con números reales y se cae el mito del acierto:</p>
+  <div class="panel grn">
+    <p style="margin:0 0 6px"><strong>Sistema A</strong> — aciertas solo el <strong>40%</strong>, pero ganas <strong>3R</strong> cuando ganas:<br>
+    <span style="font-family:var(--mono);font-size:15px">E = 0.40 × 3 − 0.60 = <span style="color:var(--grn);font-weight:700">+0.60R por trade</span></span></p>
+    <p style="margin:10px 0 0"><strong>Sistema B</strong> — aciertas el <strong>70%</strong>, pero ganas solo <strong>0.5R</strong>:<br>
+    <span style="font-family:var(--mono);font-size:15px">E = 0.70 × 0.5 − 0.30 = <span style="color:var(--gold);font-weight:700">+0.05R por trade</span></span></p>
+  </div>
+  <p>El sistema que <em>falla más de la mitad de las veces</em> rinde <strong>doce veces más</strong> por operación. Puedes acertar el 70% y quebrar si cada error te cuesta lo que tres aciertos te dieron. El acierto sin asimetría es una trampa.</p>
+
+  <p>Por eso operar no es predecir: es <strong>administrar probabilidades</strong>. Eres la casa, no el jugador. A la casa le da igual una mano —su ventaja se cobra en mil—. El día que dejas de cazar el trade perfecto y empiezas a ejecutar un proceso repetible con expectativa positiva, todo cambia.</p>
+  <p class="mut" style="font-size:15px">Los siguientes cinco pasos son cómo se construye ese proceso. No es motivación. Es ingeniería.</p>
+  <span class="pgnum">03</span><span class="brandfoot">Fibonacci Cuántico</span>
+</section>
+
+<!-- ===================== 01 ===================== -->
+<section class="page">
+  <div class="stepnum">Paso 01</div>
+  <h2>Define dónde tu idea es falsa</h2>
+  <div class="dek">Si no sabes dónde te equivocas, no tienes un trade: tienes una apuesta.</div>
+
+  <p>Un trade es una <strong>hipótesis</strong>: "creo que el precio va para acá, por estas razones". Y una hipótesis que no puedes probar <em>falsa</em> no es ciencia — es fe. Antes de entrar tienes que poder responder una sola pregunta:</p>
+
+  <div class="panel">
+    <p style="margin:0;font-size:18px;color:#1b1e25">"¿Qué tiene que pasar para que admita que me equivoqué?"</p>
+  </div>
+
+  <p>Ese punto —donde tu idea deja de ser válida— es tu <strong>invalidación</strong>. Ahí va el stop. Por estructura, no por cuánto te duele perder. El stop-loss no es "por si acaso": es <strong>lo que define la operación</strong>. Sin él no mediste el riesgo, solo lo ignoraste.</p>
+
+  <h3>Por qué casi todos lo hacen al revés</h3>
+  <p>Ponen el stop donde les duele perder cierta cantidad de dinero, no donde su idea deja de ser cierta. Y cuando el precio se acerca, lo mueven "un poquito más" para no aceptar el error. Una pérdida chica y planeada se vuelve una grande y descontrolada. Es la decisión más cara del trading, y la mayoría la toma con el estómago.</p>
+  <p>El sistema elimina esa decisión: <strong>el stop se define antes y no se toca.</strong> Punto. Esa sola regla, sostenida, ya te pone por delante de la mayoría.</p>
+
+  <div class="panel grn">
+    <div class="lbl">Acción</div>
+    <p style="margin:0">Antes de tu próxima entrada, completa esta frase: <strong>"Mi idea se invalida si el precio llega a ____."</strong> Si no puedes completarla con un nivel concreto y estructural, <strong>no entres</strong>. Todavía no tienes un trade.</p>
+  </div>
+  <span class="pgnum">04</span><span class="brandfoot">Fibonacci Cuántico</span>
+</section>
+
+<!-- ===================== 02 ===================== -->
+<section class="page">
+  <div class="stepnum">Paso 02</div>
+  <h2>El tamaño es matemática de sobrevivir</h2>
+  <div class="dek">La posición te mantiene vivo. El acierto, no.</div>
+
+  <p>La mayoría piensa "cuánto puedo ganar". El operador piensa primero "cuánto puedo perder <em>sin salir del juego</em>". Porque la racha mala <strong>va a llegar</strong> —no es un riesgo, es una certeza estadística— y lo único que decide si sobrevives a ella es el tamaño.</p>
+
+  <p>La regla: arriesga un <strong>porcentaje fijo y pequeño</strong> por operación, típicamente <strong>0.5% a 1%</strong>. El tamaño sale de tu riesgo y de la distancia a tu stop, no del entusiasmo:</p>
+
+  <div class="panel gold">
+    <div class="lbl">Ejemplo · tamaño de posición</div>
+    <p style="margin:0;font-family:var(--mono);font-size:15px;line-height:1.9;color:#3a3327">
+      Cuenta $1,000 · Riesgo 1% = <b>$10</b><br>
+      Entrada $100.00 · Stop $95.00 → distancia <b>5%</b><br>
+      Tamaño = riesgo ÷ distancia = $10 ÷ 0.05 = <b style="color:var(--gold)">$200</b><br>
+      Si toca el stop pierdes $10 (tu 1%), <b>no más</b>. Decidido antes de entrar.
+    </p>
+  </div>
+
+  <h3>La matemática de la ruina (por qué 1% y no 20%)</h3>
+  <p>Mira lo brutal que es la diferencia. Con riesgo fijo, esto es cuántos errores seguidos te aguanta la cuenta antes de quedar inoperable:</p>
+  <div class="math">
+    riesgo <span class="v">1%</span> → aguantas decenas de errores &nbsp;&nbsp;|&nbsp;&nbsp; riesgo <span class="r">20%</span> → ~<span class="r">5</span> errores y estás fuera
+  </div>
+  <p>No es el apalancamiento lo que quiebra a la gente: es el <strong>tamaño sin control</strong>. Un sistema con expectativa positiva (Paso 00) igual te funde si una sola racha mala te borra. Arriesgar poco no es ser miedoso — es comprar los suficientes intentos para que tu ventaja se note.</p>
+
+  <div class="panel grn">
+    <div class="lbl">Acción</div>
+    <p style="margin:0">Define hoy tu riesgo fijo por operación (sugerido <strong>1%</strong>). Y no se negocia "porque este trade se ve muy seguro". Los que se ven seguros son justo los que cobran caro esa excepción.</p>
+  </div>
+  <span class="pgnum">05</span><span class="brandfoot">Fibonacci Cuántico</span>
+</section>
+
+<!-- ===================== 03 ===================== -->
+<section class="page">
+  <div class="stepnum">Paso 03</div>
+  <h2>Tres niveles convierten una opinión en un plan</h2>
+  <div class="dek">Un trade sin plan es una emoción con dinero encima.</div>
+
+  <p>Tres niveles definidos <strong>antes</strong> de entrar: <strong>entrada</strong>, <strong>stop</strong> (dónde te equivocas, Paso 01) y <strong>target</strong>. Con eso calculas la relación riesgo/beneficio —tu asimetría hecha número, la <em>b</em> de la ecuación del Paso 00:</p>
+
+  <div class="panel gold">
+    <div class="lbl">Ejemplo · asimetría (R:R)</div>
+    <p style="margin:0;font-family:var(--mono);font-size:15px;line-height:1.9;color:#3a3327">
+      Entrada $100 · Stop $95 (riesgo <b>$5</b>) · Target $115 (beneficio <b>$15</b>)<br>
+      R:R = 15 ÷ 5 = <b style="color:var(--gold)">3:1</b>
+    </p>
+  </div>
+  <p>Con 3:1 aciertas el 40% y aún así vas arriba (lo acabas de ver en el Paso 00). Eso es ventaja <strong>estructural</strong>, no adivinanza. El target no es donde "sueñas" — es donde la estructura dice que hay liquidez real esperando.</p>
+
+  <h3>Checklist antes de cada trade</h3>
+  <ul class="chk">
+    <li>¿Tengo entrada, stop y target definidos con niveles concretos?</li>
+    <li>¿El R:R es de al menos <strong>2:1</strong>?</li>
+    <li>¿El tamaño respeta mi riesgo fijo (Paso 02)?</li>
+    <li>¿Esto cumple mis reglas, o lo estoy forzando porque me aburro?</li>
+  </ul>
+  <p>Si una respuesta es "no", <strong>no hay trade</strong>. Esperar también es operar — de hecho, es la parte del trabajo que más paga y la que menos se ve.</p>
+  <span class="pgnum">06</span><span class="brandfoot">Fibonacci Cuántico</span>
+</section>
+
+<!-- ===================== 04 ===================== -->
+<section class="page">
+  <div class="stepnum">Paso 04</div>
+  <h2>Automatiza el proceso — aquí nace el bot</h2>
+  <div class="dek">El proceso es lo que controlas. El resultado, no.</div>
+
+  <p>No controlas si un trade gana o pierde — eso es del mercado. Controlas <strong>seguir tu proceso</strong>. Por eso la forma correcta de calificarte no es "¿gané?", sino "¿respeté mis reglas?". Un buen trade es el que respetó tus reglas aunque pierda. Un mal trade es el que las rompió aunque gane: te enseñó el hábito que te va a costar caro después.</p>
+
+  <p>Y aquí aparece, sin misterio, el <strong>bot</strong>. Un bot no es una bola de cristal ni una máquina de imprimir dinero. Es algo más aburrido y más poderoso:</p>
+
+  <div class="panel dark">
+    <div class="lbl">Qué es realmente un bot</div>
+    <p style="margin:0;font-size:18px">Tu proceso, ejecutado <strong style="color:#fff">sin cortisol.</strong> Cero miedo, cero euforia, cero "esta vez es distinto". Pura estructura, mil veces igual.</p>
+  </div>
+
+  <p>Por eso el primer test de si una regla tuya <em>es</em> una regla es brutalmente simple:</p>
+  <div class="math" style="font-size:16px">¿Puedes escribirla como <span class="v">"si pasa X → haz Y"</span>?</div>
+  <p>Si no puedes —si depende de "cómo se siente el mercado hoy"— todavía no es una regla, es una corazonada. Automatizar te <strong>obliga</strong> a volver explícito y medible cada paso de tu criterio. Ese ejercicio, aunque nunca prendas un solo bot, ya te hace mejor operador. Y cuando lo prendes, la consistencia deja de depender de tu estado de ánimo.</p>
+
+  <div class="panel grn">
+    <div class="lbl">Acción</div>
+    <p style="margin:0">Califica tus próximas 10 operaciones de <strong>0 a 10 por cuánto respetaste tu proceso</strong>, no por si ganaron. Persigue el 10 de proceso. El dinero es la consecuencia, no el objetivo.</p>
+  </div>
+  <span class="pgnum">07</span><span class="brandfoot">Fibonacci Cuántico</span>
+</section>
+
+<!-- ===================== 05 — THE BACKEND INJECTION ===================== -->
+<section class="page">
+  <div class="stepnum">Paso 05</div>
+  <h2>Mide, valida — y desconfía de tu backtest</h2>
+  <div class="dek">Lo que no mides, lo repites a ciegas. Lo que mides mal, te miente con cara de dato.</div>
+
+  <p>Dos herramientas separan el método de la fe. La primera la conoces; la segunda es donde casi todos se engañan a sí mismos.</p>
+
+  <h3>1 · La bitácora</h3>
+  <p>Registra cada operación: activo, niveles, R:R, resultado <strong>en R</strong> (no en dinero) y una nota. En 30 trades vas a ver tu patrón con claridad brutal — tus mejores horas, tus peores impulsos, dónde se te va el edge.</p>
+
+  <h3>2 · El backtest — y su trampa</h3>
+  <p>Probar tu sistema contra datos históricos convierte "creo que funciona" en "los datos dicen que tuvo ventaja". <strong>Es necesario, pero no suficiente</strong> — y aquí es donde un fondo y un influencer se separan para siempre.</p>
+
+  <div class="panel">
+    <p style="margin:0"><strong>El problema se llama sobreajuste</strong> (<em>overfitting</em>). Si pruebas mil variantes de tu estrategia, una va a verse espectacular <strong>por pura suerte</strong> — encontró un patrón en el ruido, no una ventaja en el mercado. La curva perfecta que postea medio Twitter casi siempre es <em>eso</em>: una casualidad disfrazada de sistema.</p>
+  </div>
+
+  <p>Una mesa cuant hace tres cosas que el novato no hace — las que convierten un backtest bonito en ventaja real:</p>
+  <ol>
+    <li><strong>Datos que el sistema nunca vio</strong> (<em>out-of-sample</em>): diseñas en un pedazo de la historia y pruebas en otro que jamás tocaste. Si solo funciona donde lo afinaste, es memoria, no ventaja.</li>
+    <li><strong>Penalizar por cuántas veces intentaste:</strong> mientras más variantes probaste, más alto el listón. Hay una métrica para eso —el <em>Sharpe deflactado</em>— que <strong>descuenta la suerte</strong> de tanto intento.</li>
+    <li><strong>Que aguante en mercados distintos:</strong> toro, oso y lateral. Una ventaja que solo vive en un régimen se apaga con el primer viento.</li>
+  </ol>
+
+  <div class="panel dark">
+    <div class="lbl">La frase que vale toda la guía</div>
+    <p style="margin:0;font-size:17px">Un backtest bonito no es una ventaja. Es una <em>hipótesis</em>. La ventaja es lo que <strong style="color:#fff">sobrevive a datos que nunca viste</strong>. Esa diferencia —entre ajustar el ruido y encontrar señal— es lo que separa a un fondo de un vendedor de cursos.</p>
+  </div>
+  <span class="pgnum">08</span><span class="brandfoot">Fibonacci Cuántico</span>
+</section>
+
+<!-- ===================== 06 ===================== -->
+<section class="page">
+  <div class="stepnum">Paso 06</div>
+  <h2>Una operación, con todo el sistema encima</h2>
+  <div class="dek">Los seis pasos, juntos, en un solo trade.</div>
+
+  <p>Así trabaja un sistema como Fibonacci Cuántico: no adivina. Define estructura, la mide en probabilidades y entrega los niveles listos.</p>
+
+  <div class="panel grn">
+    <div class="lbl">Señal ilustrativa · no es recomendación</div>
+    <p style="margin:0 0 10px;font-size:15px"><strong>Activo</strong> SOL/USDT &nbsp;·&nbsp; <strong>Dirección</strong> ▲ Long</p>
+    <ul style="margin:0">
+      <li><strong>Entrada</strong> — zona de interés definida por estructura.</li>
+      <li><strong>Stop</strong> — bajo la invalidación estructural <span class="mut">(Paso 01)</span>.</li>
+      <li><strong>Target</strong> — por estructura, R:R ≥ 2:1 <span class="mut">(Paso 03)</span>.</li>
+      <li><strong>Tamaño</strong> — ajustado a 1% de riesgo <span class="mut">(Paso 02)</span>.</li>
+      <li><strong>Ejecución</strong> — por reglas, cero emoción <span class="mut">(Paso 04)</span>.</li>
+      <li><strong>Registro</strong> — a la bitácora, gane o pierda <span class="mut">(Paso 05)</span>.</li>
+    </ul>
+  </div>
+
+  <p>La diferencia con una corazonada no es el gráfico — es que cada nivel tiene una <em>razón</em> y un <em>número</em> detrás. El sistema no te dice "esto va a subir". Te dice "<strong>si entras aquí, arriesgas esto, apuntas a esto, y la probabilidad juega a tu favor de esta forma</strong>". Eso es operar como la casa.</p>
+
+  <div class="panel gold">
+    <div class="lbl">Recordatorio honesto</div>
+    <p style="margin:0;font-size:15px;color:#3a3327">Ningún sistema gana siempre. La ventaja se ve en <strong>muchas</strong> operaciones, con riesgo controlado y disciplina — nunca en una sola. Si alguien te promete ganancias seguras, te está viendo la cara.</p>
+  </div>
+  <span class="pgnum">09</span><span class="brandfoot">Fibonacci Cuántico</span>
+</section>
+
+<!-- ===================== CIERRE + CTA ===================== -->
+<section class="page">
+  <div class="kick">Tu siguiente paso</div>
+  <h2>Ya tienes el marco. Ahora el nivel siguiente.</h2>
+  <div class="dek">Estos seis pasos son la base. Sobre ellos se construye lo serio.</div>
+
+  <p>Lo que acabas de leer es el proceso que cualquiera puede —y debe— aplicar. Es real, es replicable, y solo con eso ya operas distinto que el 90%.</p>
+
+  <p>Del lado del motor, esto es apenas la planta baja. La ventaja de verdad vive una capa más abajo: en el <strong>order-flow firmado</strong> (no el volumen a secas — quién está empujando, no solo cuánto se mueve), en detectar el <strong>régimen</strong> en el que está el mercado ahora mismo, y en simular <strong>cientos de futuros</strong> para sacar la probabilidad real de cada nivel antes de disparar. Es trading, sí — pero pensado como un sistema físico: liquidez, impacto, probabilidad.</p>
+  <p>Y se sostiene sobre la misma disciplina del Paso 05: en FQ hemos <strong>matado nuestras propias ideas "ganadoras"</strong> cuando el número resultó ser suerte de muestra chica. No es glamoroso — es el activo.</p>
+  <p class="mut" style="font-size:15.5px">Esa es otra conversación. Y es exactamente la que tenemos todos los días del lado del bot.</p>
+
+  <div class="ctabox cta">
+    <div class="h">Habla conmigo</div>
+    <p style="margin:0;color:#cfd5dd;font-size:16px">Si quieres ver cómo se aplica esto en vivo, y con qué herramientas, este es el lugar:</p>
+    <div class="ctarow">
+      <div>› Escríbeme <b>«FQ»</b> en Telegram &nbsp;<span style="color:#8b93a0">@RASDG05</span></div>
+      <div>› El bot de señales &nbsp;<a href="https://t.me/rasdg_quantum_signals_bot">@rasdg_quantum_signals_bot</a></div>
+      <div>› Sígueme &nbsp;<a href="https://instagram.com/diego_gallegosd">@diego_gallegosd</a></div>
+    </div>
+  </div>
+
+  <div class="foot">
+    Esta guía es material educativo. No es asesoría financiera ni recomendación de inversión. El trading conlleva riesgo de pérdida total. Rendimientos pasados no garantizan resultados futuros. © RasDG · Fibonacci Cuántico.
+  </div>
+</section>
+
+</body>
+</html>

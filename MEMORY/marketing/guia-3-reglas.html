@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FQ · Por qué sigues perdiendo (y cómo dejar de hacerlo)</title>
+<style>
+  :root{
+    --paper:#fbfaf7; --ink:#15171c; --soft:#39404c; --mut:#737b88;
+    --line:#e6e2d8; --grn:#13935a; --grn2:#0e7a4a; --gold:#bd8418; --red:#c2402d;
+    --dark:#12151b; --mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#d9d6cf;color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;line-height:1.5}
+  .page{width:210mm;min-height:297mm;background:var(--paper);margin:14px auto;
+    padding:22mm 20mm;position:relative;box-shadow:0 2px 18px rgba(0,0,0,.18);
+    display:flex;flex-direction:column}
+  .kick{font-size:14px;letter-spacing:.28em;text-transform:uppercase;color:var(--grn);font-weight:800}
+  h1{font-size:54px;line-height:1.02;letter-spacing:-.025em;margin:18px 0 0;font-weight:900}
+  .sub{font-size:25px;line-height:1.32;color:#2a2f38;margin:20px 0 0;font-weight:500;max-width:24ch}
+  .sub b{color:var(--ink);font-weight:800}
+  .rword{font-size:42px;line-height:1.08;letter-spacing:-.02em;font-weight:900;margin:6px 0 18px}
+  .rword .g{color:var(--grn)}
+  .big2{font-size:34px;line-height:1.14;font-weight:900;letter-spacing:-.02em;margin:0 0 16px}
+  p{margin:0 0 16px;font-size:21px;line-height:1.5;color:#2b303a}
+  p.lead{font-size:24px;color:#1c2026;font-weight:500}
+  .mut{color:var(--mut)}
+  .chip{display:inline-block;font-size:15px;font-weight:800;letter-spacing:.04em;
+    color:#fff;background:var(--grn);padding:8px 16px;border-radius:999px}
+  .rulenum{display:inline-block;font-size:16px;font-weight:900;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--grn);border:2px solid var(--grn);border-radius:999px;padding:6px 16px;margin-bottom:8px}
+  .panel{background:#eef5f0;border:1.5px solid rgba(19,147,90,.35);border-radius:16px;padding:22px 24px;margin:8px 0}
+  .panel.gold{background:#f8f3e6;border-color:rgba(189,132,24,.4)}
+  .panel p{margin:0;font-size:20px}
+  .panel .lbl{font-size:14px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;color:var(--grn);margin-bottom:8px}
+  .panel.gold .lbl{color:var(--gold)}
+  .num{font-family:var(--mono);font-weight:700}
+  .spacer{flex:1}
+  .dark{background:var(--dark);color:#eef0f3;border-radius:20px;padding:30px 30px}
+  .dark .h{font-size:30px;font-weight:900;letter-spacing:-.02em;line-height:1.12;margin:0 0 14px;color:#fff}
+  .dark p{color:#d7dce4;font-size:20px}
+  .dark .big{font-size:25px;color:#fff;font-weight:800;line-height:1.25}
+  .sig{background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:18px 20px;margin:14px 0 0;font-size:18px}
+  .sig .row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line)}
+  .sig .row:last-child{border-bottom:none}
+  .sig .k{color:var(--mut);font-weight:600}.sig .v{font-weight:800;font-family:var(--mono)}
+  .sig .up{color:var(--grn);font-weight:900}
+  .cta a{color:#5fe0a0;text-decoration:none;font-weight:800}
+  .ctabtn{display:block;background:var(--grn);color:#fff;font-size:26px;font-weight:900;text-align:center;
+    padding:20px;border-radius:14px;margin:6px 0 14px;letter-spacing:-.01em}
+  .ctalinks{font-size:19px;line-height:2.0}
+  .foot{font-size:13px;color:var(--mut);line-height:1.45;margin-top:14px}
+  .by{font-size:16px;color:var(--soft);font-weight:600}
+  .brand{font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--mut);font-weight:800}
+  @media print{
+    body{background:#fff}
+    .page{margin:0;box-shadow:none;width:auto;min-height:auto;height:297mm;
+      page-break-after:always;padding:20mm 18mm}
+    .page:last-child{page-break-after:auto}
+  }
+  @page{size:A4;margin:0}
+</style>
+</head>
+<body>
+
+<!-- 1 · COVER -->
+<section class="page">
+  <div class="kick">FQ · Fibonacci Cuántico</div>
+  <h1>Por qué sigues<br>perdiendo en<br>el trading</h1>
+  <p class="sub">No es el mercado. Son <b>3 errores simples</b> — y un sistema que los arregla por ti.</p>
+  <div style="margin-top:30px"><span class="chip">Guía gratis · te toma 5 min</span></div>
+  <div class="spacer"></div>
+  <div class="by">por Diego Gallegos · RasDG &nbsp;·&nbsp; @rasdg05</div>
+</section>
+
+<!-- 2 · REFRAME -->
+<section class="page">
+  <div class="kick">La verdad incómoda</div>
+  <h1 style="font-size:40px;margin-top:14px">El 90% no pierde<br>por adivinar mal.</h1>
+  <p class="lead" style="margin-top:22px">Pierde por andar cazando el "trade perfecto" en vez de seguir un proceso simple.</p>
+  <div class="spacer"></div>
+  <div class="panel">
+    <p style="font-size:24px;font-weight:700;line-height:1.35">El casino no adivina cada mano. Tiene una ventaja chiquita y la cobra <b>mil veces</b>.</p>
+    <p style="margin-top:14px;font-size:22px">Tú puedes hacer lo mismo. Se llama <b>operar como la casa, no como el jugador.</b></p>
+  </div>
+  <div class="spacer"></div>
+  <p class="lead" style="font-weight:800;color:var(--grn)">Aquí están las 3 reglas que te ponen del lado de la casa. 👇</p>
+</section>
+
+<!-- 3 · REGLA 1 -->
+<section class="page">
+  <div><span class="rulenum">Regla 1</span></div>
+  <div class="rword">Decide dónde te <span class="g">equivocas</span> antes de entrar.</div>
+  <p class="lead">Si no sabes en qué punto tu idea está mal, no tienes un plan: tienes una apuesta.</p>
+  <p>Ese punto es tu <b>stop</b>. Lo pones <b>antes</b> de entrar… y no lo mueves. Nunca. Mover el stop "un poquito más" es como una pérdida chica se vuelve una que te duele.</p>
+  <div class="spacer"></div>
+  <div class="panel">
+    <div class="lbl">Hazlo hoy</div>
+    <p>Antes de entrar, completa: <b>"Me equivoqué si el precio llega a ____."</b><br>¿No puedes llenarlo? <b>No entres.</b></p>
+  </div>
+</section>
+
+<!-- 4 · REGLA 2 -->
+<section class="page">
+  <div><span class="rulenum">Regla 2</span></div>
+  <div class="rword">Arriesga <span class="g">poco</span>. Y siempre lo mismo.</div>
+  <p class="lead">La racha mala va a llegar. Sí o sí. Lo único que decide si sobrevives es cuánto arriesgas.</p>
+  <p>Regla simple: <b>1% por operación</b>. Ni más porque "este se ve seguro", ni menos.</p>
+  <div class="panel gold">
+    <div class="lbl">En números</div>
+    <p style="font-size:23px;line-height:1.6">Cuenta de <span class="num">$1,000</span> → arriesgas <span class="num">$10</span>.<br>
+    Si pierdes, pierdes <span class="num">$10</span>. <b>Nada más.</b> Decidido antes de entrar.</p>
+  </div>
+  <div class="spacer"></div>
+  <p style="font-size:22px;font-weight:700">No es ser miedoso. Es seguir vivo para que tu ventaja se note.</p>
+</section>
+
+<!-- 5 · REGLA 3 + BOT -->
+<section class="page">
+  <div><span class="rulenum">Regla 3</span></div>
+  <div class="rword">Sigue <span class="g">reglas</span>, no emociones.</div>
+  <p class="lead">El mercado no te paga por tener razón. Te paga por disciplina.</p>
+  <div class="spacer"></div>
+  <div class="dark">
+    <div class="h">¿Y aquí está el problema?</div>
+    <p class="big">A las 3am, con el precio moviéndose, tu cerebro <span style="color:#ff8a7a">NO</span> va a seguir las reglas. El miedo y la avaricia ganan.</p>
+    <p style="margin:16px 0 0">Por eso existe el bot. Es tu disciplina, <b style="color:#fff">sin emoción.</b></p>
+  </div>
+</section>
+
+<!-- 6 · CTA -->
+<section class="page cta">
+  <div class="kick">Tu siguiente paso</div>
+  <h1 style="font-size:38px;margin-top:14px">Tú ya sabes las 3 reglas.<br>El bot las ejecuta <span style="color:var(--grn)">por ti.</span></h1>
+  <p style="margin-top:18px;font-size:21px">Te manda la señal con <b>todo listo</b> — entrada, stop y target. Cero adivinar. Cero emoción. 24/7.</p>
+
+  <div class="sig">
+    <div class="row"><span class="k">Señal (ejemplo)</span><span class="up">SOL/USDT ▲ LONG</span></div>
+    <div class="row"><span class="k">Entrada</span><span class="v">la zona exacta</span></div>
+    <div class="row"><span class="k">Stop</span><span class="v">tu invalidación</span></div>
+    <div class="row"><span class="k">Target · R:R</span><span class="v">≥ 2:1</span></div>
+  </div>
+
+  <div class="spacer"></div>
+  <div class="dark" style="padding:26px 28px">
+    <div class="h" style="font-size:25px">Escríbeme «FQ» y te lo muestro en vivo</div>
+    <span class="ctabtn">📲 Telegram → @RASDG05 · manda «FQ»</span>
+    <div class="ctalinks cta">
+      🤖 El bot: <a href="https://t.me/rasdg_quantum_signals_bot">@rasdg_quantum_signals_bot</a><br>
+      📸 Sígueme: <a href="https://instagram.com/diego_gallegosd">@diego_gallegosd</a>
+    </div>
+  </div>
+
+  <div class="foot">Material educativo. No es asesoría financiera. El trading conlleva riesgo de pérdida total; rendimientos pasados no garantizan resultados futuros. © RasDG · Fibonacci Cuántico.</div>
+</section>
+
+</body>
+</html>

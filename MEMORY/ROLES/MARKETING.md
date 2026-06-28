@@ -28,5 +28,13 @@ La prueba no es una proyección — es el **registro forward** (`/data/fq_motor.
 Cuando acumule, ÉSE es el material de marketing. **Marketing espera al registro, igual que el motor
 espera al gate.** Misma disciplina, una sola verdad.
 
+## Lo que YA tenemos para regalar/captar (lead magnets)
+En `../marketing/` están los 2 ebooks gratis ya armados:
+- **`guia-3-reglas.pdf`** — comercial corto ("Por qué sigues perdiendo"), para captar/convertir.
+- **`como-se-construye-una-ventaja.pdf`** — pro/largo ("Cómo se construye una ventaja"), la
+  disciplina como diferenciador, sin revelar el algoritmo.
+Úsalos como base; cualquier número que agregues, del registro validado.
+
 > Pointers: `../CEMENTERIO.md` (validado vs muerto) · `../ESTADO.md` (qué está vivo HOY) · el
-> registro forward (`fq_motor.db`). Si una afirmación no se sostiene en uno de estos, no se publica.
+> registro forward (`fq_motor.db`) · `../marketing/` (lead magnets). Si una afirmación no se
+> sostiene en uno de estos, no se publica.
