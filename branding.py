@@ -13,9 +13,10 @@ modelos ni jerga interna. Importa de aqui.
 """
 
 PRODUCT      = "FQ"
-PAIR         = "SOL/USDT"
+PAIR         = "SOL/USDT"          # default/fallback del símbolo primario (NO usar como display fijo)
+MARKETS      = "perpetuos cripto"  # descriptor MULTI-SÍMBOLO para texto de cara al cliente (escala con los símbolos)
 DESK         = "Mesa de liquidez"
-TAGLINE      = "Mesa de liquidez institucional · SOL/USDT"
+TAGLINE      = "Mesa de liquidez institucional · " + MARKETS
 PROMISE      = "Cuando hay ventaja, ejecuta. Cuando no, espera."
 DISCLAIMER   = "Rendimientos pasados no garantizan resultados futuros."
 
