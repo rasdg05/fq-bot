@@ -40,8 +40,15 @@
   (arXiv:2606.16269). Falsable y samplable.
 - **Status:** **CABLEADO DORMIDO** (default OFF, byte-idéntico). Commit `7197ede` (PR #85). Se
   prende con `FQ_PERSIST_BOOST=BTC`.
-- **Caveat:** **BTC-only**. SOL no apila (firma retail/momentum, no memoria larga institucional).
-  Símbolo-específico, como `global_ls`.
+- **Barrido cross-asset — la tesis del "premio" REFUTADA (2026-06-28, `tools/cross_asset_sweep.py`,
+  6 símbolos, ventana CVD 2024-26):** la hipótesis "la persistencia ESCALA con la institucional-idad /
+  order-splitting" **NO se sostiene**. Uplift F2 (persist − base): **XRP +0.349 · BCH +0.280 ·
+  BTC +0.257 · LTC +0.207** (apilan) · **SOL +0.000** (plano) · **ETH −0.167** (NEGATIVO). NO
+  correlaciona con el ac1 del flujo (corr = −0.19) NI con el eje institucional→retail (XRP, retail,
+  apila MÁS; ETH, institucional, es negativo; SOL retail tiene el ac1 más alto tras BTC). El
+  order-splitting **no explica** el uplift. → F2 es un **confirmador por-símbolo, real pero
+  idiosincrático** (paga en **4/6**), **NO una ley de escala**. La curva monótona institucional (el
+  "premio") **no existe**. Cablear F2 donde paga (BTC/XRP/BCH/LTC), **NUNCA en ETH**; forward primero.
 
 ### KL — irreversibilidad temporal como CONDICIONADOR de régimen — **DSR ✓ cross-símbolo (cube)**
 - **Idea:** la flecha del tiempo (termodinámica estocástica). KL(forward‖backward) de las
