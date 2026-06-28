@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>Escenario favorable — Calidad 3 símbolos · 3.6% · 2 semanas</title>
+<style>
+  @page { size: 1280px 720px; margin: 0; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root{
+    --bg:#f7f5f0; --ink:#1c2420; --muted:#5d6b63; --line:#d8d2c6;
+    --em:#0f6f4d; --em2:#0a5238; --gold:#b08338; --red:#a23b2e; --card:#fffdf8;
+  }
+  body{ font-family:"Georgia","Times New Roman",serif; color:var(--ink); background:#333; }
+  .slide{ width:1280px; height:720px; background:var(--bg); position:relative;
+    padding:64px 80px; overflow:hidden; page-break-after:always; }
+  .kick{ font-family:"Helvetica Neue",Arial,sans-serif; font-size:13px; letter-spacing:.32em;
+    text-transform:uppercase; color:var(--em); font-weight:700; }
+  h1{ font-size:62px; line-height:1.04; letter-spacing:-.015em; margin-top:12px; }
+  h2{ font-size:38px; line-height:1.1; letter-spacing:-.01em; margin-top:6px; }
+  .sub{ font-size:20px; color:var(--muted); font-style:italic; margin-top:18px; }
+  .rule{ height:2px; background:var(--ink); width:64px; margin:22px 0; }
+  .foot{ position:absolute; left:80px; right:80px; bottom:34px; display:flex;
+    justify-content:space-between; font-family:"Helvetica Neue",Arial,sans-serif;
+    font-size:12px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted);
+    border-top:1px solid var(--line); padding-top:14px; }
+  p{ font-size:21px; line-height:1.5; color:#2b332e; }
+  .big-stat{ font-size:104px; font-weight:700; letter-spacing:-.03em; color:var(--em); line-height:1; }
+  .big-note{ font-family:"Helvetica Neue",Arial,sans-serif; font-size:15px; letter-spacing:.06em;
+    text-transform:uppercase; color:var(--muted); font-weight:700; margin-top:10px; }
+  table{ width:100%; border-collapse:collapse; margin-top:14px; }
+  td,th{ text-align:left; padding:13px 10px; border-bottom:1px solid var(--line); font-size:20px; }
+  th{ font-family:"Helvetica Neue",Arial,sans-serif; font-size:13px; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--muted); font-weight:700; }
+  td.num,th.num{ text-align:right; font-variant-numeric:tabular-nums; }
+  tr.hi td{ background:#eef5ef; }
+  .em{ color:var(--em); font-weight:700; } .gold{ color:var(--gold); font-weight:700; }
+  .red{ color:var(--red); font-weight:700; } .mut{ color:var(--muted); }
+  .pill{ display:inline-block; font-family:"Helvetica Neue",Arial,sans-serif; font-size:12px;
+    letter-spacing:.1em; text-transform:uppercase; background:#e7efe9; color:var(--em2);
+    padding:5px 11px; border-radius:20px; font-weight:700; }
+  .pill.gold{ background:#f3ead7; color:#7a5a1f; }
+  .grid{ display:flex; gap:18px; margin-top:24px; }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:10px; padding:20px 22px; flex:1; }
+  .card .n{ font-family:"Helvetica Neue",Arial,sans-serif; font-size:13px; letter-spacing:.12em;
+    text-transform:uppercase; color:var(--em); font-weight:700; }
+  .card .v{ font-size:36px; font-weight:700; letter-spacing:-.02em; margin:8px 0 4px; }
+  .card .d{ font-size:16px; color:var(--muted); line-height:1.35; }
+  .note{ font-size:16px; color:var(--muted); font-style:italic; margin-top:16px; }
+  ul{ margin:14px 0 0 22px; } li{ font-size:20px; line-height:1.5; margin-bottom:9px; }
+</style></head><body>
+
+<!-- 1 — Cover -->
+<section class="slide">
+  <div class="kick">FQ · Escenario favorable · Filtro Calidad</div>
+  <h1>Una quincena<br>buena</h1>
+  <div class="rule"></div>
+  <div class="big-stat">+24% a +50%</div>
+  <div class="big-note">El cuarto bueno → el décimo bueno · $1,000 → $1,237–$1,498</div>
+  <p class="sub">$1,000 · filtro <b>Calidad</b> (KL-bajo) · 3 símbolos (BTC·SOL·ETH) · 3.6% riesgo/trade · 2 semanas · ~13 señales</p>
+  <div class="foot"><span>40,000 caminos Monte-Carlo · bootstrap sobre R real del cube</span><span>Coste 0.15R · tope 25x (lev real ~7x)</span></div>
+</section>
+
+<!-- 2 — las bandas, con su frecuencia -->
+<section class="slide">
+  <div class="kick">$1,000 · Calidad · 3 símbolos · 3.6% · 2 semanas</div>
+  <h2>El abanico completo — favorable con su probabilidad</h2>
+  <div class="rule"></div>
+  <table>
+    <tr><th>Escenario</th><th>Qué tan seguido</th><th class="num">Resultado</th><th class="num">Retorno</th></tr>
+    <tr><td><span class="mut">Esperado (mediana)</span></td><td class="mut">la mitad de las quincenas</td><td class="num">$1,020</td><td class="num mut">+2%</td></tr>
+    <tr><td><span class="mut">Promedio (media)</span></td><td class="mut">centro de todos los caminos</td><td class="num">$1,084</td><td class="num">+8%</td></tr>
+    <tr class="hi"><td><b class="em">Favorable</b></td><td>1 de cada 4 quincenas</td><td class="num em">$1,237</td><td class="num em">+24%</td></tr>
+    <tr class="hi"><td><b class="em">Muy favorable</b></td><td>1 de cada 10</td><td class="num em">$1,498</td><td class="num em">+50%</td></tr>
+    <tr><td><b class="gold">Excepcional</b></td><td>1 de cada 20</td><td class="num gold">$1,694</td><td class="num gold">+69%</td></tr>
+    <tr><td><b class="gold">Techo</b></td><td>1 de cada 100</td><td class="num gold">$2,171</td><td class="num gold">+117%</td></tr>
+  </table>
+  <div class="grid">
+    <div class="card"><div class="n">En un cuarto bueno (promedio)</div><div class="v em">$1,526</div>
+      <div class="d">Si caes en el 25% favorable, el resultado típico es <b>+53%</b>.</div></div>
+    <div class="card"><div class="n">Probabilidades del upside</div><div class="v">28% · 10%</div>
+      <div class="d">P(terminar &gt;+20%) = <b>28%</b> · P(&gt;+50%) = <b>10%</b>. P(verde) = 53%.</div></div>
+  </div>
+  <div class="foot"><span>Favorable = percentiles altos, NO la expectativa</span><span>measure-first · R del registro validado</span></div>
+</section>
+
+<!-- 3 — cómo se ve + ancla honesta -->
+<section class="slide">
+  <div class="kick">La letra honesta (sin humo)</div>
+  <h2>Cómo se ve una quincena favorable</h2>
+  <div class="rule"></div>
+  <ul>
+    <li><b>Los ganadores cargan.</b> De ~13 señales, el win-rate es ~30% — pero los aciertos corren a TP grande (asimetría R). Una quincena favorable es cuando 4–6 de esas 13 pegan fuerte.</li>
+    <li><b>El drawdown se siente igual.</b> Incluso en un camino favorable el bajón máximo ronda <b>~16%</b> (mediana 19%) antes de despegar. No es línea recta.</li>
+    <li><b>Apalancamiento real ~7x.</b> Con stops de ~0.5%, 3.6% de riesgo son ~7x reales — el 25x es el tope del exchange, nunca la apuesta.</li>
+  </ul>
+  <p class="note">Ancla honesta: esto es el <b>lado bueno</b> del abanico. La expectativa central de la quincena es <b>+2% (mediana) / +8% (media)</b>, con 53% de probabilidad de cerrar en verde. El +24% a +50% es lo que pasa cuando la racha acompaña — realista, medido, pero <b>no prometido</b>. Eso es lo que nos separa del humo.</p>
+  <div class="foot"><span>FQ · perpetuos cripto · todo medido o al cementerio</span><span>Filtro Calidad · validado cross-símbolo</span></div>
+</section>
+
+</body></html>
