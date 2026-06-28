@@ -52,8 +52,12 @@
   (reversible/mean-reverting), **NO** en trending. BTC low-irrev +0.348R **DSR 0.999**; SOL
   +0.225R **DSR 0.950**. **Monótono por cuartil en AMBOS**. **Cross-símbolo** (a diferencia de F2).
 - **Ortogonal:** el `regime_state` del bot es todo "stable" → KL separa DENTRO de él (agrega).
-  Triple cruce **CVD✓ & persist✓ & KL-bajo** (BTC 2024-06→26): **+0.874R, DSR 0.992** — pero
-  **n=39 (< piso duro de 100)** → **prometedor, NO cableáble aún**.
+- **Triple cruce CVD✓ & persist✓ & KL-bajo — PROBADO FUERA DE BTC, FALLA (2026-06-28):** con CVD
+  de SOL y ETH ya bajado (ventana 2024-06→26, `tools/measure_tiers.py`), el out-of-sample del filtro:
+  **BTC +0.782R (n=37) ✓** · **SOL −0.263R (n=43) ✗** · **ETH −0.139R (n=61) ✗**. Pool n=141 →
+  **+0.065R bruto → −0.085R NETO**. El +0.874R/DSR 0.992 de BTC era **sobreajuste a BTC**: el edge
+  **NO transfiere**. → **El "motor premium" global NO es producto: resta.** Solo BTC-only sobrevive
+  (+0.63R neto) pero ~1 señal/3 sem y n=37 (< piso 100). Premium = **lead de investigación en BTC**, no tier.
 - **Por qué sobrevive:** Kawai-Parrondo-Van den Broeck 2007 (KL = entropía producida); Lacasa
   et al. 2012 (estimador por grafo de visibilidad). Era el hilo de termo-estocástica del research.
 - **Status:** **VALIDADO en cube, PENDIENTE forward.** No cableado. Falta ETH + forward + n_trials honesto.

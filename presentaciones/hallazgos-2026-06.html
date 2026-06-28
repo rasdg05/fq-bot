@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>FQ · Hallazgos + escenario real · 2026-06</title>
+<style>
+  @page { size: 1280px 720px; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root{
+    --bg:#f7f5f0; --ink:#1c2420; --muted:#5d6b63; --line:#d8d2c6;
+    --em:#0f6f4d; --em2:#0a5238; --gold:#b08338; --red:#a23b2e; --card:#fffdf8;
+  }
+  body{ font-family:"Georgia","Times New Roman",serif; color:var(--ink); background:#333; }
+  .slide{ width:1280px; height:720px; background:var(--bg); position:relative;
+    padding:64px 80px; overflow:hidden; page-break-after:always; }
+  .kick{ font-family:"Helvetica Neue",Arial,sans-serif; font-size:13px; letter-spacing:.32em;
+    text-transform:uppercase; color:var(--em); font-weight:700; }
+  h1{ font-size:64px; line-height:1.04; letter-spacing:-.02em; margin:.18em 0 .12em; }
+  h2{ font-size:40px; line-height:1.08; letter-spacing:-.01em; margin:.1em 0 .35em; }
+  .sub{ font-size:21px; color:var(--muted); font-style:italic; }
+  .rule{ height:2px; background:var(--ink); width:64px; margin:22px 0; }
+  .foot{ position:absolute; left:80px; right:80px; bottom:34px; display:flex;
+    justify-content:space-between; font-family:"Helvetica Neue",Arial,sans-serif;
+    font-size:12px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted);
+    border-top:1px solid var(--line); padding-top:14px; }
+  p{ font-size:21px; line-height:1.5; color:#2b332e; }
+  .lead{ font-size:25px; line-height:1.45; }
+  .grid{ display:grid; gap:18px; margin-top:8px; }
+  .g3{ grid-template-columns:repeat(3,1fr); } .g2{ grid-template-columns:1fr 1fr; }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:10px;
+    padding:22px 24px; }
+  .card .n{ font-family:"Helvetica Neue",Arial,sans-serif; font-size:13px; letter-spacing:.12em;
+    text-transform:uppercase; color:var(--em); font-weight:700; }
+  .card .big{ font-size:38px; font-weight:700; letter-spacing:-.01em; margin:.12em 0; }
+  .card .d{ font-size:16px; color:var(--muted); line-height:1.35; }
+  table{ width:100%; border-collapse:collapse; font-size:20px; margin-top:6px; }
+  td,th{ text-align:left; padding:12px 10px; border-bottom:1px solid var(--line); }
+  th{ font-family:"Helvetica Neue",Arial,sans-serif; font-size:13px; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--muted); font-weight:700; }
+  td.r,th.r{ text-align:right; font-variant-numeric:tabular-nums; }
+  .em{ color:var(--em); font-weight:700; } .gold{ color:var(--gold); font-weight:700; }
+  .red{ color:var(--red); font-weight:700; }
+  .pill{ display:inline-block; font-family:"Helvetica Neue",Arial,sans-serif; font-size:12px;
+    letter-spacing:.1em; text-transform:uppercase; background:#e7efe9; color:var(--em2);
+    padding:5px 11px; border-radius:20px; font-weight:700; }
+  .big-stat{ font-size:90px; font-weight:700; letter-spacing:-.03em; color:var(--em); line-height:1; }
+  .note{ font-size:16px; color:var(--muted); font-style:italic; }
+  .warn{ background:#fbf1ee; border:1px solid #e6c9c2; border-left:4px solid var(--red);
+    border-radius:8px; padding:18px 22px; }
+</style>
+</head>
+<body>
+
+<!-- 1 · COVER -->
+<section class="slide">
+  <div class="kick">FQ · Mesa de liquidez institucional · perpetuos cripto</div>
+  <h1>Hallazgos validados<br>+ escenario real</h1>
+  <div class="rule"></div>
+  <p class="lead">Todo medido. Lo que pasa el gate, se cabla.<br>Lo que no, al cementerio — honesto.</p>
+  <div style="margin-top:40px">
+    <span class="pill">CVD ✓</span> &nbsp;
+    <span class="pill">F2 persistencia ✓</span> &nbsp;
+    <span class="pill">KL régimen ✓</span> &nbsp;
+    <span class="pill">3 símbolos en vivo</span>
+  </div>
+  <div class="foot"><span>FQ · Junio 2026</span><span>Confidencial</span></div>
+</section>
+
+<!-- 2 · LA DISCIPLINA -->
+<section class="slide">
+  <div class="kick">El moat</div>
+  <h2>La disciplina ES el producto</h2>
+  <p class="lead">En un mar de bots que prometen y mienten, lo nuestro es <span class="em">auditable</span>.
+    Ninguna ventaja entra al motor sin pasar el gate honesto:</p>
+  <div class="grid g3" style="margin-top:30px">
+    <div class="card"><div class="n">Deflated Sharpe</div><div class="big">DSR &gt; 0.95</div>
+      <div class="d">Corrige el multiple-testing. ~20 configs probadas ya regalan un "5% significativo" falso. El DSR lo deflacta.</div></div>
+    <div class="card"><div class="n">Ortogonalidad</div><div class="big">¿suma?</div>
+      <div class="d">¿El edge nuevo aporta DENTRO de lo ya confirmado, o es redundante? Si no suma, no entra.</div></div>
+    <div class="card"><div class="n">CPCV · PBO</div><div class="big">¿overfit?</div>
+      <div class="d">Probabilidad de sobre-ajuste. ¿El mejor in-sample queda bajo la mediana out-of-sample?</div></div>
+  </div>
+  <p style="margin-top:30px" class="note">Y lo que muere, queda en el cementerio — para no re-creer un espejismo. Medida o muerte.</p>
+  <div class="foot"><span>FQ · La disciplina</span><span>2 / 8</span></div>
+</section>
+
+<!-- 3 · LOS EDGES VALIDADOS -->
+<section class="slide">
+  <div class="kick">Lo que pasó el gate</div>
+  <h2>Tres ventajas reales, con número</h2>
+  <div class="grid g3" style="margin-top:24px">
+    <div class="card"><div class="n">Order-flow · CVD</div><div class="big">cableado</div>
+      <div class="d">El volumen comprado/vendido asimétrico da el <b>signo</b> del flujo. Confirmado en cripto (ley de raíz cuadrada del impacto, δ≈0.5).</div></div>
+    <div class="card"><div class="n">Persistencia · F2</div><div class="big em">DSR 0.997</div>
+      <div class="d">Memoria larga del flujo (order-splitting). Las metaórdenes se trabajan en pedacitos → continuación. Luz verde en BTC.</div></div>
+    <div class="card"><div class="n">Régimen · KL</div><div class="big em">0.999 / 0.95 / 1.00</div>
+      <div class="d">Irreversibilidad temporal. <b>Cross-símbolo</b> (BTC / SOL / ETH). El hallazgo nuevo — la flecha del tiempo.</div></div>
+  </div>
+  <p style="margin-top:30px" class="lead">Y lo que NO pasó: lo "cuántico" (Baaquie, LPPL, Khrennikov), rough-vol, early-warning —
+    <span class="red">refutados, al cementerio</span>. No fue physics-envy. Fue lo que pagó en los datos.</p>
+  <div class="foot"><span>FQ · Edges validados</span><span>3 / 8</span></div>
+</section>
+
+<!-- 4 · KL FLECHA DEL TIEMPO -->
+<section class="slide">
+  <div class="kick">El hallazgo nuevo</div>
+  <h2>KL: la flecha del tiempo</h2>
+  <div class="grid g2" style="margin-top:18px">
+    <div>
+      <p class="lead">Un mercado <b>en equilibrio</b> (eficiente, ruido) es <span class="em">reversible</span>:
+        la película al revés se ve igual. Uno <b>empujado por una fuerza</b> (una metaorden) es
+        <span class="red">irreversible</span> — tiene flecha del tiempo.</p>
+      <p style="margin-top:18px">La termodinámica estocástica lo vuelve medible (KL forward‑vs‑backward = entropía
+        producida), sin parámetros que tunear. <span class="note">Tomamos la matemática, no el mecanismo — gana su lugar con datos.</span></p>
+    </div>
+    <div class="card" style="align-self:center">
+      <div class="n">Lo que medimos (historia completa)</div>
+      <div class="big" style="color:var(--em)">+0.35R</div>
+      <div class="d">El edge de FQ vive en régimen <b>reversible / mean-reverting</b> (irreversibilidad baja)
+        y <b>muere en trending</b> (+0.13R, casi cero). Monótono por cuartil en los 3 símbolos.</div>
+      <div style="margin-top:14px" class="d"><b>No fue lo cuántico — fue la flecha del tiempo.</b></div>
+    </div>
+  </div>
+  <div class="foot"><span>FQ · KL régimen</span><span>4 / 8</span></div>
+</section>
+
+<!-- 5 · FILTRO + CADENCIA -->
+<section class="slide">
+  <div class="kick">El filtro de calidad, en vivo</div>
+  <h2>Solo el régimen donde el edge paga</h2>
+  <p class="lead">Filtro <b>KL-bajo</b> activo en <b>BTC · SOL · ETH</b>: solo se difunde al VIP en régimen
+    reversible. Se suprime el trending (donde el edge muere). Cadencia sana:</p>
+  <table style="margin-top:14px">
+    <tr><th>Símbolo</th><th class="r">Base / semana</th><th class="r">KL-bajo (calidad)</th></tr>
+    <tr><td>BTC</td><td class="r">3.57</td><td class="r">1.86</td></tr>
+    <tr><td>SOL</td><td class="r">3.76</td><td class="r">2.17</td></tr>
+    <tr><td>ETH <span class="note">— el más denso</span></td><td class="r">4.05</td><td class="r">2.25</td></tr>
+    <tr><td class="em">3 símbolos</td><td class="r em">11.4</td><td class="r em">6.3 / semana</td></tr>
+  </table>
+  <p style="margin-top:24px"><span class="gold">~19 señales de calidad en 3 semanas.</span> Más símbolos =
+    más muestras de alta convicción sin sacrificar calidad. El motor escala.</p>
+  <div class="foot"><span>FQ · Cadencia</span><span>5 / 8</span></div>
+</section>
+
+<!-- 6 · ESCENARIO -->
+<section class="slide">
+  <div class="kick">Escenario de desempeño — honesto, con varianza</div>
+  <h2>$1000 · 2 semanas · 3.6% riesgo/trade</h2>
+  <div class="grid g2" style="margin-top:14px">
+    <table>
+      <tr><th>Resultado (13 señales)</th><th class="r">Equity</th></tr>
+      <tr><td>Esperado</td><td class="r em">$1088 – $1146</td></tr>
+      <tr><td>Favorable (p75)</td><td class="r">$1296 &nbsp;(+30%)</td></tr>
+      <tr><td>Muy favorable (p90)</td><td class="r">$1538</td></tr>
+      <tr><td>Feo (p10)</td><td class="r red">$818 &nbsp;(−18%)</td></tr>
+    </table>
+    <div class="grid" style="grid-template-columns:1fr 1fr">
+      <div class="card"><div class="n">P(terminar en verde)</div><div class="big em">64%</div></div>
+      <div class="card"><div class="n">Drawdown máx (típico)</div><div class="big">~15%</div><div class="d">peor caso (p95) 28%</div></div>
+      <div class="card"><div class="n">Ganancia esperada</div><div class="big em">+9% a +15%</div><div class="d">en 2 semanas</div></div>
+      <div class="card"><div class="n">P(perder &gt;25%)</div><div class="big">5%</div></div>
+    </div>
+  </div>
+  <p style="margin-top:22px" class="note">Honesto: 13 señales es muestra chica → la varianza es real (puedes terminar arriba o abajo).
+    Esto es valor ESPERADO sobre la distribución medida, neto de fees. El escenario, no una promesa.</p>
+  <div class="foot"><span>FQ · Escenario $1000</span><span>6 / 8</span></div>
+</section>
+
+<!-- 7 · APALANCAMIENTO -->
+<section class="slide">
+  <div class="kick">La verdad que casi nadie te dice</div>
+  <h2>Apalancamiento: el 25x es el tope, no la apuesta</h2>
+  <div class="grid g2" style="margin-top:16px">
+    <div>
+      <p class="lead">Los stops del bot son <b>apretados (~0.51%)</b>. Sizeando por <b>riesgo (3.6%)</b>,
+        el apalancamiento que <span class="em">realmente usas es ~7x</span>.</p>
+      <p style="margin-top:16px">El <b>25x es solo el máximo del exchange</b> — te da aire. No se "usa todo".
+        Lo que controla el riesgo es <b>cuánto arriesgas por trade</b>, no la palanca.</p>
+    </div>
+    <div class="warn">
+      <div class="n" style="color:var(--red)">El error que vuela cuentas</div>
+      <p style="margin-top:8px; font-size:20px">Si pusieras los <b>25x sobre TODA la cuenta</b>, cada stop
+        (−0.51%) = <span class="red">−13% de la cuenta</span> → <b>ruina en 2-3 trades</b>, aunque el edge sea real.</p>
+      <p style="margin-top:12px; font-size:17px" class="note">El edge soporta ~3-7% por trade (Kelly). Más es sobre-apostar.
+        3.6% es el punto justo: capturas el edge y sobrevives la varianza.</p>
+    </div>
+  </div>
+  <div class="foot"><span>FQ · Riesgo &amp; apalancamiento</span><span>7 / 8</span></div>
+</section>
+
+<!-- 8 · CIERRE -->
+<section class="slide" style="background:var(--ink); color:#f3efe6;">
+  <div class="kick" style="color:#7fd3ad">El punto</div>
+  <h1 style="color:#fff">Ya no es un MVP.</h1>
+  <div class="rule" style="background:#7fd3ad"></div>
+  <p class="lead" style="color:#d8d2c6; max-width:880px">Es una máquina que <b style="color:#fff">mide antes de creer</b>,
+    retira lo que deja de pagar, y guarda en la mano un <b style="color:#fff">registro forward auditable</b>.
+    Order-flow, persistencia, régimen — tres ventajas reales, validadas, en tres símbolos.
+    El marketing se ata a ese registro. La cuenta se protege con la misma disciplina que protege el edge.</p>
+  <p style="margin-top:34px; color:#9fb3a8; font-style:italic; font-size:19px">Cuando hay ventaja, ejecuta. Cuando no, espera.</p>
+  <div class="foot" style="border-color:#3a4640; color:#8a9890"><span>FQ · 2026</span><span>8 / 8</span></div>
+</section>
+
+</body>
+</html>

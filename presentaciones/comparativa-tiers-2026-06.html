@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>Comparativa Calidad vs Premium — Junio 2026</title>
+<style>
+  @page { size: 1280px 720px; margin: 0; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root{
+    --bg:#f7f5f0; --ink:#1c2420; --muted:#5d6b63; --line:#d8d2c6;
+    --em:#0f6f4d; --em2:#0a5238; --gold:#b08338; --red:#a23b2e; --card:#fffdf8;
+  }
+  body{ font-family:"Georgia","Times New Roman",serif; color:var(--ink); background:#333; }
+  .slide{ width:1280px; height:720px; background:var(--bg); position:relative;
+    padding:64px 80px; overflow:hidden; page-break-after:always; }
+  .kick{ font-family:"Helvetica Neue",Arial,sans-serif; font-size:13px; letter-spacing:.32em;
+    text-transform:uppercase; color:var(--em); font-weight:700; }
+  h1{ font-size:54px; line-height:1.06; letter-spacing:-.01em; margin-top:10px; }
+  h2{ font-size:38px; line-height:1.1; letter-spacing:-.01em; margin-top:6px; }
+  .sub{ font-size:21px; color:var(--muted); font-style:italic; }
+  .rule{ height:2px; background:var(--ink); width:64px; margin:22px 0; }
+  .foot{ position:absolute; left:80px; right:80px; bottom:34px; display:flex;
+    justify-content:space-between; font-family:"Helvetica Neue",Arial,sans-serif;
+    font-size:12px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted);
+    border-top:1px solid var(--line); padding-top:14px; }
+  p{ font-size:21px; line-height:1.5; color:#2b332e; }
+  .lead{ font-size:24px; }
+  .grid{ display:flex; gap:18px; margin-top:24px; }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:10px;
+    padding:20px 22px; flex:1; }
+  .card .n{ font-family:"Helvetica Neue",Arial,sans-serif; font-size:13px; letter-spacing:.12em;
+    text-transform:uppercase; color:var(--em); font-weight:700; }
+  .card .v{ font-size:40px; font-weight:700; letter-spacing:-.02em; margin:8px 0 4px; }
+  .card .d{ font-size:16px; color:var(--muted); line-height:1.35; }
+  table{ width:100%; border-collapse:collapse; margin-top:22px; }
+  td,th{ text-align:left; padding:12px 10px; border-bottom:1px solid var(--line);
+    font-size:19px; }
+  th{ font-family:"Helvetica Neue",Arial,sans-serif; font-size:13px; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--muted); font-weight:700; }
+  td.num,th.num{ text-align:right; font-variant-numeric:tabular-nums; }
+  .em{ color:var(--em); font-weight:700; } .gold{ color:var(--gold); font-weight:700; }
+  .red{ color:var(--red); font-weight:700; }
+  .pill{ display:inline-block; font-family:"Helvetica Neue",Arial,sans-serif; font-size:12px;
+    letter-spacing:.1em; text-transform:uppercase; background:#e7efe9; color:var(--em2);
+    padding:5px 11px; border-radius:20px; font-weight:700; }
+  .pill.red{ background:#f3e2df; color:var(--red); }
+  .pill.gold{ background:#f3ead7; color:#7a5a1f; }
+  .big-stat{ font-size:84px; font-weight:700; letter-spacing:-.03em; color:var(--em); line-height:1; }
+  .note{ font-size:16px; color:var(--muted); font-style:italic; margin-top:14px; }
+  ul{ margin:14px 0 0 22px; } li{ font-size:20px; line-height:1.55; margin-bottom:8px; }
+</style></head><body>
+
+<!-- 1 — Cover -->
+<section class="slide">
+  <div class="kick">FQ · Hallazgo de validación · Junio 2026</div>
+  <h1>Calidad vs Premium<br>la comparativa honesta</h1>
+  <div class="rule"></div>
+  <p class="lead">Si subo el filtro a “motor premium”, ¿qué cadencia y qué rendimiento espero?<br>
+  Lo medimos sobre el registro real — y el resultado obliga a una decisión.</p>
+  <div class="grid" style="margin-top:40px">
+    <div class="card"><div class="n">Calidad (KL-bajo) · EN VIVO</div>
+      <div class="v em">6.3 <span style="font-size:22px">señales/sem</span></div>
+      <div class="d">Validado cross-símbolo (BTC·SOL·ETH). El filtro que ya está encendido.</div></div>
+    <div class="card"><div class="n">Premium (triple cruce)</div>
+      <div class="v gold">1.3 <span style="font-size:22px">señales/sem</span></div>
+      <div class="d">CVD✓ &amp; persistencia✓ &amp; KL-bajo. Mucho más raro… y mucho más frágil.</div></div>
+  </div>
+  <div class="foot"><span>Ventana CVD 2024-06 → 2026-06 · cubos tp4/h576</span><span>Measure-first · todo al gate</span></div>
+</section>
+
+<!-- 2 — el test cross-símbolo (el hallazgo) -->
+<section class="slide">
+  <div class="kick">El hallazgo que cambia la decisión</div>
+  <h2>El “premium” brillaba… <span class="red">pero solo en BTC</span></h2>
+  <div class="rule"></div>
+  <p>El triple cruce daba <b>+0.78R</b> en BTC. Cuando por fin tuvimos CVD de SOL y ETH,
+  lo probamos <b>fuera de BTC</b> — el verdadero out-of-sample del filtro:</p>
+  <table>
+    <tr><th>Símbolo</th><th class="num">n</th><th class="num">Cadencia</th><th class="num">R medio (bruto)</th><th class="num">Win-rate</th><th>Veredicto</th></tr>
+    <tr><td><b>BTC</b></td><td class="num">37</td><td class="num">0.35/sem</td><td class="num em">+0.782R</td><td class="num">43%</td><td><span class="pill">edge real</span></td></tr>
+    <tr><td><b>SOL</b></td><td class="num">43</td><td class="num">0.41/sem</td><td class="num red">−0.263R</td><td class="num">16%</td><td><span class="pill red">negativo</span></td></tr>
+    <tr><td><b>ETH</b></td><td class="num">61</td><td class="num">0.57/sem</td><td class="num red">−0.139R</td><td class="num">23%</td><td><span class="pill red">negativo</span></td></tr>
+    <tr><td><b>Pool 3-símbolos</b></td><td class="num">141</td><td class="num">1.33/sem</td><td class="num">+0.065R bruto → <span class="red">−0.085R neto</span></td><td class="num">26%</td><td><span class="pill gold">no robusto</span></td></tr>
+  </table>
+  <p class="note">El +0.78R era sobreajuste a BTC. El edge NO transfiere: en SOL y ETH el mismo filtro pierde.
+  Neto de costes (~0.15R sobre stops de ~0.5%), el premium agrupado queda en rojo.</p>
+  <div class="foot"><span>Mismas funciones validadas: CVD · persistencia (Bouchaud) · KL</span><span>Por eso nunca se cableó</span></div>
+</section>
+
+<!-- 3 — comparativa @ 3.6% -->
+<section class="slide">
+  <div class="kick">$1000 · 2 semanas · 3.6% riesgo/trade · tope 25x</div>
+  <h2>Mismo ejercicio, los dos filtros</h2>
+  <div class="rule"></div>
+  <table>
+    <tr><th>&nbsp;</th><th class="num">Señales/2sem</th><th class="num">R neto/trade</th><th class="num">Mediana</th><th class="num">Media</th><th class="num">P(verde)</th><th class="num">DD mediana</th></tr>
+    <tr><td><b class="em">Calidad</b> (KL-bajo)</td><td class="num">~13</td><td class="num em">+0.18R</td><td class="num">$1,021</td><td class="num">$1,085</td><td class="num">53%</td><td class="num">19%</td></tr>
+    <tr><td><b class="gold">Premium</b> (triple, 3-sím)</td><td class="num">~3</td><td class="num red">−0.09R</td><td class="num">$985</td><td class="num">$992</td><td class="num">40%</td><td class="num">8%</td></tr>
+  </table>
+  <div class="grid" style="margin-top:30px">
+    <div class="card"><div class="n">Calidad</div>
+      <div class="d" style="font-size:18px"><b class="em">+2% a +8%</b> esperado. Suficiente flujo (13 trades)
+      para que el edge se note. Banda 2sem: <b>$743 – $1,498</b>.</div></div>
+    <div class="card"><div class="n">Premium agrupado</div>
+      <div class="d" style="font-size:18px"><b class="red">~plano a −2%</b>. Solo ~3 trades y con edge
+      neto negativo: subir a premium <b>quitaría</b> rendimiento, no lo sumaría.</div></div>
+  </div>
+  <p class="note">“Premium” suena a mejor, pero hoy significa menos señales Y peor expectativa neta — porque dos de
+  los tres símbolos pierden en ese filtro.</p>
+  <div class="foot"><span>40,000 caminos Monte-Carlo · bootstrap sobre R real</span><span>Coste 0.15R · stops reales</span></div>
+</section>
+
+<!-- 4 — el salto a 6.9% -->
+<section class="slide">
+  <div class="kick">$1000 · 2 semanas · tope 25x · 3.6% vs 6.9%</div>
+  <h2>Subir el riesgo a 6.9% no “duplica” nada</h2>
+  <div class="rule"></div>
+  <table>
+    <tr><th>Filtro · riesgo</th><th class="num">Mediana</th><th class="num">Media</th><th class="num">P(verde)</th><th class="num">DD p95</th><th class="num">P(pierde&gt;50%)</th></tr>
+    <tr><td><b class="em">Calidad</b> · 3.6%</td><td class="num">$1,021</td><td class="num">$1,085</td><td class="num">53%</td><td class="num">34%</td><td class="num">0%</td></tr>
+    <tr><td><b class="em">Calidad</b> · 6.9%</td><td class="num">$988</td><td class="num">$1,165</td><td class="num">49%</td><td class="num red">56%</td><td class="num red">6%</td></tr>
+    <tr><td><b class="gold">Premium</b> · 3.6%</td><td class="num">$985</td><td class="num">$992</td><td class="num">40%</td><td class="num">12%</td><td class="num">0%</td></tr>
+    <tr><td><b class="gold">Premium</b> · 6.9%</td><td class="num">$968</td><td class="num">$983</td><td class="num">37%</td><td class="num">22%</td><td class="num">0%</td></tr>
+  </table>
+  <p style="margin-top:24px"><b>El patrón del sobre-apuesta:</b> en calidad, al 6.9% la <b class="em">media sube</b>
+  ($1,085→$1,165) pero la <b class="red">mediana baja</b> ($1,021→$988) y el drawdown p95 salta a <b class="red">56%</b>.
+  Más varianza, no más probabilidad de ganar. 6.9% ≈ Kelly completo: el punto donde el camino típico empieza a sufrir.</p>
+  <p class="note">3.6% ≈ medio-Kelly (sano). 6.9% ≈ Kelly completo (agresivo). Doblar el riesgo engorda la cola, no el centro.</p>
+  <div class="foot"><span>25x = tope del exchange, NO la apuesta</span><span>Lev real: 3.6%→~7x · 6.9%→~13–15x</span></div>
+</section>
+
+<!-- 5 — apalancamiento real + veredicto -->
+<section class="slide">
+  <div class="kick">La lectura honesta</div>
+  <h2>Qué hago con esto</h2>
+  <div class="rule"></div>
+  <div class="grid">
+    <div class="card"><div class="n">Apalancamiento real</div>
+      <div class="v">~7x / ~14x</div>
+      <div class="d">Con stops de ~0.5%, 3.6% de riesgo = ~7x; 6.9% = ~13–15x.
+      El 25x es el tope del exchange — usarlo completo (−13%/trade) sería ruina. La apuesta es el % de riesgo, no el tope.</div></div>
+    <div class="card"><div class="n">Decisión</div>
+      <div class="v em">Calidad</div>
+      <div class="d">Sigue encendido el filtro Calidad: validado en los 3 símbolos, robusto, con cadencia para que el edge se exprese.</div></div>
+  </div>
+  <ul style="margin-top:26px">
+    <li><b>No subir a “premium” global todavía.</b> Hoy resta: pierde en SOL y ETH; agrupado queda neto-negativo.</li>
+    <li><b>Premium = pista de investigación en BTC</b> (+0.63R neto), pero ~1 señal cada 3 semanas y n=37 (debajo del piso de validación). No es producto, es lead.</li>
+    <li><b>Riesgo recomendado:</b> 3.6% (medio-Kelly). 6.9% sube la media a costa de la mediana y del drawdown — solo con estómago y tamaño que aguante −56%.</li>
+  </ul>
+  <p class="note">La disciplina ES el producto: probamos el premium fuera de BTC, falló, y lo decimos. Eso nos separa del humo.</p>
+  <div class="foot"><span>FQ · perpetuos cripto · measure-first</span><span>Todo medido o al cementerio</span></div>
+</section>
+
+</body></html>
