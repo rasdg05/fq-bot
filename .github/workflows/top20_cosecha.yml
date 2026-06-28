@@ -29,6 +29,9 @@ on:
       symbols:
         description: "Tanda a cosechar (CSV con /USDT). Default = Tanda 1. Para Tanda 2 edita a: LINK/USDT,DOT/USDT,ADA/USDT,AVAX/USDT,TRX/USDT"
         default: "DOGE/USDT,XRP/USDT,LTC/USDT,BCH/USDT,BNB/USDT"
+      sym_months:
+        description: "Meses de historia (mismo valor para toda la tanda). 84 = máximo. OJO: símbolos jóvenes en OKX dan n=0 si pides antes de su listing (como SOL=60, ETH=76). DOGE/USDT no llega a 84 -> re-disparar SOLO DOGE con 54."
+        default: "84"
 
 permissions:
   actions: write      # para disparar research.yml por símbolo
@@ -39,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Disparar Research (cosecha 84m/step1) por símbolo — se encolan en Hetzner
+      - name: Disparar Research (cosecha sym_months/step1) por símbolo — se encolan en Hetzner
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -54,7 +57,7 @@ jobs:
               --ref claude/turbovec-tp-cube-hardening-fvzdx7 \
               -f symbol="$S" \
               -f cosecha=true \
-              -f sym_months=84 \
+              -f sym_months=${{ inputs.sym_months }} \
               -f sym_step=1 \
               && n=$((n+1)) || echo "  (falló el dispatch de $S)"
             sleep 2
