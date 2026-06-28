@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FQ · Why You Keep Losing (and how to stop)</title>
+<style>
+  :root{
+    --paper:#fbfaf7; --panel:#f3f1ea; --ink:#15171c; --soft:#3d4350; --mut:#6b7280;
+    --line:#e4e0d7; --grn:#13935a; --grn2:#0e7a4a; --acc:#19b88c; --gold:#b07d1e; --red:#c2402d;
+    --dark:#0d1014;
+    --mono:"SFMono-Regular",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#d9d6cf;color:var(--ink);font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;line-height:1.55}
+  .page{width:210mm;min-height:297mm;background:var(--paper);margin:14px auto;
+    padding:24mm 22mm;position:relative;box-shadow:0 2px 18px rgba(0,0,0,.18);
+    display:flex;flex-direction:column;overflow:hidden}
+  /* brand */
+  .brandbar{display:flex;align-items:center;gap:11px}
+  .brandbar .bar{width:5px;height:30px;background:var(--acc);border-radius:3px}
+  .brandbar .fq{font-weight:900;font-size:24px;letter-spacing:-.02em}
+  .brandbar .wm{font-size:11px;letter-spacing:.26em;text-transform:uppercase;color:var(--mut);font-weight:800;margin-left:2px}
+  .kick{font-size:12px;letter-spacing:.30em;text-transform:uppercase;color:var(--grn);font-weight:800}
+  h1{font-size:50px;line-height:1.02;letter-spacing:-.03em;margin:14px 0 0;font-weight:900}
+  h2{font-size:30px;line-height:1.1;letter-spacing:-.02em;margin:0 0 4px;font-weight:900}
+  .dek{font-size:18px;color:var(--grn);font-style:italic;margin:6px 0 14px}
+  .sub{font-size:23px;line-height:1.32;color:#2a2f38;margin:18px 0 0;font-weight:500;max-width:26ch}
+  .sub b{color:var(--ink);font-weight:800}
+  .stepnum{display:inline-block;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--grn);font-weight:900}
+  .rulenum{display:inline-block;font-size:15px;font-weight:900;letter-spacing:.20em;text-transform:uppercase;
+    color:var(--grn);border:2px solid var(--grn);border-radius:999px;padding:6px 16px;margin-bottom:10px}
+  .rword{font-size:38px;line-height:1.08;letter-spacing:-.02em;font-weight:900;margin:4px 0 16px}
+  .rword .g{color:var(--grn)}
+  p{margin:0 0 13px;font-size:17px;line-height:1.55;color:#23262e}
+  p.lead{font-size:21px;color:#1b1e25;font-weight:500;line-height:1.42}
+  .mut{color:var(--mut)}
+  .spacer{flex:1}
+  .chip{display:inline-block;font-size:14px;font-weight:800;letter-spacing:.04em;
+    color:#fff;background:var(--grn);padding:8px 16px;border-radius:999px}
+  .free{display:inline-block;border:1.5px solid var(--grn);color:var(--grn);font-weight:800;
+    font-size:12px;letter-spacing:.16em;text-transform:uppercase;padding:6px 14px;border-radius:999px}
+  .panel{background:#eef5f0;border:1.5px solid rgba(19,147,90,.32);border-radius:14px;padding:18px 22px;margin:10px 0}
+  .panel.gold{background:#f8f3e6;border-color:rgba(176,125,30,.4)}
+  .panel.plain{background:#f4f2ec;border-color:var(--line)}
+  .panel p{margin:0;font-size:17px}
+  .panel .lbl{font-size:12px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;color:var(--grn);margin-bottom:8px}
+  .panel.gold .lbl{color:var(--gold)}
+  .math{font-family:var(--mono);font-size:18px;text-align:center;letter-spacing:.01em;
+    color:#10131a;background:#fff;border:1px solid var(--line);border-radius:10px;padding:15px 12px;margin:11px 0}
+  .math .v{color:var(--grn);font-weight:700}.math .r{color:var(--red);font-weight:700}.math .g{color:var(--gold);font-weight:700}
+  .mathlbl{font-size:13px;color:var(--mut);text-align:center;margin:-4px 0 11px}
+  ol{margin:6px 0 12px;padding-left:22px}ol li{margin:8px 0;font-size:16.5px;color:#23262e}
+  .chk{margin:6px 0 12px;padding:0;list-style:none}
+  .chk li{position:relative;padding-left:24px;margin:9px 0;font-size:16.5px}
+  .chk li::before{content:"□";position:absolute;left:0;color:var(--grn);font-weight:800}
+  .dark{background:var(--dark);color:#eef0f3;border-radius:18px;padding:26px 28px}
+  .dark .h{font-size:26px;font-weight:900;letter-spacing:-.02em;line-height:1.15;margin:0 0 12px;color:#fff}
+  .dark p{color:#d7dce4;font-size:18px}
+  .dark .big{font-size:22px;color:#fff;font-weight:800;line-height:1.3}
+  .dark .lbl{font-size:12px;letter-spacing:.16em;text-transform:uppercase;font-weight:900;color:var(--acc);margin-bottom:8px}
+  .sig{background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:16px 20px;margin:12px 0 0;font-size:16px}
+  .sig .row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line)}
+  .sig .row:last-child{border-bottom:none}
+  .sig .k{color:var(--mut);font-weight:600}.sig .v{font-weight:800;font-family:var(--mono)}
+  .sig .up{color:var(--grn);font-weight:900}
+  .toc{list-style:none;padding:0;margin:14px 0 0}
+  .toc li{display:flex;align-items:baseline;gap:14px;padding:8px 0;border-bottom:1px solid var(--line);font-size:16px}
+  .toc .n{font-family:var(--mono);font-size:14px;color:var(--grn);font-weight:700;min-width:30px}
+  .toc .t{font-weight:700}.toc .d{color:var(--mut);font-size:13px;margin-left:auto;font-style:italic}
+  .ctabox{background:var(--dark);color:#eef0f3;border-radius:16px;padding:28px 30px;margin-top:8px}
+  .ctabox a{color:#5fe0a0;text-decoration:none;font-weight:800}
+  .ctabox .h{font-size:25px;font-weight:900;letter-spacing:-.01em;margin:0 0 6px;color:#fff}
+  .ctabtn{display:block;background:var(--grn);color:#fff;font-size:22px;font-weight:900;text-align:center;
+    padding:18px;border-radius:13px;margin:16px 0 14px;letter-spacing:-.01em}
+  .ctarow{font-size:16px;line-height:1.5}.ctarow div{margin:6px 0}.ctarow b{color:#fff}
+  .foot{font-size:11.5px;color:var(--mut);line-height:1.5;border-top:1px solid var(--line);padding-top:12px;margin-top:18px}
+  .by{font-size:14px;color:var(--soft);font-weight:600}
+  .pgnum{position:absolute;bottom:12mm;right:22mm;font-size:12px;color:var(--mut);font-family:var(--mono)}
+  .brandfoot{position:absolute;bottom:12mm;left:22mm;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--mut);font-weight:700}
+  @media print{
+    body{background:#fff}
+    .page{margin:0;box-shadow:none;width:auto;min-height:auto;height:297mm;
+      page-break-after:always;padding:18mm 18mm}
+    .page:last-child{page-break-after:auto}
+  }
+  @page{size:A4;margin:0}
+</style>
+</head>
+<body>
+
+<!-- 1 · COVER -->
+<section class="page">
+  <div class="brandbar"><div class="bar"></div><div class="fq">FQ</div><div class="wm">Fibonacci Quantum</div></div>
+  <h1>Why you keep<br>losing at<br>trading</h1>
+  <p class="sub">It isn't the market. It's <b>3 simple mistakes</b> — and a system that fixes them for you.</p>
+  <div style="margin-top:28px"><span class="chip">Free guide · 5-min read</span></div>
+  <div class="spacer"></div>
+  <div class="by">by Diego Gallegos · RasDG &nbsp;·&nbsp; @rasdg05</div>
+  <div class="brandfoot">The bot that measures, not guesses</div>
+</section>
+
+<!-- 2 · REFRAME -->
+<section class="page">
+  <div class="kick">The uncomfortable truth</div>
+  <h1 style="font-size:38px;margin-top:12px">90% don't lose<br>from guessing wrong.</h1>
+  <p class="lead" style="margin-top:20px">They lose chasing the "perfect trade" instead of running a simple process.</p>
+  <div class="spacer"></div>
+  <div class="panel">
+    <p style="font-size:22px;font-weight:700;line-height:1.35">The casino doesn't guess every hand. It has a tiny edge and collects it <b>a thousand times.</b></p>
+    <p style="margin-top:12px;font-size:20px">You can do the same. It's called <b>trading like the house, not the player.</b></p>
+  </div>
+  <div class="spacer"></div>
+  <p class="lead" style="font-weight:800;color:var(--grn)">Here are the 3 rules that put you on the house's side. 👇</p>
+  <span class="pgnum">02</span><span class="brandfoot">Fibonacci Quantum</span>
+</section>
+
+<!-- 3 · THE MATH (from pro · step 00, simplified) -->
+<section class="page">
+  <div class="kick">First, the only number that matters</div>
+  <h2>The market doesn't pay you for being right.</h2>
+  <div class="dek">It pays you for asymmetry. And almost nobody runs that number.</div>
+
+  <p>Everyone repeats that 90% lose "because of psychology." It's comfortable, but it's lazy. The real reason is simpler: people optimize for <b>being right</b> — they chase accuracy. The market doesn't reward accuracy. It rewards <b>asymmetry</b>: how much you take when you're right versus how much you give back when you're wrong.</p>
+
+  <p>And you can write it down. It's the one equation a fund actually looks at — your <b>expectancy</b>, measured in <em>R</em> (multiples of your risk):</p>
+
+  <div class="math"><span class="v">E</span> = p · b − (1 − p)</div>
+  <div class="mathlbl"><b>p</b> = your win rate &nbsp;·&nbsp; <b>b</b> = how many R you win when you're right &nbsp;·&nbsp; <b>E</b> = what each trade returns, on average</div>
+
+  <div class="panel">
+    <p style="margin:0 0 6px"><b>System A</b> — you win only <b>40%</b>, but make <b>3R</b> when you win:<br>
+    <span style="font-family:var(--mono);font-size:15px">E = 0.40 × 3 − 0.60 = <span style="color:var(--grn);font-weight:700">+0.60R per trade</span></span></p>
+    <p style="margin:10px 0 0"><b>System B</b> — you win <b>70%</b>, but make only <b>0.5R</b>:<br>
+    <span style="font-family:var(--mono);font-size:15px">E = 0.70 × 0.5 − 0.30 = <span style="color:var(--gold);font-weight:700">+0.05R per trade</span></span></p>
+  </div>
+  <p>The system that's <em>wrong more than half the time</em> returns <b>twelve times more</b> per trade. You can be right 70% of the time and still blow up if every loss costs you what three wins gave you. Being right without asymmetry is a trap.</p>
+  <p class="mut" style="font-size:15px">So trading isn't predicting — it's <b>managing probabilities</b>. The next 3 rules are how you build that edge.</p>
+  <span class="pgnum">03</span><span class="brandfoot">Fibonacci Quantum</span>
+</section>
+
+<!-- 4 · RULE 1 -->
+<section class="page">
+  <div><span class="rulenum">Rule 1</span></div>
+  <div class="rword">Decide where you're <span class="g">wrong</span> before you enter.</div>
+  <p class="lead">A trade is a hypothesis. If you can't say where it's proven false, you don't have a plan — you have a bet.</p>
+  <p>That point — where your idea stops being valid — is your <b>stop</b>. You place it <b>before</b> you enter, by structure, not by how much it hurts to lose. And you don't move it. Ever. Sliding the stop "just a little more" is how a small, planned loss becomes one that actually hurts.</p>
+  <p>Most people do it backwards: they put the stop where the dollar pain is, not where the idea breaks — then move it when price gets close, just to avoid admitting they were wrong. The system removes that decision: <b>the stop is set before, and never touched.</b></p>
+  <div class="spacer"></div>
+  <div class="panel">
+    <div class="lbl">Do it today</div>
+    <p>Before you enter, finish this sentence: <b>"My idea is wrong if price reaches ____."</b><br>Can't fill it with a concrete, structural level? <b>Don't enter.</b> You don't have a trade yet.</p>
+  </div>
+  <span class="pgnum">04</span><span class="brandfoot">Fibonacci Quantum</span>
+</section>
+
+<!-- 5 · RULE 2 -->
+<section class="page">
+  <div><span class="rulenum">Rule 2</span></div>
+  <div class="rword">Risk <span class="g">small</span>. And always the same.</div>
+  <p class="lead">The bad streak is coming. Not a risk — a statistical certainty. The only thing that decides whether you survive it is how much you risk.</p>
+  <p>Simple rule: <b>risk a fixed 1% per trade</b>. Not more because "this one looks safe," not less. Your size comes from your risk and the distance to your stop — never from excitement.</p>
+  <div class="panel gold">
+    <div class="lbl">In numbers</div>
+    <p style="font-family:var(--mono);font-size:15px;line-height:1.9;color:#3a3327">
+      Account $1,000 · Risk 1% = <b>$10</b><br>
+      Entry $100.00 · Stop $95.00 → distance <b>5%</b><br>
+      Size = risk ÷ distance = $10 ÷ 0.05 = <b style="color:var(--gold)">$200</b><br>
+      Stop gets hit → you lose $10. <b>Nothing more.</b> Decided before you entered.</p>
+  </div>
+  <div class="math">risk <span class="v">1%</span> → survive dozens of losses in a row &nbsp;|&nbsp; risk <span class="r">20%</span> → ~<span class="r">5</span> losses and you're out</div>
+  <p>It isn't leverage that ruins people — it's <b>size with no control</b>. Even a positive-expectancy system blows up if one bad streak erases you. Risking little isn't being scared. It's buying enough attempts for your edge to show.</p>
+  <span class="pgnum">05</span><span class="brandfoot">Fibonacci Quantum</span>
+</section>
+
+<!-- 6 · RULE 3 + BOT -->
+<section class="page">
+  <div><span class="rulenum">Rule 3</span></div>
+  <div class="rword">Follow <span class="g">rules</span>, not emotions.</div>
+  <p class="lead">The market doesn't pay you for being right. It pays you for discipline.</p>
+  <p>The test of whether something is actually a rule is brutally simple: can you write it as <b>"if X happens → do Y"</b>? If it depends on "how the market feels today," it's not a rule — it's a hunch.</p>
+  <div class="spacer"></div>
+  <div class="dark">
+    <div class="h">Here's the problem.</div>
+    <p class="big">At 3am, with price moving, your brain will <span style="color:#ff8a7a">NOT</span> follow the rules. Fear and greed win.</p>
+    <p style="margin:14px 0 0">That's why the bot exists. It's your discipline, <b style="color:#fff">without the cortisol.</b> Zero fear, zero euphoria, zero "this time is different." Pure structure, a thousand times the same.</p>
+  </div>
+  <span class="pgnum">06</span><span class="brandfoot">Fibonacci Quantum</span>
+</section>
+
+<!-- 7 · THE TEST ALMOST NOBODY PASSES (pro · step 05) -->
+<section class="page">
+  <div class="kick">The step almost nobody takes</div>
+  <h2>A pretty backtest is not an edge.</h2>
+  <div class="dek">It's a hypothesis. The edge is what survives data you never saw.</div>
+
+  <p>Testing your system on historical data turns "I think it works" into "the data says it had an edge." Necessary — but not enough. And this is exactly where a fund and an influencer split forever.</p>
+
+  <div class="panel plain">
+    <p style="margin:0"><b>The trap is called overfitting.</b> Try a thousand variants of a strategy and one will look spectacular <b>by pure luck</b> — it found a pattern in the noise, not an edge in the market. The flawless equity curve half of Twitter posts is usually exactly that: a coincidence dressed up as a system.</p>
+  </div>
+
+  <p>A quant desk does three things the beginner doesn't:</p>
+  <ol>
+    <li><b>Data the system never saw</b> (<em>out-of-sample</em>): design on one slice of history, test on another you never touched. If it only works where you tuned it, that's memory, not edge.</li>
+    <li><b>Penalize for how many tries it took:</b> the more variants you tested, the higher the bar. There's even a metric for it — the <em>deflated Sharpe</em> — that discounts the luck of trying so many times.</li>
+    <li><b>Hold up across regimes:</b> bull, bear and sideways. An edge that only lives in one regime dies with the first change of weather.</li>
+  </ol>
+
+  <div class="dark" style="padding:22px 26px">
+    <div class="lbl">The line worth the whole guide</div>
+    <p style="margin:0;font-size:18px;color:#fff">The difference between fitting the noise and finding the signal is what separates a fund from a course seller.</p>
+  </div>
+  <span class="pgnum">07</span><span class="brandfoot">Fibonacci Quantum</span>
+</section>
+
+<!-- 8 · ONE TRADE, WHOLE SYSTEM -->
+<section class="page cta">
+  <div class="kick">Your next step</div>
+  <h1 style="font-size:34px;margin-top:12px">You already know the rules.<br>The bot runs them <span style="color:var(--grn)">for you.</span></h1>
+  <p style="margin-top:16px;font-size:18px">It doesn't guess. It defines structure, scores it in probabilities, and hands you the levels — entry, stop and target. Zero guessing. Zero emotion. 24/7.</p>
+
+  <div class="sig">
+    <div class="row"><span class="k">Signal (illustrative · not advice)</span><span class="up">SOL/USDT ▲ LONG</span></div>
+    <div class="row"><span class="k">Entry</span><span class="v">structural zone</span></div>
+    <div class="row"><span class="k">Stop</span><span class="v">your invalidation</span></div>
+    <div class="row"><span class="k">Target · R:R</span><span class="v">≥ 2:1</span></div>
+    <div class="row"><span class="k">Size</span><span class="v">1% risk</span></div>
+  </div>
+
+  <p style="margin-top:14px;font-size:15px" class="mut">And under the hood, the real edge lives one layer deeper: <b>signed order-flow</b> (who's pushing, not just how much moves), detecting the <b>regime</b> the market is in right now, and simulating <b>hundreds of futures</b> to get the real probability of each level before it fires. That's another conversation — and it's the one we have every day on the bot side.</p>
+
+  <div class="spacer"></div>
+  <div class="ctabox cta">
+    <div class="h">Text me "FQ" and I'll show you live</div>
+    <span class="ctabtn">📲 Telegram → @RASDG05 · send "FQ"</span>
+    <div class="ctarow">
+      <div>🤖 The bot: <a href="https://t.me/rasdg_quantum_signals_bot">@rasdg_quantum_signals_bot</a></div>
+      <div>📸 Follow me: <a href="https://instagram.com/diego_gallegosd">@diego_gallegosd</a></div>
+    </div>
+  </div>
+
+  <div class="foot">Educational material. Not financial advice or an investment recommendation. Trading carries risk of total loss; past results do not guarantee future performance. No system wins every time — an edge shows over many trades with controlled risk, never in a single one. If someone promises guaranteed profits, they're lying to you. © RasDG · Fibonacci Quantum.</div>
+</section>
+
+</body>
+</html>

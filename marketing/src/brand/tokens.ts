@@ -15,6 +15,33 @@ export const BRAND = {
   disclaimer: 'Rendimientos pasados no garantizan resultados futuros. No es asesoria financiera.',
 } as const;
 
+/** English string set (parallel EN campaign). Same compliance, same lane. */
+export const BRAND_EN = {
+  productLong: 'Fibonacci Quantum',
+  promise: 'When there is an edge, it executes. When there is not, it waits.',
+  disclaimer: 'Past performance does not guarantee future results. Not financial advice.',
+  desk: 'Liquidity desk',
+  online: 'multi-symbol · online',
+} as const;
+
+export const COMMUNITY_EN = {
+  join: 'Get the FREE guide',
+  line: '5 rules to trade with a system',
+  note: 'Free · no spam',
+} as const;
+
+/** CTA chip labels in English (mirror of the inline Spanish in CTA.tsx). */
+export const CTA_TEXT_EN = {
+  bot: 'Open the bot',
+  telegram: 'Text me on Telegram',
+  telegramSub: 'send the word',
+  webLabel: 'Download it free',
+  webValue: 'Tap "Learn more" ↓',
+  follow: 'Follow me',
+  linkInBio: 'link in bio',
+  signal: {entry: 'Entry defined', stop: 'Stop defined', target: 'Target by structure'},
+} as const;
+
 /** Glifos hairline (branding.py GLYPHS). */
 export const GLYPHS = {
   rule: '─'.repeat(30), // ─

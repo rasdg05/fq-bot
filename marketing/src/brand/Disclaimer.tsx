@@ -1,13 +1,13 @@
 import React from 'react';
 import {AbsoluteFill} from 'remotion';
-import {BRAND, COLORS, FONTS} from './tokens';
+import {BRAND, BRAND_EN, COLORS, FONTS} from './tokens';
 
 /**
  * Microtexto legal persistente. Obligatorio en toda creatividad:
  * sin promesas de rentabilidad (legal.py + politica de productos
  * financieros de Meta).
  */
-export const Disclaimer: React.FC = () => (
+export const Disclaimer: React.FC<{lang?: 'es' | 'en'}> = ({lang = 'es'}) => (
   <AbsoluteFill style={{justifyContent: 'flex-end', alignItems: 'center', pointerEvents: 'none'}}>
     <div
       style={{
@@ -21,7 +21,7 @@ export const Disclaimer: React.FC = () => (
         color: COLORS.inkFaint,
       }}
     >
-      {BRAND.disclaimer}
+      {lang === 'en' ? BRAND_EN.disclaimer : BRAND.disclaimer}
     </div>
   </AbsoluteFill>
 );

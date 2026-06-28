@@ -1,6 +1,7 @@
 import React from 'react';
 import {Composition} from 'remotion';
 import {ADS, totalFrames} from '../ads/edl';
+import {ADS_EN, VOICEOVER_EN} from '../ads/edl-en';
 import {VIDEO} from './brand/tokens';
 import {AdMovie, TRANSITION} from './compositions/AdMovie';
 import {AppShowcase} from './components/AppShowcase';
@@ -36,6 +37,30 @@ export const RemotionRoot: React.FC = () => {
             width={VIDEO.width}
             height={VIDEO.height}
             defaultProps={{ad, frameMode: 'band' as const}}
+          />
+        </React.Fragment>
+      ))}
+
+      {/* English-narrated car ad (voiceover + rescued engine audio). */}
+      {ADS_EN.map((ad) => (
+        <React.Fragment key={ad.id}>
+          <Composition
+            id={`${ad.id}-banda`}
+            component={AdMovie}
+            durationInFrames={adDuration(ad)}
+            fps={VIDEO.fps}
+            width={VIDEO.width}
+            height={VIDEO.height}
+            defaultProps={{ad, frameMode: 'band' as const, lang: 'en' as const, voiceover: VOICEOVER_EN[ad.id]}}
+          />
+          <Composition
+            id={`${ad.id}-cover`}
+            component={AdMovie}
+            durationInFrames={adDuration(ad)}
+            fps={VIDEO.fps}
+            width={VIDEO.width}
+            height={VIDEO.height}
+            defaultProps={{ad, frameMode: 'cover' as const, lang: 'en' as const, voiceover: VOICEOVER_EN[ad.id]}}
           />
         </React.Fragment>
       ))}

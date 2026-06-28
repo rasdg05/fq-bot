@@ -1,6 +1,6 @@
 import React from 'react';
 import {AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig} from 'remotion';
-import {BRAND, COLORS, CTA_CONFIG, FONTS, GLYPHS, COMMUNITY} from '../brand/tokens';
+import {BRAND, BRAND_EN, COLORS, CTA_CONFIG, FONTS, GLYPHS, COMMUNITY, COMMUNITY_EN, CTA_TEXT_EN} from '../brand/tokens';
 import {VAccent} from '../brand/Rule';
 
 export type CtaTarget = 'bot' | 'instagram' | 'both' | 'telegram' | 'web';
@@ -46,10 +46,12 @@ const Chip: React.FC<{label: string; value: string; delay: number; sub?: string}
 };
 
 /** Cierre con oferta (3 dias gratis · sin tarjeta), escasez y destinos. */
-export const CTA: React.FC<{target: CtaTarget}> = ({target}) => {
+export const CTA: React.FC<{target: CtaTarget; lang?: 'es' | 'en'}> = ({target, lang = 'es'}) => {
   const frame = useCurrentFrame();
   const wm = spring({frame, fps: 30, config: {damping: 200}});
   const offer = spring({frame: frame - 6, fps: 30, config: {damping: 200}});
+  const en = lang === 'en';
+  const community = en ? COMMUNITY_EN : COMMUNITY;
 
   return (
     <AbsoluteFill style={{background: COLORS.bg, justifyContent: 'center', alignItems: 'center', padding: 70}}>
@@ -60,7 +62,7 @@ export const CTA: React.FC<{target: CtaTarget}> = ({target}) => {
             {BRAND.product}
           </div>
           <div style={{fontFamily: FONTS.mono, fontSize: 22, color: COLORS.inkDim, letterSpacing: 1}}>
-            {BRAND.productLong}
+            {en ? BRAND_EN.productLong : BRAND.productLong}
           </div>
         </div>
       </div>
@@ -68,10 +70,10 @@ export const CTA: React.FC<{target: CtaTarget}> = ({target}) => {
       {/* Comunidad */}
       <div style={{opacity: offer, transform: `translateY(${interpolate(offer, [0, 1], [16, 0])}px)`, textAlign: 'center', marginBottom: 14}}>
         <div style={{fontFamily: FONTS.sans, fontWeight: 800, fontSize: 56, color: COLORS.ink}}>
-          {COMMUNITY.join}
+          {community.join}
         </div>
         <div style={{fontFamily: FONTS.mono, fontSize: 26, color: COLORS.inkDim, marginTop: 8}}>
-          {COMMUNITY.line}
+          {community.line}
         </div>
       </div>
 
@@ -90,29 +92,41 @@ export const CTA: React.FC<{target: CtaTarget}> = ({target}) => {
           color: COLORS.long,
         }}
       >
-        {COMMUNITY.note}
+        {community.note}
       </div>
 
       <div style={{display: 'flex', flexDirection: 'column', gap: 18}}>
         {(target === 'bot' || target === 'both') && (
-          <Chip label="Entra al bot" value={`@${CTA_CONFIG.botUsername}`} delay={12} />
+          <Chip label={en ? CTA_TEXT_EN.bot : 'Entra al bot'} value={`@${CTA_CONFIG.botUsername}`} delay={12} />
         )}
         {target === 'telegram' && (
           <Chip
-            label="Escríbeme en Telegram"
+            label={en ? CTA_TEXT_EN.telegram : 'Escríbeme en Telegram'}
             value={`@${CTA_CONFIG.telegramUser}`}
-            sub={`manda la palabra "${CTA_CONFIG.keyword}"`}
+            sub={
+              en
+                ? `${CTA_TEXT_EN.telegramSub} "${CTA_CONFIG.keyword}"`
+                : `manda la palabra "${CTA_CONFIG.keyword}"`
+            }
             delay={12}
           />
         )}
         {target === 'web' && (
-          <Chip label="Descárgala gratis" value="Toca «Más información» ↓" delay={12} />
+          <Chip
+            label={en ? CTA_TEXT_EN.webLabel : 'Descárgala gratis'}
+            value={en ? CTA_TEXT_EN.webValue : 'Toca «Más información» ↓'}
+            delay={12}
+          />
         )}
         {(target === 'instagram' || target === 'both') && (
           <Chip
-            label="Sigueme"
+            label={en ? CTA_TEXT_EN.follow : 'Sigueme'}
             value={`@${CTA_CONFIG.instagram}`}
-            sub={CTA_CONFIG.linkme ? `link en bio · ${CTA_CONFIG.linkme}` : undefined}
+            sub={
+              CTA_CONFIG.linkme
+                ? `${en ? CTA_TEXT_EN.linkInBio : 'link en bio'} · ${CTA_CONFIG.linkme}`
+                : undefined
+            }
             delay={target === 'both' ? 20 : 12}
           />
         )}

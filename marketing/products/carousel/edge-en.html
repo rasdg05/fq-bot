@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  :root{ --bg:#080a0e; --panel:#11151c; --panel2:#161b24; --hair:#222a35;
+    --ink:#f2f5f8; --muted:#9aa3b1; --faint:#5e6775; --accent:#19b88c; --red:#f06363; --glow:rgba(25,184,140,.20); }
+  *{ margin:0; padding:0; box-sizing:border-box; -webkit-print-color-adjust:exact; }
+  html,body{ background:#000; }
+  .slide{ display:none; width:1080px; height:1350px; position:relative; overflow:hidden;
+    background:radial-gradient(90% 55% at 50% -8%, var(--glow), transparent 60%), var(--bg);
+    color:var(--ink); font-family:"Helvetica Neue",Arial,sans-serif; padding:84px 78px; flex-direction:column; }
+  .grid{ position:absolute; inset:0; background-image:
+      linear-gradient(var(--hair) 1px, transparent 1px), linear-gradient(90deg, var(--hair) 1px, transparent 1px);
+    background-size:90px 90px; opacity:.06; }
+  .mono{ font-family:"SF Mono","JetBrains Mono",Menlo,Consolas,monospace; }
+  .top{ display:flex; justify-content:space-between; align-items:center; position:relative; z-index:2; }
+  .brand{ display:flex; align-items:center; gap:13px; }
+  .brand .bar{ width:6px; height:42px; background:var(--accent); border-radius:3px; box-shadow:0 0 22px rgba(25,184,140,.6); }
+  .brand .fq{ font-weight:800; font-size:38px; letter-spacing:-1px; }
+  .num{ font-family:"SF Mono",monospace; color:var(--faint); font-size:24px; letter-spacing:2px; }
+  .body{ flex:1; display:flex; flex-direction:column; justify-content:center; position:relative; z-index:2; }
+  .kick{ font-family:"SF Mono",monospace; color:var(--accent); letter-spacing:5px; text-transform:uppercase; font-size:23px; font-weight:700; margin-bottom:24px; }
+  h1{ font-size:90px; line-height:1.0; letter-spacing:-2.5px; font-weight:800; }
+  h1.sm{ font-size:70px; } h1.xs{ font-size:60px; }
+  h1 em{ font-style:normal; color:var(--accent); }
+  h1 .r{ color:var(--red); font-style:normal; }
+  .sub{ font-size:36px; color:var(--muted); margin-top:28px; line-height:1.32; max-width:900px; }
+  .sub b{ color:var(--ink); }
+  .swipe{ position:absolute; bottom:78px; left:78px; font-family:"SF Mono",monospace; color:var(--faint); font-size:24px; letter-spacing:2px; z-index:2; }
+  .swipe span{ color:var(--accent); }
+  .footbar{ position:absolute; bottom:0; left:0; right:0; height:14px; background:linear-gradient(90deg,var(--accent),transparent); opacity:.7; }
+  .disc{ position:absolute; bottom:74px; left:78px; right:78px; font-size:21px; color:var(--faint); line-height:1.4; z-index:2; }
+
+  .pts{ margin-top:30px; }
+  .pt{ display:flex; gap:20px; align-items:flex-start; font-size:36px; color:var(--ink); padding:20px 0; border-bottom:1px solid var(--hair); }
+  .pt:last-child{ border-bottom:0; }
+  .pt .q{ font-family:"SF Mono",monospace; color:var(--red); font-weight:800; }
+  .pt.ok .c{ color:var(--accent); font-weight:800; font-family:"SF Mono",monospace; }
+  .note{ margin-top:34px; font-size:34px; color:var(--muted); } .note b{ color:var(--accent); }
+
+  .equity{ margin-top:36px; background:var(--panel); border:1px solid var(--hair); border-radius:20px; padding:30px 30px 22px; }
+  .equity .lbl{ display:flex; justify-content:space-between; font-family:"SF Mono",monospace; font-size:22px; color:var(--faint); margin-bottom:14px; letter-spacing:1px; }
+  .equity svg{ width:100%; height:300px; display:block; }
+  .legend{ display:flex; gap:30px; margin-top:14px; font-family:"SF Mono",monospace; font-size:22px; color:var(--muted); }
+  .legend i{ display:inline-block; width:26px; height:0; border-top:4px solid var(--accent); vertical-align:middle; margin-right:8px; }
+  .legend .d i{ border-top:4px dashed var(--muted); }
+
+  .method{ margin-top:26px; }
+  .m{ display:flex; gap:22px; padding:22px 0; border-bottom:1px solid var(--hair); }
+  .m:last-child{ border-bottom:0; }
+  .m .k{ font-family:"SF Mono",monospace; color:var(--accent); font-weight:800; font-size:30px; min-width:54px; }
+  .m .tx{ font-size:31px; color:var(--ink); line-height:1.3; }
+  .m .tx b{ color:var(--accent); }
+  .chips{ margin-top:34px; display:flex; flex-direction:column; gap:18px; }
+  .chip{ display:flex; align-items:center; gap:16px; background:var(--panel); border:1px solid var(--hair); border-radius:16px; padding:22px 28px; }
+  .chip .l{ font-family:"SF Mono",monospace; color:var(--faint); font-size:22px; letter-spacing:2px; text-transform:uppercase; }
+  .chip .v{ font-weight:800; font-size:34px; margin-left:auto; }
+</style>
+</head>
+<body>
+
+<!-- 1 HOOK -->
+<section class="slide" id="e1">
+  <div class="grid"></div>
+  <div class="top"><div class="brand"><div class="bar"></div><div class="fq">FQ</div></div><div class="num">1/6</div></div>
+  <div class="body">
+    <div class="kick">Verifiable edge</div>
+    <h1>A fund doesn't buy <span class="r">signals</span>.<br/>It buys <em>verifiable edge</em>.</h1>
+    <div class="sub">Know the difference? Most don't — and that's why they pay for smoke.</div>
+  </div>
+  <div class="swipe">Swipe <span>→</span></div>
+  <div class="footbar"></div>
+</section>
+
+<!-- 2 PROBLEM -->
+<section class="slide" id="e2">
+  <div class="grid"></div>
+  <div class="top"><div class="brand"><div class="bar"></div><div class="fq">FQ</div></div><div class="num">2/6</div></div>
+  <div class="body">
+    <div class="kick">The "signals" problem</div>
+    <h1 class="sm">Anyone shows you their <em>winners</em>.</h1>
+    <div class="pts">
+      <div class="pt"><span class="q">?</span><span>And the losers?</span></div>
+      <div class="pt"><span class="q">?</span><span>With fees, slippage and funding?</span></div>
+      <div class="pt"><span class="q">?</span><span>Out-of-sample, or just the past it already knows?</span></div>
+    </div>
+    <div class="note">Without that, it's not a strategy: it's a <b>screenshot</b>.</div>
+  </div>
+  <div class="swipe">Swipe <span>→</span></div>
+  <div class="footbar"></div>
+</section>
+
+<!-- 3 WHAT A FUND REVIEWS -->
+<section class="slide" id="e3">
+  <div class="grid"></div>
+  <div class="top"><div class="brand"><div class="bar"></div><div class="fq">FQ</div></div><div class="num">3/6</div></div>
+  <div class="body">
+    <div class="kick">What a fund actually checks</div>
+    <h1 class="sm">Edge is <em>this</em>, not a screenshot.</h1>
+    <div class="pts">
+      <div class="pt ok"><span class="c">✓</span><span>Sharpe · Sortino · Calmar</span></div>
+      <div class="pt ok"><span class="c">✓</span><span>Out-of-sample (not the past you've already seen)</span></div>
+      <div class="pt ok"><span class="c">✓</span><span>Real costs: fees + slippage + funding</span></div>
+      <div class="pt ok"><span class="c">✓</span><span>Equity curve with its drawdown</span></div>
+    </div>
+  </div>
+  <div class="swipe">Swipe <span>→</span></div>
+  <div class="footbar"></div>
+</section>
+
+<!-- 4 METHODOLOGY -->
+<section class="slide" id="e4">
+  <div class="grid"></div>
+  <div class="top"><div class="brand"><div class="bar"></div><div class="fq">FQ</div></div><div class="num">4/6</div></div>
+  <div class="body">
+    <div class="kick">How it's really validated</div>
+    <h1 class="sm">Anti self-deception.</h1>
+    <div class="method">
+      <div class="m"><div class="k">01</div><div class="tx"><b>Triple-barrier</b> (López de Prado): each trade labeled win / loss / timeout, not "by eye".</div></div>
+      <div class="m"><div class="k">02</div><div class="tx"><b>Walk-forward</b> with purge + embargo: no data leak into the test.</div></div>
+      <div class="m"><div class="k">03</div><div class="tx"><b>Ablation</b>: if a module doesn't add out-of-sample, it gets killed.</div></div>
+    </div>
+  </div>
+  <div class="swipe">Swipe <span>→</span></div>
+  <div class="footbar"></div>
+</section>
+
+<!-- 5 THE PROOF -->
+<section class="slide" id="e5">
+  <div class="grid"></div>
+  <div class="top"><div class="brand"><div class="bar"></div><div class="fq">FQ</div></div><div class="num">5/6</div></div>
+  <div class="body">
+    <div class="kick">The acid test</div>
+    <h1 class="xs">That the LIVE equity matches the <em>backtest</em>.</h1>
+    <div class="equity">
+      <div class="lbl"><span>Equity curve</span><span>illustrative</span></div>
+      <svg viewBox="0 0 900 300" preserveAspectRatio="none">
+        <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#19b88c" stop-opacity="0.28"/><stop offset="1" stop-color="#19b88c" stop-opacity="0"/>
+        </linearGradient></defs>
+        <path d="M0,250 L90,232 L170,248 L250,196 L330,214 L410,150 L500,178 L590,120 L680,150 L770,92 L900,70 L900,300 L0,300 Z" fill="url(#g)"/>
+        <path d="M0,250 L90,232 L170,248 L250,196 L330,214 L410,150 L500,178 L590,120 L680,150 L770,92 L900,70" fill="none" stroke="#19b88c" stroke-width="5"/>
+        <path d="M0,256 L90,240 L170,252 L250,204 L330,222 L410,158 L500,184 L590,128 L680,156 L770,100 L900,80" fill="none" stroke="#9aa3b1" stroke-width="3" stroke-dasharray="10 9" opacity="0.8"/>
+      </svg>
+      <div class="legend"><span><i></i>Live (ledger)</span><span class="d"><i></i>Out-of-sample</span></div>
+    </div>
+    <div class="sub" style="margin-top:26px">That match <b>is the product</b>. Not yesterday's screenshot.</div>
+  </div>
+  <div class="disc">Illustrative curve, no scale. Educational content, not financial advice or a promise of results.</div>
+  <div class="footbar"></div>
+</section>
+
+<!-- 6 CTA -->
+<section class="slide" id="e6">
+  <div class="grid"></div>
+  <div class="top"><div class="brand"><div class="bar"></div><div class="fq">FQ</div></div><div class="num">6/6</div></div>
+  <div class="body">
+    <div class="kick">No smoke</div>
+    <h1 class="sm">I don't sell you signals.<br/>I show you the <em>method</em>.</h1>
+    <div class="sub">The 5 rules to trade with a system —and how a real edge is validated—. Free.</div>
+    <div class="chips">
+      <div class="chip"><div class="l">Tap the link</div><div class="v" style="color:var(--accent)">FREE guide</div></div>
+      <div class="chip"><div class="l">Follow me</div><div class="v">@diego_gallegosd</div></div>
+    </div>
+  </div>
+  <div class="disc">Educational content. Not financial advice. No guaranteed profits. Past performance does not guarantee future results.</div>
+  <div class="footbar"></div>
+</section>
+
+<script>
+  var n = (location.hash.slice(1) || '1');
+  var el = document.getElementById('e' + n);
+  if (el) el.style.display = 'flex';
+</script>
+</body>
+</html>

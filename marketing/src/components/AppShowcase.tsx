@@ -1,6 +1,6 @@
 import React from 'react';
 import {AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig} from 'remotion';
-import {BRAND, COLORS, FONTS, GLYPHS} from '../brand/tokens';
+import {BRAND, BRAND_EN, COLORS, FONTS, GLYPHS, CTA_TEXT_EN} from '../brand/tokens';
 import {Rule} from '../brand/Rule';
 import {PhoneFrame} from './PhoneFrame';
 
@@ -36,9 +36,10 @@ const Line: React.FC<{delay: number; children: React.ReactNode; mono?: boolean; 
  * pantalla: muestra la "app" (el bot) construyendo una senal con el sistema
  * de glifos real. Sin P&L ni promesas — solo estructura y disciplina.
  */
-export const AppShowcase: React.FC = () => {
+export const AppShowcase: React.FC<{lang?: 'es' | 'en'}> = ({lang = 'es'}) => {
   const frame = useCurrentFrame();
   const cardEnter = spring({frame: frame - 8, fps: 30, config: {damping: 200}});
+  const en = lang === 'en';
 
   return (
     <AbsoluteFill style={{background: COLORS.bg, justifyContent: 'center', alignItems: 'center'}}>
@@ -68,7 +69,9 @@ export const AppShowcase: React.FC = () => {
               <div style={{fontFamily: FONTS.sans, fontWeight: 700, color: COLORS.ink, fontSize: 26}}>
                 {BRAND.product} {GLYPHS.title} {BRAND.desk}
               </div>
-              <div style={{fontFamily: FONTS.mono, color: COLORS.inkDim, fontSize: 18}}>multi-simbolo · en linea</div>
+              <div style={{fontFamily: FONTS.mono, color: COLORS.inkDim, fontSize: 18}}>
+                {en ? BRAND_EN.online : 'multi-simbolo · en linea'}
+              </div>
             </div>
           </div>
         </div>
@@ -101,13 +104,13 @@ export const AppShowcase: React.FC = () => {
             </Line>
             <div style={{height: 16}} />
             <Line delay={30} mono dim>
-              {GLYPHS.bulletChk} Entrada definida
+              {GLYPHS.bulletChk} {en ? CTA_TEXT_EN.signal.entry : 'Entrada definida'}
             </Line>
             <Line delay={36} mono dim>
-              {GLYPHS.bulletChk} Stop definido
+              {GLYPHS.bulletChk} {en ? CTA_TEXT_EN.signal.stop : 'Stop definido'}
             </Line>
             <Line delay={42} mono dim>
-              {GLYPHS.bulletChk} Target por estructura
+              {GLYPHS.bulletChk} {en ? CTA_TEXT_EN.signal.target : 'Target por estructura'}
             </Line>
             <div style={{height: 16}} />
             <div style={{opacity: spring({frame: frame - 48, fps: 30, config: {damping: 200}})}}>
@@ -115,7 +118,7 @@ export const AppShowcase: React.FC = () => {
             </div>
             <div style={{height: 12}} />
             <Line delay={52} size={22} dim>
-              {GLYPHS.bulletAct} {BRAND.promise}
+              {GLYPHS.bulletAct} {en ? BRAND_EN.promise : BRAND.promise}
             </Line>
           </div>
         </div>

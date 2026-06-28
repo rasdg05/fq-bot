@@ -21,3 +21,9 @@ dist/
 __pycache__/
 .venv/
 tsconfig.tsbuildinfo
+
+# English TTS voice models & temp parts (regenerable via scripts/voiceover-en.mjs)
+marketing/tts/
+scratch-ebooks/
+marketing/products/lead-magnet/preview-cover.png
+marketing/products/carousel/out-en/*.tmp
