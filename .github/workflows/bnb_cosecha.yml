@@ -3,10 +3,10 @@ name: BNB cosecha (Hetzner) — 1 tap
 # UN TAP, CERO inputs. Dispara "Research" para BNB/USDT a step1 en el runner
 # self-hosted (Hetzner). Espejo de doge_cosecha; solo cambia el simbolo.
 #
-# MESES = 48 (NO 84): el perp de BNB en OKX es mas joven que 84m -> pedir 84
-# baja n=0 (data antes del listing) y la cosecha sale sin cubo (el fallo de la
-# Tanda 1). Mismo caso que DOGE=54, SOL=60, ETH=76 (meses por simbolo segun su
-# listing en OKX). 48m -> ~2022..2026, cube denso. Si saliera vacio, baja a 36.
+# MESES = 36: el perp de BNB en OKX es MUY joven -> 84m y 48m dieron n=0 (data
+# antes del listing). 36m -> ~2023..2026. Si AUN saliera vacio, el perp de BNB en
+# OKX es demasiado corto para un cube profundo -> mejor saltarlo (como SUI/APT,
+# "poca historia = cube fino, ruido para la tesis") o ir a 24m como ultimo intento.
 #
 # IMPORTANTE: ENCENDE el CCX33 (Hetzner) y espera a que el runner figure ONLINE
 # ANTES de darle Run. Si no, el job de research queda EN COLA hasta que aparezca.
@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Disparar Research — BNB, cosecha, Hetzner, 48m, step1
+      - name: Disparar Research — BNB, cosecha, Hetzner, 36m, step1
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -32,8 +32,8 @@ jobs:
             --ref claude/turbovec-tp-cube-hardening-fvzdx7 \
             -f symbol=BNB/USDT \
             -f cosecha=true \
-            -f sym_months=48 \
+            -f sym_months=36 \
             -f sym_step=1
-          echo "OK: disparado research.yml para BNB/USDT (cosecha, 48m, step1)."
+          echo "OK: disparado research.yml para BNB/USDT (cosecha, 36m, step1)."
           echo "Mira la pestana Actions -> 'Research' (corre en self-hosted/Hetzner)."
           echo "Si no arranca: confirma que el runner de Hetzner este ONLINE."
