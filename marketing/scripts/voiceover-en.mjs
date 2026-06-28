@@ -1,14 +1,18 @@
 /**
- * Build the English voiceover tracks for the car ad, perfectly synced to the
- * Remotion scene layout. Each line is synthesized with piper (offline, free)
- * and placed at the exact start time of its scene + a small LEAD so the voice
- * lands as the caption/crossfade settles (not ahead of the subtitles).
+ * Build the COMPLETE English audio master for the car ad — one self-contained
+ * stem (voice + ducked music + car ambience), perfectly synced to the Remotion
+ * scene layout. Remotion just plays this stem (its own music layer is disabled
+ * in voiceover mode), so the mix is fully controlled here.
  *
  *   node scripts/voiceover-en.mjs
  *
- * Outputs (loudness-normalized, full ad length, car-engine ambience folded in):
- *   public/audio/vo-en-g1.wav      → Telegram CTA ("text me FQ")
- *   public/audio/vo-en-g1-web.wav  → landing CTA ("get the free guide below")
+ * No dead air: the music sits up and energetic in the gaps between lines and
+ * sidechain-ducks under the voice when speaking (radio/podcast standard), so the
+ * energy never drops. Piper (offline) for the voice; ffmpeg for the mix.
+ *
+ * Outputs:
+ *   public/audio/vo-en-g1.wav      → Telegram CTA
+ *   public/audio/vo-en-g1-web.wav  → landing CTA
  */
 import {execFileSync} from 'node:child_process';
 import {mkdirSync, rmSync} from 'node:fs';
@@ -18,15 +22,16 @@ const require = createRequire(import.meta.url);
 const ffmpeg = require('ffmpeg-static');
 const VOICE = `${process.cwd()}/tts/voices/en_US-ryan-high.onnx`;
 const PARTS = `${process.cwd()}/tts/parts`;
+const MUSIC = `${process.cwd()}/public/audio/music.mp3`;
 const CAR = `${process.cwd()}/public/audio/IMG_1835.wav`;
 const CAR_SS = 3.0;
 const CAR_LEN = 3.6;
 
-// Lead-in: captions fade in over ~8 frames and the scenes crossfade by 8 frames,
-// so the voice must arrive ~0.37s AFTER the raw scene start to feel in time.
+// Lead-in so the voice lands with the caption/crossfade (not ahead of the subs).
 const LEAD = 367; // ms
+const TOTAL = 31.567; // s
+const CAR_DELAY = 733 + LEAD;
 
-// Shared lines + the scene start time (ms). The 6th line (CTA) is per-variant.
 const COMMON = [
   {t: 'Why will most people never drive one of these? It is not luck. And it is not the market.', delay: 733, ls: 1.0},
   {t: 'The market did not rob you. You robbed yourself. No system, pure emotion.', delay: 7667, ls: 1.0},
@@ -38,8 +43,6 @@ const CTA_LINE = {
   telegram: {t: 'I do not sell a dream. I show the wins and the losses. Text me F Q on Telegram.', delay: 26567, ls: 1.0},
   web: {t: 'I do not sell a dream. I show the wins and the losses. Get the free guide below.', delay: 26567, ls: 1.0},
 };
-const TOTAL_MS = 31567;
-const CAR_DELAY = 733 + LEAD; // engine bed lands with the car shot
 
 rmSync(PARTS, {recursive: true, force: true});
 mkdirSync(PARTS, {recursive: true});
@@ -53,23 +56,39 @@ const buildStem = (lines, out) => {
     synth(l.t, l.ls, l.file);
   });
 
-  const inputs = [...lines.flatMap((l) => ['-i', l.file]), '-ss', String(CAR_SS), '-t', String(CAR_LEN), '-i', CAR];
-  const carIdx = lines.length;
+  // Inputs: 6 voice lines, then music, then the car-engine slice.
+  const inputs = [
+    ...lines.flatMap((l) => ['-i', l.file]),
+    '-i', MUSIC,
+    '-ss', String(CAR_SS), '-t', String(CAR_LEN), '-i', CAR,
+  ];
+  const mIdx = lines.length; // music
+  const cIdx = lines.length + 1; // car
+
   const voDelays = lines.map((l, i) => `[${i}:a]adelay=${l.delay + LEAD}|${l.delay + LEAD}[d${i}]`).join(';');
   const voMixIn = lines.map((_, i) => `[d${i}]`).join('');
-  const carChain =
-    `[${carIdx}:a]highpass=f=70,lowpass=f=5200,afade=t=in:st=0:d=0.4,afade=t=out:st=${CAR_LEN - 0.7}:d=0.7,` +
-    `volume=0.42,adelay=${CAR_DELAY}|${CAR_DELAY}[car]`;
+
   const filter =
-    `${voDelays};${voMixIn}amix=inputs=${lines.length}:normalize=0:dropout_transition=0[vo];` +
-    `${carChain};` +
-    `[vo]highpass=f=90,equalizer=f=3200:t=q:w=1.6:g=2.5,` +
-    `acompressor=threshold=-18dB:ratio=3:attack=8:release=160[vom];` +
-    `[vom][car]amix=inputs=2:normalize=0:dropout_transition=0[mx];` +
-    `[mx]apad,atrim=0:${(TOTAL_MS / 1000).toFixed(3)},alimiter=limit=0.92,loudnorm=I=-15:TP=-1.5:LRA=11[out]`;
-  execFileSync(ffmpeg, ['-y', ...inputs, '-filter_complex', filter, '-map', '[out]', '-ar', '48000', '-ac', '1', out],
+    // Voice: place each line, mix, master to a clean, present lead, go stereo.
+    `${voDelays};${voMixIn}amix=inputs=${lines.length}:normalize=0:dropout_transition=0[voraw];` +
+    `[voraw]highpass=f=90,equalizer=f=3200:t=q:w=1.6:g=2.5,` +
+    `acompressor=threshold=-18dB:ratio=3:attack=8:release=160,loudnorm=I=-15:TP=-1.5:LRA=11,` +
+    `aformat=channel_layouts=stereo,apad,atrim=0:${TOTAL}[vo];` +
+    `[vo]asplit=2[voa][vok];` +
+    // Music: present "gap" level, stereo; this is what fills the silence.
+    `[${mIdx}:a]atrim=0:${TOTAL},asetpts=N/SR/TB,loudnorm=I=-19:TP=-2:LRA=11,aformat=channel_layouts=stereo[music];` +
+    // Duck the music under the voice; it swells back up in the gaps (release).
+    `[music][vok]sidechaincompress=threshold=0.04:ratio=7:attack=12:release=340:makeup=1[mduck];` +
+    // Car engine: tamed texture under the hook, stereo.
+    `[${cIdx}:a]highpass=f=70,lowpass=f=5200,afade=t=in:st=0:d=0.4,afade=t=out:st=${CAR_LEN - 0.7}:d=0.7,` +
+    `volume=0.4,adelay=${CAR_DELAY}|${CAR_DELAY},aformat=channel_layouts=stereo[car];` +
+    // Sum and master to a social-ready loudness, true-peak safe.
+    `[voa][mduck][car]amix=inputs=3:normalize=0:dropout_transition=0[premix];` +
+    `[premix]apad,atrim=0:${TOTAL},alimiter=limit=0.95,loudnorm=I=-14:TP=-1:LRA=11[outm]`;
+
+  execFileSync(ffmpeg, ['-y', ...inputs, '-filter_complex', filter, '-map', '[outm]', '-ar', '48000', '-ac', '2', out],
     {stdio: 'inherit'});
-  process.stdout.write(`\nVO written: ${out}\n`);
+  process.stdout.write(`\nMaster written: ${out}\n`);
 };
 
 buildStem([...COMMON, CTA_LINE.telegram], `${process.cwd()}/public/audio/vo-en-g1.wav`);

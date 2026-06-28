@@ -110,7 +110,9 @@ export const AdMovie: React.FC<{ad: Ad; frameMode?: FrameMode; lang?: 'es' | 'en
 
   return (
     <AbsoluteFill style={{background: COLORS.bg}}>
-      {MUSIC.enabled ? <Audio src={staticFile(MUSIC.file)} volume={musicVolume} loop /> : null}
+      {/* En modo voiceover la pista maestra ya trae musica con ducking + auto;
+          no montamos la cama suelta para no duplicar ni crear espacios muertos. */}
+      {MUSIC.enabled && !hasVO ? <Audio src={staticFile(MUSIC.file)} volume={musicVolume} loop /> : null}
       {hasVO ? <Audio src={staticFile(voiceover as string)} /> : null}
       <TransitionSeries>
         {ad.scenes.flatMap((scene, i) => {
