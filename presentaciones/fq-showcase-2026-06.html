@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>FQ — Un edge validado: quant finance × física moderna</title>
+<style>
+  @page { size: 1280px 720px; margin: 0; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root{
+    --bg:#f7f5f0; --ink:#1c2420; --muted:#5d6b63; --line:#d8d2c6;
+    --em:#0f6f4d; --em2:#0a5238; --gold:#b08338; --red:#a23b2e; --card:#fffdf8; --ink2:#2b332e;
+  }
+  body{ font-family:"Georgia","Times New Roman",serif; color:var(--ink); background:#333; }
+  .slide{ width:1280px; height:720px; background:var(--bg); position:relative;
+    padding:60px 78px; overflow:hidden; page-break-after:always; }
+  .dark{ background:#16201b; color:#ede7da; }
+  .dark .sub,.dark .foot,.dark .kick{ color:#9db3a6; }
+  .dark .rule{ background:#cdbf9a; }
+  .kick{ font-family:"Helvetica Neue",Arial,sans-serif; font-size:13px; letter-spacing:.32em;
+    text-transform:uppercase; color:var(--em); font-weight:700; }
+  h1{ font-size:58px; line-height:1.05; letter-spacing:-.015em; margin-top:12px; }
+  .dark h1{ color:#fbf7ee; } .dark h2{ color:#fbf7ee; }
+  h2{ font-size:38px; line-height:1.1; letter-spacing:-.01em; margin-top:6px; }
+  .sub{ font-size:21px; color:var(--muted); font-style:italic; margin-top:16px; line-height:1.45; }
+  .rule{ height:2px; background:var(--ink); width:64px; margin:20px 0; }
+  .foot{ position:absolute; left:78px; right:78px; bottom:32px; display:flex;
+    justify-content:space-between; font-family:"Helvetica Neue",Arial,sans-serif;
+    font-size:12px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted);
+    border-top:1px solid var(--line); padding-top:13px; }
+  .dark .foot{ border-top:1px solid #2f3d35; }
+  p{ font-size:21px; line-height:1.5; color:var(--ink2); }
+  .grid{ display:flex; gap:16px; margin-top:22px; }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px 20px; flex:1; }
+  .dark .card{ background:#1d2a23; border:1px solid #2f3d35; }
+  .card .n{ font-family:"Helvetica Neue",Arial,sans-serif; font-size:12px; letter-spacing:.12em;
+    text-transform:uppercase; color:var(--em); font-weight:700; }
+  .dark .card .n{ color:#7fd2ab; }
+  .card .v{ font-size:30px; font-weight:700; letter-spacing:-.02em; margin:7px 0 4px; }
+  .card .d{ font-size:15px; color:var(--muted); line-height:1.38; } .dark .card .d{ color:#9db3a6; }
+  .em{ color:var(--em); font-weight:700; } .gold{ color:var(--gold); font-weight:700; } .red{ color:var(--red); font-weight:700; }
+  table{ width:100%; border-collapse:collapse; margin-top:16px; }
+  td,th{ text-align:left; padding:11px 9px; border-bottom:1px solid var(--line); font-size:19px; }
+  th{ font-family:"Helvetica Neue",Arial,sans-serif; font-size:12px; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--muted); font-weight:700; }
+  td.num,th.num{ text-align:right; font-variant-numeric:tabular-nums; }
+  .big{ font-size:96px; font-weight:700; letter-spacing:-.03em; color:var(--em); line-height:1; }
+  .note{ font-size:15px; color:var(--muted); font-style:italic; margin-top:14px; }
+  ul{ margin:10px 0 0 20px; } li{ font-size:19px; line-height:1.5; margin-bottom:7px; color:var(--ink2); }
+  .dark li{ color:#d7ccba; }
+  .pill{ display:inline-block; font-family:"Helvetica Neue",Arial,sans-serif; font-size:11px;
+    letter-spacing:.08em; text-transform:uppercase; background:#e7efe9; color:var(--em2);
+    padding:4px 9px; border-radius:20px; font-weight:700; margin-right:4px; }
+  .pill.red{ background:#f3e2df; color:var(--red); } .pill.gold{ background:#f3ead7; color:#7a5a1f; }
+  .strike{ text-decoration:line-through; opacity:.6; }
+</style></head><body>
+
+<!-- 1 — Cover -->
+<section class="slide dark">
+  <div class="kick">FQ · Signal engine · 2026</div>
+  <h1>Un edge<br>validado</h1>
+  <div class="rule"></div>
+  <p class="sub" style="font-size:24px; max-width:880px">Donde el <b style="color:#fbf7ee">quant finance</b> se cruza con la
+  <b style="color:#fbf7ee">física moderna</b> — y solo sobrevive lo que pasa el gate estadístico.<br>
+  Un bot de señales para perpetuos cripto, construido <b style="color:#fbf7ee">measure-first</b>.</p>
+  <div style="margin-top:46px" class="kick">5 símbolos Calidad · 3 edges validados · todo auditable</div>
+  <div class="foot"><span>“Un pelado con un sueño y un bot” · CDMX</span><span>Todo medido o al cementerio</span></div>
+</section>
+
+<!-- 2 — el método -->
+<section class="slide">
+  <div class="kick">El método (y el moat)</div>
+  <h2>La disciplina ES el producto</h2>
+  <div class="rule"></div>
+  <p>En un mar de bots que prometen y mienten, lo nuestro es lo contrario: <b>ninguna idea entra a la
+  señal hasta que pasa un gate estadístico duro</b>. Lo que no pasa, va al cementerio — y se queda ahí.</p>
+  <div class="grid">
+    <div class="card"><div class="n">El gate</div><div class="v em">DSR · CPCV · PBO</div>
+      <div class="d">Deflated Sharpe (corrige el multiple-testing), purged cross-validation, prob. de overfit. Si no separa real, muere.</div></div>
+    <div class="card"><div class="n">Measure-first</div><div class="v">Mide → cabla</div>
+      <div class="d">Cada idea se mide forward ANTES de confiar. El registro vivo manda, no el backtest.</div></div>
+    <div class="card"><div class="n">El moat</div><div class="v gold">Auditable</div>
+      <div class="d">Nuestro marketing se puede auditar contra nuestros propios datos validados. Eso no lo copia un vendehumos.</div></div>
+  </div>
+  <p class="note">El que de verdad mide, mata sus propias ideas favoritas. Ése es el filtro que no tiene la competencia.</p>
+  <div class="foot"><span>López de Prado · Bailey — Deflated Sharpe Ratio</span><span>FQ · measure-first</span></div>
+</section>
+
+<!-- 3 — los 3 edges validados -->
+<section class="slide">
+  <div class="kick">La física real (lo que SÍ transfiere)</div>
+  <h2>Tres edges validados, tres físicas</h2>
+  <div class="rule"></div>
+  <div class="grid">
+    <div class="card"><div class="n">① Order-flow firmado · CVD</div><div class="v em">microestructura</div>
+      <div class="d">La presión <b>firmada</b> de los takers (compra agresiva − venta) predice continuación — no el volumen ciego. Cableado, DSR ✓.</div></div>
+    <div class="card"><div class="n">② Persistencia · F2</div><div class="v em">memoria larga</div>
+      <div class="d">Bouchaud-Farmer-Lillo: los grandes <b>parten sus órdenes</b> → el signo del flujo tiene memoria que decae lento. BTC <b>DSR 0.997</b>.</div></div>
+    <div class="card"><div class="n">③ Régimen · KL</div><div class="v em">flecha del tiempo</div>
+      <div class="d">Termodinámica fuera de equilibrio: cuánto difiere la serie hacia adelante vs atrás (grafo de visibilidad + KL = <b>entropía producida</b>). El edge vive en régimen reversible. Cross-símbolo <b>DSR 0.95–1.00</b>.</div></div>
+  </div>
+  <p style="margin-top:22px">Más Monte-Carlo de cientos de trayectorias por señal (probabilidad de stop, R esperado) y scoring de convicción con φ.
+  <b>Física rigurosa y empírica</b> — la que se puede muestrear por barra y validar.</p>
+  <div class="foot"><span>Bouchaud · Lillo · Kawai-Parrondo-Van den Broeck · Lacasa</span><span>Causal · samplable · validado</span></div>
+</section>
+
+<!-- 4 — el cementerio -->
+<section class="slide">
+  <div class="kick">La honestidad que nos separa</div>
+  <h2>Lo que probamos… y matamos</h2>
+  <div class="rule"></div>
+  <p>Coqueteamos con lo exótico. La física moderna tiene mucho brillo — y mucho humo. Lo pasamos por el gate y
+  el dato refutó casi todo lo decorativo. <b>Mantener la honestidad es el edge.</b></p>
+  <div class="grid">
+    <div class="card"><div class="n">Al cementerio 🪦</div>
+      <div class="d" style="font-size:17px; line-height:1.55">
+      <span class="strike">Finanzas “cuánticas”</span> (path integrals, LPPL, cognición cuántica) — <b class="red">physics-envy, refutado 3-0</b>.<br>
+      <span class="strike">Tier premium triple</span> — brillaba en BTC (+0.78R) pero <b class="red">overfit</b>: negativo en SOL/ETH.<br>
+      <span class="strike">“Ley” cross-asset</span> — el edge NO escala con la institucional-idad (corr −0.19).</div></div>
+    <div class="card"><div class="n">Lo que sobrevivió ✓</div>
+      <div class="d" style="font-size:17px; line-height:1.55">
+      <b class="em">CVD</b> (order-flow) · <b class="em">F2</b> (persistencia) · <b class="em">KL</b> (régimen).<br>
+      Tres edges con física rigurosa, empíricamente soportados, <b>samplables por barra</b> y validados con DSR.<br>
+      El núcleo real de la econofísica, sin la decoración.</div></div>
+  </div>
+  <p class="note">No prometemos lo cuántico porque lo medimos y no pagó. Por eso puedes creer lo que SÍ afirmamos.</p>
+  <div class="foot"><span>Deep-research adversarial · verificado con citas</span><span>Lo muerto, no se vende</span></div>
+</section>
+
+<!-- 5 — el roster -->
+<section class="slide">
+  <div class="kick">El roster Calidad — cómo crecimos</div>
+  <h2>5 símbolos, el mismo bar</h2>
+  <div class="rule"></div>
+  <p>Cosechamos <b>13 símbolos</b> de máxima historia en infraestructura propia (Hetzner) y los pasamos por el
+  validador KL. Pasan tier Calidad solo los que separan en régimen reversible con <b>DSR&gt;0.95</b>:</p>
+  <table>
+    <tr><th>Símbolo</th><th>Régimen del edge</th><th class="num">DSR</th><th>Status</th></tr>
+    <tr><td><b>BTC · SOL · ETH</b></td><td>irrev-BAJO (reversible)</td><td class="num">0.95–1.00</td><td><span class="pill">en vivo</span></td></tr>
+    <tr><td><b>BNB</b></td><td>irrev-BAJO · separación 0.285R</td><td class="num em">0.992</td><td><span class="pill">recién activo</span></td></tr>
+    <tr><td><b>LINK</b></td><td>irrev-BAJO</td><td class="num">0.969</td><td><span class="pill gold">midiendo forward</span></td></tr>
+  </table>
+  <p class="note">De 13 cosechados, estos 5 pasan el bar. Los demás: el edge vive en otro régimen, o no separa significativo —
+  al cementerio. Cada uno mide forward antes de exponer cliente.</p>
+  <div class="foot"><span>Harvest cross-asset · OKX · cubos tp4/h576</span><span>BNB el más fuerte de los nuevos</span></div>
+</section>
+
+<!-- 6 — escenario favorable -->
+<section class="slide">
+  <div class="kick">$1,000 · 2 semanas · 3.6%/trade · 5 símbolos Calidad</div>
+  <h2>Una quincena muy favorable</h2>
+  <div class="rule"></div>
+  <div style="display:flex; gap:30px; align-items:flex-start">
+    <div style="flex:0 0 420px">
+      <div class="big">+67%</div>
+      <div class="kick" style="margin-top:8px; color:var(--muted)">Muy favorable · 1 de cada 10 quincenas → $1,668</div>
+      <p style="font-size:18px; margin-top:18px">Con ~21 señales en 2 semanas, una racha que acompaña lleva el $1,000 a
+      <b class="em">+31% (p75)</b>, <b class="em">+67% (p90)</b>, hasta <b class="gold">+94% (1 de 20)</b>.</p>
+    </div>
+    <div style="flex:1">
+      <table>
+        <tr><th>Escenario</th><th>Frecuencia</th><th class="num">$1,000 →</th></tr>
+        <tr><td>Esperado (mediana)</td><td>la mitad</td><td class="num">$1,030 (+3%)</td></tr>
+        <tr><td>Promedio</td><td>media</td><td class="num">$1,120 (+12%)</td></tr>
+        <tr><td><b class="em">Favorable</b></td><td>1 de 4</td><td class="num em">$1,314 (+31%)</td></tr>
+        <tr><td><b class="em">Muy favorable</b></td><td>1 de 10</td><td class="num em">$1,668 (+67%)</td></tr>
+        <tr><td><b class="gold">Excepcional</b></td><td>1 de 20</td><td class="num gold">$1,941 (+94%)</td></tr>
+      </table>
+      <p style="font-size:16px; margin-top:12px"><b>P(verde) 53%</b> · <b>P(&gt;+20%) 33%</b> (1 de 3) · <b>P(&gt;+50%) 15%</b></p>
+    </div>
+  </div>
+  <p class="note">Proyección Monte-Carlo (40k caminos) sobre la R real del cube, neto de coste. Es el LADO BUENO del abanico —
+  realista, medido, NO prometido. La expectativa central es +3%/+12%, con drawdown que se siente (~26% mediana). El registro forward es el juez.</p>
+  <div class="foot"><span>25x = tope del exchange, no la apuesta (lev real ~7x)</span><span>Proyección, no promesa</span></div>
+</section>
+
+<!-- 7 — lo que construimos -->
+<section class="slide">
+  <div class="kick">El sistema, no solo la señal</div>
+  <h2>Lo cool que armamos</h2>
+  <div class="rule"></div>
+  <div class="grid">
+    <div class="card"><div class="n">Datos &amp; harvest</div><div class="d" style="font-size:16px">
+      Cosecha cross-asset de 13 símbolos en runner propio (Hetzner), CVD/klines free (Binance Vision), cubos triple-barrera causales.</div></div>
+    <div class="card"><div class="n">Registro forward</div><div class="d" style="font-size:16px">
+      Ledger hash-encadenado (SHA-256), consolidado a SQLite multi-símbolo, con backup off-host. La prueba real es el registro, no la proyección.</div></div>
+    <div class="card"><div class="n">Cerebro &amp; memoria</div><div class="d" style="font-size:16px">
+      Una “segunda memoria” de proceso (decisiones, cementerio, invariantes) que todo agente lee primero — y vistas por rol (Marketing / Ingeniería).</div></div>
+  </div>
+  <div class="grid">
+    <div class="card"><div class="n">Validadores</div><div class="d" style="font-size:16px">
+      Suite que mide cada idea con DSR/CPCV/PBO — CVD, persistencia, KL, impacto, flujo-reloj. Reusable, auditable, gratis.</div></div>
+    <div class="card"><div class="n">Multi-símbolo + tiers</div><div class="d" style="font-size:16px">
+      Motor unificado, tier Calidad (KL) por símbolo, broadcast VIP con kill-switch sin redeploy. Mide TODO en paralelo.</div></div>
+    <div class="card"><div class="n">Escenarios</div><div class="d" style="font-size:16px">
+      Monte-Carlo de equity (Kelly, drawdown, risk-of-ruin) para decidir tamaño con la cabeza fría, no con la corazonada.</div></div>
+  </div>
+  <div class="foot"><span>Lean · LATAM · IP propia validada</span><span>Construido para reemplazarnos sin cagarla</span></div>
+</section>
+
+<!-- 8 — cierre -->
+<section class="slide dark">
+  <div class="kick">La visión</div>
+  <h1 style="font-size:50px; max-width:920px">De un sueño y un bot<br>a un edge que se puede auditar</h1>
+  <div class="rule"></div>
+  <p class="sub" style="font-size:23px; max-width:900px">No vendemos magia cuántica — la medimos y no pagó.
+  Vendemos <b style="color:#fbf7ee">disciplina</b>: tres edges con física real, validados con el gate más duro,
+  midiéndose forward en 5 símbolos. <br>El humo no sobrevive aquí. Los datos, sí.</p>
+  <div class="grid" style="margin-top:34px">
+    <div class="card"><div class="n">Hoy</div><div class="v" style="color:#fbf7ee">5 símbolos · 3 edges</div>
+      <div class="d">Calidad validado, midiendo forward, auditable.</div></div>
+    <div class="card"><div class="n">El sueño</div><div class="v gold">el premio quant</div>
+      <div class="d">Un edge real, defendido por el método — no por la suerte.</div></div>
+  </div>
+  <div class="foot"><span>FQ · perpetuos cripto · measure-first</span><span>Todo medido o al cementerio</span></div>
+</section>
+
+</body></html>
