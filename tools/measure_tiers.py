@@ -122,6 +122,7 @@ def measure(cube_path, klines_path, cvd_path, *, tp="tp4", horizon=576,
         cvd_ok = df.cvd.fillna(False).astype(bool)
         persist_ok = df.persist.fillna(False).astype(bool)
         add("cvd", cvd_ok)
+        add("persist", persist_ok)
         add("premium", cvd_ok & persist_ok & kl_bajo)
 
     return {"span_weeks": round(span_wk, 1),
