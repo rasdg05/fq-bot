@@ -506,7 +506,7 @@ def format_precio_message():
     lines = [
         "<b>FQ · VIP</b>",
         rule,
-        "  Senales SOL/USDT con disciplina sistematica.",
+        "  Senales multi-símbolo (SOL · BTC · ETH …) con disciplina sistematica.",
         "",
         "  · Entry, SL y TPs exactos",
         "  · SL anclado a estructura",

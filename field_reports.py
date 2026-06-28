@@ -32,7 +32,8 @@ def _fmt_phase_verdict(decision, failed_at=None):
 # ============================================================
 # REPORTE COMPLETO (senal disparada)
 # ============================================================
-def build_signal_report(field, decision_report, tf_label="SCALPING", tf_id="15m", pmin=1.80):
+def build_signal_report(field, decision_report, tf_label="SCALPING", tf_id="15m", pmin=1.80,
+                        pair="SOL/USDT"):
     """Reporte de campo con SENAL ACTIVA. Usado cuando decision='fire'.
     tf_label: clase de estrategia (INTRADIA/SCALPING/SWING).
     tf_id: timeframe primario ('5m'/'15m'/'1h').
@@ -120,7 +121,7 @@ def build_signal_report(field, decision_report, tf_label="SCALPING", tf_id="15m"
         "<b>FQ — [{tf_label} {tf_id}] LECTURA DE CAMPO</b>\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         "{when} | Killzone: <b>{kz}</b>\n"
-        "SOL/USDT | TFs: {tf_ctx}\n\n"
+        "{pair} | TFs: {tf_ctx}\n\n"
         "<b>━━ ESTADO DEL CAMPO ━━</b>\n"
         "Sesgo 4H: {b4} (score {s4:+d})\n"
         "Sesgo 1H: {b1} (score {s1:+d})\n"
@@ -168,9 +169,10 @@ def build_signal_report(field, decision_report, tf_label="SCALPING", tf_id="15m"
         "- Cierre {tf_id} {cmp} ${sl:.2f} -> CERRAR\n"
         "- 90 min sin progreso a TP1 -> REVISAR\n"
         "- SL nunca se mueve (Regla 4)\n\n"
-        "#FQ #SOLUSDT #{tf_label} #{tf_id} #{side}"
+        "#FQ #{sym_tag} #{tf_label} #{tf_id} #{side}"
     ).format(
         tf_label=tf_label, tf_id=tf_id, tf_ctx=tf_ctx,
+        pair=pair, sym_tag=pair.split(":")[0].replace("/", ""),
         when=_cdmx_now_str(),
         kz=field.killzone.upper(),
         b4=field.bias_4h, s4=field.score_4h,

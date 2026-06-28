@@ -9,7 +9,7 @@ Modulo inerte: no envia, no consulta DB.
 from datetime import datetime, timezone, timedelta
 
 from branding import (
-    PRODUCT, PAIR, DESK, HASHTAGS_SIGNAL, RULE, LUX_RULE, GLYPHS, DISCLAIMER,
+    PRODUCT, PAIR, MARKETS, DESK, HASHTAGS_SIGNAL, RULE, LUX_RULE, GLYPHS, DISCLAIMER,
     lux_header, lux_block, lux_item, lux_check, lux_footer,
 )
 import qte_verdict  # veredicto canonico compartido con el bloque QTE admin
@@ -617,7 +617,7 @@ def build_about_vip():
     """About VIP. Una pantalla, sin mecanica interna, sin versionado."""
     return "\n".join([
         lux_header("{} · {}".format(PRODUCT, DESK),
-                   "Senales {} de grado institucional".format(PAIR)),
+                   "Senales multi-símbolo de grado institucional"),
         "",
         lux_block(
             "Cuando hay ventaja, ejecuta.",
@@ -630,9 +630,9 @@ def build_about_vip():
         lux_check("Sin operar fines de semana"),
         "",
         lux_block(
-            "Par         {}".format(PAIR),
-            "Exchange    OKX",
-            "Ventana     24/5 (lun-vie)",
+            "Mercados     {} (SOL · BTC · ETH …)".format(MARKETS),
+            "Exchange     OKX",
+            "Ventana      24/5 (lun-vie)",
         ),
         LUX_RULE,
         lux_block(DISCLAIMER),
@@ -668,7 +668,7 @@ def build_about_admin():
 # ============================================================
 def build_welcome():
     return "\n".join([
-        lux_header("{} · {}".format(PRODUCT, DESK), PAIR),
+        lux_header("{} · {}".format(PRODUCT, DESK), MARKETS),
         "",
         lux_block(
             "Bienvenido a la mesa.",
