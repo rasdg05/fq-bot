@@ -81,11 +81,14 @@ def main(argv):
     idx = pd.DatetimeIndex(df.index)
     if idx.tz is not None:
         idx = idx.tz_convert("UTC").tz_localize(None)
-    ts_ms = idx.values.astype("datetime64[ms]").astype("int64")
-    print("[ts] dtype=%s primero=%s ts0=%d tsN=%d" % (idx.dtype, idx[0], ts_ms[0], ts_ms[-1]), flush=True)
+    # Schema CANÓNICO del pipeline (bt_data.OHLCV_COLUMNS): la columna se llama
+    # "timestamp" y es datetime64[ns] (UTC naive), igual que build_dataset — NO
+    # "ts" ni epoch-ms int (cosecha_shard._data_range lee df["timestamp"]).
+    ts = idx.values.astype("datetime64[ns]")
+    print("[ts] dtype=%s primero=%s ultimo=%s" % (ts.dtype, idx[0], idx[-1]), flush=True)
     vol = df["volume"] if "volume" in df.columns else 0.0
     out = pd.DataFrame({
-        "ts": ts_ms,
+        "timestamp": ts,
         "open": df["open"].astype(float).values,
         "high": df["high"].astype(float).values,
         "low": df["low"].astype(float).values,
@@ -101,11 +104,13 @@ def main(argv):
         path = bt_data.dataset_path("data", "dukascopy", a.symbol, a.tf)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     out.to_parquet(path, index=False)
-    span = (out.ts.max() - out.ts.min()) / 1000 / 86400 if len(out) else 0
+    t0 = out["timestamp"].min() if len(out) else None
+    t1 = out["timestamp"].max() if len(out) else None
+    span = (t1 - t0).total_seconds() / 86400.0 if len(out) else 0.0
     print("OK %s  filas=%d  span %.0f días (%.1f años)  %s..%s" % (
         path, len(out), span, span / 365.0,
-        datetime.fromtimestamp(out.ts.min() / 1000, tz=timezone.utc).date(),
-        datetime.fromtimestamp(out.ts.max() / 1000, tz=timezone.utc).date()), flush=True)
+        (t0.date() if t0 is not None else "—"),
+        (t1.date() if t1 is not None else "—")), flush=True)
     return 0
 
 
