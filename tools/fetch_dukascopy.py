@@ -70,8 +70,19 @@ def main(argv):
     df = pd.concat(frames).sort_index()
     df = df[~df.index.duplicated(keep="first")]
     df.columns = [c.lower() for c in df.columns]
+    # timestamp robusto entre versiones de pandas. asi8 daba 0 en el runner
+    # (ts -> 1970); el index puede venir DatetimeIndex (tz-aware/naive) o columna.
+    if not isinstance(df.index, pd.DatetimeIndex):
+        tcol = next((c for c in df.columns if c in ("timestamp", "time", "date")), None)
+        if tcol is None:
+            print("sin timestamp usable. cols=%s idx_dtype=%s" % (list(df.columns), df.index.dtype))
+            return 1
+        df = df.set_index(pd.to_datetime(df[tcol], utc=True))
     idx = pd.DatetimeIndex(df.index)
-    ts_ms = (idx.asi8 // 1_000_000).astype("int64")
+    if idx.tz is not None:
+        idx = idx.tz_convert("UTC").tz_localize(None)
+    ts_ms = idx.values.astype("datetime64[ms]").astype("int64")
+    print("[ts] dtype=%s primero=%s ts0=%d tsN=%d" % (idx.dtype, idx[0], ts_ms[0], ts_ms[-1]), flush=True)
     vol = df["volume"] if "volume" in df.columns else 0.0
     out = pd.DataFrame({
         "ts": ts_ms,
@@ -93,8 +104,8 @@ def main(argv):
     span = (out.ts.max() - out.ts.min()) / 1000 / 86400 if len(out) else 0
     print("OK %s  filas=%d  span %.0f días (%.1f años)  %s..%s" % (
         path, len(out), span, span / 365.0,
-        datetime.utcfromtimestamp(out.ts.min() / 1000).date(),
-        datetime.utcfromtimestamp(out.ts.max() / 1000).date()), flush=True)
+        datetime.fromtimestamp(out.ts.min() / 1000, tz=timezone.utc).date(),
+        datetime.fromtimestamp(out.ts.max() / 1000, tz=timezone.utc).date()), flush=True)
     return 0
 
 
