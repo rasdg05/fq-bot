@@ -1,0 +1,32 @@
+name: MEXC TradFi probe — 1 tap
+
+# UN TAP. Resuelve los símbolos TradFi de MEXC en ccxt (oro/plata/petróleo/índices)
+# + su profundidad de historia (desde cuándo hay 5m/3m). NO cosecha nada — es de
+# segundos. Corre en el runner self-hosted (Hetzner) porque desde el sandbox del
+# agente el proxy bloquea las APIs de exchange. El resultado sale en el log de Actions.
+#
+# IMPORTANTE: ENCENDE el CCX33 (Hetzner) y espera a que el runner figure ONLINE.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: self-hosted
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python 3.12 via uv (self-hosted)
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          UV="$HOME/.local/bin/uv"
+          "$UV" python install 3.12
+          "$UV" venv --seed --clear --python 3.12 "$HOME/fqvenv"
+          echo "$HOME/fqvenv/bin" >> "$GITHUB_PATH"
+      - name: Install ccxt
+        run: pip install --quiet --upgrade ccxt
+      - name: Probe MEXC TradFi
+        run: python tools/probe_mexc_tradfi.py
