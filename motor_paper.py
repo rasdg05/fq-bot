@@ -219,7 +219,8 @@ class MotorPaperRuntime:
                             # en las velas siguientes (no en esta).
                             self._pending_entries.append({
                                 "sig": sig, "risk_frac": d["risk_frac"], "killzone": kz,
-                                "regime": regime, "cvd": cvd, "tf": tf_id, "waited": 0})
+                                "regime": regime, "cvd": cvd, "tf": tf_id, "waited": 0,
+                                "regime_tags": _regime_tags(df_primary, sig.get("entry"))})
                             self.broker.ledger.append({
                                 "event": "MAKER_ENTRY_PENDING", "ts": ts, "tf": tf_id,
                                 "killzone": kz, "limit": sig["entry"],
@@ -234,7 +235,8 @@ class MotorPaperRuntime:
                             self.broker.ledger.append({
                                 "event": "MOTOR_OPEN_META", "ts": ts, "pid": pos.pid,
                                 "tf": tf_id, "killzone": kz, "regime": regime,
-                                **_cvd_meta(cvd)})
+                                **_cvd_meta(cvd),
+                                **_regime_tags(df_primary, sig.get("entry"))})
                             if self.maker_sim:
                                 self._maker_pending.append({
                                     "pid": pos.pid, "direction": pos.direction,
@@ -314,7 +316,7 @@ class MotorPaperRuntime:
             "tf": pe.get("tf"), "killzone": pe.get("killzone"),
             "regime": pe.get("regime"),
             "fill_type": fill_type, "bars_waited": bars_waited,
-            **_cvd_meta(pe.get("cvd"))})
+            **_cvd_meta(pe.get("cvd")), **pe.get("regime_tags", {})})
         if self.notify_fn is not None:
             try:
                 self.notify_fn(sig, {"killzone": pe.get("killzone"), "tf": pe.get("tf"),
@@ -502,6 +504,46 @@ def kl_regime_live(closes, thr=None):
         return None
 
 
+_VP_MOD = None
+
+
+def _vp_mod():
+    """Importa volume_profile LAZY (solo si FQ_REGIME_TAGS taggea). Cacheado."""
+    global _VP_MOD
+    if _VP_MOD is None:
+        import volume_profile as _m
+        _VP_MOD = _m
+    return _VP_MOD
+
+
+def _regime_tags(df_primary, entry_price):
+    """Tags de régimen para MOTOR_OPEN_META (CAUSAL, sin red), gateado por
+    FQ_REGIME_TAGS. {} si off -> ledger byte-idéntico (backward-compat).
+      kl_low/kl_irrev  : KL-irreversibilidad (validado en cube; ventana 64, FIEL).
+      poc_dist/vp_zone : distancia al POC del día EN CURSO (developing) de df_primary
+                         -> proxy live. El POC-distance ESTRICTO (día PREVIO, el que
+                         pasó el gate) se mide forward OFFLINE con gate_poc_distance.py
+                         sobre el ledger (entry_ts + entry_price). vp_basis lo aclara.
+    """
+    if os.environ.get("FQ_REGIME_TAGS", "0").strip() not in ("1", "true", "yes"):
+        return {}
+    out = {}
+    try:
+        kl = kl_regime_live(df_primary["close"].to_numpy(dtype=float))
+        if kl is not None:
+            out["kl_low"] = bool(kl["low"])
+            out["kl_irrev"] = round(float(kl["irrev"]), 4)
+        prof = _vp_mod().daily_volume_profile(df_primary)
+        if prof is not None and entry_price:
+            half = max((prof.vah - prof.val) / 2.0, 1e-9)
+            out["poc_dist"] = round(abs(float(entry_price) - prof.poc) / half, 4)
+            out["vp_zone"] = _vp_mod().vp_position(float(entry_price), prof)
+            out["vp_basis"] = "developing"
+    except Exception as e:
+        log.debug("[motor] regime_tags: %s", e)
+    return out
+
+
 def ledger_report(path):
     """Lee el ledger del motor paper y devuelve un dict de stats (cartera +
     fill-rate maker + adverse selection + R por regime). Reusado por el comando
@@ -519,6 +561,7 @@ def ledger_report(path):
         led = DurableHashLedger.load(path)
     recs = [r["payload"] for r in led.records]
     pnl, kz, maker, vetoed, ftype, regime_m, cvd_m = {}, {}, {}, {}, {}, {}, {}
+    kl_m, poc_m = {}, {}
     n_runaway = 0
     net = False
     for p in recs:
@@ -532,6 +575,10 @@ def ledger_report(path):
             regime_m[pid] = p.get("regime")
             if p.get("cvd_confirmed") is not None:    # solo si FQ_CVD_FILTER taggeo
                 cvd_m[pid] = bool(p.get("cvd_confirmed"))
+            if p.get("kl_low") is not None:           # solo si FQ_REGIME_TAGS taggeo
+                kl_m[pid] = bool(p.get("kl_low"))
+            if p.get("poc_dist") is not None:
+                poc_m[pid] = float(p.get("poc_dist"))
             if p.get("fill_type") is not None:        # modo EJECUCION maker
                 ftype[pid] = p.get("fill_type")
         elif ev == "MAKER_FILL":
@@ -552,6 +599,16 @@ def ledger_report(path):
             return {"n": 0, "mean": None, "wr": None, "total": 0.0}
         return {"n": n, "mean": sum(rs) / n,
                 "wr": sum(1 for r in rs if r > 0) / n, "total": sum(rs)}
+
+    def _by_poc_split(closed_r, pm):
+        vals = sorted(pm[p] for p in closed_r if p in pm)
+        if len(vals) < 4:
+            return {"far": _agg([]), "near": _agg([]), "n_tagged": len(pm)}
+        med = vals[len(vals) // 2]
+        far = [closed_r[p] for p in closed_r if pm.get(p) is not None and pm[p] >= med]
+        near = [closed_r[p] for p in closed_r if pm.get(p) is not None and pm[p] < med]
+        return {"far": _agg(far), "near": _agg(near),
+                "thr": round(med, 3), "n_tagged": len(pm)}
 
     n_fill = sum(1 for v in maker.values() if v == "FILL")
     n_miss = sum(1 for v in maker.values() if v == "MISS")
@@ -584,6 +641,16 @@ def ledger_report(path):
             "unconfirmed": _agg([closed[p] for p in closed if cvd_m.get(p) is False]),
             "n_tagged": len(cvd_m),
         },
+        # R FORWARD por régimen KL (irrev-bajo = donde vive el edge, DSR ✓ cube).
+        # Juez forward de FQ_REGIME_TAGS. Vacio si el tag off.
+        "by_kl": {
+            "low": _agg([closed[p] for p in closed if kl_m.get(p) is True]),
+            "high": _agg([closed[p] for p in closed if kl_m.get(p) is False]),
+            "n_tagged": len(kl_m),
+        },
+        # R FORWARD por POC-distance del día (developing): lejos vs cerca del POC.
+        # El estricto (día previo, gateado) se mide offline con gate_poc_distance.py.
+        "by_poc": _by_poc_split(closed, poc_m),
     }
 
 

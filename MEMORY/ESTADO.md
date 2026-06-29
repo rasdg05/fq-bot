@@ -41,6 +41,10 @@ sube conviction client-facing. Hoy mide, no decide.
 **CABLEADO DORMIDO (OFF, byte-idéntico cuando off):**
 - CVD a conviction/size (`FQ_CVD_VIP_CONVICTION`, `FQ_CVD_BOOST_TIER`).
 - F2-persistencia (`FQ_PERSIST_BOOST=BTC`) — luz verde tras re-confirm n_trials=44 (commit `c355d25`).
+- **Regime tags KL + POC-distance** (`FQ_REGIME_TAGS`, 2026-06-29): sella `kl_low`/`kl_irrev` (KL fiel,
+  ventana 64) + `poc_dist` (developing) en `MOTOR_OPEN_META`; el reporte agrega `by_kl`/`by_poc`. Mide
+  forward el edge KL (DSR ✓ cube) y POC-distance (gate ✓ cube, #125). El POC-distance ESTRICTO del día
+  previo se mide offline con `gate_poc_distance.py` sobre el ledger (el live es proxy del día en curso).
 
 **MIDIENDO FORWARD (0% capital):**
 - Motor paper SOL + BTC (+ ETH). CVD filter/tag (`FQ_CVD_FILTER`, pendiente encender en Railway).
@@ -65,8 +69,9 @@ Transfieren KL/ICT/precio; CVD/F2 **no** (son del venue).
 
 **Volume Profile (POC/VA) — `volume_profile.py` (PR #121):** la pata de "volumen" de la confluencia
 triple, construida (puro, 7 tests, crypto+TradFi). Medida sobre crypto (`measure_vp_tier.py`, #123):
-zona premium/discount **REFUTADA** (inconsistente), rev-aligned **ESPEJISMO** (n=39), **POC-distance
-candidato consistente** (lejos>cerca en BTC/ETH/SOL) → pendiente gate. Ver `CEMENTERIO.md`.
+zona premium/discount **REFUTADA** (inconsistente), rev-aligned **ESPEJISMO** (n=39). **POC-distance
+PASA el gate** (#125: DSR + ortogonal a KL + CPCV/PBO) y queda **cableado dormido para forward**
+(`FQ_REGIME_TAGS`, junto a KL). Ver `CEMENTERIO.md`.
 
 **TJR/ICT:** el bot YA implementa el framework ICT (sweeps/OB/FVG/PD/killzones/`session_bias`). Es
 capa de **convicción+gating**, no el edge validado (ese es CVD/F2/KL). `session_bias.py` ES la tesis
