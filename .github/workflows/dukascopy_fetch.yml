@@ -1,0 +1,64 @@
+name: Dukascopy fetch — historia profunda → parquet
+
+# Baja OHLCV histórico PROFUNDO de Dukascopy (oro/plata/oil…) al formato del
+# pipeline: data/dukascopy/<sym>_<tf>.parquet (igual que build_dataset) para que
+# la cosecha lo CACHEE y construya el cubo. Desacople data/venue: validamos
+# TradFi sobre historia REAL (Dukascopy, gratis, años); la señal se ejecuta en el
+# perp (MEXC). Transfiere KL (precio) + base; NO el order-flow (CVD).
+#
+# El probe (#116) confirmó: XAU/USD y LIGHT(WTI) tienen 5m de hace ~2 años.
+# Esto SÍ baja años → tarda. Corre en el self-hosted (Hetzner) — el sandbox del
+# agente bloquea datafeed.dukascopy.com. ENCENDE el CCX33 antes de darle Run.
+# El parquet sale como artifact (dukascopy-parquet) para bajarlo o cachearlo.
+
+on:
+  workflow_dispatch:
+    inputs:
+      symbols:
+        description: "Símbolos separados por espacio (resuelven por keyword: XAU/USD XAG/USD LIGHT BRENT)"
+        default: "XAU/USD LIGHT"
+      tf:
+        description: "Timeframe (1m/5m/15m/1h)"
+        default: "5m"
+      years:
+        description: "Años de historia hacia atrás"
+        default: "2"
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: self-hosted
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python 3.12 via uv (self-hosted)
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          UV="$HOME/.local/bin/uv"
+          "$UV" python install 3.12
+          "$UV" venv --seed --clear --python 3.12 "$HOME/fqvenv"
+          echo "$HOME/fqvenv/bin" >> "$GITHUB_PATH"
+      - name: Install deps (pyarrow para to_parquet)
+        run: pip install --quiet --upgrade dukascopy-python pandas pyarrow
+      - name: Fetch Dukascopy → parquet
+        env:
+          SYMBOLS: ${{ inputs.symbols }}
+          TF: ${{ inputs.tf }}
+          YEARS: ${{ inputs.years }}
+        run: |
+          set -e
+          for SYM in $SYMBOLS; do
+            echo "==== $SYM ($TF, ${YEARS}a) ===="
+            python tools/fetch_dukascopy.py --symbol "$SYM" --tf "$TF" --years "$YEARS"
+          done
+      - name: Resumen de archivos
+        run: ls -lh data/dukascopy/ || echo "(sin data/dukascopy/)"
+      - name: Subir parquet
+        uses: actions/upload-artifact@v4
+        with:
+          name: dukascopy-parquet
+          path: data/dukascopy/*.parquet
+          if-no-files-found: error
+          retention-days: 90
