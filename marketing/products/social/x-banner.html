@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  :root{ --bg:#080a0e; --panel:#11151c; --hair:#222a35; --ink:#f2f5f8;
+    --muted:#9aa3b1; --faint:#5e6775; --accent:#19b88c; --glow:rgba(25,184,140,.18); }
+  *{ margin:0; padding:0; box-sizing:border-box; -webkit-print-color-adjust:exact; }
+  html,body{ background:#000; }
+  .banner{ width:1500px; height:500px; position:relative; overflow:hidden;
+    background:radial-gradient(70% 120% at 78% 50%, var(--glow), transparent 60%), var(--bg);
+    font-family:"Helvetica Neue",Arial,sans-serif; color:var(--ink); }
+  .grid{ position:absolute; inset:0; background-image:
+      linear-gradient(var(--hair) 1px,transparent 1px),linear-gradient(90deg,var(--hair) 1px,transparent 1px);
+    background-size:60px 60px; opacity:.06; }
+  /* equity curve motif on the right */
+  .curve{ position:absolute; right:0; top:0; width:760px; height:500px; opacity:.9; }
+  /* text block: kept to upper/right so the PFP (bottom-left) never overlaps */
+  .wrap{ position:absolute; left:300px; top:118px; z-index:3; }
+  .kick{ font-family:"SF Mono","JetBrains Mono",Menlo,Consolas,monospace; color:var(--accent);
+    letter-spacing:7px; text-transform:uppercase; font-size:20px; font-weight:700; margin-bottom:18px; }
+  .row{ display:flex; align-items:center; gap:20px; }
+  .bar{ width:9px; height:96px; background:var(--accent); border-radius:5px; box-shadow:0 0 30px rgba(25,184,140,.7); }
+  .fq{ font-weight:800; font-size:104px; letter-spacing:-4px; line-height:.9; }
+  .tag{ font-size:34px; color:var(--ink); font-weight:700; margin-top:22px; letter-spacing:-.5px; }
+  .tag b{ color:var(--accent); }
+  .sub{ font-family:"SF Mono",monospace; font-size:21px; color:var(--muted); margin-top:14px; letter-spacing:1px; }
+  .handle{ position:absolute; right:54px; bottom:40px; font-family:"SF Mono",monospace; font-size:22px;
+    color:var(--faint); letter-spacing:2px; z-index:3; }
+  .handle b{ color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="banner">
+  <div class="grid"></div>
+  <svg class="curve" viewBox="0 0 760 500" preserveAspectRatio="none">
+    <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#19b88c" stop-opacity="0.22"/><stop offset="1" stop-color="#19b88c" stop-opacity="0"/>
+    </linearGradient></defs>
+    <path d="M0,400 L110,372 L210,396 L300,312 L390,340 L470,250 L560,290 L640,196 L720,236 L760,150 L760,500 L0,500 Z" fill="url(#g)"/>
+    <path d="M0,400 L110,372 L210,396 L300,312 L390,340 L470,250 L560,290 L640,196 L720,236 L760,150" fill="none" stroke="#19b88c" stroke-width="4"/>
+  </svg>
+  <div class="wrap">
+    <div class="kick">Fibonacci Quantum · multi-symbol</div>
+    <div class="row"><div class="bar"></div><div class="fq">FQ</div></div>
+    <div class="tag">The bot that <b>measures</b>, not guesses.</div>
+    <div class="sub">System over ego · I show the wins AND the losses</div>
+  </div>
+  <div class="handle">@Rasdg05S · send <b>"FQ"</b> → t.me/RASDG05</div>
+</div>
+</body>
+</html>
