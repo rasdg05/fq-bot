@@ -69,6 +69,23 @@
   et al. 2012 (estimador por grafo de visibilidad). Era el hilo de termo-estocástica del research.
 - **Status:** **VALIDADO en cube, PENDIENTE forward.** No cableado. Falta ETH + forward + n_trials honesto.
 
+### Volume Profile (POC/VA) — la pata de "volumen" de la confluencia triple — **PARCIAL**
+- **Idea:** el setup de mayor probabilidad junta estructura + **VOLUMEN** + order-flow. El bot tenía
+  estructura (pivotes/OB/PD/VWAP) y order-flow (CVD); faltaba el volumen-por-precio: **POC + Value
+  Area del día PREVIO** (causal) como referencia de valor.
+- **Módulo/medición:** `volume_profile.py` (PR #121, puro, 7 tests) + `tools/measure_vp_tier.py`
+  (PR #123). Solo precio+volumen → sirve a crypto **y** TradFi.
+- **Resultado crypto (BTC/ETH/SOL, tp4/h576, n≈1000 c/u, 2026-06-29):**
+  - **Zona premium/discount → REFUTADA.** Inconsistente cross-símbolo (ETH ama premium +0.27, SOL
+    discount +0.05, BTC plano). No transfiere — mismo patrón que la "ley de escala" de F2.
+  - **Tesis reversión-a-value (rev-aligned) → ESPEJISMO.** ETH +2.4R / 54% WR pero **n=39**. El motor
+    es de momentum (dispara rev-against ~95%); el bucket contrarian es muy chico. No sobrevive DSR
+    (como el +1.47R del CVD estricto, n=17).
+  - **POC-distance → CANDIDATO consistente.** *lejos del POC > cerca* en LOS 3 (BTC +0.37 vs +0.22,
+    ETH +0.44 vs +0.18, SOL +0.29 vs +0.16; n≈250/cuartil). POC = chop; lejos = tendencia (wheelhouse
+    del motor). **Pendiente gate CPCV/DSR + ortogonalidad vs KL.**
+- **Status:** módulo construido, **NO cableado.** POC-distance al gate; zona y rev-aligned al cementerio.
+
 ### F1 — residual de impacto raíz-cuadrada — **REAL pero REDUNDANTE con CVD**
 - **Idea:** ley δ≈0.5: impacto ∝ σ·√(Q/V). Si el precio se mueve MENOS de lo predicho →
   absorción (continuación). Reglas: coiled / extended / fragile.
@@ -183,4 +200,5 @@ entras al motor. Fin.
 
 _Citas: `research/fisica_moderna_2026.md`, `research/fisica_moderna_2026_resultados.md` (run
 28287771057), `tools/validation_gate.py`, `tools/validate_*.py`, workflows `physics_confirm.yml` /
-`oi_validation.yml` / `global_ls_deepdive.yml` / `metrics_validation.yml`. Actualizado 2026-06-27._
+`oi_validation.yml` / `global_ls_deepdive.yml` / `metrics_validation.yml`, `volume_profile.py`,
+`tools/measure_vp_tier.py`. Actualizado 2026-06-29._

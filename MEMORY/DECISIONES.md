@@ -234,6 +234,38 @@ en qué horizonte, qué pasa forward.
 
 ---
 
+## 11. Híbrido data/venue: validar TradFi sobre historia REAL, ejecutar en el perp
+
+**Decisión.** Desacoplar la **fuente de datos** del **venue de ejecución**. Para mercados
+tradicionales (oro, petróleo, NASDAQ): validar el edge sobre la historia profunda y gratis de
+**Dukascopy** (velas, años) y ejecutar la señal en el **perp** del exchange (MEXC). El edge es
+propiedad del **activo**, no del venue.
+
+**Por qué.** MEXC (y los perps TradFi) no tienen historia profunda (`probe_mexc_tradfi.py`: SIN
+data / solo reciente). Dukascopy sí (probe #116: XAU y WTI con 5m de hace ~2 años). Sin historia
+no hay cube validable. Separar data de venue da profundidad para validar + perp para ejecutar.
+
+**Qué transfiere y qué NO (honesto).** Transfieren las features de **precio**: KL (régimen), base,
+y la capa **ICT/estructura** (sweeps, OB, FVG, PD, killzones — ya NY-calibradas en `killzones_pd.py`).
+**NO** transfiere el order-flow (CVD/F2): es del libro del venue y Dukascopy da solo OHLCV (sin
+taker buy/sell). En TradFi la confluencia triple pierde la pata de delta hasta tener order-flow real.
+
+**Caveat operacional — sharding en data con huecos.** El motor **DIGIERE** la OHLCV de Dukascopy
+(verify: 45 eventos en XAU) pero `cosecha_shard --verify` falla: el sharding **no reproduce** el
+cubo sin shardear en data con huecos (fines de semana/breaks TradFi); el buffer lookback/horizonte
+está calibrado para cripto 24/7. → cosechar TradFi **UNSHARDED** (`--shards 1`, exacto por
+construcción) hasta arreglar el buffer. Es plomería, no edge.
+
+**Evidencia.**
+- `tools/fetch_dukascopy.py` (PR #117/#118/#120/#122): baja OHLCV al **schema canónico** del
+  pipeline (`timestamp` datetime64[ns]); alias de índices (**NQ→USATECH**, ES→USA500, YM→USA30).
+- `tools/probe_dukascopy.py` + `probe_dukascopy.yml` (#116): historia profunda confirmada.
+- `.github/workflows/dukascopy_cosecha.yml` (#122): cosecha UNSHARDED XAU+NQ + `cube_report`.
+
+**Impacto.** Pipeline TradFi viable. Cosecha XAU+NQ en marcha; gate KL/POC-distance pendiente.
+
+---
+
 ## Resumen
 
 | Decisión | Razonamiento core | Archivos / commits clave | Estado |
@@ -247,6 +279,7 @@ en qué horizonte, qué pasa forward.
 | Taker + maker | fill-rate real es el juez; neto fees+slippage | `motor_paper.py` | VIVO |
 | Cerebro | registro asimétrico (SOL≠BTC/ETH) | `cerebro_arquitectura.md`, `f0cce80` | Etapa 0 planificada |
 | Producto 3 capas | cada edge documentado y gateado | `plan_evolucion_2026.md` | Cap.1 vivo; 2/3 midiendo |
+| Híbrido data/venue | TradFi: validar en Dukascopy, ejecutar en perp | `fetch_dukascopy.py`, #116/#122 | Cosecha XAU+NQ en marcha |
 
 ---
 
@@ -260,5 +293,5 @@ en qué horizonte, qué pasa forward.
 6. **No hay veto sin dato**: `FQ_CVD_FILTER`, `FQ_PERSIST_BOOST`, etc. son flags con criterio de
    ON/OFF documentado en el plan.
 
-_Actualizado: 2026-06-27. Fuente de verdad: `git log`, `research/*.md`, `tools/validation_gate.py`,
-`motor_paper.py`, `launcher.py`, `tests/`._
+_Actualizado: 2026-06-29. Fuente de verdad: `git log`, `research/*.md`, `tools/validation_gate.py`,
+`motor_paper.py`, `launcher.py`, `tools/fetch_dukascopy.py`, `volume_profile.py`, `tests/`._
