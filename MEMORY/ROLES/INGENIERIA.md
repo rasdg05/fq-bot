@@ -24,6 +24,7 @@
 - **Cerebro** (diseño): `research/cerebro_arquitectura.md` — 2 tracks, read-only, measure-first.
 - **Runner pesado:** Hetzner CCX33 (cosecha / validación densa). `ops/SELF_HOSTED_RUNNER.md`.
 - **Validadores + workflows:** `tools/validate_*.py` + `.github/workflows/*` (1-tap, gratis).
+- **La ecuación del motor:** `../ingenieria/` — P_master de la vela al disparo (PDF + texto). Léela antes de tocar `fusion_engine`.
 
 > Recuerda: el **registro forward que valida edges es el MISMO** que le da a Marketing sus números
 > reales. Una sola verdad para todos. Si tocas el ledger o el gate, lees `CONSTITUCION.md` primero.
