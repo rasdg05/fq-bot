@@ -1,0 +1,30 @@
+name: Dukascopy probe — 1 tap
+
+# UN TAP. Confirma que dukascopy-python sirve data TradFi (oro/SP500/oil) con
+# historia PROFUNDA (data de hace ~2 años). NO baja años — es de segundos.
+# De-risk antes de construir el fetcher completo. Corre en el self-hosted (Hetzner).
+# Resultado en el log de Actions. ENCENDE el CCX33 antes de darle Run.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: self-hosted
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python 3.12 via uv (self-hosted)
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          UV="$HOME/.local/bin/uv"
+          "$UV" python install 3.12
+          "$UV" venv --seed --clear --python 3.12 "$HOME/fqvenv"
+          echo "$HOME/fqvenv/bin" >> "$GITHUB_PATH"
+      - name: Install dukascopy-python
+        run: pip install --quiet --upgrade dukascopy-python pandas
+      - name: Probe Dukascopy
+        run: python tools/probe_dukascopy.py
