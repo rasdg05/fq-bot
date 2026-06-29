@@ -1,0 +1,66 @@
+name: Dukascopy cosecha probe — verify cubo
+
+# DE-RISK measure-first: ¿el motor DIGIERE la OHLCV de Dukascopy (que NO trae
+# order-flow / CVD) y arma un cubo limpio? Baja el stack 5m/15m/1h del símbolo y
+# corre cosecha_shard --verify (replay acotado a los últimos N días, ~minutos)
+# ANTES de gastar 1-2h en la cosecha completa. Verde => el desacople data/venue
+# queda validado a nivel pipeline y cableamos research.yml para la cosecha real.
+#
+# El order-flow (CVD/F2) no existe en Dukascopy: lo que se valida acá es que el
+# motor corre y arma cubo (precio); KL (régimen) + base transfieren, CVD no.
+# Self-hosted (Hetzner) — el sandbox bloquea dukascopy. ENCENDE el CCX33.
+
+on:
+  workflow_dispatch:
+    inputs:
+      symbol:
+        description: "Símbolo TradFi (keyword dukascopy): XAU/USD, LIGHT, XAG/USD…"
+        default: "XAU/USD"
+      years:
+        description: "Años de historia a bajar (el stack 5m/15m/1h)"
+        default: "2"
+      verify_days:
+        description: "Días del replay de verificación (últimos N; sube si 'sin datos')"
+        default: "120"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: self-hosted
+    timeout-minutes: 60
+    env:
+      SYMBOL: ${{ inputs.symbol }}
+      YEARS: ${{ inputs.years }}
+      VDAYS: ${{ inputs.verify_days }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python 3.12 via uv (self-hosted)
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          UV="$HOME/.local/bin/uv"
+          "$UV" python install 3.12
+          "$UV" venv --seed --clear --python 3.12 "$HOME/fqvenv"
+          echo "$HOME/fqvenv/bin" >> "$GITHUB_PATH"
+      - name: Install deps (motor + dukascopy)
+        run: |
+          sudo apt-get update && sudo apt-get install -y libgomp1 \
+            || echo "[apt skip] sin sudo/apt (self-hosted): asume libgomp1 preinstalado"
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest lightgbm scikit-learn turbovec dukascopy-python
+      - name: Fetch stack 5m/15m/1h (cache-hit si ya está)
+        run: |
+          set -e
+          for TF in 5m 15m 1h; do
+            P=$(python -c "import bt_data; print(bt_data.dataset_path('data','dukascopy','${SYMBOL}','${TF}'))")
+            if [ -f "$P" ]; then echo "== cache hit ${SYMBOL} ${TF}: $P =="; continue; fi
+            echo "== fetch ${SYMBOL} ${TF} (${YEARS}a) =="
+            python tools/fetch_dukascopy.py --symbol "${SYMBOL}" --tf "${TF}" --years "${YEARS}"
+          done
+          ls -lh data/dukascopy/ || true
+      - name: Verify cubo — ¿el motor digiere OHLCV sin order-flow?
+        run: |
+          python tools/cosecha_shard.py --symbol "${SYMBOL}" --exchange dukascopy \
+            --tf-id 5m --verify --verify-days "${VDAYS}"
