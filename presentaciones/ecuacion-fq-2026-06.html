@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>FQ — La ecuación completa, de la vela al disparo</title>
+<style>
+  @page { size: 1280px 720px; margin: 0; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root{
+    --bg:#f7f5f0; --ink:#1c2420; --muted:#5d6b63; --line:#d8d2c6;
+    --em:#0f6f4d; --em2:#0a5238; --gold:#b08338; --red:#a23b2e; --card:#fffdf8; --blue:#2f5d8a;
+  }
+  body{ font-family:"Georgia","Times New Roman",serif; color:var(--ink); background:#333; }
+  .mono{ font-family:"SF Mono","Consolas","Menlo",monospace; }
+  .slide{ width:1280px; height:720px; background:var(--bg); position:relative;
+    padding:48px 70px; overflow:hidden; page-break-after:always; }
+  .kick{ font-family:"Helvetica Neue",Arial,sans-serif; font-size:12px; letter-spacing:.3em;
+    text-transform:uppercase; color:var(--em); font-weight:700; }
+  h2{ font-size:34px; line-height:1.08; letter-spacing:-.01em; margin-top:6px; }
+  .rule{ height:2px; background:var(--ink); width:60px; margin:16px 0; }
+  .foot{ position:absolute; left:70px; right:70px; bottom:26px; display:flex;
+    justify-content:space-between; font-family:"Helvetica Neue",Arial,sans-serif;
+    font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted);
+    border-top:1px solid var(--line); padding-top:11px; }
+  .em{ color:var(--em); font-weight:700; } .gold{ color:var(--gold); font-weight:700; }
+  .red{ color:var(--red); font-weight:700; } .blue{ color:var(--blue); font-weight:700; } .mut{ color:var(--muted); }
+  /* flow */
+  .flow{ margin-top:14px; }
+  .step{ display:flex; align-items:flex-start; gap:16px; margin-bottom:9px; }
+  .badge{ font-family:"Helvetica Neue",Arial,sans-serif; font-size:11px; font-weight:700;
+    letter-spacing:.08em; text-transform:uppercase; color:#fff; background:var(--em2);
+    border-radius:6px; padding:5px 10px; min-width:128px; text-align:center; flex:0 0 128px; }
+  .badge.g2{ background:var(--gold); } .badge.g3{ background:var(--blue); } .badge.g4{ background:#7a2f25; }
+  .step .body{ flex:1; font-size:18px; line-height:1.34; padding-top:2px; }
+  .step .body b{ color:var(--ink); }
+  .arrow{ color:var(--muted); font-size:15px; margin:0 0 7px 56px; }
+  /* equation */
+  .eqwrap{ background:var(--card); border:1px solid var(--line); border-left:4px solid var(--em);
+    border-radius:10px; padding:24px 28px; margin-top:18px; }
+  .eq{ font-size:30px; line-height:1.7; letter-spacing:.005em; }
+  .eq .t{ font-style:italic; }
+  .eqsub{ font-size:21px; color:var(--muted); margin-top:6px; }
+  .legend{ display:grid; grid-template-columns:1fr 1fr; gap:6px 30px; margin-top:20px; }
+  .lg{ font-size:16px; line-height:1.4; } .lg .sym{ font-style:italic; font-weight:700; font-size:18px; }
+  .fire{ background:#16201b; color:#ede7da; border-radius:10px; padding:18px 24px; margin-top:18px; }
+  .fire .big{ font-size:23px; line-height:1.5; } .fire .big b{ color:#fbf7ee; }
+</style></head><body>
+
+<!-- 1 — el pipeline -->
+<section class="slide">
+  <div class="kick">FQ · El motor, de inicio a fin</div>
+  <h2>De la vela al disparo — el pipeline</h2>
+  <div class="rule"></div>
+  <div class="flow">
+    <div class="step"><div class="badge">① Input</div><div class="body">
+      OHLCV <b>multi-TF</b>: primario 5m + contexto 4h/1h + sub-TF. → <span class="mut">indicadores causales (sin look-ahead).</span></div></div>
+    <div class="arrow">↓</div>
+    <div class="step"><div class="badge">② Field state</div><div class="body">
+      Se arma el <b>FieldState</b>: sesgo(4h,1h) · liquidez(barridos, zona Premium/Discount) · confluencia(Fibonacci, order-blocks, FVG) · killzone(sesiones ICT) · CHoCH · conceptos ICT.</div></div>
+    <div class="arrow">↓</div>
+    <div class="step"><div class="badge g2">③ Gates A→D</div><div class="body">
+      Cuatro fases que <b>vetan</b>: <b>A</b> sesgo alineado → <b>B</b> liquidez → <b>C</b> confluencia ≥ 3 (+ toques fib) → <b>D</b> killzone/CRT/memoria. <span class="mut">Cualquiera que falle, no hay setup.</span></div></div>
+    <div class="arrow">↓</div>
+    <div class="step"><div class="badge g3">④ Ecuación maestra</div><div class="body">
+      Se computa <b class="em">P_master</b> (convicción) — la fórmula completa en la lámina 2. Base φ, ponderada por timing, estructura, confluencia, conceptos, <b>memoria aprendida (κ)</b> y moduladores.</div></div>
+    <div class="arrow">↓</div>
+    <div class="step"><div class="badge g3">⑤ Fase E</div><div class="body">
+      <b>Tiempo emergente</b>: Monte-Carlo de cientos de trayectorias → <span class="blue">sync_score</span> → dilatación <span class="t">σ_τ</span> sobre P_master y el horizonte, + <b>P(stop)</b> y <b>E[R]</b>.</div></div>
+    <div class="arrow">↓</div>
+    <div class="step"><div class="badge g4">⑥ Disparo</div><div class="body">
+      <b>FIRE</b> ⟺ (gates A–D ✓) ∧ (<b class="em">P_master ≥ P_min</b>) ∧ (<b>R:R ≥ RR_min</b>). Se calculan niveles (entry/stop/TP1–4).</div></div>
+    <div class="arrow">↓</div>
+    <div class="step"><div class="badge">⑦ Overlays</div><div class="body">
+      <b>Nuestros edges validados</b> encima: <b class="em">CVD✓</b> (order-flow firmado → badge/boost) · <b class="em">F2-persist✓</b> (boost) · <b class="em">KL-bajo</b> (gate Calidad: difunde solo en régimen reversible) → <b>broadcast VIP.</b></div></div>
+  </div>
+  <div class="foot"><span>fusion_engine.evaluate_signal · causal · multi-TF</span><span>Todo medido o al cementerio</span></div>
+</section>
+
+<!-- 2 — la ecuación maestra -->
+<section class="slide">
+  <div class="kick">La ecuación maestra · P_master</div>
+  <h2>La convicción, término por término</h2>
+  <div class="rule"></div>
+  <div class="eqwrap">
+    <div class="eq">
+      <span class="t">P</span><sub class="mut" style="font-size:18px">raw</sub> =
+      <span class="gold">φ</span> ·
+      <span class="em t">w</span><sub style="font-size:16px" class="em">eff</sub> ·
+      <span class="em t">h</span><sub style="font-size:16px" class="em">lap</sub> ·
+      <span class="blue">[1 + 0.15(N−2)]</span> ·
+      <span class="t" style="color:#7a5a1f">f</span><sub style="font-size:16px;color:#7a5a1f">confl</sub> ·
+      <span class="t" style="color:#7a5a1f">f</span><sub style="font-size:16px;color:#7a5a1f">ICT</sub>
+    </div>
+    <div class="eq" style="margin-top:6px">
+      <span class="t em">P</span><sub class="em" style="font-size:18px">master</sub> =
+      <span class="t">P</span><sub class="mut" style="font-size:18px">raw</sub> ·
+      <span class="red t">κ</span><sub style="font-size:16px" class="red">evo</sub> ·
+      <span class="blue t">σ</span><sub style="font-size:16px" class="blue">τ</sub> ·
+      <span class="t">v</span><sub style="font-size:16px">vol</sub> ·
+      <span class="t">b</span><sub style="font-size:16px">sesión</sub>
+    </div>
+  </div>
+  <div class="legend">
+    <div class="lg"><span class="sym gold">φ</span> = 1.618… razón áurea — el escalar base de convicción.</div>
+    <div class="lg"><span class="sym red">κ_evo</span> = <b>memoria aprendida</b> del bucket (Thompson/forward) — lo único que aprende del registro.</div>
+    <div class="lg"><span class="sym em">w_eff</span> = peso de <b>timing</b> (híbrido reloj ↔ killzone): el "cuándo".</div>
+    <div class="lg"><span class="sym blue">σ_τ</span> = <b>dilatación de tiempo emergente</b> (Fase E, Monte-Carlo de sincronía).</div>
+    <div class="lg"><span class="sym em">h_lap</span> = check Laplaciano de estructura (1.0 válido · 0.7 si no).</div>
+    <div class="lg"><span class="sym">v_vol</span> = modulador de calidad de volumen [0.75 – 1.20].</div>
+    <div class="lg"><span class="sym blue">N</span> = nº de masas de confluencia · <span class="sym" style="color:#7a5a1f">f_confl</span> = factor de confluencia (≥3 zonas).</div>
+    <div class="lg"><span class="sym">b_sesión</span> = sesgo de sesión (London/NY/Asia × bias diario).</div>
+    <div class="lg" style="grid-column:1 / -1"><span class="sym" style="color:#7a5a1f">f_ICT</span> = 1 + n_conceptos · bonus (order-blocks, FVG, liquidez… capeado) — el "concept stack".</div>
+  </div>
+  <div class="fire">
+    <div class="big"><b>DISPARO</b> &nbsp;⟺&nbsp; (Fase A ∧ B ∧ C ∧ D ✓) &nbsp;∧&nbsp; <b class="em" style="color:#7fd2ab">P_master ≥ P_min</b> &nbsp;∧&nbsp; <b>R:R ≥ RR_min</b><br>
+    <span style="font-size:17px; color:#9db3a6">…y solo difunde a VIP si además pasa el overlay validado: CVD✓ · F2✓ · KL-bajo (tier Calidad).</span></div>
+  </div>
+  <div class="foot"><span>fusion_engine._compute_p_master_refined()</span><span>φ · econofísica · termodinámica · validado con DSR</span></div>
+</section>
+
+</body></html>
