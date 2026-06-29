@@ -19,17 +19,54 @@ INTERVAL_ATTR = {"1m": "INTERVAL_MIN_1", "5m": "INTERVAL_MIN_5",
                  "15m": "INTERVAL_MIN_15", "1h": "INTERVAL_HOUR_1"}
 
 
+# Dukascopy nombra los índices distinto a los tickers de futuros (NQ/ES/YM).
+# Mapeamos cada ticker común a substrings candidatos (se prueban en orden; el 1ro
+# que matchea gana). NASDAQ = "USA 100 Technical Index" -> usatechidxusd -> el
+# substring que resuelve es USATECH (por eso USA100 falló en el probe #116).
+ALIASES = {
+    "NQ":     ["USATECH", "USA100", "NAS100", "USTEC", "TECH100", "NDX"],
+    "NAS100": ["USATECH", "USA100", "NAS100", "USTEC", "NDX"],
+    "NASDAQ": ["USATECH", "USA100", "NAS100", "USTEC", "NDX"],
+    "US100":  ["USATECH", "USA100", "US100", "USTEC", "NDX"],
+    "ES":     ["USA500", "US500", "SPX500", "SP500"],
+    "SPX":    ["USA500", "US500", "SPX500", "SP500"],
+    "SP500":  ["USA500", "US500", "SPX500", "SP500"],
+    "US500":  ["USA500", "US500", "SPX500", "SP500"],
+    "YM":     ["USA30", "US30", "DOW", "WALL"],
+    "DOW":    ["USA30", "US30", "DOW", "WALL"],
+    "US30":   ["USA30", "US30", "DOW"],
+}
+
+
+def _inst_names(I):
+    return [n for n in dir(I) if "INSTRUMENT" in n]
+
+
+def _match(names, kw):
+    k = kw.upper().replace("/", "").replace("_", "").replace(" ", "")
+    return [n for n in names if k in n.upper().replace("_", "")]
+
+
 def _resolve(I, keyword):
-    k = keyword.upper().replace("/", "").replace("_", "")
-    return [n for n in dir(I) if "INSTRUMENT" in n and k in n.upper().replace("_", "")]
+    """Resuelve el instrumento por keyword, probando los alias de índices en orden.
+    Devuelve la lista de matches (vacía si nada resuelve)."""
+    names = _inst_names(I)
+    key = keyword.upper().replace("/", "").replace(" ", "")
+    for kw in ALIASES.get(key, [keyword]):
+        hits = _match(names, kw)
+        if hits:
+            return hits
+    return []
 
 
 def main(argv):
     p = argparse.ArgumentParser()
-    p.add_argument("--symbol", required=True, help="p.ej. XAU/USD, LIGHT, USA500")
+    p.add_argument("--symbol", help="p.ej. XAU/USD, LIGHT, NQ, USATECH")
     p.add_argument("--tf", default="5m")
     p.add_argument("--years", type=float, default=2.0)
     p.add_argument("--out", default=None)
+    p.add_argument("--list-idx", action="store_true",
+                   help="lista los instrumentos de índices disponibles y sale")
     a = p.parse_args(argv)
 
     import dukascopy_python as dk
@@ -37,12 +74,21 @@ def main(argv):
     INTERVAL = getattr(dk, INTERVAL_ATTR.get(a.tf, "INTERVAL_MIN_5"))
     OFFER = getattr(dk, "OFFER_SIDE_BID")
 
+    if a.list_idx:
+        idx = sorted(n for n in _inst_names(I) if "IDX" in n.upper())
+        print("== instrumentos IDX disponibles (%d) ==" % len(idx))
+        for n in idx:
+            print("   ", n)
+        return 0
+    if not a.symbol:
+        print("--symbol requerido (o usa --list-idx)")
+        return 2
+
     cands = _resolve(I, a.symbol)
     if not cands:
-        print("instrumento NO resuelto para '%s'. Candidatos IDX (para S&P/Nasdaq):" % a.symbol)
-        for n in sorted(dir(I)):
-            if "INSTRUMENT_IDX" in n:
-                print("   ", n)
+        print("instrumento NO resuelto para '%s'. Instrumentos IDX disponibles:" % a.symbol)
+        for n in sorted(n for n in _inst_names(I) if "IDX" in n.upper()):
+            print("   ", n)
         return 1
     inst_name = cands[0]
     inst = getattr(I, inst_name)

@@ -1,0 +1,99 @@
+name: Dukascopy cosecha — cubo unsharded + edge base (XAU + NQ)
+
+# Cosecha REAL (no probe): corre el motor sobre la historia de Dukascopy y arma
+# el cubo de cada símbolo. UNSHARDED (--shards 1) -> correcto por construcción:
+# el --verify mostró que el sharding NO reproduce en data con huecos TradFi
+# (fines de semana/breaks); el 1-shard es la verdad. Más lento, pero exacto.
+#
+# Por símbolo: fetch del stack 5m/15m/1h -> cosecha_shard --shards 1 -> cube_report
+# (edge base GROSS, pre-coste: radar, no veredicto neto). Sube los cubos + reportes
+# como artifact. NQ resuelve a USATECH (Nasdaq "USA 100 Technical Index").
+#
+# Self-hosted (Hetzner) — el sandbox bloquea dukascopy. ENCENDE el CCX33.
+# ~15-25 min por símbolo a step=1 (single-thread); 2 símbolos caben de sobra.
+
+on:
+  workflow_dispatch:
+    inputs:
+      symbols:
+        description: "Símbolos (espacio). NQ->USATECH, ES->USA500, XAU/USD ya probado."
+        default: "XAU/USD NQ"
+      years:
+        description: "Años de historia"
+        default: "2"
+      step:
+        description: "Step del replay (1=densidad máxima/más eventos, 2=más rápido)"
+        default: "1"
+
+permissions:
+  contents: read
+
+jobs:
+  cosecha:
+    runs-on: self-hosted
+    timeout-minutes: 240
+    env:
+      SYMBOLS: ${{ inputs.symbols }}
+      YEARS: ${{ inputs.years }}
+      STEP: ${{ inputs.step }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python 3.12 via uv (self-hosted)
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          UV="$HOME/.local/bin/uv"
+          "$UV" python install 3.12
+          "$UV" venv --seed --clear --python 3.12 "$HOME/fqvenv"
+          echo "$HOME/fqvenv/bin" >> "$GITHUB_PATH"
+      - name: Install deps (motor + dukascopy)
+        run: |
+          sudo apt-get update && sudo apt-get install -y libgomp1 \
+            || echo "[apt skip] sin sudo/apt (self-hosted): asume libgomp1 preinstalado"
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest lightgbm scikit-learn turbovec dukascopy-python
+      - name: Resolver instrumentos IDX (ground truth para NQ/ES)
+        run: python tools/fetch_dukascopy.py --list-idx || true
+      - name: Cosecha por símbolo (unsharded) + cube_report
+        run: |
+          set -o pipefail
+          mkdir -p cosecha_cubes research_out
+          for SYM in $SYMBOLS; do
+            SLUG=$(echo "$SYM" | tr '/:' '__')
+            echo "==================== $SYM (slug=$SLUG) ===================="
+            ok=1
+            for TF in 5m 15m 1h; do
+              P=$(python -c "import bt_data; print(bt_data.dataset_path('data','dukascopy','${SYM}','${TF}'))")
+              if [ -f "$P" ]; then echo "== cache hit $SYM $TF: $P =="; continue; fi
+              echo "== fetch $SYM $TF (${YEARS}a) =="
+              if ! python tools/fetch_dukascopy.py --symbol "$SYM" --tf "$TF" --years "$YEARS"; then
+                echo "!! fetch falló para $SYM $TF — salto el símbolo"; ok=0; break
+              fi
+            done
+            [ "$ok" = "1" ] || continue
+            CUBE="cosecha_cubes/tp_cube_${SLUG}.parquet"
+            echo "== cosecha UNSHARDED $SYM -> $CUBE (step=$STEP) =="
+            if python tools/cosecha_shard.py --exchange dukascopy --symbol "$SYM" \
+                 --tf-id 5m --shards 1 --workers 1 --step "$STEP" --out "$CUBE" 2>&1 \
+                 | tee "research_out/cosecha_${SLUG}.txt"; then
+              echo "== cube_report $SYM (edge base GROSS) =="
+              python tools/cube_report.py "$CUBE" 2>&1 | tee "research_out/report_${SLUG}.txt" || true
+            else
+              echo "!! cosecha falló para $SYM (ver research_out/cosecha_${SLUG}.txt)"
+            fi
+          done
+          echo "==== cubos producidos ===="
+          ls -lh cosecha_cubes/ || echo "(sin cubos)"
+          if ! ls cosecha_cubes/*.parquet >/dev/null 2>&1; then
+            echo "!! NINGÚN cubo producido — rojo honesto"; exit 1
+          fi
+      - name: Subir cubos + reportes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dukascopy-cosecha
+          path: |
+            cosecha_cubes/*.parquet
+            research_out/*.txt
+          if-no-files-found: warn
+          retention-days: 90
