@@ -1,69 +1,74 @@
 #!/usr/bin/env python3
-"""probe_mexc_tradfi — resuelve los símbolos TradFi de MEXC en ccxt + su historia.
+"""probe_mexc_tradfi — mide la HISTORIA real de los TradFi de MEXC (make-or-break).
 
-NO cosecha nada. Solo: (1) carga los mercados de MEXC (swap+spot), (2) encuentra los
-candidatos TradFi (oro/plata/petróleo/índices), (3) por cada uno confirma que
-fetch_ohlcv funciona en 3m y 5m y reporta DESDE CUÁNDO hay data (profundidad de
-historia) — para elegir símbolo, TF y meses sin adivinar.
+NO cosecha. Para una shortlist de símbolos (ya resueltos en ccxt), pagina fetch_ohlcv
+HACIA ADELANTE desde ~2 años atrás para medir la profundidad REAL: cuántas barras 5m
+sirve MEXC y desde qué fecha. Si solo da data reciente -> no hay cube validable.
+También prueba qué timeframes soporta (3m no existe en MEXC).
 
   python tools/probe_mexc_tradfi.py
 """
 import sys
 import time
+from datetime import datetime, timezone
 
 import ccxt
 
-TARGETS = ["GOLD", "XAU", "XAUT", "SILVER", "XAG", "OIL", "WTI", "BRENT",
-           "SP500", "SPX", "NAS100", "NASDAQ", "NDX", "PLATINUM", "XPT", "COPPER", "GAS"]
+# símbolos ya resueltos por la corrida anterior (swap USDT-M, los más líquidos)
+SHORTLIST = ["XAU/USDT:USDT", "XAUT/USDT:USDT", "SPX500/USDT:USDT", "SPX/USDT:USDT",
+             "NAS100/USDT:USDT", "USOIL/USDT:USDT", "UKOIL/USDT:USDT",
+             "SILVER/USDT:USDT", "XPT/USDT:USDT", "COPPER/USDT:USDT"]
 
 
-def earliest_ohlcv(ex, sym, tf):
-    """Aproxima la fecha del primer dato paginando desde 2019 hacia adelante."""
+def history_depth(ex, sym, tf="5m", max_pages=80):
+    """Pagina hacia adelante desde ~2 años atrás. Devuelve (n_barras, fecha0, span_dias)."""
+    since = ex.milliseconds() - int(2 * 365 * 24 * 3600 * 1000)
     try:
-        since = ex.parse8601("2019-01-01T00:00:00Z")
-        o = ex.fetch_ohlcv(sym, tf, since=since, limit=10)
-        if o:
-            return o[0][0], len(o)
-        # si no devolvió desde 2019, pide los últimos para confirmar que existe
-        o2 = ex.fetch_ohlcv(sym, tf, limit=10)
-        if o2:
-            return o2[0][0], len(o2)
-        return None, 0
+        first = ex.fetch_ohlcv(sym, tf, since=since, limit=1000)
     except Exception as e:
-        return ("ERR:" + str(e)[:50]), -1
+        return ("ERR:" + str(e)[:60], None, None)
+    if not first:
+        return (0, None, None)
+    bars = list(first)
+    pages = 1
+    while pages < max_pages:
+        cursor = bars[-1][0] + 1
+        try:
+            b = ex.fetch_ohlcv(sym, tf, since=cursor, limit=1000)
+        except Exception:
+            break
+        if not b or b[-1][0] <= bars[-1][0]:
+            break
+        bars += b
+        pages += 1
+        time.sleep(0.12)
+    f0 = datetime.fromtimestamp(bars[0][0] / 1000, tz=timezone.utc).date().isoformat()
+    span = (bars[-1][0] - bars[0][0]) / 1000 / 86400
+    return (len(bars), f0, round(span, 1))
 
 
 def main():
-    print("== MEXC TradFi probe ==", flush=True)
-    found = {}
-    for mtype in ("swap", "spot"):
-        try:
-            ex = ccxt.mexc({"options": {"defaultType": mtype}, "enableRateLimit": True})
-            m = ex.load_markets()
-        except Exception as e:
-            print("  [%s] load_markets ERR: %s" % (mtype, str(e)[:80]), flush=True)
+    print("== MEXC TradFi — historia real (paginando 5m) ==", flush=True)
+    ex = ccxt.mexc({"options": {"defaultType": "swap"}, "enableRateLimit": True})
+    m = ex.load_markets()
+    tfs = sorted(ex.timeframes.keys()) if getattr(ex, "timeframes", None) else []
+    print("timeframes soportados por MEXC: %s" % (", ".join(tfs) or "?"), flush=True)
+    print("(¿3m? %s)\n" % ("SÍ" if "3m" in tfs else "NO — usar 1m o 5m"), flush=True)
+    for s in SHORTLIST:
+        if s not in m:
+            print("  %-20s  (no está en markets)" % s, flush=True)
             continue
-        hits = [s for s in m if any(t in s.upper().replace("/", "").replace(":", "")
-                                    for t in TARGETS)]
-        print("\n--- %s: %d candidatos ---" % (mtype, len(hits)), flush=True)
-        for s in sorted(hits):
-            info = m[s]
-            ts, n = earliest_ohlcv(ex, s, "5m")
-            if isinstance(ts, int):
-                from datetime import datetime, timezone
-                desde = datetime.fromtimestamp(ts / 1000, tz=timezone.utc).date().isoformat()
-                # confirma 3m también
-                ts3, n3 = earliest_ohlcv(ex, s, "3m")
-                ok3 = "3m✓" if isinstance(ts3, int) else "3m✗"
-                print("  %-26s type=%-5s active=%s  5m-desde=%s  %s" % (
-                    s, info.get("type"), info.get("active"), desde, ok3), flush=True)
-                found[s] = desde
-            else:
-                print("  %-26s  (sin OHLCV: %s)" % (s, ts), flush=True)
-            time.sleep(0.15)
-    print("\n== resumen: %d símbolos TradFi con data 5m ==" % len(found), flush=True)
-    for s, d in sorted(found.items(), key=lambda kv: kv[1]):
-        print("  %s  desde %s" % (s, d), flush=True)
+        n, f0, span = history_depth(ex, s, "5m")
+        if isinstance(n, str):
+            print("  %-20s  %s" % (s, n), flush=True)
+        elif n == 0:
+            print("  %-20s  SIN DATA 5m" % s, flush=True)
+        else:
+            yrs = (span or 0) / 365.0
+            verdict = "✓ profundo" if span and span > 250 else ("~ok" if span and span > 90 else "🚩 fino")
+            print("  %-20s  %7d barras 5m · desde %s · %5.0f días (%.1f años)  %s" % (
+                s, n, f0, span or 0, yrs, verdict), flush=True)
+    print("\nGuía: >250 días = cube usable · <90 días = demasiado fino para el gate.", flush=True)
     return 0
 
 
