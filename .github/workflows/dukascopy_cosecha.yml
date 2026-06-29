@@ -72,20 +72,52 @@ jobs:
             done
             [ "$ok" = "1" ] || continue
             CUBE="cosecha_cubes/tp_cube_${SLUG}.parquet"
-            echo "== cosecha UNSHARDED $SYM -> $CUBE (step=$STEP) =="
-            if python tools/cosecha_shard.py --exchange dukascopy --symbol "$SYM" \
-                 --tf-id 5m --shards 1 --workers 1 --step "$STEP" --out "$CUBE" 2>&1 \
-                 | tee "research_out/cosecha_${SLUG}.txt"; then
-              echo "== cube_report $SYM (edge base GROSS) =="
+            CACHE="$HOME/fq_dukascopy_cubes/tp_cube_${SLUG}.parquet"
+            mkdir -p "$HOME/fq_dukascopy_cubes"
+            if [ -f "$CACHE" ]; then
+              # cache en $HOME (persiste entre runs del self-hosted) -> re-fires
+              # gatean en segundos. Borra $HOME/fq_dukascopy_cubes para re-cosechar.
+              echo "== cube cache-hit $SYM: $CACHE (omito cosecha de ~h) =="
+              cp "$CACHE" "$CUBE"
               python tools/cube_report.py "$CUBE" 2>&1 | tee "research_out/report_${SLUG}.txt" || true
             else
-              echo "!! cosecha falló para $SYM (ver research_out/cosecha_${SLUG}.txt)"
+              echo "== cosecha UNSHARDED $SYM -> $CUBE (step=$STEP) =="
+              if python tools/cosecha_shard.py --exchange dukascopy --symbol "$SYM" \
+                   --tf-id 5m --shards 1 --workers 1 --step "$STEP" --out "$CUBE" 2>&1 \
+                   | tee "research_out/cosecha_${SLUG}.txt"; then
+                cp "$CUBE" "$CACHE"
+                echo "== cube_report $SYM (edge base GROSS) =="
+                python tools/cube_report.py "$CUBE" 2>&1 | tee "research_out/report_${SLUG}.txt" || true
+              else
+                echo "!! cosecha falló para $SYM (ver research_out/cosecha_${SLUG}.txt)"
+              fi
             fi
           done
           echo "==== cubos producidos ===="
           ls -lh cosecha_cubes/ || echo "(sin cubos)"
           if ! ls cosecha_cubes/*.parquet >/dev/null 2>&1; then
             echo "!! NINGÚN cubo producido — rojo honesto"; exit 1
+          fi
+      - name: Gate POC-distance + KL (TradFi) sobre los cubos
+        run: |
+          set -o pipefail
+          ARGS=""
+          for SYM in $SYMBOLS; do
+            SLUG=$(echo "$SYM" | tr '/:' '__')
+            CUBE="cosecha_cubes/tp_cube_${SLUG}.parquet"
+            KL=$(python -c "import bt_data; print(bt_data.dataset_path('data','dukascopy','${SYM}','5m'))")
+            if [ -f "$CUBE" ] && [ -f "$KL" ]; then
+              ARGS="$ARGS --pair $SLUG $CUBE $KL"
+            else
+              echo "== gate skip $SYM (falta cubo o klines) =="
+            fi
+          done
+          if [ -n "$ARGS" ]; then
+            echo "== gate_poc_distance: POC-distance + KL, ortogonalidad, CPCV/PBO =="
+            echo "   (n bajo en TradFi -> RADAR; mira consistencia far>near por símbolo)"
+            python tools/gate_poc_distance.py $ARGS 2>&1 | tee research_out/gate_tradfi.txt || true
+          else
+            echo "(sin cubos+klines para gatear)"
           fi
       - name: Subir cubos + reportes
         if: always()
@@ -94,6 +126,7 @@ jobs:
           name: dukascopy-cosecha
           path: |
             cosecha_cubes/*.parquet
+            data/dukascopy/*.parquet
             research_out/*.txt
           if-no-files-found: warn
           retention-days: 90
