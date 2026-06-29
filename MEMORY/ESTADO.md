@@ -2,7 +2,7 @@
 
 > La página que más caduca. Qué está vivo, qué duerme, qué mide, qué espera veredicto, qué
 > es plan en papel. Si la fecha de abajo es vieja, confírmala contra `git log` y `research/*.md`
-> antes de confiar. Fecha de corte: **2026-06-27** (HEAD: `f0cce80`).
+> antes de confiar. Fecha de corte: **2026-06-29** (HEAD: `2a4326f`).
 
 ---
 
@@ -56,6 +56,24 @@ sube conviction client-facing. Hoy mide, no decide.
 
 ---
 
+## TradFi híbrido + features nuevos (2026-06-29)
+
+**Híbrido data/venue (DECISIONES §11):** validar TradFi sobre la historia profunda de Dukascopy
+(gratis, años) y ejecutar en el perp de MEXC. El motor **DIGIERE** la OHLCV sin order-flow (verify:
+45 eventos en XAU). **Cosecha UNSHARDED de XAU + NQ en marcha** (`dukascopy_cosecha.yml`; NQ→USATECH).
+Transfieren KL/ICT/precio; CVD/F2 **no** (son del venue).
+
+**Volume Profile (POC/VA) — `volume_profile.py` (PR #121):** la pata de "volumen" de la confluencia
+triple, construida (puro, 7 tests, crypto+TradFi). Medida sobre crypto (`measure_vp_tier.py`, #123):
+zona premium/discount **REFUTADA** (inconsistente), rev-aligned **ESPEJISMO** (n=39), **POC-distance
+candidato consistente** (lejos>cerca en BTC/ETH/SOL) → pendiente gate. Ver `CEMENTERIO.md`.
+
+**TJR/ICT:** el bot YA implementa el framework ICT (sweeps/OB/FVG/PD/killzones/`session_bias`). Es
+capa de **convicción+gating**, no el edge validado (ese es CVD/F2/KL). `session_bias.py` ES la tesis
+"Asia rango → London fake → NY continuación". MSS/CHoCH se detectan pero **NO gatean** (a propósito).
+
+---
+
 ## El roadmap (de `research/plan_evolucion_2026.md`)
 - **FASE 1 — MAX EDGE (~30-45 días, sin capital extra):** encender + medir el CVD filter; sellar el
   fill-rate maker (a 30-50 fills); poner a punto ETH (cube + validación).
@@ -78,6 +96,9 @@ con outcome. El plan **cerebro** (`research/cerebro_arquitectura.md`, commit `f0
 ---
 
 ## Trabajo reciente (últimos commits, contexto)
+- **TradFi híbrido + Volume Profile (2026-06-29):** cosecha unsharded XAU+NQ + alias de índices
+  (PR #122); `measure_vp_tier` (PR #123); módulo Volume Profile (PR #121); fetcher Dukascopy
+  (#117/#118/#120); probes Dukascopy/MEXC (#114/#115/#116).
 - `f0cce80` blueprint del cerebro (analítica por etapas).
 - `7197ede` F2-persist re-confirm n_trials=44 + cableado dormido (PR #85); `c355d25` registra la luz verde.
 - `4176dd6` F1 impacto + F2 persistencia, validadores measure-first (PR #84).
@@ -95,6 +116,11 @@ con outcome. El plan **cerebro** (`research/cerebro_arquitectura.md`, commit `f0
   la prima se comprime a ~0.
 - **BTC/ETH aún no están en el ledger rico de 4 TP** — solo en motor_paper. No asumas que el SQLite
   tiene los 3 símbolos hasta que Etapa 0 del cerebro esté hecha.
+- **El +2.4R/54%WR del "rev-aligned" de Volume Profile en ETH es ESPEJISMO (n=39).** El motor es de
+  momentum: el bucket contrarian es chico. La zona premium/discount NO da edge consistente cross-símbolo;
+  lo único que aguanta es **POC-distance** (lejos>cerca), y aun ése está PENDIENTE del gate.
+- **CVD/F2 NO transfieren a TradFi** (order-flow del venue; Dukascopy da solo OHLCV). En oro/NASDAQ
+  solo cuentan KL + precio + ICT. No asumas el "motor premium" completo fuera de cripto.
 
 ---
 
