@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>Cómo decide un bot — una clase de cero</title>
+<style>
+  @page { size: 1280px 720px; margin: 0; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root{
+    --bg:#f7f5f0; --ink:#1c2420; --muted:#5d6b63; --line:#d8d2c6;
+    --em:#0f6f4d; --em2:#0a5238; --gold:#b08338; --red:#a23b2e; --card:#fffdf8; --blue:#2f5d8a; --ink2:#2b332e;
+  }
+  body{ font-family:"Georgia","Times New Roman",serif; color:var(--ink); background:#333; }
+  .mono{ font-family:"SF Mono","Consolas","Menlo",monospace; }
+  .slide{ width:1280px; height:720px; background:var(--bg); position:relative;
+    padding:56px 78px; overflow:hidden; page-break-after:always; }
+  .dark{ background:#16201b; color:#ede7da; }
+  .dark .sub,.dark .foot,.dark .kick{ color:#9db3a6; } .dark .rule{ background:#cdbf9a; }
+  .dark h1,.dark h2{ color:#fbf7ee; }
+  .kick{ font-family:"Helvetica Neue",Arial,sans-serif; font-size:13px; letter-spacing:.3em;
+    text-transform:uppercase; color:var(--em); font-weight:700; }
+  h1{ font-size:56px; line-height:1.05; letter-spacing:-.015em; margin-top:12px; }
+  h2{ font-size:37px; line-height:1.1; letter-spacing:-.01em; margin-top:6px; }
+  .sub{ font-size:22px; color:var(--muted); font-style:italic; margin-top:16px; line-height:1.5; }
+  .rule{ height:2px; background:var(--ink); width:62px; margin:20px 0; }
+  .foot{ position:absolute; left:78px; right:78px; bottom:30px; display:flex;
+    justify-content:space-between; font-family:"Helvetica Neue",Arial,sans-serif;
+    font-size:12px; letter-spacing:.17em; text-transform:uppercase; color:var(--muted);
+    border-top:1px solid var(--line); padding-top:12px; }
+  .dark .foot{ border-top:1px solid #2f3d35; }
+  p{ font-size:23px; line-height:1.55; color:var(--ink2); } .dark p{ color:#d7ccba; }
+  .lead{ font-size:25px; }
+  .eng{ background:#eef4ef; border-left:4px solid var(--em); border-radius:0 8px 8px 0;
+    padding:16px 22px; margin-top:22px; font-size:21px; line-height:1.5; }
+  .eng b{ color:var(--em2); } .eng .tag{ font-family:"Helvetica Neue",Arial,sans-serif;
+    font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--em); font-weight:700; display:block; margin-bottom:6px; }
+  .em{ color:var(--em); font-weight:700; } .gold{ color:var(--gold); font-weight:700; } .blue{ color:var(--blue); font-weight:700; } .red{ color:var(--red); font-weight:700; }
+  ul{ margin:14px 0 0 24px; } li{ font-size:22px; line-height:1.5; margin-bottom:11px; color:var(--ink2); }
+  .grid{ display:flex; gap:16px; margin-top:22px; }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px 20px; flex:1; }
+  .card .n{ font-family:"Helvetica Neue",Arial,sans-serif; font-size:13px; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--em); font-weight:700; }
+  .card .d{ font-size:17px; color:var(--ink2); line-height:1.42; margin-top:7px; }
+  .card .d .mut{ color:var(--muted); }
+  .eqbox{ background:#16201b; color:#ede7da; border-radius:10px; padding:20px 26px; margin-top:18px; }
+  .eqbox .eq{ font-size:25px; line-height:1.7; } .eqbox .eq .t{ font-style:italic; }
+  .big{ font-size:120px; font-weight:700; letter-spacing:-.03em; color:var(--em); line-height:.95; }
+  .note{ font-size:17px; color:var(--muted); font-style:italic; margin-top:16px; }
+</style></head><body>
+
+<!-- 1 — portada -->
+<section class="slide dark">
+  <div class="kick">Una clase · de cero · sin jerga</div>
+  <h1>Cómo decide<br>un bot</h1>
+  <div class="rule"></div>
+  <p class="sub" style="font-size:25px; max-width:880px">Para quien nunca operó un mercado en su vida —
+  contado en <b style="color:#fbf7ee">lenguaje de ingeniero</b>. Si entiendes un sistema de control,
+  un sensor y una señal con ruido, vas a entender <b style="color:#fbf7ee">exactamente</b> qué hace este bot.</p>
+  <div style="margin-top:44px" class="kick">El caso · la solución · el por qué · el cómo</div>
+  <div class="foot"><span>FQ · signal engine</span><span>No es magia. Es medición.</span></div>
+</section>
+
+<!-- 2 — el caso / el problema -->
+<section class="slide">
+  <div class="kick">El caso — el problema a resolver</div>
+  <h2>Una señal ahogada en ruido</h2>
+  <div class="rule"></div>
+  <p>El precio de un activo es una <b>señal con muchísimo ruido</b>. La mayoría del movimiento no significa
+  nada — es aleatorio. De vez en cuando hay una <b class="em">señal real</b> escondida adentro: un momento
+  donde el mercado se va a mover de forma predecible.</p>
+  <p style="margin-top:14px"><b>La pregunta de un millón de dólares:</b> ¿en qué instante exacto apretar el
+  gatillo (comprar o vender), y en cuál NO?</p>
+  <div class="eng"><span class="tag">🔧 La trampa</span>
+    El 99% de la gente responde esa pregunta con <b>corazonada, noticias o humo</b>. Es como pilotar un dron
+    a ojo. Nosotros lo tratamos como lo que es: un <b>problema de ingeniería de señales</b> — filtrar la señal
+    del ruido, y actuar solo cuando el instrumento, no la emoción, lo dice.</p>
+  <div class="foot"><span>Mercado = sistema ruidoso, no-estacionario</span><span>El reto: señal vs ruido</span></div>
+</section>
+
+<!-- 3 — la analogía madre -->
+<section class="slide">
+  <div class="kick">La solución, en una idea</div>
+  <h2>Fusión de sensores + un umbral</h2>
+  <div class="rule"></div>
+  <p class="lead">El bot es, en el fondo, un <b class="em">sistema de control</b>: toma varios sensores
+  ruidosos, los <b>fusiona</b> en una sola estimación de <b>convicción</b>, y actúa <b>solo</b> si esa
+  convicción supera un umbral (setpoint) <b>y</b> la estadística la respalda.</p>
+  <div class="eng"><span class="tag">🔧 En lenguaje de ingeniero</span>
+    Igual que un dron fusiona <b>IMU + GPS + barómetro</b> en una sola estimación de posición y solo corrige
+    cuando está seguro — el bot fusiona <b>flujo + estructura + timing + régimen</b> en un solo número, y
+    solo dispara cuando ese número cruza el setpoint. <b>El motor literalmente se llama “fusion_engine”.</b></div>
+  <p class="note">Convicción alta + por encima del umbral + las compuertas de seguridad abiertas = dispara. Si no, se queda quieto. Como debe ser un buen lazo de control.</p>
+  <div class="foot"><span>Sensor fusion · setpoint · safety interlocks</span><span>fusion_engine.evaluate_signal()</span></div>
+</section>
+
+<!-- 4 — los sensores -->
+<section class="slide">
+  <div class="kick">Las entradas — qué “mide” el bot</div>
+  <h2>Los sensores</h2>
+  <div class="rule"></div>
+  <div class="grid">
+    <div class="card"><div class="n">Flujo firmado (CVD)</div><div class="d">
+      ¿Quién <b>empuja</b> de verdad? La fuerza neta de los compradores agresivos vs vendedores.
+      <span class="mut">Como medir la <b>corriente</b>, no solo el voltaje — el esfuerzo real, no la posición.</span></div></div>
+    <div class="card"><div class="n">Estructura (Laplaciano)</div><div class="d">
+      ¿El “terreno” del precio aguanta? Un <b>check Laplaciano</b> (∇²) del campo de precio.
+      <span class="mut">El mismo operador de detección de bordes y difusión que ya conoces.</span></div></div>
+    <div class="card"><div class="n">Régimen (entropía)</div><div class="d">
+      ¿El sistema está en <b>equilibrio</b> o <b>forzado</b>? Mide la “flecha del tiempo” del precio.
+      <span class="mut">Termodinámica: producción de entropía.</span></div></div>
+  </div>
+  <div class="grid">
+    <div class="card"><div class="n">Timing / sesión</div><div class="d">
+      ¿Es la <b>hora</b> correcta? Pondera por sesión (Londres/NY/Asia) y killzones. <span class="mut">El “cuándo” importa tanto como el “qué”.</span></div></div>
+    <div class="card"><div class="n">Confluencia</div><div class="d">
+      ¿Cuántas <b>evidencias independientes</b> coinciden en el mismo punto? Más sensores de acuerdo = más confianza.</div></div>
+    <div class="card"><div class="n">Memoria (κ)</div><div class="d">
+      ¿Cómo le fue al bot <b>antes</b> en una situación igual? Aprende de su propio historial. <span class="mut">Control adaptativo.</span></div></div>
+  </div>
+  <div class="foot"><span>Cada sensor es causal — solo usa el pasado, nunca el futuro</span><span>6 entradas → 1 número</span></div>
+</section>
+
+<!-- 5 — la ecuación = la fusión -->
+<section class="slide">
+  <div class="kick">El cómo — la ecuación de fusión</div>
+  <h2>Cómo se combinan en un número</h2>
+  <div class="rule"></div>
+  <div class="eqbox">
+    <div class="eq"><span class="t">P</span><sub style="font-size:15px">raw</sub> =
+      <span class="gold">φ</span> · <span class="em t">w</span> · <span class="em t">h</span><sub style="font-size:14px" class="em">lap</sub> ·
+      <span class="blue">[1+0.15(N−2)]</span> · <span class="t" style="color:#caa24f">f</span><sub style="font-size:14px;color:#caa24f">confl</sub> ·
+      <span class="t" style="color:#caa24f">f</span><sub style="font-size:14px;color:#caa24f">ICT</sub></div>
+    <div class="eq" style="margin-top:4px"><span class="em t">P</span><sub style="font-size:15px" class="em">master</sub> =
+      <span class="t">P</span><sub style="font-size:15px">raw</sub> · <span class="red t">κ</span> · <span class="blue t">σ</span><sub style="font-size:14px" class="blue">τ</sub> ·
+      <span class="t">v</span> · <span class="t">b</span></div>
+  </div>
+  <p style="margin-top:16px; font-size:21px">Léelo como una <b>multiplicación de factores de confianza</b>: arrancas en
+  <span class="gold">φ</span> (un número base) y cada sensor lo <b>sube o baja</b>. Si todos apuntan al
+  mismo lado, P_master crece. Si uno desconfía, lo arrastra abajo.</p>
+  <div class="eng" style="margin-top:14px; font-size:19px"><span class="tag">🔧 Los dos términos “raros”</span>
+    <span class="red">κ</span> = lo único que <b>aprende</b> (cuánto confiar según cómo le fue antes — control adaptativo).
+    &nbsp;·&nbsp; <span class="blue">σ_τ</span> = <b>dilatación de tiempo</b>: el bot simula cientos de futuros y, según qué tan
+    “sincronizados” salen, estira o encoge su horizonte. Como un análisis de tolerancias antes de decidir.</div>
+  <div class="foot"><span>φ = razón áurea · N = nº de confluencias</span><span>P_master = la convicción fusionada</span></div>
+</section>
+
+<!-- 6 — el disparo -->
+<section class="slide dark">
+  <div class="kick">El disparo — el comparador</div>
+  <h2>Cuándo aprieta el gatillo</h2>
+  <div class="rule"></div>
+  <div class="eqbox" style="background:#1d2a23; border:1px solid #2f3d35">
+    <div class="eq" style="font-size:23px"><b style="color:#7fd2ab">DISPARA</b> &nbsp;⟺&nbsp;
+      (compuertas A·B·C·D ✓) &nbsp;∧&nbsp; (<b style="color:#7fd2ab">P_master ≥ umbral</b>) &nbsp;∧&nbsp; (ganancia:riesgo ≥ mínimo)</div>
+  </div>
+  <p style="margin-top:18px">Tres condiciones, <b>todas</b> obligatorias. Si una falla, no hay disparo —
+  da igual qué tan bonito se vea el resto.</p>
+  <div class="eng" style="background:#1d2a23; border-left-color:#7fd2ab; margin-top:18px">
+    <span class="tag" style="color:#7fd2ab">🔧 En lenguaje de ingeniero</span>
+    Es un <b style="color:#fbf7ee">interlock de seguridad</b> con un <b style="color:#fbf7ee">comparador</b>: las compuertas A–D son las
+    precondiciones (¿hay sesgo? ¿hay liquidez? ¿hay 3+ confluencias? ¿es la killzone?), el umbral es el setpoint,
+    y la relación ganancia:riesgo es el factor de seguridad mínimo. <b>Ninguna sola dispara la máquina.</b></div>
+  <div class="foot"><span>Como un PLC: todas las condiciones o no arranca</span><span>Conservador por diseño</span></div>
+</section>
+
+<!-- 7 — la física, el por qué -->
+<section class="slide">
+  <div class="kick">El por qué — por qué física, no adorno</div>
+  <h2>Tres ideas prestadas de la física</h2>
+  <div class="rule"></div>
+  <ul>
+    <li><b class="em">La flecha del tiempo (entropía).</b> Una serie de precios se puede ver “hacia adelante” y
+      “hacia atrás”. Si se ven <b>iguales</b>, el mercado está cerca de equilibrio (reversible) — ahí el edge paga.
+      Si se ven muy distintas, está <b>forzado</b> (trending) — ahí no. <span class="mut">Eso es producción de entropía: termodinámica fuera de equilibrio.</span></li>
+    <li><b class="em">La memoria del flujo.</b> Cuando un grande parte una orden enorme en pedacitos, el flujo
+      queda <b>autocorrelacionado</b> — tiene inercia. <span class="mut">Como un sistema de primer orden: el pasado reciente predice el siguiente paso.</span></li>
+    <li><b class="em">Cientos de futuros (Monte-Carlo).</b> Antes de decidir, el bot simula muchas trayectorias
+      posibles y mide la probabilidad de tocar el stop y el retorno esperado. <span class="mut">Idéntico a un Montecarlo de tolerancias o de confiabilidad.</span></li>
+  </ul>
+  <p class="note">No usamos la física porque suene bonito. La usamos porque es <b>medible por barra</b> y, sobre todo, porque la pasó el filtro del siguiente slide.</p>
+  <div class="foot"><span>Econofísica · termo-estocástica · Monte-Carlo</span><span>Rigurosa y empírica, no decorativa</span></div>
+</section>
+
+<!-- 8 — el gate, validar contra la suerte -->
+<section class="slide">
+  <div class="kick">Lo que casi nadie hace</div>
+  <h2>¿Es edge real… o fue suerte?</h2>
+  <div class="rule"></div>
+  <p>Aquí está el corazón. <b>Cualquiera</b> puede ajustar una fórmula que se vea genial en el pasado —
+  es <b class="red">sobreajuste</b> (memorizar el ruido). La pregunta de ingeniero de verdad:
+  <b>¿esto generaliza, o solo memorizó?</b></p>
+  <div class="grid" style="margin-top:18px">
+    <div class="card"><div class="n">El gate (DSR / validación)</div><div class="d">
+      Cada idea se prueba contra el <b>azar</b>: ¿separa de verdad, corrigiendo por cuántas veces lo intentamos?
+      <span class="mut">Como train/test y significancia estadística — si no le gana a la suerte, no entra.</span></div></div>
+    <div class="card"><div class="n">El cementerio 🪦</div><div class="d">
+      Lo que no pasa, <b>se mata y se documenta</b> — incluido lo que probamos de moda “cuántica”: no pagó.
+      <span class="mut">Un buen ingeniero descarta el modelo que no generaliza, aunque le duela.</span></div></div>
+  </div>
+  <div class="eng" style="margin-top:18px"><span class="tag">🔧 La regla de oro</span>
+    <b>Primero se mide, después se confía.</b> Nada se cablea a la señal real hasta que el registro forward
+    (datos nuevos, que el modelo nunca vio) confirma que paga. Es calibración honesta, no fe.</div>
+  <div class="foot"><span>Deflated Sharpe Ratio · López de Prado</span><span>Measure-first · todo medido o al cementerio</span></div>
+</section>
+
+<!-- 9 — cierre -->
+<section class="slide dark">
+  <div class="kick">En una frase</div>
+  <h1 style="font-size:46px; max-width:940px">No es adivinar el futuro.<br>Es medir el presente, con disciplina.</h1>
+  <div class="rule"></div>
+  <p class="sub" style="font-size:23px; max-width:920px">El bot toma sensores ruidosos, los fusiona en una
+  convicción, dispara solo si cruza un umbral y pasa las compuertas — y <b style="color:#fbf7ee">solo confía
+  en lo que le gana a la suerte</b> en datos nuevos. <br>Lo demás, al cementerio.</p>
+  <div class="eng" style="background:#1d2a23; border-left-color:#cdbf9a; margin-top:30px; font-size:22px">
+    <span class="tag" style="color:#cdbf9a">🔧 Para el ingeniero</span>
+    Es <b style="color:#fbf7ee">control + procesamiento de señales + validación estadística</b>, aplicado a un
+    sistema ruidoso y no-estacionario que se llama “el mercado”. Si lo puedes medir y validar, lo puedes defender.</div>
+  <div class="foot"><span>FQ · un edge que se puede auditar</span><span>Ingeniería aplicada a mercados</span></div>
+</section>
+
+</body></html>
