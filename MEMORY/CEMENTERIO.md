@@ -81,10 +81,14 @@
   - **Tesis reversión-a-value (rev-aligned) → ESPEJISMO.** ETH +2.4R / 54% WR pero **n=39**. El motor
     es de momentum (dispara rev-against ~95%); el bucket contrarian es muy chico. No sobrevive DSR
     (como el +1.47R del CVD estricto, n=17).
-  - **POC-distance → CANDIDATO consistente.** *lejos del POC > cerca* en LOS 3 (BTC +0.37 vs +0.22,
-    ETH +0.44 vs +0.18, SOL +0.29 vs +0.16; n≈250/cuartil). POC = chop; lejos = tendencia (wheelhouse
-    del motor). **Pendiente gate CPCV/DSR + ortogonalidad vs KL.**
-- **Status:** módulo construido, **NO cableado.** POC-distance al gate; zona y rev-aligned al cementerio.
+  - **POC-distance → PASA EL GATE (in-cube, 2026-06-29, `tools/gate_poc_distance.py`).** *lejos del
+    POC > cerca* en LOS 3 símbolos. Pooled n=3136: tier "lejos" (q0.80, n=628) meanR +0.416 vs base
+    +0.237 (**uplift +0.179**); DSR ✓ deflactado (n_trials=6). **ORTOGONAL a KL:** dentro de irrev-bajo,
+    lejos suma **+0.290** (KL-bajo +0.332 → KL-bajo & lejos +0.622, n=329, DSR ✓). CPCV uplift OOS
+    mediana +0.174 (**87% paths >0**); **PBO 0.26**. Es "no dispares en el chop de ayer", apila SOBRE KL.
+    Caveat: **GROSS** (pre-coste); **SOL marginal** (+0.014, lo cargan BTC/ETH). El gate ✓ ≠ forward ✓.
+- **Status (POC-distance):** **VALIDADO en cube (gate ✓), PENDIENTE forward** — mismo estatus que KL.
+  NO cableado. Próximo: medir forward (flag dormido) antes de subir conviction. Zona y rev-aligned: muertos.
 
 ### F1 — residual de impacto raíz-cuadrada — **REAL pero REDUNDANTE con CVD**
 - **Idea:** ley δ≈0.5: impacto ∝ σ·√(Q/V). Si el precio se mueve MENOS de lo predicho →
