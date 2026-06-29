@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  :root{ --ink:#f3f6f8; --accent:#19b88c; }
+  *{ margin:0; padding:0; box-sizing:border-box; -webkit-print-color-adjust:exact; }
+  html,body{ background:#000; }
+  .pfp{ width:1000px; height:1000px; position:relative; overflow:hidden; background:#05070a; }
+  /* the Porsche, graded toward the FQ dark/cool look */
+  .car{ position:absolute; inset:0; background:url('assets/porsche.png') center 42% / cover no-repeat;
+    filter:contrast(1.08) brightness(.82) saturate(1.05); }
+  /* emerald grade + depth */
+  .tint{ position:absolute; inset:0; background:
+      radial-gradient(70% 70% at 50% 38%, rgba(25,184,140,.16), transparent 60%),
+      linear-gradient(180deg, rgba(5,7,10,.10) 0%, rgba(5,7,10,.20) 45%, rgba(5,7,10,.86) 100%);
+    mix-blend-mode:normal; }
+  .vig{ position:absolute; inset:0; box-shadow:inset 0 0 220px 60px rgba(0,0,0,.85); border-radius:50%; }
+  .ring{ position:absolute; inset:34px; border-radius:50%; border:5px solid rgba(25,184,140,.55);
+    box-shadow:0 0 40px rgba(25,184,140,.30), inset 0 0 30px rgba(25,184,140,.12); }
+  /* FQ lockup bottom-center over the scrim */
+  .lock{ position:absolute; left:0; right:0; bottom:118px; z-index:4; display:flex; flex-direction:column; align-items:center; }
+  .row{ display:flex; align-items:center; gap:18px; }
+  .bar{ width:16px; height:118px; background:var(--accent); border-radius:8px; box-shadow:0 0 34px rgba(25,184,140,.9); }
+  .fq{ font-family:"Helvetica Neue",Arial,sans-serif; font-weight:800; font-size:150px; letter-spacing:-7px;
+    color:var(--ink); line-height:.8; text-shadow:0 6px 30px rgba(0,0,0,.7); }
+  .kick{ font-family:"SF Mono","JetBrains Mono",Menlo,Consolas,monospace; color:var(--accent);
+    letter-spacing:11px; text-transform:uppercase; font-size:24px; font-weight:700; margin-top:20px;
+    text-shadow:0 2px 12px rgba(0,0,0,.8); }
+</style>
+</head>
+<body>
+<div class="pfp">
+  <div class="car"></div>
+  <div class="tint"></div>
+  <div class="vig"></div>
+  <div class="lock">
+    <div class="row"><div class="bar"></div><div class="fq">FQ</div></div>
+    <div class="kick">Fibonacci Quantum</div>
+  </div>
+  <div class="ring"></div>
+</div>
+</body>
+</html>
