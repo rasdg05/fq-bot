@@ -50,7 +50,13 @@ def tag(label, cube_path, kl_path, *, tp="tp4", horizon=576, n_bins=50):
     e["ts"] = tsd.values.astype("datetime64[ms]").astype("int64")
     e["day"] = tsd.dt.normalize()
 
-    k = pd.read_parquet(kl_path).sort_values("ts").reset_index(drop=True)
+    k = pd.read_parquet(kl_path)
+    if "ts" not in k.columns and "timestamp" in k.columns:   # schema Dukascopy (datetime)
+        t = pd.to_datetime(k["timestamp"])
+        if getattr(t.dt, "tz", None) is not None:
+            t = t.dt.tz_convert("UTC").dt.tz_localize(None)
+        k["ts"] = t.values.astype("datetime64[ns]").astype("int64") // 1_000_000
+    k = k.sort_values("ts").reset_index(drop=True)
     k["day"] = pd.to_datetime(k["ts"], unit="ms", utc=True).dt.tz_localize(None).dt.normalize()
     kl_ts = k.ts.values
     kl_close = pd.to_numeric(k["close"], errors="coerce").to_numpy(float)
