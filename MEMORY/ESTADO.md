@@ -2,7 +2,7 @@
 
 > La página que más caduca. Qué está vivo, qué duerme, qué mide, qué espera veredicto, qué
 > es plan en papel. Si la fecha de abajo es vieja, confírmala contra `git log` y `research/*.md`
-> antes de confiar. Fecha de corte: **2026-06-29** (HEAD: `2a4326f`).
+> antes de confiar. Fecha de corte: **2026-06-30** (HEAD: `ead6809`).
 
 ---
 
@@ -126,9 +126,17 @@ con outcome. El plan **cerebro** (`research/cerebro_arquitectura.md`, commit `f0
   lo único que aguanta es **POC-distance** (lejos>cerca), y aun ése está PENDIENTE del gate.
 - **CVD/F2 NO transfieren a TradFi** (order-flow del venue; Dukascopy da solo OHLCV). En oro/NASDAQ
   solo cuentan KL + precio + ICT. No asumas el "motor premium" completo fuera de cripto.
+- **"0 disparos" puede ser DEPLOY, no el motor — revisa Railway ANTES de asumir "selectivo".** El
+  2026-06-30 el bot no disparó en todo el día y yo lo expliqué como comportamiento selectivo normal;
+  la captura de Railway mostró la verdad: un **deploy fallido** (`Heartbeat timeout / Infra Error`).
+  Raíz: los `.pdf/.html/.png` de `MEMORY/`+`presentaciones/` NO estaban en la blacklist de
+  `watchPatterns` (solo `*.md`), así que **cada commit de docs re-desplegaba el worker** → reseteaba
+  contadores ("Total: 0") y lo exponía a blips transitorios. Fix: blacklist `MEMORY/`,
+  `presentaciones/`, `*.pdf/*.html/*.png` (**PR #138**, `funding_paper.py` sigue runtime al final).
+  **Lección:** ante 0 cadencia, primero confirma uptime/deploy en Railway; sólo después sospecha del edge.
 
 ---
 
 _Fuente de verdad: `git log`, `research/plan_evolucion_2026.md`, `research/cerebro_arquitectura.md`,
 `research/fisica_moderna_2026_resultados.md`, `research/carry_regime.md`, `motor_paper.py`,
-`fq_bot_v3_2.py`. Actualizado 2026-06-27._
+`fq_bot_v3_2.py`, `railway.toml`. Actualizado 2026-06-30._

@@ -266,6 +266,31 @@ construcción) hasta arreglar el buffer. Es plomería, no edge.
 
 ---
 
+## 12. Deploy hygiene: un push de SOLO docs no re-despliega el worker
+
+**Decisión.** En `railway.toml`, `watchPatterns` usa **blacklist** (deploya `**` salvo lo que
+seguro NO toca el runtime), no whitelist. La doc/research queda fuera: `*.md`, `internal/`,
+`.github/`, `tests/`, `tools/`, **`MEMORY/`, `presentaciones/`, `*.pdf`, `*.html`, `*.png`**.
+`tools/funding_paper.py` se **re-incluye al final** (gana el último match) porque SÍ es runtime.
+
+**Por qué.** Blacklist y no whitelist = **fallo seguro**: si mañana se añade un tipo de archivo
+de runtime nuevo, deploya por defecto (mejor un redeploy de más que un fix que nunca sube). Y la
+doc/figuras NO deben churnear el worker: cada redeploy **resetea los contadores de sesión** y
+expone al bot a blips transitorios de infraestructura.
+
+**Detonante (2026-06-30).** El bot no disparó en todo el día. NO era el motor: `watchPatterns`
+solo excluía `*.md`, así que los `.pdf/.html/.png` que subimos a `MEMORY/investigacion` (review,
+preprint, deck) re-desplegaban el worker en cada commit de docs. Uno de esos deploys falló
+(`Heartbeat timeout / Infrastructure Error`) y dejó al bot caído con "Total: 0".
+
+**Evidencia.** `railway.toml` (PR #138). Lección de diagnóstico registrada en `ESTADO.md`
+("0 disparos puede ser DEPLOY, no el edge — revisa Railway antes de asumir 'selectivo'").
+
+**Impacto.** Los commits de memoria de procesos (esta misma directiva de RasDG) ya **no**
+reinician el bot. El diagnóstico de cadencia ahora separa "deploy caído" de "edge selectivo".
+
+---
+
 ## Resumen
 
 | Decisión | Razonamiento core | Archivos / commits clave | Estado |
@@ -280,6 +305,7 @@ construcción) hasta arreglar el buffer. Es plomería, no edge.
 | Cerebro | registro asimétrico (SOL≠BTC/ETH) | `cerebro_arquitectura.md`, `f0cce80` | Etapa 0 planificada |
 | Producto 3 capas | cada edge documentado y gateado | `plan_evolucion_2026.md` | Cap.1 vivo; 2/3 midiendo |
 | Híbrido data/venue | TradFi: validar en Dukascopy, ejecutar en perp | `fetch_dukascopy.py`, #116/#122 | Cosecha XAU+NQ en marcha |
+| Deploy hygiene | docs no re-despliegan; blacklist = fallo seguro | `railway.toml`, #138 | VIVO |
 
 ---
 
@@ -293,5 +319,5 @@ construcción) hasta arreglar el buffer. Es plomería, no edge.
 6. **No hay veto sin dato**: `FQ_CVD_FILTER`, `FQ_PERSIST_BOOST`, etc. son flags con criterio de
    ON/OFF documentado en el plan.
 
-_Actualizado: 2026-06-29. Fuente de verdad: `git log`, `research/*.md`, `tools/validation_gate.py`,
-`motor_paper.py`, `launcher.py`, `tools/fetch_dukascopy.py`, `volume_profile.py`, `tests/`._
+_Actualizado: 2026-06-30. Fuente de verdad: `git log`, `research/*.md`, `tools/validation_gate.py`,
+`motor_paper.py`, `launcher.py`, `tools/fetch_dukascopy.py`, `volume_profile.py`, `railway.toml`, `tests/`._
