@@ -138,6 +138,17 @@ con outcome. El plan **cerebro** (`research/cerebro_arquitectura.md`, commit `f0
   contadores ("Total: 0") y lo exponía a blips transitorios. Fix: blacklist `MEMORY/`,
   `presentaciones/`, `*.pdf/*.html/*.png` (**PR #138**, `funding_paper.py` sigue runtime al final).
   **Lección:** ante 0 cadencia, primero confirma uptime/deploy en Railway; sólo después sospecha del edge.
+- **No apagues un símbolo por UN stop-out — el "stop dentro del ruido" es de COLA y UNIVERSAL.** El
+  2026-06-30 una señal de BCH tocó SL al instante (stop 0.249% < vela 5m mediana 0.265%). Medido cross-símbolo
+  (`tools/sl_noise_screen.py`): el stop MEDIANO está bien en TODOS (ratio stop/vela 1.7–2.8; BCH 2.04, a media
+  tabla), pero el **p10 (~0.24–0.31%) roza el ruido en todos** → en baja vol cualquier símbolo emite un stop de
+  cola dentro del ruido (esa señal cayó bajo el p10 de BCH). BCH **tiene edge** (positivo en todas las celdas);
+  no se apaga. **MEDIDO (mismo día, pooled n=13429): el stop apretado ES el edge, NO el bug.** Por cuartil de
+  stop%: Q1-apretado WR 23% pero **expR +0.316R** vs Q4-ancho WR 28% y **expR +0.147R** (monótono). El stop
+  comprimido baja el WR (más ruido) pero su R-múltiplo lo paga con creces. → **un piso/ensanche de stop BAJARÍA
+  la expectativa — NO hacerlo.** (Mi intuición de "floor the stop" la refutó el dato.) La palanca para la
+  *experiencia* (no la expectativa) es **gestionar a TP1** (WR ~29%→~50%), no tocar el stop. Caveat: es
+  correlacional (el stop% es endógeno al setup); el causal per-trade confirmaría, pero la dirección es clara.
 
 ---
 
