@@ -40,6 +40,13 @@
   motor / premios / investigación / vanguardia — cada idea con su **experimento measure-first** para
   pasar el gate, y la honestidad de siempre (transfiere vs. humo; respeta lo ya medido: F2 gana,
   F1/Hurst-precio redundantes). Incluye el estado de Ruta A (activa) y Ruta B (parqueada).
+- **`ejemplo-rendimiento-10k.pdf`** (+ `.html` + `fig-ejemplo-rendimiento.png`) — *Ejemplo práctico HONESTO
+  (2026-06-30):* ¿qué hubiera rendido $10,000 MXN en el bot los últimos 2 meses arriesgando 3.6%/trade?
+  Sobre el **set VIP REAL de 5 símbolos** (SOL/BTC/ETH/BCH/BNB — **sin LINK**, que el código tiene ON por
+  default pero NO se broadcastea; RasDG confirmó). 3 pasos: 3.6% bruto **+401%** → 3.6% neto **+49%**
+  (costos comen ~70%, DD −45% por sobre-apalancamiento) → **0.4% neto +6%** (el número creíble, n=137).
+  Lección registrada: el número **depende del set** y la ventana de 2m **miente** (BCH lastre / LINK héroe
+  en la ventana, al revés de por vida → se juzga forward). Reproducible: **`tools/sim_paper_return.py`** (+ test).
 - **`rutas-capital-operativas-2026.md`** — *Planes operativos de capital (decisión RasDG, 2026-06-30).*
   Las 3 rutas greenlit con plan concreto y capital-en-riesgo explícito: **Numerai Crypto** (GO, medir 3
   sem sin-stake → stakear), **Breakout** (estrategia para pasar el challenge: sizing 0.4% por el WR bajo
