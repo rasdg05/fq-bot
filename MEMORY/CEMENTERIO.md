@@ -87,8 +87,18 @@
     lejos suma **+0.290** (KL-bajo +0.332 → KL-bajo & lejos +0.622, n=329, DSR ✓). CPCV uplift OOS
     mediana +0.174 (**87% paths >0**); **PBO 0.26**. Es "no dispares en el chop de ayer", apila SOBRE KL.
     Caveat: **GROSS** (pre-coste); **SOL marginal** (+0.014, lo cargan BTC/ETH). El gate ✓ ≠ forward ✓.
-- **Status (POC-distance):** **VALIDADO en cube (gate ✓), PENDIENTE forward** — mismo estatus que KL.
-  NO cableado. Próximo: medir forward (flag dormido) antes de subir conviction. Zona y rev-aligned: muertos.
+  - **Cross-símbolo (2026-06-29):** extendido a **5 cripto (n=5162) → PASA MÁS FUERTE** (uplift +0.121,
+    within-KL +0.272, CPCV OOS +0.111 / **93% paths>0**, **PBO 0.17**). **4/5 siguen** el patrón
+    (BTC/ETH/SOL/BCH `far>near`); **BNB es la EXCEPCIÓN** (`far +0.077 < near +0.358`, AL REVÉS) — token
+    de exchange, microestructura distinta (igual que lo excluimos del carry y F2 no le aplica). → el
+    filtro "lejos" aplica a **BTC/ETH/SOL/BCH, NO a BNB** (símbolo-específico).
+  - **TradFi (XAU+NQ, n=328, 2026-06-29):** **dirección ✓** (`far>near` en ambos: XAU +0.263 vs −0.069,
+    NQ +0.664 vs +0.452; within-KL **+0.286** = igual que cripto) **pero gate NO PASA por n** (CPCV-OOS
+    mediana −0.21, DSR 0.939) — RADAR, no veredicto. El principio transfiere; falta data. → cosecha
+    **5 años × 5 símbolos** (XAU/NQ/ES/WTI/plata) lanzada para juntar ~2000 eventos y gatear en serio.
+- **Status (POC-distance):** **VALIDADO en cube (5 cripto ✓, BNB excluido), CABLEADO DORMIDO forward**
+  (`FQ_REGIME_TAGS`, #126 — sella `kl_low`/`poc_dist` en MOTOR_OPEN_META; `by_kl`/`by_poc` en el reporte).
+  Próximo: medir forward + más data TradFi. Zona premium/discount y rev-aligned: muertos.
 
 ### F1 — residual de impacto raíz-cuadrada — **REAL pero REDUNDANTE con CVD**
 - **Idea:** ley δ≈0.5: impacto ∝ σ·√(Q/V). Si el precio se mueve MENOS de lo predicho →
