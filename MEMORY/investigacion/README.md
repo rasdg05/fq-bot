@@ -26,10 +26,11 @@
 - **`preprint-fq-en.md` / `.pdf`** (+ `.html`) — *Preprint en INGLÉS, SSRN-ready.* Versión en inglés
   del review con los resultados reproducibles (Apéndice B + figura). Es el documento citable para
   someter a SSRN / arXiv q-fin. Mismo contenido, listo para audiencia académica internacional.
-- **`tools/numerai_signals_features.py`** (+ test) — *Scaffold ruta A.* Reframea los features
-  VALIDADOS que TRANSFIEREN (KL-irreversibilidad, POC-distance, momentum) a una submission de
-  **Numerai Signals** (ranking [0,1] por acción). `build_submission({ticker: ohlcv_df})`. La
-  combinación es una hipótesis a tunear con el OOS en vivo de Numerai (CVD/F2 NO transfieren).
+- **`tools/numerai_signals_features.py`** (+ test) — *Scaffold ruta A.* `build_submission({símbolo:
+  ohlcv_df})` → ranking [0,1] por símbolo. Sirve para **Numerai Signals** (acciones — reframe de
+  KL/POC/momentum) **Y para Numerai Crypto** (CONFIRMADO, crypto.numer.ai — **fit DIRECTO** del bot,
+  símbolos de tokens; en cripto CVD/F2 **también** aplican, versión más rica). Combinación = hipótesis
+  a tunear con el OOS en vivo.
 
 ## Cómo endurecerlo (paso a rigor pleno, después)
 1. Tablas y figuras **reproducibles** desde el repo (DSR/CPCV/PBO, curvas forward, cubes).
