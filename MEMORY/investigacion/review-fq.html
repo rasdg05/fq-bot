@@ -157,6 +157,25 @@ de forma autodidacta desde Ciudad de México, y el entregable no es una tesis en
 vivo, validado <i>forward</i>, con track record.</b> Lo que en esos programas sería el trabajo de un
 máster o doctorado, aquí es código que corre y mide. Eso no le resta mérito —se lo agrega.</p>
 
+<h2>Apéndice B — Resultados reproducibles (POC-distance)</h2>
+<p class="note">Generados con <code>python tools/reproduce_gate_results.py</code> sobre los 5 cubos cripto
+(tp4/h576, GROSS, con el <b>mismo</b> <code>gate_poc_distance</code> que valida en producción).</p>
+<table>
+  <tr><th>Símbolo</th><th>n</th><th>far</th><th>near</th><th>uplift</th></tr>
+  <tr><td>BTC</td><td>1005</td><td>+0.364</td><td>+0.187</td><td>+0.177</td></tr>
+  <tr><td>ETH</td><td>1155</td><td>+0.421</td><td>+0.241</td><td>+0.179</td></tr>
+  <tr><td>SOL</td><td>976</td><td>+0.175</td><td>+0.161</td><td>+0.014</td></tr>
+  <tr><td>BCH</td><td>1503</td><td>+0.445</td><td>+0.299</td><td>+0.146</td></tr>
+  <tr><td>BNB</td><td>523</td><td>+0.077</td><td>+0.358</td><td class="red">−0.281 (excepción)</td></tr>
+</table>
+<p><b>Pooled (n=5162):</b> uplift +0.121 · <b>DSR 1.000</b> · ortogonal a KL (within-KL +0.272) ·
+<b>CPCV OOS +0.111 (93 % de caminos &gt;0)</b> · <b>PBO 0.17</b> → <b>PASA</b>. 4/5 siguen el patrón
+(<code>far&gt;near</code>); BNB es la excepción medida (<code>far&lt;near</code>) y queda excluido.</p>
+<img src="fig-poc-distance.png" alt="POC-distance far vs near" style="width:100%; max-width:680px; margin:8px 0; border:1px solid #d8d2c6; border-radius:6px;">
+<p class="note">Reproducible de punta a punta: <code>gate_poc_distance.py</code> (gate) +
+<code>reproduce_gate_results.py</code> (tabla + figura) sobre los cubos del repo. Cifras GROSS/in-cube;
+el juez final es forward (§7).</p>
+
 <h2>Referencias <span class="note">(preliminar — a completar)</span></h2>
 <div class="refs">
   <p>Bailey, D. &amp; López de Prado, M. (2014). <i>The Deflated Sharpe Ratio.</i> J. of Portfolio Management.</p>
