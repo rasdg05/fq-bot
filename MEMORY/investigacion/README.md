@@ -40,6 +40,12 @@
   motor / premios / investigación / vanguardia — cada idea con su **experimento measure-first** para
   pasar el gate, y la honestidad de siempre (transfiere vs. humo; respeta lo ya medido: F2 gana,
   F1/Hurst-precio redundantes). Incluye el estado de Ruta A (activa) y Ruta B (parqueada).
+- **`rutas-capital-operativas-2026.md`** — *Planes operativos de capital (decisión RasDG, 2026-06-30).*
+  Las 3 rutas greenlit con plan concreto y capital-en-riesgo explícito: **Numerai Crypto** (GO, medir 3
+  sem sin-stake → stakear), **Breakout** (estrategia para pasar el challenge: sizing 0.4% por el WR bajo
+  + 6% DD, solo señales apiladas, paciencia gratis sin límite de tiempo), **Darwinex Zero** (cómo
+  funciona + el caveat data/venue: ¿perps o CFD?). Academia deprioritizada hasta forward (no se regala
+  la salsa).
 
 ## Cómo endurecerlo (paso a rigor pleno, después)
 1. Tablas y figuras **reproducibles** desde el repo (DSR/CPCV/PBO, curvas forward, cubes).
