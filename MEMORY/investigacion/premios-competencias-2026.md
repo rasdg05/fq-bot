@@ -76,32 +76,65 @@ Tus **dos entregables** mapean a **dos venues distintos**, sin construir nada nu
 Y el hilo común: **el track record FORWARD que ya estás construyendo** es justo lo que abre las
 puertas de allocator (Quants.space) y de research (EF) — hoy cerradas por falta de él.
 
-## Actualización — 2ª pasada (PARCIAL; pegó límite de sesión, resto pendiente)
+## Actualización — 2ª pasada COMPLETA (2026-06-30, workflow `premios-gap-research`, 5 agentes, 4 ángulos)
 
-**Verificado (3-0), la ruta de publicación quedó CONCRETA:**
-- **SSRN = la vía de menor fricción para un preprint citable.** Da la bienvenida **explícita a "un
-  investigador independiente sin afiliación formal alguna"** → cero barrera de credencial. El preprint
-  en inglés ya está listo (`preprint-fq-en.pdf`) → **va directo a SSRN.** *(blog.ssrn.com, primary.)*
-- **arXiv q-fin endureció (21-ene-2026):** el email institucional ya **NO basta** para el endorsement;
-  un autor nuevo no-afiliado necesita un **endorsement PERSONAL de un autor establecido de arXiv en
-  el mismo dominio** (q-fin). El staff no lo exime. Cómo: en abstracts q-fin relacionados, usa el link
-  *"Which authors of this paper are endorsers?"* + el código de solicitud. → **Haz SSRN primero;
-  arXiv cuando tengas un endorser.** *(blog.arxiv.org/2026/01/21 + info.arxiv.org/help/endorsement, primary.)*
+> Cerró la investigación que había pegado el límite. Verificación independiente de los 5 claims más
+> load-bearing (arXiv, Numerai no-stake, Kraken-Breakout, DarwinIA, formato Numerai). Regla: "elegible"
+> ≠ "probable cobrar"; separo *premio fijo* de *pago en cripto con capital en riesgo*.
 
-**Numerai CRYPTO — CONFIRMADO ✅** (crypto.numer.ai · docs.numer.ai/numerai-crypto): torneo de
-**cripto dedicado** (≠ Signals, que es equities). Submission = **símbolos de TOKENS** con valor 0–1
-prediciendo retorno (≥100 símbolos del universo, sin duplicados); stake NMR opcional (earn/burn). **Es
-el fit DIRECTO del bot — SIN reframe a acciones.** Y en cripto las features de **order-flow (CVD/F2)
-TAMBIÉN aplican** (versión más rica que la de equities). Mismo `tools/numerai_signals_features.py`:
-`build_submission({símbolo: ohlcv_df})` es símbolo-agnóstico → alimenta OHLCV por token. ⭐ **ruta A real.**
+### Accionable-HOY con barrera baja (shortlist verificado)
+1. **SSRN — publicar YA.** Preprint citable, gratis, "Independent Researcher", sin gatekeeper (no es
+   peer-review; el classifier rechaza sin explicación). `preprint-fq-en.pdf` listo. *(primary, alta.)*
+2. **Numerai Crypto — validar YA, OJO al framing.** Formato **CONFIRMADO verbatim**: columnas
+   `symbol,signal`, valor 0–1 exclusivo, **≥100 símbolos**; universo en `live_universe.parquet` (~300
+   tokens, dinámico). **CORRECCIÓN CRÍTICA:** una submission **SIN stake se puntúa pero NO entra al
+   meta-model y NO paga** (es paper-trading); *cualquier* ingreso **exige stakear NMR** (un score
+   negativo lo **quema**), pago en NMR volátil, no fiat. → Ruta A = **construir track sin riesgo**;
+   "premio real" = capital en riesgo. *(docs.numer.ai, primary, alta.)*
+3. **Physica A / Quantitative Finance — publicar GRATIS por vía subscription.** Ninguno exige
+   afiliación; híbrido ⇒ si NO eliges gold-OA, **sin cargo**. Physica A = mejor fit (KL/entropía/
+   irreversibilidad, su núcleo); QF = más prestigio quant, más exigente (~6 meses, doble-ciego).
+   *(APC exacto NO auditado — sitios 403; la vía gratis sí confirmada.)*
+4. **Breakout (prop firm) — probar el bot con costo hundido bajo.** ÚNICA con confianza alta:
+   **adquirida por Kraken** (efectiva 1-sep-2025, perps cripto reales, verificado primary). 1-Step
+   (10% objetivo, 6% DD, sin límite de tiempo), split 80%, fee ~$55–$800. Es *comprar evaluación*, no
+   allocation; fee NO reembolsable. *(Kraken/Businesswire primary; reglas/fees secundaria — sitio 403.)*
+5. **Bitget elite / copy-trading — capital de seguidores, barrera más baja.** KYC + **≥500 USDT** + 1
+   orden de futuros cerrada → calificas; profit-share 10%→20%. El track debe ser **EN el exchange**.
+6. **Darwinex Zero / DarwinIA — arrancar el reloj de 8 meses YA.** Único gate temporal numérico
+   **público y verificado**: GOLD = **>8 meses de signal history** + hito → 50k–500k EUR; SILVER sin
+   mínimo (rating ≥75) → 30k–375k EUR. DARWINs cripto elegibles; PERO operas **EN su infra** (no
+   conectas tu Binance por API; el track externo no cuenta). *(help.darwinex.com, primary, alta.)*
 
-**Leads SIN verificar (erraron por el límite — confirmar al re-correr):**
-- JPM ~11 % aceptación y posiblemente **NO acepta papers "muy cuantitativos"**; IMC Prosperity abierto
-  pero premio geo-limitado.
+### Competencias — veredicto honesto
+- **Kaggle de firmas quant (Jane Street ~$120k, Optiver ~$100k):** **México elegible**, premio fijo,
+  contraparte solvente, fit altísimo. **PERO las tres citadas están CERRADAS** (plantilla/portafolio);
+  **ninguna abierta al 2026-06-30** → monitorear la próxima edición. *(anuncios oficiales; /rules
+  por-comp no extraíble por anti-bot.)*
+- **CERRADAS por gate ESTUDIANTIL (no geográfico): IMC Prosperity, Citadel Data Open, Jane Street ETC**
+  (exigen matrícula universitaria). **Descartadas por diseño.** Jane Street Puzzles = sin premio monetario.
 
-**Aún pendiente (no se cubrió por el límite — re-correr tras reset 3:20am UTC):** journals (detalle
-APC/proceso/bar), competencias (Jane Street / Citadel / Optiver / IMC / Kaggle), funded-traders cripto
-(HyroTrader / Breakout / FundedX + ¿FTMO soporta perps?), allocators que acepten performance FORWARD.
+### Funded-traders cripto — solo 3 fondean perps reales
+**Breakout** (el de confianza, ver #4). **HyroTrader** (Bybit) y **FundedXyz** (solo BTC/ETH, reciente,
+sin payouts auditados) = 2ª/3ª con **banderas** (términos contradictorios, cifras autoreportadas).
+**FTMO NO sirve** (solo CFDs cripto spot, sin funding). Contexto: **80–100 prop firms colapsaron en
+2024–25**; el negocio vive de challenges fallidos → tasa de aprobación baja **estructural**. *(Breakout
+primary; resto secundaria/unreliable.)*
 
-_Caveat de tiempo: varios deadlines son de 2025/2026 y deben re-verificarse al actuar. Varias cifras
-($500M FTMO, $3B Quants.space) son marketing no auditado, atribuidas como tales._
+### Allocators institucionales — caja negra
+**Quants.space / ML Tech:** afirman verificación read-only + SMA, pero **NO publican umbrales**; AUM
+"$3B+" = marketing autoreportado. **No existe gate público de "12+ meses"** — el único verificado es
+DarwinIA (8 meses). El gate real solo se sabe contactándolos.
+
+### arXiv — más duro de lo que creíamos
+Email institucional ya **no basta**; autor nuevo sin afiliación **solo** tiene **endorsement personal
+humano** para q-fin, **sin exención de staff**. → **SSRN primero; arXiv cuando haya endorser.**
+
+**Línea de fondo:** accionable-hoy = **SSRN (publicar) · Numerai sin-stake (validar) · Physica A/QF vía
+subscription (publicar gratis) · Breakout 1-Step (probar) · Bitget ≥500 USDT (capital seguidores) ·
+Darwinex Zero (reloj de 8 meses)**. Lo demás: cerrado por gate estudiantil, o marketing sin umbrales, o
+exige arriesgar capital para que el "premio" sea real.
+
+_Caveat de tiempo: deadlines 2025/2026 a re-verificar al actuar. APCs de Physica A/QF y cifras de prop
+firms/allocators NO auditadas en primaria (sitios 403), atribuidas como tales. Fuente: workflow
+`premios-gap-research` (2026-06-30) + verificación independiente de 5 claims load-bearing._
