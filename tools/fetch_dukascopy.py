@@ -23,18 +23,23 @@ INTERVAL_ATTR = {"1m": "INTERVAL_MIN_1", "5m": "INTERVAL_MIN_5",
 # Mapeamos cada ticker común a substrings candidatos (se prueban en orden; el 1ro
 # que matchea gana). NASDAQ = "USA 100 Technical Index" -> usatechidxusd -> el
 # substring que resuelve es USATECH (por eso USA100 falló en el probe #116).
+# NQ resolvió a INSTRUMENT_US_TECH_US_USD -> el patrón de índices US es
+# US_<clave>_US. Por eso los alias prueban primero la forma US<clave> (sin _).
 ALIASES = {
-    "NQ":     ["USATECH", "USA100", "NAS100", "USTEC", "TECH100", "NDX"],
-    "NAS100": ["USATECH", "USA100", "NAS100", "USTEC", "NDX"],
-    "NASDAQ": ["USATECH", "USA100", "NAS100", "USTEC", "NDX"],
-    "US100":  ["USATECH", "USA100", "US100", "USTEC", "NDX"],
-    "ES":     ["USA500", "US500", "SPX500", "SP500"],
-    "SPX":    ["USA500", "US500", "SPX500", "SP500"],
-    "SP500":  ["USA500", "US500", "SPX500", "SP500"],
-    "US500":  ["USA500", "US500", "SPX500", "SP500"],
-    "YM":     ["USA30", "US30", "DOW", "WALL"],
-    "DOW":    ["USA30", "US30", "DOW", "WALL"],
-    "US30":   ["USA30", "US30", "DOW"],
+    "NQ":     ["USTEC", "USATECH", "USA100", "NAS100", "TECH100", "NDX"],
+    "NAS100": ["USTEC", "USATECH", "USA100", "NAS100", "NDX"],
+    "NASDAQ": ["USTEC", "USATECH", "USA100", "NAS100", "NDX"],
+    "US100":  ["USTEC", "USATECH", "USA100", "US100", "NDX"],
+    "ES":     ["US500", "USSPX", "USA500", "SPX", "SP500"],
+    "SPX":    ["US500", "USSPX", "USA500", "SPX", "SP500"],
+    "SP500":  ["US500", "USSPX", "USA500", "SPX", "SP500"],
+    "US500":  ["US500", "USSPX", "USA500", "SPX", "SP500"],
+    "WTI":    ["LIGHT", "WTI", "USOIL", "CRUDE"],   # WTI = Light Sweet Crude -> E_LIGHT
+    "USOIL":  ["LIGHT", "WTI", "USOIL", "CRUDE"],
+    "OIL":    ["LIGHT", "WTI", "USOIL"],
+    "YM":     ["USDOW", "USA30", "US30", "DOW", "WALL"],
+    "DOW":    ["USDOW", "USA30", "US30", "DOW", "WALL"],
+    "US30":   ["USDOW", "USA30", "US30", "DOW"],
 }
 
 
