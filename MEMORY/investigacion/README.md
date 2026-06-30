@@ -18,6 +18,11 @@
   estudia (Cornell, Oxford, Princeton, CMU, ETH…), y el giro: hecho de forma autodidacta
   desde Ciudad de México, con un bot que **ES la tesis**.
 
+- **`fig-poc-distance.png`** + **`tools/reproduce_gate_results.py`** — figura y script que
+  **REGENERAN** los resultados del review (gate POC-distance sobre los 5 cubos cripto) desde el
+  repo: tabla far/near por símbolo + veredicto pooled (DSR/CPCV/PBO). Es el Apéndice B del review,
+  reproducible de punta a punta.
+
 ## Cómo endurecerlo (paso a rigor pleno, después)
 1. Tablas y figuras **reproducibles** desde el repo (DSR/CPCV/PBO, curvas forward, cubes).
 2. **Referencias completas** con DOI; verificar cada cita primaria.

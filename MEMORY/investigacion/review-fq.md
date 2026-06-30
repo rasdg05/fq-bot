@@ -187,6 +187,29 @@ validado *forward*, con track record.** Lo que en esos programas sería el traba
 máster o un doctorado, aquí es código que corre y mide. Eso no le resta mérito —se lo
 agrega.
 
+## Apéndice B — Resultados reproducibles (POC-distance)
+
+Generados con `python tools/reproduce_gate_results.py` sobre los 5 cubos cripto
+(tp4/h576, GROSS, con el **mismo** `gate_poc_distance` que valida en producción):
+
+| Símbolo | n | far | near | uplift |
+|---|---|---|---|---|
+| BTC | 1005 | +0.364 | +0.187 | +0.177 |
+| ETH | 1155 | +0.421 | +0.241 | +0.179 |
+| SOL | 976 | +0.175 | +0.161 | +0.014 |
+| BCH | 1503 | +0.445 | +0.299 | +0.146 |
+| BNB | 523 | +0.077 | +0.358 | **−0.281** (excepción) |
+
+**Pooled (n=5162):** uplift +0.121 · **DSR 1.000** · ortogonal a KL (within-KL +0.272) ·
+**CPCV OOS +0.111 (93 % de caminos >0)** · **PBO 0.17** → **PASA**. 4/5 siguen el patrón
+(`far>near`); BNB es la excepción medida (`far<near`) y queda excluido.
+
+![POC-distance: lejos vs cerca del POC del día previo](fig-poc-distance.png)
+
+> Reproducible de punta a punta: `tools/gate_poc_distance.py` (gate) +
+> `tools/reproduce_gate_results.py` (tabla + figura) sobre los cubos del repo. Las cifras
+> son GROSS/in-cube; el juez final es forward (ver §7).
+
 ## Referencias (preliminar — a completar)
 
 - Bailey, D. & López de Prado, M. (2014). *The Deflated Sharpe Ratio.* J. of Portfolio Management.
