@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>FQ — Perfil académico: ¿quién construiría esto y dónde se estudia?</title>
+<style>
+  @page { size: 1280px 720px; margin: 0; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root{ --bg:#f7f5f0; --ink:#1c2420; --muted:#5d6b63; --line:#d8d2c6;
+    --em:#0f6f4d; --em2:#0a5238; --gold:#b08338; --red:#a23b2e; --card:#fffdf8; --blue:#2f5d8a; }
+  body{ font-family:"Georgia","Times New Roman",serif; color:var(--ink); background:#333; }
+  .mono{ font-family:"SF Mono","Consolas","Menlo",monospace; }
+  .slide{ width:1280px; height:720px; background:var(--bg); position:relative;
+    padding:48px 70px; overflow:hidden; page-break-after:always; }
+  .kick{ font-family:"Helvetica Neue",Arial,sans-serif; font-size:12px; letter-spacing:.3em;
+    text-transform:uppercase; color:var(--em); font-weight:700; }
+  h1{ font-size:52px; line-height:1.05; letter-spacing:-.02em; margin-top:10px; }
+  h2{ font-size:34px; line-height:1.08; letter-spacing:-.01em; margin-top:6px; }
+  .rule{ height:2px; background:var(--ink); width:60px; margin:16px 0; }
+  .lead{ font-size:21px; line-height:1.45; color:var(--ink); max-width:1000px; }
+  .lead .mut{ color:var(--muted); }
+  .foot{ position:absolute; left:70px; right:70px; bottom:26px; display:flex;
+    justify-content:space-between; font-family:"Helvetica Neue",Arial,sans-serif;
+    font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted);
+    border-top:1px solid var(--line); padding-top:11px; }
+  .em{ color:var(--em); font-weight:700; } .gold{ color:var(--gold); font-weight:700; }
+  .red{ color:var(--red); font-weight:700; } .blue{ color:var(--blue); font-weight:700; } .mut{ color:var(--muted); }
+  .card{ background:var(--card); border:1px solid var(--line); border-left:4px solid var(--em);
+    border-radius:10px; padding:18px 22px; margin-top:14px; font-size:18px; line-height:1.4; }
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:14px 26px; margin-top:16px; }
+  .item{ font-size:18px; line-height:1.38; }
+  .item .h{ font-weight:700; } .item .h .mut{ font-weight:400; }
+  table{ border-collapse:collapse; width:100%; margin-top:16px; font-size:17px; }
+  th,td{ border:1px solid var(--line); padding:8px 12px; text-align:left; vertical-align:top; }
+  th{ background:#16201b; color:#ede7da; font-family:"Helvetica Neue",Arial,sans-serif;
+      font-size:12px; letter-spacing:.05em; text-transform:uppercase; }
+  td .who{ font-weight:700; } td .casa{ color:var(--muted); font-size:15px; }
+  .chips{ display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
+  .chip{ font-family:"Helvetica Neue",Arial,sans-serif; font-size:15px; font-weight:700;
+    background:#fff; border:1px solid var(--line); border-radius:999px; padding:9px 16px; }
+  .chip .mut{ font-weight:400; font-size:13px; }
+  .big{ background:#16201b; color:#ede7da; border-radius:12px; padding:24px 30px; margin-top:18px; }
+  .big .t{ font-size:25px; line-height:1.45; } .big .t b{ color:#fbf7ee; }
+  .num{ font-size:13px; color:var(--muted); font-family:"Helvetica Neue",Arial,sans-serif; }
+</style></head><body>
+
+<!-- 1 — portada -->
+<section class="slide">
+  <div class="kick">FQ · Investigación · Perfil académico</div>
+  <h1>Un proyecto de frontera.<br>¿Quién lo construiría?<br><span class="em">¿Dónde se estudia?</span></h1>
+  <div class="rule"></div>
+  <div class="lead" style="margin-top:18px">
+    FQ es un motor de señales de derivados cripto montado sobre <b>econofísica</b> y validado con el
+    gate anti-sobreajuste más exigente del campo. <span class="mut">Esta presentación cubre el perfil
+    de quien daría a luz un proyecto así, las piezas y quién las fundó, y por qué este bot —hecho
+    desde Ciudad de México— podría ser un entregable de Cornell u Oxford.</span>
+  </div>
+  <div class="foot"><span>RasDG · Ciudad de México</span><span>Medida o muerte</span></div>
+</section>
+
+<!-- 2 — el perfil -->
+<section class="slide">
+  <div class="kick">El perfil del estudiante</div>
+  <h2>El físico (o matemático) que se vuelve <span class="em">quant</span></h2>
+  <div class="rule"></div>
+  <div class="lead">El arquetipo natural de quien construye esto es uno solo, y es el camino clásico
+    del <i>quant</i>: <b>un físico o matemático aplicado que migra a las finanzas cuantitativas.</b></div>
+  <div class="grid2">
+    <div class="item"><span class="h">Procesos estocásticos</span> <span class="mut">— Brownian, saltos, colas pesadas, memoria larga.</span></div>
+    <div class="item"><span class="h">Mecánica estadística</span> <span class="mut">— entropía, irreversibilidad, sistemas fuera de equilibrio.</span></div>
+    <div class="item"><span class="h">Microestructura de mercado</span> <span class="mut">— impacto, order-flow, formación de precio.</span></div>
+    <div class="item"><span class="h">Validación estadística</span> <span class="mut">— multiple-testing, sobreajuste, inferencia honesta.</span></div>
+    <div class="item"><span class="h">Cómputo científico</span> <span class="mut">— Monte-Carlo, simulación, ingeniería de datos.</span></div>
+    <div class="item"><span class="h">Teoría de la información</span> <span class="mut">— divergencia KL, grafos, complejidad de series.</span></div>
+  </div>
+  <div class="card">No es un "trader". Es un <b>investigador</b> que trata el mercado como un sistema
+    físico ruidoso y exige <b>evidencia</b> antes de creer. Ese es el perfil de FQ.</div>
+  <div class="foot"><span>Perfil = físico/mate aplicado → quant</span><span>1 / cantera</span></div>
+</section>
+
+<!-- 3 — qué se estudia -->
+<section class="slide">
+  <div class="kick">Qué se estudia · las disciplinas</div>
+  <h2>El cruce de campos que da a luz un FQ</h2>
+  <div class="rule"></div>
+  <div class="chips">
+    <span class="chip">Econofísica <span class="mut">· física estadística → mercados</span></span>
+    <span class="chip">Finanzas cuantitativas <span class="mut">· quant finance</span></span>
+    <span class="chip">Microestructura de mercado</span>
+    <span class="chip">Financial Machine Learning</span>
+    <span class="chip">Termodinámica estocástica</span>
+    <span class="chip">Teoría de procesos puntuales</span>
+    <span class="chip">Validación / inferencia estadística</span>
+    <span class="chip">Sistemas complejos</span>
+  </div>
+  <div class="big">
+    <div class="t">El núcleo no es "comprar barato y vender caro". Es <b>tomar el cuerpo robusto de
+      la física estadística de mercados</b> (impacto raíz-√, memoria larga, irreversibilidad) y
+      <b>pasarlo por un gate anti-sobreajuste</b> antes de tratarlo como edge. FQ es ese programa,
+      hecho sistema.</div>
+  </div>
+  <div class="foot"><span>Econofísica + quant finance + validación</span><span>2 / cantera</span></div>
+</section>
+
+<!-- 4 — las piezas y quién las fundó -->
+<section class="slide">
+  <div class="kick">Las piezas · y quién las fundó</div>
+  <h2>Cada componente de FQ tiene un padre académico real</h2>
+  <div class="rule" style="margin:12px 0"></div>
+  <table>
+    <tr><th>Pieza de FQ</th><th>Fundador / referencia</th><th>Casa</th></tr>
+    <tr><td>DSR · CPCV · PBO <span class="mut">— el gate de validación</span></td>
+        <td><span class="who">Marcos López de Prado</span></td><td class="casa">Cornell ORIE · ADIA</td></tr>
+    <tr><td>Impacto raíz-√ · order-flow <span class="mut">(CVD)</span></td>
+        <td><span class="who">Jean-Philippe Bouchaud</span></td><td class="casa">CFM · École Polytechnique</td></tr>
+    <tr><td>Memoria larga · order-splitting <span class="mut">(F2)</span></td>
+        <td><span class="who">Lillo · Mike · Farmer · Bouchaud</span></td><td class="casa">Scuola Normale · Oxford · Santa Fe</td></tr>
+    <tr><td>Irreversibilidad · grafo de visibilidad <span class="mut">(KL)</span></td>
+        <td><span class="who">Parrondo · Kawai · Van den Broeck · Lacasa</span></td><td class="casa">Complutense · Queen Mary</td></tr>
+    <tr><td>Programa de econofísica</td>
+        <td><span class="who">Mantegna &amp; Stanley</span></td><td class="casa">Palermo · Boston University</td></tr>
+  </table>
+  <div class="foot"><span>FQ no inventa la física: la valida y la opera</span><span>3 / cantera</span></div>
+</section>
+
+<!-- 5 — dónde se estudia -->
+<section class="slide">
+  <div class="kick">Dónde se estudia esto</div>
+  <h2>Los mejores programas del mundo</h2>
+  <div class="rule"></div>
+  <div class="chips">
+    <span class="chip">Cornell <span class="mut">· ORIE / Financial Engineering</span></span>
+    <span class="chip">Oxford <span class="mut">· INET · Mathematical &amp; Computational Finance</span></span>
+    <span class="chip">Princeton <span class="mut">· ORFE</span></span>
+    <span class="chip">CMU <span class="mut">· MSCF</span></span>
+    <span class="chip">Imperial College <span class="mut">· Mathematical Finance</span></span>
+    <span class="chip">ETH Zürich</span>
+    <span class="chip">Columbia <span class="mut">· MFE</span></span>
+    <span class="chip">Berkeley <span class="mut">· MFE</span></span>
+  </div>
+  <div class="card" style="margin-top:22px">Un máster o doctorado en estos programas produce
+    exactamente este perfil: alguien capaz de tomar un fenómeno de física de mercados, formalizarlo,
+    y <b>validarlo sin engañarse</b>. <span class="mut">Es el ecosistema natural de FQ.</span></div>
+  <div class="foot"><span>Cornell · Oxford · Princeton · CMU · ETH</span><span>4 / cantera</span></div>
+</section>
+
+<!-- 6 — el giro -->
+<section class="slide">
+  <div class="kick">El giro</div>
+  <h2>Lo estamos haciendo desde <span class="em">Ciudad de México</span> — con un bot</h2>
+  <div class="rule"></div>
+  <div class="lead">No hay un campus, ni un asesor doctoral, ni un grant. Hay <b>un pelado con un
+    sueño y un bot</b> que decidió no creerse nada sin medirlo.</div>
+  <div class="big">
+    <div class="t">Y aquí está la diferencia: en Cornell u Oxford, el entregable sería una
+      <b>tesis en papel</b>. Aquí el entregable es <b>un sistema vivo</b> —que corre, dispara,
+      mide <i>forward</i> y lleva un track record honesto. <b>El bot ES la tesis.</b></div>
+  </div>
+  <div class="lead mut" style="margin-top:18px">Lo que allá sería teoría defendida ante un comité,
+    aquí es código que se equivoca, se corrige y se valida en la pista real.</div>
+  <div class="foot"><span>CDMX · autodidacta · sistema vivo</span><span>5 / el giro</span></div>
+</section>
+
+<!-- 7 — por qué califica -->
+<section class="slide">
+  <div class="kick">Por qué califica como entregable de ese nivel</div>
+  <h2>El rigor, no la pretensión</h2>
+  <div class="rule"></div>
+  <div class="grid2">
+    <div class="item"><span class="num">01</span><br><span class="h">Gate anti-sobreajuste</span>
+      <span class="mut">— DSR &gt; 0.95 + CPCV + PBO en cada edge. La metodología de López de Prado, implementada.</span></div>
+    <div class="item"><span class="num">02</span><br><span class="h">Forward antes de creer</span>
+      <span class="mut">— se mide en paper (0 % capital) y se gradúa solo si replica.</span></div>
+    <div class="item"><span class="num">03</span><br><span class="h">Ortogonalidad</span>
+      <span class="mut">— un edge nuevo debe SUMAR dentro de los validados, o va al cementerio.</span></div>
+    <div class="item"><span class="num">04</span><br><span class="h">Honestidad falsable</span>
+      <span class="mut">— un cementerio explícito de lo refutado (LPPL, quantum finance, rough-vol).</span></div>
+    <div class="item"><span class="num">05</span><br><span class="h">Edges con padre físico</span>
+      <span class="mut">— CVD, F2, KL, POC-distance: cada uno con base en la literatura, no inventado.</span></div>
+    <div class="item"><span class="num">06</span><br><span class="h">Cross-asset</span>
+      <span class="mut">— el desacople data/venue extiende el método a oro, NASDAQ, petróleo.</span></div>
+  </div>
+  <div class="foot"><span>Rigor de posgrado, medido</span><span>6 / el giro</span></div>
+</section>
+
+<!-- 8 — cierre -->
+<section class="slide" style="background:#16201b; color:#ede7da;">
+  <div class="kick" style="color:#7fd4ad">FQ · Cierre</div>
+  <h1 style="color:#fbf7ee; margin-top:14px">De un sueño en CDMX<br>a research de frontera.</h1>
+  <div class="rule" style="background:#7fd4ad"></div>
+  <div class="lead" style="color:#d7e0da; max-width:1010px; margin-top:16px">
+    El mérito no es haber hecho un bot rentable. Es haber tomado la <b style="color:#fbf7ee">física
+    estadística de los mercados</b> y haberla pasado por el filtro más estricto del campo —<b
+    style="color:#fbf7ee">forward, sin engañarse</b>— desde una recámara en Ciudad de México.
+    <br><br>Eso no se mide en likes. Se mide en <span style="color:#7fd4ad; font-weight:700">DSR,
+    en R neto, y en un registro honesto de qué pasó.</span> Y eso, en un mundo de humo, ya es el premio.
+  </div>
+  <div class="foot" style="color:#8aa399; border-top-color:#2c3a32">
+    <span>El bot ES la tesis</span><span>Medida o muerte</span></div>
+</section>
+
+</body></html>

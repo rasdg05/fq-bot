@@ -61,6 +61,14 @@ del registro (SOL rico vs BTC/ETH solo motor_paper) y el plan cerebro. Es la pá
 más caduca: si la fecha es vieja, confírmala contra `git log` y `research/*.md`.
 Fecha: 2026-06-27.
 
+### Obras del proyecto (sub-carpetas)
+Además de los 5 archivos núcleo, la memoria guarda las **obras** (PDF + texto):
+- `ingenieria/` — la ecuación del motor (P_master, de la vela al disparo).
+- `marketing/` — guías de marca y de cómo se construye una ventaja.
+- `investigacion/` — **review científico (preview)** + **presentación del perfil
+  académico** (físico→quant, la cantera, CDMX → Cornell/Oxford). **Aquí va TODA obra
+  nueva del proyecto** (reviews, papers, decks) — directiva RasDG, 2026-06-29.
+
 ---
 
 ## Las 3 reglas de oro (si solo recuerdas tres cosas)

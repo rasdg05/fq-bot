@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>FQ — Edges validados por física estadística en derivados cripto (review)</title>
+<style>
+  @page { size: A4; margin: 22mm 20mm; }
+  * { box-sizing:border-box; }
+  body{ font-family:"Georgia","Times New Roman",serif; color:#1c2420; line-height:1.5;
+        font-size:10.5pt; max-width:760px; margin:0 auto; }
+  h1{ font-size:19pt; line-height:1.18; margin:0 0 4px; letter-spacing:-.01em; }
+  .sub{ font-size:12.5pt; color:#0f6f4d; font-weight:700; margin-bottom:10px; }
+  .meta{ font-size:9pt; color:#5d6b63; border-top:1px solid #d8d2c6;
+         border-bottom:1px solid #d8d2c6; padding:7px 0; margin:10px 0 16px; }
+  .meta b{ color:#1c2420; }
+  h2{ font-size:13pt; color:#0a5238; margin:20px 0 6px; }
+  h3{ font-size:11pt; color:#1c2420; margin:13px 0 3px; }
+  p{ margin:0 0 8px; text-align:justify; }
+  .abstract{ background:#fffdf8; border:1px solid #d8d2c6; border-left:4px solid #0f6f4d;
+             border-radius:8px; padding:13px 17px; margin:0 0 14px; font-size:10pt; }
+  .abstract .lab{ font-family:"Helvetica Neue",Arial,sans-serif; font-size:8.5pt;
+                  letter-spacing:.18em; text-transform:uppercase; color:#0f6f4d; font-weight:700; }
+  .em{ color:#0f6f4d; font-weight:700; } .gold{ color:#b08338; font-weight:700; }
+  .red{ color:#a23b2e; font-weight:700; } .mut{ color:#5d6b63; }
+  code,.mono{ font-family:"SF Mono","Consolas",monospace; font-size:9pt; }
+  table{ border-collapse:collapse; width:100%; margin:10px 0; font-size:9.5pt; }
+  th,td{ border:1px solid #d8d2c6; padding:5px 8px; text-align:left; vertical-align:top; }
+  th{ background:#16201b; color:#ede7da; font-family:"Helvetica Neue",Arial,sans-serif;
+      font-size:8.5pt; letter-spacing:.04em; text-transform:uppercase; }
+  .refs{ font-size:8.7pt; line-height:1.45; color:#39433d; }
+  .refs p{ margin:0 0 3px; padding-left:16px; text-indent:-16px; }
+  .note{ font-size:8.8pt; color:#5d6b63; font-style:italic; }
+  hr{ border:0; border-top:1px solid #d8d2c6; margin:16px 0; }
+</style></head><body>
+
+<h1>Edges validados por física estadística en derivados cripto</h1>
+<div class="sub">Una revisión del sistema FQ y su metodología anti-sobreajuste</div>
+<div class="meta">
+  <b>Estado:</b> preview / borrador de revisión — a endurecer (datos, pruebas, citas) antes de someter.
+  &nbsp;·&nbsp; <b>Autor:</b> RasDG, Ciudad de México (con asistencia de ingeniería FQ).
+  &nbsp;·&nbsp; <b>Corte:</b> 2026-06-29.
+</div>
+
+<div class="abstract">
+  <div class="lab">Resumen</div>
+  Presentamos <b>FQ</b>, un motor de señales direccionales para futuros perpetuos de cripto
+  construido sobre la <b>econofísica</b> y validado con el estándar anti-sobreajuste de las finanzas
+  cuantitativas modernas (<b>Deflated Sharpe Ratio</b>, <b>CPCV</b>, <b>PBO</b>; López de Prado). A
+  diferencia de la mayoría de los sistemas retail —que no reportan corrección por <i>multiple
+  testing</i>— FQ somete <b>cada</b> candidato a un <i>gate</i> estadístico explícito y mide
+  <i>forward</i> antes de subir convicción. Esta revisión documenta la metodología de validación; los
+  edges que sobreviven —order-flow firmado (CVD), persistencia de flujo, régimen por irreversibilidad
+  temporal (KL) y distancia al POC del perfil de volumen—; la distinción honesta entre convicción
+  heurística y edge causal validado; la extensión <i>cross-asset</i> vía un desacople data/venue; y un
+  cementerio explícito de ideas refutadas. El principio operativo es uno: <b>medida o muerte.</b>
+</div>
+
+<h2>1. Introducción</h2>
+<p>La econofísica —métodos de la física estadística aplicados a los mercados (Mantegna &amp; Stanley,
+2000)— produjo un núcleo robusto: colas pesadas, leyes de potencia, impacto raíz-cuadrada, memoria
+larga del flujo. El reto no es la falta de fenómenos, sino separar el <b>edge real, samplable y
+operacionalizable</b> del <b>artefacto de sobreajuste</b> y de la <i>physics envy</i> (importar el
+mecanismo físico como decoración). FQ adopta una postura estricta: una idea entra al motor solo si
+(a) pasa un gate que <b>deflacta</b> por cuántas cosas se probaron, (b) <b>agrega</b> dentro de los
+edges ya confirmados (ortogonalidad) y (c) se mide <i>forward</i> antes de decidir capital o
+convicción. Esta revisión es el mapa de qué sobrevivió.</p>
+
+<h2>2. El método: el <i>gate</i> de validación</h2>
+<p>El corazón de FQ no es un dato nuevo: es la <b>validación</b>. Bajo <i>multiple testing</i>, probar
+~20 configuraciones garantiza un "5 % significativo" espurio. El <b>Deflated Sharpe Ratio</b> (Bailey
+&amp; López de Prado, 2014) corrige el Sharpe por el número de pruebas y la no-normalidad
+(skew/kurtosis), y exige superar <span class="em">DSR &gt; 0.95</span>. Lo complementan <b>CPCV</b>
+(validación cruzada combinatoria purgada, con <i>embargo</i>, para el desempeño <i>out-of-sample</i>
+sin fuga) y <b>PBO</b> (probabilidad de sobreajuste; Bailey et al., 2017). FQ implementa los tres en
+<code>tools/validation_gate.py</code>. Es el lever de mayor evidencia del proyecto: no genera alfa, la
+<b>certifica</b>.</p>
+
+<h2>3. Los edges validados</h2>
+<h3>3.1 Order-flow firmado (CVD)</h3>
+<p>El <i>Cumulative Volume Delta</i> (comprador agresivo − vendedor agresivo) da el <b>signo</b> del
+flujo. Base física: la <b>ley de impacto raíz-cuadrada</b> (σ·√(Q/V)), confirmada en cripto (Donier
+&amp; Bonart, 2015) y reconfirmada (Sato &amp; Kanazawa, <i>PRL</i> 2025). En el cube, el subset
+CVD-confirmado (imbalance ≥ 0.50) rinde <b>+0.27R (SOL) / +0.34R (BTC)</b> sobre 5 años de tick data,
+<span class="em">DSR ✓</span> (≈1.00 BTC / ≈0.98 SOL). Causal y gratis (Binance aggTrades). <span
+class="mut">Trampa evitada: un +1.47R con n=17 lo descartó el gate como espejismo.</span></p>
+<h3>3.2 Persistencia del flujo (memoria larga / order-splitting)</h3>
+<p>Las órdenes grandes se ejecutan en pedazos → <b>autocorrelación positiva del signo</b> (Lillo, Mike
+&amp; Farmer, 2005; Bouchaud, Farmer &amp; Lillo, 2009). FQ mide la autocorrelación lag-1 (F2). En BTC,
+el tier premium (CVD✓ &amp; F2✓) alcanza <b>DSR 0.995</b> y rescata el CVD. <b>Honesto:</b> F2 es un
+confirmador <b>idiosincrático por símbolo</b> (paga en 4/6; negativo en ETH), <b>no</b> una ley de
+escala —la hipótesis del "premio que escala con la institucional-idad" fue <span class="red">refutada</span>
+(corr = −0.19).</p>
+<h3>3.3 Régimen por irreversibilidad temporal (KL)</h3>
+<p>La flecha del tiempo termodinámica: KL entre las distribuciones de grado del <b>grafo de visibilidad
+horizontal</b> <i>forward</i> vs <i>backward</i> mide la distancia al equilibrio = producción de
+entropía (Kawai, Parrondo &amp; Van den Broeck, 2007; Lacasa et al., 2012). <b>Sin parámetros libres.</b>
+El edge vive en irreversibilidad <b>baja</b> (reversible/mean-reverting): <b>BTC +0.348R DSR 0.999; SOL
++0.225R DSR 0.950</b>, monótono por cuartil y <b>cross-símbolo</b>.</p>
+<h3>3.4 Distancia al POC del perfil de volumen</h3>
+<p>La pieza más nueva. El perfil de volumen del día previo define el <b>POC</b> y el <i>Value Area</i>.
+La hipótesis —"no operes en el <i>chop</i> de ayer; lejos del POC = tendencia"— <b>pasa el gate
+cross-símbolo</b>: pool de 5 cripto (n=5162), uplift +0.121, <b>ortogonal a KL</b> (within-KL +0.272),
+<b>CPCV OOS +0.111 (93 % de caminos &gt;0), PBO 0.17</b>. Sigue en <b>4/5</b>; <span class="red">BNB es
+la excepción medida</span> (far&lt;near) y queda excluido.</p>
+
+<h2>4. Convicción vs edge validado: la distinción honesta</h2>
+<p>FQ separa dos capas que la mayoría confunde. La <b>convicción</b> (<code>P_master</code>) es una
+heurística estructurada —razón áurea φ ponderada por confluencia, conceptos ICT (barridos,
+order-blocks, FVG, killzones de sesión), memoria aprendida κ y un factor de <i>tiempo emergente</i> σ_τ
+de un Monte-Carlo de trayectorias. Es principista, pero <b>no</b> un edge causal certificado. El
+<b>edge validado</b> es el <i>overlay</i> que pasó el DSR/CPCV/PBO (CVD, F2, KL, POC-distance) y se mide
+<i>forward</i>. Confundir ambas es el origen del <i>vendehumos</i>: el <code>P_master</code> gatea y
+prioriza; el edge validado <b>decide</b>.</p>
+
+<h2>5. Extensión cross-asset: el desacople data/venue</h2>
+<p>El edge es propiedad del <b>activo</b>, no del venue. Para mercados tradicionales (oro, NASDAQ, S&amp;P,
+petróleo, plata), FQ valida sobre la historia profunda de Dukascopy y ejecuta en el perpetuo del
+exchange. Transfieren las features de <b>precio</b> (KL, base) y la estructura ICT (ya calibrada a hora
+de NY); <b>no</b> el order-flow (CVD/F2), que es del venue. Preliminar: el motor digiere la OHLCV TradFi
+y produce cubos con edge base positivo (oro, NASDAQ); el POC-distance muestra <b>la misma dirección</b>
+que en cripto (far&gt;near), aunque el gate completo aún es RADAR por bajo n —la cosecha de 5 años × 5
+símbolos busca cerrarlo.</p>
+
+<h2>6. Resultados y cementerio</h2>
+<p><b>Sobrevive y se cabla:</b> CVD (DSR ✓), F2 (DSR ✓, BTC), KL (DSR ✓ cross-símbolo), POC-distance
+(gate ✓ cross-símbolo). <b>Pasa pero redundante:</b> F1 (residual de impacto; <i>within</i>-CVD
+negativo). <b>Refutado / infalsable (no se codifica):</b> quantum finance de Baaquie, LPPL de Sornette,
+<i>quantum-like markets</i> de Khrennikov, <i>critical-slowing-down</i>, <i>rough volatility</i> (Cont
+&amp; Das, 2022). Lo que el gate mató queda escrito —para que nadie re-persiga el espejismo.</p>
+
+<h2>7. Discusión y limitaciones</h2>
+<p>Las cifras de cube son <b>gross</b> (pre-coste) e <i>in-sample</i> al periodo de cosecha; validadas
+con CPCV/PBO, pero el juez final es <b>forward</b>. FQ mide <i>forward</i> en <i>paper</i> (0 % capital)
+y exige ≥30–50 fills + uplift + DSR antes de subir convicción a clientes. La extensión TradFi está
+limitada por n (horario ⇒ menos eventos). Ninguna limitación es fatal; todas están medidas.</p>
+
+<h2>8. Conclusión</h2>
+<p>FQ no es un bot de promesas: es un <b>programa de validación de edges de econofísica</b> con un
+registro honesto de qué pasó, con qué data, en qué horizonte. Su contribución no es un alfa secreto
+sino una <b>metodología reproducible</b>: tomar el núcleo robusto de la física estadística de mercados
+y pasarlo por el gate anti-sobreajuste más exigente del campo, <i>forward</i> antes de creer. En un
+dominio plagado de sobreajuste y humo, eso es, en sí mismo, el resultado.</p>
+
+<hr>
+<h2>Apéndice A — El perfil de quien desarrollaría esto</h2>
+<p>El arquetipo es un <b>físico o matemático aplicado que se vuelve quant</b> —el camino clásico del
+<i>quant</i>. Las piezas de FQ mapean a fundadores reales:</p>
+<table>
+  <tr><th>Pieza de FQ</th><th>Fundador / referencia</th><th>Casa</th></tr>
+  <tr><td>DSR · CPCV · PBO (el gate)</td><td>Marcos <b>López de Prado</b></td><td>Cornell ORIE / ADIA</td></tr>
+  <tr><td>Impacto raíz-√ · order-flow (CVD)</td><td>Jean-Philippe <b>Bouchaud</b></td><td>CFM / École Polytechnique</td></tr>
+  <tr><td>Memoria larga · order-splitting (F2)</td><td><b>Lillo</b>, Mike, <b>Farmer</b>, Bouchaud</td><td>Scuola Normale / Oxford / Santa Fe</td></tr>
+  <tr><td>Irreversibilidad · grafo de visibilidad (KL)</td><td><b>Parrondo</b>, Kawai, Van den Broeck; <b>Lacasa</b></td><td>Complutense / Queen Mary</td></tr>
+  <tr><td>Programa de econofísica</td><td><b>Mantegna</b> &amp; <b>Stanley</b></td><td>Palermo / Boston U</td></tr>
+</table>
+<p>Esto se enseña en los mejores programas del mundo —Cornell (ORIE/Financial Engineering), Oxford (INET
+/ Mathematical &amp; Computational Finance), ETH, Imperial, Princeton, CMU. <b>El giro:</b> aquí se hace
+de forma autodidacta desde Ciudad de México, y el entregable no es una tesis en papel sino <b>un sistema
+vivo, validado <i>forward</i>, con track record.</b> Lo que en esos programas sería el trabajo de un
+máster o doctorado, aquí es código que corre y mide. Eso no le resta mérito —se lo agrega.</p>
+
+<h2>Referencias <span class="note">(preliminar — a completar)</span></h2>
+<div class="refs">
+  <p>Bailey, D. &amp; López de Prado, M. (2014). <i>The Deflated Sharpe Ratio.</i> J. of Portfolio Management.</p>
+  <p>Bailey, D. et al. (2017). <i>The Probability of Backtest Overfitting.</i> J. of Computational Finance.</p>
+  <p>López de Prado, M. (2018). <i>Advances in Financial Machine Learning.</i> Wiley.</p>
+  <p>Bouchaud, J.-P., Bonart, J., Donier, J. &amp; Gould, M. (2018). <i>Trades, Quotes and Prices.</i> Cambridge.</p>
+  <p>Donier, J. &amp; Bonart, J. (2015). <i>A Million Metaorder Analysis of Market Impact on Bitcoin.</i></p>
+  <p>Sato, Y. &amp; Kanazawa, K. (2025). <i>Statistical mechanics of square-root market impact.</i> Phys. Rev. Lett.</p>
+  <p>Lillo, F., Mike, S. &amp; Farmer, J.D. (2005). <i>Theory for long memory in supply and demand.</i> Phys. Rev. E.</p>
+  <p>Bouchaud, J.-P., Farmer, J.D. &amp; Lillo, F. (2009). <i>How markets slowly digest changes in supply and demand.</i></p>
+  <p>Kawai, R., Parrondo, J.M.R. &amp; Van den Broeck, C. (2007). <i>Dissipation: The phase-space perspective.</i> PRL.</p>
+  <p>Lacasa, L. et al. (2012). <i>Time series irreversibility: a visibility graph approach.</i> Eur. Phys. J. B.</p>
+  <p>Lacasa, L., Luque, B. et al. (2008). <i>From time series to complex networks: the visibility graph.</i> PNAS.</p>
+  <p>Mantegna, R. &amp; Stanley, H.E. (2000). <i>An Introduction to Econophysics.</i> Cambridge.</p>
+  <p>Cont, R. &amp; Das, P. (2022). <i>Rough volatility: fact or artefact?</i></p>
+</div>
+
+</body></html>
