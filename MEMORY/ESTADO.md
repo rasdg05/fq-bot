@@ -28,15 +28,21 @@ sube conviction client-facing. Hoy mide, no decide.
   vía motor_paper** (1 TP), no en el SQLite de 4 TP — gap conocido (ver cerebro).
 - **ETH/USDT** — cableado (motor paper, broadcast gated, vetos, regime tag) **pero no certificado**.
   Pendiente: cosechar su cube + correr DSR completo + CVD signed-flow. Si pasa → `FQ_ETH_VIP_BROADCAST=1`.
-- **BCH/USDT** — broadcasting a clientes (VIP). F2✓ + POC✓ (cube), **top de por vida** (+0.207R tp1/h96)
-  PERO **sin forward + sin KL** (el menos validado de los que sí salen). Se queda (RasDG no lo corta).
+- **BCH/USDT** — **DEMOTADO a paper (VIP off, RasDG 2026-06-30: `FQ_BCH_VIP_BROADCAST=0`).** F2✓ + POC✓
+  (cube), **top de por vida** (+0.207R) pero **sin forward + sin KL**; empeoraba el DD de la ventana de 2m
+  (ruido — esos 2 meses fueron −0.128R, atípicos para BCH). Sigue en `motor_paper`; **reversible** (re-evaluar
+  forward). Decisión de calidad de VIP, no de edge.
 - **BNB/USDT** — **VIP APAGADO (decisión RasDG 2026-06-30):** peor de por vida (+0.061R, apenas positivo) +
   **sin validar** (fuera de POC y F2 — token de exchange). Sigue en `motor_paper` (mide forward), sin exponer
   clientes. Acción: `FQ_BNB_VIP_BROADCAST=0` en Railway (kill-switch sin redeploy).
-- **LINK/USDT** — **NO en VIP, VALIDANDO (2026-06-30).** Gate offline: **KL pasa DÉBIL** (irrev-bajo, DSR
-  0.969, separación 0.075R); **POC NO PASA** (es `near>far`, POC-invertido como BNB). Lifetime +0.181R
-  modesto; la racha de 2m (+0.831R) fue **espejismo**. Falta CVD/F2 + forward. Para medir forward sin exponer:
-  `FQ_MOTOR_PAPER_LINK=1` + `FQ_LINK_VIP_BROADCAST=0`. **NO va a VIP por una racha** (instinto de RasDG: correcto).
+- **LINK/USDT** — **NO en VIP. VALIDACIÓN COMPLETA (2026-06-30): falla 3/4 gates.** CVD **NO PASA**
+  (uplift −0.161R, los confirmados rinden PEOR, DSR 0.380); F2 **NO PASA** (DSR 0.921 + redundante within-CVD
+  −0.045R); POC **NO PASA** (near>far invertido); KL pasa **DÉBIL** (DSR 0.969, sep 0.075R). Base +0.181R = solo
+  el motor; **ninguna familia validada (CVD/F2/POC) funciona en LINK.** La racha de 2m (+0.831R) fue **100%
+  ruido** — el ejemplo perfecto de "la ventana miente". → **NO a VIP.** Opcional: medir forward en paper
+  (`FQ_MOTOR_PAPER_LINK=1` + `FQ_LINK_VIP_BROADCAST=0`). Instinto de RasDG: confirmado por el gate.
+- **VIP AHORA = SOL / BTC / ETH** (núcleo más validado, todos CVD✓). BCH+BNB bajados a paper (2026-06-30);
+  LINK nunca entró. Cualquier re-alta se decide por **forward**, no por ventana.
 
 ---
 
