@@ -65,9 +65,12 @@ Fecha: 2026-06-27.
 Además de los 5 archivos núcleo, la memoria guarda las **obras** (PDF + texto):
 - `ingenieria/` — la ecuación del motor (P_master, de la vela al disparo).
 - `marketing/` — guías de marca y de cómo se construye una ventaja.
-- `investigacion/` — **review científico (preview)** + **presentación del perfil
-  académico** (físico→quant, la cantera, CDMX → Cornell/Oxford). **Aquí va TODA obra
-  nueva del proyecto** (reviews, papers, decks) — directiva RasDG, 2026-06-29.
+- `investigacion/` — **review científico (preview)** + **preprint EN (SSRN-ready)** +
+  **presentación del perfil académico** (físico→quant, CDMX → Cornell/Oxford) +
+  **`rutas-nuevas-2026.md`** (ideación estructura/motor/premios/investigación/vanguardia,
+  cada idea con su experimento measure-first, **respetando el cementerio**) +
+  **Ruta A Numerai Crypto** (`tools/numerai_crypto_pipeline.py`, end-to-end). **Aquí va TODA
+  obra nueva del proyecto** (reviews, papers, decks, rutas) — directiva RasDG, 2026-06-29.
 
 ---
 

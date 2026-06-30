@@ -31,6 +31,15 @@
   KL/POC/momentum) **Y para Numerai Crypto** (CONFIRMADO, crypto.numer.ai — **fit DIRECTO** del bot,
   símbolos de tokens; en cripto CVD/F2 **también** aplican, versión más rica). Combinación = hipótesis
   a tunear con el OOS en vivo.
+- **`tools/numerai_crypto_pipeline.py`** (+ test) — *Ruta A, ahora END-TO-END.* `data.binance.vision`
+  (klines 5m, gratis) → `build_submission` → **CSV de submission `symbol,signal`**. Corre hoy
+  (`--self-test` ✓, 5 tests verdes). Credential-free hasta el archivo; la última milla (universo real
+  ≥100 + upload) va con `numerapi` + tu API key. **Es la pieza que vuelve a Ruta A algo ejecutable, no
+  solo documentado.**
+- **`rutas-nuevas-2026.md`** — *Ideación de rutas nuevas (encargo de RasDG, 2026-06-30).* Estructura /
+  motor / premios / investigación / vanguardia — cada idea con su **experimento measure-first** para
+  pasar el gate, y la honestidad de siempre (transfiere vs. humo; respeta lo ya medido: F2 gana,
+  F1/Hurst-precio redundantes). Incluye el estado de Ruta A (activa) y Ruta B (parqueada).
 
 ## Cómo endurecerlo (paso a rigor pleno, después)
 1. Tablas y figuras **reproducibles** desde el repo (DSR/CPCV/PBO, curvas forward, cubes).
