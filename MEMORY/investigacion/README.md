@@ -47,6 +47,11 @@
   (costos comen ~70%, DD −45% por sobre-apalancamiento) → **0.4% neto +6%** (el número creíble, n=137).
   Lección registrada: el número **depende del set** y la ventana de 2m **miente** (BCH lastre / LINK héroe
   en la ventana, al revés de por vida → se juzga forward). Reproducible: **`tools/sim_paper_return.py`** (+ test).
+- **`ejemplo-rendimiento-10k-2pct-tp1.pdf`** (+ `.html` + `fig-ejemplo-2pct-tp1.png`) — *Config recomendada
+  (RasDG eligió 2% · TP1, 2026-06-30):* sobre el VIP actual **SOL/BTC/ETH**, 2%/trade neto → **+79%**
+  ($10k→$17,893), piso $8,234 (−18%); vs 3.6% (+177% pero DD −30%). **Aclaración clave en el PDF:** usa
+  **TODAS las señales del motor paper** (el cube) = el VIP **si `FQ_KL_FILTER` está OFF** (default); con el
+  filtro ON el VIP sería un subconjunto KL-bajo. Recomendación: 2% en TP1 (sobrevive para probar el edge forward).
 - **`rutas-capital-operativas-2026.md`** — *Planes operativos de capital (decisión RasDG, 2026-06-30).*
   Las 3 rutas greenlit con plan concreto y capital-en-riesgo explícito: **Numerai Crypto** (GO, medir 3
   sem sin-stake → stakear), **Breakout** (estrategia para pasar el challenge: sizing 0.4% por el WR bajo
