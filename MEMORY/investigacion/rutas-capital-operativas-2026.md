@@ -80,12 +80,23 @@ bueno**. Es +EV solo si (a) el edge aguanta forward y (b) el sizing respeta el 6
 **El reloj:** GOLD pide 8 meses → **arrancar YA** para cosechar después. SILVER puede entrar antes (solo
 rating ≥75).
 
-**🚩 EL CAVEAT QUE DECIDE TODO (verificar ANTES de montar):** ¿Darwinex Zero ofrece **cripto-perps** con
-microestructura aprovechable, o solo **CFD/spot de cripto**? Importa porque es el **desacople data/venue**
-que ya conocemos: el edge de **order-flow (CVD/F2)** es del libro de Binance — **NO transfiere** a un CFD
-de Darwinex. Lo que SÍ transferiría es **KL + precio + estructura/ICT** (puro precio). → Si su cripto es
-CFD-only, el bot entraría **mutilado** (sin su pata de order-flow). **Acción: verificar el instrumento
-cripto de Darwinex y si el edge sobrevive ahí, ANTES de invertir setup.**
+**🚩 EL CAVEAT — VERIFICADO (2026-06-30): Darwinex Zero cripto = CFD, NO perps. Mal fit para el bot tal-cual.**
+Confirmado (darwinexzero.com/assets + blog.darwinexzero.com/crypto-cfd-account): la cripto de Darwinex Zero
+es **CFD en MetaTrader 5** (BTC/ETH/SOL/BNB/XRP/ADA/DOGE), **NO** perpetuos. Tres golpes al edge del bot:
+1. **Sin order-flow:** un CFD no tiene el libro taker-buy/sell de Binance → el **CVD/F2 NO transfiere**
+   (el desacople data/venue, confirmado). Solo sobrevivirían KL + precio + ICT — una versión mutilada.
+2. **Lunes-Viernes, NO 24/7:** los CFD cierran fin de semana → rompe el supuesto 24/7 con el que se midió
+   el edge (gaps de finde no medidos).
+3. **Leverage 1:1** en la cuenta cripto CFD → no puedes dimensionar un edge chico (vs. 5x de Breakout).
+→ **Veredicto: Darwinex cripto NO vale el reloj de 8 meses para este bot.** El order-flow (su edge más
+fuerte) muere ahí, es M-V no 24/7, y 1:1 mata la eficiencia de capital de un edge pequeño.
+
+**La alternativa REAL (si algún día se usa Darwinex):** su fuerte son los **futuros CME/Eurex** (oro,
+NASDAQ, índices, metales) — justo donde el bot tiene edges TradFi (**KL/ICT/precio**) que **estamos
+cosechando AHORA** (XAU/NQ/ES/WTI/plata). Esa pata SÍ podría encajar — **pero pendiente de que los edges
+TradFi pasen el gate** (la cosecha sigue, POC-distance aún under-powered). → **Darwinex deprioritizado;
+revisitar vía FUTUROS (no cripto CFD) solo si el gate TradFi pasa. NO arrancar el reloj en un venue
+mutilado.**
 
 **Fricción:** integrar la ejecución del bot con Darwinex (MT4/5 o API) es **más trabajo** que Breakout
 (que opera perps directo). Darwinex da asignación tipo-institucional y un gate claro, a cambio de su
@@ -120,7 +131,7 @@ Breakout). SSRN/Quant Finance quedan como *opción de prestigio para después*, 
 |---|---|---|---|---|---|
 | 1 | **Numerai Crypto** | nativo (ranking de tokens) | stake NMR (su decisión) | baja (pipeline ✓) | medir 3 sem sin-stake → stakear |
 | 2 | **Breakout** | nativo (perps, Kraken) | fee ~$55 | baja | challenge $5K como test en vivo |
-| 3 | **Darwinex Zero** | parcial (¿perps o CFD?) | tiempo (8 meses) | media-alta (su venue) | **verificar cripto** → arrancar reloj |
+| 3 | **Darwinex Zero** | ✗ cripto = CFD (M-V, 1:1, sin order-flow) | tiempo (8 meses) | alta | **deprioritizado** (verificado); revisitar vía FUTUROS CME si pasa el gate TradFi |
 | — | Academia (SSRN/QF) | publicar método sin salsa | none | baja | **parqueada hasta forward** |
 
 _Fuente: `premios-competencias-2026.md` (deep-research verificado 2026-06-30), `tools/numerai_crypto_pipeline.py`,
