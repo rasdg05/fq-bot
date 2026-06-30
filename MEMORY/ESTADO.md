@@ -43,6 +43,12 @@ sube conviction client-facing. Hoy mide, no decide.
   (`FQ_MOTOR_PAPER_LINK=1` + `FQ_LINK_VIP_BROADCAST=0`). Instinto de RasDG: confirmado por el gate.
 - **VIP AHORA = SOL / BTC / ETH** (núcleo más validado, todos CVD✓). BCH+BNB bajados a paper (2026-06-30);
   LINK nunca entró. Cualquier re-alta se decide por **forward**, no por ventana.
+- **Filtro de calidad KL (`FQ_KL_FILTER`) — RECOMENDADO PRENDER (medido 2026-06-30).** Por defecto está OFF
+  → el VIP difunde TODAS las señales del motor. Sobre la ventana 2m (SOL/BTC/ETH, 3.6%/trade, sim paper),
+  difundir **solo el subconjunto KL-bajo** (lo que pasa `_kl_pass`, ~56% de las señales) dio **+139% con
+  drawdown −12%**, vs **todas: +177% pero −36%** → mismo orden de return, **1/3 del drawdown**. El filtro
+  esquiva el mal régimen (trending/irreversible) y suaviza el viaje. → **encender `FQ_KL_FILTER=SOL,BTC,ETH`**
+  (medir forward antes de fijarlo). Mejor riesgo-ajustado y retención. (irrev proxy de klines Binance.)
 
 ---
 
