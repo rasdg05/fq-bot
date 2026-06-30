@@ -52,6 +52,11 @@
   ($10k→$17,893), piso $8,234 (−18%); vs 3.6% (+177% pero DD −30%). **Aclaración clave en el PDF:** usa
   **TODAS las señales del motor paper** (el cube) = el VIP **si `FQ_KL_FILTER` está OFF** (default); con el
   filtro ON el VIP sería un subconjunto KL-bajo. Recomendación: 2% en TP1 (sobrevive para probar el edge forward).
+- **`senales-vip-2meses-3.6pct.pdf`** (+ `.html` + `fig-vip-tps.png`) — *Señales VIP filtradas (2026-06-30,
+  tras prender `FQ_KL_FILTER`).* Sobre los últimos 2 meses: **37 señales pasaron a VIP** (54% de las 68 del
+  motor, ~18/mes) y su rendimiento a **3.6%** por los **4 TPs**: TP1 **+119% (DD −10%)** ⭐, TP2 +89%, TP3
+  +68%, TP4 +69% (DD −25%). Reco: **TP1 + 2% sizing**; TP2/TP3 no aportan; menos señales = filtro funcionando.
+  PAPER sobre racha buena (irrev del filtro = proxy de klines Binance); el real lo dará el forward en vivo.
 - **`rutas-capital-operativas-2026.md`** — *Planes operativos de capital (decisión RasDG, 2026-06-30).*
   Las 3 rutas greenlit con plan concreto y capital-en-riesgo explícito: **Numerai Crypto** (GO, medir 3
   sem sin-stake → stakear), **Breakout** (estrategia para pasar el challenge: sizing 0.4% por el WR bajo
