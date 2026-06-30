@@ -76,12 +76,27 @@ Tus **dos entregables** mapean a **dos venues distintos**, sin construir nada nu
 Y el hilo común: **el track record FORWARD que ya estás construyendo** es justo lo que abre las
 puertas de allocator (Quants.space) y de research (EF) — hoy cerradas por falta de él.
 
-## Lo que NO se cubrió (honesto — segunda pasada si quieres)
-- Journals específicos (Quantitative Finance, Physica A, JPM, J. Financial Econometrics): bar real
-  para autor no-credencializado.
-- Jane Street / Citadel / Optiver / IMC / Kaggle finanzas: formato y si aceptan a un outsider.
-- Si **FTMO (u otra)** soporta cripto-perps de verdad (quedó sin resolver).
-- Plataformas de copy/signal-marketplace que acepten performance FORWARD (no live).
+## Actualización — 2ª pasada (PARCIAL; pegó límite de sesión, resto pendiente)
+
+**Verificado (3-0), la ruta de publicación quedó CONCRETA:**
+- **SSRN = la vía de menor fricción para un preprint citable.** Da la bienvenida **explícita a "un
+  investigador independiente sin afiliación formal alguna"** → cero barrera de credencial. El preprint
+  en inglés ya está listo (`preprint-fq-en.pdf`) → **va directo a SSRN.** *(blog.ssrn.com, primary.)*
+- **arXiv q-fin endureció (21-ene-2026):** el email institucional ya **NO basta** para el endorsement;
+  un autor nuevo no-afiliado necesita un **endorsement PERSONAL de un autor establecido de arXiv en
+  el mismo dominio** (q-fin). El staff no lo exime. Cómo: en abstracts q-fin relacionados, usa el link
+  *"Which authors of this paper are endorsers?"* + el código de solicitud. → **Haz SSRN primero;
+  arXiv cuando tengas un endorser.** *(blog.arxiv.org/2026/01/21 + info.arxiv.org/help/endorsement, primary.)*
+
+**Leads SIN verificar (erraron por el límite — confirmar al re-correr):**
+- **¿Numerai CRYPTO?** Posible torneo de **cripto dedicado** (≠ Signals, que es equities). Si existe,
+  es el **fit DIRECTO** para el bot (sin reframe a acciones). ⭐ vale la pena confirmar primero.
+- JPM ~11 % aceptación y posiblemente **NO acepta papers "muy cuantitativos"**; IMC Prosperity abierto
+  pero premio geo-limitado.
+
+**Aún pendiente (no se cubrió por el límite — re-correr tras reset 3:20am UTC):** journals (detalle
+APC/proceso/bar), competencias (Jane Street / Citadel / Optiver / IMC / Kaggle), funded-traders cripto
+(HyroTrader / Breakout / FundedX + ¿FTMO soporta perps?), allocators que acepten performance FORWARD.
 
 _Caveat de tiempo: varios deadlines son de 2025/2026 y deben re-verificarse al actuar. Varias cifras
 ($500M FTMO, $3B Quants.space) son marketing no auditado, atribuidas como tales._
