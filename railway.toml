@@ -14,6 +14,14 @@ watchPatterns = [
   "!.github/**",
   "!tests/**",
   "!tools/**",
+  # Obras/documentacion: PDFs, decks, figuras, memoria de procesos. NO tocan el
+  # runtime -> NO deben re-desplegar el worker. (Antes solo se excluia *.md, asi que
+  # los .pdf/.html/.png de MEMORY churneaban el bot y reseteaban sus contadores.)
+  "!MEMORY/**",
+  "!presentaciones/**",
+  "!**/*.pdf",
+  "!**/*.html",
+  "!**/*.png",
   # EXCEPCION: funding_paper.py SI es runtime (launcher lo lanza como hijo con
   # FQ_FUNDING_PAPER=1) -> un fix suyo debe redeployar, a diferencia del resto de
   # tools/ (research, corre en CI). Re-incluir gana por ser el ultimo match.
