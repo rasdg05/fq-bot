@@ -16,11 +16,11 @@ on:
   workflow_dispatch:
     inputs:
       symbols:
-        description: "Símbolos (espacio). NQ->USATECH, ES->USA500, XAU/USD ya probado."
-        default: "XAU/USD NQ"
+        description: "Símbolos (espacio). Alias: NQ, ES, WTI(->LIGHT), XAG/USD. XAU/USD probado."
+        default: "XAU/USD NQ ES WTI XAG/USD"
       years:
-        description: "Años de historia"
-        default: "2"
+        description: "Años de historia (sube el n para el gate; 5 = run largo ~h, una vez por el cache)"
+        default: "5"
       step:
         description: "Step del replay (1=densidad máxima/más eventos, 2=más rápido)"
         default: "1"
@@ -31,7 +31,7 @@ permissions:
 jobs:
   cosecha:
     runs-on: self-hosted
-    timeout-minutes: 240
+    timeout-minutes: 600
     env:
       SYMBOLS: ${{ inputs.symbols }}
       YEARS: ${{ inputs.years }}
@@ -72,7 +72,7 @@ jobs:
             done
             [ "$ok" = "1" ] || continue
             CUBE="cosecha_cubes/tp_cube_${SLUG}.parquet"
-            CACHE="$HOME/fq_dukascopy_cubes/tp_cube_${SLUG}.parquet"
+            CACHE="$HOME/fq_dukascopy_cubes/tp_cube_${SLUG}_${YEARS}y_s${STEP}.parquet"
             mkdir -p "$HOME/fq_dukascopy_cubes"
             if [ -f "$CACHE" ]; then
               # cache en $HOME (persiste entre runs del self-hosted) -> re-fires
