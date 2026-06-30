@@ -17,10 +17,12 @@ Pipeline (credential-free HASTA el CSV):
   4. signal   : build_submission(panel) -> [ticker, signal] cross-sectional en [0,1]
   5. formato  : -> CSV Numerai Crypto (columnas symbol,signal)
 
-LA ÚLTIMA MILLA (con credenciales, NO aquí): descargar el universo REAL (>=100 tokens) y
-SUBIR van con `numerapi` + tu API key de Numerai. Esta herramienta PRODUCE el archivo; el
-upload se cablea cuando exista la cuenta. El nombre EXACTO de columnas se CONFIRMA contra
-docs.numer.ai/numerai-crypto al primer submit real (aquí symbol,signal como hipótesis).
+LA ÚLTIMA MILLA (con credenciales, NO aquí): descargar el universo REAL y SUBIR van con
+`numerapi` + tu API key de Numerai. Esta herramienta PRODUCE el archivo; el upload se cablea
+cuando exista la cuenta. Formato **CONFIRMADO** (deep-research 2026-06-30, docs.numer.ai/
+numerai-crypto): columnas `symbol,signal`, valor 0-1 exclusivo, >=100 símbolos; universo en
+`live_universe.parquet`. OJO: una submission SIN stake se puntúa pero **NO paga** (paper-trading);
+el ingreso real EXIGE **stakear NMR** (un score negativo lo quema). Ruta A = construir track sin riesgo.
 
   python tools/numerai_crypto_pipeline.py --self-test                  # sintético, SIN red
   python tools/numerai_crypto_pipeline.py --start 2024-01-01 \
@@ -47,7 +49,7 @@ DEFAULT_UNIVERSE = {
     "ADA": "ADAUSDT", "AVAX": "AVAXUSDT", "LINK": "LINKUSDT", "DOT": "DOTUSDT",
 }
 
-# CONFIRMAR contra docs.numer.ai/numerai-crypto antes del primer submit real.
+# CONFIRMADO (docs.numer.ai/numerai-crypto, deep-research 2026-06-30): symbol,signal; 0-1; >=100 símbolos.
 NUMERAI_COLS = ["symbol", "signal"]
 
 

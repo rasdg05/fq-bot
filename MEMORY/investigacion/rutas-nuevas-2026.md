@@ -17,13 +17,14 @@
 - **Ruta A — Numerai Crypto: ACTIVA, ahora con pipeline real.** `tools/numerai_crypto_pipeline.py`
   (5 tests verdes): `data.binance.vision` (klines 5m, gratis) → `build_submission` (KL+POC+momentum) →
   **CSV de submission `symbol,signal`**. Corre end-to-end hoy (`--self-test` ✓). Fit DIRECTO del bot,
-  sin reframe a acciones. **Última milla (con credenciales):** bajar el universo real (≥100 tokens) y
-  subir con `numerapi` + tu API key; confirmar columnas vs docs.numer.ai/numerai-crypto.
+  sin reframe a acciones. Formato **confirmado** (`symbol,signal`, 0–1, ≥100 símbolos; universo en
+  `live_universe.parquet`). **Última milla (con credenciales):** bajar el universo real y subir con
+  `numerapi` + tu API key. **OJO (§3):** sin-stake = paper (NO paga); el pago real exige stakear NMR.
 - **Ruta B — académica (preprint SSRN + grants EF): PARQUEADA, no olvidada.** Preprint en inglés listo
   (`preprint-fq-en.pdf`); SSRN da la bienvenida a independientes → va directo al botón. EF Grants exige
   *prior research* → SSRN primero. Ver `premios-competencias-2026.md`. **En la fila, prioridad media.**
-- **2ª pasada de deep-research — EN VUELO** (`premios-gap-research`): competencias, funded-traders
-  cripto, allocators forward, journals. Actualiza el §3 al cerrar.
+- **2ª pasada de deep-research — CERRADA ✅** (`premios-gap-research`, 2026-06-30): shortlist verificado
+  en `premios-competencias-2026.md`. Resumen accionable en §3.
 
 ## §0.B — Lo que NO re-propongo (ya en el cementerio, con su razón)
 
@@ -97,16 +98,24 @@ no edge nuevo. Bajo riesgo, retorno incremental. Pendiente: ETH + forward + n_tr
 
 ---
 
-## §3 — PREMIOS (capital / competencia)  ·  _se enriquece al cerrar el deep-research_
+## §3 — PREMIOS (capital / competencia)  ·  _shortlist VERIFICADO (deep-research 2026-06-30; detalle en `premios-competencias-2026.md`)_
 
-- **Numerai Crypto (Ruta A) — ACTIVA**, pipeline listo. Submit sin stake (paper) → OOS vivo → stake NMR
-  solo cuando el edge se vea forward. ⭐ menor fricción.
-- **Kaggle quant comps (Jane Street RT, Optiver Close/Vol) — candidata fuerte.** Credential-blind,
-  medible, con premio; el feature-engineering + el harness compiten directo. *Confirmar en la 2ª pasada.*
-- **Funded-traders cripto + allocators forward** — track record → capital, con bandera roja (≈7% cobran;
-  80+ firmas cayeron en 2024). *Detalle en vuelo.*
-- **Lead/copy-trading de exchange (Binance/Bitget/BingX)** — publicar la estrategia = track record público
-  + comisiones. Fit directo para un signal bot.
+**Accionable-HOY, barrera baja:**
+- **SSRN — publicar el preprint YA** (gratis, independiente, sin gatekeeper). `preprint-fq-en.pdf` listo.
+- **Numerai Crypto (Ruta A) — validar YA.** ⚠️ **sin-stake = paper (NO paga)**; el pago real **exige
+  stakear NMR** (score negativo lo quema, pago en NMR volátil). Ruta A construye track sin riesgo.
+- **Physica A / Quantitative Finance — publicar GRATIS** por vía subscription (híbrido, sin gold-OA;
+  ninguno exige afiliación). Physica A = mejor fit para KL/entropía.
+- **Breakout (prop firm, perps cripto) — probar con costo bajo.** ÚNICA de confianza alta: **comprada
+  por Kraken** (perps reales). Es comprar evaluación, no allocation; fee no reembolsable.
+- **Bitget elite / copy-trading** — capital de seguidores con **≥500 USDT** + KYC; el track debe ser EN
+  el exchange. Barrera más baja del bloque "capital".
+- **Darwinex Zero / DarwinIA** — arrancar el **reloj de 8 meses** ya (GOLD = >8 meses signal history →
+  50k–500k EUR); operas EN su infra (el track de exchange externo no cuenta).
+
+**Cerrado / mal fit (no perseguir):** Kaggle quant (Jane Street/Optiver) **elegible pero sin edición
+abierta hoy** → monitorear; **IMC/Citadel/JS-ETC cerradas por gate ESTUDIANTIL**; **FTMO no fondea
+perps** (solo CFDs spot); allocators institucionales (Quants.space/ML Tech) = caja negra sin umbrales.
 
 ---
 
