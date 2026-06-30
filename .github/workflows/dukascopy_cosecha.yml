@@ -54,44 +54,55 @@ jobs:
           pip install pytest lightgbm scikit-learn turbovec dukascopy-python
       - name: Resolver instrumentos IDX (ground truth para NQ/ES)
         run: python tools/fetch_dukascopy.py --list-idx || true
-      - name: Cosecha por símbolo (unsharded) + cube_report
+      - name: Cosecha PARALELA por símbolo (cada uno unsharded=correcto) + cube_report
         run: |
-          set -o pipefail
-          mkdir -p cosecha_cubes research_out
+          mkdir -p cosecha_cubes research_out "$HOME/fq_dukascopy_cubes"
+          MAXJ="${MAXJOBS:-4}"   # cap de concurrencia (RAM del CCX33 ~32GB; metales pesados)
+          # 1) FETCH del stack 5m/15m/1h por símbolo — SECUENCIAL (rápido; no martilla Dukascopy)
           for SYM in $SYMBOLS; do
-            SLUG=$(echo "$SYM" | tr '/:' '__')
-            echo "==================== $SYM (slug=$SLUG) ===================="
-            ok=1
             for TF in 5m 15m 1h; do
               P=$(python -c "import bt_data; print(bt_data.dataset_path('data','dukascopy','${SYM}','${TF}'))")
-              if [ -f "$P" ]; then echo "== cache hit $SYM $TF: $P =="; continue; fi
+              if [ -f "$P" ]; then echo "== cache hit $SYM $TF =="; continue; fi
               echo "== fetch $SYM $TF (${YEARS}a) =="
-              if ! python tools/fetch_dukascopy.py --symbol "$SYM" --tf "$TF" --years "$YEARS"; then
-                echo "!! fetch falló para $SYM $TF — salto el símbolo"; ok=0; break
-              fi
+              python tools/fetch_dukascopy.py --symbol "$SYM" --tf "$TF" --years "$YEARS" \
+                || echo "!! fetch falló $SYM $TF"
             done
-            [ "$ok" = "1" ] || continue
-            CUBE="cosecha_cubes/tp_cube_${SLUG}.parquet"
-            CACHE="$HOME/fq_dukascopy_cubes/tp_cube_${SLUG}_${YEARS}y_s${STEP}.parquet"
-            mkdir -p "$HOME/fq_dukascopy_cubes"
-            if [ -f "$CACHE" ]; then
-              # cache en $HOME (persiste entre runs del self-hosted) -> re-fires
-              # gatean en segundos. Borra $HOME/fq_dukascopy_cubes para re-cosechar.
-              echo "== cube cache-hit $SYM: $CACHE (omito cosecha de ~h) =="
-              cp "$CACHE" "$CUBE"
-              python tools/cube_report.py "$CUBE" 2>&1 | tee "research_out/report_${SLUG}.txt" || true
-            else
-              echo "== cosecha UNSHARDED $SYM -> $CUBE (step=$STEP) =="
-              if python tools/cosecha_shard.py --exchange dukascopy --symbol "$SYM" \
-                   --tf-id 5m --shards 1 --workers 1 --step "$STEP" --out "$CUBE" 2>&1 \
-                   | tee "research_out/cosecha_${SLUG}.txt"; then
-                cp "$CUBE" "$CACHE"
-                echo "== cube_report $SYM (edge base GROSS) =="
-                python tools/cube_report.py "$CUBE" 2>&1 | tee "research_out/report_${SLUG}.txt" || true
-              else
-                echo "!! cosecha falló para $SYM (ver research_out/cosecha_${SLUG}.txt)"
-              fi
+          done
+          # 2) COSECHA en PARALELO por símbolo. Cada símbolo es UNSHARDED (--shards 1) =
+          #    correcto por construcción; los símbolos son independientes, así que
+          #    paralelizarlos es seguro. (NO usamos date-sharding: no reproduce en data
+          #    con huecos por el estado acumulado del motor — lo cazó el --verify.)
+          running=0
+          for SYM in $SYMBOLS; do
+            SLUG=$(echo "$SYM" | tr '/:' '__')
+            P5=$(python -c "import bt_data; print(bt_data.dataset_path('data','dukascopy','${SYM}','5m'))")
+            P15=$(python -c "import bt_data; print(bt_data.dataset_path('data','dukascopy','${SYM}','15m'))")
+            P1=$(python -c "import bt_data; print(bt_data.dataset_path('data','dukascopy','${SYM}','1h'))")
+            if [ ! -f "$P5" ] || [ ! -f "$P15" ] || [ ! -f "$P1" ]; then
+              echo "== skip $SYM (klines incompletas — ¿no resolvió?) =="; continue
             fi
+            (
+              CUBE="cosecha_cubes/tp_cube_${SLUG}.parquet"
+              CACHE="$HOME/fq_dukascopy_cubes/tp_cube_${SLUG}_${YEARS}y_s${STEP}.parquet"
+              if [ -f "$CACHE" ]; then
+                echo "== cube cache-hit $SYM (omito cosecha) =="; cp "$CACHE" "$CUBE"
+              elif python tools/cosecha_shard.py --exchange dukascopy --symbol "$SYM" \
+                     --tf-id 5m --shards 1 --workers 1 --step "$STEP" --out "$CUBE"; then
+                cp "$CUBE" "$CACHE"
+              else
+                echo "!! cosecha FALLÓ $SYM"; exit 0
+              fi
+              echo "== cube_report $SYM (edge base GROSS) =="
+              python tools/cube_report.py "$CUBE" || true
+            ) > "research_out/cosecha_${SLUG}.txt" 2>&1 &
+            echo "== lanzado $SYM (pid $!) =="
+            running=$((running + 1))
+            if [ "$running" -ge "$MAXJ" ]; then wait -n || true; running=$((running - 1)); fi
+          done
+          wait
+          # 3) volcar los logs por símbolo (a archivo -> no se interleavean)
+          for f in research_out/cosecha_*.txt; do
+            [ -f "$f" ] && { echo "================= $f ================="; cat "$f"; }
           done
           echo "==== cubos producidos ===="
           ls -lh cosecha_cubes/ || echo "(sin cubos)"
