@@ -88,9 +88,14 @@ puertas de allocator (Quants.space) y de research (EF) — hoy cerradas por falt
   *"Which authors of this paper are endorsers?"* + el código de solicitud. → **Haz SSRN primero;
   arXiv cuando tengas un endorser.** *(blog.arxiv.org/2026/01/21 + info.arxiv.org/help/endorsement, primary.)*
 
+**Numerai CRYPTO — CONFIRMADO ✅** (crypto.numer.ai · docs.numer.ai/numerai-crypto): torneo de
+**cripto dedicado** (≠ Signals, que es equities). Submission = **símbolos de TOKENS** con valor 0–1
+prediciendo retorno (≥100 símbolos del universo, sin duplicados); stake NMR opcional (earn/burn). **Es
+el fit DIRECTO del bot — SIN reframe a acciones.** Y en cripto las features de **order-flow (CVD/F2)
+TAMBIÉN aplican** (versión más rica que la de equities). Mismo `tools/numerai_signals_features.py`:
+`build_submission({símbolo: ohlcv_df})` es símbolo-agnóstico → alimenta OHLCV por token. ⭐ **ruta A real.**
+
 **Leads SIN verificar (erraron por el límite — confirmar al re-correr):**
-- **¿Numerai CRYPTO?** Posible torneo de **cripto dedicado** (≠ Signals, que es equities). Si existe,
-  es el **fit DIRECTO** para el bot (sin reframe a acciones). ⭐ vale la pena confirmar primero.
 - JPM ~11 % aceptación y posiblemente **NO acepta papers "muy cuantitativos"**; IMC Prosperity abierto
   pero premio geo-limitado.
 
