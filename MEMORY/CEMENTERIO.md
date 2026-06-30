@@ -67,7 +67,15 @@
   (+0.63R neto) pero ~1 señal/3 sem y n=37 (< piso 100). Premium = **lead de investigación en BTC**, no tier.
 - **Por qué sobrevive:** Kawai-Parrondo-Van den Broeck 2007 (KL = entropía producida); Lacasa
   et al. 2012 (estimador por grafo de visibilidad). Era el hilo de termo-estocástica del research.
-- **Status:** **VALIDADO en cube, PENDIENTE forward.** No cableado. Falta ETH + forward + n_trials honesto.
+- **TradFi — NO transfiere (5y × 5 símbolos, n=170–564, 2026-06-30, `validate_regime_irreversibility`):**
+  el edge KL que en CRIPTO vive **consistente en irrev-BAJO** (reversible), en TradFi **NO separa de forma
+  consistente**: XAU (sep 0.188R, irrev-ALTO, DSR 0.458 ✗) · **NQ (0.636R, irrev-ALTO, DSR 1.000 ✓)** · ES
+  (0.193R, irrev-BAJO, 0.690 ✗) · WTI (0.174R, irrev-BAJO, 0.889 ✗) · XAG (0.046R, irrev-BAJO, 0.251 ✗).
+  **Solo NQ es significativo, y en el lado OPUESTO a cripto** (trending, no choppy); **4/5 no separan ni
+  concuerdan en el lado.** → **KL es edge cripto-nativo, NO ley de régimen cross-asset.** NQ-trending queda
+  como **lead aislado de NASDAQ** (base +0.74R, a verificar forward), no edge gateado. Junto con POC-distance
+  (tampoco pasa), confirma: **NINGÚN edge de régimen transfiere a TradFi — el bot es cripto-específico.**
+- **Status:** **VALIDADO en cube (cripto), PENDIENTE forward. NO transfiere a TradFi.** No cableado. Falta ETH + forward + n_trials honesto.
 
 ### Volume Profile (POC/VA) — la pata de "volumen" de la confluencia triple — **PARCIAL**
 - **Idea:** el setup de mayor probabilidad junta estructura + **VOLUMEN** + order-flow. El bot tenía

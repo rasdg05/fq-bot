@@ -67,7 +67,9 @@ sube conviction client-facing. Hoy mide, no decide.
 45 eventos en XAU). **Cosecha 5y × 5 símbolos CERRÓ** (run 28413719153, 2026-06-30, ~6h en Hetzner;
 XAU/NQ/ES/WTI/plata). Transfieren KL/ICT/precio; CVD/F2 **no** (son del venue). **Veredicto POC-distance
 TradFi: NO PASA** (n=1992, `far>near` consistente en 5/5 y DSR ✓, pero **PBO 0.76**; en cripto SÍ pasa,
-PBO 0.17). → dirección universal cross-asset (sirve al paper), **NO tier** en TradFi. Ver `CEMENTERIO.md`.
+PBO 0.17). **KL-standalone TradFi TAMPOCO transfiere** (2026-06-30: inconsistente, solo NQ pasa y en el
+lado OPUESTO a cripto; 4/5 no separan). → **NINGÚN edge de régimen (POC ni KL) transfiere a TradFi: el
+bot es cripto-específico.** Útiles al paper (cross-asset), **NO tier** en TradFi. Ver `CEMENTERIO.md`.
 
 **Volume Profile (POC/VA) — `volume_profile.py` (PR #121):** la pata de "volumen" de la confluencia
 triple, construida (puro, 7 tests, crypto+TradFi). Medida sobre crypto (`measure_vp_tier.py`, #123):
