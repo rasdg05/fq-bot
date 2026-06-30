@@ -2835,6 +2835,16 @@ PERSIST_BOOST = set(c.strip().upper() for c in
                     os.environ.get("FQ_PERSIST_BOOST", "").replace(",", " ").split()
                     if c.strip() and c.strip().lower() not in ("0", "false", "no", "off"))
 
+# POC-distance como boost de convicción VIP (FQ_POC_VIP_CONVICTION). VALIDADO: la entrada
+# LEJOS del POC del día previo > cerca (gate ✓ cross-símbolo: DSR+CPCV+PBO, n=5162; apila
+# SOBRE KL). SOLO en los símbolos donde pasó (BTC/ETH/SOL/BCH); BNB es la EXCEPCIÓN medida
+# (far<near) -> excluido. Default OFF -> senal byte-identica. Threshold/whitelist por env.
+POC_VIP_CONVICTION = os.environ.get("FQ_POC_VIP_CONVICTION", "0").strip() in ("1", "true", "yes")
+POC_FAR_THR = float(os.environ.get("FQ_POC_FAR_THR", "2.0"))   # |entry-POC|/(½ ancho VA) >= thr
+POC_SYMBOLS = set(c.strip().upper() for c in
+                  os.environ.get("FQ_POC_SYMBOLS", "BTC,ETH,SOL,BCH").replace(",", " ").split()
+                  if c.strip())
+
 
 def _persist_ccy(pair):
     """'BTC/USDT' / 'BTCUSDT:USDT' -> 'BTC' para casar contra FQ_PERSIST_BOOST."""
@@ -2895,6 +2905,31 @@ def _cvd_vip_kwargs(report, ts, pair):
         boost = False
     return {"cvd_confirmed": ok if CVD_VIP_CONVICTION else None,
             "boost_tier": boost}
+
+
+def _poc_vip_kwargs(report, exchange, symbol_inst, tf_id, pair, entry_price):
+    """kwarg de convicción VIP por POC-distance (validado: far>near, gate ✓ cross-símbolo;
+    BNB excluido). Hace un fetch DEDICADO de ~2.5 días (el scan vivo trae 200 velas ~16h,
+    insuficiente para el perfil del día PREVIO). {} si flag off / símbolo no-validado / sin
+    data -> senal byte-identica. Defensivo: JAMAS rompe el broadcast."""
+    if not POC_VIP_CONVICTION:
+        return {}
+    if _persist_ccy(pair) not in POC_SYMBOLS:        # solo los validados; BNB/LINK fuera
+        return {}
+    try:
+        import volume_profile as _vp
+        df = fetch_ohlcv(exchange, symbol_inst, tf_id, limit=600)   # ~2 días de 5m
+        if df is None or len(df) < 300 or not entry_price:
+            return {}
+        prof = _vp.prior_day_profile(df)
+        if prof is None:
+            return {}
+        half = max((prof.vah - prof.val) / 2.0, 1e-9)
+        dist = abs(float(entry_price) - prof.poc) / half
+        return {"poc_far": bool(dist >= POC_FAR_THR)}
+    except Exception as e:
+        log.debug("[poc-vip] %s", e)
+        return {}
 
 
 def _motor_admin_notify(sig, verdict, pos):
@@ -3074,7 +3109,9 @@ def _btc_motor_paper_scan(exchange):
                 try:
                     msg = vip_format.build_vip_signal(
                         field, report, tf_label=profile["label"], tf_id=tf_id, pair="BTC/USDT",
-                        **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], "BTC/USDT"))
+                        **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], "BTC/USDT"),
+                        **_poc_vip_kwargs(report, exchange, SYMBOL_BTC, tf_id, "BTC/USDT",
+                                          float(df_primary["close"].iloc[-1])))
                     if _kl_pass(df_primary, "BTC/USDT"):     # tier KL-bajo (calidad)
                         broadcast_to_subscribers(msg)
                 except Exception as e:
@@ -3188,7 +3225,9 @@ def _eth_motor_paper_scan(exchange):
                 try:
                     msg = vip_format.build_vip_signal(
                         field, report, tf_label=profile["label"], tf_id=tf_id, pair="ETH/USDT",
-                        **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], "ETH/USDT"))
+                        **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], "ETH/USDT"),
+                        **_poc_vip_kwargs(report, exchange, SYMBOL_ETH, tf_id, "ETH/USDT",
+                                          float(df_primary["close"].iloc[-1])))
                     if _kl_pass(df_primary, "ETH/USDT"):   # tier KL-bajo (calidad) — honra FQ_KL_FILTER
                         broadcast_to_subscribers(msg)
                 except Exception as e:
@@ -3299,7 +3338,9 @@ def _bch_motor_paper_scan(exchange):
                 try:
                     msg = vip_format.build_vip_signal(
                         field, report, tf_label=profile["label"], tf_id=tf_id, pair="BCH/USDT",
-                        **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], "BCH/USDT"))
+                        **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], "BCH/USDT"),
+                        **_poc_vip_kwargs(report, exchange, SYMBOL_BCH, tf_id, "BCH/USDT",
+                                          float(df_primary["close"].iloc[-1])))
                     broadcast_to_subscribers(msg)   # SIN _kl_pass a proposito: BCH va sin filtro KL
                 except Exception as e:
                     log.warning("[motor-bch] broadcast: %s", e)
@@ -3401,7 +3442,9 @@ def _xsym_motor_paper_scan(exchange, *, enabled, symbol_inst, pair, tf_id,
                 try:
                     msg = vip_format.build_vip_signal(
                         field, report, tf_label=profile["label"], tf_id=tf_id, pair=pair,
-                        **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], pair))
+                        **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], pair),
+                        **_poc_vip_kwargs(report, exchange, symbol_inst, tf_id, pair,
+                                          float(df_primary["close"].iloc[-1])))
                     if (not kl_gated) or _kl_pass(df_primary, pair):   # tier KL-bajo (calidad)
                         broadcast_to_subscribers(msg)
                 except Exception as e:
@@ -3604,7 +3647,9 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
             if VIP_FORMAT_AVAILABLE and vip_format is not None:
                 msg = vip_format.build_vip_signal(
                     field, report, tf_label=tf_label, tf_id=tf_id,
-                    **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], SYMBOL))
+                    **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], SYMBOL),
+                    **_poc_vip_kwargs(report, exchange, SYMBOL, tf_id, "SOL/USDT",
+                                      float(df_primary["close"].iloc[-1])))
             else:
                 msg = field_reports.build_signal_report(
                     field, report, tf_label=tf_label, tf_id=tf_id, pmin=tf_pmin)
