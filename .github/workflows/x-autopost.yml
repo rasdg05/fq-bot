@@ -1,0 +1,44 @@
+name: FQ X auto-post
+
+# Free auto-poster: posts one tweet per run from marketing/content/tweets.csv
+# using the X API Free tier ($0). Rotates deterministically (evergreen).
+#
+# NOTE: scheduled workflows only run from the repository's DEFAULT branch. To
+# activate the cron, this file + marketing/scripts/x-autopost.py + the CSV must
+# be on the default branch (merge them there). You can always test it from any
+# branch via "Run workflow" (workflow_dispatch). Or run the script on any other
+# cron (Railway / VPS / local) — it's self-contained.
+#
+# Times are 8h apart to match POST_INTERVAL_HOURS=8 (one new tweet each run).
+
+on:
+  schedule:
+    - cron: '0 6,14,22 * * *'   # 3x/day UTC
+  workflow_dispatch:
+    inputs:
+      dryrun:
+        description: 'Dry run (print, do not post)'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install tweepy
+      - name: Post one tweet
+        env:
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
+          POST_INTERVAL_HOURS: '8'
+          AUTOPOST_DRYRUN: ${{ (github.event_name == 'workflow_dispatch' && inputs.dryrun) && '1' || '0' }}
+        run: python3 marketing/scripts/x-autopost.py
