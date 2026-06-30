@@ -3653,7 +3653,10 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
             else:
                 msg = field_reports.build_signal_report(
                     field, report, tf_label=tf_label, tf_id=tf_id, pmin=tf_pmin)
-            if _kl_pass(df_primary, SYMBOL):
+            # OJO: pasar el par con "/" ("SOL/USDT"), NO SYMBOL ("SOL-USDT-SWAP"). _persist_ccy
+            # solo corta en "/" y ":", así que de "SOL-USDT-SWAP" NO saca "SOL" y FQ_KL_FILTER=SOL
+            # nunca filtraba al pilar (bug: SOL difundía TODOS los regímenes pese al filtro).
+            if _kl_pass(df_primary, "SOL/USDT"):
                 bsent, _ = broadcast_to_subscribers(msg)
             else:
                 bsent = 0                                  # suprimida por régimen KL (tier calidad)
