@@ -92,9 +92,11 @@ es **CFD en MetaTrader 5** (BTC/ETH/SOL/BNB/XRP/ADA/DOGE), **NO** perpetuos. Tre
 fuerte) muere ahí, es M-V no 24/7, y 1:1 mata la eficiencia de capital de un edge pequeño.
 
 **La alternativa REAL (si algún día se usa Darwinex):** su fuerte son los **futuros CME/Eurex** (oro,
-NASDAQ, índices, metales) — justo donde el bot tiene edges TradFi (**KL/ICT/precio**) que **estamos
-cosechando AHORA** (XAU/NQ/ES/WTI/plata). Esa pata SÍ podría encajar — **pero pendiente de que los edges
-TradFi pasen el gate** (la cosecha sigue, POC-distance aún under-powered). → **Darwinex deprioritizado;
+NASDAQ, índices, metales) — donde el bot tiene edges TradFi (**KL/ICT/precio**). **PERO update
+2026-06-30:** la cosecha 5y×5sym cerró y el **POC-distance TradFi NO PASÓ el gate** (n=1992, dirección
+`far>near` consistente 5/5 y DSR ✓, pero **PBO 0.76** → sobreajuste; ver CEMENTERIO). Queda KL-standalone
+por gatear en TradFi. → **mientras no haya un edge TradFi que PASE el gate, Darwinex (cripto o futuros)
+no tiene caso.** → **Darwinex deprioritizado;
 revisitar vía FUTUROS (no cripto CFD) solo si el gate TradFi pasa. NO arrancar el reloj en un venue
 mutilado.**
 

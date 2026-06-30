@@ -64,8 +64,10 @@ sube conviction client-facing. Hoy mide, no decide.
 
 **Híbrido data/venue (DECISIONES §11):** validar TradFi sobre la historia profunda de Dukascopy
 (gratis, años) y ejecutar en el perp de MEXC. El motor **DIGIERE** la OHLCV sin order-flow (verify:
-45 eventos en XAU). **Cosecha UNSHARDED de XAU + NQ en marcha** (`dukascopy_cosecha.yml`; NQ→USATECH).
-Transfieren KL/ICT/precio; CVD/F2 **no** (son del venue).
+45 eventos en XAU). **Cosecha 5y × 5 símbolos CERRÓ** (run 28413719153, 2026-06-30, ~6h en Hetzner;
+XAU/NQ/ES/WTI/plata). Transfieren KL/ICT/precio; CVD/F2 **no** (son del venue). **Veredicto POC-distance
+TradFi: NO PASA** (n=1992, `far>near` consistente en 5/5 y DSR ✓, pero **PBO 0.76**; en cripto SÍ pasa,
+PBO 0.17). → dirección universal cross-asset (sirve al paper), **NO tier** en TradFi. Ver `CEMENTERIO.md`.
 
 **Volume Profile (POC/VA) — `volume_profile.py` (PR #121):** la pata de "volumen" de la confluencia
 triple, construida (puro, 7 tests, crypto+TradFi). Medida sobre crypto (`measure_vp_tier.py`, #123):

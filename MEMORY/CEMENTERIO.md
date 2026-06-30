@@ -92,10 +92,15 @@
     (BTC/ETH/SOL/BCH `far>near`); **BNB es la EXCEPCIÓN** (`far +0.077 < near +0.358`, AL REVÉS) — token
     de exchange, microestructura distinta (igual que lo excluimos del carry y F2 no le aplica). → el
     filtro "lejos" aplica a **BTC/ETH/SOL/BCH, NO a BNB** (símbolo-específico).
-  - **TradFi (XAU+NQ, n=328, 2026-06-29):** **dirección ✓** (`far>near` en ambos: XAU +0.263 vs −0.069,
-    NQ +0.664 vs +0.452; within-KL **+0.286** = igual que cripto) **pero gate NO PASA por n** (CPCV-OOS
-    mediana −0.21, DSR 0.939) — RADAR, no veredicto. El principio transfiere; falta data. → cosecha
-    **5 años × 5 símbolos** (XAU/NQ/ES/WTI/plata) lanzada para juntar ~2000 eventos y gatear en serio.
+  - **TradFi — VEREDICTO con n grande (5y × 5 símbolos, n=1992, 2026-06-30, run 28413719153):**
+    `far>near` **consistente en LOS 5/5** (XAU 306: +0.058 vs −0.058 · NQ 454: +0.973 vs +0.642 · ES 170:
+    +0.355 vs −0.028 · WTI 564: +0.324 vs +0.043 · XAG 498: +0.245 vs −0.204). Pooled: base +0.192 → tier
+    'lejos' +0.322 (uplift +0.131), **DSR 1.000 ✓**. PERO **NO PASA EL GATE**: within-KL uplift +0.057
+    **DSR 0.922 ✗**; CPCV-OOS mediana **+0.046 / solo 67% paths>0**; **PBO 0.76 🚩**. → **La DIRECCIÓN
+    transfiere (universal cross-asset, sirve al paper), pero NO es robusta para cablear en TradFi** — el
+    umbral 'mejor' está sobreajustado (PBO alto). Contraste honesto: en CRIPTO el MISMO edge SÍ pasa
+    (n=5162, PBO 0.17, 93% paths). → **TradFi POC-distance: lead de research, NO tier.** El gate dijo no.
+    (Antes era RADAR a n=328; ahora con poder estadístico es VEREDICTO: no pasa.)
 - **Status (POC-distance):** **VALIDADO en cube (5 cripto ✓, BNB excluido), CABLEADO DORMIDO forward**
   (`FQ_REGIME_TAGS`, #126 — sella `kl_low`/`poc_dist` en MOTOR_OPEN_META; `by_kl`/`by_poc` en el reporte).
   Próximo: medir forward + más data TradFi. Zona premium/discount y rev-aligned: muertos.
