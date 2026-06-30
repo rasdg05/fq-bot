@@ -28,6 +28,15 @@ sube conviction client-facing. Hoy mide, no decide.
   vía motor_paper** (1 TP), no en el SQLite de 4 TP — gap conocido (ver cerebro).
 - **ETH/USDT** — cableado (motor paper, broadcast gated, vetos, regime tag) **pero no certificado**.
   Pendiente: cosechar su cube + correr DSR completo + CVD signed-flow. Si pasa → `FQ_ETH_VIP_BROADCAST=1`.
+- **BCH/USDT** — broadcasting a clientes (VIP). F2✓ + POC✓ (cube), **top de por vida** (+0.207R tp1/h96)
+  PERO **sin forward + sin KL** (el menos validado de los que sí salen). Se queda (RasDG no lo corta).
+- **BNB/USDT** — **VIP APAGADO (decisión RasDG 2026-06-30):** peor de por vida (+0.061R, apenas positivo) +
+  **sin validar** (fuera de POC y F2 — token de exchange). Sigue en `motor_paper` (mide forward), sin exponer
+  clientes. Acción: `FQ_BNB_VIP_BROADCAST=0` en Railway (kill-switch sin redeploy).
+- **LINK/USDT** — **NO en VIP, VALIDANDO (2026-06-30).** Gate offline: **KL pasa DÉBIL** (irrev-bajo, DSR
+  0.969, separación 0.075R); **POC NO PASA** (es `near>far`, POC-invertido como BNB). Lifetime +0.181R
+  modesto; la racha de 2m (+0.831R) fue **espejismo**. Falta CVD/F2 + forward. Para medir forward sin exponer:
+  `FQ_MOTOR_PAPER_LINK=1` + `FQ_LINK_VIP_BROADCAST=0`. **NO va a VIP por una racha** (instinto de RasDG: correcto).
 
 ---
 
