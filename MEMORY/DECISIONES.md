@@ -291,6 +291,31 @@ reinician el bot. El diagnóstico de cadencia ahora separa "deploy caído" de "e
 
 ---
 
+## 13. Producto de 2 tiers: FREE (firehose) + VIP (filtrado) en UN solo bot
+
+**Decisión (RasDG 2026-06-30).** UN solo bot difunde a DOS canales: **FREE** recibe TODOS los fires
+del motor (crudos, solo TP1, sin boosts) etiquetados según pasen o no el filtro de calidad KL; **VIP**
+recibe solo el subconjunto filtrado (KL-bajo) con 4 TPs + boosts CVD/POC. Env: `FQ_FREE_CHAT_ID` (el
+canal gratis). Default OFF (sin la env → byte-idéntico, VIP intacto).
+
+**Por qué.** Jugada de MARKETING, no de señal: al prender el filtro KL el VIP se puso quieto (~18/mes)
+y **un canal callado se lee como MUERTO** → nadie paga por entrar a un cuarto en silencio. El FREE es
+el **escaparate ruidoso** ("el motor nunca duerme") que da prueba social y jala gente. Y cada señal
+**FILTRADA** que aparece en FREE ("los VIP NO la recibieron — se ahorraron el riesgo") es un **anuncio
+vivo del valor VIP** → máquina de conversión. Honesto: la señal FREE es cruda de verdad (con guía de
+riesgo "dosifica chico"); el moat es el **filtro + la gestión (VIP)**, no la entrada cruda.
+
+**El pitch de VIP es SEGURIDAD, no "gana más":** ~1/3 del drawdown (medido −12% vs −36%), no más return.
+Verdad y medible = cero humo (la marca de RasDG).
+
+**Evidencia.** `_free_broadcast` + `FREE_CHAT_ID` en `fq_bot_v3_2.py` (cableado en los 4 sitios de
+broadcast, additivo al path VIP); `vip_format.build_free_signal` (TP1 + etiqueta); `tests/test_free_signal.py`.
+
+**Impacto.** FREE y VIP son dos VISTAS del mismo motor SOL/BTC/ETH: FREE = todo etiquetado, VIP =
+filtrado. Cadencia alta en FREE (visible/vivo) + calidad en VIP (premium). Reversible (quitar la env).
+
+---
+
 ## Resumen
 
 | Decisión | Razonamiento core | Archivos / commits clave | Estado |
@@ -306,6 +331,7 @@ reinician el bot. El diagnóstico de cadencia ahora separa "deploy caído" de "e
 | Producto 3 capas | cada edge documentado y gateado | `plan_evolucion_2026.md` | Cap.1 vivo; 2/3 midiendo |
 | Híbrido data/venue | TradFi: validar en Dukascopy, ejecutar en perp | `fetch_dukascopy.py`, #116/#122 | Cosecha XAU+NQ en marcha |
 | Deploy hygiene | docs no re-despliegan; blacklist = fallo seguro | `railway.toml`, #138 | VIVO |
+| Producto 2 tiers | FREE firehose + VIP filtrado en 1 bot (marketing anti-canal-muerto) | `_free_broadcast`, `build_free_signal` | Cableado (dormido, `FQ_FREE_CHAT_ID`) |
 
 ---
 

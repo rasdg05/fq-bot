@@ -177,6 +177,47 @@ def build_vip_signal(field, decision_report, tf_label=None, tf_id=None, pair=Non
         tags=sym_tags,
     )
 
+
+def build_free_signal(decision_report, pair=None, kl_passed=True):
+    """Señal del tier FREE (gratis): el fire CRUDO del motor con SOLO TP1, sin boosts ni
+    P_master. Muestra TODOS los fires (el escaparate ruidoso: 'el motor nunca duerme') y los
+    ETIQUETA según pasen o no el filtro de calidad — cada señal filtrada es un anuncio vivo del
+    valor VIP. Honesto: es la señal cruda; el VIP recibe solo las filtradas con 4 TPs + gestión."""
+    direction = decision_report["direction"]
+    levels = decision_report["levels"]
+    side = "LONG" if direction == "long" else "SHORT"
+    arrow = GLYPHS["long"] if direction == "long" else GLYPHS["short"]
+    pair_label = pair or PAIR
+    when = datetime.now(CDMX_TZ).strftime("%H:%M CDMX")
+    if kl_passed:
+        tag = ("  {d} CALIDAD VIP — esta pasó el filtro de régimen.\n"
+               "  Los VIP la reciben con 4 TPs + gestión + order-flow.\n").format(d=GLYPHS["premium"])
+    else:
+        tag = ("  ⚠️ FILTRADA del VIP (régimen no óptimo).\n"
+               "  Aquí va cruda; los VIP NO la recibieron — se ahorraron el riesgo.\n")
+    sym_tags = "#FQ #" + (pair_label or PAIR).split(":")[0].replace("/", "") + " #FREE"
+    return (
+        "{rule}\n"
+        "  {bar} {product} · Señal FREE · {pair}\n"
+        "  {when}\n"
+        "{rule}\n"
+        "  {arrow} {side}\n"
+        "\n"
+        "  Entry    ${entry:.2f}\n"
+        "  Stop     ${sl:.2f}\n"
+        "  TP1      ${tp1:.2f}    R {rr1:.2f}\n"
+        "{rule}\n"
+        "{tag}"
+        "  Dosifica chico — es la señal cruda del motor.\n"
+        "  ⭐ VIP: filtro de calidad + 4 TPs + mucho menos drawdown.\n"
+        "\n"
+        "  {tags}"
+    ).format(
+        rule=RULE, bar=GLYPHS["title"], product=PRODUCT, pair=pair_label, when=when,
+        arrow=arrow, side=side, entry=levels["entry"], sl=levels["sl"],
+        tp1=levels["tp1"], rr1=levels.get("rr_tp1", 0), tag=tag, tags=sym_tags)
+
+
 # ============================================================
 # /analisis VIP - 3 TPs, sin formulas
 # ============================================================
