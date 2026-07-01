@@ -308,8 +308,17 @@ riesgo "dosifica chico"); el moat es el **filtro + la gestión (VIP)**, no la en
 **El pitch de VIP es SEGURIDAD, no "gana más":** ~1/3 del drawdown (medido −12% vs −36%), no más return.
 Verdad y medible = cero humo (la marca de RasDG).
 
-**Evidencia.** `_free_broadcast` + `FREE_CHAT_ID` en `fq_bot_v3_2.py` (cableado en los 4 sitios de
-broadcast, additivo al path VIP); `vip_format.build_free_signal` (TP1 + etiqueta); `tests/test_free_signal.py`.
+**Reglas de mezcla (RasDG, asimétricas a propósito):** **VIP → FREE: PROHIBIDO** — candado
+`free_leak_guard()` antes de CADA envío al canal gratis (bloquea cualquier mensaje con marcadores del
+formato VIP: `Senal VIP`/TP2-4/convicción/boosts/leverage) + estructural (`_free_broadcast` nunca recibe
+el msg VIP, solo el report crudo). **FREE → VIP: PERMITIDO con etiqueta** — `FQ_FREE_TO_VIP=1` manda los
+DESCARTES del filtro al VIP marcados **'Señal FREE'** (informativa, sin upsell); los VIP ven todo y saben
+cuál es cuál. Texto distintivo garantizado: FREE dice "Señal FREE", VIP dice "Senal VIP", y hay test de
+que nunca se confunden.
+
+**Evidencia.** `_free_broadcast` + `FREE_CHAT_ID` + `FREE_TO_VIP` en `fq_bot_v3_2.py` (cableado en los
+4 sitios de broadcast, additivo al path VIP); `vip_format.build_free_signal` (TP1 + etiqueta + audiencia)
++ `free_leak_guard`; `tests/test_free_signal.py` (5 tests, incl. "el mensaje VIP real es bloqueado").
 
 **Impacto.** FREE y VIP son dos VISTAS del mismo motor SOL/BTC/ETH: FREE = todo etiquetado, VIP =
 filtrado. Cadencia alta en FREE (visible/vivo) + calidad en VIP (premium). Reversible (quitar la env).
@@ -331,7 +340,7 @@ filtrado. Cadencia alta en FREE (visible/vivo) + calidad en VIP (premium). Rever
 | Producto 3 capas | cada edge documentado y gateado | `plan_evolucion_2026.md` | Cap.1 vivo; 2/3 midiendo |
 | Híbrido data/venue | TradFi: validar en Dukascopy, ejecutar en perp | `fetch_dukascopy.py`, #116/#122 | Cosecha XAU+NQ en marcha |
 | Deploy hygiene | docs no re-despliegan; blacklist = fallo seguro | `railway.toml`, #138 | VIVO |
-| Producto 2 tiers | FREE firehose + VIP filtrado en 1 bot (marketing anti-canal-muerto) | `_free_broadcast`, `build_free_signal` | Cableado (dormido, `FQ_FREE_CHAT_ID`) |
+| Producto 2 tiers | FREE firehose + VIP filtrado en 1 bot; candado VIP→FREE, descartes→VIP etiquetados | `_free_broadcast`, `build_free_signal`, `free_leak_guard` | Cableado (dormido: `FQ_FREE_CHAT_ID` + `FQ_FREE_TO_VIP`) |
 
 ---
 

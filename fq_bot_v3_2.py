@@ -2886,21 +2886,41 @@ def _kl_pass(df_primary, pair):
 # al canal gratis (FQ_FREE_CHAT_ID) — el "escaparate ruidoso" que evita el canal muerto —
 # etiquetando cada señal según pase o no el filtro de calidad KL. El VIP sigue recibiendo solo
 # las filtradas (con 4 TPs + boosts). Default OFF: sin FQ_FREE_CHAT_ID no hace NADA (byte-idéntico).
+#
+# REGLAS DE MEZCLA (RasDG 2026-06-30, asimétricas a propósito):
+#   VIP -> FREE: PROHIBIDO. Candado free_leak_guard() antes de CADA envío al canal gratis
+#                (bloquea cualquier mensaje con marcadores VIP: TP2-4/convicción/boosts).
+#                Estructural: _free_broadcast NUNCA recibe el msg VIP — solo el report crudo.
+#   FREE -> VIP: PERMITIDO con etiqueta. FQ_FREE_TO_VIP=1 manda los DESCARTES del filtro al
+#                canal VIP marcados 'Señal FREE' (informativa, sin upsell) — los VIP ven todo
+#                y saben cuál es cuál. Default OFF.
 FREE_CHAT_ID = os.environ.get("FQ_FREE_CHAT_ID", "").strip()
+FREE_TO_VIP = os.environ.get("FQ_FREE_TO_VIP", "0").strip().lower() in ("1", "true", "yes")
 
 
 def _free_broadcast(decision_report, pair, kl_passed):
-    """Manda el fire crudo (TP1) al canal FREE, etiquetado por el filtro. Additivo al path VIP.
-    Defensivo: cualquier problema -> log y sigue; JAMÁS rompe el broadcast VIP."""
-    if not FREE_CHAT_ID:
+    """Tier FREE, additivo al path VIP y defensivo (JAMÁS rompe el broadcast VIP).
+    1) Canal FREE: el fire crudo (TP1) etiquetado por el filtro — tras pasar el candado.
+    2) FQ_FREE_TO_VIP=1: el descarte del filtro llega al VIP etiquetado 'Señal FREE'."""
+    if not (VIP_FORMAT_AVAILABLE and vip_format is not None):
         return
-    try:
-        if not (VIP_FORMAT_AVAILABLE and vip_format is not None):
-            return
-        telegram_send(vip_format.build_free_signal(decision_report, pair=pair, kl_passed=kl_passed),
-                      chat_id=FREE_CHAT_ID)
-    except Exception as e:
-        log.debug("[free-broadcast] %s", e)
+    if FREE_CHAT_ID:   # vacío JAMÁS llega a telegram_send (caería al chat admin por default)
+        try:
+            msg = vip_format.build_free_signal(decision_report, pair=pair, kl_passed=kl_passed)
+            if vip_format.free_leak_guard(msg):
+                telegram_send(msg, chat_id=FREE_CHAT_ID)
+            else:
+                log.error("[free-guard] BLOQUEADO: mensaje no-FREE rumbo al canal gratis (%s)", pair)
+        except Exception as e:
+            log.debug("[free-broadcast] %s", e)
+    if FREE_TO_VIP and not kl_passed:
+        try:
+            msg = vip_format.build_free_signal(decision_report, pair=pair, kl_passed=False,
+                                               audience="vip")
+            if vip_format.free_leak_guard(msg):   # consistencia: también etiquetada y sin formato VIP
+                broadcast_to_subscribers(msg)
+        except Exception as e:
+            log.debug("[free-to-vip] %s", e)
 
 
 def _cvd_vip_kwargs(report, ts, pair):

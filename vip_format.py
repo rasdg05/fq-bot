@@ -178,23 +178,40 @@ def build_vip_signal(field, decision_report, tf_label=None, tf_id=None, pair=Non
     )
 
 
-def build_free_signal(decision_report, pair=None, kl_passed=True):
-    """Señal del tier FREE (gratis): el fire CRUDO del motor con SOLO TP1, sin boosts ni
-    P_master. Muestra TODOS los fires (el escaparate ruidoso: 'el motor nunca duerme') y los
-    ETIQUETA según pasen o no el filtro de calidad — cada señal filtrada es un anuncio vivo del
-    valor VIP. Honesto: es la señal cruda; el VIP recibe solo las filtradas con 4 TPs + gestión."""
+def build_free_signal(decision_report, pair=None, kl_passed=True, audience="free"):
+    """Señal del tier FREE: el fire CRUDO del motor con SOLO TP1, sin boosts ni P_master.
+    Muestra TODOS los fires (el escaparate ruidoso: 'el motor nunca duerme') y los ETIQUETA
+    según pasen o no el filtro de calidad.
+
+    audience="free" -> canal gratis (con gancho de conversión a VIP).
+    audience="vip"  -> la MISMA señal cruda entregada al canal VIP como DESCARTE informativo
+                       (FQ_FREE_TO_VIP): sigue etiquetada 'Señal FREE' (regla de RasDG:
+                       una free puede llegar a VIP, siempre marcada), SIN upsell (ya pagan).
+
+    REGLA DE SEGURIDAD: este builder JAMÁS emite formato VIP (ni TP2-4, ni convicción, ni
+    boosts, ni leverage) — y `free_leak_guard()` lo verifica antes de CADA envío a FREE."""
     direction = decision_report["direction"]
     levels = decision_report["levels"]
     side = "LONG" if direction == "long" else "SHORT"
     arrow = GLYPHS["long"] if direction == "long" else GLYPHS["short"]
     pair_label = pair or PAIR
     when = datetime.now(CDMX_TZ).strftime("%H:%M CDMX")
+    to_vip = (audience == "vip")
     if kl_passed:
-        tag = ("  {d} CALIDAD VIP — esta pasó el filtro de régimen.\n"
-               "  Los VIP la reciben con 4 TPs + gestión + order-flow.\n").format(d=GLYPHS["premium"])
+        tag = ("  {d} Pasó el filtro — ya la recibiste en formato VIP completo.\n".format(d=GLYPHS["premium"])
+               if to_vip else
+               ("  {d} CALIDAD VIP — esta pasó el filtro de régimen.\n"
+                "  Los VIP la reciben con 4 TPs + gestión + order-flow.\n").format(d=GLYPHS["premium"]))
     else:
-        tag = ("  ⚠️ FILTRADA del VIP (régimen no óptimo).\n"
-               "  Aquí va cruda; los VIP NO la recibieron — se ahorraron el riesgo.\n")
+        tag = (("  ⚠️ NO pasó el filtro de calidad (régimen no óptimo).\n"
+                "  Informativa/transparencia: tus señales operables son las 'Señal VIP'.\n")
+               if to_vip else
+               ("  ⚠️ FILTRADA del VIP (régimen no óptimo).\n"
+                "  El filtro la descartó — va cruda, bajo tu propio riesgo.\n"))
+    footer = ("  Cruda (solo TP1) — informativa, NO es la señal operable del tier VIP.\n"
+              if to_vip else
+              "  Dosifica chico — es la señal cruda del motor.\n"
+              "  ⭐ VIP: filtro de calidad + 4 TPs + mucho menos drawdown.\n")
     sym_tags = "#FQ #" + (pair_label or PAIR).split(":")[0].replace("/", "") + " #FREE"
     return (
         "{rule}\n"
@@ -208,14 +225,30 @@ def build_free_signal(decision_report, pair=None, kl_passed=True):
         "  TP1      ${tp1:.2f}    R {rr1:.2f}\n"
         "{rule}\n"
         "{tag}"
-        "  Dosifica chico — es la señal cruda del motor.\n"
-        "  ⭐ VIP: filtro de calidad + 4 TPs + mucho menos drawdown.\n"
+        "{footer}"
         "\n"
         "  {tags}"
     ).format(
         rule=RULE, bar=GLYPHS["title"], product=PRODUCT, pair=pair_label, when=when,
         arrow=arrow, side=side, entry=levels["entry"], sl=levels["sl"],
-        tp1=levels["tp1"], rr1=levels.get("rr_tp1", 0), tag=tag, tags=sym_tags)
+        tp1=levels["tp1"], rr1=levels.get("rr_tp1", 0), tag=tag, footer=footer, tags=sym_tags)
+
+
+# Marcadores que SOLO existen en el formato VIP. Si cualquiera aparece en un mensaje rumbo
+# al canal FREE, es una fuga del producto premium -> se BLOQUEA.
+VIP_ONLY_MARKERS = ("Senal VIP", "TP2", "TP3", "TP4", "Conviccion",
+                    "ORDER-FLOW CONFIRMADO", "FUERA DEL VALOR PREVIO", "Leverage")
+
+
+def free_leak_guard(text):
+    """CANDADO anti-mezcla (regla de RasDG: una señal VIP JAMÁS llega a FREE; una FREE sí
+    puede llegar a VIP, etiquetada). True solo si `text` es un mensaje FREE legítimo:
+    trae la etiqueta 'Señal FREE' y NO trae NINGÚN marcador del formato VIP. `_free_broadcast`
+    lo exige antes de CADA envío; si falla, bloquea y loguea en vez de mandar."""
+    t = str(text or "")
+    if ("Señal FREE" not in t) and ("Senal FREE" not in t):
+        return False
+    return not any(m in t for m in VIP_ONLY_MARKERS)
 
 
 # ============================================================
