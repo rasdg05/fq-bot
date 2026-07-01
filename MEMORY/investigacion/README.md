@@ -18,10 +18,12 @@
   estudia (Cornell, Oxford, Princeton, CMU, ETH…), y el giro: hecho de forma autodidacta
   desde Ciudad de México, con un bot que **ES la tesis**.
 
-- **`fig-poc-distance.png`** + **`tools/reproduce_gate_results.py`** — figura y script que
-  **REGENERAN** los resultados del review (gate POC-distance sobre los 5 cubos cripto) desde el
-  repo: tabla far/near por símbolo + veredicto pooled (DSR/CPCV/PBO). Es el Apéndice B del review,
-  reproducible de punta a punta.
+- **`fig-poc-distance.png`** (ES) + **`fig-poc-distance-en.png`** (EN) + **`tools/reproduce_gate_results.py`**
+  — figura y script que **REGENERAN** los resultados del review (gate POC-distance sobre los 5 cubos
+  cripto) desde el repo: tabla far/near por símbolo + veredicto pooled (DSR/CPCV/PBO). Es el Apéndice B,
+  reproducible de punta a punta. El script es **BILINGÜE** (`--lang es|en`): el review embebe la figura
+  en español y el preprint SSRN la de inglés (fix 2026-07-01 — el preprint EN llevaba la figura en
+  español; también se separó la leyenda de la anotación "exception").
 
 - **`preprint-fq-en.md` / `.pdf`** (+ `.html`) — *Preprint en INGLÉS, SSRN-ready.* Versión en inglés
   del review con los resultados reproducibles (Apéndice B + figura). Es el documento citable para

@@ -163,7 +163,7 @@ gross, using the **same** `gate_poc_distance` that validates in production):
 **CPCV OOS +0.111 (93% of paths >0)** · **PBO 0.17** → **PASSES**. 4/5 follow the pattern
 (`far>near`); BNB is the measured exception and is excluded.
 
-![POC-distance: far vs near the prior-day POC](fig-poc-distance.png)
+![POC-distance: far vs near the prior-day POC](fig-poc-distance-en.png)
 
 > End-to-end reproducible: `tools/gate_poc_distance.py` (gate) + `tools/reproduce_gate_results.py`
 > (table + figure) over the repository's cubes. Figures are gross / in-cube; the final judge is

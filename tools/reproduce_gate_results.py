@@ -27,10 +27,57 @@ PAIRS = [
     ("BNB", "cosecha_cubes/tp_cube_BNB_USDT.parquet", "data/okx/kl_hist_BNBUSDT.parquet"),
 ]
 
+# La figura es BILINGÜE: el review (ES) y el preprint SSRN (EN) embeben la MISMA gráfica con
+# etiquetas en su idioma (bug 2026-07-01: el preprint EN llevaba la figura en español).
+FIG_LABELS = {
+    "es": dict(far="lejos del POC", near="cerca del POC", exc="excepción",
+               title="POC-distance: lejos vs cerca del POC del día previo (5 cripto, tp4/h576)",
+               fname="fig-poc-distance.png"),
+    "en": dict(far="far from prior-day POC", near="near the POC", exc="exception",
+               title="POC-distance: far vs near the prior-day POC (5 crypto, tp4/h576)",
+               fname="fig-poc-distance-en.png"),
+}
+
+
+def make_figure(tab, out_dir, lang="es"):
+    """Dibuja la figura far-vs-near por símbolo en el idioma pedido. `tab` = DataFrame
+    [sym, n, far, near] (del gate). Devuelve la ruta del PNG."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    L = FIG_LABELS[lang]
+    syms = tab.sym.tolist()
+    x = np.arange(len(syms))
+    w = 0.38
+    fig, ax = plt.subplots(figsize=(7.4, 3.7), dpi=150)
+    ax.bar(x - w / 2, tab.far, w, label=L["far"], color="#0f6f4d")
+    ax.bar(x + w / 2, tab.near, w, label=L["near"], color="#b08338")
+    ax.axhline(0, color="#1c2420", lw=0.8)
+    bnb_i = syms.index("BNB") if "BNB" in syms else None
+    if bnb_i is not None:
+        ax.annotate(L["exc"], xy=(bnb_i, tab.near.iloc[bnb_i]),
+                    xytext=(bnb_i - 0.1, max(tab.far.max(), tab.near.max()) * 0.92),
+                    fontsize=8, color="#a23b2e", ha="center",
+                    arrowprops=dict(arrowstyle="->", color="#a23b2e", lw=0.9))
+    ax.set_xticks(x)
+    ax.set_xticklabels(syms)
+    ax.set_ylabel("meanR (gross)")
+    ax.set_title(L["title"], fontsize=10)
+    # upper LEFT: la anotación de la excepción (BNB, último símbolo) vive arriba a la
+    # derecha — con la leyenda ahí se encimaban (bug visual detectado en el preprint EN).
+    ax.legend(frameon=False, fontsize=9, loc="upper left")
+    ax.spines[["top", "right"]].set_visible(False)
+    fig.tight_layout()
+    figpath = os.path.join(out_dir, L["fname"])
+    fig.savefig(figpath)
+    return figpath
+
 
 def main(argv=None):
     p = argparse.ArgumentParser()
     p.add_argument("--out-dir", default="MEMORY/investigacion")
+    p.add_argument("--lang", default="es", choices=sorted(FIG_LABELS),
+                   help="idioma de la figura (es=review, en=preprint SSRN)")
     a = p.parse_args(argv)
     os.makedirs(a.out_dir, exist_ok=True)
 
@@ -56,34 +103,8 @@ def main(argv=None):
           % (g["base_n"], g["upl_far"], g["dsr_far"]["dsr"], g["upl_within_kl"],
              g["oos_med"], g["oos_pos"] * 100, g["pbo"], "PASA" if passed else "NO PASA"))
 
-    # ---- figura ----
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    syms = tab.sym.tolist()
-    x = np.arange(len(syms))
-    w = 0.38
-    fig, ax = plt.subplots(figsize=(7.4, 3.7), dpi=150)
-    ax.bar(x - w / 2, tab.far, w, label="lejos del POC", color="#0f6f4d")
-    ax.bar(x + w / 2, tab.near, w, label="cerca del POC", color="#b08338")
-    ax.axhline(0, color="#1c2420", lw=0.8)
-    # marca BNB (la excepción far<near)
-    bnb_i = syms.index("BNB") if "BNB" in syms else None
-    if bnb_i is not None:
-        ax.annotate("excepción", xy=(bnb_i, tab.near.iloc[bnb_i]),
-                    xytext=(bnb_i - 0.1, max(tab.far.max(), tab.near.max()) * 0.92),
-                    fontsize=8, color="#a23b2e", ha="center",
-                    arrowprops=dict(arrowstyle="->", color="#a23b2e", lw=0.9))
-    ax.set_xticks(x)
-    ax.set_xticklabels(syms)
-    ax.set_ylabel("meanR (gross)")
-    ax.set_title("POC-distance: lejos vs cerca del POC del día previo (5 cripto, tp4/h576)",
-                 fontsize=10)
-    ax.legend(frameon=False, fontsize=9, loc="upper right")
-    ax.spines[["top", "right"]].set_visible(False)
-    fig.tight_layout()
-    figpath = os.path.join(a.out_dir, "fig-poc-distance.png")
-    fig.savefig(figpath)
+    # ---- figura (bilingüe) ----
+    figpath = make_figure(tab, a.out_dir, lang=a.lang)
     print("\nfigura -> %s" % figpath)
     return 0
 
