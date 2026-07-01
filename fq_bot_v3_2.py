@@ -2882,6 +2882,47 @@ def _kl_pass(df_primary, pair):
         return True
 
 
+# Tier FREE (jugada de marketing 2026-06-30): UN solo bot difunde TODOS los fires del motor
+# al canal gratis (FQ_FREE_CHAT_ID) — el "escaparate ruidoso" que evita el canal muerto —
+# etiquetando cada señal según pase o no el filtro de calidad KL. El VIP sigue recibiendo solo
+# las filtradas (con 4 TPs + boosts). Default OFF: sin FQ_FREE_CHAT_ID no hace NADA (byte-idéntico).
+#
+# REGLAS DE MEZCLA (RasDG 2026-06-30, asimétricas a propósito):
+#   VIP -> FREE: PROHIBIDO. Candado free_leak_guard() antes de CADA envío al canal gratis
+#                (bloquea cualquier mensaje con marcadores VIP: TP2-4/convicción/boosts).
+#                Estructural: _free_broadcast NUNCA recibe el msg VIP — solo el report crudo.
+#   FREE -> VIP: PERMITIDO con etiqueta. FQ_FREE_TO_VIP=1 manda los DESCARTES del filtro al
+#                canal VIP marcados 'Señal FREE' (informativa, sin upsell) — los VIP ven todo
+#                y saben cuál es cuál. Default OFF.
+FREE_CHAT_ID = os.environ.get("FQ_FREE_CHAT_ID", "").strip()
+FREE_TO_VIP = os.environ.get("FQ_FREE_TO_VIP", "0").strip().lower() in ("1", "true", "yes")
+
+
+def _free_broadcast(decision_report, pair, kl_passed):
+    """Tier FREE, additivo al path VIP y defensivo (JAMÁS rompe el broadcast VIP).
+    1) Canal FREE: el fire crudo (TP1) etiquetado por el filtro — tras pasar el candado.
+    2) FQ_FREE_TO_VIP=1: el descarte del filtro llega al VIP etiquetado 'Señal FREE'."""
+    if not (VIP_FORMAT_AVAILABLE and vip_format is not None):
+        return
+    if FREE_CHAT_ID:   # vacío JAMÁS llega a telegram_send (caería al chat admin por default)
+        try:
+            msg = vip_format.build_free_signal(decision_report, pair=pair, kl_passed=kl_passed)
+            if vip_format.free_leak_guard(msg):
+                telegram_send(msg, chat_id=FREE_CHAT_ID)
+            else:
+                log.error("[free-guard] BLOQUEADO: mensaje no-FREE rumbo al canal gratis (%s)", pair)
+        except Exception as e:
+            log.debug("[free-broadcast] %s", e)
+    if FREE_TO_VIP and not kl_passed:
+        try:
+            msg = vip_format.build_free_signal(decision_report, pair=pair, kl_passed=False,
+                                               audience="vip")
+            if vip_format.free_leak_guard(msg):   # consistencia: también etiquetada y sin formato VIP
+                broadcast_to_subscribers(msg)
+        except Exception as e:
+            log.debug("[free-to-vip] %s", e)
+
+
 def _cvd_vip_kwargs(report, ts, pair):
     """kwargs de capa 3 para build_vip_signal: badge y/o boost de tier, SOLO si el
     order-flow firmado CONFIRMA la direccion (causal, en vivo). {} si ningun flag de
@@ -3112,7 +3153,9 @@ def _btc_motor_paper_scan(exchange):
                         **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], "BTC/USDT"),
                         **_poc_vip_kwargs(report, exchange, SYMBOL_BTC, tf_id, "BTC/USDT",
                                           float(df_primary["close"].iloc[-1])))
-                    if _kl_pass(df_primary, "BTC/USDT"):     # tier KL-bajo (calidad)
+                    _kl_ok = _kl_pass(df_primary, "BTC/USDT")     # tier KL-bajo (calidad)
+                    _free_broadcast(report, "BTC/USDT", _kl_ok)  # tier FREE: todos los fires, etiquetados
+                    if _kl_ok:
                         broadcast_to_subscribers(msg)
                 except Exception as e:
                     log.warning("[motor-btc] broadcast: %s", e)
@@ -3228,7 +3271,9 @@ def _eth_motor_paper_scan(exchange):
                         **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], "ETH/USDT"),
                         **_poc_vip_kwargs(report, exchange, SYMBOL_ETH, tf_id, "ETH/USDT",
                                           float(df_primary["close"].iloc[-1])))
-                    if _kl_pass(df_primary, "ETH/USDT"):   # tier KL-bajo (calidad) — honra FQ_KL_FILTER
+                    _kl_ok = _kl_pass(df_primary, "ETH/USDT")   # tier KL-bajo (calidad) — honra FQ_KL_FILTER
+                    _free_broadcast(report, "ETH/USDT", _kl_ok)  # tier FREE: todos los fires, etiquetados
+                    if _kl_ok:
                         broadcast_to_subscribers(msg)
                 except Exception as e:
                     log.warning("[motor-eth] broadcast: %s", e)
@@ -3445,7 +3490,9 @@ def _xsym_motor_paper_scan(exchange, *, enabled, symbol_inst, pair, tf_id,
                         **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], pair),
                         **_poc_vip_kwargs(report, exchange, symbol_inst, tf_id, pair,
                                           float(df_primary["close"].iloc[-1])))
-                    if (not kl_gated) or _kl_pass(df_primary, pair):   # tier KL-bajo (calidad)
+                    _kl_ok = (not kl_gated) or _kl_pass(df_primary, pair)   # tier KL-bajo (calidad)
+                    _free_broadcast(report, pair, _kl_ok)   # tier FREE: todos los fires, etiquetados
+                    if _kl_ok:
                         broadcast_to_subscribers(msg)
                 except Exception as e:
                     log.warning("[motor-xsym] %s broadcast: %s", pair, e)
@@ -3656,7 +3703,9 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
             # OJO: pasar el par con "/" ("SOL/USDT"), NO SYMBOL ("SOL-USDT-SWAP"). _persist_ccy
             # solo corta en "/" y ":", así que de "SOL-USDT-SWAP" NO saca "SOL" y FQ_KL_FILTER=SOL
             # nunca filtraba al pilar (bug: SOL difundía TODOS los regímenes pese al filtro).
-            if _kl_pass(df_primary, "SOL/USDT"):
+            _kl_ok = _kl_pass(df_primary, "SOL/USDT")
+            _free_broadcast(report, "SOL/USDT", _kl_ok)   # tier FREE: todos los fires, etiquetados
+            if _kl_ok:
                 bsent, _ = broadcast_to_subscribers(msg)
             else:
                 bsent = 0                                  # suprimida por régimen KL (tier calidad)
