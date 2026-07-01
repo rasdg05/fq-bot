@@ -291,12 +291,14 @@ reinician el bot. El diagnóstico de cadencia ahora separa "deploy caído" de "e
 
 ---
 
-## 13. Producto de 2 tiers: FREE (firehose) + VIP (filtrado) en UN solo bot
+## 13. Producto de 2 tiers en UN SOLO CANAL: FREE (firehose) + VIP (filtrado), mismo bot
 
-**Decisión (RasDG 2026-06-30).** UN solo bot difunde a DOS canales: **FREE** recibe TODOS los fires
-del motor (crudos, solo TP1, sin boosts) etiquetados según pasen o no el filtro de calidad KL; **VIP**
-recibe solo el subconjunto filtrado (KL-bajo) con 4 TPs + boosts CVD/POC. Env: `FQ_FREE_CHAT_ID` (el
-canal gratis). Default OFF (sin la env → byte-idéntico, VIP intacto).
+**Decisión (RasDG 2026-06-30/07-01, refinada: "quiero UN SOLO canal").** NO hay canal de Telegram
+aparte: el MISMO bot entrega **por tier de la BD**. Los usuarios **tier "free"** (los que entran al
+bot sin pagar — el default de la BD) reciben TODOS los fires del motor (crudos, solo TP1, sin boosts)
+etiquetados según pasen o no el filtro de calidad KL; los tiers **vip/trial/admin** siguen recibiendo
+solo el subconjunto filtrado (KL-bajo) con 4 TPs + boosts CVD/POC. Envs: `FQ_FREE_TIER=1` (entrega al
+tier free) y `FQ_FREE_TO_VIP=1` (descartes al VIP, etiquetados). Ambas default OFF → byte-idéntico.
 
 **Por qué.** Jugada de MARKETING, no de señal: al prender el filtro KL el VIP se puso quieto (~18/mes)
 y **un canal callado se lee como MUERTO** → nadie paga por entrar a un cuarto en silencio. El FREE es
@@ -316,9 +318,11 @@ DESCARTES del filtro al VIP marcados **'Señal FREE'** (informativa, sin upsell)
 cuál es cuál. Texto distintivo garantizado: FREE dice "Señal FREE", VIP dice "Senal VIP", y hay test de
 que nunca se confunden.
 
-**Evidencia.** `_free_broadcast` + `FREE_CHAT_ID` + `FREE_TO_VIP` en `fq_bot_v3_2.py` (cableado en los
-4 sitios de broadcast, additivo al path VIP); `vip_format.build_free_signal` (TP1 + etiqueta + audiencia)
-+ `free_leak_guard`; `tests/test_free_signal.py` (5 tests, incl. "el mensaje VIP real es bloqueado").
+**Evidencia.** `_free_broadcast` + `FREE_TIER_ENABLED`/`FREE_TO_VIP` en `fq_bot_v3_2.py` (cableado en
+los 4 sitios de broadcast, additivo al path VIP; entrega vía `broadcast_to_subscribers(tiers=["free"])`,
+`include_admin=False` para no duplicar al admin); `vip_format.build_free_signal` (TP1 + etiqueta +
+audiencia) + `free_leak_guard`; `tests/test_free_signal.py` (5 tests, incl. "el mensaje VIP real es
+bloqueado"). El diseño de canal-aparte (`FQ_FREE_CHAT_ID`) se descartó el mismo día — un solo canal.
 
 **Impacto.** FREE y VIP son dos VISTAS del mismo motor SOL/BTC/ETH: FREE = todo etiquetado, VIP =
 filtrado. Cadencia alta en FREE (visible/vivo) + calidad en VIP (premium). Reversible (quitar la env).
@@ -340,7 +344,7 @@ filtrado. Cadencia alta en FREE (visible/vivo) + calidad en VIP (premium). Rever
 | Producto 3 capas | cada edge documentado y gateado | `plan_evolucion_2026.md` | Cap.1 vivo; 2/3 midiendo |
 | Híbrido data/venue | TradFi: validar en Dukascopy, ejecutar en perp | `fetch_dukascopy.py`, #116/#122 | Cosecha XAU+NQ en marcha |
 | Deploy hygiene | docs no re-despliegan; blacklist = fallo seguro | `railway.toml`, #138 | VIVO |
-| Producto 2 tiers | FREE firehose + VIP filtrado en 1 bot; candado VIP→FREE, descartes→VIP etiquetados | `_free_broadcast`, `build_free_signal`, `free_leak_guard` | Cableado (dormido: `FQ_FREE_CHAT_ID` + `FQ_FREE_TO_VIP`) |
+| Producto 2 tiers | UN SOLO canal: tier "free" de la BD recibe el firehose etiquetado; VIP el filtrado; candado VIP→FREE | `_free_broadcast`, `build_free_signal`, `free_leak_guard` | Cableado (dormido: `FQ_FREE_TIER` + `FQ_FREE_TO_VIP`) |
 
 ---
 
