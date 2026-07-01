@@ -2882,35 +2882,42 @@ def _kl_pass(df_primary, pair):
         return True
 
 
-# Tier FREE (jugada de marketing 2026-06-30): UN solo bot difunde TODOS los fires del motor
-# al canal gratis (FQ_FREE_CHAT_ID) — el "escaparate ruidoso" que evita el canal muerto —
-# etiquetando cada señal según pase o no el filtro de calidad KL. El VIP sigue recibiendo solo
-# las filtradas (con 4 TPs + boosts). Default OFF: sin FQ_FREE_CHAT_ID no hace NADA (byte-idéntico).
+# Tier FREE (jugada de marketing 2026-06-30; RasDG: "quiero UN SOLO canal"): NO hay canal
+# de Telegram aparte. El MISMO bot entrega por TIER de la BD:
+#   - tier "free" (usuarios que entran al bot sin pagar; default de la BD): reciben TODOS los
+#     fires del motor, CRUDOS (solo TP1), etiquetados según pasen o no el filtro de calidad KL
+#     — el "escaparate ruidoso" que evita el canal muerto + el gancho de conversión.
+#   - tiers vip/trial/admin: siguen recibiendo solo las filtradas (formato VIP completo).
+# Envs (ambas default OFF -> byte-idéntico):
+#   FQ_FREE_TIER=1   -> enciende la entrega al tier "free".
+#   FQ_FREE_TO_VIP=1 -> además, los DESCARTES del filtro llegan a los VIP etiquetados
+#                       'Señal FREE' (informativa, sin upsell) — los VIP ven todo.
 #
-# REGLAS DE MEZCLA (RasDG 2026-06-30, asimétricas a propósito):
-#   VIP -> FREE: PROHIBIDO. Candado free_leak_guard() antes de CADA envío al canal gratis
+# REGLAS DE MEZCLA (RasDG, asimétricas a propósito):
+#   VIP -> FREE: PROHIBIDO. Candado free_leak_guard() antes de CADA envío al tier free
 #                (bloquea cualquier mensaje con marcadores VIP: TP2-4/convicción/boosts).
 #                Estructural: _free_broadcast NUNCA recibe el msg VIP — solo el report crudo.
-#   FREE -> VIP: PERMITIDO con etiqueta. FQ_FREE_TO_VIP=1 manda los DESCARTES del filtro al
-#                canal VIP marcados 'Señal FREE' (informativa, sin upsell) — los VIP ven todo
-#                y saben cuál es cuál. Default OFF.
-FREE_CHAT_ID = os.environ.get("FQ_FREE_CHAT_ID", "").strip()
+#   FREE -> VIP: PERMITIDO con etiqueta ('Señal FREE' vs 'Senal VIP', test cruzado).
+FREE_TIER_ENABLED = os.environ.get("FQ_FREE_TIER", "0").strip().lower() in ("1", "true", "yes")
 FREE_TO_VIP = os.environ.get("FQ_FREE_TO_VIP", "0").strip().lower() in ("1", "true", "yes")
 
 
 def _free_broadcast(decision_report, pair, kl_passed):
-    """Tier FREE, additivo al path VIP y defensivo (JAMÁS rompe el broadcast VIP).
-    1) Canal FREE: el fire crudo (TP1) etiquetado por el filtro — tras pasar el candado.
-    2) FQ_FREE_TO_VIP=1: el descarte del filtro llega al VIP etiquetado 'Señal FREE'."""
+    """Tier FREE en el MISMO bot (un solo canal), additivo al path VIP y defensivo (JAMÁS
+    rompe el broadcast VIP).
+    1) FQ_FREE_TIER=1: el fire crudo (TP1) etiquetado va a los usuarios tier="free" de la BD
+       — tras pasar el candado anti-fuga.
+    2) FQ_FREE_TO_VIP=1: el descarte del filtro llega a los VIP etiquetado 'Señal FREE'."""
     if not (VIP_FORMAT_AVAILABLE and vip_format is not None):
         return
-    if FREE_CHAT_ID:   # vacío JAMÁS llega a telegram_send (caería al chat admin por default)
+    if FREE_TIER_ENABLED:
         try:
             msg = vip_format.build_free_signal(decision_report, pair=pair, kl_passed=kl_passed)
             if vip_format.free_leak_guard(msg):
-                telegram_send(msg, chat_id=FREE_CHAT_ID)
+                # include_admin=False: el admin ya recibe el stream VIP; sin duplicados.
+                broadcast_to_subscribers(msg, include_admin=False, tiers=["free"])
             else:
-                log.error("[free-guard] BLOQUEADO: mensaje no-FREE rumbo al canal gratis (%s)", pair)
+                log.error("[free-guard] BLOQUEADO: mensaje no-FREE rumbo al tier free (%s)", pair)
         except Exception as e:
             log.debug("[free-broadcast] %s", e)
     if FREE_TO_VIP and not kl_passed:
