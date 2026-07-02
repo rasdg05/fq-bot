@@ -1,0 +1,51 @@
+{
+  "_note": "FQ brand prompts for Higgsfield Cloud. Dark, emerald (#19b88c), institutional, cinematic. NO on-screen text or performance numbers — compliant copy is added later in Remotion. The text-to-image model below is confirmed working; for video, add entries using the exact model slug from cloud.higgsfield.ai (see _video_example).",
+
+  "assets": [
+    {
+      "id": "desk-broll",
+      "model": "bytedance/seedream/v4/text-to-image",
+      "out": "products/social/assets/hf-desk.png",
+      "arguments": {
+        "prompt": "cinematic dark trading desk at night, several monitors glowing with emerald green candlestick charts, moody low-key lighting, shallow depth of field, subtle film grain, 35mm, no text, no logos, no numbers",
+        "resolution": "2K",
+        "aspect_ratio": "9:16",
+        "camera_fixed": false
+      }
+    },
+    {
+      "id": "probability-field",
+      "model": "bytedance/seedream/v4/text-to-image",
+      "out": "products/social/assets/hf-field.png",
+      "arguments": {
+        "prompt": "abstract visualization of a probability field, emerald green particles forming a rising curve over a near-black background, elegant high-end fintech aesthetic, volumetric light, no text",
+        "resolution": "2K",
+        "aspect_ratio": "1:1",
+        "camera_fixed": false
+      }
+    },
+    {
+      "id": "porsche-cinematic",
+      "model": "bytedance/seedream/v4/text-to-image",
+      "out": "products/social/assets/hf-porsche.png",
+      "arguments": {
+        "prompt": "black Porsche convertible at dusk on a cobblestone street, cinematic teal-and-black color grade, rim lighting, luxury automotive film look, shallow depth of field, no text, no plates",
+        "resolution": "2K",
+        "aspect_ratio": "9:16",
+        "camera_fixed": false
+      }
+    }
+  ],
+
+  "_video_example": {
+    "id": "desk-broll-video",
+    "model": "REPLACE_WITH_VIDEO_MODEL_SLUG_FROM_cloud.higgsfield.ai",
+    "out": "public/footage/hf-desk.mp4",
+    "arguments": {
+      "prompt": "slow push-in on a dark trading desk, emerald charts glowing, cinematic, 1080p",
+      "aspect_ratio": "9:16",
+      "duration": 5
+    },
+    "_howto": "copy this object into the assets array (without the leading underscore key) once you have the video model slug; downloads to public/footage/ so it can be a clip src in ads/edl.ts"
+  }
+}
