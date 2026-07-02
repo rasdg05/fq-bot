@@ -74,9 +74,18 @@ def main():
         return
 
     import higgsfield_client
+    from higgsfield_client.exceptions import HiggsfieldClientError
     for a in assets:
         print(f"generating {a['id']} via {a['model']} ...")
-        result = higgsfield_client.subscribe(a["model"], arguments=a["arguments"])
+        try:
+            result = higgsfield_client.subscribe(a["model"], arguments=a["arguments"])
+        except HiggsfieldClientError as e:
+            if "not found" in str(e).lower():
+                print(f"  ERROR: model slug '{a['model']}' not found. Copy the exact "
+                      f"slug from cloud.higgsfield.ai (open a model → API snippet) or run "
+                      f"`higgsfield model list`, then set it in content/higgsfield-prompts.json.")
+                continue
+            raise
         urls = urls_from(result)
         if not urls:
             print(f"  WARN: no asset url in result keys={list(result.keys())}")
