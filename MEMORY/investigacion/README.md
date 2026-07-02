@@ -59,6 +59,13 @@
   motor, ~18/mes) y su rendimiento a **3.6%** por los **4 TPs**: TP1 **+119% (DD −10%)** ⭐, TP2 +89%, TP3
   +68%, TP4 +69% (DD −25%). Reco: **TP1 + 2% sizing**; TP2/TP3 no aportan; menos señales = filtro funcionando.
   PAPER sobre racha buena (irrev del filtro = proxy de klines Binance); el real lo dará el forward en vivo.
+- **`mejora-longs-bull-2026.md`** — *Deep-research verificado (2026-07-02): por qué murieron los LONGS
+  post-2022 y cómo restaurarlos para el bull Q3-Q4.* Medido: no es "malo en bulls" (2020-21 longs
+  excelentes) ni de majors (BTC/ETH longs +0.33/+0.32 HOY) — es deriva estructural post-2023 concentrada
+  en alts (SOL +0.01). Causas verificadas: premium arbitrado (BIS: ETF spot comprimió carry 36-97%),
+  cascadas 86%-long (10-oct-2025), decoupling BTC↔alts post-ETF. **4 fixes priorizados con experimento
+  measure-first** (funding-gate, breadth-gate para alt-longs, CVD ortogonalizado, throttle MVRV-Z) + lore
+  que NO sobrevive (S2F, titulares ballena). 108 agentes, 15 claims 3-0, 5 refutados.
 - **`rutas-capital-operativas-2026.md`** — *Planes operativos de capital (decisión RasDG, 2026-06-30).*
   Las 3 rutas greenlit con plan concreto y capital-en-riesgo explícito: **Numerai Crypto** (GO, medir 3
   sem sin-stake → stakear), **Breakout** (estrategia para pasar el challenge: sizing 0.4% por el WR bajo
