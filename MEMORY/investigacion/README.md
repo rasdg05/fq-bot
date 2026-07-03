@@ -28,6 +28,12 @@
 - **`preprint-fq-en.md` / `.pdf`** (+ `.html`) — *Preprint en INGLÉS, SSRN-ready.* Versión en inglés
   del review con los resultados reproducibles (Apéndice B + figura). Es el documento citable para
   someter a SSRN / arXiv q-fin. Mismo contenido, listo para audiencia académica internacional.
+- **`preprint-fq-es.md` / `.pdf`** (+ `.html`) — *Preprint en ESPAÑOL.* Traducción fiel del preprint EN
+  (misma estructura, Apéndice B, figura ES `fig-poc-distance.png`). **Actualización 2026-07-03:** ambos
+  idiomas incorporan **§3.5 — percentil del funding rate (direccional)**, el edge validado más fuerte del
+  programa (SHORT & pctl≥0.7: DSR 1.000 / CPCV 100% / PBO 0.00), y en el cementerio (§6) el breadth/alt-season
+  (PBO 1.00) y el on-chain NUPL (P=0.941<0.95). Corte movido a 2026-07-03. Los PDF se regeneran con chromium
+  desde el `.html` (la figura vive en el mismo directorio).
 - **`tools/numerai_signals_features.py`** (+ test) — *Scaffold ruta A.* `build_submission({símbolo:
   ohlcv_df})` → ranking [0,1] por símbolo. Sirve para **Numerai Signals** (acciones — reframe de
   KL/POC/momentum) **Y para Numerai Crypto** (CONFIRMADO, crypto.numer.ai — **fit DIRECTO** del bot,

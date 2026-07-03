@@ -7,7 +7,7 @@ reproducible from the source repository. To be hardened (full data appendix, DOI
 journal submission.
 
 **Author:** RasDG (Mexico City), with FQ engineering assistance.
-**Cutoff:** 2026-06-29.
+**Cutoff:** 2026-07-03.
 
 ---
 
@@ -22,9 +22,9 @@ subjects **every** candidate edge to an explicit statistical gate and measures p
 *forward* (out-of-sample, live) before raising conviction. This review documents (i) the
 validation methodology as the system's backbone; (ii) the edges that **survive** the gate —
 signed order-flow (CVD), order-flow persistence (long memory), regime detection via
-time-irreversibility (KL divergence), and distance to the volume-profile Point of Control;
-(iii) the honest separation between a heuristic **conviction layer** and the **causally-validated
-edge**; (iv) a *cross-asset* extension via a data/venue decoupling toward traditional markets;
+time-irreversibility (KL divergence), distance to the volume-profile Point of Control, and the
+**funding-rate percentile** as a directional bias; (iii) the honest separation between a heuristic
+**conviction layer** and the **causally-validated edge**; (iv) a *cross-asset* extension via a data/venue decoupling toward traditional markets;
 and (v) an explicit graveyard of refuted ideas. The operating principle is singular:
 **measure or perish.**
 
@@ -88,6 +88,20 @@ yesterday's chop; far from the POC = trend" — **passes the cross-symbol gate**
 of paths positive), PBO 0.17**. It holds in **4 of 5** symbols; **BNB is the measured exception**
 (far<near) and is excluded. See Appendix B for the reproducible result.
 
+### 3.5 Funding-rate percentile (directional)
+The newest piece and the **strongest gate result in the program**. Perpetual funding is the carry
+that anchors the perp to spot; high funding = crowded longs (BIS WP1087 links high carry to crash
+risk; retail trend-chasers inflate it). **Key finding:** the **raw level does not inform** (PBO 0.75),
+but the **percentile relative to the symbol's own 90-day history does**. It is directional and
+asymmetric: **LONG on cold funding** (pctl ≤ 0.5) → +0.173R vs +0.121 base (n=1538), **DSR 1.000,
+CPCV OOS +0.028 (80% of paths > 0), PBO 0.04**; **SHORT on hot funding** (pctl ≥ 0.7) → +0.224R vs
++0.156, **DSR 1.000, CPCV 100% of paths, PBO 0.00 — the best gate result in the program**. The
+gradient is clean and monotone: longs decay as funding heats (+0.175 → +0.095) and shorts mirror it.
+It is wired along the **same path as CVD**: gate ✓ → dormant (sealed as a regime tag) → forward
+(judged by `by_funding` in the ledger) → product (directional conviction boost). Cross-venue note:
+validated on Binance history; live, each venue is compared to its own 90-day history (same relative
+construct).
+
 ## 4. Conviction vs. validated edge: the honest distinction
 
 FQ separates two layers that most systems conflate. **Conviction** (`P_master`) is a structured
@@ -111,10 +125,14 @@ gate remains under-powered (low n) pending a larger harvest.
 ## 6. Results and graveyard
 
 **Survives and is wired:** CVD (DSR ✓), F2 (DSR ✓, BTC), KL (DSR ✓ cross-symbol), POC-distance
-(gate ✓ cross-symbol; Appendix B). **Passes but redundant:** F1 (impact residual; within-CVD
-negative). **Refuted / unfalsifiable (not coded):** Baaquie quantum finance, Sornette LPPL,
-Khrennikov quantum-like markets, critical-slowing-down early warning, rough volatility (Cont &
-Das, 2022). What the gate killed is written down — so no one re-chases the mirage.
+(gate ✓ cross-symbol; Appendix B), **directional funding percentile** (gate ✓; the best in the
+program, §3.5). **Passes but redundant:** F1 (impact residual; within-CVD negative). **Measured and
+refuted in the same sweep (do not re-chase):** the breadth/alt-season gate for alt longs (uplift
++0.002, PBO 1.00 — the macro decoupling does not descend to a 5-minute gate; horizon mismatch);
+on-chain valuation metrics (NUPL) do not clear the slow-regime protocol (P = 0.941 < 0.95).
+**Refuted / unfalsifiable (not coded):** Baaquie quantum finance, Sornette LPPL, Khrennikov
+quantum-like markets, critical-slowing-down early warning, rough volatility (Cont & Das, 2022).
+What the gate killed is written down — so no one re-chases the mirage.
 
 ## 7. Discussion and limitations
 
