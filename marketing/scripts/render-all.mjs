@@ -22,10 +22,13 @@ const raw = execFileSync('npx', ['remotion', 'compositions', ENTRY, '--quiet'], 
   encoding: 'utf8',
 });
 
+// `remotion compositions --quiet` lista los ids separados por espacios (y a veces
+// en una sola linea), no uno por linea. Partimos por cualquier espacio en blanco
+// y nos quedamos solo con tokens con forma de id (kebab-case), excluyendo showcase-.
 const ids = raw
-  .split('\n')
-  .map((l) => l.trim())
-  .filter((l) => l && !l.startsWith('showcase-')); // showcase suelto: render aparte si lo quieres
+  .split(/\s+/)
+  .map((t) => t.trim())
+  .filter((t) => /^[a-z0-9]+(?:-[a-z0-9]+)+$/i.test(t) && !t.startsWith('showcase-'));
 
 if (ids.length === 0) {
   console.error('No se encontraron composiciones.');
