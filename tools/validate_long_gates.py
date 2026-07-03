@@ -230,6 +230,51 @@ def gate_report(df_long, mask, n_trials, label):
             "pass": bool(verdict)}
 
 
+def slow_gate_report(df_long, mask, n_trials, label, n_blocks=40, boots=4000, seed=7):
+    """Gate para REGÍMENES LENTOS (p.ej. NUPL: meses en una banda). El PBO/CSCV clásico
+    no es computable ahí (bloques enteros de un solo lado) — NO por falta de cómputo,
+    sino porque no hay varianza intra-bloque. Protocolo alterno, declarado por adelantado:
+      (a) DSR deflactado (igual que siempre),
+      (b) BOOTSTRAP DE BLOQUES contiguos (respeta la autocorrelación del régimen):
+          P(uplift>0) sobre remuestreos de bloques temporales,
+      (c) CONSISTENCIA POR MITADES temporales (uplift>0 en AMBAS mitades = ~2 ciclos).
+    PASA sólo con (a) ✓ y (b) >=0.95 y (c) ambas mitades >0. Más estricto en espíritu,
+    computable en régimen lento. El juez final sigue siendo el forward."""
+    rng = np.random.default_rng(seed)
+    base = df_long["pnl_r"].to_numpy(float)
+    m = mask.to_numpy(bool)
+    if m.sum() < 30:
+        print("  [%s] n=%d <30 — sin poder" % (label, int(m.sum())))
+        return None
+    upl = base[m].mean() - base.mean()
+    d = _dsr(base[m], base, n_trials)
+    blocks = np.array_split(np.arange(len(base)), n_blocks)
+    ups = []
+    for _ in range(boots):
+        idx = np.concatenate([blocks[i] for i in rng.integers(0, len(blocks), len(blocks))])
+        bm = m[idx]
+        if bm.sum() >= 10 and (~bm).sum() >= 10:
+            ups.append(base[idx][bm].mean() - base[idx].mean())
+    ups = np.asarray(ups, float)
+    p_pos = float((ups > 0).mean()) if len(ups) else float("nan")
+    half = len(base) // 2
+    h = []
+    for sl in (slice(0, half), slice(half, None)):
+        bm, bb = m[sl], base[sl]
+        h.append(bb[bm].mean() - bb.mean() if bm.sum() >= 15 else float("nan"))
+    ok_dsr = bool(d and d["significant"])
+    ok_boot = (not np.isnan(p_pos)) and p_pos >= 0.95
+    ok_half = all(not np.isnan(x) and x > 0 for x in h)
+    print("  [%s] n=%d  expR=%+.3f (base %+.3f, uplift %+.3f)" % (label, int(m.sum()), base[m].mean(), base.mean(), upl))
+    print("        DSR=%s %s · bootstrap-bloques P(uplift>0)=%.3f (%d resamples) %s · mitades: %+.3f / %+.3f %s"
+          % ("%.3f" % d["dsr"] if d else "n/a", "✓" if ok_dsr else "✗", p_pos, len(ups),
+             "✓" if ok_boot else "✗", h[0], h[1], "✓" if ok_half else "✗"))
+    verdict = ok_dsr and ok_boot and ok_half
+    print("        -> %s" % ("PASA (protocolo régimen-lento)" if verdict else "NO PASA (o falta poder)"))
+    return {"n": int(m.sum()), "uplift": float(upl), "dsr": d["dsr"] if d else None,
+            "p_boot": p_pos, "halves": h, "pass": bool(verdict)}
+
+
 def bucket_table(df, col, edges, labels, title):
     print("\n  %s (LONGS | contraste SHORTS):" % title)
     for lo, hi, lab in zip(edges[:-1], edges[1:], labels):
@@ -385,6 +430,10 @@ def exp_onchain(fires, lg=LG):
     res = {}
     res["no_euforia"] = gate_report(longs, longs.nupl < 0.75, 3, "LONG & NUPL<0.75 (veto euforia)")
     res["bajo_codicia"] = gate_report(longs, longs.nupl < 0.5, 3, "LONG & NUPL<0.5")
+    # régimen LENTO: el CSCV/PBO clásico no computa (bloques de un solo lado) ->
+    # protocolo alterno declarado (bootstrap de bloques + mitades), mismo espíritu anti-overfit.
+    res["bajo_codicia_slow"] = slow_gate_report(longs, longs.nupl < 0.5, 3,
+                                                "LONG & NUPL<0.5 [protocolo régimen-lento]")
     return res
 
 

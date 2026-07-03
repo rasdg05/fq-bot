@@ -62,10 +62,12 @@ sube conviction client-facing. Hoy mide, no decide.
 **CABLEADO DORMIDO (OFF, byte-idéntico cuando off):**
 - CVD a conviction/size (`FQ_CVD_VIP_CONVICTION`, `FQ_CVD_BOOST_TIER`).
 - F2-persistencia (`FQ_PERSIST_BOOST=BTC`) — luz verde tras re-confirm n_trials=44 (commit `c355d25`).
-- **Regime tags KL + POC-distance** (`FQ_REGIME_TAGS`, 2026-06-29): sella `kl_low`/`kl_irrev` (KL fiel,
-  ventana 64) + `poc_dist` (developing) en `MOTOR_OPEN_META`; el reporte agrega `by_kl`/`by_poc`. Mide
-  forward el edge KL (DSR ✓ cube) y POC-distance (gate ✓ cube, #125). El POC-distance ESTRICTO del día
-  previo se mide offline con `gate_poc_distance.py` sobre el ledger (el live es proxy del día en curso).
+- **Regime tags KL + POC-distance + FUNDING** (`FQ_REGIME_TAGS`, 2026-06-29/07-03): sella `kl_low`/`kl_irrev`
+  (KL fiel, ventana 64) + `poc_dist` (developing) + **`funding_pctl`** (percentil ~90d del funding del
+  propio símbolo, OKX público cacheado — el funding-gate que PASÓ el gate in-cube: LONG & pctl≤0.5 →
+  +0.173R vs +0.121, DSR 1.000/CPCV 80%/PBO 0.04) en `MOTOR_OPEN_META`; el reporte agrega
+  `by_kl`/`by_poc`/**`by_funding`** (umbral fijo 0.5). Mide forward KL, POC-distance y funding-gate. El
+  POC-distance ESTRICTO del día previo se mide offline con `gate_poc_distance.py` sobre el ledger.
 
 **MIDIENDO FORWARD (0% capital):**
 - Motor paper SOL + BTC (+ ETH). CVD filter/tag (`FQ_CVD_FILTER`, pendiente encender en Railway).
