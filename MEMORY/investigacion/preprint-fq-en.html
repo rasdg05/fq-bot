@@ -34,7 +34,7 @@
 <div class="meta">
   <b>Status:</b> preprint / working draft — reproducible from source; to be hardened (data appendix, DOIs)
   before journal submission. &nbsp;·&nbsp; <b>Author:</b> RasDG, Mexico City (with FQ engineering assistance).
-  &nbsp;·&nbsp; <b>Cutoff:</b> 2026-06-29.
+  &nbsp;·&nbsp; <b>Cutoff:</b> 2026-07-03.
 </div>
 
 <div class="abstract">
@@ -45,8 +45,9 @@
   retail systems — which report no multiple-testing correction — FQ subjects <b>every</b> candidate edge
   to an explicit statistical gate and measures performance <i>forward</i> before raising conviction. This
   review documents the validation methodology; the edges that survive — signed order-flow (CVD), order-flow
-  persistence, regime detection via time-irreversibility (KL), and distance to the volume-profile Point of
-  Control; the honest separation between a heuristic conviction layer and the causally-validated edge; a
+  persistence, regime detection via time-irreversibility (KL), distance to the volume-profile Point of
+  Control, and the funding-rate percentile as a directional bias; the honest separation between a heuristic
+  conviction layer and the causally-validated edge; a
   cross-asset extension via a data/venue decoupling; and an explicit graveyard of refuted ideas. The
   operating principle is singular: <b>measure or perish.</b>
 </div>
@@ -94,6 +95,18 @@ hypothesis — "do not trade in yesterday's chop; far from the POC = trend" — 
 gate</b>: a 5-crypto pool (n=5162) shows uplift +0.121, <b>orthogonal to KL</b> (within-KL +0.272),
 <b>CPCV OOS +0.111 (93% of paths positive), PBO 0.17</b>. It holds in <b>4/5</b>; <span class="red">BNB is
 the measured exception</span> (far&lt;near) and is excluded (Appendix B).</p>
+<h3>3.5 Funding-rate percentile (directional)</h3>
+<p>The newest piece and the <b>strongest gate result in the program</b>. Perpetual funding is the carry that
+anchors the perp to spot; high funding = crowded longs (BIS WP1087 links high carry to crash risk; retail
+trend-chasers inflate it). <b>Key finding:</b> the <b>raw level does not inform</b> (PBO 0.75), but the
+<b>percentile relative to the symbol's own 90-day history does</b>. It is directional and asymmetric:
+<b>LONG on cold funding</b> (pctl ≤ 0.5) → +0.173R vs +0.121 base (n=1538), <span class="em">DSR 1.000,
+CPCV OOS +0.028 (80% of paths &gt; 0), PBO 0.04</span>; <b>SHORT on hot funding</b> (pctl ≥ 0.7) → +0.224R vs
++0.156, <span class="em">DSR 1.000, CPCV 100% of paths, PBO 0.00 — the best gate result in the program</span>.
+The gradient is clean and monotone: longs decay as funding heats (+0.175 → +0.095) and shorts mirror it. It is
+wired along the <b>same path as CVD</b>: gate ✓ → dormant (sealed as a regime tag) → forward (judged by
+<code>by_funding</code> in the ledger) → product (directional conviction boost). Cross-venue note: validated on
+Binance history; live, each venue is compared to its own 90-day history (same relative construct).</p>
 
 <h2>4. Conviction vs. validated edge: the honest distinction</h2>
 <p>FQ separates two layers that most systems conflate. <b>Conviction</b> (<code>P_master</code>) is a
@@ -114,9 +127,13 @@ edge; POC-distance shows the <b>same direction</b> as in crypto, though the full
 
 <h2>6. Results and graveyard</h2>
 <p><b>Survives and is wired:</b> CVD (DSR ✓), F2 (DSR ✓, BTC), KL (DSR ✓ cross-symbol), POC-distance (gate
-✓; Appendix B). <b>Passes but redundant:</b> F1 (impact residual; within-CVD negative). <b>Refuted /
-unfalsifiable (not coded):</b> Baaquie quantum finance, Sornette LPPL, Khrennikov quantum-like markets,
-critical-slowing-down, rough volatility (Cont &amp; Das, 2022). What the gate killed is written down.</p>
+✓; Appendix B), <b>directional funding percentile</b> (gate ✓; the best in the program, §3.5). <b>Passes but
+redundant:</b> F1 (impact residual; within-CVD negative). <b>Measured and refuted in the same sweep (do not
+re-chase):</b> the <i>breadth</i>/alt-season gate for alt longs (uplift +0.002, <span class="red">PBO
+1.00</span> — the macro decoupling does not descend to a 5-minute gate; horizon mismatch); on-chain valuation
+metrics (NUPL) do not clear the slow-regime protocol (P = 0.941 &lt; 0.95). <b>Refuted / unfalsifiable (not
+coded):</b> Baaquie quantum finance, Sornette LPPL, Khrennikov quantum-like markets, critical-slowing-down,
+rough volatility (Cont &amp; Das, 2022). What the gate killed is written down.</p>
 
 <h2>7. Discussion and limitations</h2>
 <p>Cube figures are <b>gross</b> (pre-cost) and in-sample to the harvest period; validated with CPCV/PBO,
