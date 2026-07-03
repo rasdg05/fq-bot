@@ -53,15 +53,12 @@ body{background:var(--bg);color:var(--text);
 
 /* ---- cinta ticker (movimiento perpetuo) ---- */
 #tape{border-bottom:1px solid var(--line2);overflow:hidden;white-space:nowrap;
-  padding:7px 0;position:relative;transform:translateZ(0);
-  -webkit-mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent);
-  mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent)}
-/* will-change + translateZ + backface: iOS Safari suelta la capa de compositing de un
-   elemento animado bajo mask-image al scrollear -> la cinta se ve EN BLANCO. Promoverla
-   (capa propia, siempre rasterizada) la mantiene visible durante y tras el scroll. */
-#tape .rail{display:inline-block;animation:tape 36s linear infinite;
-  will-change:transform;backface-visibility:hidden;-webkit-backface-visibility:hidden}
-@keyframes tape{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+  padding:7px 0;position:relative}
+/* La cinta se mueve por JS (requestAnimationFrame), NO por animación CSS: en iOS la
+   animación bajo mask-image (ya quitado) se vaciaba, y reasignar innerHTML por poll la
+   reiniciaba dejándola estática. Ahora se construye UNA vez y el scroll lo maneja
+   tapeLoop(); los precios se actualizan en sitio. */
+#tape .rail{display:inline-block;will-change:transform}
 #tape .it{display:inline-block;margin-right:44px;font-size:12px;color:var(--text2)}
 #tape .it b{color:var(--text);font-weight:600}
 #tape .it .phi{color:var(--gold);margin-left:44px}
@@ -281,7 +278,6 @@ function render(d){
   let syms=Object.keys(d.symbols||{}).length?Object.keys(d.symbols):SYMS_DEFAULT;
   syms=[...syms].sort((a,b)=>((d.symbols[b]||{}).vip?1:0)-((d.symbols[a]||{}).vip?1:0));
   for(const s of syms){ if(!document.getElementById("c-"+s)) grid.appendChild(instCard(s)); }
-  const tape=[];
   for(const s of syms){
     const st=d.symbols[s]; if(!st) continue;
     const P=id=>document.getElementById(id+"-"+s);
@@ -296,7 +292,6 @@ function render(d){
       if(ch!=null){P("d").innerHTML=(ch>=0?"▲ ":"▼ ")+Math.abs(ch).toFixed(2)+"%"
         +(is24?'<span class="chglab">24h</span>':'');
         P("d").className="dx "+(ch>=0?"up":"dn");}
-      tape.push(`<span class="it"><b>${s}</b> $${fmtP(st.price)}${st.irrev!=null?" · KL "+st.irrev.toFixed(2):""}${st.funding_pctl!=null?" · F p"+st.funding_pctl.toFixed(2):""}<span class="phi">φ</span></span>`);
     }
     P("kz").textContent=st.killzone||"—";
     const tr=P("tr");
@@ -319,9 +314,35 @@ function render(d){
     P("cf").textContent=c.fire||0;P("co").textContent=c.opened||0;
     P("cv").textContent=c.vetoed||0;P("cl").textContent=st.open||0;
   }
-  if(tape.length){const rail=document.getElementById("rail");rail.innerHTML=tape.join("")+tape.join("");}
+  renderTape(syms,d);
   renderLog(d,syms);renderTable(d,syms);
 }
+let _tapeX=0,_tapeLast=0;
+const _reduceMotion=matchMedia("(prefers-reduced-motion: reduce)").matches;
+function renderTape(syms,d){
+  const rail=document.getElementById("rail"); if(!rail) return;
+  const wp=syms.filter(s=>d.symbols[s]&&d.symbols[s].price!=null);
+  const sig=wp.join(",");
+  if(rail.dataset.sig!==sig){                        // reconstruye SOLO si cambia el set de símbolos
+    const one=wp.map(s=>`<span class="it"><b>${s}</b> <span class="v" data-v="${s}"></span><span class="phi">φ</span></span>`).join("");
+    rail.innerHTML=one+one; rail.dataset.sig=sig; _tapeX=0;   // 2 copias -> loop sin costura
+  }
+  for(const s of wp){                                // precios EN SITIO: no toca la estructura -> no reinicia el scroll
+    const st=d.symbols[s];
+    const txt="$"+fmtP(st.price)+(st.irrev!=null?" · KL "+st.irrev.toFixed(2):"")+(st.funding_pctl!=null?" · F p"+st.funding_pctl.toFixed(2):"");
+    rail.querySelectorAll('[data-v="'+s+'"]').forEach(el=>{el.textContent=txt;});
+  }
+}
+function tapeLoop(ts){                               // marquee por JS: inmune a los quirks de animación CSS de iOS
+  const rail=document.getElementById("rail");
+  if(rail && !document.hidden && !_reduceMotion){
+    const dt=_tapeLast?Math.min(60,ts-_tapeLast):16;
+    const half=rail.scrollWidth/2;
+    if(half>0){ _tapeX-=dt*0.045; if(-_tapeX>=half)_tapeX+=half; rail.style.transform="translateX("+_tapeX+"px)"; }
+  }
+  _tapeLast=ts; requestAnimationFrame(tapeLoop);
+}
+requestAnimationFrame(tapeLoop);
 function renderLog(d,syms){
   const KIND={read:"LECTURA",fire:"SEÑAL",open:"APERTURA",veto:"VETO",close:"CIERRE"};
   const lines=[];
