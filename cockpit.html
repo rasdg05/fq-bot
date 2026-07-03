@@ -25,7 +25,9 @@ html,body{height:100%}
 body{background:var(--bg);color:var(--text);
   font:13px/1.5 "SF Mono","JetBrains Mono","IBM Plex Mono",Consolas,monospace;
   overflow-x:hidden}
-#rain{position:fixed;inset:0;z-index:0;display:block}
+/* altura ESTABLE (100vh = viewport grande, NO cambia al mostrar/ocultar la barra en
+   móvil; a diferencia de dvh). Evita que el scroll reinicie la lluvia. */
+#rain{position:fixed;top:0;left:0;width:100%;height:100vh;z-index:0;display:block}
 #app{position:relative;z-index:1;padding:0 22px 26px}
 
 /* ---- statusbar institucional ---- */
@@ -157,14 +159,21 @@ td:first-child,th:first-child{text-align:left}
   const cv=document.getElementById("rain"),x=cv.getContext("2d");
   const GLYPHS="φΦΣλΞ◎₿∑√πΔ0123456789ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ";
   const FIB="1123581321345589144233377610987";
-  let W,H,cols,drops,goldCol,fs=15;
-  function size(){
-    W=cv.width=innerWidth; H=cv.height=innerHeight;
+  let W,H,cols,drops,goldCol,fs=15,lastW=-1;
+  function build(){
+    // dimensiones del CSS (100vh estable), NO innerHeight (que fluctúa con la barra móvil)
+    W=cv.width=cv.clientWidth||innerWidth; H=cv.height=cv.clientHeight||innerHeight;
     cols=Math.floor(W/fs); drops=Array.from({length:cols},()=>Math.random()*-H/fs);
     goldCol=Array.from({length:cols},()=>Math.random()<0.09);   // ~9% columnas φ doradas
-    x.fillStyle="rgba(5,7,5,1)";x.fillRect(0,0,W,H);
+    x.fillStyle="rgba(5,7,5,1)";x.fillRect(0,0,W,H); lastW=W;
   }
-  size(); addEventListener("resize",size);
+  function size(){
+    // Solo reconstruir si cambió el ANCHO (rotar/redimensionar). El scroll en móvil
+    // solo cambia la altura (barra de direcciones) -> NO tocar la lluvia = continuidad.
+    if(Math.abs((cv.clientWidth||innerWidth)-lastW)<2) return;
+    build();
+  }
+  build(); let rt; addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeout(size,150)});
   const reduced=matchMedia("(prefers-reduced-motion: reduce)").matches;
   let last=0;
   function frame(ts){
