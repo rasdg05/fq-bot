@@ -64,6 +64,6 @@ def test_server_sirve_html_json_health(tmp_path, monkeypatch):
         r = urllib.request.urlopen(base + "/cockpit.json", timeout=5)
         assert r.status == 200 and "symbols" in json.loads(r.read().decode())
         r2 = urllib.request.urlopen(base + "/", timeout=5)
-        assert r2.status == 200 and b"COCKPIT" in r2.read()
+        assert r2.status == 200 and b"FQ CAPITAL" in r2.read()   # marca institucional
     finally:
         httpd.shutdown()
