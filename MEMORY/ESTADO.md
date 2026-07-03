@@ -61,6 +61,9 @@ sube conviction client-facing. Hoy mide, no decide.
 
 **CABLEADO DORMIDO (OFF, byte-idéntico cuando off):**
 - CVD a conviction/size (`FQ_CVD_VIP_CONVICTION`, `FQ_CVD_BOOST_TIER`).
+- **Funding-boost a conviction (`FQ_FUNDING_BOOST`, 2026-07-03):** +1 tier SOLO longs con
+  funding-pctl≤0.5 (lo validado in-cube: +0.173R vs +0.121, DSR 1.000/CPCV 80%/PBO 0.04), badge
+  "FUNDING FAVORABLE", apilable con CVD/POC. Decisión RasDG: despertarlo ya; `by_funding` sigue de juez.
 - F2-persistencia (`FQ_PERSIST_BOOST=BTC`) — luz verde tras re-confirm n_trials=44 (commit `c355d25`).
 - **Regime tags KL + POC-distance + FUNDING** (`FQ_REGIME_TAGS`, 2026-06-29/07-03): sella `kl_low`/`kl_irrev`
   (KL fiel, ventana 64) + `poc_dist` (developing) + **`funding_pctl`** (percentil ~90d del funding del

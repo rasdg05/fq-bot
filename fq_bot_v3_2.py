@@ -2980,6 +2980,33 @@ def _poc_vip_kwargs(report, exchange, symbol_inst, tf_id, pair, entry_price):
         return {}
 
 
+# Boost de convicción por FUNDING favorable (decisión RasDG 2026-07-03: "despierto y
+# haciendo boost"). Lo VALIDADO in-cube (validate_long_gates): LONG & funding-pctl90d<=0.5
+# -> +0.173R vs +0.121 · DSR 1.000 / CPCV 80% paths / PBO 0.04. Por eso el boost aplica
+# SOLO a LONGS con funding en la mitad baja de su propia historia (~90d). Los SHORTS no se
+# tocan (su gradiente es el inverso — lead aparte, no gateado). El tag forward (by_funding)
+# sigue midiendo: si el forward contradice al cube, se apaga con la misma env.
+FUNDING_BOOST_ENABLED = os.environ.get("FQ_FUNDING_BOOST", "0").strip().lower() in ("1", "true", "yes")
+
+
+def _funding_vip_kwargs(report, pair):
+    """kwarg de convicción VIP por funding favorable — SOLO longs, percentil<=0.5.
+    Reusa motor_paper.funding_pctl_live (OKX público, cache 1h). {} si flag off /
+    short / sin dato -> señal byte-idéntica. Defensivo: JAMÁS rompe el broadcast."""
+    if not FUNDING_BOOST_ENABLED:
+        return {}
+    try:
+        if (report or {}).get("direction") != "long":
+            return {}
+        import motor_paper
+        _rate, pctl = motor_paper.funding_pctl_live(pair)
+        if pctl is not None and pctl <= 0.5:
+            return {"funding_boost": True}
+    except Exception as e:
+        log.debug("[funding-boost] %s", e)
+    return {}
+
+
 def _motor_admin_notify(sig, verdict, pos):
     """Aviso admin-only del motor paper (open + digest). SIN VIP, 0% real."""
     try:
@@ -3159,7 +3186,8 @@ def _btc_motor_paper_scan(exchange):
                         field, report, tf_label=profile["label"], tf_id=tf_id, pair="BTC/USDT",
                         **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], "BTC/USDT"),
                         **_poc_vip_kwargs(report, exchange, SYMBOL_BTC, tf_id, "BTC/USDT",
-                                          float(df_primary["close"].iloc[-1])))
+                                          float(df_primary["close"].iloc[-1])),
+                        **_funding_vip_kwargs(report, "BTC/USDT"))
                     _kl_ok = _kl_pass(df_primary, "BTC/USDT")     # tier KL-bajo (calidad)
                     _free_broadcast(report, "BTC/USDT", _kl_ok)  # tier FREE: todos los fires, etiquetados
                     if _kl_ok:
@@ -3277,7 +3305,8 @@ def _eth_motor_paper_scan(exchange):
                         field, report, tf_label=profile["label"], tf_id=tf_id, pair="ETH/USDT",
                         **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], "ETH/USDT"),
                         **_poc_vip_kwargs(report, exchange, SYMBOL_ETH, tf_id, "ETH/USDT",
-                                          float(df_primary["close"].iloc[-1])))
+                                          float(df_primary["close"].iloc[-1])),
+                        **_funding_vip_kwargs(report, "ETH/USDT"))
                     _kl_ok = _kl_pass(df_primary, "ETH/USDT")   # tier KL-bajo (calidad) — honra FQ_KL_FILTER
                     _free_broadcast(report, "ETH/USDT", _kl_ok)  # tier FREE: todos los fires, etiquetados
                     if _kl_ok:
@@ -3392,7 +3421,8 @@ def _bch_motor_paper_scan(exchange):
                         field, report, tf_label=profile["label"], tf_id=tf_id, pair="BCH/USDT",
                         **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], "BCH/USDT"),
                         **_poc_vip_kwargs(report, exchange, SYMBOL_BCH, tf_id, "BCH/USDT",
-                                          float(df_primary["close"].iloc[-1])))
+                                          float(df_primary["close"].iloc[-1])),
+                        **_funding_vip_kwargs(report, "BCH/USDT"))
                     broadcast_to_subscribers(msg)   # SIN _kl_pass a proposito: BCH va sin filtro KL
                 except Exception as e:
                     log.warning("[motor-bch] broadcast: %s", e)
@@ -3496,7 +3526,8 @@ def _xsym_motor_paper_scan(exchange, *, enabled, symbol_inst, pair, tf_id,
                         field, report, tf_label=profile["label"], tf_id=tf_id, pair=pair,
                         **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], pair),
                         **_poc_vip_kwargs(report, exchange, symbol_inst, tf_id, pair,
-                                          float(df_primary["close"].iloc[-1])))
+                                          float(df_primary["close"].iloc[-1])),
+                        **_funding_vip_kwargs(report, pair))
                     _kl_ok = (not kl_gated) or _kl_pass(df_primary, pair)   # tier KL-bajo (calidad)
                     _free_broadcast(report, pair, _kl_ok)   # tier FREE: todos los fires, etiquetados
                     if _kl_ok:
@@ -3703,7 +3734,8 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
                     field, report, tf_label=tf_label, tf_id=tf_id,
                     **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], SYMBOL),
                     **_poc_vip_kwargs(report, exchange, SYMBOL, tf_id, "SOL/USDT",
-                                      float(df_primary["close"].iloc[-1])))
+                                      float(df_primary["close"].iloc[-1])),
+                    **_funding_vip_kwargs(report, "SOL/USDT"))
             else:
                 msg = field_reports.build_signal_report(
                     field, report, tf_label=tf_label, tf_id=tf_id, pmin=tf_pmin)

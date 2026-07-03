@@ -61,7 +61,8 @@ def bump_tier(p_master):
 # SENAL VIP - simplificada, ejecutable sin exponer motor
 # ============================================================
 def build_vip_signal(field, decision_report, tf_label=None, tf_id=None, pair=None,
-                     cvd_confirmed=None, boost_tier=False, poc_far=False):
+                     cvd_confirmed=None, boost_tier=False, poc_far=False,
+                     funding_boost=False):
     """
     Senal lista para copy-paste. NO expone P_master, kappa_evo, Theta(D),
     f_confluencia ni constantes phi/alpha. Solo lo que el VIP necesita ejecutar.
@@ -84,11 +85,14 @@ def build_vip_signal(field, decision_report, tf_label=None, tf_id=None, pair=Non
     # Boost de order-flow (capa 3 -> motor 1, FQ_CVD_BOOST_TIER): la senal con
     # order-flow CONFIRMADO sube +1 tier de conviccion y de size. Es lo que vuelve
     # el +0.34R del backtest en producto (la confirmada PESA mas, no solo se marca).
-    # Boost de convicción APILABLE: order-flow (CVD) y/o estructura (POC-distance
-    # validado, far>near, gate ✓ cross-símbolo). Cada confirmación sube +1 tier;
-    # bump_tier topa en phi^3 (8x). poc_far=False -> idéntico a la lógica histórica.
+    # Boost de convicción APILABLE: order-flow (CVD), estructura (POC-distance
+    # validado, far>near, gate ✓ cross-símbolo) y/o FUNDING favorable (validado
+    # in-cube 2026-07-03: LONG & funding-pctl90d<=0.5 -> +0.173R vs +0.121, DSR
+    # 1.000/CPCV 80%/PBO 0.04 — SOLO se pasa True para LONGS, ver _funding_vip_kwargs).
+    # Cada confirmación sube +1 tier; bump_tier topa en phi^3 (8x). Flags en False
+    # -> byte-idéntico a la lógica histórica.
     p_eff = pm["p_master"]
-    for _conf in (boost_tier, poc_far):
+    for _conf in (boost_tier, poc_far, funding_boost):
         if _conf:
             p_eff = bump_tier(p_eff)
     conviction = conviction_label(p_eff)
@@ -139,6 +143,12 @@ def build_vip_signal(field, decision_report, tf_label=None, tf_id=None, pair=Non
     poc_line = ""
     if poc_far:
         poc_line = "  {d} FUERA DEL VALOR PREVIO\n".format(d=GLYPHS["premium"])
+    # Insignia de FUNDING (FQ_FUNDING_BOOST): el funding del perp está en la mitad BAJA
+    # de su propia historia 90d -> el subset donde los LONGS pagan (gate ✓ in-cube).
+    # "" cuando no -> señal byte-idéntica (default OFF en el monolito).
+    funding_line = ""
+    if funding_boost:
+        funding_line = "  {d} FUNDING FAVORABLE\n".format(d=GLYPHS["premium"])
 
     return (
         "{rule}\n"
@@ -146,6 +156,7 @@ def build_vip_signal(field, decision_report, tf_label=None, tf_id=None, pair=Non
         "  {quality}\n"
         "{cvd_line}"
         "{poc_line}"
+        "{funding_line}"
         "  {ctx}\n"
         "{rule}\n"
         "  {arrow} {side}        Conviccion {conv}\n"
@@ -166,7 +177,7 @@ def build_vip_signal(field, decision_report, tf_label=None, tf_id=None, pair=Non
         "  {tags} #{side}"
     ).format(
         rule=RULE, bar=GLYPHS["title"], product=PRODUCT, pair=pair_label, quality=quality,
-        cvd_line=cvd_line, poc_line=poc_line, ctx=ctx_line,
+        cvd_line=cvd_line, poc_line=poc_line, funding_line=funding_line, ctx=ctx_line,
         arrow=arrow, side=side, conv=conviction, risk=risk_lbl,
         entry=levels["entry"], sl=levels["sl"],
         tp1=levels["tp1"], rr1=levels.get("rr_tp1", 0),
