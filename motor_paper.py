@@ -255,7 +255,7 @@ class MotorPaperRuntime:
                             try:  # cockpit: evento real (no-crítico)
                                 import cockpit
                                 cockpit.log_event(self.symbol, "open",
-                                                  "%s abierta @ %.4f (paper)" % (
+                                                  "%s abierta @ %.4f" % (
                                                       "LONG" if sig["direction"] > 0 else "SHORT",
                                                       sig["entry"]))
                             except Exception:
