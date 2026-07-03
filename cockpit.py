@@ -37,6 +37,15 @@ def enabled():
     return _ENABLED
 
 
+def _is_vip(ccy):
+    """¿El símbolo BROADCASTEA a clientes AHORA? Lee la MISMA env que el monolito
+    (FQ_<CCY>_VIP_BROADCAST, default on; SOL es el pilar, siempre VIP). Así el
+    cockpit distingue producto (VIP) de laboratorio (paper) sin inventar nada."""
+    if ccy == "SOL":
+        return True
+    return os.environ.get("FQ_%s_VIP_BROADCAST" % ccy, "1").strip() not in ("0", "false", "no")
+
+
 def tick(symbol, ts=None, price=None, closes=None, killzone=None,
          counts=None, n_open=None):
     """Una vela procesada. `closes` = cola de closes del primario (lista/array);
@@ -45,7 +54,8 @@ def tick(symbol, ts=None, price=None, closes=None, killzone=None,
         return
     try:
         sym = str(symbol or "?").split("/")[0].split("-")[0].upper()
-        s = {"ts": str(ts) if ts is not None else None,
+        s = {"vip": _is_vip(sym),
+             "ts": str(ts) if ts is not None else None,
              "price": float(price) if price is not None else None,
              "killzone": killzone,
              "counts": dict(counts) if counts else {},

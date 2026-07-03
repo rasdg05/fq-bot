@@ -33,6 +33,8 @@ header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16p
 .sym .d{font-size:12px}
 .up{color:var(--aqua)} .dn{color:var(--red)}
 .kz{margin-left:auto;font-size:10px;color:var(--muted);border:1px solid var(--line);border-radius:9px;padding:1px 7px}
+.tier{font-size:9px;letter-spacing:.08em;border-radius:8px;padding:1px 7px;border:1px solid var(--blue);color:var(--blue)}
+.tier.lab{border-color:var(--line);color:var(--muted)}
 canvas.spark{width:100%;height:44px;display:block;margin:8px 0 6px}
 .meter{margin:7px 0}
 .meter .lbl{display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-bottom:3px}
@@ -93,7 +95,8 @@ function demoInit(){
   const px={SOL:152.4,BTC:109850,ETH:2578,BCH:498,BNB:668};
   demoState={t0:Date.now(),symbols:{},events:[]};
   for(const s of SYMS_DEFAULT){
-    demoState.symbols[s]={price:px[s],spark:Array.from({length:48},(_,i)=>px[s]*(1+0.002*Math.sin(i/5))),
+    demoState.symbols[s]={price:px[s],vip:["SOL","BTC","ETH"].includes(s),
+      spark:Array.from({length:48},(_,i)=>px[s]*(1+0.002*Math.sin(i/5))),
       irrev:0.25+Math.random()*0.3,funding_pctl:Math.random(),counts:{fire:0,opened:0,vetoed:0},open:0,killzone:"london_open_kz"};
   }
 }
@@ -122,7 +125,8 @@ function fmtP(v){return v>=1000?v.toLocaleString("en-US",{maximumFractionDigits:
 function card(sym){
   const el=document.createElement("div");el.className="card";el.id="c-"+sym;
   el.innerHTML=`
-    <div class="sym"><span class="n">${sym}/USDT</span><span class="p" id="p-${sym}">—</span>
+    <div class="sym"><span class="n">${sym}/USDT</span><span class="tier" id="tr-${sym}"></span>
+      <span class="p" id="p-${sym}">—</span>
       <span class="d" id="d-${sym}"></span><span class="kz" id="kz-${sym}">—</span></div>
     <canvas class="spark" id="sp-${sym}"></canvas>
     <div class="meter"><div class="lbl"><span>KL·irreversibilidad <b id="iv-${sym}">—</b></span><span id="is-${sym}"></span></div>
@@ -153,7 +157,8 @@ function spark(cv,data){
 const prev={};
 function render(d){
   const grid=document.getElementById("grid");
-  const syms=Object.keys(d.symbols||{}).length?Object.keys(d.symbols):SYMS_DEFAULT;
+  let syms=Object.keys(d.symbols||{}).length?Object.keys(d.symbols):SYMS_DEFAULT;
+  syms=[...syms].sort((a,b)=>((d.symbols[b]||{}).vip?1:0)-((d.symbols[a]||{}).vip?1:0));
   for(const s of syms){ if(!document.getElementById("c-"+s)) grid.appendChild(card(s)); }
   for(const s of syms){
     const st=d.symbols[s]; if(!st) continue;
@@ -166,6 +171,9 @@ function render(d){
       prev[s]=st.price;
     }
     P("kz").textContent=st.killzone||"—";
+    const tr=P("tr");
+    if(st.vip===false){tr.textContent="LAB·paper";tr.className="tier lab";}
+    else if(st.vip===true){tr.textContent="VIP";tr.className="tier";}
     spark(P("sp"),st.spark);
     if(st.irrev!=null){
       P("iv").textContent=st.irrev.toFixed(3);
