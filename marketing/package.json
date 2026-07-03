@@ -9,6 +9,7 @@
     "studio": "remotion studio",
     "render": "remotion render",
     "render:all": "node scripts/render-all.mjs",
+    "convert": "node scripts/convert-mov.mjs",
     "ingest": "node scripts/ingest.mjs",
     "launch": "node api/launch.mjs",
     "launch:live": "node api/launch.mjs --live",
