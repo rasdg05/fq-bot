@@ -289,6 +289,17 @@ preprint, deck) re-desplegaban el worker en cada commit de docs. Uno de esos dep
 **Impacto.** Los commits de memoria de procesos (esta misma directiva de RasDG) ya **no**
 reinician el bot. El diagnóstico de cadencia ahora separa "deploy caído" de "edge selectivo".
 
+**Refinamiento (2026-07-03, PR #166).** El blanket `!**/*.html` era **demasiado ancho**: atrapaba
+`cockpit.html`, que SÍ es runtime (el `cockpit_server` lo lee del disco en cada GET). Síntoma: el
+rediseño del portal (#164) salió "No changes to watched files" → SKIPPED, y solo se vio en vivo
+porque RasDG le dio **Redeploy a mano**; luego #165 (quitar el pie legal) volvió a saltar y quedó
+sin desplegar. Fix: re-incluir `cockpit.html` al final (último match gana), igual que
+`tools/funding_paper.py`. El resto de `.html` (previews de docs en `MEMORY/`) sigue excluido.
+**Lección general:** una exclusión por extensión (`*.html`, `*.png`…) puede tapar un archivo de
+runtime que comparte extensión con documentación — re-incluir el archivo runtime explícito, no
+aflojar el patrón. Si el deploy sale **SKIPPED** cuando esperabas que subiera, el sospechoso #1 es
+`watchPatterns`, no el CI.
+
 ---
 
 ## 13. Producto de 2 tiers en UN SOLO CANAL: FREE (firehose) + VIP (filtrado), mismo bot

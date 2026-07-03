@@ -26,6 +26,13 @@ watchPatterns = [
   # FQ_FUNDING_PAPER=1) -> un fix suyo debe redeployar, a diferencia del resto de
   # tools/ (research, corre en CI). Re-incluir gana por ser el ultimo match.
   "tools/funding_paper.py",
+  # EXCEPCION: cockpit.html SI es runtime — el cockpit_server (hijo no-critico con
+  # FQ_COCKPIT=1) lo sirve LEYENDOLO DEL DISCO en cada GET, asi que un rediseño del
+  # portal DEBE redeployar para que el contenedor tenga el HTML nuevo. El resto de
+  # .html (previews de MEMORY) sigue excluido. Sin esto, un cambio que solo toca
+  # cockpit.html sale "No changes to watched files" -> SKIPPED y el portal nunca se
+  # actualiza (pasó con #165: quitar el pie legal quedó desplegado a medias).
+  "cockpit.html",
 ]
 
 # UN SOLO SERVICIO. El launcher arranca VIP + maintenance siempre, y el bot
