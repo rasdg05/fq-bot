@@ -127,8 +127,11 @@
   ≥75%: uplift +0.002, PBO 1.00 — el decoupling macro NO baja a gate de 5m, horizon mismatch);
   *CVD-ortho sin-chase* (dirección pro-tesis +0.085 vs +0.003 pero n=34 — sin poder; colateral real:
   CVD-de-barra confirmado rinde PEOR que no confirmado = chase contamination); *NUPL<0.5 throttle*
-  (gradiente monotónico precioso capitulación +0.317 → codicia +0.072, DSR ✓ CPCV ✓ pero PBO no
-  computable en régimen lento — PROMETEDOR, pendiente, no cableable aún).
+  (gradiente monotónico precioso capitulación +0.317 → codicia +0.072, DSR ✓ CPCV ✓; PBO clásico no
+  computable en régimen lento — se construyó el PROTOCOLO RÉGIMEN-LENTO (`slow_gate_report`: bootstrap
+  de bloques + consistencia por mitades) y TAMPOCO pasa: P(uplift>0)=0.941<0.95, mitad 2019-22 ≈ +0.001
+  → el gradiente es de la era 2023-26. NO cableable; NO es falta de cómputo (el test corre en ms), es
+  falta de CICLOS — el unlock es forward/tiempo, no hardware).
 
 ### F1 — residual de impacto raíz-cuadrada — **REAL pero REDUNDANTE con CVD**
 - **Idea:** ley δ≈0.5: impacto ∝ σ·√(Q/V). Si el precio se mueve MENOS de lo predicho →
