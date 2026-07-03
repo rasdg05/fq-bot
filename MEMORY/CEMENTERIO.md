@@ -113,6 +113,23 @@
   (`FQ_REGIME_TAGS`, #126 — sella `kl_low`/`poc_dist` en MOTOR_OPEN_META; `by_kl`/`by_poc` en el reporte).
   Próximo: medir forward + más data TradFi. Zona premium/discount y rev-aligned: muertos.
 
+### Funding-gate para LONGS (percentil 90d) — **PASA EL GATE in-cube (2026-07-03)** ⭐
+- **Idea (deep-research mejora-longs):** el funding alto = longs crowded (BIS WP1087: carry alto
+  predice crashes; lo infla el retail trend-chaser). Gatear los LONGS por funding RELATIVO.
+- **Validador:** `tools/validate_long_gates.py --exp funding` (funding mensual de data.binance.vision,
+  causal por evento, 12,858/13,348 fires con dato).
+- **Resultado:** LONG & funding-pctl90d≤0.5 → **+0.173R vs +0.121 base (n=1538) · DSR 1.000 ✓ ·
+  CPCV-OOS +0.028 (80% paths>0) ✓ · PBO 0.04 ✓**. Gradiente limpio: longs mueren conforme el funding
+  se calienta (+0.175→+0.095); **shorts al revés** (+0.105→+0.215, lead de boost no gateado).
+- **OJO:** el gate por NIVEL crudo NO pasa (PBO 0.75) — solo el PERCENTIL relativo al propio símbolo.
+  GROSS, in-cube. **Status: VALIDADO in-cube; siguiente = cablear DORMIDO (tag forward), juez = forward.**
+- **Muertos del mismo barrido (no re-probar):** *breadth/alt-season gate* para alt-longs (altseason
+  ≥75%: uplift +0.002, PBO 1.00 — el decoupling macro NO baja a gate de 5m, horizon mismatch);
+  *CVD-ortho sin-chase* (dirección pro-tesis +0.085 vs +0.003 pero n=34 — sin poder; colateral real:
+  CVD-de-barra confirmado rinde PEOR que no confirmado = chase contamination); *NUPL<0.5 throttle*
+  (gradiente monotónico precioso capitulación +0.317 → codicia +0.072, DSR ✓ CPCV ✓ pero PBO no
+  computable en régimen lento — PROMETEDOR, pendiente, no cableable aún).
+
 ### F1 — residual de impacto raíz-cuadrada — **REAL pero REDUNDANTE con CVD**
 - **Idea:** ley δ≈0.5: impacto ∝ σ·√(Q/V). Si el precio se mueve MENOS de lo predicho →
   absorción (continuación). Reglas: coiled / extended / fragile.

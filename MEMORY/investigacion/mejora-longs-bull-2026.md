@@ -59,6 +59,24 @@ lidera spot" **falló la verificación 1-2**). No asumirlo: medirlo.
   crash 10-oct 86% SÍ pasó 3-0) · "momentum explica el gap perp-spot con R²>50%" (0-3) · los números del
   backtest EMA-gate 5/50 y del quintil de momentum cross-sectional (SSRN 4322637, 1-2 c/u).
 
+## §4.5 — VEREDICTOS DEL GATE (2026-07-03 · `tools/validate_long_gates.py` · 13,348 fires tp1/h96)
+
+Los 4 experimentos CORRIDOS por el gate de la casa (DSR deflactado + CPCV + PBO), data gratis y causal
+(funding+klines 1d de data.binance.vision · kl_hist 5m local · CoinMetrics community):
+
+| # | Experimento | Resultado | Veredicto |
+|---|---|---|---|
+| 1 | **Funding-gate (percentil 90d)** | LONG & funding pctl≤0.5 → **+0.173R vs +0.121 base** (n=1538) · **DSR 1.000 ✓ · CPCV 80% paths>0 ✓ · PBO 0.04 ✓** | ✅ **PASA — el único** |
+| 2 | Breadth/alt-season (alt-longs) | altseason ≥75%: uplift **+0.002** · ≥50%: −0.014, **PBO 1.00** | ❌ **REFUTADO operativamente** (el decoupling macro es real pero no baja a gate de 5m — horizon mismatch) |
+| 3 | CVD-ortho (flow sin chase) | dirección PRO-tesis (sin-chase +0.085 vs +0.003; CPCV 60%>0) pero **n=34** · DSR 0.607 | ⚠️ **Sin poder** — el CVD de barra confirma poco (imb≥0.55 raro); hallazgo colateral: CVD-barra-confirmado rinde PEOR que no-confirmado (+0.003 vs +0.090) = contaminación de chase REAL |
+| 4 | NUPL throttle | **Gradiente monotónico perfecto**: capitulación +0.317 → esperanza +0.137 → optimismo +0.119 → codicia +0.072 (shorts al revés) · NUPL<0.5: uplift +0.029, DSR ✓, CPCV 80%>0 ✓, **PBO no computable** (régimen lento: bloques enteros de un solo lado) | ⚠️ **PROMETEDOR** — 2/3 checks; falta PBO adaptado a régimen lento + forward |
+
+**Detalles honestos del ganador (funding pctl):** el gate por NIVEL crudo (≤baseline / veto ≥15%APR) NO
+pasa (PBO 0.75) — exactamente lo que decía el estudio del R²=0.003: el nivel crudo no informa; **lo que
+paga es el funding RELATIVO a su propia historia 90d del símbolo**. Retiene ~33% de los longs. GROSS,
+in-cube: el juez final es forward. **Bonus para shorts:** funding caliente = shorts +0.215R (gradiente
+inverso) — lead para un boost de shorts en cola crowded (no gateado hoy).
+
 ## §5 — Plan para Q3-Q4 (orden de ejecución)
 
 1. **Ya cubierto:** los longs de BTC/ETH funcionan HOY (+0.33/+0.32) — el bull nos agarra con esa pata sana.

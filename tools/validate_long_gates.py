@@ -125,14 +125,18 @@ def fetch_daily(sym):
 
 
 def fetch_onchain():
-    """CoinMetrics community btc.csv -> parquet [ts(ms), mc, rc] (market/realized cap)."""
+    """CoinMetrics community btc.csv -> parquet [ts(ms), mc, rc]. El CSV ya no publica
+    CapRealUSD pero SÍ CapMVRVCur (= MC/RC), así que rc = mc/mvrv — mismo NUPL causal
+    ((mc-rc)/mc = 1 - 1/MVRV) sin cambiar el consumidor."""
     path = os.path.join(LG, "onchain_btc.parquet")
     if os.path.exists(path):
         return path
-    df = pd.read_csv(CM_BTC, usecols=["time", "CapMrktCurUSD", "CapRealUSD"])
-    df["ts"] = pd.to_datetime(df["time"], utc=True).astype("int64") // 10**6
-    df = (df.rename(columns={"CapMrktCurUSD": "mc", "CapRealUSD": "rc"})
-            .dropna(subset=["ts", "mc", "rc"])[["ts", "mc", "rc"]]
+    df = pd.read_csv(CM_BTC, usecols=["time", "CapMrktCurUSD", "CapMVRVCur"])
+    # OJO pandas 2.x: fechas date-only parsean a datetime64[s]; normalizar a ms SIEMPRE
+    df["ts"] = pd.to_datetime(df["time"], utc=True).values.astype("datetime64[ms]").astype("int64")
+    df["mc"] = pd.to_numeric(df["CapMrktCurUSD"], errors="coerce")
+    df["rc"] = df["mc"] / pd.to_numeric(df["CapMVRVCur"], errors="coerce")
+    df = (df.dropna(subset=["ts", "mc", "rc"])[["ts", "mc", "rc"]]
             .sort_values("ts").reset_index(drop=True))
     df.to_parquet(path, index=False)
     return path
