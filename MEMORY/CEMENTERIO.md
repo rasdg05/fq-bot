@@ -122,7 +122,12 @@
   CPCV-OOS +0.028 (80% paths>0) ✓ · PBO 0.04 ✓**. Gradiente limpio: longs mueren conforme el funding
   se calienta (+0.175→+0.095); **shorts al revés** (+0.105→+0.215, lead de boost no gateado).
 - **OJO:** el gate por NIVEL crudo NO pasa (PBO 0.75) — solo el PERCENTIL relativo al propio símbolo.
-  GROSS, in-cube. **Status: VALIDADO in-cube; siguiente = cablear DORMIDO (tag forward), juez = forward.**
+  GROSS, in-cube. **Status: CABLEADO DORMIDO (2026-07-03)** — `funding_pctl`/`funding_rate` sellados en
+  MOTOR_OPEN_META junto a `kl_low`/`poc_dist` (mismo flag `FQ_REGIME_TAGS`, ya ON en Railway), vía funding
+  público de OKX cacheado 1h y defensivo (fallo -> sin tag, jamás rompe el fire). Juez forward =
+  **`by_funding`** en `ledger_report` (umbral FIJO 0.5 = el validado, no mediana). Nota cross-venue:
+  validado sobre historia Binance; en vivo cada venue se compara contra su PROPIA historia 90d (mismo
+  constructo relativo). Mismo camino que el CVD: gate ✓ -> dormido -> forward -> producto.
 - **Muertos del mismo barrido (no re-probar):** *breadth/alt-season gate* para alt-longs (altseason
   ≥75%: uplift +0.002, PBO 1.00 — el decoupling macro NO baja a gate de 5m, horizon mismatch);
   *CVD-ortho sin-chase* (dirección pro-tesis +0.085 vs +0.003 pero n=34 — sin poder; colateral real:

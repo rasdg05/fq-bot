@@ -40,6 +40,64 @@ def test_on_never_raises_on_garbage(monkeypatch):
     assert isinstance(out, dict)                         # KL puede salir; POC no (sin vol)
 
 
+def test_funding_tag_on_with_symbol(monkeypatch):
+    """FQ_REGIME_TAGS=1 + symbol -> sella funding_rate/funding_pctl (helper simulado)."""
+    monkeypatch.setenv("FQ_REGIME_TAGS", "1")
+    monkeypatch.setattr(motor_paper, "funding_pctl_live", lambda s, **k: (0.0001, 0.42))
+    out = motor_paper._regime_tags(_df(), 100.0, symbol="SOL/USDT")
+    assert out.get("funding_pctl") == 0.42 and out.get("funding_rate") == 0.0001
+    # sin symbol (backward-compat) -> sin tag de funding, kl/poc intactos
+    out2 = motor_paper._regime_tags(_df(), 100.0)
+    assert "funding_pctl" not in out2 and "kl_low" in out2
+
+
+def test_funding_tag_absent_on_failure(monkeypatch):
+    """El fetch falla -> el tag de funding se OMITE (jamás rompe el fire ni mete NaN)."""
+    monkeypatch.setenv("FQ_REGIME_TAGS", "1")
+    monkeypatch.setattr(motor_paper, "funding_pctl_live", lambda s, **k: (None, None))
+    out = motor_paper._regime_tags(_df(), 100.0, symbol="SOL/USDT")
+    assert "funding_pctl" not in out and "funding_rate" not in out
+    assert "kl_low" in out                                   # el resto sigue
+
+
+def test_okx_inst_mapping():
+    f = motor_paper._okx_inst
+    assert f("SOL/USDT") == "SOL-USDT-SWAP"
+    assert f("SOL-USDT-SWAP") == "SOL-USDT-SWAP"
+    assert f("BTCUSDT") == "BTC-USDT-SWAP"
+    assert f("") is None
+
+
+def test_funding_pctl_live_math_and_cache(monkeypatch):
+    """pctl = fracción de la historia <= rate actual; el cache evita el 2do fetch."""
+    import io
+    import json
+    calls = {"n": 0}
+    rows = [{"fundingRate": "%.6f" % (0.0001 * (i + 1)), "fundingTime": str(1000 + i)}
+            for i in range(99)] + [{"fundingRate": "0.020000", "fundingTime": "2000"}]
+
+    class _R(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def fake_urlopen(req, timeout=10):
+        calls["n"] += 1
+        data = rows if calls["n"] == 1 else []           # 2da página vacía -> corta
+        return _R(json.dumps({"data": data}).encode())
+
+    import urllib.request as ur
+    monkeypatch.setattr(ur, "urlopen", fake_urlopen)
+    motor_paper._FUND_CACHE.clear()
+    rate, pctl = motor_paper.funding_pctl_live("SOL/USDT")
+    assert rate == 0.02 and pctl == 1.0                  # el actual es el máximo -> pctl 1.0
+    n_after_first = calls["n"]
+    rate2, pctl2 = motor_paper.funding_pctl_live("SOL/USDT")
+    assert (rate2, pctl2) == (rate, pctl) and calls["n"] == n_after_first   # cacheado
+
+
 def test_by_poc_split_in_report():
     # _by_poc_split vive dentro de ledger_report; lo probamos vía un ledger sintético
     # mínimo no es trivial -> validamos la lógica de partición por la mediana aparte.

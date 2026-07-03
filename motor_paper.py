@@ -220,7 +220,8 @@ class MotorPaperRuntime:
                             self._pending_entries.append({
                                 "sig": sig, "risk_frac": d["risk_frac"], "killzone": kz,
                                 "regime": regime, "cvd": cvd, "tf": tf_id, "waited": 0,
-                                "regime_tags": _regime_tags(df_primary, sig.get("entry"))})
+                                "regime_tags": _regime_tags(df_primary, sig.get("entry"),
+                                                            symbol=self.symbol)})
                             self.broker.ledger.append({
                                 "event": "MAKER_ENTRY_PENDING", "ts": ts, "tf": tf_id,
                                 "killzone": kz, "limit": sig["entry"],
@@ -236,7 +237,7 @@ class MotorPaperRuntime:
                                 "event": "MOTOR_OPEN_META", "ts": ts, "pid": pos.pid,
                                 "tf": tf_id, "killzone": kz, "regime": regime,
                                 **_cvd_meta(cvd),
-                                **_regime_tags(df_primary, sig.get("entry"))})
+                                **_regime_tags(df_primary, sig.get("entry"), symbol=self.symbol)})
                             if self.maker_sim:
                                 self._maker_pending.append({
                                     "pid": pos.pid, "direction": pos.direction,
@@ -516,14 +517,74 @@ def _vp_mod():
     return _VP_MOD
 
 
-def _regime_tags(df_primary, entry_price):
-    """Tags de régimen para MOTOR_OPEN_META (CAUSAL, sin red), gateado por
-    FQ_REGIME_TAGS. {} si off -> ledger byte-idéntico (backward-compat).
+# --- FUNDING relativo (pctl 90d) — el gate que PASÓ in-cube (validate_long_gates,
+# 2026-07-03: LONG & pctl<=0.5 -> +0.173R vs +0.121; DSR 1.000/CPCV 80%/PBO 0.04).
+# Se sella DORMIDO como tag forward (mismo camino que el CVD: gate -> dormido ->
+# forward -> producto). Cache 1h por símbolo: el funding cambia cada 8h, un fetch
+# por hora sobra. Defensivo: cualquier fallo -> sin tag, JAMÁS rompe el fire.
+_FUND_CACHE = {}
+
+
+def _okx_inst(symbol):
+    """'SOL/USDT' | 'SOL-USDT-SWAP' | 'SOLUSDT' -> instId de OKX ('SOL-USDT-SWAP')."""
+    s = str(symbol or "").upper()
+    if s.endswith("-SWAP"):
+        return s
+    ccy = s.split("/")[0].split(":")[0].replace("-USDT", "").replace("USDT", "")
+    return "%s-USDT-SWAP" % ccy if ccy else None
+
+
+def funding_pctl_live(symbol, ttl_s=3600, n_hist=300):
+    """(rate, pctl90d) del funding del perp en OKX (endpoint PÚBLICO, paginado como
+    tools/fetch_okx_funding.py). pctl = fracción de la historia (~90d a 8h) <= rate
+    actual — el MISMO constructo relativo que pasó el gate (validado sobre historia
+    Binance; en vivo se compara el venue contra su PROPIA historia). None,None si falla."""
+    import time as _t
+    inst = _okx_inst(symbol)
+    if not inst:
+        return None, None
+    c = _FUND_CACHE.get(inst)
+    if c and _t.time() - c[0] < ttl_s:
+        return c[1], c[2]
+    try:
+        import json
+        import urllib.request
+        rates, after = [], None
+        for _ in range(3):                       # 3 páginas x 100 = ~100 días de eventos 8h
+            q = "instId=%s&limit=100" % inst + ("&after=%s" % after if after else "")
+            req = urllib.request.Request(
+                "https://www.okx.com/api/v5/public/funding-rate-history?" + q,
+                headers={"User-Agent": "fq-bot"})
+            with urllib.request.urlopen(req, timeout=10) as r:
+                rows = json.loads(r.read().decode()).get("data") or []
+            if not rows:
+                break
+            rates.extend((float(x["fundingRate"]), int(x["fundingTime"])) for x in rows)
+            after = rows[-1]["fundingTime"]
+        if len(rates) < 30:
+            return None, None
+        rates.sort(key=lambda x: x[1])
+        hist = [r for r, _ in rates][-n_hist:]
+        rate = hist[-1]
+        pctl = float(sum(1 for h in hist if h <= rate)) / len(hist)
+        _FUND_CACHE[inst] = (_t.time(), rate, pctl)
+        return rate, pctl
+    except Exception as e:
+        log.debug("[motor] funding_pctl_live: %s", e)
+        return None, None
+
+
+def _regime_tags(df_primary, entry_price, symbol=None):
+    """Tags de régimen para MOTOR_OPEN_META, gateado por FQ_REGIME_TAGS. {} si off ->
+    ledger byte-idéntico (backward-compat). CAUSAL; sin red SALVO el funding (fetch
+    público OKX cacheado 1h, defensivo — un fallo deja el tag ausente, nunca rompe).
       kl_low/kl_irrev  : KL-irreversibilidad (validado en cube; ventana 64, FIEL).
       poc_dist/vp_zone : distancia al POC del día EN CURSO (developing) de df_primary
                          -> proxy live. El POC-distance ESTRICTO (día PREVIO, el que
                          pasó el gate) se mide forward OFFLINE con gate_poc_distance.py
                          sobre el ledger (entry_ts + entry_price). vp_basis lo aclara.
+      funding_rate/funding_pctl : funding del perp y su percentil ~90d (validado
+                         in-cube 2026-07-03; juez forward en by_funding del reporte).
     """
     if os.environ.get("FQ_REGIME_TAGS", "0").strip() not in ("1", "true", "yes"):
         return {}
@@ -539,6 +600,11 @@ def _regime_tags(df_primary, entry_price):
             out["poc_dist"] = round(abs(float(entry_price) - prof.poc) / half, 4)
             out["vp_zone"] = _vp_mod().vp_position(float(entry_price), prof)
             out["vp_basis"] = "developing"
+        if symbol:
+            rate, pctl = funding_pctl_live(symbol)
+            if pctl is not None:
+                out["funding_rate"] = round(float(rate), 8)
+                out["funding_pctl"] = round(float(pctl), 3)
     except Exception as e:
         log.debug("[motor] regime_tags: %s", e)
     return out
@@ -561,7 +627,7 @@ def ledger_report(path):
         led = DurableHashLedger.load(path)
     recs = [r["payload"] for r in led.records]
     pnl, kz, maker, vetoed, ftype, regime_m, cvd_m = {}, {}, {}, {}, {}, {}, {}
-    kl_m, poc_m = {}, {}
+    kl_m, poc_m, fund_m = {}, {}, {}
     n_runaway = 0
     net = False
     for p in recs:
@@ -579,6 +645,8 @@ def ledger_report(path):
                 kl_m[pid] = bool(p.get("kl_low"))
             if p.get("poc_dist") is not None:
                 poc_m[pid] = float(p.get("poc_dist"))
+            if p.get("funding_pctl") is not None:     # solo si FQ_REGIME_TAGS taggeo
+                fund_m[pid] = float(p.get("funding_pctl"))
             if p.get("fill_type") is not None:        # modo EJECUCION maker
                 ftype[pid] = p.get("fill_type")
         elif ev == "MAKER_FILL":
@@ -651,6 +719,14 @@ def ledger_report(path):
         # R FORWARD por POC-distance del día (developing): lejos vs cerca del POC.
         # El estricto (día previo, gateado) se mide offline con gate_poc_distance.py.
         "by_poc": _by_poc_split(closed, poc_m),
+        # R FORWARD por FUNDING relativo (pctl 90d del propio símbolo). Juez forward del
+        # funding-gate que PASÓ el gate in-cube (validate_long_gates: LONG & pctl<=0.5 ->
+        # +0.173R vs +0.121, DSR 1.000/CPCV 80%/PBO 0.04). Umbral FIJO 0.5 = el validado.
+        "by_funding": {
+            "low": _agg([closed[p] for p in closed if fund_m.get(p) is not None and fund_m[p] <= 0.5]),
+            "high": _agg([closed[p] for p in closed if fund_m.get(p) is not None and fund_m[p] > 0.5]),
+            "n_tagged": len(fund_m),
+        },
     }
 
 
