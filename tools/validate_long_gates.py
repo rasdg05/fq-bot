@@ -323,6 +323,14 @@ def exp_funding(fires, lg=LG):
     res["neg_neutral"] = gate_report(longs, longs.rate <= BASELINE_8H, 5, "LONG & funding<=baseline")
     res["no_crowded"] = gate_report(longs, longs.sus < APR15_8H, 5, "LONG & NO sostenido>=15%APR (veto cola)")
     res["pctl_low"] = gate_report(longs, longs.pctl <= 0.5, 5, "LONG & funding pctl90d<=0.5")
+    # --- LADO SHORT (el espejo, encargo RasDG 2026-07-03): funding CALIENTE = longs
+    # crowded = combustible de shorts (gradiente medido: +0.105 -> +0.215). 3 configs
+    # declaradas; n_trials=6 (3 short + las 3 long ya barridas en la misma familia).
+    print("\n  --- ESPEJO: SHORTS con funding caliente ---")
+    shorts = d[d.direction == -1].reset_index(drop=True)
+    res["s_pctl_high"] = gate_report(shorts, shorts.pctl >= 0.5, 6, "SHORT & funding pctl90d>=0.5")
+    res["s_pctl_hot"] = gate_report(shorts, shorts.pctl >= 0.7, 6, "SHORT & funding pctl90d>=0.7 (cola)")
+    res["s_crowded"] = gate_report(shorts, shorts.sus >= APR15_8H, 6, "SHORT & sostenido>=15%APR (crowded)")
     return res
 
 

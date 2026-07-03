@@ -2980,27 +2980,36 @@ def _poc_vip_kwargs(report, exchange, symbol_inst, tf_id, pair, entry_price):
         return {}
 
 
-# Boost de convicción por FUNDING favorable (decisión RasDG 2026-07-03: "despierto y
-# haciendo boost"). Lo VALIDADO in-cube (validate_long_gates): LONG & funding-pctl90d<=0.5
-# -> +0.173R vs +0.121 · DSR 1.000 / CPCV 80% paths / PBO 0.04. Por eso el boost aplica
-# SOLO a LONGS con funding en la mitad baja de su propia historia (~90d). Los SHORTS no se
-# tocan (su gradiente es el inverso — lead aparte, no gateado). El tag forward (by_funding)
-# sigue midiendo: si el forward contradice al cube, se apaga con la misma env.
+# Boost de convicción por FUNDING favorable, DIRECCIONAL (decisión RasDG 2026-07-03:
+# "despierto y haciendo boost" + "el de shorts es otro experimento, a ver si pasa el gate").
+# AMBOS lados VALIDADOS in-cube (validate_long_gates, n_trials honesto):
+#   LONG  & funding-pctl90d <= 0.5 -> +0.173R vs +0.121 · DSR 1.000 / CPCV 80% / PBO 0.04
+#   SHORT & funding-pctl90d >= 0.7 -> +0.224R vs +0.156 · DSR 1.000 / CPCV 100% / PBO 0.00
+#     (funding caliente = longs crowded = combustible del short; el mejor gate del programa)
+# El mecanismo es UNO (funding RELATIVO a la propia historia ~90d) leído por dirección.
+# El tag forward (by_funding) sigue midiendo: si el forward contradice, misma env apaga.
 FUNDING_BOOST_ENABLED = os.environ.get("FQ_FUNDING_BOOST", "0").strip().lower() in ("1", "true", "yes")
+FUNDING_LONG_PCTL = 0.5    # umbral validado del lado long (pctl <=)
+FUNDING_SHORT_PCTL = 0.7   # umbral validado del lado short (pctl >=)
 
 
 def _funding_vip_kwargs(report, pair):
-    """kwarg de convicción VIP por funding favorable — SOLO longs, percentil<=0.5.
-    Reusa motor_paper.funding_pctl_live (OKX público, cache 1h). {} si flag off /
-    short / sin dato -> señal byte-idéntica. Defensivo: JAMÁS rompe el broadcast."""
+    """kwarg de convicción VIP por funding favorable A LA DIRECCIÓN: long con funding
+    frío (pctl<=0.5) o short con funding caliente (pctl>=0.7). Reusa
+    motor_paper.funding_pctl_live (OKX público, cache 1h). {} si flag off / sin dato /
+    zona neutra -> señal byte-idéntica. Defensivo: JAMÁS rompe el broadcast."""
     if not FUNDING_BOOST_ENABLED:
         return {}
     try:
-        if (report or {}).get("direction") != "long":
+        d = (report or {}).get("direction")
+        if d not in ("long", "short"):
             return {}
         import motor_paper
         _rate, pctl = motor_paper.funding_pctl_live(pair)
-        if pctl is not None and pctl <= 0.5:
+        if pctl is None:
+            return {}
+        if (d == "long" and pctl <= FUNDING_LONG_PCTL) or \
+           (d == "short" and pctl >= FUNDING_SHORT_PCTL):
             return {"funding_boost": True}
     except Exception as e:
         log.debug("[funding-boost] %s", e)

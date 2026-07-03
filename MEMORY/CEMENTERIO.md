@@ -128,12 +128,13 @@
   **`by_funding`** en `ledger_report` (umbral FIJO 0.5 = el validado, no mediana). Nota cross-venue:
   validado sobre historia Binance; en vivo cada venue se compara contra su PROPIA historia 90d (mismo
   constructo relativo). Mismo camino que el CVD: gate ✓ -> dormido -> forward -> producto.
-- **BOOST DESPIERTO (decisión RasDG 2026-07-03: "yo lo he visto en el gráfico, favorece longs" — su
-  experiencia y el gate concuerdan):** `FQ_FUNDING_BOOST=1` prende el boost de convicción **+1 tier
-  SOLO para LONGS con funding-pctl≤0.5** (badge "FUNDING FAVORABLE", apilable con CVD/POC, topado en
-  8x). Los SHORTS no se tocan (su gradiente es el inverso — lead aparte, no gateado). El juez
-  `by_funding` SIGUE midiendo forward: si contradice al cube, se apaga con la misma env (kill-switch
-  sin deploy). Default OFF -> byte-idéntico.
+- **BOOST DESPIERTO Y DIRECCIONAL (RasDG 2026-07-03):** `FQ_FUNDING_BOOST=1` prende el boost +1 tier
+  con badge "FUNDING FAVORABLE" (apilable con CVD/POC, topado en 8x) en AMBOS lados, cada uno con su
+  umbral VALIDADO: **LONG & pctl≤0.5** (+0.173R vs +0.121 · DSR 1.000/CPCV 80%/PBO 0.04) y **SHORT &
+  pctl≥0.7** (+0.224R vs +0.156 · DSR 1.000/**CPCV 100% paths**/**PBO 0.00** — el mejor gate del
+  programa; gateado el mismo día a pedido de RasDG, 3 configs short declaradas, n_trials=6; el
+  sostenido≥15%APR crudo NO pasa — consistente: informan los percentiles, no los niveles). Zona neutra
+  (0.5<pctl<0.7): sin boost. El juez `by_funding` sigue midiendo forward; kill-switch = misma env.
 - **Muertos del mismo barrido (no re-probar):** *breadth/alt-season gate* para alt-longs (altseason
   ≥75%: uplift +0.002, PBO 1.00 — el decoupling macro NO baja a gate de 5m, horizon mismatch);
   *CVD-ortho sin-chase* (dirección pro-tesis +0.085 vs +0.003 pero n=34 — sin poder; colateral real:
