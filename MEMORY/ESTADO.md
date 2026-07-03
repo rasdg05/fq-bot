@@ -60,12 +60,28 @@ sube conviction client-facing. Hoy mide, no decide.
 - Ejecución taker + maker en motor paper (mide R neto: fees + slippage).
 
 **CABLEADO DORMIDO (OFF, byte-idéntico cuando off):**
-- **Cockpit "show" (`FQ_COCKPIT`, 2026-07-03, encargo marketing de RasDG):** interfaz en vivo del motor
-  (cockpit.html: sparklines, régimen KL, funding por zona, feed de "pensamientos"). Arquitectura de
-  COLECTOR NO-CRÍTICO: el motor solo deja caer un JSON atómico throttled (`cockpit.py`, no-op si off,
-  todo try/except) y el server (`tools/cockpit_server.py`, stdlib) es hijo `critical=False` del launcher
-  — si la interfaz muere, el bot NI SE ENTERA (regla de RasDG). Prender: `FQ_COCKPIT=1` + exponer puerto
-  en Railway (Networking → Generate Domain). Modo `?demo=1` con badge para vender sin tocar producción.
+- **Cockpit "show" (`FQ_COCKPIT`, 2026-07-03, encargo marketing de RasDG):** terminal institucional en
+  vivo del motor. Arquitectura de COLECTOR NO-CRÍTICO: el motor solo deja caer un JSON atómico throttled
+  (`cockpit.py`, no-op si off, todo try/except) y el server (`tools/cockpit_server.py`, stdlib) es hijo
+  `critical=False` del launcher — si la interfaz muere, el bot NI SE ENTERA (regla de RasDG). Prender:
+  `FQ_COCKPIT=1` + exponer puerto en Railway (Networking → Generate Domain). Modo `?demo=1` con badge.
+  **REDISEÑO 2026-07-03 (RasDG: "me da asco… parece infantil… cajero de Citigroup + terminal de Matrix,
+  gestor de fondo big-capital"):** `cockpit.html` reescrito como **"FQ CAPITAL · Fibonacci Quantum
+  Framework — Terminal"** (sin la palabra "cockpit"): statusbar con reloj UTC vivo, hairline gradiente
+  Solana (#9945FF→#14F195), constante φ 1.6180339887, cinta ticker, tarjetas de instrumento con badges
+  PRODUCCIÓN/LABORATORIO, sparkline oro (#c9a227), tracks KL + funding con veredictos direccionales
+  ("frío→viento de cola del LONG"/"caliente→combustible del SHORT"), "REGISTRO DE DECISIONES DEL MOTOR",
+  y **lluvia Matrix animada de fondo** (canvas: ~9% columnas DORADAS a velocidad φ 0.618× deletreando
+  Fibonacci, glifos φΦΣλΞ◎₿+katakana, `prefers-reduced-motion` respetado). Data-contract INTACTO (cero
+  backend). Paleta validada por dataviz (contraste, no banda-L: serie única). El merge auto-despliega.
+- **Lluvia digital FQ en Python (piezas de SHOW standalone, 2026-07-03, encargo RasDG "como Matrix, en
+  movimiento, con φ/Solana/oro"):** `tools/matrix_rain.py` (curses, **stdlib puro** — 0 deps, corre en
+  cualquier terminal) y `tools/matrix_rain_gl.py` (**Pygame/SDL2**, alto rendimiento, adaptado del repo
+  StanislavPetrovV con glifos pre-renderizados+cacheados = "instancing"). Ambos: oro φ deletrea
+  Fibonacci, degradado Solana, mensajes de la casa que se materializan (FQ CAPITAL, DSR>0.95, MEDIDA O
+  MUERTE), marca de agua institucional. `--self-test` (física φ verificada), `--seconds`/`--record`/
+  `--screenshot` para clips/stills de marketing. **pygame JAMÁS en `requirements.txt`** (el bot no
+  depende de vanidad; el test hace `importorskip`). Para grabar: `matrix_rain_gl.py --record f_%04d.png`.
 - CVD a conviction/size (`FQ_CVD_VIP_CONVICTION`, `FQ_CVD_BOOST_TIER`).
 - **Funding-boost DIRECCIONAL a conviction (`FQ_FUNDING_BOOST`, 2026-07-03):** +1 tier con badge
   "FUNDING FAVORABLE", apilable con CVD/POC. **LONG & pctl≤0.5** (+0.173R vs +0.121, DSR 1.000/CPCV
