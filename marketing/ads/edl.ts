@@ -129,7 +129,9 @@ export const ADS: Ad[] = [
     scenes: [
       intro,
       // IMG_1851: "esto es Fibonacci cuantico un bot preciso... entrada, stop, target"
-      hook('IMG_1851', 0.9, 7.5, 'Un bot que te da entrada, stop y target.'),
+      // Overlay B-roll: orbe dorado FQ igniéndose (Higgsfield, oro/Solana) = el bot cobrando vida.
+      // fq-orb.mp4 (9:16, ~3s) en public/footage/. Movible a cualquier otro gancho.
+      hook('IMG_1851', 0.9, 7.5, 'Un bot que te da entrada, stop y target.', {src: 'fq-orb', inSec: 0, frames: 90}),
       ...BODY,
       cta('instagram'),
     ],
