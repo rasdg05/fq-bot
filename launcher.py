@@ -147,6 +147,10 @@ def _bots():
         bots.append(("agg-oi", _agg_oi_collect_cmd(), False))
     if _cvd_collect_enabled():
         bots.append(("cvd-collect", _cvd_collect_cmd(), False))
+    # Cockpit "show" (FQ_COCKPIT=1): interfaz de solo-lectura del motor. Hijo
+    # OPCIONAL a propósito (regla RasDG): si el server muere, el bot VIP sigue.
+    if os.environ.get("FQ_COCKPIT", "0").strip().lower() in ("1", "true", "yes"):
+        bots.append(("cockpit", [sys.executable, "-u", "tools/cockpit_server.py"], False))
     return bots
 
 GRACE_SECONDS = 8       # tiempo para que los hijos atiendan SIGTERM

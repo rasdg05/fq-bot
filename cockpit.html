@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FQ · Cockpit del Motor</title>
+<style>
+/* Paleta validada (dataviz, superficie dark #1a1a19): azul #3987e5 (serie precio),
+   divergente azul↔rojo p/ funding (#3987e5 · neutro · #e66767), texto en tokens. */
+:root{
+  --bg:#111113; --surface:#1a1a19; --surface2:#202022; --line:#2c2c2e;
+  --text:#ffffff; --text2:#c3c2b7; --muted:#7c7b74;
+  --blue:#3987e5; --red:#e66767; --aqua:#199e70; --amber:#c98500;
+  --glow:0 0 14px rgba(57,135,229,.35);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:14px/1.45 "SF Mono","JetBrains Mono",Consolas,monospace;padding:18px}
+a{color:var(--blue)}
+header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.logo{font-size:20px;font-weight:700;letter-spacing:.12em}
+.logo b{color:var(--blue)}
+.pulse{width:10px;height:10px;border-radius:50%;background:var(--aqua);box-shadow:0 0 10px var(--aqua);animation:pulse 1.6s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+.tag{font-size:11px;color:var(--text2);border:1px solid var(--line);border-radius:11px;padding:2px 9px}
+.tag.demo{color:var(--amber);border-color:var(--amber)}
+#hb{color:var(--muted);font-size:11px;margin-left:auto}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;position:relative;overflow:hidden}
+.card:before{content:"";position:absolute;inset:0 0 auto 0;height:2px;background:linear-gradient(90deg,transparent,var(--blue),transparent);opacity:.55}
+.sym{display:flex;align-items:baseline;gap:10px}
+.sym .n{font-size:16px;font-weight:700;letter-spacing:.06em}
+.sym .p{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.sym .d{font-size:12px}
+.up{color:var(--aqua)} .dn{color:var(--red)}
+.kz{margin-left:auto;font-size:10px;color:var(--muted);border:1px solid var(--line);border-radius:9px;padding:1px 7px}
+.tier{font-size:9px;letter-spacing:.08em;border-radius:8px;padding:1px 7px;border:1px solid var(--blue);color:var(--blue)}
+.tier.lab{border-color:var(--line);color:var(--muted)}
+canvas.spark{width:100%;height:44px;display:block;margin:8px 0 6px}
+.meter{margin:7px 0}
+.meter .lbl{display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-bottom:3px}
+.meter .lbl b{color:var(--text);font-weight:600}
+.track{position:relative;height:8px;border-radius:4px;background:var(--surface2);overflow:visible}
+.track .zone{position:absolute;top:0;bottom:0;border-radius:4px;opacity:.28}
+.track .notch{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--muted)}
+.track .pin{position:absolute;top:-4px;width:4px;height:16px;border-radius:2px;background:var(--text);box-shadow:var(--glow);transition:left .8s ease}
+.state{font-size:11px;margin-top:3px;color:var(--text2)}
+.state b{color:var(--text)}
+.counts{display:flex;gap:14px;font-size:11px;color:var(--muted);margin-top:8px;border-top:1px dashed var(--line);padding-top:7px}
+.counts b{color:var(--text2);font-variant-numeric:tabular-nums}
+#feedwrap{margin-top:16px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+#feedwrap h2{font-size:12px;letter-spacing:.14em;color:var(--text2);margin-bottom:8px}
+#feed{height:210px;overflow:hidden;font-size:12.5px;position:relative}
+#feed:after{content:"";position:absolute;inset:auto 0 0 0;height:46px;background:linear-gradient(transparent,var(--surface))}
+#feed .ln{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text2);padding:1.5px 0}
+#feed .ln .t{color:var(--muted)} #feed .ln .s{color:var(--text);font-weight:600}
+#feed .ln.fire .k{color:var(--amber)} #feed .ln.open .k{color:var(--aqua)}
+#feed .ln.veto .k{color:var(--red)} #feed .ln.read .k{color:var(--blue)}
+.cursor{display:inline-block;width:7px;height:12px;background:var(--blue);animation:pulse 1s infinite;vertical-align:-2px}
+details{margin-top:14px;color:var(--text2);font-size:12px}
+table{border-collapse:collapse;margin-top:8px;width:100%}
+th,td{border:1px solid var(--line);padding:5px 9px;text-align:right;font-variant-numeric:tabular-nums}
+th{color:var(--text2);font-weight:600} td:first-child,th:first-child{text-align:left}
+footer{margin-top:14px;color:var(--muted);font-size:10.5px}
+</style>
+</head>
+<body>
+<header>
+  <div class="pulse" id="pulse"></div>
+  <div class="logo">FQ · <b>COCKPIT DEL MOTOR</b></div>
+  <span class="tag" id="mode">LIVE</span>
+  <span class="tag">eval por vela 5m</span>
+  <span id="hb">—</span>
+</header>
+
+<div class="grid" id="grid"></div>
+
+<div id="feedwrap">
+  <h2>▍PENSAMIENTOS DEL MOTOR <span class="cursor"></span></h2>
+  <div id="feed"></div>
+</div>
+
+<details><summary>tabla de lecturas actuales</summary><div id="tbl"></div></details>
+
+<footer>measure-first · el ledger es el juez · señal paper 0% real · la telemetría es de solo-lectura:
+si esta página muere, el motor ni se entera. FQ.</footer>
+
+<script>
+"use strict";
+const SYMS_DEFAULT=["SOL","BTC","ETH","BCH","BNB"];
+const qs=new URLSearchParams(location.search);
+let DEMO=qs.get("demo")==="1", lastData=null, demoState=null;
+
+/* ---------- demo generator (badge visible; para vender sin tocar producción) ---------- */
+function demoInit(){
+  const px={SOL:152.4,BTC:109850,ETH:2578,BCH:498,BNB:668};
+  demoState={t0:Date.now(),symbols:{},events:[]};
+  for(const s of SYMS_DEFAULT){
+    demoState.symbols[s]={price:px[s],vip:["SOL","BTC","ETH"].includes(s),
+      spark:Array.from({length:48},(_,i)=>px[s]*(1+0.002*Math.sin(i/5))),
+      irrev:0.25+Math.random()*0.3,funding_pctl:Math.random(),counts:{fire:0,opened:0,vetoed:0},open:0,killzone:"london_open_kz"};
+  }
+}
+function demoTick(){
+  const kz=["asia_kz","london_open_kz","silver_bullet_lo","ny_am_kz","silver_bullet_ny_p","fuera"];
+  for(const s of SYMS_DEFAULT){
+    const st=demoState.symbols[s];
+    const drift=(Math.random()-0.5)*0.0035;
+    st.price*= (1+drift);
+    st.spark.push(st.price); st.spark=st.spark.slice(-48);
+    st.irrev=Math.min(.95,Math.max(.02,st.irrev+(Math.random()-0.5)*0.06));
+    st.funding_pctl=Math.min(.99,Math.max(.01,st.funding_pctl+(Math.random()-0.5)*0.05));
+    st.killzone=kz[Math.floor(Date.now()/60000+SYMS_DEFAULT.indexOf(s))%kz.length];
+    if(Math.random()<0.05){st.counts.fire++; if(Math.random()<0.6){st.counts.opened++;st.open=1;
+        demoState.events.push({t:Date.now()/1000,sym:s,kind:"open",text:(Math.random()<0.5?"LONG":"SHORT")+" abierta @ "+st.price.toFixed(2)+" (paper)"});}
+      else{st.counts.vetoed++;demoState.events.push({t:Date.now()/1000,sym:s,kind:"veto",text:"vetado: sesion"});}
+      demoState.events.push({t:Date.now()/1000,sym:s,kind:"fire",text:"FIRE del motor [5m/"+st.killzone+"]"});}
+    st.updated=Date.now()/1000; st.ts=new Date().toISOString();
+  }
+  demoState.events=demoState.events.slice(-60);
+  return JSON.parse(JSON.stringify(demoState));
+}
+
+/* ---------- render ---------- */
+function fmtP(v){return v>=1000?v.toLocaleString("en-US",{maximumFractionDigits:0}):v>=100?v.toFixed(2):v.toFixed(3)}
+function card(sym){
+  const el=document.createElement("div");el.className="card";el.id="c-"+sym;
+  el.innerHTML=`
+    <div class="sym"><span class="n">${sym}/USDT</span><span class="tier" id="tr-${sym}"></span>
+      <span class="p" id="p-${sym}">—</span>
+      <span class="d" id="d-${sym}"></span><span class="kz" id="kz-${sym}">—</span></div>
+    <canvas class="spark" id="sp-${sym}"></canvas>
+    <div class="meter"><div class="lbl"><span>KL·irreversibilidad <b id="iv-${sym}">—</b></span><span id="is-${sym}"></span></div>
+      <div class="track"><div class="zone" style="left:0;width:34%;background:var(--aqua)"></div>
+        <div class="notch" style="left:34%"></div><div class="pin" id="ip-${sym}" style="left:0%"></div></div>
+      <div class="state" id="ist-${sym}">midiendo régimen…</div></div>
+    <div class="meter"><div class="lbl"><span>funding pctl 90d <b id="fv-${sym}">—</b></span><span id="fs-${sym}"></span></div>
+      <div class="track"><div class="zone" style="left:0;width:50%;background:var(--blue)"></div>
+        <div class="zone" style="left:70%;width:30%;background:var(--red)"></div>
+        <div class="notch" style="left:50%"></div><div class="notch" style="left:70%"></div>
+        <div class="pin" id="fp-${sym}" style="left:50%"></div></div>
+      <div class="state" id="fst-${sym}">leyendo funding…</div></div>
+    <div class="counts"><span>fires <b id="cf-${sym}">0</b></span><span>abiertas <b id="co-${sym}">0</b></span>
+      <span>vetadas <b id="cv-${sym}">0</b></span><span>vivas <b id="cl-${sym}">0</b></span></div>`;
+  return el;
+}
+function spark(cv,data){
+  const dpr=window.devicePixelRatio||1,w=cv.clientWidth,h=cv.clientHeight;
+  cv.width=w*dpr;cv.height=h*dpr;const x=cv.getContext("2d");x.scale(dpr,dpr);
+  if(!data||data.length<2)return;
+  const mn=Math.min(...data),mx=Math.max(...data),rg=(mx-mn)||1;
+  x.beginPath();
+  data.forEach((v,i)=>{const px=i/(data.length-1)*(w-4)+2,py=h-3-((v-mn)/rg)*(h-8);i?x.lineTo(px,py):x.moveTo(px,py)});
+  x.lineWidth=2;x.strokeStyle="#3987e5";x.shadowColor="rgba(57,135,229,.5)";x.shadowBlur=6;x.stroke();
+  const lv=data[data.length-1],ly=h-3-((lv-mn)/rg)*(h-8);
+  x.shadowBlur=0;x.beginPath();x.arc(w-2,ly,3,0,7);x.fillStyle="#ffffff";x.fill();
+}
+const prev={};
+function render(d){
+  const grid=document.getElementById("grid");
+  let syms=Object.keys(d.symbols||{}).length?Object.keys(d.symbols):SYMS_DEFAULT;
+  syms=[...syms].sort((a,b)=>((d.symbols[b]||{}).vip?1:0)-((d.symbols[a]||{}).vip?1:0));
+  for(const s of syms){ if(!document.getElementById("c-"+s)) grid.appendChild(card(s)); }
+  for(const s of syms){
+    const st=d.symbols[s]; if(!st) continue;
+    const P=(id)=>document.getElementById(id+"-"+s);
+    if(st.price!=null){
+      const el=P("p"); el.textContent="$"+fmtP(st.price);
+      const pv=prev[s]; if(pv!=null){const ch=(st.price-pv)/pv*100;
+        const dd=P("d"); dd.textContent=(ch>=0?"▲":"▼")+Math.abs(ch).toFixed(2)+"%";
+        dd.className="d "+(ch>=0?"up":"dn");}
+      prev[s]=st.price;
+    }
+    P("kz").textContent=st.killzone||"—";
+    const tr=P("tr");
+    if(st.vip===false){tr.textContent="LAB·paper";tr.className="tier lab";}
+    else if(st.vip===true){tr.textContent="VIP";tr.className="tier";}
+    spark(P("sp"),st.spark);
+    if(st.irrev!=null){
+      P("iv").textContent=st.irrev.toFixed(3);
+      P("ip").style.left=(Math.min(st.irrev,1)*100)+"%";
+      const low=st.irrev<=0.34;
+      P("ist").innerHTML=low?"régimen <b>REVERSIBLE ✓</b> — donde el edge paga"
+                            :"régimen <b>TRENDING △</b> — filtro de calidad activo";
+    }
+    if(st.funding_pctl!=null){
+      P("fv").textContent=st.funding_pctl.toFixed(2);
+      P("fp").style.left=(st.funding_pctl*100)+"%";
+      const z=st.funding_pctl<=0.5?"frío → <b>viento del LONG ✓</b>":st.funding_pctl>=0.7?"caliente → <b>combustible del SHORT ✓</b>":"zona <b>neutra</b>";
+      P("fst").innerHTML="funding "+z;
+    }
+    const c=st.counts||{};
+    P("cf").textContent=c.fire||0; P("co").textContent=c.opened||0;
+    P("cv").textContent=c.vetoed||0; P("cl").textContent=st.open||0;
+  }
+  renderFeed(d,syms); renderTable(d,syms);
+  document.getElementById("hb").textContent="último tick: "+new Date().toLocaleTimeString();
+}
+let feedSeen=0;
+function renderFeed(d,syms){
+  const f=document.getElementById("feed");
+  const evs=(d.events||[]).slice(-24);
+  const lines=[];
+  for(const e of evs){
+    const t=new Date((e.t||0)*1000).toLocaleTimeString();
+    lines.push(`<div class="ln ${e.kind}"><span class="t">[${t}]</span> <span class="s">${e.sym}</span> <span class="k">${e.kind.toUpperCase()}</span> ${e.text}</div>`);
+  }
+  for(const s of syms){                      // lecturas derivadas (el "va midiendo")
+    const st=d.symbols[s]; if(!st||st.price==null) continue;
+    const t=new Date().toLocaleTimeString();
+    lines.push(`<div class="ln read"><span class="t">[${t}]</span> <span class="s">${s}</span> <span class="k">LEE</span> vela 5m · close ${fmtP(st.price)}${st.irrev!=null?" · irrev "+st.irrev.toFixed(2)+(st.irrev<=0.34?" ✓":" △"):""}${st.funding_pctl!=null?" · funding p"+st.funding_pctl.toFixed(2):""}</div>`);
+  }
+  f.innerHTML=lines.slice(-16).reverse().join("");
+}
+function renderTable(d,syms){
+  let h="<table><tr><th>símbolo</th><th>precio</th><th>irrev</th><th>funding pctl</th><th>killzone</th><th>fires</th><th>abiertas</th><th>vetadas</th></tr>";
+  for(const s of syms){const st=d.symbols[s]||{};const c=st.counts||{};
+    h+=`<tr><td>${s}</td><td>${st.price!=null?fmtP(st.price):"—"}</td><td>${st.irrev!=null?st.irrev.toFixed(3):"—"}</td><td>${st.funding_pctl!=null?st.funding_pctl.toFixed(2):"—"}</td><td>${st.killzone||"—"}</td><td>${c.fire||0}</td><td>${c.opened||0}</td><td>${c.vetoed||0}</td></tr>`}
+  document.getElementById("tbl").innerHTML=h+"</table>";
+}
+function setMode(demo){
+  const m=document.getElementById("mode");
+  m.textContent=demo?"DEMO":"LIVE"; m.className="tag"+(demo?" demo":"");
+}
+async function loop(){
+  try{
+    if(DEMO){ if(!demoState) demoInit(); render(demoTick()); setMode(true); }
+    else{
+      const r=await fetch("cockpit.json",{cache:"no-store"});
+      const d=await r.json();
+      if(d && d.symbols && Object.keys(d.symbols).length){ render(d); setMode(false); }
+      else{ if(!demoState) demoInit(); render(demoTick()); setMode(true); }  // sin telemetría aún -> demo CON badge
+    }
+  }catch(e){ if(!demoState) demoInit(); render(demoTick()); setMode(true); }
+  setTimeout(loop, DEMO?1500:3000);
+}
+loop();
+</script>
+</body>
+</html>
