@@ -182,6 +182,11 @@ td:first-child,th:first-child{text-align:left}
 #intro .wmk{font:700 19px/1 "Helvetica Neue",Arial,sans-serif;letter-spacing:.34em;color:var(--text2);
   opacity:0;animation:fadeIn .7s ease .95s forwards}
 #intro .wmk b{color:var(--gold)}
+/* video del intro (opcional, no-crítico): si hay URL, el splash usa el orbe en video;
+   si no hay o falla, cae al anillo φ dibujado en CSS. */
+#introvid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;
+  transition:opacity .5s ease;z-index:-1;pointer-events:none}
+#introvid.on{opacity:1}
 @keyframes draw{to{stroke-dashoffset:0}}
 @keyframes fadeIn{to{opacity:1}}
 @keyframes introOut{to{opacity:0;visibility:hidden}}
@@ -203,6 +208,7 @@ td:first-child,th:first-child{text-align:left}
 <body data-palette="#c9a227,#21c96b,#e05e5e">
 <canvas id="rain"></canvas>
 <div id="intro" aria-hidden="true">
+  <video id="introvid" muted loop playsinline preload="auto"></video>
   <div class="m">
     <svg viewBox="0 0 116 116" width="116" height="116">
       <defs><linearGradient id="isol" x1="0" y1="0" x2="1" y2="1">
@@ -563,6 +569,19 @@ function countUp(el,to){
   (function tick(t){const k=Math.min(1,(t-t0)/dur),e=1-Math.pow(1-k,3);
     el.textContent="$"+fmtP(from+(to-from)*e); if(k<1)requestAnimationFrame(tick);})(t0);
 }
+
+/* ---- video del intro (opcional, NO-crítico). Pega aquí la URL pública del mp4 del
+   intro (p.ej. fq-intro-1080p.mp4 en tu CDN/Higgsfield). Si está vacío o el video
+   falla, el splash usa el anillo φ dibujado en CSS — jamás rompe nada. ---- */
+const INTRO_VIDEO="";
+(function(){ try{
+  const v=document.getElementById("introvid"), m=document.querySelector("#intro .m");
+  if(v && INTRO_VIDEO && !_reduceMotion){
+    v.src=INTRO_VIDEO;
+    v.play().then(()=>{ v.classList.add("on"); if(m) m.style.opacity="0"; }).catch(()=>{});
+    v.onerror=()=>{ v.classList.remove("on"); if(m) m.style.opacity=""; };
+  }
+}catch(e){} })();
 
 /* ---- intro splash (se dibuja y se disuelve) + reveals al scroll ---- */
 (function(){ try{
