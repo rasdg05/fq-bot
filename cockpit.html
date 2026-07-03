@@ -77,6 +77,7 @@ body{background:var(--bg);color:var(--text);
 .tier.lab{color:var(--muted);border-color:var(--line2)}
 .inst .px{margin-left:auto;font-size:19px;font-weight:700;font-variant-numeric:tabular-nums}
 .inst .dx{font-size:11.5px;font-variant-numeric:tabular-nums}
+.inst .dx .chglab{color:var(--muted);font-size:9px;margin-left:4px;letter-spacing:.06em;font-variant-numeric:normal}
 .up{color:var(--up)} .dn{color:var(--dn)}
 .kzrow{display:flex;gap:10px;margin-top:2px}
 .kz{font-size:9px;letter-spacing:.18em;color:var(--muted);text-transform:uppercase}
@@ -286,12 +287,14 @@ function render(d){
     const P=id=>document.getElementById(id+"-"+s);
     if(st.price!=null){
       P("p").textContent="$"+fmtP(st.price);
-      // cambio REAL sobre la ventana del sparkline (spark[0] -> precio actual). Antes se
-      // medía contra el poll anterior (~3s) -> siempre daba ~0.00% porque el precio casi
-      // no se mueve en 3s. El sparkline de al lado muestra la misma trayectoria.
-      const sp0=st.spark;
-      if(sp0&&sp0.length>1&&sp0[0]){const ch=(st.price-sp0[0])/sp0[0]*100;
-        P("d").textContent=(ch>=0?"▲ ":"▼ ")+Math.abs(ch).toFixed(2)+"%";
+      // cambio 24h REAL sellado por el motor (ticker del venue, OKX). Fallback: cambio
+      // sobre la ventana del sparkline (spark[0]->precio) si el 24h no llegó. Nunca el
+      // poll-anterior (~3s), que daba siempre ~0.00%.
+      let ch=null, is24=false;
+      if(st.chg_24h!=null){ch=st.chg_24h; is24=true;}
+      else{const sp0=st.spark; if(sp0&&sp0.length>1&&sp0[0]) ch=(st.price-sp0[0])/sp0[0]*100;}
+      if(ch!=null){P("d").innerHTML=(ch>=0?"▲ ":"▼ ")+Math.abs(ch).toFixed(2)+"%"
+        +(is24?'<span class="chglab">24h</span>':'');
         P("d").className="dx "+(ch>=0?"up":"dn");}
       tape.push(`<span class="it"><b>${s}</b> $${fmtP(st.price)}${st.irrev!=null?" · KL "+st.irrev.toFixed(2):""}${st.funding_pctl!=null?" · F p"+st.funding_pctl.toFixed(2):""}<span class="phi">φ</span></span>`);
     }

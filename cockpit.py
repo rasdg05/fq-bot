@@ -9,9 +9,10 @@ un update de dict por vela + un write atómico THROTTLED (>= cada 2s) de un JSON
 (hijo critical=False del launcher): si muere, el bot sigue.
 
 Qué sella por símbolo (lo que el motor "ve" en cada vela): precio + sparkline (últimos
-48 closes), irreversibilidad KL (el régimen), funding pctl (cache 1h compartido con el
-boost), killzone, contadores fire/vetadas/abiertas. Más un ring de EVENTOS reales
-(fires/vetos/aperturas/cierres) — el feed de "pensamientos" del algoritmo.
+48 closes), cambio % 24h (ticker del venue, decorativo), irreversibilidad KL (el
+régimen), funding pctl (cache 1h compartido con el boost), killzone, contadores
+fire/vetadas/abiertas. Más un ring de EVENTOS reales (fires/vetos/aperturas/cierres) —
+el feed de "pensamientos" del algoritmo.
 """
 import json
 import logging
@@ -31,6 +32,7 @@ _SPARK_N = 48
 _lock = threading.Lock()
 _state = {"boot": time.time(), "symbols": {}, "events": []}
 _last_write = [0.0]
+_CHG_CACHE = {}
 
 
 def enabled():
@@ -44,6 +46,44 @@ def _is_vip(ccy):
     if ccy == "SOL":
         return True
     return os.environ.get("FQ_%s_VIP_BROADCAST" % ccy, "1").strip() not in ("0", "false", "no")
+
+
+def _chg24h_live(symbol, ttl_s=90):
+    """Cambio % en 24h del perp (OKX público: (last-open24h)/open24h). DECORATIVO — solo
+    para el show; cacheado y defensivo: un fallo deja el campo ausente y el front cae al
+    cambio sobre el sparkline. Mismo venue/patrón que motor_paper.funding_pctl_live."""
+    import time as _t
+    s = str(symbol or "").upper()                        # 'SOL/USDT' -> 'SOL-USDT-SWAP'
+    if s.endswith("-SWAP"):
+        inst = s
+    else:
+        ccy = s.split("/")[0].split(":")[0].replace("-USDT", "").replace("USDT", "")
+        inst = "%s-USDT-SWAP" % ccy if ccy else None
+    if not inst:
+        return None
+    c = _CHG_CACHE.get(inst)
+    if c and _t.time() - c[0] < ttl_s:
+        return c[1]
+    try:
+        import json
+        import urllib.request
+        req = urllib.request.Request(
+            "https://www.okx.com/api/v5/market/ticker?instId=%s" % inst,
+            headers={"User-Agent": "fq-bot"})
+        with urllib.request.urlopen(req, timeout=8) as r:
+            rows = json.loads(r.read().decode()).get("data") or []
+        if not rows:
+            return None
+        last = float(rows[0]["last"])
+        op = float(rows[0]["open24h"])
+        if op <= 0:
+            return None
+        chg = (last - op) / op * 100.0
+        _CHG_CACHE[inst] = (_t.time(), chg)
+        return chg
+    except Exception as e:
+        log.debug("[cockpit] chg24h: %s", e)
+        return None
 
 
 def tick(symbol, ts=None, price=None, closes=None, killzone=None,
@@ -78,6 +118,12 @@ def tick(symbol, ts=None, price=None, closes=None, killzone=None,
             if pctl is not None:
                 s["funding_rate"] = round(float(rate), 8)
                 s["funding_pctl"] = round(float(pctl), 3)
+        except Exception:
+            pass
+        try:                          # cambio 24h (decorativo, cache 90s, best-effort)
+            chg = _chg24h_live(symbol)
+            if chg is not None:
+                s["chg_24h"] = round(float(chg), 2)
         except Exception:
             pass
         with _lock:
