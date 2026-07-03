@@ -164,6 +164,15 @@ con outcome. El plan **cerebro** (`research/cerebro_arquitectura.md`, commit `f0
   contadores ("Total: 0") y lo exponía a blips transitorios. Fix: blacklist `MEMORY/`,
   `presentaciones/`, `*.pdf/*.html/*.png` (**PR #138**, `funding_paper.py` sigue runtime al final).
   **Lección:** ante 0 cadencia, primero confirma uptime/deploy en Railway; sólo después sospecha del edge.
+- **"0 disparos" también puede ser RÉGIMEN, no falla — y ahora hay HERRAMIENTA para probarlo (2026-07-03).**
+  RasDG reportó 5 días sin señales; el replay del motor sobre datos reales (`run_research_real` en venv
+  py3.12 — pandas-ta exige ≥3.12, por eso el sandbox 3.11 no podía) probó que del 29-jun al 1-jul el motor
+  legítimamente NO encontró setups en los 5 símbolos vivos (0 fires salvo 2 BCH-paper el 30-jun), y los
+  últimos fires salieron con irrev ALTO (0.37-0.69 = trending). **El motor caza colapso/reversión: en
+  tendencia limpia se calla** — limitación de estilo anotada (la cadencia muere en trend puro; el
+  funding-boost mejora convicción de longs, no cadencia). Receta del replay: klines Vision recientes →
+  datasets canónicos 5m/15m/1h + funding → `run_research_real --date-start/--date-end` → comparar vs lo
+  recibido. Sin señales VIP ni descartes FREE cuando el motor no dispara = comportamiento correcto.
 - **No apagues un símbolo por UN stop-out — el "stop dentro del ruido" es de COLA y UNIVERSAL.** El
   2026-06-30 una señal de BCH tocó SL al instante (stop 0.249% < vela 5m mediana 0.265%). Medido cross-símbolo
   (`tools/sl_noise_screen.py`): el stop MEDIANO está bien en TODOS (ratio stop/vela 1.7–2.8; BCH 2.04, a media
