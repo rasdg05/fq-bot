@@ -60,6 +60,12 @@ sube conviction client-facing. Hoy mide, no decide.
 - Ejecución taker + maker en motor paper (mide R neto: fees + slippage).
 
 **CABLEADO DORMIDO (OFF, byte-idéntico cuando off):**
+- **Cockpit "show" (`FQ_COCKPIT`, 2026-07-03, encargo marketing de RasDG):** interfaz en vivo del motor
+  (cockpit.html: sparklines, régimen KL, funding por zona, feed de "pensamientos"). Arquitectura de
+  COLECTOR NO-CRÍTICO: el motor solo deja caer un JSON atómico throttled (`cockpit.py`, no-op si off,
+  todo try/except) y el server (`tools/cockpit_server.py`, stdlib) es hijo `critical=False` del launcher
+  — si la interfaz muere, el bot NI SE ENTERA (regla de RasDG). Prender: `FQ_COCKPIT=1` + exponer puerto
+  en Railway (Networking → Generate Domain). Modo `?demo=1` con badge para vender sin tocar producción.
 - CVD a conviction/size (`FQ_CVD_VIP_CONVICTION`, `FQ_CVD_BOOST_TIER`).
 - **Funding-boost DIRECCIONAL a conviction (`FQ_FUNDING_BOOST`, 2026-07-03):** +1 tier con badge
   "FUNDING FAVORABLE", apilable con CVD/POC. **LONG & pctl≤0.5** (+0.173R vs +0.121, DSR 1.000/CPCV

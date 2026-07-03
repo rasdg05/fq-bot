@@ -193,6 +193,19 @@ class MotorPaperRuntime:
                     self._maker_pending, self.broker.ledger, high, low, ts,
                     eps=self.maker_eps, ttl_bars=self.maker_ttl_bars)
         self._ticks += 1
+        try:      # cockpit "show" (FQ_COCKPIT): telemetría NO-crítica; jamás rompe la vela
+            import cockpit
+            if cockpit.enabled():
+                cockpit.tick(self.symbol, ts=ts, price=price,
+                             closes=(df_primary["close"].to_numpy(dtype=float)[-64:]
+                                     if df_primary is not None else None),
+                             killzone=getattr(field, "killzone", None),
+                             counts=self.counts, n_open=len(self.account.open))
+                for r in resolved:
+                    cockpit.log_event(self.symbol, "close",
+                                      "cierre pid=%s R=%+.2f" % (r.get("pid"), r.get("pnl_r") or 0))
+        except Exception:
+            pass
 
         # 2) si el motor disparo: aplicar veto propio; si pasa, abrir en paper
         opened = None
@@ -200,12 +213,22 @@ class MotorPaperRuntime:
             self.counts["fire"] += 1
             kz = getattr(field, "killzone", None)
             regime = _regime_of(report)   # stable/deriva/... para segmentar el R forward
+            try:  # cockpit: evento real (no-crítico)
+                import cockpit
+                cockpit.log_event(self.symbol, "fire", "FIRE del motor [%s/%s]" % (tf_id, kz))
+            except Exception:
+                pass
             why = self.veto.reason(killzone=kz, ts_utc=ts) if self.veto.active else None
             if why:
                 self.counts["vetoed"] += 1
                 self.broker.ledger.append({
                     "event": "MOTOR_VETOED", "ts": ts, "tf": tf_id,
                     "killzone": kz, "why": why})
+                try:
+                    import cockpit
+                    cockpit.log_event(self.symbol, "veto", "vetado: %s" % why)
+                except Exception:
+                    pass
             else:
                 sig = normalize_fire_report(report, self.symbol, tp_key=self.tp_key)
                 if sig is not None:
@@ -229,6 +252,14 @@ class MotorPaperRuntime:
                         else:
                             pos = self.broker.open(self.account, sig, d["risk_frac"], ts=ts)
                             self.counts["opened"] += 1
+                            try:  # cockpit: evento real (no-crítico)
+                                import cockpit
+                                cockpit.log_event(self.symbol, "open",
+                                                  "%s abierta @ %.4f (paper)" % (
+                                                      "LONG" if sig["direction"] > 0 else "SHORT",
+                                                      sig["entry"]))
+                            except Exception:
+                                pass
                             opened = {"pid": pos.pid, "killzone": kz, "tf": tf_id,
                                       "risk_frac": d["risk_frac"], **sig}
                             # provenance: liga el pid con killzone/tf para segmentar
