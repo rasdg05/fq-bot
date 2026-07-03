@@ -33,6 +33,9 @@ _lock = threading.Lock()
 _state = {"boot": time.time(), "symbols": {}, "events": []}
 _last_write = [0.0]
 _CHG_CACHE = {}
+# handle del bot para los CTA del embudo (marketing) de la interfaz — solo lectura, mismo
+# env que el bot público. Se sella una vez a nivel raíz del estado (no por símbolo).
+_state["bot"] = os.environ.get("FQ_VIP_BOT_USERNAME", "").strip().lstrip("@")
 
 
 def enabled():

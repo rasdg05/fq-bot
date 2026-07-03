@@ -51,6 +51,56 @@ body{background:var(--bg);color:var(--text);
 @keyframes beat{0%,100%{opacity:1}50%{opacity:.3}}
 #utc{font-size:12.5px;color:var(--text2);font-variant-numeric:tabular-nums}
 
+/* ============ EMBUDO (marketing) — no-crítico: solo HTML/enlaces, jamás toca la señal ============ */
+.cta{display:inline-flex;align-items:center;gap:8px;text-decoration:none;font-weight:700;
+  font-size:11px;letter-spacing:.12em;text-transform:uppercase;padding:11px 19px;border-radius:8px;
+  cursor:pointer;white-space:nowrap;transition:transform .12s ease,box-shadow .12s ease,background .12s ease}
+.cta:hover{transform:translateY(-1px)}
+.cta.gold{background:linear-gradient(180deg,#e7c452,#c9a227);color:#0a0c0a;border:1px solid var(--gold);
+  box-shadow:0 0 0 1px rgba(212,175,55,.14),0 7px 20px rgba(212,175,55,.13)}
+.cta.gold:hover{box-shadow:0 0 0 1px rgba(212,175,55,.32),0 9px 26px rgba(212,175,55,.24)}
+.cta.ghost{background:transparent;color:var(--gold);border:1px solid rgba(212,175,55,.42)}
+.cta.ghost:hover{background:var(--golddim)}
+#right .cta{padding:8px 14px;font-size:10px;letter-spacing:.1em}
+
+#pitch{margin-top:16px;border:1px solid var(--line);border-radius:12px;background:var(--panel);
+  padding:22px 24px;display:flex;align-items:center;gap:28px;flex-wrap:wrap;position:relative;overflow:hidden}
+#pitch::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;
+  background:linear-gradient(180deg,var(--sol1),var(--sol2))}
+#pitch .txt{flex:1;min-width:290px}
+#pitch .eyebrow{font-size:9.5px;letter-spacing:.26em;text-transform:uppercase;color:var(--gold);margin-bottom:9px}
+#pitch h1{font-size:21px;line-height:1.24;color:var(--text);font-weight:700;letter-spacing:.005em;margin-bottom:9px}
+#pitch p{font-size:12px;line-height:1.62;color:var(--text2);max-width:64ch}
+#pitch .acts{display:flex;gap:11px;flex-wrap:wrap;align-items:center}
+
+/* sección "cómo obtener acceso" */
+#access{margin-top:16px;border:1px solid var(--line2);border-radius:12px;background:var(--panel2);padding:20px 24px}
+#access .hd{font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:var(--gold);margin-bottom:16px}
+#access .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-bottom:18px}
+#access .step .no{font-size:11px;letter-spacing:.1em;color:var(--goldline);font-weight:700;margin-bottom:6px}
+#access .step h3{font-size:13px;color:var(--text);font-weight:600;margin-bottom:5px;letter-spacing:.02em}
+#access .step p{font-size:11.5px;line-height:1.55;color:var(--text2)}
+
+/* barra CTA fija (idea de la otra sesión) — slim, elegante, no tapa contenido */
+#stickybar{position:fixed;left:0;right:0;bottom:0;z-index:5;display:flex;align-items:center;
+  justify-content:center;gap:16px;padding:11px 18px;flex-wrap:wrap;
+  background:linear-gradient(180deg,rgba(5,7,5,.4),rgba(5,7,5,.96));
+  border-top:1px solid var(--line);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+#stickybar .sbtxt{font-size:11px;letter-spacing:.06em;color:var(--text2)}
+#stickybar .sbtxt b{color:var(--text);font-weight:600}
+#stickybar .x{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--muted);
+  background:none;border:none;font-size:16px;cursor:pointer;line-height:1;padding:4px}
+#app{padding-bottom:70px}   /* espacio para la barra fija */
+
+/* cierre + disclaimer mínimo */
+#closer{margin-top:16px;border:1px solid var(--line);border-radius:12px;
+  background:linear-gradient(135deg,rgba(12,15,12,.94),rgba(22,16,4,.92));padding:26px 22px;text-align:center}
+#closer h2{font-size:17px;color:var(--text);font-weight:700;letter-spacing:.02em;margin-bottom:7px;border:none;padding:0}
+#closer p{font-size:12px;color:var(--text2);margin-bottom:15px;letter-spacing:.02em}
+#closer .acts{display:flex;gap:11px;justify-content:center;flex-wrap:wrap;margin-bottom:16px}
+#disclaimer{font-size:8.6px;line-height:1.6;color:var(--muted);letter-spacing:.03em;max-width:70ch;
+  margin:0 auto;border-top:1px solid var(--line2);padding-top:12px}
+
 /* ---- cinta ticker (movimiento perpetuo) ---- */
 #tape{border-bottom:1px solid var(--line2);overflow:hidden;white-space:nowrap;
   padding:7px 0;position:relative}
@@ -137,8 +187,23 @@ td:first-child,th:first-child{text-align:left}
     <div class="m">Disciplina<b>DSR &gt; 0.95 · CPCV · PBO</b></div>
   </div>
   <div id="right">
+    <a class="cta gold" data-tg href="#" target="_blank" rel="noopener">Solicitar acceso</a>
     <div class="live" id="mode"><span class="dot"></span><span id="modetxt">LIVE</span></div>
     <span id="utc">—</span>
+  </div>
+</div>
+
+<div id="pitch">
+  <div class="txt">
+    <div class="eyebrow">Motor de señales · cripto perpetuos · registro paper</div>
+    <h1>El algoritmo que ves operando es el producto.</h1>
+    <p>Cada ventaja pasa el gate anti-sobreajuste de López de Prado — <b>DSR&nbsp;&gt;&nbsp;0.95, CPCV, PBO</b> —
+    y se mide <i>forward</i> antes de creerla. Order-flow con signo, régimen por irreversibilidad, funding
+    direccional. No son capturas de pantalla: es el motor decidiendo en vivo, aquí abajo.</p>
+  </div>
+  <div class="acts">
+    <a class="cta gold" data-tg href="#" target="_blank" rel="noopener">Únete gratis en Telegram →</a>
+    <a class="cta ghost" data-tg href="#" target="_blank" rel="noopener">Planes VIP</a>
   </div>
 </div>
 
@@ -148,11 +213,47 @@ td:first-child,th:first-child{text-align:left}
 
 <div id="logwrap">
   <div class="lt"><h2>REGISTRO DE DECISIONES DEL MOTOR</h2><span class="cur"></span></div>
+  <div style="font-size:10px;color:var(--muted);letter-spacing:.04em;margin:-2px 0 10px 2px">
+    Transparencia total — el motor decide en tiempo real, sin retoque. Ese es el diferenciador.</div>
   <div id="log"></div>
 </div>
 
 <details><summary>vista tabular</summary><div id="tbl"></div></details>
 
+<div id="access">
+  <div class="hd">Cómo obtener acceso</div>
+  <div class="steps">
+    <div class="step"><div class="no">01 — Únete gratis</div><h3>Entra al bot en Telegram</h3>
+      <p>Recibes todas las señales del motor, sin filtro. Cero tarjeta, cero fricción.</p></div>
+    <div class="step"><div class="no">02 — Observa la medida</div><h3>Cada señal trae su lógica</h3>
+      <p>Régimen KL, funding, order-flow — a la vista. Nada oculto: mides antes de creer.</p></div>
+    <div class="step"><div class="no">03 — Sube a VIP</div><h3>Las señales filtradas por calidad</h3>
+      <p>Filtro KL de calidad + convicción por φ y order-flow, con TP escalonados y tamaño sugerido.</p></div>
+  </div>
+  <a class="cta gold" data-tg href="#" target="_blank" rel="noopener">Empezar gratis en Telegram →</a>
+</div>
+
+<div id="closer">
+  <h2>Empieza a recibir las señales.</h2>
+  <p>Gratis en Telegram, sin tarjeta. El motor decide con la medida; tú operas.</p>
+  <div class="acts">
+    <a class="cta gold" data-tg href="#" target="_blank" rel="noopener">Comenzar gratis →</a>
+    <a class="cta ghost" data-tg href="#" target="_blank" rel="noopener">Acceso VIP</a>
+  </div>
+  <div id="disclaimer">
+    Registro en <b>papel</b> (0% capital real) bajo disciplina measure-first (DSR·CPCV·PBO); el ledger forward
+    es el único juez. La información mostrada es de carácter educativo/informativo y <b>no constituye asesoría
+    de inversión</b>. Operar derivados cripto conlleva riesgo de pérdida total. El rendimiento pasado —real o
+    simulado— no garantiza resultados futuros.
+  </div>
+</div>
+
+</div>
+
+<div id="stickybar">
+  <span class="sbtxt"><b>Señales del motor</b>, gratis en Telegram — sin tarjeta.</span>
+  <a class="cta gold" data-tg href="#" target="_blank" rel="noopener">Únete gratis →</a>
+  <button class="x" id="sbx" aria-label="cerrar">×</button>
 </div>
 
 <script>
@@ -208,6 +309,26 @@ td:first-child,th:first-child{text-align:left}
 const SYMS_DEFAULT=["SOL","BTC","ETH","BCH","BNB"];
 const qs=new URLSearchParams(location.search);
 let DEMO=qs.get("demo")==="1", demoState=null;
+
+// ---- embudo: enlace de Telegram para TODOS los CTA (elementos con data-tg) ----
+// El handle sale de cockpit.json (d.bot <- FQ_VIP_BOT_USERNAME, el mismo env del bot
+// público). Si la env no está, usa este fallback — EDÍTALO con tu @usuario del bot.
+const TG_FALLBACK="";                 // p.ej. "fqcapital_bot" (sin @)
+function setCTAs(bot){
+  const h=(bot||TG_FALLBACK||"").replace(/^@/,"");
+  const url=h?("https://t.me/"+h):null;
+  document.querySelectorAll("[data-tg]").forEach(a=>{
+    if(url){a.href=url; a.removeAttribute("title");}
+    else{a.href="#"; a.title="Configura FQ_VIP_BOT_USERNAME en Railway (o TG_FALLBACK en el HTML)";}
+  });
+}
+// barra fija: se puede cerrar; recuerda el cierre durante la sesión
+(function(){ try{
+  const bar=document.getElementById("stickybar"), x=document.getElementById("sbx");
+  if(!bar) return;
+  if(sessionStorage.getItem("fq_sb")==="0") bar.style.display="none";
+  if(x) x.onclick=()=>{ bar.style.display="none"; try{sessionStorage.setItem("fq_sb","0")}catch(e){} };
+}catch(e){} })();
 
 function demoInit(){
   const px={SOL:80.65,BTC:61603,ETH:1708,BCH:210.1,BNB:551.2};
@@ -274,6 +395,7 @@ function spark(cv,data){
   x.shadowBlur=0;x.beginPath();x.arc(w-2,ly,2.8,0,7);x.fillStyle="#f4f2ea";x.fill();
 }
 function render(d){
+  setCTAs(d.bot);                       // enlaza los CTA del embudo al Telegram del bot
   const grid=document.getElementById("grid");
   let syms=Object.keys(d.symbols||{}).length?Object.keys(d.symbols):SYMS_DEFAULT;
   syms=[...syms].sort((a,b)=>((d.symbols[b]||{}).vip?1:0)-((d.symbols[a]||{}).vip?1:0));
