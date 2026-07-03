@@ -16,7 +16,11 @@
 import type {Ad, Scene} from './edl';
 
 const s = (sec: number) => Math.round(sec * 30);
-const intro: Scene = {type: 'intro', durationInFrames: s(1)};
+// Intro sting = real Higgsfield video (golden orb igniting, gold/Solana, on-brand).
+// File: public/footage/fq-intro-vertical-720p.mp4 (9:16). Remotion burns the φ/"FQ CAPITAL"
+// wordmark on top.
+const intro: Scene = {type: 'clip', durationInFrames: s(1), src: 'fq-intro-vertical-720p', audio: false,
+  note: 'FQ intro sting (Higgsfield) — replaces the drawn intro'};
 
 // Shared body — same cuts as the Spanish BODY, English captions, plain subs.
 const BODY_EN: Scene[] = [

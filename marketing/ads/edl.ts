@@ -41,7 +41,11 @@ export const totalFrames = (ad: Ad): number =>
 
 const s = (sec: number) => Math.round(sec * 30);
 
-const intro: Scene = {type: 'intro', durationInFrames: s(1)};
+// Intro sting FQ = video real de Higgsfield (orbe dorado igniéndose, oro/Solana, en marca).
+// Archivo: public/footage/fq-intro-vertical-720p.mp4 (9:16, de la sesión del intro).
+// Sobre este video, Remotion quema el wordmark φ/"FQ CAPITAL" (mismo del terminal).
+const intro: Scene = {type: 'clip', durationInFrames: s(1), src: 'fq-intro-vertical-720p', audio: false,
+  note: 'intro sting FQ (Higgsfield) — reemplaza el intro dibujado'};
 
 /** Cuerpo central — cortes alineados a frases completas (sin cortar a media oración). */
 const BODY: Scene[] = [
