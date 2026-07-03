@@ -195,7 +195,7 @@ td:first-child,th:first-child{text-align:left}
 
 <div id="pitch">
   <div class="txt">
-    <div class="eyebrow">Motor de señales · cripto perpetuos · registro paper</div>
+    <div class="eyebrow">Motor de señales · cripto perpetuos · en vivo</div>
     <h1>El algoritmo que ves operando es el producto.</h1>
     <p>Cada ventaja pasa el gate anti-sobreajuste de López de Prado — <b>DSR&nbsp;&gt;&nbsp;0.95, CPCV, PBO</b> —
     y se mide <i>forward</i> antes de creerla. Order-flow con signo, régimen por irreversibilidad, funding
@@ -241,10 +241,9 @@ td:first-child,th:first-child{text-align:left}
     <a class="cta ghost" data-tg href="#" target="_blank" rel="noopener">Acceso VIP</a>
   </div>
   <div id="disclaimer">
-    Registro en <b>papel</b> (0% capital real) bajo disciplina measure-first (DSR·CPCV·PBO); el ledger forward
-    es el único juez. La información mostrada es de carácter educativo/informativo y <b>no constituye asesoría
-    de inversión</b>. Operar derivados cripto conlleva riesgo de pérdida total. El rendimiento pasado —real o
-    simulado— no garantiza resultados futuros.
+    La información mostrada es de carácter educativo/informativo y <b>no constituye asesoría de inversión</b>.
+    Operar derivados cripto conlleva riesgo de pérdida total. El rendimiento pasado no garantiza resultados
+    futuros.
   </div>
 </div>
 
@@ -350,7 +349,7 @@ function demoTick(){
     st.killzone=kz[Math.floor(Date.now()/60000+SYMS_DEFAULT.indexOf(s))%kz.length];
     if(Math.random()<0.045){st.counts.fire++;
       if(Math.random()<0.6){st.counts.opened++;st.open=1;
-        demoState.events.push({t:Date.now()/1e3,sym:s,kind:"open",text:(Math.random()<.5?"LONG":"SHORT")+" abierta @ "+st.price.toFixed(2)+" · paper"});}
+        demoState.events.push({t:Date.now()/1e3,sym:s,kind:"open",text:(Math.random()<.5?"LONG":"SHORT")+" abierta @ "+st.price.toFixed(2)});}
       else{st.counts.vetoed++;demoState.events.push({t:Date.now()/1e3,sym:s,kind:"veto",text:"suprimida · régimen no óptimo"});}
       demoState.events.push({t:Date.now()/1e3,sym:s,kind:"fire",text:"SEÑAL DEL MOTOR [5m/"+st.killzone+"]"});}
     st.updated=Date.now()/1e3;
