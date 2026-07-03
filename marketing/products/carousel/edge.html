@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <style>
   :root{ --bg:#080a0e; --panel:#11151c; --panel2:#161b24; --hair:#222a35;
-    --ink:#f2f5f8; --muted:#9aa3b1; --faint:#5e6775; --accent:#19b88c; --red:#f06363; --glow:rgba(25,184,140,.20); }
+    --ink:#f2f5f8; --muted:#9aa3b1; --faint:#5e6775; --accent:#d4af37; --red:#f06363; --glow:rgba(212,175,55,.20); }
   *{ margin:0; padding:0; box-sizing:border-box; -webkit-print-color-adjust:exact; }
   html,body{ background:#000; }
   .slide{ display:none; width:1080px; height:1350px; position:relative; overflow:hidden;
@@ -16,7 +16,7 @@
   .mono{ font-family:"SF Mono","JetBrains Mono",Menlo,Consolas,monospace; }
   .top{ display:flex; justify-content:space-between; align-items:center; position:relative; z-index:2; }
   .brand{ display:flex; align-items:center; gap:13px; }
-  .brand .bar{ width:6px; height:42px; background:var(--accent); border-radius:3px; box-shadow:0 0 22px rgba(25,184,140,.6); }
+  .brand .bar{ width:6px; height:42px; background:var(--accent); border-radius:3px; box-shadow:0 0 22px rgba(212,175,55,.6); }
   .brand .fq{ font-weight:800; font-size:38px; letter-spacing:-1px; }
   .num{ font-family:"SF Mono",monospace; color:var(--faint); font-size:24px; letter-spacing:2px; }
   .body{ flex:1; display:flex; flex-direction:column; justify-content:center; position:relative; z-index:2; }
@@ -137,10 +137,10 @@
       <div class="lbl"><span>Curva de equity</span><span>ilustrativo</span></div>
       <svg viewBox="0 0 900 300" preserveAspectRatio="none">
         <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#19b88c" stop-opacity="0.28"/><stop offset="1" stop-color="#19b88c" stop-opacity="0"/>
+          <stop offset="0" stop-color="#d4af37" stop-opacity="0.28"/><stop offset="1" stop-color="#d4af37" stop-opacity="0"/>
         </linearGradient></defs>
         <path d="M0,250 L90,232 L170,248 L250,196 L330,214 L410,150 L500,178 L590,120 L680,150 L770,92 L900,70 L900,300 L0,300 Z" fill="url(#g)"/>
-        <path d="M0,250 L90,232 L170,248 L250,196 L330,214 L410,150 L500,178 L590,120 L680,150 L770,92 L900,70" fill="none" stroke="#19b88c" stroke-width="5"/>
+        <path d="M0,250 L90,232 L170,248 L250,196 L330,214 L410,150 L500,178 L590,120 L680,150 L770,92 L900,70" fill="none" stroke="#d4af37" stroke-width="5"/>
         <path d="M0,256 L90,240 L170,252 L250,204 L330,222 L410,158 L500,184 L590,128 L680,156 L770,100 L900,80" fill="none" stroke="#9aa3b1" stroke-width="3" stroke-dasharray="10 9" opacity="0.8"/>
       </svg>
       <div class="legend"><span><i></i>En vivo (ledger)</span><span class="d"><i></i>Out-of-sample</span></div>

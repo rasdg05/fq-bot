@@ -14,8 +14,9 @@
  *
  * FALTA POR GRABAR (no esta en el footage actual):
  *  - Linea de blindaje legal exacta: "No te prometo que vas a manejar esto".
- *  - Captura/recording real del bot para el segmento de senal en vivo
- *    (ahora se cubre con el mockup Remotion, sin cifras inventadas).
+ *
+ * SEÑAL EN VIVO: ahora usa FOOTAGE REAL del terminal FQ (B-roll 9:16 en
+ * public/footage/fq-terminal.mp4), no el mockup. Ver el clip 'fq-terminal' del BODY.
  */
 import type {CtaTarget} from '../src/components/CTA';
 import type {FrameMode, Overlay} from '../src/components/ClipSegment';
@@ -53,8 +54,10 @@ const BODY: Scene[] = [
   // "Cuando dejas de operar y te apoyas en un sistema, en un bot, como Fibonacci Cuántico."
   {type: 'clip', durationInFrames: s(6.55), src: 'IMG_1846', inSec: 9.3, outSec: 15.85, audio: true,
     note: 'ego -> sistema -> FQ (incluye "Cuantico", corta antes de la promesa)', caption: 'Apóyate en un sistema. En un bot: Fibonacci Cuántico.'},
-  // Señal en vivo (mockup del bot, multi-simbolo).
-  {type: 'showcase', durationInFrames: s(5), caption: 'Entrada, stop y target. Cero emoción.'},
+  // Señal en vivo — FOOTAGE REAL del terminal FQ (reemplaza el mockup). El archivo
+  // es el B-roll del terminal (9:16) en public/footage/fq-terminal.mp4.
+  {type: 'clip', durationInFrames: s(5), src: 'fq-terminal', audio: false,
+    note: 'captura real del terminal FQ (antes era showcase mockup)', caption: 'Entrada, stop y target. Cero emoción.'},
 ];
 
 /** Gancho: clip corto con voz + subtitulo palabra-por-palabra. Opcional: overlay B-roll. */

@@ -53,16 +53,19 @@ export const GLYPHS = {
 } as const;
 
 export const COLORS = {
-  bg: '#0A0C10',
-  panel: '#10141B',
-  panelHi: '#161B24',
-  hairline: '#222A35',
-  ink: '#E7EAEE',
-  inkDim: '#8A93A2',
-  inkFaint: '#5A626E',
-  accent: '#C8CDD6', // acento vertical / wordmark (frio, sobrio)
-  long: '#34D399', // ▲
-  short: '#F87171', // ▼
+  // Marca curada FQ (espejo del terminal / avatar / banner): oro + Solana sobre negro.
+  bg: '#060806',
+  panel: '#0E1210',
+  panelHi: '#141915',
+  hairline: '#2B2718', // hairline con tinte dorado
+  ink: '#F4F2EA',
+  inkDim: '#B9B6A6',
+  inkFaint: '#6E6C60',
+  accent: '#D4AF37', // ORO — acento vertical / wordmark (marca curada)
+  sol1: '#9945FF', // Solana violeta (gradiente/hairline vivo)
+  sol2: '#14F195', // Solana menta
+  long: '#21C96B', // ▲
+  short: '#E05E5E', // ▼
 } as const;
 
 export const FONTS = {

@@ -97,8 +97,8 @@ institutional liquidity desk** — sober, hairline, vertical accent, type with a
 - **Premium paper** (ebooks/PDF): warm paper `#fbfaf7`, for a high-end print feel.
 
 **Color**
-- Emerald accent **`#19b88c`** (primary brand accent / vertical bar / wordmark glow).
-- Print-green for ebook body/chips `#13935a`; long `#34D399`/`#19b88c`, short/red
+- gold accent **`#d4af37`** (primary brand accent / vertical bar / wordmark glow).
+- Print-green for ebook body/chips `#13935a`; long `#34D399`/`#d4af37`, short/red
   `#F87171`/`#f06363`.
 - Ink `#E7EAEE`/`#f2f5f8`, dim `#8A93A2`, faint `#5A626E`.
 
@@ -109,7 +109,7 @@ institutional liquidity desk** — sober, hairline, vertical accent, type with a
 - Ebooks may use a serif (Iowan/Palatino) for long-form pro voice.
 
 **Marks & motifs**
-- FQ wordmark + **vertical emerald bar** (the "│" accent). Hairline grid at ~6%
+- FQ wordmark + **vertical gold bar** (the "│" accent). Hairline grid at ~6%
   opacity. Mono kickers in caps with wide letter-spacing. Glyphs: `│ › · ▲ ▼ ─`.
 - No stock emoji in serious frames (Telegram/IG CTAs may use 📲🤖📸 sparingly).
 

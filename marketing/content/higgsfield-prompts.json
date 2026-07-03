@@ -1,12 +1,12 @@
 {
-  "_note": "FQ brand prompts for Higgsfield Cloud. Dark, emerald (#19b88c), institutional, cinematic. NO on-screen text or performance numbers — compliant copy is added later in Remotion. IMPORTANT: set each `model` to the EXACT slug from YOUR Higgsfield dashboard (cloud.higgsfield.ai → open a model → 'API' / 'Use in API' shows the slug) or `higgsfield model list`. Auth is already wired (HF_KEY); only the slug is account-specific. The generic names (nano_banana_2, bytedance/seedream/...) returned 'model not found' on this account.",
+  "_note": "FQ brand prompts for Higgsfield Cloud. Dark, gold (#d4af37) with Solana violet-to-mint accents, institutional, cinematic. NO on-screen text or performance numbers — compliant copy is added later in Remotion. IMPORTANT: set each `model` to the EXACT slug from YOUR Higgsfield dashboard (cloud.higgsfield.ai → open a model → 'API' / 'Use in API' shows the slug) or `higgsfield model list`. Auth is already wired (HF_KEY); only the slug is account-specific. The generic names (nano_banana_2, bytedance/seedream/...) returned 'model not found' on this account.",
   "assets": [
     {
       "id": "desk-broll",
       "model": "PASTE_SLUG_FROM_DASHBOARD",
       "out": "products/social/assets/hf-desk.png",
       "arguments": {
-        "prompt": "cinematic dark trading desk at night, several monitors glowing with emerald green candlestick charts, moody low-key lighting, shallow depth of field, subtle film grain, 35mm, no text, no logos, no numbers",
+        "prompt": "cinematic dark trading desk at night, several monitors glowing with gold candlestick charts, moody low-key lighting, shallow depth of field, subtle film grain, 35mm, no text, no logos, no numbers",
         "resolution": "2k",
         "aspect_ratio": "9:16"
       }
@@ -16,7 +16,7 @@
       "model": "PASTE_SLUG_FROM_DASHBOARD",
       "out": "products/social/assets/hf-field.png",
       "arguments": {
-        "prompt": "abstract visualization of a probability field, emerald green particles forming a rising curve over a near-black background, elegant high-end fintech aesthetic, volumetric light, no text",
+        "prompt": "abstract visualization of a probability field, gold particles forming a rising curve over a near-black background, elegant high-end fintech aesthetic, volumetric light, no text",
         "resolution": "2K",
         "aspect_ratio": "1:1",
         "camera_fixed": false
@@ -39,7 +39,7 @@
     "model": "REPLACE_WITH_VIDEO_MODEL_SLUG_FROM_cloud.higgsfield.ai",
     "out": "public/footage/hf-desk.mp4",
     "arguments": {
-      "prompt": "slow push-in on a dark trading desk, emerald charts glowing, cinematic, 1080p",
+      "prompt": "slow push-in on a dark trading desk, gold charts glowing, cinematic, 1080p",
       "aspect_ratio": "9:16",
       "duration": 5
     },

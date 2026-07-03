@@ -12,7 +12,7 @@ export default function Hero() {
         className="pointer-events-none absolute inset-0 -z-10 animate-glowPulse"
         style={{
           background:
-            'radial-gradient(120% 70% at 50% -10%, rgba(25,184,140,.22), transparent 60%)',
+            'radial-gradient(120% 70% at 50% -10%, rgba(212,175,55,.22), transparent 60%)',
         }}
       />
 

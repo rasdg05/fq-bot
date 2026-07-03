@@ -57,7 +57,7 @@ const BODY_EN: Scene[] = [
     audio: true,
     caption: 'Lean on a system. A bot: Fibonacci Quantum.',
   },
-  {type: 'showcase', durationInFrames: s(5), caption: 'Entry, stop and target. Zero emotion.'},
+  {type: 'clip', durationInFrames: s(5), src: 'fq-terminal', audio: false, note: 'real FQ terminal capture (was showcase mockup)', caption: 'Entry, stop and target. Zero emotion.'},
 ];
 
 export const ADS_EN: Ad[] = [
