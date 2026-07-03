@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>FQ CAPITAL · Fibonacci Quantum Framework — Terminal</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%23d4af37' stroke-width='2'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='%23d4af37' font-family='Georgia,serif'%3E%CF%86%3C/text%3E%3C/svg%3E">
 <style>
 /* ============================================================================
    FQ CAPITAL — TERMINAL DE OPERACIONES · Fibonacci Quantum Framework
@@ -165,17 +166,66 @@ table{border-collapse:collapse;margin-top:9px;width:100%}
 th,td{border:1px solid var(--line2);padding:5px 9px;text-align:right;font-variant-numeric:tabular-nums}
 th{color:var(--text2);font-weight:600;font-size:10px;letter-spacing:.12em;text-transform:uppercase}
 td:first-child,th:first-child{text-align:left}
+/* ======== DISEÑO: mark φ, intro, reveals, hover, marca de agua ======== */
+.brandmark{width:32px;height:32px;flex:0 0 auto;margin-right:4px;align-self:center}
+.brandmark .arc{transform-origin:16px 16px;animation:spin 9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#intro{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:22px;background:var(--bg);animation:introOut .6s ease 1.6s forwards}
+#intro .m{width:116px;height:116px;position:relative}
+#intro .m .ring{stroke-dasharray:327;stroke-dashoffset:327;animation:draw 1.1s ease .1s forwards}
+#intro .m .arc2{stroke-dasharray:130;stroke-dashoffset:130;animation:draw .9s ease .5s forwards}
+#intro .m .phi{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font:400 58px/1 Georgia,serif;padding-bottom:6px;opacity:0;animation:fadeIn .7s ease .55s forwards;
+  background:linear-gradient(160deg,#f4dd8e,#d4af37 45%,#a9821f);-webkit-background-clip:text;
+  background-clip:text;color:transparent}
+#intro .wmk{font:700 19px/1 "Helvetica Neue",Arial,sans-serif;letter-spacing:.34em;color:var(--text2);
+  opacity:0;animation:fadeIn .7s ease .95s forwards}
+#intro .wmk b{color:var(--gold)}
+@keyframes draw{to{stroke-dashoffset:0}}
+@keyframes fadeIn{to{opacity:1}}
+@keyframes introOut{to{opacity:0;visibility:hidden}}
+.reveal{opacity:0;transform:translateY(16px);transition:opacity .7s ease,transform .7s ease}
+.reveal.in{opacity:1;transform:none}
+.inst{transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
+.inst:hover{transform:translateY(-3px);border-color:rgba(201,162,39,.42);
+  box-shadow:0 12px 32px rgba(0,0,0,.42),0 0 0 1px rgba(201,162,39,.15)}
+#wm{position:fixed;right:18px;bottom:76px;z-index:2;font:400 40px/1 Georgia,serif;color:var(--gold);
+  opacity:.06;pointer-events:none;user-select:none}
+
 @media (prefers-reduced-motion: reduce){
   #tape .rail{animation:none} .live .dot{animation:none} #logwrap .lt .cur{animation:none}
+  .brandmark .arc{animation:none} #intro{display:none} .reveal{opacity:1;transform:none}
+  .inst{transition:none}
 }
 </style>
 </head>
 <body data-palette="#c9a227,#21c96b,#e05e5e">
 <canvas id="rain"></canvas>
+<div id="intro" aria-hidden="true">
+  <div class="m">
+    <svg viewBox="0 0 116 116" width="116" height="116">
+      <defs><linearGradient id="isol" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#9945FF"/><stop offset="1" stop-color="#14F195"/></linearGradient></defs>
+      <circle class="ring" cx="58" cy="58" r="52" fill="none" stroke="#d4af37" stroke-width="2"/>
+      <path class="arc2" d="M58 6 a52 52 0 0 1 37 15.3" fill="none" stroke="url(#isol)" stroke-width="3" stroke-linecap="round"/>
+    </svg>
+    <div class="phi">φ</div>
+  </div>
+  <div class="wmk">F<b>Q</b> CAPITAL</div>
+</div>
+<div id="wm" aria-hidden="true">φ</div>
 <div id="app">
 
 <div id="bar">
   <div class="brand">
+    <svg class="brandmark" viewBox="0 0 32 32" aria-hidden="true">
+      <defs><linearGradient id="bmsol" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#9945FF"/><stop offset="1" stop-color="#14F195"/></linearGradient></defs>
+      <circle cx="16" cy="16" r="14" fill="none" stroke="#d4af37" stroke-width="1.5"/>
+      <path class="arc" d="M16 2 a14 14 0 0 1 9.9 4.1" fill="none" stroke="url(#bmsol)" stroke-width="2.4" stroke-linecap="round"/>
+      <text x="16" y="22.5" font-size="17" text-anchor="middle" fill="#d4af37" font-family="Georgia,serif">φ</text>
+    </svg>
     <span class="fq">F<b>Q</b> CAPITAL</span>
     <span class="sub">Fibonacci&nbsp;Quantum&nbsp;Framework</span>
   </div>
@@ -193,7 +243,7 @@ td:first-child,th:first-child{text-align:left}
   </div>
 </div>
 
-<div id="pitch">
+<div id="pitch" class="reveal">
   <div class="txt">
     <div class="eyebrow">Motor de señales · cripto perpetuos · en vivo</div>
     <h1>El algoritmo que ves operando es el producto.</h1>
@@ -209,9 +259,9 @@ td:first-child,th:first-child{text-align:left}
 
 <div id="tape"><div class="rail" id="rail"></div></div>
 
-<div id="grid"></div>
+<div id="grid" class="reveal"></div>
 
-<div id="logwrap">
+<div id="logwrap" class="reveal">
   <div class="lt"><h2>REGISTRO DE DECISIONES DEL MOTOR</h2><span class="cur"></span></div>
   <div style="font-size:10px;color:var(--muted);letter-spacing:.04em;margin:-2px 0 10px 2px">
     Transparencia total — el motor decide en tiempo real, sin retoque. Ese es el diferenciador.</div>
@@ -220,7 +270,7 @@ td:first-child,th:first-child{text-align:left}
 
 <details><summary>vista tabular</summary><div id="tbl"></div></details>
 
-<div id="access">
+<div id="access" class="reveal">
   <div class="hd">Cómo obtener acceso</div>
   <div class="steps">
     <div class="step"><div class="no">01 — Únete gratis</div><h3>Entra al bot en Telegram</h3>
@@ -233,7 +283,7 @@ td:first-child,th:first-child{text-align:left}
   <a class="cta gold" data-tg href="#" target="_blank" rel="noopener">Empezar gratis en Telegram →</a>
 </div>
 
-<div id="closer">
+<div id="closer" class="reveal">
   <h2>Empieza a recibir las señales.</h2>
   <p>Gratis en Telegram, sin tarjeta. El motor decide con la medida; tú operas.</p>
   <div class="acts">
@@ -403,7 +453,7 @@ function render(d){
     const st=d.symbols[s]; if(!st) continue;
     const P=id=>document.getElementById(id+"-"+s);
     if(st.price!=null){
-      P("p").textContent="$"+fmtP(st.price);
+      countUp(P("p"), st.price);
       // cambio 24h REAL sellado por el motor (ticker del venue, OKX). Fallback: cambio
       // sobre la ventana del sparkline (spark[0]->precio) si el 24h no llegó. Nunca el
       // poll-anterior (~3s), que daba siempre ~0.00%.
@@ -503,6 +553,29 @@ async function loop(){
   }catch(e){ if(!demoState) demoInit(); render(demoTick()); setMode(true); }
   setTimeout(loop, DEMO?1600:3000);
 }
+
+/* ---- count-up de precios (anima el número al actualizar) ---- */
+function countUp(el,to){
+  if(!el) return;
+  const cur=parseFloat((el.textContent||"").replace(/[^0-9.\-]/g,""));
+  if(!isFinite(cur)||cur<=0||_reduceMotion||Math.abs(to-cur)/(to||1)<3e-4){ el.textContent="$"+fmtP(to); return; }
+  const t0=performance.now(),from=cur,dur=500;
+  (function tick(t){const k=Math.min(1,(t-t0)/dur),e=1-Math.pow(1-k,3);
+    el.textContent="$"+fmtP(from+(to-from)*e); if(k<1)requestAnimationFrame(tick);})(t0);
+}
+
+/* ---- intro splash (se dibuja y se disuelve) + reveals al scroll ---- */
+(function(){ try{
+  const intro=document.getElementById("intro");
+  if(_reduceMotion){ if(intro)intro.remove(); }
+  else{ setTimeout(()=>{ if(intro)intro.remove(); }, 2300); }
+  const io=new IntersectionObserver((es)=>{es.forEach(en=>{ if(en.isIntersecting){
+    en.target.classList.add("in"); io.unobserve(en.target); }});},
+    {threshold:.12, rootMargin:"0px 0px -8% 0px"});
+  document.querySelectorAll(".reveal").forEach(el=>io.observe(el));
+}catch(e){ document.querySelectorAll(".reveal").forEach(el=>el.classList.add("in"));
+  const i=document.getElementById("intro"); if(i)i.remove(); } })();
+
 loop();
 </script>
 </body>
