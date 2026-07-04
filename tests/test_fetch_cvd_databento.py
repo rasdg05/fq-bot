@@ -62,3 +62,23 @@ def test_ts_unit_ms_y_ns():
     g_ms = fx.signed_bars(pd.DataFrame([{"ts_event": BASE_NS // 1_000_000, "size": 1, "side": "B"}]),
                           ts_unit="ms")
     assert g_ns.iloc[0]["ts"] == g_ms.iloc[0]["ts"]   # mismo bar por ambas rutas
+
+
+def test_ts_event_como_datetime_columna_o_indice():
+    # Databento .to_df(pretty_ts=True) devuelve ts_event como datetime (col o índice).
+    idx = pd.to_datetime([BASE_NS, BASE_NS + MIN], utc=True)
+    # como ÍNDICE (DatetimeIndex named ts_event)
+    di = pd.DataFrame({"size": [10, 4], "side": ["B", "A"]}, index=idx)
+    di.index.name = "ts_event"
+    gi = fx.signed_bars(di)
+    assert gi.iloc[0]["buy_vol"] == 10 and gi.iloc[0]["sell_vol"] == 4
+    # como COLUMNA datetime
+    dc = pd.DataFrame({"ts_event": idx, "size": [5, 8], "side": ["B", "A"]})
+    gc = fx.signed_bars(dc)
+    assert gc.iloc[0]["buy_vol"] == 5 and gc.iloc[0]["sell_vol"] == 8
+
+
+def test_falta_ts_col_da_error_claro():
+    import pytest
+    with pytest.raises(KeyError):
+        fx.signed_bars(pd.DataFrame({"size": [1], "side": ["B"]}))   # sin ts en col ni índice

@@ -42,7 +42,16 @@ BAR_MS = 300_000   # 5m, el bar del gate (fetch_cvd/validate_cvd_signed_flow)
 
 def _to_ms(ts, unit="auto"):
     """Serie de epoch -> ms (int64). Databento ts_event es NANOsegundos. 'auto' detecta por
-    magnitud (ns ~1e18, us ~1e15, ms ~1e12 en 2026); explícito ('ns'/'us'/'ms') si prefieres."""
+    magnitud (ns ~1e18, us ~1e15, ms ~1e12 en 2026); explícito ('ns'/'us'/'ms') si prefieres.
+    Acepta también datetime64 / strings de fecha (to_df(pretty_ts=True)) -> ns."""
+    ts = pd.Series(ts).reset_index(drop=True)
+    # datetime64 o strings de fecha -> ns epoch (int64), luego cae en la rama 'ns'/'auto'
+    if ts.dtype.kind == "M" or (ts.dtype == object and not pd.api.types.is_numeric_dtype(ts)):
+        # utc=True -> tz-aware UTC; tz_localize(None) -> naive UTC; astype int64 -> ns epoch.
+        # (Series.view murió en pandas 3.x; esta ruta es estable en 2.x y 3.x.)
+        dt = pd.to_datetime(ts, utc=True, errors="coerce").dt.tz_localize(None)
+        ts = dt.astype("int64")         # NaT -> iNaT (negativo grande) -> se filtra por ms>0
+        unit = "ns" if unit == "auto" else unit
     ts = pd.to_numeric(ts, errors="coerce")
     if unit == "ms":
         return ts.astype("int64")
@@ -59,12 +68,23 @@ def _to_ms(ts, unit="auto"):
 def signed_bars(df, bar_ms=BAR_MS, ts_col="ts_event", size_col="size", side_col="side",
                 buy_code="B", sell_code="A", ts_unit="auto"):
     """Trades de Databento -> DataFrame [ts, buy_vol, sell_vol] por barra `bar_ms` (ms epoch,
-    floor a la barra). PURA: sin red, sin archivo. Robusta a `side` como 'B'/'Bid'/'b' (toma
-    la 1ª letra en mayúscula). Los trades sin agresor ('N') no suman a ningún lado."""
+    floor a la barra). PURA: sin red, sin archivo. Robusta a `side` como 'B'/'Bid'/'b' (toma la
+    1ª letra en mayúscula), a `ts_event` como columna O como índice (Databento .to_df() suele
+    ponerlo de índice) y a ns/us/ms/datetime. Los trades sin agresor ('N') no suman a nada."""
+    # ts_event puede venir como columna o como índice (DatetimeIndex de to_df).
+    if ts_col in df.columns:
+        ts_raw = df[ts_col]
+    elif df.index.name == ts_col or df.index.dtype.kind == "M":
+        ts_raw = df.index
+    else:
+        raise KeyError("no encuentro '%s' ni como columna ni como índice" % ts_col)
+    # Construir POSICIONAL (.values) para no depender de índices alineados entre columnas.
     d = pd.DataFrame({
-        "ms": _to_ms(df[ts_col], ts_unit),
-        "size": pd.to_numeric(df[size_col], errors="coerce").fillna(0.0).astype(float),
-        "side": df[side_col].astype(str).str.strip().str.upper().str[:1],
+        "ms": _to_ms(ts_raw, ts_unit).to_numpy(),
+        "size": pd.to_numeric(pd.Series(df[size_col]).reset_index(drop=True),
+                              errors="coerce").fillna(0.0).astype(float).to_numpy(),
+        "side": pd.Series(df[side_col]).reset_index(drop=True).astype(str)
+                  .str.strip().str.upper().str[:1].to_numpy(),
     })
     d = d[d["ms"] > 0]
     d["ts"] = (d["ms"] // bar_ms) * bar_ms
