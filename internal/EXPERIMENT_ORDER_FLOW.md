@@ -38,15 +38,33 @@ df.to_parquet("mnq_trades.parquet")
 libro completo MBO/L3 (eso es lo caro): **con `trades` basta para el CVD**. Escalas a MBP-10
 sólo si el CVD pasa y quieres OFI multi-nivel.
 
+### Oro (MGC/GC) — la decisión measure-first
+
+El order-flow informativo vive en el contrato **líquido**: para oro es **GC (full-size, 100 oz)**,
+no el micro. MGC y GC son el mismo oro (arbitraje los amarra), pero el micro tiene tape más
+delgado. Entonces: **jala el CVD de GC, ejecutas en MGC.** (Igual para índices: CVD de NQ/ES,
+ejecución en MNQ.) Pull:
+
+```python
+q_gold = dict(dataset="GLBX.MDP3", schema="trades", symbols=["GC.c.0"],   # GC líquido
+              stype_in="continuous", start="2021-01-01", end="2026-01-01")
+print(c.metadata.get_cost(**q_gold))
+c.timeseries.get_range(**q_gold).to_df().to_parquet("gc_trades.parquet")
+```
+
 ## Correr el gate (mi parte, ya lista)
 
 ```bash
-# 1) trades CME -> schema CVD del bot (agrega 5m, firma por aggressor)
-python tools/fetch_cvd_databento.py --in mnq_trades.parquet --out data/cme/cvd_MNQ.parquet
+# 1) trades CME -> schema CVD del bot (agrega 5m, firma por aggressor).
+#    --notional recomendado en TradFi (size*price -> comparable entre instrumentos).
+python tools/fetch_cvd_databento.py --in mnq_trades.parquet --out data/cme/cvd_MNQ.parquet --notional
+python tools/fetch_cvd_databento.py --in gc_trades.parquet  --out data/cme/cvd_GC.parquet  --notional
 
-# 2) el gate PROBADO, sin cambios, ahora sobre MNQ
+# 2) el gate PROBADO, sin cambios, ahora sobre TradFi (CVD de GC contra entradas de oro)
 python tools/validate_cvd_signed_flow.py \
     --cube <cube_TradFi_MNQ>.parquet --cvd data/cme/cvd_MNQ.parquet --tp tp4 --horizon 576
+python tools/validate_cvd_signed_flow.py \
+    --cube <cube_TradFi_MGC>.parquet --cvd data/cme/cvd_GC.parquet  --tp tp4 --horizon 576
 ```
 
 Lee el veredicto: `DSR(confirmado) ... EDGE REAL ✓ (cablear)` o `NO pasa`. Igual que en cripto.
