@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>FQ · Manual de uso & FAQ — 2026</title>
+<style>
+  @page { size: 794px 1123px; margin: 0; }            /* A4 portrait @96dpi */
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root{
+    --bg:#050705; --panel:#0a0f0b; --panel2:#0c1310; --ink:#e9e7e0; --muted:#8a9690;
+    --gold:#d4af37; --goldline:#c9a227; --sol1:#9945FF; --sol2:#14F195;
+    --line:rgba(201,162,39,.22); --red:#c96a4a; --green:#14F195;
+  }
+  body{ background:#000; color:var(--ink);
+    font-family:"Georgia","Times New Roman",serif; -webkit-font-smoothing:antialiased; }
+  .mono{ font-family:ui-monospace,"SF Mono","Menlo","Consolas",monospace; }
+  .page{ width:794px; height:1123px; background:
+      radial-gradient(120% 80% at 50% -10%, #0b120d 0%, var(--bg) 55%, #020402 100%);
+    position:relative; padding:70px 68px; overflow:hidden; page-break-after:always; }
+  /* hairline dorado del marco institucional */
+  .page::before{ content:""; position:absolute; inset:26px; border:1px solid var(--line);
+    pointer-events:none; }
+  .kick{ font-family:ui-monospace,monospace; font-size:11px; letter-spacing:.38em;
+    text-transform:uppercase; color:var(--gold); font-weight:600; }
+  h1{ font-size:52px; line-height:1.05; letter-spacing:-.015em; margin:14px 0; font-weight:600; }
+  h2{ font-size:33px; line-height:1.12; letter-spacing:-.01em; font-weight:600; margin-top:4px; }
+  h3{ font-size:19px; letter-spacing:.01em; margin:0 0 4px; color:var(--gold); font-weight:600; }
+  .sub{ font-size:18px; color:var(--muted); font-style:italic; line-height:1.5; }
+  .rule{ height:2px; width:70px; margin:20px 0;
+    background:linear-gradient(90deg,var(--sol1),var(--sol2)); border-radius:2px; }
+  p{ font-size:16.5px; line-height:1.62; color:#d7d5cd; }
+  .lead{ font-size:19px; color:var(--ink); }
+  ul{ margin:12px 0 0 20px; } li{ font-size:16px; line-height:1.55; margin-bottom:9px; color:#d7d5cd; }
+  b,strong{ color:#fff; font-weight:600; } .g{ color:var(--gold); } .s{ color:var(--sol2); }
+  .rd{ color:var(--red); }
+  .foot{ position:absolute; left:68px; right:68px; bottom:52px; display:flex;
+    justify-content:space-between; font-family:ui-monospace,monospace; font-size:10.5px;
+    letter-spacing:.18em; text-transform:uppercase; color:#6f7d75;
+    border-top:1px solid var(--line); padding-top:14px; }
+  .num{ position:absolute; left:0; right:0; text-align:center; bottom:50px;
+    font-family:ui-monospace,monospace; font-size:11px; color:var(--goldline); letter-spacing:.1em; }
+  /* tarjetas / paneles */
+  .card{ background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--line); border-radius:12px; padding:20px 22px; }
+  .grid2{ display:flex; gap:16px; margin-top:20px; }
+  .grid2 > *{ flex:1; }
+  .stat{ font-size:40px; font-weight:600; letter-spacing:-.02em; }
+  .lbl{ font-family:ui-monospace,monospace; font-size:11px; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--muted); }
+  table{ width:100%; border-collapse:collapse; margin-top:18px; }
+  td,th{ text-align:left; padding:11px 8px; border-bottom:1px solid var(--line); font-size:15px; }
+  th{ font-family:ui-monospace,monospace; font-size:10.5px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--muted); font-weight:600; }
+  .pill{ display:inline-block; font-family:ui-monospace,monospace; font-size:10px;
+    letter-spacing:.12em; text-transform:uppercase; padding:4px 10px; border-radius:20px;
+    border:1px solid var(--line); color:var(--gold); }
+  .pill.sol{ border-color:rgba(20,241,149,.4); color:var(--sol2); }
+  /* señal anotada */
+  .sig{ background:#060a07; border:1px solid var(--line); border-radius:12px; padding:22px 24px;
+    font-family:ui-monospace,monospace; font-size:14px; line-height:1.85; color:#cfe8dc; }
+  .sig .h{ color:var(--gold); } .sig .b{ color:#fff; } .sig .up{ color:var(--sol2); }
+  .ann{ display:flex; gap:12px; margin-top:10px; font-family:"Georgia",serif; }
+  .ann .k{ color:var(--gold); font-weight:600; min-width:96px; font-size:14px; }
+  .ann .t{ color:#c7c5bd; font-size:14px; line-height:1.5; }
+  .q{ color:var(--gold); font-weight:600; font-size:16.5px; margin-top:16px; }
+  .a{ font-size:15.5px; color:#cbc9c1; line-height:1.55; margin-top:3px; }
+  .cover-mark{ width:104px; height:104px; display:block; margin-bottom:30px; }
+  .big{ position:absolute; right:60px; top:300px; font-family:ui-monospace,monospace;
+    font-size:190px; color:rgba(201,162,39,.05); line-height:1; }
+  .disc{ font-size:11.5px; color:#6f7d75; line-height:1.5; font-style:italic; }
+</style></head><body>
+
+<!-- 1 · COVER -->
+<section class="page" style="display:flex;flex-direction:column;justify-content:center">
+  <svg class="cover-mark" viewBox="0 0 100 100">
+    <defs><linearGradient id="sol" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#9945FF"/><stop offset="1" stop-color="#14F195"/></linearGradient></defs>
+    <circle cx="50" cy="50" r="45" fill="none" stroke="#c9a227" stroke-width="1.5"/>
+    <path d="M50 5 a45 45 0 0 1 39 66" fill="none" stroke="url(#sol)" stroke-width="3" stroke-linecap="round"/>
+    <text x="50" y="68" text-anchor="middle" font-family="Georgia,serif" font-size="52" fill="#d4af37">φ</text>
+  </svg>
+  <div class="kick">FQ Capital · Perpetuos cripto · Measure-first</div>
+  <h1>Manual de uso<br>&amp; preguntas frecuentes</h1>
+  <div class="rule"></div>
+  <p class="lead" style="max-width:560px">Cómo leer una señal como un escritorio institucional:
+  R-múltiplos, gestión de riesgo y por qué un buen sistema <span class="g">apaga</span> más
+  señales de las que enciende.</p>
+  <div style="margin-top:44px" class="lbl">Guía v1 · 2026 · La disciplina es el producto</div>
+  <div class="foot"><span>FQ · φ = 1.618</span><span>Medido o al cementerio</span></div>
+</section>
+
+<!-- 2 · QUÉ ES FQ -->
+<section class="page">
+  <div class="kick">01 · Qué es FQ</div>
+  <h2>Un motor de señales, no un gurú</h2>
+  <div class="rule"></div>
+  <p class="lead">FQ es un <b>sistema cuantitativo de señales</b> sobre perpetuos cripto
+  (SOL, BTC, ETH y más). No es un influencer con “calls”, ni una promesa de hacerte rico.
+  Es un motor que mide estructura de mercado y order-flow, y solo habla cuando el
+  <span class="g">edge está medido</span>.</p>
+  <div class="grid2" style="margin-top:26px">
+    <div class="card"><div class="lbl">Lo que SÍ es</div>
+      <ul style="margin-top:10px">
+        <li>Señales con niveles exactos: entrada, stop, y objetivos en <b>R-múltiplos</b>.</li>
+        <li>Un filtro de calidad que <b>descarta</b> lo que no cumple el régimen.</li>
+        <li>Transparencia: si algo falla el test, lo decimos.</li>
+      </ul></div>
+    <div class="card"><div class="lbl">Lo que NO es</div>
+      <ul style="margin-top:10px">
+        <li>No es asesoría financiera ni gestión de tu dinero.</li>
+        <li>No promete ganancias — promete <b>método</b>.</li>
+        <li>No es humo: cada afirmación está medida o no se dice.</li>
+      </ul></div>
+  </div>
+  <p style="margin-top:28px"><span class="g">La regla de la casa:</span> <b>medida o muerte.</b>
+  Ninguna estrategia toca el producto sin pasar un test estadístico honesto (deflated Sharpe,
+  validación cruzada y probabilidad de sobreajuste). Lo que llega a tu Telegram ya sobrevivió eso.</p>
+  <div class="foot"><span>FQ · Manual de uso</span><span>φ = 1.618</span></div>
+  <div class="num">02</div>
+</section>
+
+<!-- 3 · CÓMO FUNCIONA -->
+<section class="page">
+  <div class="kick">02 · Cómo funciona (sin humo)</div>
+  <h2>Por qué el silencio también es señal</h2>
+  <div class="rule"></div>
+  <p>Un mercado no siempre está “operable”. La mayoría de sistemas ignoran eso y disparan
+  siempre — y por eso sangran en régimen malo. FQ hace lo contrario: <b>mide el régimen</b>
+  y si no es óptimo, <span class="g">calla</span>. Menos señales, mejores señales.</p>
+  <div class="grid2" style="margin-top:24px">
+    <div class="card"><div class="stat g">1</div><div class="lbl" style="margin-top:6px">El motor mide</div>
+      <p style="font-size:14.5px;margin-top:8px">Estructura (pools, order blocks, FVG, niveles) +
+      order-flow firmado + régimen. Genera un “fire” candidato.</p></div>
+    <div class="card"><div class="stat g">2</div><div class="lbl" style="margin-top:6px">El filtro decide</div>
+      <p style="font-size:14.5px;margin-top:8px">Solo pasan las de calidad de régimen. El resto se
+      etiqueta y se degrada — no se te vende como oro.</p></div>
+    <div class="card"><div class="stat g">3</div><div class="lbl" style="margin-top:6px">Tú ejecutas</div>
+      <p style="font-size:14.5px;margin-top:8px">Recibes niveles exactos y gestión. El stop es
+      inmutable; el tamaño lo pones tú según tu cuenta.</p></div>
+  </div>
+  <h3 style="margin-top:30px">El gate estadístico (en simple)</h3>
+  <p>Antes de que una estrategia se “cablee”, se prueba contra tres jueces: <b class="g">DSR</b>
+  (¿el rendimiento sobrevive a haber probado muchas ideas?), <b class="g">CPCV</b> (¿aguanta
+  fuera de muestra, en cortes purgados?) y <b class="g">PBO</b> (¿la mejor idea in-sample se cae
+  out-of-sample?). Si no pasa los tres, va al cementerio. Sin excepción.</p>
+  <p class="disc" style="margin-top:20px">Traducción: no te mandamos lo que “se ve bien en el
+  gráfico”. Te mandamos lo que resistió el intento honesto de refutarlo.</p>
+  <div class="foot"><span>FQ · Measure-first</span><span>DSR · CPCV · PBO</span></div>
+  <div class="num">03</div>
+</section>
+
+<!-- 4 · TIERS -->
+<section class="page">
+  <div class="kick">03 · Los planes</div>
+  <h2>FREE vs VIP</h2>
+  <div class="rule"></div>
+  <p>Empiezas gratis y ves el motor trabajar. El VIP es el producto ejecutable completo:
+  la misma señal, pero con la gestión que cambia el resultado.</p>
+  <table>
+    <tr><th>&nbsp;</th><th>FREE</th><th>VIP</th></tr>
+    <tr><td>Señales del motor</td><td>Todas, etiquetadas</td><td class="g">Todas, con filtro de calidad</td></tr>
+    <tr><td>Objetivos</td><td>Solo TP1 (crudo)</td><td class="g">4 objetivos (TP1–TP4) + R</td></tr>
+    <tr><td>Gestión de la operación</td><td>—</td><td class="g">Break-even, parciales, trailing</td></tr>
+    <tr><td>Convicción &amp; tamaño</td><td>—</td><td class="g">Nivel de convicción + leverage sugerido</td></tr>
+    <tr><td>Confirmación de order-flow</td><td>—</td><td class="g">Insignias (CVD, funding a favor)</td></tr>
+    <tr><td>Comandos (/analisis · /niveles · /pspace)</td><td>—</td><td class="g">Incluidos</td></tr>
+    <tr><td>Filtro de calidad de régimen</td><td>Informativo</td><td class="g">Aplicado</td></tr>
+  </table>
+  <div class="grid2" style="margin-top:26px">
+    <div class="card"><span class="pill">FREE</span>
+      <p style="margin-top:12px;font-size:15px">El escaparate honesto: ves cada disparo del motor,
+      etiquetado según pase o no el filtro. Ideal para <b>ganar confianza</b> antes de pagar.</p></div>
+    <div class="card"><span class="pill sol">VIP</span>
+      <p style="margin-top:12px;font-size:15px">El instrumento completo: 4 TPs, gestión activa y
+      mucho <b>menos drawdown</b>. La diferencia entre “ver” y <b>operar bien</b>.</p></div>
+  </div>
+  <div class="foot"><span>FQ · Planes</span><span>Free → VIP</span></div>
+  <div class="num">04</div>
+</section>
+
+<!-- 5 · CÓMO LEER UNA SEÑAL -->
+<section class="page">
+  <div class="kick">04 · Manual · Anatomía</div>
+  <h2>Cómo leer una señal VIP</h2>
+  <div class="rule"></div>
+  <div class="sig">
+    <span class="h">──────────────────────────────</span><br>
+    │ FQ · Señal VIP · SOL/USDT<br>
+    CALIDAD DISCOUNT · colapso · 4 confluencias<br>
+    <span class="up">◆ ORDER-FLOW CONFIRMADO</span><br>
+    <span class="up">◆ FUNDING A FAVOR</span><br>
+    <span class="h">──────────────────────────────</span><br>
+    ▲ <span class="b">LONG</span>        Convicción <span class="b">Alta</span><br><br>
+    Entry    <span class="b">$145.00</span><br>
+    Stop     <span class="b">$142.00</span>    Riesgo Medio<br><br>
+    TP1 $148.00 · R 1.0   TP2 $151.00 · R 2.0<br>
+    TP3 $154.00 · R 3.0   TP4 $157.00 · R 4.0<br>
+    <span class="h">──────────────────────────────</span><br>
+    Leverage 5x · Size 5% · SL inmutable.
+  </div>
+  <div style="margin-top:20px">
+    <div class="ann"><div class="k">Dirección</div><div class="t">▲ LONG / ▼ SHORT + nivel de <b>convicción</b> (Exploratoria → Extrema).</div></div>
+    <div class="ann"><div class="k">Insignias ◆</div><div class="t">Confirmaciones medidas: order-flow a favor, funding favorable. Subset de mayor edge.</div></div>
+    <div class="ann"><div class="k">Entry / Stop</div><div class="t">Precio de entrada y stop. <b>El stop es inmutable</b> — define tu 1R (riesgo por operación).</div></div>
+    <div class="ann"><div class="k">TP1–TP4 · R</div><div class="t">Objetivos en múltiplos de R. TP2 = 2×lo arriesgado. Escala salidas, no todo en uno.</div></div>
+    <div class="ann"><div class="k">Leverage / Size</div><div class="t">Sugerencia según convicción. Es el <b>% de cuenta</b> lo que manda, no el tope del exchange.</div></div>
+  </div>
+  <div class="foot"><span>FQ · Anatomía de la señal</span><span>R = riesgo por trade</span></div>
+  <div class="num">05</div>
+</section>
+
+<!-- 6 · GESTIÓN DE RIESGO -->
+<section class="page">
+  <div class="kick">05 · Gestión de riesgo</div>
+  <h2>El tamaño es la estrategia</h2>
+  <div class="rule"></div>
+  <p>La mayoría no muere por malas señales — muere por <b>mal tamaño</b>. Aquí el marco que
+  usamos, y que el VIP trae calculado.</p>
+  <div class="grid2" style="margin-top:22px">
+    <div class="card"><div class="lbl">Riesgo por trade</div><div class="stat g" style="margin-top:6px">~3.6%</div>
+      <p style="font-size:14px;margin-top:6px">Medio-Kelly: sano. Doblarlo (6.9%) engorda la cola,
+      no el centro — más varianza, no más probabilidad de ganar.</p></div>
+    <div class="card"><div class="lbl">Leverage real</div><div class="stat g" style="margin-top:6px">~7x</div>
+      <p style="font-size:14px;margin-top:6px">Con stops de ~0.5%, 3.6% de riesgo ≈ 7x. El “25x”
+      del exchange es el <b>tope</b>, no la apuesta. Usarlo completo es ruina.</p></div>
+  </div>
+  <ul style="margin-top:26px">
+    <li><b>El stop es sagrado.</b> Define tu 1R y no lo muevas. Todo el sistema asume que lo respetas.</li>
+    <li><b>Dosifica.</b> Arriesga un % fijo y pequeño por operación; deja que el edge se exprese en volumen de trades, no en una apuesta heroica.</li>
+    <li><b>Escala las salidas.</b> Toma parciales en TP1/TP2 y deja correr el resto — así conviertes aciertos en R real.</li>
+    <li><b>El drawdown es el precio de entrada.</b> Aun con edge, rachas rojas existen. El tamaño correcto es el que te deja seguir en pie.</li>
+  </ul>
+  <div class="foot"><span>FQ · Gestión</span><span>Medio-Kelly ≈ 3.6%</span></div>
+  <div class="num">06</div>
+</section>
+
+<!-- 7 · FAQ -->
+<section class="page">
+  <div class="kick">06 · Preguntas frecuentes</div>
+  <h2>FAQ</h2>
+  <div class="rule"></div>
+  <div class="q">¿Esto es asesoría financiera?</div>
+  <div class="a">No. FQ es una herramienta educativa y de señales. Tú tomas tus decisiones y gestionas tu propio capital y riesgo.</div>
+  <div class="q">¿Garantizan ganancias?</div>
+  <div class="a">No, y desconfía de quien lo haga. Prometemos <b>método medido</b>: un edge estadístico validado. El resultado depende del régimen, tu ejecución y tu gestión.</div>
+  <div class="q">¿Por qué a veces pasan días sin señales?</div>
+  <div class="a">Porque el régimen no fue óptimo. El silencio es el filtro haciendo su trabajo — te ahorra las operaciones que un sistema indisciplinado te habría cobrado en pérdidas.</div>
+  <div class="q">¿Qué es la insignia “funding a favor”?</div>
+  <div class="a">Una confirmación medida: cuando el funding del perpetuo acompaña a la dirección de la señal (subset con mejor probabilidad, validado). No cambia el nivel de riesgo — es un plus de convicción.</div>
+  <div class="q">¿Puedo empezar en FREE?</div>
+  <div class="a">Sí. Es el lugar correcto para empezar: ves el motor operar en vivo, aprendes a leer las señales con este manual, y pasas a VIP cuando quieras las 4 TPs y la gestión.</div>
+  <div class="q">¿Cuánto capital necesito?</div>
+  <div class="a">El que puedas permitirte arriesgar con disciplina. El sistema es agnóstico al tamaño: lo que importa es respetar el % de riesgo por operación.</div>
+  <div class="foot"><span>FQ · FAQ</span><span>La disciplina es el producto</span></div>
+  <div class="num">07</div>
+</section>
+
+<!-- 8 · CIERRE / CTA -->
+<section class="page" style="display:flex;flex-direction:column;justify-content:center">
+  <div class="big mono">φ</div>
+  <div class="kick">Empieza</div>
+  <h1 style="font-size:44px">Ve el motor.<br>Luego opéralo.</h1>
+  <div class="rule"></div>
+  <p class="lead" style="max-width:560px">Entra al canal gratis y observa cada disparo, etiquetado
+  con honestidad. Cuando quieras las 4 TPs, la gestión y las insignias de order-flow, el VIP
+  te espera.</p>
+  <div class="grid2" style="margin-top:34px;max-width:600px">
+    <div class="card"><span class="pill">FREE</span><p style="margin-top:10px;font-size:15px">
+      Telegram · señales en vivo, etiquetadas. <b>Gratis.</b></p></div>
+    <div class="card"><span class="pill sol">VIP</span><p style="margin-top:10px;font-size:15px">
+      El instrumento completo. <b class="s">Opera como el escritorio.</b></p></div>
+  </div>
+  <p class="disc" style="margin-top:40px;max-width:600px">FQ no es asesoría financiera. Trading de
+  derivados con apalancamiento implica riesgo de pérdida total. Opera solo capital que puedas
+  permitirte perder. Rendimientos pasados no garantizan resultados futuros.</p>
+  <div class="foot"><span>FQ Capital · φ = 1.618</span><span>Medido o al cementerio</span></div>
+</section>
+
+</body></html>
