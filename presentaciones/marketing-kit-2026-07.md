@@ -27,9 +27,6 @@ posiciona a FQ como el escritorio disciplinado. Genera el reflejo “estos sí s
 Un solo activo sirve doble: **lead-magnet TOF** y **manual de onboarding** del FREE. Bajo costo,
 alto impacto — ya está construido.
 
-> Segundo lead-magnet opcional más adelante: “**El cementerio**: 5 estrategias que se veían
-> geniales y reprobaron el gate.” Refuerza la honestidad y es catnip para el público quant.
-
 ---
 
 ## 2. Video de onboarding — guion + estructura (≈60s, vertical 9:16)
@@ -98,14 +95,7 @@ away (rejected), only a few pass through into a warm focused beam, symbolic of a
 filter, minimal, high contrast, no text
 ```
 
-**D · “El cementerio” (honestidad / segundo lead-magnet)** (16:9)
-```
-[STYLE] — faint grey ghost-candlesticks dissolving into ash and drifting off-frame in a
-black void, one lone gold ember remaining in focus, somber and elegant, cinematic haze,
-symbolic of failed strategies retired, no text
-```
-
-**E · Fondo social / story (9:16, para quemar copy encima)**
+**D · Fondo social / story (9:16, para quemar copy encima)**
 ```
 [STYLE] — full-bleed dark field with a soft golden phi watermark low-opacity center, gentle
 Solana data-rain on the right edge, generous clean space for text overlay, subtle grain
