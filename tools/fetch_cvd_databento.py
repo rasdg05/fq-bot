@@ -66,7 +66,7 @@ def _to_ms(ts, unit="auto"):
 
 
 def signed_bars(df, bar_ms=BAR_MS, ts_col="ts_event", size_col="size", side_col="side",
-                buy_code="B", sell_code="A", ts_unit="auto"):
+                buy_code="B", sell_code="A", ts_unit="auto", notional=False, price_col="price"):
     """Trades de Databento -> DataFrame [ts, buy_vol, sell_vol] por barra `bar_ms` (ms epoch,
     floor a la barra). PURA: sin red, sin archivo. Robusta a `side` como 'B'/'Bid'/'b' (toma la
     1ª letra en mayúscula), a `ts_event` como columna O como índice (Databento .to_df() suele
@@ -78,18 +78,29 @@ def signed_bars(df, bar_ms=BAR_MS, ts_col="ts_event", size_col="size", side_col=
         ts_raw = df.index
     else:
         raise KeyError("no encuentro '%s' ni como columna ni como índice" % ts_col)
+    # Peso del trade: contratos (size) o notional (size*price). Notional = comparable entre
+    # instrumentos (MGC/GC/MNQ) y consistente con el CVD de cripto (que ya era notional).
+    size = pd.to_numeric(pd.Series(df[size_col]).reset_index(drop=True),
+                         errors="coerce").fillna(0.0).astype(float).to_numpy()
+    if notional:
+        if price_col not in df.columns:
+            raise KeyError("--notional pide la columna de precio '%s' (no está en el export)" % price_col)
+        px = pd.to_numeric(pd.Series(df[price_col]).reset_index(drop=True),
+                           errors="coerce").fillna(0.0).astype(float).to_numpy()
+        weight = size * px
+    else:
+        weight = size
     # Construir POSICIONAL (.values) para no depender de índices alineados entre columnas.
     d = pd.DataFrame({
         "ms": _to_ms(ts_raw, ts_unit).to_numpy(),
-        "size": pd.to_numeric(pd.Series(df[size_col]).reset_index(drop=True),
-                              errors="coerce").fillna(0.0).astype(float).to_numpy(),
+        "w": weight,
         "side": pd.Series(df[side_col]).reset_index(drop=True).astype(str)
                   .str.strip().str.upper().str[:1].to_numpy(),
     })
     d = d[d["ms"] > 0]
     d["ts"] = (d["ms"] // bar_ms) * bar_ms
-    d["buy_vol"] = np.where(d["side"] == buy_code, d["size"], 0.0)
-    d["sell_vol"] = np.where(d["side"] == sell_code, d["size"], 0.0)
+    d["buy_vol"] = np.where(d["side"] == buy_code, d["w"], 0.0)
+    d["sell_vol"] = np.where(d["side"] == sell_code, d["w"], 0.0)
     g = (d.groupby("ts", as_index=False)[["buy_vol", "sell_vol"]].sum()
          .sort_values("ts").reset_index(drop=True))
     return g
@@ -112,11 +123,15 @@ def main(argv=None):
     p.add_argument("--buy", default="B", help="código de buy-aggressor (default Databento 'B')")
     p.add_argument("--sell", default="A", help="código de sell-aggressor (default 'A')")
     p.add_argument("--ts-unit", default="auto", choices=["auto", "ns", "us", "ms"])
+    p.add_argument("--notional", action="store_true",
+                   help="CVD en notional (size*price) en vez de contratos — recomendado en TradFi")
+    p.add_argument("--price-col", default="price")
     a = p.parse_args(argv)
 
     raw = _load(a.inp)
     bars = signed_bars(raw, ts_col=a.ts_col, size_col=a.size_col, side_col=a.side_col,
-                       buy_code=a.buy.upper()[:1], sell_code=a.sell.upper()[:1], ts_unit=a.ts_unit)
+                       buy_code=a.buy.upper()[:1], sell_code=a.sell.upper()[:1], ts_unit=a.ts_unit,
+                       notional=a.notional, price_col=a.price_col)
     if bars.empty:
         print("⚠️  0 barras — revisa columnas/side-encoding del export.", file=sys.stderr)
         return 1

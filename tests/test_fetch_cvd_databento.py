@@ -82,3 +82,14 @@ def test_falta_ts_col_da_error_claro():
     import pytest
     with pytest.raises(KeyError):
         fx.signed_bars(pd.DataFrame({"size": [1], "side": ["B"]}))   # sin ts en col ni índice
+
+
+def test_notional_pesa_por_precio():
+    rows = pd.DataFrame([{"ts_event": BASE_NS, "size": 2, "side": "B", "price": 2700.0},
+                         {"ts_event": BASE_NS, "size": 1, "side": "A", "price": 2700.0}])
+    g = fx.signed_bars(rows, notional=True)
+    assert g.iloc[0]["buy_vol"] == 2 * 2700.0 and g.iloc[0]["sell_vol"] == 1 * 2700.0
+    # sin precio + notional -> error claro
+    import pytest
+    with pytest.raises(KeyError):
+        fx.signed_bars(pd.DataFrame([{"ts_event": BASE_NS, "size": 1, "side": "B"}]), notional=True)
