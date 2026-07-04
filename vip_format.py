@@ -189,7 +189,8 @@ def build_vip_signal(field, decision_report, tf_label=None, tf_id=None, pair=Non
     )
 
 
-def build_free_signal(decision_report, pair=None, kl_passed=True, audience="free"):
+def build_free_signal(decision_report, pair=None, kl_passed=True, audience="free",
+                      funding_favorable=False):
     """Señal del tier FREE: el fire CRUDO del motor con SOLO TP1, sin boosts ni P_master.
     Muestra TODOS los fires (el escaparate ruidoso: 'el motor nunca duerme') y los ETIQUETA
     según pasen o no el filtro de calidad.
@@ -198,6 +199,12 @@ def build_free_signal(decision_report, pair=None, kl_passed=True, audience="free
     audience="vip"  -> la MISMA señal cruda entregada al canal VIP como DESCARTE informativo
                        (FQ_FREE_TO_VIP): sigue etiquetada 'Señal FREE' (regla de RasDG:
                        una free puede llegar a VIP, siempre marcada), SIN upsell (ya pagan).
+
+    funding_favorable -> el funding acompaña a la dirección (umbral direccional validado
+                       in-cube; lo decide el bot con FQ_FREE_FUNDING): añade el badge
+                       'FUNDING A FAVOR — probabilidad reforzada'. Es el "poquito mejor de
+                       probabilidad" honesto para el free; NO sube tier ni añade TPs (sigue
+                       cruda) y NO es marcador VIP -> `free_leak_guard()` la deja pasar.
 
     REGLA DE SEGURIDAD: este builder JAMÁS emite formato VIP (ni TP2-4, ni convicción, ni
     boosts, ni leverage) — y `free_leak_guard()` lo verifica antes de CADA envío a FREE."""
@@ -224,12 +231,20 @@ def build_free_signal(decision_report, pair=None, kl_passed=True, audience="free
               "  Dosifica chico — es la señal cruda del motor.\n"
               "  ⭐ VIP: filtro de calidad + 4 TPs + mucho menos drawdown.\n")
     sym_tags = "#FQ #" + (pair_label or PAIR).split(":")[0].replace("/", "") + " #FREE"
+    # Badge de FUNDING favorable a la dirección (FQ_FREE_FUNDING): el único sesgo de
+    # probabilidad que ve el free. "" cuando no -> señal byte-idéntica. NO es marcador VIP
+    # (free_leak_guard lo deja pasar); a diferencia del VIP, va con explicación en llano
+    # porque el free necesita el "qué significa para mí".
+    funding_line = ""
+    if funding_favorable:
+        funding_line = "  {d} FUNDING A FAVOR — probabilidad reforzada\n".format(d=GLYPHS["premium"])
     return (
         "{rule}\n"
         "  {bar} {product} · Señal FREE · {pair}\n"
         "  {when}\n"
         "{rule}\n"
         "  {arrow} {side}\n"
+        "{funding_line}"
         "\n"
         "  Entry    ${entry:.2f}\n"
         "  Stop     ${sl:.2f}\n"
@@ -241,7 +256,7 @@ def build_free_signal(decision_report, pair=None, kl_passed=True, audience="free
         "  {tags}"
     ).format(
         rule=RULE, bar=GLYPHS["title"], product=PRODUCT, pair=pair_label, when=when,
-        arrow=arrow, side=side, entry=levels["entry"], sl=levels["sl"],
+        arrow=arrow, side=side, funding_line=funding_line, entry=levels["entry"], sl=levels["sl"],
         tp1=levels["tp1"], rr1=levels.get("rr_tp1", 0), tag=tag, footer=footer, tags=sym_tags)
 
 
