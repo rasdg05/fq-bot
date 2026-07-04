@@ -2910,9 +2910,13 @@ def _free_broadcast(decision_report, pair, kl_passed):
     2) FQ_FREE_TO_VIP=1: el descarte del filtro llega a los VIP etiquetado 'Señal FREE'."""
     if not (VIP_FORMAT_AVAILABLE and vip_format is not None):
         return
+    # Sesgo de funding para el free (FQ_FREE_FUNDING): UNA sola consulta reutilizada por los
+    # dos envíos (free y free->vip). OFF -> False -> señal byte-idéntica. Defensivo por dentro.
+    fav = _funding_favorable(decision_report, pair) if FREE_FUNDING_ENABLED else False
     if FREE_TIER_ENABLED:
         try:
-            msg = vip_format.build_free_signal(decision_report, pair=pair, kl_passed=kl_passed)
+            msg = vip_format.build_free_signal(decision_report, pair=pair, kl_passed=kl_passed,
+                                               funding_favorable=fav)
             if vip_format.free_leak_guard(msg):
                 # include_admin=False: el admin ya recibe el stream VIP; sin duplicados.
                 broadcast_to_subscribers(msg, include_admin=False, tiers=["free"])
@@ -2923,7 +2927,7 @@ def _free_broadcast(decision_report, pair, kl_passed):
     if FREE_TO_VIP and not kl_passed:
         try:
             msg = vip_format.build_free_signal(decision_report, pair=pair, kl_passed=False,
-                                               audience="vip")
+                                               audience="vip", funding_favorable=fav)
             if vip_format.free_leak_guard(msg):   # consistencia: también etiquetada y sin formato VIP
                 broadcast_to_subscribers(msg)
         except Exception as e:
@@ -2991,29 +2995,41 @@ def _poc_vip_kwargs(report, exchange, symbol_inst, tf_id, pair, entry_price):
 FUNDING_BOOST_ENABLED = os.environ.get("FQ_FUNDING_BOOST", "0").strip().lower() in ("1", "true", "yes")
 FUNDING_LONG_PCTL = 0.5    # umbral validado del lado long (pctl <=)
 FUNDING_SHORT_PCTL = 0.7   # umbral validado del lado short (pctl >=)
+# Mismo mecanismo de funding direccional, pero para el tier FREE (FQ_FREE_FUNDING): marca
+# la señal cruda con "FUNDING A FAVOR" cuando el funding acompaña a la dirección — el
+# "poquito mejor de probabilidad" que pidió RasDG (2026-07-03). Gate propio, independiente
+# del VIP, default OFF -> señal FREE byte-idéntica. NO sube tier ni añade TPs (sigue cruda):
+# es solo un sesgo de probabilidad honesto sobre el MISMO umbral validado in-cube.
+FREE_FUNDING_ENABLED = os.environ.get("FQ_FREE_FUNDING", "0").strip().lower() in ("1", "true", "yes")
 
 
-def _funding_vip_kwargs(report, pair):
-    """kwarg de convicción VIP por funding favorable A LA DIRECCIÓN: long con funding
-    frío (pctl<=0.5) o short con funding caliente (pctl>=0.7). Reusa
-    motor_paper.funding_pctl_live (OKX público, cache 1h). {} si flag off / sin dato /
-    zona neutra -> señal byte-idéntica. Defensivo: JAMÁS rompe el broadcast."""
-    if not FUNDING_BOOST_ENABLED:
-        return {}
+def _funding_favorable(report, pair):
+    """¿El funding acompaña a la dirección? Predicado PURO (sin flag): long con funding
+    frío (pctl<=0.5) o short con funding caliente (pctl>=0.7) — el umbral direccional
+    validado in-cube. Reusa motor_paper.funding_pctl_live (OKX público, cache 1h). False si
+    sin dato / dirección rara / zona neutra. Defensivo: JAMÁS lanza. Única fuente de verdad
+    del sesgo; lo consumen el boost VIP (_funding_vip_kwargs) y el badge FREE (_free_broadcast)."""
     try:
         d = (report or {}).get("direction")
         if d not in ("long", "short"):
-            return {}
+            return False
         import motor_paper
         _rate, pctl = motor_paper.funding_pctl_live(pair)
         if pctl is None:
-            return {}
-        if (d == "long" and pctl <= FUNDING_LONG_PCTL) or \
-           (d == "short" and pctl >= FUNDING_SHORT_PCTL):
-            return {"funding_boost": True}
+            return False
+        return (d == "long" and pctl <= FUNDING_LONG_PCTL) or \
+               (d == "short" and pctl >= FUNDING_SHORT_PCTL)
     except Exception as e:
-        log.debug("[funding-boost] %s", e)
-    return {}
+        log.debug("[funding-favorable] %s", e)
+        return False
+
+
+def _funding_vip_kwargs(report, pair):
+    """kwarg de convicción VIP por funding favorable A LA DIRECCIÓN (FQ_FUNDING_BOOST).
+    {} si flag off / no favorable -> señal byte-idéntica. Defensivo: JAMÁS rompe el broadcast."""
+    if not FUNDING_BOOST_ENABLED:
+        return {}
+    return {"funding_boost": True} if _funding_favorable(report, pair) else {}
 
 
 def _motor_admin_notify(sig, verdict, pos):
