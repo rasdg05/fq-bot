@@ -84,6 +84,18 @@ body{background:var(--bg);color:var(--text);
 #nnwrap .nnfoot{padding:9px 18px 13px;font-family:ui-monospace,monospace;font-size:9.5px;line-height:1.6;color:var(--muted);border-top:1px solid var(--line2)}
 #nnwrap .nnfoot b{color:var(--text2)}
 
+/* equity curve del fantasma VIP · 30 días */
+#eqwrap{margin-top:16px;border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}
+#eqwrap .eqhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:14px 18px 4px}
+#eqwrap .eqhead b{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);font-weight:700}
+#eqwrap .eqhead span{font-family:ui-monospace,monospace;font-size:9.5px;color:var(--muted);letter-spacing:.04em}
+#eqstats{display:flex;gap:20px;flex-wrap:wrap;padding:2px 18px 6px;font-family:ui-monospace,monospace}
+#eqstats .b{display:flex;flex-direction:column;gap:2px}
+#eqstats .s{font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+#eqstats .v{font-size:17px;font-weight:700;color:var(--up);line-height:1}
+#eqc{display:block;width:100%;height:clamp(200px,32vw,280px)}
+#eqwrap .eqfoot{padding:8px 18px 13px;font-family:ui-monospace,monospace;font-size:9px;line-height:1.6;color:var(--muted);border-top:1px solid var(--line2)}
+
 /* sección "cómo obtener acceso" */
 #access{margin-top:16px;border:1px solid var(--line2);border-radius:12px;background:var(--panel2);padding:20px 24px}
 #access .hd{font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:var(--gold);margin-bottom:16px}
@@ -259,12 +271,6 @@ td:first-child,th:first-child{text-align:left}
     <span class="sub">Fibonacci&nbsp;Quantum&nbsp;Framework</span>
   </div>
   <div class="solrule"></div>
-  <div class="meta">
-    <div class="m">Terminal<b>OPERACIONES · CRIPTO PERP</b></div>
-    <div class="m">Constante<b><span class="phi">φ</span> 1.6180339887</b></div>
-    <div class="m">Evaluación<b>POR VELA · 5M / 15M</b></div>
-    <div class="m">Disciplina<b>DSR &gt; 0.95 · CPCV · PBO</b></div>
-  </div>
   <div id="right">
     <a class="cta gold" data-tg href="#" target="_blank" rel="noopener">Solicitar acceso</a>
     <div class="live" id="mode"><span class="dot"></span><span id="modetxt">LIVE</span></div>
@@ -303,7 +309,12 @@ td:first-child,th:first-child{text-align:left}
   <div id="log"></div>
 </div>
 
-<details><summary>vista tabular</summary><div id="tbl"></div></details>
+<div id="eqwrap" class="reveal">
+  <div class="eqhead"><b>El fantasma del VIP · últimos 30 días</b><span>BTC · SOL · ETH · gestión de 4 TPs</span></div>
+  <div id="eqstats"></div>
+  <canvas id="eqc"></canvas>
+  <div class="eqfoot">Curva de equity en R sobre la cosecha (gestión: parcial en TP1 + breakeven). Fue un mes favorable — el registro <i>forward</i> en vivo es el juez final. No es promesa.</div>
+</div>
 
 <div id="access" class="reveal">
   <div class="hd">Cómo obtener acceso</div>
@@ -521,7 +532,7 @@ function render(d){
     P("cv").textContent=c.vetoed||0;P("cl").textContent=st.open||0;
   }
   renderTape(syms,d);
-  renderLog(d,syms);renderTable(d,syms);
+  renderLog(d,syms);
 }
 let _tapeX=0,_tapeLast=0;
 const _reduceMotion=matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -669,6 +680,39 @@ const INTRO_VIDEO="";
   window.addEventListener("resize",()=>{clearTimeout(cv._t);cv._t=setTimeout(resize,180);});
   try{new IntersectionObserver(es=>es.forEach(e=>{vis=e.isIntersecting;}),{threshold:0}).observe(cv);}catch(e){}
   function boot(){resize();if(!W||W<300){requestAnimationFrame(boot);return;}requestAnimationFrame(frame);}
+  requestAnimationFrame(boot);
+}catch(e){} })();
+
+/* ---- equity curve del fantasma VIP (últimos 30 días, gestionado) ---- */
+(function(){ try{
+  const D={"pts":[{"c":0.61,"w":1},{"c":1.22,"w":1},{"c":2.42,"w":1},{"c":3.82,"w":1},{"c":5.01,"w":1},{"c":8.59,"w":1},{"c":10.17,"w":1},{"c":11.6,"w":1},{"c":10.45,"w":0},{"c":9.3,"w":0},{"c":10.86,"w":1},{"c":12.29,"w":1},{"c":14.14,"w":1},{"c":17.97,"w":1},{"c":19.37,"w":1},{"c":19.96,"w":1},{"c":20.58,"w":1},{"c":21.34,"w":1},{"c":22.38,"w":1},{"c":23.55,"w":1},{"c":24.15,"w":1},{"c":26.4,"w":1},{"c":26.94,"w":1},{"c":28.0,"w":1},{"c":26.85,"w":0}],"n":25,"wr":88,"tot":26.8,"wins":22,"losses":3};
+  const st=document.getElementById("eqstats");
+  if(st) st.innerHTML=[["+"+D.tot+"R","P&L · 30 días"],[D.n,"señales"],[D.wr+"%","win-rate"],[D.wins+" · "+D.losses,"W · L"]]
+    .map(a=>'<div class="b"><span class="v">'+a[0]+'</span><span class="s">'+a[1]+'</span></div>').join("");
+  const cv=document.getElementById("eqc"); if(!cv) return;
+  const ctx=cv.getContext("2d"); let W,H,DPR,prog=0;
+  const cs=getComputedStyle(document.documentElement);
+  const UP=cs.getPropertyValue("--up").trim()||"#21c96b", DN=cs.getPropertyValue("--dn").trim()||"#e05e5e";
+  const pts=D.pts, n=pts.length;
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    const padL=40,padR=44,padT=16,padB=14;
+    const cmax=Math.max.apply(null,pts.map(p=>p.c).concat(1)), cmin=Math.min.apply(null,pts.map(p=>p.c).concat(0));
+    const xs=i=>padL+(W-padL-padR)*i/(n-1), ys=v=>H-padB-(H-padT-padB)*(v-cmin)/(cmax-cmin);
+    ctx.font="9px ui-monospace,monospace";ctx.textAlign="right";
+    for(let g=0;g<=3;g++){const v=cmin+(cmax-cmin)*g/3,y=ys(v);ctx.strokeStyle="rgba(255,255,255,0.05)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(W-padR,y);ctx.stroke();ctx.fillStyle="rgba(150,150,140,.55)";ctx.fillText((v>=0?"+":"")+v.toFixed(0)+"R",padL-4,y+3);}
+    const y0=ys(0);ctx.strokeStyle="rgba(150,150,140,.28)";ctx.setLineDash([2,3]);ctx.beginPath();ctx.moveTo(padL,y0);ctx.lineTo(W-padR,y0);ctx.stroke();ctx.setLineDash([]);
+    const shown=Math.max(2,Math.floor(n*prog));
+    ctx.beginPath();ctx.moveTo(xs(0),y0);for(let i=0;i<shown;i++)ctx.lineTo(xs(i),ys(pts[i].c));ctx.lineTo(xs(shown-1),y0);ctx.closePath();
+    const g=ctx.createLinearGradient(0,padT,0,H-padB);g.addColorStop(0,"rgba(33,201,107,.22)");g.addColorStop(1,"rgba(33,201,107,0)");ctx.fillStyle=g;ctx.fill();
+    ctx.strokeStyle=UP;ctx.lineWidth=2;ctx.beginPath();for(let i=0;i<shown;i++){const x=xs(i),y=ys(pts[i].c);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();
+    for(let i=0;i<shown;i++){ctx.fillStyle=pts[i].w?UP:DN;ctx.beginPath();ctx.arc(xs(i),ys(pts[i].c),pts[i].w?1.7:2.6,0,6.28);ctx.fill();}
+    if(shown>=n){ctx.fillStyle=UP;ctx.font="700 12px ui-monospace,monospace";ctx.textAlign="left";ctx.fillText("+"+pts[n-1].c.toFixed(0)+"R",xs(n-1)+6,ys(pts[n-1].c)+4);}
+  }
+  function frame(){ if(prog<1){prog=Math.min(1,prog+0.02);draw();requestAnimationFrame(frame);} else draw(); }
+  function resize(){DPR=Math.min(window.devicePixelRatio||1,2);W=cv.clientWidth;H=cv.clientHeight;if(!W||!H)return;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);draw();}
+  window.addEventListener("resize",()=>{clearTimeout(cv._t);cv._t=setTimeout(resize,180);});
+  function boot(){resize();if(!W||W<200){requestAnimationFrame(boot);return;}prog=0;requestAnimationFrame(frame);}
   requestAnimationFrame(boot);
 }catch(e){} })();
 
