@@ -74,6 +74,16 @@ body{background:var(--bg);color:var(--text);
 #pitch p{font-size:12px;line-height:1.62;color:var(--text2);max-width:64ch}
 #pitch .acts{display:flex;gap:11px;flex-wrap:wrap;align-items:center}
 
+/* red neuronal: flujo de decisión del motor */
+#nnwrap{margin-top:16px;border:1px solid var(--line);border-radius:12px;background:#060907;overflow:hidden}
+#nnwrap .nnhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:14px 18px 6px}
+#nnwrap .nnhead b{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);font-weight:700}
+#nnwrap .nnhead span{font-family:ui-monospace,monospace;font-size:9.5px;color:var(--muted);letter-spacing:.04em}
+#nnwrap .nnhead i{font-style:normal} #nnwrap .nnhead .up{color:var(--up)} #nnwrap .nnhead .dn{color:var(--dn)}
+#nn{display:block;width:100%;height:clamp(280px,42vw,380px)}
+#nnwrap .nnfoot{padding:9px 18px 13px;font-family:ui-monospace,monospace;font-size:9.5px;line-height:1.6;color:var(--muted);border-top:1px solid var(--line2)}
+#nnwrap .nnfoot b{color:var(--text2)}
+
 /* sección "cómo obtener acceso" */
 #access{margin-top:16px;border:1px solid var(--line2);border-radius:12px;background:var(--panel2);padding:20px 24px}
 #access .hd{font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:var(--gold);margin-bottom:16px}
@@ -274,6 +284,12 @@ td:first-child,th:first-child{text-align:left}
     <a class="cta gold" data-tg href="#" target="_blank" rel="noopener">Únete gratis en Telegram →</a>
     <a class="cta ghost" data-tg href="#" target="_blank" rel="noopener">Planes VIP</a>
   </div>
+</div>
+
+<div id="nnwrap" class="reveal">
+  <div class="nnhead"><b>Flujo de decisión del motor</b><span>features → etapas → señal · <i class="up">verde peso +</i> · <i class="dn">rojo peso −</i></span></div>
+  <canvas id="nn"></canvas>
+  <div class="nnfoot"><b>Representación del pipeline</b> — no es una red neuronal entrenada: es el mapa del motor de reglas (φ·w·h·κ + KL + order-flow), con su gate <b>DSR·CPCV·PBO</b> como última capa. Los inputs son features reales; la salida, la decisión real.</div>
 </div>
 
 <div id="tape"><div class="rail" id="rail"></div></div>
@@ -607,6 +623,54 @@ const INTRO_VIDEO="";
   document.querySelectorAll(".reveal").forEach(el=>io.observe(el));
 }catch(e){ document.querySelectorAll(".reveal").forEach(el=>el.classList.add("in"));
   const i=document.getElementById("intro"); if(i)i.remove(); } })();
+
+/* ---- red neuronal: flujo de decisión del motor (representación honesta) ---- */
+(function(){ try{
+  const cv=document.getElementById("nn"); if(!cv) return;
+  const ctx=cv.getContext("2d"); let W,H,DPR;
+  const cs=getComputedStyle(document.documentElement);
+  const UP=cs.getPropertyValue("--up").trim()||"#21c96b", DN=cs.getPropertyValue("--dn").trim()||"#e05e5e",
+        GOLD=cs.getPropertyValue("--gold").trim()||"#d4af37";
+  function rgba(hex,a){const h=hex.replace("#","");const n=parseInt(h.length===3?h.replace(/(.)/g,"$1$1"):h,16);
+    return "rgba("+((n>>16)&255)+","+((n>>8)&255)+","+(n&255)+","+a+")";}
+  const INP=['φ','w_clock','h_factor','masas','irrev·KL','CVD_imb','killzone','pd_zone','rsi6','rsi12','rsi24','funding','bias_4h','bias_1h','confluencia','sweep','MSS','breaker','OTE','displace'];
+  const OUT=['FIRE LONG','FIRE SHORT','VETO','SUPRIME KL','P<min'];
+  const LAY=[{n:INP.length,nm:'INPUT',sb:'features'},{n:20,nm:'HL1',sb:'estructura'},{n:18,nm:'HL2',sb:'liquidez'},
+    {n:18,nm:'HL3',sb:'régimen KL'},{n:16,nm:'HL4',sb:'order-flow'},{n:14,nm:'HL5',sb:'convicción κ'},
+    {n:11,nm:'HL6',sb:'gate DSR·CPCV·PBO'},{n:OUT.length,nm:'OUTPUT',sb:'decisión'}];
+  let WE=[];
+  function layout(){
+    const padL=76,padR=94,padT=24,padB=14, gw=(W-padL-padR)/(LAY.length-1);
+    LAY.forEach((L,li)=>{L.x=padL+gw*li;const us=H-padT-padB,gap=Math.min(us/(L.n+1),15),y0=(H-gap*(L.n-1))/2;
+      L.nd=[];for(let i=0;i<L.n;i++)L.nd.push({x:L.x,y:y0+gap*i,a:0});});
+    WE=[];for(let li=0;li<LAY.length-1;li++){const A=LAY[li].n,B=LAY[li+1].n,w=[];
+      for(let i=0;i<A;i++){const r=[];for(let j=0;j<B;j++){const s=Math.sin((i+1)*12.9898+(j+1)*78.233+li*37.17)*43758.5453;r.push((s-Math.floor(s))*2-1);}w.push(r);}WE.push(w);}
+  }
+  let wave=0,last=0,vis=true;
+  function frame(now){ if(!vis){requestAnimationFrame(frame);return;}
+    const dt=Math.min((now-last)/16.67,3);last=now;wave=(wave+dt*0.011)%1.4;const wx=76+wave*(W-170);
+    ctx.globalCompositeOperation="source-over";ctx.fillStyle="#060907";ctx.fillRect(0,0,W,H);
+    LAY.forEach(L=>{const near=1-Math.min(Math.abs(L.x-wx)/120,1);L.nd.forEach(nu=>nu.a=Math.max(nu.a*Math.pow(.9,dt),near));});
+    ctx.globalCompositeOperation="lighter";
+    for(let li=0;li<LAY.length-1;li++){const A=LAY[li].nd,B=LAY[li+1].nd,w=WE[li],mx=(LAY[li].x+LAY[li+1].x)/2,fire=1-Math.min(Math.abs(mx-wx)/110,1);
+      for(let i=0;i<A.length;i++)for(let j=0;j<B.length;j++){const wt=w[i][j],mg=Math.abs(wt),a=(0.10+0.16*mg)*(0.55+2.1*fire);if(a<0.03)continue;
+        ctx.strokeStyle=rgba(wt>0?UP:DN,a);ctx.lineWidth=0.5+mg*0.85;ctx.beginPath();ctx.moveTo(A[i].x,A[i].y);ctx.lineTo(B[j].x,B[j].y);ctx.stroke();}}
+    LAY.forEach(L=>L.nd.forEach(nu=>{const r=1.4+nu.a*1.9;ctx.fillStyle="rgba(228,238,250,"+(0.5+0.5*nu.a)+")";ctx.beginPath();ctx.arc(nu.x,nu.y,r,0,6.28);ctx.fill();}));
+    ctx.globalCompositeOperation="source-over";ctx.textAlign="left";ctx.font="700 8.5px ui-monospace,monospace";
+    LAY.forEach(L=>{ctx.fillStyle=rgba(GOLD,.85);ctx.fillText(L.nm,L.x-5,13);ctx.fillStyle="rgba(150,160,150,.62)";ctx.font="7px ui-monospace,monospace";ctx.fillText(L.sb,L.x-5,H-3);ctx.font="700 8.5px ui-monospace,monospace";});
+    ctx.textAlign="right";ctx.font="6.5px ui-monospace,monospace";ctx.fillStyle="rgba(120,190,160,.8)";
+    LAY[0].nd.forEach((nu,i)=>ctx.fillText(INP[i]||"",nu.x-6,nu.y+2.3));
+    ctx.textAlign="left";ctx.font="700 8.5px ui-monospace,monospace";
+    LAY[LAY.length-1].nd.forEach((nu,i)=>{ctx.fillStyle=i===0?UP:i===1?DN:"rgba(200,205,195,.85)";ctx.fillText(OUT[i]||"",nu.x+8,nu.y+3);});
+    requestAnimationFrame(frame);
+  }
+  function resize(){DPR=Math.min(window.devicePixelRatio||1,2);W=cv.clientWidth;H=cv.clientHeight;if(!W||!H)return;
+    cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);layout();}
+  window.addEventListener("resize",()=>{clearTimeout(cv._t);cv._t=setTimeout(resize,180);});
+  try{new IntersectionObserver(es=>es.forEach(e=>{vis=e.isIntersecting;}),{threshold:0}).observe(cv);}catch(e){}
+  function boot(){resize();if(!W||W<300){requestAnimationFrame(boot);return;}requestAnimationFrame(frame);}
+  requestAnimationFrame(boot);
+}catch(e){} })();
 
 loop();
 </script>

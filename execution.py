@@ -92,10 +92,14 @@ class Account:
 @dataclass
 class GovernorConfig:
     max_risk_frac: float = 0.0025        # 0.25% por trade (arranque bajo)
-    max_daily_loss_frac: float = 0.04    # corta el día al -4% (regla de DD)
+    max_daily_loss_frac: float = 0.04    # corta el día al -4% (regla de DD diaria)
     max_open_positions: int = 3
     max_total_risk_frac: float = 0.02    # riesgo simultáneo total
     kill_switch: bool = False            # freno global (drift/DD/manual)
+    max_drawdown_frac: float = 0.0       # halt pico-a-valle (0 = OFF). El mecanismo de
+                                         # SUPERVIVENCIA: con 28% WR las rachas malas son
+                                         # brutales; si el equity cae este % desde su pico,
+                                         # deja de abrir (preserva capital). 0 -> byte-idéntico.
 
 
 class RiskGovernor:
@@ -110,6 +114,9 @@ class RiskGovernor:
         c = self.cfg
         if c.kill_switch:
             return {"approved": False, "risk_frac": 0.0, "reason": "kill-switch activo"}
+        if c.max_drawdown_frac > 0 and account.drawdown_frac() >= c.max_drawdown_frac:
+            return {"approved": False, "risk_frac": 0.0,
+                    "reason": f"drawdown {account.drawdown_frac():.2%} >= tope {c.max_drawdown_frac:.0%} (halt supervivencia)"}
         if account.day_pnl_frac() <= -c.max_daily_loss_frac:
             return {"approved": False, "risk_frac": 0.0,
                     "reason": f"pérdida diaria {account.day_pnl_frac():.2%} <= -{c.max_daily_loss_frac:.0%}"}

@@ -1,0 +1,250 @@
+<section class="stage">
+  <div class="hud top">
+    <div class="brandline"><span class="dot"></span> FQ · CEREBRO EN VIVO · 13 PARES</div>
+    <div class="counters" id="counters"></div>
+  </div>
+
+  <canvas id="c"></canvas>
+
+  <div class="legend">
+    <span><i style="background:#14F195"></i> vivo · VIP (BTC·SOL·ETH)</span>
+    <span><i style="background:#d4af37"></i> forward (BNB)</span>
+    <span><i style="background:#c94c4c"></i> cementerio (LINK)</span>
+    <span><i style="background:#3a4a40"></i> solo cosecha · sin gate (8)</span>
+  </div>
+  <div class="honest">3 vivos · 1 midiendo · 1 al cementerio · 8 cosecha cruda. <b>Medida o muerte.</b></div>
+
+  <div class="ticker" id="ticker"></div>
+  <div class="focus" id="focus"></div>
+</section>
+
+<script>
+const C=document.getElementById('c'), X=C.getContext('2d');
+const GOLD='#d4af37',MINT='#14F195',VIOL='#9945FF',RED='#c94c4c',INK='#e9e7e0',MUT='#8a9690';
+let W,H,DPR;
+function resize(){DPR=Math.min(window.devicePixelRatio||1,2);const r=C.getBoundingClientRect();
+  W=r.width;H=r.height;C.width=W*DPR;C.height=H*DPR;X.setTransform(DPR,0,0,DPR,0,0);layout();}
+const PAIRS=['BTC','SOL','ETH','BCH','BNB','LINK','ADA','AVAX','DOGE','DOT','LTC','TRX','XRP'];
+// La VERDAD del gate (MEMORY/ESTADO.md 2026-06-30). Medida o muerte.
+const TIER={BTC:'live',SOL:'live',ETH:'live',BNB:'measure',LINK:'fail',
+  BCH:'harvest',ADA:'harvest',AVAX:'harvest',DOGE:'harvest',DOT:'harvest',LTC:'harvest',TRX:'harvest',XRP:'harvest'};
+const TCOL={live:MINT,measure:GOLD,fail:RED,harvest:'#3a4a40'};
+// nodos de decisión por par (la cascada real del motor)
+const NODES=['G1','G2','G3','G4','φ','w','h','M','P','κ','KL','CVD','◆'];
+// aristas de la cascada (índices en NODES): gates en cadena, términos → P, P→κ, →KL→CVD→◆
+const EDGES=[[0,1],[1,2],[2,3],[3,4],[3,5],[3,6],[3,7],[4,8],[5,8],[6,8],[7,8],[8,9],[9,10],[10,11],[11,12]];
+const CASCADE=[0,1,2,3,4,5,6,7,8,9,10,11,12]; // orden de encendido
+
+let clusters=[], brain=null, interLinks=[];
+const PHI=137.5*Math.PI/180;
+
+function layout(){
+  clusters=[]; interLinks=[];
+  const cx=W/2, cy=H/2;
+  const R=Math.min(W,H)*0.05;          // radio local del cúmulo
+  const spread=Math.min(W,H)*0.115;    // separación de la espiral (galaxia que respira)
+  // núcleo: el cerebro MEMORY/
+  const bnodes=['ÍNDICE','CONST','DECIS','CEMENT','ESTADO','GATE','ROLES'];
+  brain={cx,cy,nodes:bnodes.map((t,i)=>{const a=i/bnodes.length*Math.PI*2;const rr=(i===0?0:34);
+    return{x:cx+Math.cos(a)*rr,y:cy+Math.sin(a)*rr,r:i===0?6:4,label:t,lit:0,base:VIOL};})};
+  // 13 cúmulos en espiral áurea (galaxia)
+  PAIRS.forEach((p,i)=>{
+    const rad=spread*Math.sqrt(i+2.4);
+    const ang=i*PHI;
+    const ccx=cx+Math.cos(ang)*rad, ccy=cy+Math.sin(ang)*rad;
+    const nodes=NODES.map((nl,j)=>{
+      // layout local: gates en pequeño arco, términos alrededor, decisión al borde
+      const la=(j/NODES.length)*Math.PI*2 + i*0.6;
+      const lr=R*(0.35+0.6*(j/NODES.length));
+      return{x:ccx+Math.cos(la)*lr,y:ccy+Math.sin(la)*lr,r:(nl==='◆'?4.5:nl==='P'?4:2.6),
+             label:nl,lit:0,base:MINT,cluster:i};
+    });
+    clusters.push({cx:ccx,cy:ccy,pair:p,tier:TIER[p],nodes,firing:false,decision:null,decT:0,amb:Math.random()*6.28});
+    // link inter-cúmulo: el nodo KL de cada par → núcleo (régimen compartido)
+    interLinks.push({a:nodes[10],b:brain.nodes[5],ph:Math.random()});
+    interLinks.push({a:nodes[12],b:brain.nodes[2],ph:Math.random()});
+  });
+}
+
+let particles=[], events=[], counts={fire:0,veto:0,supr:0}, focusPair=null, focusT=0;
+function fireCluster(ci){
+  const cl=clusters[ci]; if(cl.firing) return;
+  // COSECHA: inerte (datos sin gate) — no dispara jamás
+  if(cl.tier==='harvest') return;
+  // CEMENTERIO: pulso rojo tenue, nunca un fire verde
+  if(cl.tier==='fail'){ cl.nodes.forEach(n=>{if(Math.random()<0.3)n.lit=0.5;});
+    cl.decision={col:RED,txt:'✗ 3/4 gates'}; cl.decT=performance.now(); return; }
+  cl.firing=true;
+  const roll=Math.random();
+  // measure (forward): más selectivo aún; live: cadencia normal
+  const outcome = cl.tier==='measure'
+    ? (roll<0.10?'fire': roll<0.35?'veto': roll<0.60?'supr':'below')
+    : (roll<0.16?'fire': roll<0.42?'veto': roll<0.66?'supr':'below');
+  // enciende la cascada con partículas escalonadas
+  let delay=0;
+  const litOrder=[];
+  for(let k=0;k<EDGES.length;k++){
+    const [a,b]=EDGES[k];
+    // corta la cascada si el outcome falla antes (veto ~ tras gates; supr ~ en KL)
+    if(outcome==='veto' && a>=8) break;
+    if(outcome==='below' && a>=9) break;
+    if(outcome==='supr' && a>=11) break;
+    particles.push({cl:ci,a:cl.nodes[a],b:cl.nodes[b],t:0,delay,sp:0.045+Math.random()*0.02,
+                    col: k>=11?GOLD:MINT});
+    delay+=2.2;
+  }
+  setTimeout(()=>{
+    cl.firing=false;
+    let col=MUT,txt='midiendo',dec=null;
+    const dir=Math.random()<0.5?'SHORT':'LONG';
+    if(outcome==='fire'){col=MINT;txt='FIRE '+dir;counts.fire++;dec={col:MINT,txt:'◆ '+dir};}
+    else if(outcome==='veto'){col=RED;txt='veto killzone';counts.veto++;dec={col:RED,txt:'✕ veto'};}
+    else if(outcome==='supr'){col=GOLD;txt='suprimido KL';counts.supr++;dec={col:GOLD,txt:'~ KL'};}
+    else {txt='P<min';}
+    cl.decision=dec; cl.decT=performance.now();
+    if(outcome!=='below'){
+      events.unshift({p:cl.pair,txt,col,t:performance.now()});
+      if(events.length>7)events.pop();
+    }
+    if(outcome==='fire'){ // contramemoria audita los fires
+      cl.audit=performance.now();
+      focusPair=ci; focusT=performance.now();
+    }
+  }, delay*30+400);
+}
+
+let last=0;
+function frame(now){
+  const dt=Math.min((now-last)/16.67,3); last=now;
+  X.clearRect(0,0,W,H);
+  // glow de fondo radial
+  const g=X.createRadialGradient(W/2,H/2,0,W/2,H/2,Math.max(W,H)*0.6);
+  g.addColorStop(0,'rgba(153,69,255,0.05)');g.addColorStop(0.5,'rgba(20,241,149,0.015)');g.addColorStop(1,'rgba(5,7,5,0)');
+  X.fillStyle=g;X.fillRect(0,0,W,H);
+
+  // aristas intra-cúmulo (tenues) + ambiente
+  X.lineWidth=1;
+  clusters.forEach((cl,ci)=>{
+    cl.amb+=0.02*dt;
+    EDGES.forEach(([a,b])=>{const na=cl.nodes[a],nb=cl.nodes[b];
+      X.strokeStyle='rgba(35,50,42,0.55)';X.beginPath();X.moveTo(na.x,na.y);X.lineTo(nb.x,nb.y);X.stroke();});
+  });
+  // inter-links al cerebro (más tenues, con shimmer)
+  interLinks.forEach(l=>{l.ph+=0.01*dt;const al=0.06+0.05*Math.sin(l.ph);
+    X.strokeStyle='rgba(153,69,255,'+al.toFixed(3)+')';X.lineWidth=0.8;
+    X.beginPath();X.moveTo(l.a.x,l.a.y);X.lineTo(l.b.x,l.b.y);X.stroke();});
+
+  // partículas viajando (el firing)
+  X.lineWidth=1.5;
+  for(let i=particles.length-1;i>=0;i--){const pt=particles[i];
+    if(pt.delay>0){pt.delay-=dt;continue;}
+    pt.t+=pt.sp*dt;
+    const a=pt.a,b=pt.b, t=Math.min(pt.t,1);
+    const x=a.x+(b.x-a.x)*t, y=a.y+(b.y-a.y)*t;
+    // estela
+    X.strokeStyle=pt.col+'66';X.beginPath();X.moveTo(a.x,a.y);X.lineTo(x,y);X.stroke();
+    // cabeza glow
+    X.fillStyle=pt.col;X.shadowColor=pt.col;X.shadowBlur=8;
+    X.beginPath();X.arc(x,y,2.4,0,6.28);X.fill();X.shadowBlur=0;
+    a.lit=Math.max(a.lit,0.8); if(t>=1){b.lit=1;particles.splice(i,1);}
+  }
+
+  // nodos de cada cúmulo
+  clusters.forEach((cl,ci)=>{
+    const amb=0.18+0.12*Math.sin(cl.amb);
+    const tc=TCOL[cl.tier];
+    const idleCol = cl.tier==='harvest'?'#1c261f' : cl.tier==='fail'?'#3a2225':'#2a3a30';
+    cl.nodes.forEach(n=>{
+      n.lit*=Math.pow(0.94,dt);
+      const active = n.lit>0.5 && cl.tier!=='harvest' && cl.tier!=='fail';
+      const col = active ? (n.label==='◆'&&cl.decision?cl.decision.col:tc) : idleCol;
+      X.fillStyle=col;
+      if(active){X.shadowColor=col;X.shadowBlur=10*n.lit;}
+      const rr = cl.tier==='harvest'? n.r*0.8 : n.r*(1+n.lit*0.5);
+      X.globalAlpha = cl.tier==='harvest'?0.6:1;
+      X.beginPath();X.arc(n.x,n.y,rr,0,6.28);X.fill();X.shadowBlur=0;X.globalAlpha=1;
+    });
+    // etiqueta del par (color por TIER = la verdad del gate)
+    const decFresh = cl.decision && (now-cl.decT)<2200;
+    const nameCol = decFresh?cl.decision.col : (cl.tier==='harvest'?'rgba(120,134,128,0.5)':tc);
+    X.fillStyle=nameCol; X.font='700 10px ui-monospace,monospace';X.textAlign='center';
+    X.fillText(cl.pair, cl.cx, cl.cy-Math.min(W,H)*0.052);
+    const sub = cl.tier==='live'?'VIP ✓' : cl.tier==='measure'?'forward' : cl.tier==='fail'?'cementerio' : 'cosecha';
+    X.fillStyle = decFresh?cl.decision.col : (cl.tier==='harvest'?'rgba(90,104,98,0.5)':tc+'cc');
+    X.font='8px ui-monospace,monospace';
+    X.fillText(decFresh?cl.decision.txt:sub, cl.cx, cl.cy-Math.min(W,H)*0.052+11);
+    // anillo de auditoría contramemoria (en fires recientes)
+    if(cl.audit && (now-cl.audit)<1600){const a=(now-cl.audit)/1600;
+      X.strokeStyle=GOLD+Math.floor((1-a)*180).toString(16).padStart(2,'0');
+      X.lineWidth=1.2;X.beginPath();X.arc(cl.cx,cl.cy,Math.min(W,H)*0.03*(0.6+a),0,6.28);X.stroke();}
+  });
+
+  // el cerebro núcleo
+  brain.nodes.forEach((n,i)=>{n.lit*=Math.pow(0.95,dt);
+    X.fillStyle = i===0? VIOL : (n.lit>0.4?VIOL:'#3a2a55');
+    if(i===0||n.lit>0.4){X.shadowColor=VIOL;X.shadowBlur=i===0?16:8;}
+    X.beginPath();X.arc(n.x,n.y,n.r*(1+n.lit*0.4),0,6.28);X.fill();X.shadowBlur=0;});
+  X.fillStyle='rgba(153,69,255,0.85)';X.font='700 9px ui-monospace,monospace';X.textAlign='center';
+  X.fillText('MEMORY/', brain.cx, brain.cy-46);
+  X.fillStyle='rgba(138,150,144,0.6)';X.font='8px ui-monospace,monospace';
+  X.fillText('el cerebro', brain.cx, brain.cy+52);
+
+  // HUD counters
+  document.getElementById('counters').innerHTML=
+    `<span class="ct mint">3 vivos</span><span class="ct gold">1 forward</span><span class="ct red">1 cementerio</span><span class="ct" style="color:#6a7a70">8 cosecha</span>`;
+  // ticker
+  document.getElementById('ticker').innerHTML=events.map(e=>
+    `<span class="tk"><b style="color:${e.col}">${e.p}</b> ${e.txt}</span>`).join('');
+  // focus (el fire más reciente = mini lectura)
+  const fc=document.getElementById('focus');
+  if(focusPair!=null && (now-focusT)<4000){const cl=clusters[focusPair];
+    fc.style.opacity=1;
+    fc.innerHTML=`<div class="fp">${cl.pair}/USDT · FIRE</div>
+      <div class="fm">p_master 2.0x ≥ 1.8 · κ jala bucket · KL bajo ✓ · CVD confirma</div>
+      <div class="fa">contramemoria: n bajo el piso → <b>cuarentena forward</b></div>`;
+  } else fc.style.opacity=0;
+
+  requestAnimationFrame(frame);
+}
+
+// motor de eventos: cada ~700ms una vela de algún par "cierra"
+setInterval(()=>{fireCluster(Math.floor(Math.random()*clusters.length));}, 720);
+window.addEventListener('resize',resize);
+resize();
+// arranque escalonado
+for(let i=0;i<5;i++) setTimeout(()=>fireCluster(Math.floor(Math.random()*13)), i*300);
+requestAnimationFrame(frame);
+</script>
+
+<style>
+  *{box-sizing:border-box;}
+  .stage{ position:relative; width:100%; height:100vh; min-height:560px; background:#050705; overflow:hidden;
+    font-family:Georgia,serif; }
+  canvas{ position:absolute; inset:0; width:100%; height:100%; display:block; }
+  .hud{ position:absolute; z-index:5; left:0; right:0; display:flex; justify-content:space-between;
+    padding:16px 20px; pointer-events:none; }
+  .hud.top{ top:0; }
+  .brandline{ font-family:ui-monospace,monospace; font-size:12px; letter-spacing:.24em; color:#e9e7e0;
+    text-transform:uppercase; display:flex; align-items:center; gap:9px; }
+  .dot{ width:8px;height:8px;border-radius:50%;background:#14F195;box-shadow:0 0 8px #14F195;
+    animation:pulse 1.4s infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .counters{ display:flex; gap:12px; font-family:ui-monospace,monospace; font-size:12px; }
+  .ct{ font-weight:700; } .ct.mint{color:#14F195;} .ct.red{color:#c94c4c;} .ct.gold{color:#d4af37;}
+  .legend{ position:absolute; z-index:5; left:20px; bottom:18px; display:flex; gap:14px; flex-wrap:wrap;
+    font-family:ui-monospace,monospace; font-size:10.5px; color:#8a9690; pointer-events:none; }
+  .legend span{ display:flex; align-items:center; gap:5px; }
+  .legend i{ width:9px; height:9px; border-radius:50%; display:inline-block; }
+  .honest{ position:absolute; z-index:5; left:20px; bottom:44px; font-family:ui-monospace,monospace;
+    font-size:11px; color:#8a9690; pointer-events:none; } .honest b{ color:#d4af37; }
+  .ticker{ position:absolute; z-index:5; right:20px; bottom:16px; display:flex; flex-direction:column;
+    gap:4px; align-items:flex-end; font-family:ui-monospace,monospace; font-size:11px; color:#8a9690;
+    pointer-events:none; max-width:46%; }
+  .tk{ opacity:.9; } .tk b{ font-weight:700; }
+  .focus{ position:absolute; z-index:5; left:50%; top:64px; transform:translateX(-50%); text-align:center;
+    transition:opacity .4s; opacity:0; pointer-events:none; }
+  .fp{ font-family:ui-monospace,monospace; font-size:14px; color:#14F195; font-weight:700; letter-spacing:.08em; }
+  .fm{ font-family:ui-monospace,monospace; font-size:11px; color:#c4cec8; margin-top:4px; }
+  .fa{ font-family:ui-monospace,monospace; font-size:10.5px; color:#d4af37; margin-top:3px; font-style:italic; }
+  .fa b{ color:#d4af37; }
+</style>
