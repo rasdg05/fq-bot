@@ -178,3 +178,16 @@ El gate previno dos overfits (umbral KL, score p_master). Measure-first funcion�
   n suficiente: BTC-CVD es real-direccional pero estadísticamente **marginal** (cableado OFF).
 - **Ganancia:** de "underpowered/sin veredicto" a "medido: 0.875". La extensión convirtió una
   incógnita en un número honesto. SOL en extensión (mismo procedimiento, pendiente).
+
+## GATE-H · ¿ML (GBM/red neuronal) mejora el motor? (petición RasDG: "¿vale algo?")
+> Se entrenó un LightGBM regularizado sobre los 20 features pre-decisión del cube (scorers,
+> qt_*, field_*) para predecir pnl_r, y se comparó OOS contra el p_master hecho a mano.
+
+- **Walk-forward 4 ventanas:** GBM Spearman OOS **−0.022** vs p_master **+0.019**. GBM gana **0/4**.
+- Top-bot avgR OOS: GBM −0.062 (negativo) vs p_master +0.057.
+- **VEREDICTO: el ML NO mejora — hace daño.** El GBM sobreajusta 20 features en 13k señales y
+  generaliza PEOR que la fórmula simple. El edge no está en más modelo; está en los datos y la
+  ejecución (maker-fill 2×, GATE-E). Deep learning aquí = quant-envy → cementerio.
+- **Marketing honesto:** no vender "AI/deep learning" (humo). Vender: "hasta un LightGBM lo
+  probamos contra el score a mano y no mejoró — cada cosa pasa el gate o no entra."
+- top features que el GBM miró (inútilmente): qt_vol_score, field_pd_pct, scorer_total.
