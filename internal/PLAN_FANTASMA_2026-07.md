@@ -42,3 +42,23 @@ El que te mantiene vivo, en orden: (1) **riesgo bajo** (0.25% sobrevive; ≥0.5%
 Todo esto es cube BRUTO (etiquetas tp4, sin coste real). Antes de confiar 100%: **forward en vivo
 con el ledger real, neto de costos**, es el juez final. Lo cableado está OFF por default justo para
 medir A/B en vivo antes de graduar.
+
+## GATE-E · Ejecución: el multiplicador existencial (2026-07-05)
+`simulate()` (bt_engine) sobre el cube, $100 compuesto, riesgo 0.25%, tope 25x, por modo:
+
+| target | WR | grossR | TAKER $ | MAKER ent+TP $ |
+|---|---|---|---|---|
+| TP1 (default motor) | 48.5% | +0.141 | **$2 ☠** | $129 |
+| TP2 | 37.0% | +0.168 | $5 | $226 |
+| TP3 | 31.7% | +0.201 | $13 | $563 |
+| TP4 | 27.9% | +0.231 | $34 | **$1,302** |
+
+- **TP1 a mercado (taker) = RUINA.** El costo taker (~0.24R i/v) supera el edge bruto (+0.141R).
+- **Maker entrada+TP convierte −43% CAGR en +4%** — la ejecución decide entre ruina y sobrevivir.
+- **Paradoja del target cercano:** cuanto más cerca el TP, menos colchón vs el costo fijo. El motor
+  usa TP1 por default = el más frágil. TP4 es 10× más robusto al costo.
+- **Techo optimista:** maker asume fill 100%; la selección adversa (las límite que no llenan suelen
+  ser ganadoras) baja el número real. Medir con el fill-model en vivo (maker_sim shadow ya existe).
+- **Acciones candidatas (gate antes de cablear):** (1) `FQ_EXEC_MODE=maker` obligatorio en vivo;
+  (2) reconsiderar target por default (TP1 → más lejano o parciales que dejen correr).
+- Visual: `internal/ejecucion-tp1-2026-07.html`.
