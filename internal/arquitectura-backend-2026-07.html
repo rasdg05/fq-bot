@@ -1,0 +1,245 @@
+<section class="wrap">
+
+<header class="hd">
+  <div class="phi">⌘</div>
+  <div class="kick">FQ · Arquitectura de backend · plan completo</div>
+  <h1>Tres audiencias,<br>un motor</h1>
+  <p class="lede">El mismo cerebro sirve a tres mundos: el <b class="mint">público</b> que engancha,
+  el <b class="gold">VIP</b> que opera, y el <b class="viol">admin</b> que ve el motor por dentro
+  en tiempo real. Todo colgado del patrón que ya existe — sin tumbar jamás la señal.</p>
+</header>
+
+<!-- DIAGRAMA DE SISTEMA -->
+<section class="blk">
+  <div class="tag">El sistema en un vistazo</div>
+  <div class="chart" id="diagram"></div>
+  <div class="cap">el bot (crítico) jamás depende de la interfaz · telemetría por JSON atómico · el server es hijo no-crítico</div>
+</section>
+
+<!-- TRES TIERS -->
+<section class="blk">
+  <div class="tag">Las tres capas de producto</div>
+  <div class="tiers">
+    <div class="tier free">
+      <div class="th">PÚBLICO · FREE</div>
+      <div class="ts">existe hoy</div>
+      <ul>
+        <li>Ticker + lluvia Matrix (cockpit.html)</li>
+        <li>Señales etiquetadas, TP1 crudo</li>
+        <li>Descarga del Manual & FAQ</li>
+        <li>CTA → VIP</li>
+      </ul>
+      <div class="tf">Gancho de conversión · $0 fricción</div>
+    </div>
+    <div class="tier vip">
+      <div class="th">CLIENTE · VIP</div>
+      <div class="ts">a construir</div>
+      <ul>
+        <li>Auth + checkout (Stripe webhook → unlock)</li>
+        <li>Gráfico vivo espejando OKX (Lightweight Charts)</li>
+        <li>Señal completa: entry/stop/4TP + insignias</li>
+        <li>Alertas web-push + Telegram + email</li>
+        <li>Ledger propio: R, equity, drawdown</li>
+      </ul>
+      <div class="tf">El escritorio disciplinado · lo que se paga</div>
+    </div>
+    <div class="tier admin">
+      <div class="th">ADMIN · MISSION CONTROL</div>
+      <div class="ts">tu petición</div>
+      <ul>
+        <li><b>Visualizador del BRAIN en vivo</b> (MEMORY/)</li>
+        <li>Telemetría del motor (fires/vetos/régimen)</li>
+        <li>Dashboards del fantasma / gate / ejecución</li>
+        <li>Ledger crudo + cementerio + decisiones</li>
+        <li>Kill-switch + flags FQ_* desde la UI</li>
+      </ul>
+      <div class="tf">El motor por dentro · solo tú</div>
+    </div>
+  </div>
+</section>
+
+<!-- EL BRAIN VISUALIZER (hero admin) -->
+<section class="blk">
+  <div class="tag">La pieza central admin · el visualizador del brain</div>
+  <h2>MEMORY/ en tiempo real — el fantasma piensa en voz alta</h2>
+  <p class="txt">El <b>obsidian brain</b> ya existe en el repo (`MEMORY/`): índice, constitución,
+  decisiones, cementerio, estado, vistas por rol. Hoy solo lo leen los agentes. La capa admin lo
+  vuelve un <b>panel vivo</b> — se re-indexa en cada commit y muestra el grafo, las decisiones, y
+  lo que está VIVO vs MUERTO, junto al pulso real del motor.</p>
+  <div class="chart" id="brain"></div>
+  <div class="cap">mockup · el brain (izq: grafo de notas) + estado vivo (der: motor + veredictos) · se refresca al commit / al fire</div>
+</section>
+
+<!-- DATA FLOW / REALTIME -->
+<section class="blk two">
+  <div>
+    <div class="tag">Cómo se mantiene vivo</div>
+    <h2>Real-time barato</h2>
+    <div class="flow" id="flow"></div>
+    <p class="txt" style="margin-top:16px;font-size:14.5px">Sin websockets caros al inicio: el bot
+    ya deja caer <b>JSON atómico</b>; un <b>brain-indexer</b> convierte `MEMORY/*.md` → `brain.json`
+    (estructura + grafo + render) en cada commit. El server extiende el patrón stdlib actual con
+    <b>SSE</b> (server-sent events) para empujar cambios. Todo en el proceso no-crítico.</p>
+  </div>
+  <div>
+    <div class="tag">El stack (todo barato/gratis)</div>
+    <div class="stack" id="stack"></div>
+  </div>
+</section>
+
+<!-- FASES -->
+<section class="blk synth">
+  <div class="tag">Roadmap · orden por palanca</div>
+  <h2>Qué se construye y en qué orden</h2>
+  <div class="phases">
+    <div class="phase"><div class="pn">F1</div><div><b>Brain visualizer admin</b> (tu petición). Extiende `cockpit_server`: `/admin` gated, `brain-indexer` (MEMORY/ → brain.json), render markdown + grafo + estado vivo. <span class="pt">~3 noches</span></div></div>
+    <div class="phase"><div class="pn">F2</div><div><b>Auth + checkout.</b> Stripe webhook → tabla de usuarios → tier. Gate del /vip y /admin. <span class="pt">~2 noches</span></div></div>
+    <div class="phase"><div class="pn">F3</div><div><b>Gráfico vivo VIP.</b> Lightweight Charts + klines OKX (WS que el bot ya tiene) + overlay de señal (entry/stop/4TP). <span class="pt">~3 noches</span></div></div>
+    <div class="phase"><div class="pn">F4</div><div><b>Alertas multi-canal.</b> Web-push + email + el Telegram que ya existe. Webhook para TradingView. <span class="pt">~2 noches</span></div></div>
+  </div>
+  <p class="foot-note">Principio rector (constitución del repo): <b>que por la interfaz jamás se caiga la señal.</b>
+  Todo esto es el hijo no-crítico del launcher — si el panel muere, el motor VIP sigue intacto. El único
+  archivo runtime que redespliega el worker es la interfaz misma, a propósito.</p>
+</section>
+
+<footer class="ft">
+  <span>FQ · arquitectura de backend · 2026-07</span>
+  <span>FREE engancha · VIP opera · ADMIN ve el motor pensar</span>
+</footer>
+
+</section>
+
+<script>
+const gold='#d4af37',mint='#14F195',viol='#9945FF',red='#c94c4c',ink='#e9e7e0',muted='#8a9690',line='#1e2a22',panel='#0c1310';
+const NS='http://www.w3.org/2000/svg';
+function el(t,a){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;}
+function svg(h,w,ht){const s=el('svg',{viewBox:`0 0 ${w} ${ht}`,width:'100%',preserveAspectRatio:'xMidYMid meet'});h.appendChild(s);return s;}
+function txt(s,x,y,t,o={}){const e=el('text',{x,y,fill:o.fill||muted,'font-size':o.fs||12,'text-anchor':o.a||'start','font-family':o.ff||'ui-monospace,monospace','font-weight':o.w||400});e.textContent=t;s.appendChild(e);return e;}
+function box(s,x,y,w,h,col,fill){s.appendChild(el('rect',{x,y,width:w,height:h,rx:8,fill:fill||panel,stroke:col,'stroke-width':1.5}));}
+function arrow(s,x1,y1,x2,y2,col){s.appendChild(el('line',{x1,y1,x2,y2,stroke:col||muted,'stroke-width':1.5,'marker-end':'url(#ah)'}));}
+
+// DIAGRAMA
+(function(){
+  const host=document.getElementById('diagram'),W=920,H=360,s=svg(host,W,H);
+  const defs=el('defs',{});const m=el('marker',{id:'ah',markerWidth:8,markerHeight:8,refX:7,refY:4,orient:'auto'});
+  m.appendChild(el('path',{d:'M0 0 L8 4 L0 8 z',fill:muted}));defs.appendChild(m);s.appendChild(defs);
+  // BOT CORE (izq)
+  box(s,30,140,150,80,mint); txt(s,105,172,'BOT · MOTOR',{a:'middle',fill:mint,w:700,fs:13});
+  txt(s,105,192,'crítico · Railway',{a:'middle',fs:10}); txt(s,105,206,'jamás se cae',{a:'middle',fs:10,fill:muted});
+  // drops
+  box(s,240,60,160,54,gold); txt(s,320,84,'cockpit.json',{a:'middle',fill:gold,w:700,fs:12}); txt(s,320,100,'telemetría atómica',{a:'middle',fs:9});
+  box(s,240,150,160,54,viol); txt(s,320,174,'MEMORY/ (brain)',{a:'middle',fill:viol,w:700,fs:12}); txt(s,320,190,'markdown vault',{a:'middle',fs:9});
+  box(s,240,240,160,54,muted); txt(s,320,264,'ledger · cubos',{a:'middle',fill:ink,w:700,fs:12}); txt(s,320,280,'SQLite / parquet',{a:'middle',fs:9});
+  arrow(s,180,175,238,90); arrow(s,180,180,238,177); arrow(s,180,185,238,264);
+  // SERVER (centro-der)
+  box(s,470,140,150,80,ink,'#10181300'); s.querySelector('defs');
+  box(s,470,140,150,80,'#4a5a50'); txt(s,545,168,'cockpit_server',{a:'middle',fill:ink,w:700,fs:12});
+  txt(s,545,186,'stdlib · no-crítico',{a:'middle',fs:9}); txt(s,545,200,'+ SSE + auth',{a:'middle',fs:9,fill:gold});
+  arrow(s,400,87,468,160); arrow(s,400,177,468,180); arrow(s,400,267,468,200);
+  // TRES SALIDAS
+  const outs=[[690,40,mint,'FREE','público'],[690,150,gold,'VIP','pago · gated'],[690,260,viol,'ADMIN','brain vivo']];
+  outs.forEach(([x,y,c,t,sub])=>{box(s,x,y,200,70,c);txt(s,x+100,y+30,t,{a:'middle',fill:c,w:700,fs:14});txt(s,x+100,y+50,sub,{a:'middle',fs:10});
+    arrow(s,620,180,x-2,y+35,c);});
+})();
+
+// BRAIN MOCKUP
+(function(){
+  const host=document.getElementById('brain'),W=920,H=420,s=svg(host,W,H);
+  box(s,0,0,W,H,line,'#080c0a');
+  // izq: grafo de notas
+  txt(s,20,26,'▚ BRAIN GRAPH · MEMORY/',{fill:viol,w:700,fs:12});
+  const nodes=[[130,110,'ÍNDICE',gold,20],[70,190,'CONSTIT.',mint,15],[150,240,'DECISIONES',ink,17],
+    [250,150,'CEMENTERIO',red,17],[240,270,'ESTADO',gold,15],[90,300,'ROLES',muted,12],[300,90,'invest.',muted,11]];
+  // edges
+  const E=[[0,1],[0,2],[0,3],[0,4],[2,3],[2,4],[1,5],[0,6],[3,6]];
+  E.forEach(([a,b])=>s.appendChild(el('line',{x1:nodes[a][0],y1:nodes[a][1],x2:nodes[b][0],y2:nodes[b][1],stroke:'#25332b','stroke-width':1})));
+  nodes.forEach(([x,y,t,c,r])=>{s.appendChild(el('circle',{cx:x,cy:y,r,fill:panel,stroke:c,'stroke-width':1.5}));
+    txt(s,x,y+r+13,t,{a:'middle',fs:9,fill:c,w:700});});
+  // divisor
+  s.appendChild(el('line',{x1:400,y1:20,x2:400,y2:H-20,stroke:line,'stroke-width':1}));
+  // der: estado vivo
+  txt(s,430,26,'◉ ESTADO VIVO · motor + veredictos',{fill:mint,w:700,fs:12});
+  // motor pulse
+  box(s,430,45,220,80,'#2a3a30'); txt(s,442,66,'MOTOR',{fill:gold,fs:10,w:700});
+  txt(s,442,86,'SOL fire · 08:45 · SHORT',{fs:11,fill:ink}); txt(s,442,104,'régimen KL: bajo ✓ · cvd: conf ✓',{fs:10,fill:mint});
+  // veredictos (del cementerio/gate)
+  box(s,670,45,230,80,'#2a3a30'); txt(s,682,66,'ÚLTIMO GATE',{fill:gold,fs:10,w:700});
+  txt(s,682,86,'conviction-longs: PASA',{fs:11,fill:mint}); txt(s,682,104,'KL-umbral: PBO 0.897 ✗',{fs:10,fill:red});
+  // decisiones timeline
+  txt(s,430,150,'DECISIONES (timeline)',{fs:10,fill:muted,w:700});
+  const dec=[[430,'2026-07-05 · convicción longs cableada',mint],[430,'2026-07-05 · halt de supervivencia',mint],
+    [430,'2026-07-04 · KL filtro es meseta, no óptimo',gold],[430,'2026-06-30 · FREE tier, un solo canal',ink]];
+  dec.forEach((d,i)=>{const y=170+i*26; s.appendChild(el('circle',{cx:438,cy:y-4,r:3,fill:d[2]}));
+    s.appendChild(el('line',{x1:438,y1:y-1,x2:438,y2:y+22,stroke:line,'stroke-width':1}));
+    txt(s,450,y,d[1],{fs:10.5,fill:d[2]==ink?ink:d[2]});});
+  // cementerio contador
+  box(s,430,290,220,64,red); txt(s,442,312,'🪦 CEMENTERIO',{fill:red,fs:10,w:700});
+  txt(s,442,332,'POC-distance · path-integrals',{fs:9.5,fill:muted}); txt(s,442,346,'premium-triple · quantum-cog',{fs:9.5,fill:muted});
+  box(s,670,290,230,64,mint); txt(s,682,312,'✓ VALIDADO',{fill:mint,fs:10,w:700});
+  txt(s,682,332,'CVD · F2-persist · KL-régimen',{fs:9.5,fill:muted}); txt(s,682,346,'funding-pctl · convicción-longs',{fs:9.5,fill:muted});
+})();
+
+// FLOW
+(function(){
+  const host=document.getElementById('flow'),W=440,H=220,s=svg(host,W,H);
+  const defs=el('defs',{});const m=el('marker',{id:'ah2',markerWidth:8,markerHeight:8,refX:7,refY:4,orient:'auto'});
+  m.appendChild(el('path',{d:'M0 0 L8 4 L0 8 z',fill:gold}));defs.appendChild(m);s.appendChild(defs);
+  const steps=[[20,'commit / fire',viol],[20,'brain-indexer + JSON drop',gold],[20,'SSE push',mint],[20,'panel se refresca',ink]];
+  steps.forEach((st,i)=>{const y=24+i*50; box(s,60,y,320,34,st[2]); txt(s,220,y+21,st[1],{a:'middle',fill:st[2]==ink?ink:st[2],fs:12,w:700});
+    if(i<3)s.appendChild(el('line',{x1:220,y1:y+34,x2:220,y2:y+50,stroke:gold,'stroke-width':1.5,'marker-end':'url(#ah2)'}));});
+})();
+
+// STACK
+(function(){
+  const host=document.getElementById('stack');
+  const rows=[['Server','http.server stdlib + SSE','$0'],['Gráfico','Lightweight Charts (MIT)','$0'],
+    ['Datos','OKX WS + tu SQLite/parquet','$0'],['Auth','Stripe webhook → users','~%'],
+    ['Brain','markdown-it + grafo D3-lite','$0'],['Hosting','Railway (ya existe)','$0'],['Push','Web-Push API + Telegram','$0']];
+  rows.forEach(([k,v,c])=>{const d=document.createElement('div');d.className='srow';
+    d.innerHTML=`<span class="sk">${k}</span><span class="sv2">${v}</span><span class="sc">${c}</span>`;host.appendChild(d);});
+})();
+</script>
+
+<style>
+  :root{ --bg:#050705; --panel:#0a0f0b; --ink:#e9e7e0; --muted:#8a9690;
+    --gold:#d4af37; --mint:#14F195; --viol:#9945FF; --red:#c94c4c; --line:#1e2a22; }
+  *{box-sizing:border-box;}
+  .wrap{ max-width:1000px; margin:0 auto; padding:40px 28px 80px; background:var(--bg);
+    color:var(--ink); font-family:Georgia,'Times New Roman',serif; }
+  .hd{ text-align:center; padding:30px 0 20px; border-bottom:1px solid var(--line); margin-bottom:32px; }
+  .phi{ font-size:38px; color:var(--gold); margin-bottom:10px; text-shadow:0 0 24px rgba(212,175,55,.4); }
+  .kick,.tag{ font-family:ui-monospace,monospace; text-transform:uppercase; letter-spacing:.26em; font-size:11px; color:var(--muted); }
+  h1{ font-size:48px; margin:12px 0 12px; letter-spacing:-.01em; font-weight:400; line-height:1.05; }
+  .lede{ font-size:18px; color:#b8c2bc; max-width:660px; margin:0 auto; line-height:1.5; }
+  .lede b{ color:var(--ink); } .lede .mint{color:var(--mint);} .lede .gold{color:var(--gold);} .lede .viol{color:var(--viol);}
+  .blk{ margin:0 0 48px; } .tag{ margin-bottom:14px; }
+  h2{ font-size:28px; font-weight:400; letter-spacing:-.01em; margin:0 0 12px; line-height:1.15; }
+  .txt{ font-size:16px; line-height:1.58; color:#c4cec8; max-width:740px; margin:0 0 18px; }
+  .txt b{color:var(--ink);} .chart{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; }
+  .cap{ font-family:ui-monospace,monospace; font-size:11px; color:var(--muted); margin-top:10px; }
+  .tiers{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+  .tier{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:20px; border-top-width:3px; }
+  .tier.free{ border-top-color:var(--mint); } .tier.vip{ border-top-color:var(--gold); } .tier.admin{ border-top-color:var(--viol); }
+  .th{ font-family:ui-monospace,monospace; font-size:12px; letter-spacing:.12em; color:var(--ink); font-weight:700; }
+  .ts{ font-family:ui-monospace,monospace; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; margin:4px 0 12px; }
+  .tier.free .ts{color:var(--mint);} .tier.vip .ts{color:var(--gold);} .tier.admin .ts{color:var(--viol);}
+  .tier ul{ margin:0; padding-left:18px; } .tier li{ font-size:13.5px; line-height:1.5; color:#c4cec8; margin-bottom:6px; }
+  .tier li b{ color:var(--ink); }
+  .tf{ font-family:ui-monospace,monospace; font-size:10.5px; color:var(--muted); margin-top:14px; padding-top:12px; border-top:1px solid var(--line); font-style:italic; }
+  .two{ display:grid; grid-template-columns:1fr 1fr; gap:32px; align-items:start; }
+  .two h2{ font-size:22px; }
+  .stack{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:8px 14px; }
+  .srow{ display:grid; grid-template-columns:70px 1fr 44px; gap:8px; align-items:center; padding:9px 0; border-bottom:1px solid var(--line); font-family:ui-monospace,monospace; font-size:12px; }
+  .srow:last-child{ border-bottom:none; }
+  .sk{ color:var(--gold); font-weight:700; } .sv2{ color:#c4cec8; } .sc{ color:var(--mint); text-align:right; font-weight:700; }
+  .synth{ background:linear-gradient(160deg,rgba(153,69,255,.06),rgba(20,241,149,.04)); border:1px solid var(--line); border-radius:14px; padding:32px; }
+  .phases{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:18px 0; }
+  .phase{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px 18px; display:flex; gap:14px; align-items:flex-start; }
+  .phase .pn{ font-family:ui-monospace,monospace; font-size:16px; color:var(--gold); font-weight:700; flex:0 0 auto; }
+  .phase div{ font-size:14px; line-height:1.5; color:#c4cec8; } .phase b{ color:var(--ink); }
+  .pt{ font-family:ui-monospace,monospace; font-size:11px; color:var(--muted); }
+  .foot-note{ font-size:14px; line-height:1.6; color:var(--muted); margin-top:8px; border-top:1px solid var(--line); padding-top:16px; }
+  .foot-note b{ color:var(--gold); }
+  .ft{ display:flex; justify-content:space-between; border-top:1px solid var(--line); padding-top:18px; font-family:ui-monospace,monospace; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
+  @media(max-width:760px){ .tiers,.two,.phases{grid-template-columns:1fr;} h1{font-size:36px;} }
+</style>
