@@ -28,6 +28,7 @@ Invariantes:
 """
 import os
 import logging
+from collections import deque
 
 from execution import (RiskGovernor, Account, PaperBroker, DurableHashLedger,
                        SqliteHashLedger, open_motor_ledger, _motor_db_path, _symbol_from_jsonl)
@@ -37,6 +38,65 @@ import gold_paper
 import segment_veto
 
 log = logging.getLogger("motor_paper")
+
+
+# --- Sizing por convicción en LONGS (GATE-C, 2026-07-05) ------------------------
+# El cube de 7 años dice: pesar el risk_frac por tercil de p_master SOLO en longs
+# pasa el gate honesto — CPCV OOS barbell +0.266 (15/15 folds), PBO 0.008, bootstrap
+# 99.9%. En shorts p_master NO separa (GATE-B: rho +0.015, p=0.18) -> peso 1.0.
+# Barbell HACIA ABAJO (hi=1, mid=0.5, lo=0.25): mismos ratios 4:2:1 validados PERO
+# nunca sube sobre el cap del gobernador — solo REDUCE riesgo en longs de baja
+# convicción. Default OFF -> peso 1.0 siempre -> señal/sizing byte-idéntico.
+CONVICTION_LONGS = os.environ.get("FQ_CONVICTION_LONGS", "0").strip() in ("1", "true", "yes")
+_CONV_HI = float(os.environ.get("FQ_CONVICTION_HI", "1.0"))
+_CONV_MID = float(os.environ.get("FQ_CONVICTION_MID", "0.5"))
+_CONV_LO = float(os.environ.get("FQ_CONVICTION_LO", "0.25"))
+_CONV_MIN_HIST = int(os.environ.get("FQ_CONVICTION_MIN_HIST", "30"))
+_CONV_HIST_MAX = int(os.environ.get("FQ_CONVICTION_HIST_MAX", "500"))
+
+
+def conviction_weight(p_master, hist, direction, *, hi=None, mid=None, lo=None, min_hist=None):
+    """Multiplicador de risk_frac por convicción, SOLO longs. `hist` = iterable de
+    p_master de fires LONG PASADOS (no incluye el actual -> sin look-ahead). Defensivo:
+    cualquier caso ambiguo -> 1.0 (neutral, jamás rompe el sizing).
+      - direction <= 0 (short) o None  -> 1.0 (p_master no separa en shorts, GATE-B).
+      - p_master None/NaN              -> 1.0.
+      - len(hist) < min_hist           -> 1.0 (sin terciles confiables aún).
+      - long con hist suficiente       -> hi/mid/lo según el tercil (pctl 33/67 de hist).
+    Devuelve un float en (0, hi]. Con los defaults barbell nunca > 1.0."""
+    hi = _CONV_HI if hi is None else hi
+    mid = _CONV_MID if mid is None else mid
+    lo = _CONV_LO if lo is None else lo
+    min_hist = _CONV_MIN_HIST if min_hist is None else min_hist
+    try:
+        if direction is None or float(direction) <= 0:
+            return 1.0
+        pm = float(p_master)
+        if pm != pm:                      # NaN
+            return 1.0
+        h = [float(x) for x in hist if x is not None and float(x) == float(x)]
+        if len(h) < int(min_hist):
+            return 1.0
+        import numpy as np
+        q33, q67 = np.percentile(h, [33, 67])
+        if pm >= q67:
+            return float(hi)
+        if pm <= q33:
+            return float(lo)
+        return float(mid)
+    except Exception:
+        return 1.0
+
+
+def _report_p_master(report):
+    """Extrae p_master del report del engine (report['p_master_data']['p_master']).
+    None si falta o es inválido. Jamás lanza."""
+    try:
+        pm = (report or {}).get("p_master_data", {}).get("p_master")
+        pm = float(pm)
+        return pm if pm == pm else None
+    except Exception:
+        return None
 
 
 def cost_from_exec_mode(mode):
@@ -89,6 +149,10 @@ class MotorPaperRuntime:
         # del broker -> 0 cambio cuando no hay maker (todos los tests actuales).
         self.maker_exec = bool(getattr(self.broker.cost, "maker_entry", False))
         self._pending_entries = []
+        # Buffer rodante de p_master de fires LONG pasados -> terciles en vivo sin
+        # look-ahead para el sizing por convicción (GATE-C). Solo se usa si
+        # FQ_CONVICTION_LONGS=1; inerte por default.
+        self._pm_hist = deque(maxlen=_CONV_HIST_MAX)
         # Capa 3 (order-flow CVD) como MEDICION paralela al regime tag: si
         # FQ_CVD_FILTER=1, cada fire se taguea con confirmado/no (CAUSAL) + su R
         # forward -> mide si el uplift +0.1R (validado 5 anos, DSR ✓) se replica EN
@@ -233,8 +297,23 @@ class MotorPaperRuntime:
                 sig = normalize_fire_report(report, self.symbol, tp_key=self.tp_key)
                 if sig is not None:
                     cvd = self._cvd_confirm(sig.get("direction"), ts)  # tag CAUSAL (None si filtro off)
-                    d = self.governor.decide(self.account,
-                                             requested_risk=self.requested_risk)
+                    req = self.requested_risk
+                    # Sizing por convicción en longs (GATE-C): escala el risk_frac por
+                    # tercil de p_master, SOLO longs, contra el buffer de fires previos
+                    # (sin look-ahead). Barbell hacia abajo -> jamás sube sobre el cap.
+                    # Default OFF -> peso 1.0 -> requested_risk intacto (byte-idéntico).
+                    if CONVICTION_LONGS:
+                        pm = _report_p_master(report)
+                        w = conviction_weight(pm, self._pm_hist, sig.get("direction"))
+                        if w != 1.0:
+                            base = req if req is not None else getattr(
+                                getattr(self.governor, "cfg", None), "max_risk_frac", None)
+                            if base is not None:
+                                req = float(base) * w
+                        # registrar el p_master LONG en el buffer DESPUÉS de pesar
+                        if pm is not None and sig.get("direction", 0) > 0:
+                            self._pm_hist.append(pm)
+                    d = self.governor.decide(self.account, requested_risk=req)
                     if d["approved"]:
                         if self.maker_exec:
                             # encola una limite en el nivel; se abre al PENETRAR
