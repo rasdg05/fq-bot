@@ -30,7 +30,7 @@ import os
 import logging
 from collections import deque
 
-from execution import (RiskGovernor, Account, PaperBroker, DurableHashLedger,
+from execution import (RiskGovernor, GovernorConfig, Account, PaperBroker, DurableHashLedger,
                        SqliteHashLedger, open_motor_ledger, _motor_db_path, _symbol_from_jsonl)
 from live_driver import normalize_fire_report
 from bt_engine import CostModel
@@ -187,6 +187,11 @@ class MotorPaperRuntime:
         broker = PaperBroker(ledger=open_motor_ledger(led_path, symbol), cost=cost)
         equity = float(os.environ.get("FQ_MOTOR_PAPER_EQUITY", "10000"))
         acc = Account("paper-motor-%s" % symbol, equity)
+        # Halt de supervivencia pico-a-valle (GATE del fantasma: 28% WR = rachas
+        # brutales). FQ_MOTOR_MAX_DD=0.25 -> deja de abrir si el equity cae 25% del
+        # pico. 0 (default) -> gobernador estándar, byte-idéntico.
+        max_dd = float(os.environ.get("FQ_MOTOR_MAX_DD", "0"))
+        governor = RiskGovernor(GovernorConfig(max_drawdown_frac=max_dd)) if max_dd > 0 else None
         # Veto PROPIO: default = london_open_kz + asia_open (ambos -EV en SOL Y BTC,
         # OOS; asia_open con n menor -> confianza moderada, lo confirma el forward).
         # "" -> motor base sin veto.
@@ -216,7 +221,7 @@ class MotorPaperRuntime:
                  maker_sim, exec_mode.strip() or "bruto",
                  ("on@%.2f" % cvd_imb_min) if cvd_path else "off", led_path)
         return cls(symbol, account=acc, broker=broker, veto=veto, tp_key=tp_key,
-                   notify_fn=notify_fn, digest_every=digest_every,
+                   governor=governor, notify_fn=notify_fn, digest_every=digest_every,
                    maker_sim=maker_sim, maker_eps_bps=maker_eps,
                    maker_ttl_bars=maker_ttl, cvd_path=cvd_path, cvd_imb_min=cvd_imb_min)
 
