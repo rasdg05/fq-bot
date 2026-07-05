@@ -104,6 +104,23 @@ corte direccional por año, escalera de TP, MFE/MAE, por símbolo.
   de 3 buckets (confiar el tercil-alto), sobre todo en LONGS. NO como score fino de convicción.
   Candidato: size por tercil de p_master en longs; ignorarlo en shorts.
 
+### GATE-C · Size-up tercil-alto de convicción en LONGS (el que SÍ pasa limpio)
+- Universo: 5,726 longs canónicos con p_master. Terciles derivados del TRAIN (sin look-ahead).
+- **CPCV OOS:** flat +0.225 · hi-1.5× +0.243 (14/15) · hi-2× +0.256 (14/15) · barbell
+  (2×/1×/0.5×) **+0.266 (15/15)** · hi-only +0.349 (14/15).
+- **PBO = 0.008** (vs 0.897 del umbral KL) → elegir el esquema NO sobreajusta.
+- **Bootstrap hi-2×−flat:** +0.029, IC95%[+0.010,+0.049], P(>0)=99.9%.
+- **VEREDICTO: PASA.** Pesar longs por tercil de convicción (barbell o hi-2×) es edge real OOS,
+  robusto y no sobreajustado. Es el PRIMER candidato que cablea limpio. Forward-confirm antes de
+  confiar 100%, pero el gate lo aprueba.
+
+### GATE-D · Persistencia del edge por símbolo (¿concentrar en los que cargaron?)
+- Rank-corr avgR 1a-mitad ↔ 2a-mitad = **−0.19** (p=0.53) → NO persiste.
+- Walk-forward: top-3 histórico (ETH,BTC,BCH) → 2a mitad +0.223; bot-3 (BNB,XRP,TRX) → +0.254.
+  **Los rezagados le ganan a los líderes OOS.** ETH +0.45→+0.20, XRP −0.08→+0.22, BNB +0.07→+0.42.
+- **VEREDICTO: NO concentrar.** El liderazgo por símbolo rota por era (como la dirección).
+  Diversificar amplio igual-peso es la jugada robusta; concentrar en el pasado = overfit.
+
 ### Lección transversal
 Los dos módulos + el sesgo direccional (H1) cuentan la misma historia: **edge real, modesto,
 ahogado en ruido; la muestra chica miente (mayo, 23 señales) y el n grande revela el susurro.**
