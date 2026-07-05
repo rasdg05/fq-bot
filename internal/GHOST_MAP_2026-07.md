@@ -71,6 +71,44 @@ corte direccional por año, escalera de TP, MFE/MAE, por símbolo.
 - El abismo = **stack de gates del live** (KL 0.34 + ruteo de tier + solo 3–5 símbolos
   activos), no ausencia de señal. El motor tiene flujo de sobra en la cosecha.
 
+## GATE HONESTO (2026-07-05) — corridas DSR/CPCV/PBO sobre H2 y H4
+
+> El gate hizo su trabajo: frenó DOS sobreajustes. Ambos módulos tienen edge REAL pero
+> MODESTO, enterrado en ruido. La jugada honesta: usarlos como **diales gruesos**, no como
+> perillas finas. Harness: `tools/validation_gate.py`.
+
+### GATE-A · Filtro KL: 0.34 vs 0.40 vs sin-filtro (n=11,729)
+- **CPCV OOS (15 caminos):** sin-filtro +0.224R · KL-0.34 +0.254R · KL-0.40 +0.261R.
+  El filtro le gana a sin-filtro en **14/15 folds** (+0.037R) → el filtro KL es EDGE REAL OOS.
+- **0.40 vs 0.34:** gana solo 10/15 folds por +0.007R → **indistinguibles**.
+- **PBO = 0.897 (ALERTA):** optimizar el umbral ES sobreajuste. El thr ganador salta bloque a
+  bloque (0.05→0.6, sin patrón). El "0.40 óptimo" del pool era ruido.
+- **DSR = 1.000** para los tres (incl. sin-filtro): el edge base sobrevive multiple-testing.
+- **Bootstrap sep(low−high)@0.40:** +0.138R, IC95%[+0.049,+0.224], P(>0)=100%.
+- **VEREDICTO:** el filtro KL PASA como filtro (guardarlo), FALLA como parámetro fino.
+  Aflojar 0.34→0.40 es un **dial de cadencia seguro** (mismo edge OOS, pasa 74% vs 58% →
+  más señales) — NO porque 0.40 sea óptimo, sino porque el edge es insensible al umbral en
+  [0.10, 0.40]. **Es la respuesta segura al "bot muy lento": más cadencia sin perder edge OOS,
+  mucho más barato que saltar a 1m (que exige re-validar todo).**
+
+### GATE-B · ¿p_master separa? (n=13,429)
+- **Decil:** monótono-ruidoso. Decil-1 +0.129R/25.5%WR → decil-10 +0.347R/30.7%WR (extremos
+  sí difieren ~2.7×), pero con dip en decil-5 (+0.068).
+- **Spearman rho=+0.025 (p=0.003):** significativo SOLO por n gigante; efecto **≈ cero**. Por
+  señal, p_master casi no rankea. (El "no separó" de las 23 live fue muestra chica, otra vez.)
+- **CPCV OOS top-30% vs bottom-30%:** spread +0.101R, top gana **13/15 folds**, bootstrap
+  P(>0)=97.5% → en las COLAS sí separa, y aguanta OOS.
+- **Por dirección:** LONG rho=+0.039 (p=0.003), top-bot +0.155R → **separa en longs**.
+  SHORT rho=+0.015 (p=0.18), +0.052R → **NO separa en shorts**.
+- **VEREDICTO:** p_master NO es decoración pero es un **ranker débil**. Sirve como dial grueso
+  de 3 buckets (confiar el tercil-alto), sobre todo en LONGS. NO como score fino de convicción.
+  Candidato: size por tercil de p_master en longs; ignorarlo en shorts.
+
+### Lección transversal
+Los dos módulos + el sesgo direccional (H1) cuentan la misma historia: **edge real, modesto,
+ahogado en ruido; la muestra chica miente (mayo, 23 señales) y el n grande revela el susurro.**
+El gate previno dos overfits (umbral KL, score p_master). Measure-first funcionó.
+
 ## Preguntas abiertas para deep-search / gate
 1. ¿"Aflojar KL 0.34→0.40" pasa DSR/CPCV/PBO out-of-sample, o el barrido está sobreajustado
    al pool completo? (correr CPCV con folds temporales).
