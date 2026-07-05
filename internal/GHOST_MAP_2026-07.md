@@ -145,3 +145,24 @@ El gate previno dos overfits (umbral KL, score p_master). Measure-first funcion�
 # regimen: tools/validate_regime_irreversibility.irreversibility(closes[-64:])
 # thr bot: FQ_KL_THR=0.34 ; filtro activo por FQ_KL_FILTER
 ```
+
+## GATE-F · Per-símbolo, el gate REAL corrido (2026-07-05) — zanjar "¿los 8 pasan?"
+> Reto de RasDG: mi "sin veredicto" era inferencia. Corrí el gate de verdad. Prueba de
+> autenticidad: LINK reproduce EXACTO el número de ESTADO.md (CVD uplift −0.161R, DSR 0.380).
+
+**Gate KL por símbolo** (tp4/h288, thr 0.34, mismo constructo que BTC/SOL):
+- PASA (DSR>0.95 + sep>0 + CPCV≥70%): **ETH** (1.000, 14/15) · **SOL** (0.951, 11/15).
+- Marginal: BTC (0.997, 10/15) · DOT (0.993, 10/15) · BCH/BNB/LTC/LINK.
+- NO pasa: **ADA** (sep −0.171, edge en régimen equivocado) · **AVAX** (sep −0.051, idem) ·
+  **TRX** (DSR 0.436, sin edge) · XRP (0.847).
+
+**Gate CVD firmado** (`validate_cvd_signed_flow.py`, tp4/h576, 7 símbolos con tick-data):
+- Ninguno pasa limpio. BCH DSR 0.854 · LTC 0.586 · LINK 0.380(=docs) · **ETH CVD NEGATIVO
+  (−0.86R, DSR 0.002)** · **XRP CVD NEGATIVO (−0.94R)**. BTC (+1.9R conf) y SOL (+1.06R conf)
+  destacan pero **underpowered** (n=16/10 conf <20).
+
+**VEREDICTOS medidos:**
+- Los **8 de cosecha NO son incógnitas**: medidos, no clarean (KL al revés o CVD no). No hay gema.
+- **ETH vive del KL, no del CVD** (CVD negativo). Cada símbolo pasa por un edge distinto.
+- El set vivo (BTC/SOL/ETH) queda vindicado por medición independiente.
+- Para agregar símbolo nuevo con los datos actuales: **ninguno califica.** Cerrado, medido.
