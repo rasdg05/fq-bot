@@ -1,0 +1,275 @@
+<section class="wrap">
+
+<header class="hd">
+  <div class="phi">⟐</div>
+  <div class="kick">FQ · El juez measure-first · DSR / CPCV / PBO</div>
+  <h1>El Gate</h1>
+  <p class="lede">Dos candidatos del fantasma, pasados por el juez honesto. El gate no busca
+  confirmarte — busca <em>refutarte</em>. Aquí frenó dos sobreajustes.</p>
+</header>
+
+<!-- VEREDICTOS -->
+<div class="verdicts">
+  <div class="vcard pass">
+    <div class="vtag">Candidato A · Filtro KL</div>
+    <div class="vres">PASA como filtro<span class="vx">·</span>FALLA como número fino</div>
+    <p>Le gana a sin-filtro 14/15 folds OOS. Pero el umbral "óptimo" es ruido (PBO 0.897).</p>
+  </div>
+  <div class="vcard warn">
+    <div class="vtag">Candidato B · p_master</div>
+    <div class="vres">RANKER DÉBIL<span class="vx">·</span>solo colas, solo longs</div>
+    <p>Por señal ≈ cero (rho 0.025). Tercil-alto vs bajo separa +0.10R OOS — pero solo en longs.</p>
+  </div>
+</div>
+
+<!-- ================= SECCIÓN A ================= -->
+<div class="sechd"><span class="snum">A</span> El filtro KL — ¿aflojar 0.34 → 0.40?</div>
+
+<section class="blk">
+  <div class="tag">A1 · CPCV out-of-sample</div>
+  <h2>El filtro es edge real — el número exacto, no</h2>
+  <p class="txt">15 caminos combinatorios purgados. Cada punto es un fold <b>fuera de muestra</b>.
+  <b class="mint">0.40</b> y <b class="viol">0.34</b> se enciman entre sí, pero ambos flotan sobre
+  <b class="muted">sin-filtro</b>. 0.40 le gana a sin-filtro en <b>14/15</b> folds; a 0.34, solo 10/15.</p>
+  <div class="chart" id="klcpcv"></div>
+  <div class="cap">avgR OOS por fold · el filtro sube el piso; 0.34 vs 0.40 son indistinguibles</div>
+</section>
+
+<section class="blk">
+  <div class="tag">A2 · PBO — la prueba de sobreajuste</div>
+  <h2>Si hubiera un umbral óptimo, los puntos se <span class="red">alinearían</span></h2>
+  <p class="txt">Cuál umbral gana en cada bloque temporal. Si el motor tuviera un "mejor umbral" real,
+  todos los puntos caerían en la misma línea. En vez, <b>saltan por todos lados</b> (0.05 → 0.60).
+  Eso es <b class="red">PBO 0.897</b>: elegir el umbral es pescar ruido. El filtro sí; el número no.</p>
+  <div class="chart" id="klpbo"></div>
+  <div class="cap">umbral ganador por bloque temporal · dispersión total = sin óptimo estable = sobreajuste</div>
+</section>
+
+<section class="blk">
+  <div class="tag">A3 · La meseta</div>
+  <h2>Insensible al umbral entre 0.10 y 0.40</h2>
+  <p class="txt">avgR de los que pasan, por umbral. Es una <b>meseta plana</b> (~+0.26R) entre 0.10 y 0.40 —
+  no hay pico. Por eso aflojar a 0.40 es <b class="mint">seguro por cadencia</b> (pasa 74% vs 58%),
+  no por edge. Un dial, no un acantilado.</p>
+  <div class="chart" id="klsweep"></div>
+  <div class="cap">avgR (línea) y % que pasa (barras) por umbral · la meseta dice: el edge no vive en el número</div>
+</section>
+
+<!-- ================= SECCIÓN B ================= -->
+<div class="sechd"><span class="snum">B</span> p_master — ¿la convicción numérica separa?</div>
+
+<section class="blk">
+  <div class="tag">B1 · Decil de convicción</div>
+  <h2>Los extremos difieren… el medio es puro ruido</h2>
+  <p class="txt">avgR por decil de p_master. El decil-10 (+0.35R) casi triplica al decil-1 (+0.13R),
+  pero el camino es <b>ruidoso</b> (el decil-5 se desploma a +0.07). No es una rampa limpia —
+  es un susurro en las colas. Spearman rho = <b>+0.025</b>: por señal, casi no rankea.</p>
+  <div class="chart" id="pmdec"></div>
+  <div class="cap">avgR por decil de p_master · extremos separan, el centro no · señal débil enterrada en ruido</div>
+</section>
+
+<section class="blk two">
+  <div>
+    <div class="tag">B2 · CPCV colas OOS</div>
+    <h2>Tercil-alto vs tercil-bajo</h2>
+    <p class="txt">Fuera de muestra, el <b class="gold">tercil-alto</b> (+0.30R) le gana al
+    <b class="muted">tercil-bajo</b> (+0.20R) en <b>13/15</b> folds. La cola SÍ carga señal, y aguanta.</p>
+    <div class="chart" id="pmcpcv"></div>
+  </div>
+  <div>
+    <div class="tag">B3 · Por dirección</div>
+    <h2>Separa en longs, no en shorts</h2>
+    <p class="txt">El spread tercil-alto−bajo vale <b class="gold">+0.155R en LONG</b> (significativo)
+    pero solo <b class="viol">+0.052R en SHORT</b> (ruido, p=0.18). La convicción informa un lado.</p>
+    <div class="chart" id="pmdir"></div>
+  </div>
+</section>
+
+<!-- SÍNTESIS -->
+<section class="blk synth">
+  <div class="tag">Veredicto · lo que el juez dictó</div>
+  <h2>Edge real, modesto, ahogado en ruido</h2>
+  <div class="cards">
+    <div class="card"><div class="n mint">✓</div><p><b>Guardar el filtro KL.</b> Edge OOS real (14/15 folds vs sin-filtro, DSR 1.0). No tocar como concepto.</p></div>
+    <div class="card"><div class="n gold">◇</div><p><b>Aflojar 0.34→0.40 solo por cadencia.</b> Mismo edge OOS, +16pp más señales. NO porque 0.40 sea óptimo (PBO 0.897 lo refuta).</p></div>
+    <div class="card"><div class="n gold">◇</div><p><b>p_master como dial grueso.</b> 3 buckets, confiar el tercil-alto — sobre todo en longs. Nunca como score fino.</p></div>
+    <div class="card"><div class="n red">✕</div><p><b>No saltar a 1m.</b> El problema del silencio era el gate, no el timeframe. Aflojar KL es la respuesta barata y medida.</p></div>
+  </div>
+  <p class="foot-note">La muestra chica mintió dos veces (mayo: "shorts siempre ganan"; live: "p_master no separa").
+  El n grande reveló el susurro real y el gate frenó dos overfits. <b>Eso es measure-first haciendo su trabajo.</b></p>
+</section>
+
+<footer class="ft">
+  <span>FQ · el juez measure-first · 2019–2026</span>
+  <span>CPCV 15 caminos · PBO 0.897 · DSR 1.000</span>
+</footer>
+
+</section>
+
+<script id="data" type="application/json">{"kl_cpcv": {"nofilt": [0.27960994961088037, 0.20627907700502268, 0.23776818544940123, 0.21204631869801158, 0.25918088607819895, 0.22456859741016016, 0.25604965237411814, 0.2303343641052736, 0.2774568766088931, 0.18273753446713661, 0.15702224619829208, 0.20414475870191162, 0.18850330116225006, 0.23562581366586957, 0.20991052539702504], "t034": [0.28341404054344904, 0.20853243971850235, 0.27226470916912665, 0.2847214593961933, 0.3335074706906587, 0.18291201980883182, 0.2461611460022691, 0.25752305149818266, 0.30474326365857685, 0.1747618169785452, 0.18352592967981196, 0.2279573534371398, 0.24717342363812414, 0.29274668604457804, 0.3062270728974082], "t040": [0.2966485625972747, 0.23036801004621482, 0.26817104553100757, 0.26704085152321083, 0.3372034709185232, 0.21904488825393922, 0.25721913024581544, 0.2559535878341958, 0.3263834685240499, 0.19150921545173677, 0.18950717487603658, 0.2571856541733768, 0.22776372555901378, 0.296387390536447, 0.29554506018407795], "mean_nofilt": 0.22408253912882964, "mean_034": 0.2537447922107599, "mean_040": 0.2610620824169947, "win_040_vs_nf": 14, "win_040_vs_034": 10, "nfolds": 15}, "kl_pbo": {"value": 0.8968253968253969, "winner_per_block": [0.2, 0.1, 0.05, 0.6, 0.4, 0.4, 0.1, 0.05, 0.15, 0.05, 0.05, 0.1], "thrs": [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.34, 0.4, 0.5, 0.6]}, "kl_sweep": [{"thr": 0.05, "avgR": 0.2604249670671044, "pct": 21.527836985250236, "totR": 657.5730418444385}, {"thr": 0.1, "avgR": 0.26911958266233404, "pct": 38.06803649074943, "totR": 1201.6189365873215}, {"thr": 0.15, "avgR": 0.2685777286057047, "pct": 44.79495268138801, "totR": 1411.1073860943727}, {"thr": 0.2, "avgR": 0.2665198081753016, "pct": 47.190723846875265, "totR": 1475.1871382502943}, {"thr": 0.25, "avgR": 0.26495516206537134, "pct": 48.0006820700827, "totR": 1491.6975624280408}, {"thr": 0.3, "avgR": 0.26590128750941255, "pct": 48.31613948333191, "totR": 1506.862596315841}, {"thr": 0.34, "avgR": 0.2528640722342683, "pct": 57.82249126097707, "totR": 1714.9241378928077}, {"thr": 0.4, "avgR": 0.26051400088488114, "pct": 73.56125841930259, "totR": 2247.7147996347544}, {"thr": 0.5, "avgR": 0.24756943658634922, "pct": 78.31017137010828, "totR": 2273.9252750456176}, {"thr": 0.6, "avgR": 0.25077265863968373, "pct": 78.77909455196522, "totR": 2317.139365830678}], "pm_decile": [{"d": 1, "avgR": 0.1290235893662132, "wr": 25.457205559619606, "lo": 1.9505037009391044, "hi": 2.0682985777953293}, {"d": 2, "avgR": 0.22823319225358044, "wr": 27.596664139499623, "lo": 2.0684652861240065, "hi": 2.204243812647792}, {"d": 3, "avgR": 0.2601776795415947, "wr": 27.997021593447506, "lo": 2.2044768164188104, "hi": 2.3663145499700495}, {"d": 4, "avgR": 0.2957375897093822, "wr": 28.041543026706233, "lo": 2.366382280872817, "hi": 2.5370061007860967}, {"d": 5, "avgR": 0.06754445066279147, "wr": 24.06576980568012, "lo": 2.537006100786097, "hi": 2.7282329356328487}, {"d": 6, "avgR": 0.19955881137663237, "wr": 27.740986019131714, "lo": 2.728314980333067, "hi": 2.9375860114365335}, {"d": 7, "avgR": 0.21380380686226438, "wr": 29.163526752072343, "lo": 2.9377896395577805, "hi": 3.2102125709168887}, {"d": 8, "avgR": 0.3360050893347855, "wr": 29.955290611028317, "lo": 3.210526068238267, "hi": 3.5900976670709945}, {"d": 9, "avgR": 0.22998817266695362, "wr": 28.44378257632167, "lo": 3.5903128941093407, "hi": 4.243142703564747}, {"d": 10, "avgR": 0.3465525204428614, "wr": 30.67758749069248, "lo": 4.244329677118518, "hi": 8.840624462876583}], "pm_cpcv": {"top": [0.41123633172504925, 0.30661837010014015, 0.28230881586947143, 0.20378884946552595, 0.28260873609761406, 0.43666862970596804, 0.40896069145093916, 0.31101607500369616, 0.41775832115837375, 0.30279491420182364, 0.22285291102502297, 0.30523990528986206, 0.1923274760686121, 0.2833095961554801, 0.19683343085782068], "bot": [0.2955173440790195, 0.2069905425747544, 0.2538991632902934, 0.20616795409678385, 0.2934230921547232, 0.18829393694460844, 0.22303041497670117, 0.16304797247244693, 0.25769004689097397, 0.13581450172295176, 0.10242558406968112, 0.1787473693164822, 0.15788532939594865, 0.22732172516598897, 0.15647397031474503], "mean_top": 0.30428820361169323, "mean_bot": 0.20311526316440684, "win": 13, "nfolds": 15}, "pm_bydir": [{"dir": "SHORT", "rho": 0.01523075784004279, "p": 0.18130901808940791, "spread": 0.051580897307789336, "n": 7703}, {"dir": "LONG", "rho": 0.038743480042580776, "p": 0.0033524721750637365, "spread": 0.1549014104786439, "n": 5726}], "pm_rho": [0.025242057567072044, 0.003435121207985725]}</script>
+<script>
+const D=JSON.parse(document.getElementById('data').textContent);
+const gold='#d4af37',mint='#14F195',viol='#9945FF',red='#c94c4c',ink='#e9e7e0',muted='#8a9690',line='#1e2a22';
+const NS='http://www.w3.org/2000/svg';
+function el(t,a){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;}
+function svg(h,w,ht){const s=el('svg',{viewBox:`0 0 ${w} ${ht}`,width:'100%',preserveAspectRatio:'xMidYMid meet'});h.appendChild(s);return s;}
+function txt(s,x,y,t,o={}){const e=el('text',{x,y,fill:o.fill||muted,'font-size':o.fs||12,'text-anchor':o.a||'start','font-family':'ui-monospace,monospace','font-weight':o.w||400,'letter-spacing':o.ls||0});e.textContent=t;s.appendChild(e);return e;}
+
+// A1 · CPCV dot plot (3 filas: nofilt, 0.34, 0.40) — 15 folds c/u + media
+(function(){
+  const host=document.getElementById('klcpcv'),W=920,H=280,pl=110,pr=90,pt=30,pb=30;
+  const s=svg(host,W,H),K=D.kl_cpcv;
+  const all=[...K.nofilt,...K.t034,...K.t040];
+  const mn=Math.min(...all)-0.02,mx=Math.max(...all)+0.02;
+  const xs=v=>pl+(W-pl-pr)*(v-mn)/(mx-mn);
+  // eje x
+  for(let g=0;g<=4;g++){const v=mn+(mx-mn)*g/4,x=xs(v);
+    s.appendChild(el('line',{x1:x,y1:pt,x2:x,y2:H-pb,stroke:line,'stroke-width':1}));
+    txt(s,x,H-10,'+'+v.toFixed(2),{a:'middle',fs:11});}
+  const rows=[['nofilt','sin filtro',muted],['t034','KL 0.34',viol],['t040','KL 0.40',mint]];
+  rows.forEach((rw,i)=>{const y=pt+24+i*68,[key,lab,col]=rw;
+    txt(s,pl-12,y+4,lab,{a:'end',fs:13,fill:col,w:700});
+    // dots
+    K[key].forEach(v=>{s.appendChild(el('circle',{cx:xs(v),cy:y+(Math.random()*14-7),r:3.2,fill:col,opacity:.5}));});
+    // media
+    const m=key==='nofilt'?K.mean_nofilt:(key==='t034'?K.mean_034:K.mean_040);
+    s.appendChild(el('line',{x1:xs(m),y1:y-16,x2:xs(m),y2:y+16,stroke:col,'stroke-width':2.5}));
+    txt(s,xs(m),y-22,'μ '+m.toFixed(3),{a:'middle',fs:11,fill:col,w:700});});
+  txt(s,pl,pt-6,'← peor    avgR OOS por fold (15 caminos CPCV)    mejor →',{fs:11,fill:muted});
+})();
+
+// A2 · PBO scatter — winner threshold per block
+(function(){
+  const host=document.getElementById('klpbo'),W=920,H=300,pl=54,pr=30,pt=24,pb=40;
+  const s=svg(host,W,H),P=D.kl_pbo,thrs=P.thrs,wins=P.winner_per_block;
+  const ys=v=>H-pb-(H-pt-pb)*(v-0)/(0.65-0);
+  thrs.forEach(t=>{const y=ys(t);
+    s.appendChild(el('line',{x1:pl,y1:y,x2:W-pr,y2:y,stroke:line,'stroke-width':1}));
+    txt(s,pl-8,y+4,t.toFixed(2),{a:'end',fs:11});});
+  const xs=i=>pl+(W-pl-pr)*(i+0.5)/wins.length;
+  wins.forEach((t,i)=>{
+    s.appendChild(el('circle',{cx:xs(i),cy:ys(t),r:7,fill:red,opacity:.85}));
+    txt(s,xs(i),H-22,'B'+(i+1),{a:'middle',fs:10});});
+  txt(s,pl,pt-6,'umbral KL ganador',{fs:11,fill:muted});
+  txt(s,W/2,H-8,'bloque temporal →  (sin patrón = sin óptimo real = PBO 0.897)',{a:'middle',fs:11,fill:red});
+})();
+
+// A3 · sweep meseta (línea avgR + barras %pasa)
+(function(){
+  const host=document.getElementById('klsweep'),W=920,H=280,pl=54,pr=54,pt=24,pb=40;
+  const s=svg(host,W,H),S=D.kl_sweep;
+  const bw=(W-pl-pr)/S.length;
+  const ysP=v=>H-pb-(H-pt-pb)*v/100;         // %pasa (barras)
+  const ysR=v=>H-pb-(H-pt-pb)*(v-0.15)/(0.32-0.15); // avgR (línea)
+  S.forEach((d,i)=>{const x=pl+bw*i+bw*0.2,w=bw*0.6;
+    s.appendChild(el('rect',{x,y:ysP(d.pct),width:w,height:ysP(0)-ysP(d.pct),fill:'#26332b',rx:3}));
+    txt(s,x+w/2,H-24,d.thr.toFixed(2),{a:'middle',fs:10,fill:(d.thr===0.34||d.thr===0.40)?ink:muted,w:(d.thr===0.34||d.thr===0.40)?700:400});});
+  let dp='';S.forEach((d,i)=>{const x=pl+bw*i+bw*0.5,y=ysR(d.avgR);dp+=(i?'L':'M')+x+' '+y;
+    s.appendChild(el('circle',{cx:x,cy:y,r:4,fill:(d.thr===0.34)?viol:(d.thr===0.40)?mint:gold}));});
+  s.appendChild(el('path',{d:dp,fill:'none',stroke:gold,'stroke-width':2}));
+  txt(s,pl,pt-6,'avgR (línea oro) · % que pasa (barras)',{fs:11,fill:muted});
+  txt(s,W-pr+4,ysR(0.26)+4,'meseta',{fs:10,fill:gold,w:700});
+})();
+
+// B1 · decil bars
+(function(){
+  const host=document.getElementById('pmdec'),W=920,H=280,pl=44,pr=20,pt=24,pb=40;
+  const s=svg(host,W,H),Dc=D.pm_decile;
+  const bw=(W-pl-pr)/Dc.length,mx=0.4;
+  const ys=v=>H-pb-(H-pt-pb)*v/mx;
+  for(let g=0;g<=4;g++){const v=mx*g/4,y=ys(v);
+    s.appendChild(el('line',{x1:pl,y1:y,x2:W-pr,y2:y,stroke:line,'stroke-width':1}));
+    txt(s,pl-8,y+4,'+'+v.toFixed(2),{a:'end',fs:11});}
+  Dc.forEach((d,i)=>{const x=pl+bw*i+bw*0.15,w=bw*0.7;
+    const col=i===0?muted:(i===Dc.length-1?gold:'#3a4a40');
+    s.appendChild(el('rect',{x,y:ys(d.avgR),width:w,height:ys(0)-ys(d.avgR),fill:col,rx:3}));
+    txt(s,x+w/2,ys(d.avgR)-5,d.avgR.toFixed(2),{a:'middle',fs:9,fill:ink});
+    txt(s,x+w/2,H-24,'D'+d.d,{a:'middle',fs:10});});
+  txt(s,pl,pt-6,'avgR por decil de convicción (1=baja → 10=alta)',{fs:11,fill:muted});
+})();
+
+// B2 · CPCV top vs bot (dot plot 2 filas)
+(function(){
+  const host=document.getElementById('pmcpcv'),W=440,H=200,pl=70,pr=50,pt=24,pb=30;
+  const s=svg(host,W,H),C=D.pm_cpcv;
+  const all=[...C.top,...C.bot],mn=Math.min(...all)-0.02,mx=Math.max(...all)+0.02;
+  const xs=v=>pl+(W-pl-pr)*(v-mn)/(mx-mn);
+  for(let g=0;g<=3;g++){const v=mn+(mx-mn)*g/3,x=xs(v);
+    s.appendChild(el('line',{x1:x,y1:pt,x2:x,y2:H-pb,stroke:line,'stroke-width':1}));
+    txt(s,x,H-10,'+'+v.toFixed(2),{a:'middle',fs:10});}
+  [['top','tercil alto',gold,C.mean_top],['bot','tercil bajo',muted,C.mean_bot]].forEach((rw,i)=>{
+    const y=pt+22+i*60,[k,lab,col,m]=rw;
+    txt(s,pl-10,y+4,lab,{a:'end',fs:12,fill:col,w:700});
+    C[k].forEach(v=>s.appendChild(el('circle',{cx:xs(v),cy:y+(Math.random()*12-6),r:3,fill:col,opacity:.5})));
+    s.appendChild(el('line',{x1:xs(m),y1:y-14,x2:xs(m),y2:y+14,stroke:col,'stroke-width':2.5}));
+    txt(s,xs(m),y-18,m.toFixed(3),{a:'middle',fs:10,fill:col,w:700});});
+})();
+
+// B3 · por dirección (2 barras spread)
+(function(){
+  const host=document.getElementById('pmdir'),W=440,H=200,pl=54,pr=40,pt=30,pb=44;
+  const s=svg(host,W,H),B=D.pm_bydir;
+  const mx=0.18;const ys=v=>H-pb-(H-pt-pb)*v/mx;
+  for(let g=0;g<=3;g++){const v=mx*g/3,y=ys(v);
+    s.appendChild(el('line',{x1:pl,y1:y,x2:W-pr,y2:y,stroke:line,'stroke-width':1}));
+    txt(s,pl-8,y+4,'+'+v.toFixed(2),{a:'end',fs:10});}
+  const bw=(W-pl-pr)/B.length;
+  B.forEach((d,i)=>{const x=pl+bw*i+bw*0.25,w=bw*0.5;
+    const col=d.dir==='LONG'?gold:viol,sig=d.p<0.05;
+    s.appendChild(el('rect',{x,y:ys(d.spread),width:w,height:ys(0)-ys(d.spread),fill:col,rx:3,opacity:sig?1:.45}));
+    txt(s,x+w/2,ys(d.spread)-6,'+'+d.spread.toFixed(3),{a:'middle',fs:11,fill:ink,w:700});
+    txt(s,x+w/2,H-24,d.dir,{a:'middle',fs:11,fill:col,w:700});
+    txt(s,x+w/2,H-11,sig?'p='+d.p.toFixed(3)+' ✓':'p='+d.p.toFixed(2)+' ruido',{a:'middle',fs:9,fill:sig?mint:muted});});
+  txt(s,pl,pt-8,'spread tercil-alto − bajo',{fs:10,fill:muted});
+})();
+</script>
+
+<style>
+  :root{ --bg:#050705; --panel:#0a0f0b; --ink:#e9e7e0; --muted:#8a9690;
+    --gold:#d4af37; --mint:#14F195; --viol:#9945FF; --red:#c94c4c; --line:#1e2a22; }
+  *{box-sizing:border-box;}
+  .wrap{ max-width:1000px; margin:0 auto; padding:40px 28px 80px; background:var(--bg);
+    color:var(--ink); font-family:Georgia,'Times New Roman',serif; }
+  .hd{ text-align:center; padding:30px 0 20px; border-bottom:1px solid var(--line); margin-bottom:24px; }
+  .phi{ font-size:38px; color:var(--gold); margin-bottom:10px; text-shadow:0 0 24px rgba(212,175,55,.4); }
+  .kick,.tag{ font-family:ui-monospace,monospace; text-transform:uppercase; letter-spacing:.28em; font-size:11px; color:var(--muted); }
+  h1{ font-size:52px; margin:12px 0 8px; letter-spacing:-.01em; font-weight:400; }
+  .lede{ font-size:18px; color:#b8c2bc; max-width:600px; margin:0 auto; line-height:1.5; }
+  .lede em{ color:var(--gold); font-style:italic; }
+  .verdicts{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:0 0 44px; }
+  .vcard{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:22px; border-left-width:3px; }
+  .vcard.pass{ border-left-color:var(--mint); }
+  .vcard.warn{ border-left-color:var(--gold); }
+  .vtag{ font-family:ui-monospace,monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
+  .vres{ font-size:19px; margin:8px 0 10px; color:var(--ink); font-family:ui-monospace,monospace; font-weight:700; }
+  .vres .vx{ color:var(--muted); margin:0 8px; font-weight:400; }
+  .vcard p{ font-size:14px; color:#c4cec8; line-height:1.5; margin:0; }
+  .sechd{ font-family:ui-monospace,monospace; font-size:14px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--gold); border-top:1px solid var(--line); padding-top:24px; margin:24px 0 28px; display:flex; align-items:center; gap:14px; }
+  .snum{ display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border:1px solid var(--gold);
+    border-radius:50%; color:var(--gold); font-size:16px; }
+  .blk{ margin:0 0 48px; }
+  .tag{ margin-bottom:12px; }
+  h2{ font-size:27px; font-weight:400; letter-spacing:-.01em; margin:0 0 12px; line-height:1.15; }
+  h2 .red{color:var(--red);}
+  .txt{ font-size:16px; line-height:1.58; color:#c4cec8; max-width:720px; margin:0 0 20px; }
+  .txt b{color:var(--ink);} .txt .mint{color:var(--mint);} .txt .viol{color:var(--viol);}
+  .txt .muted{color:var(--muted);} .txt .gold{color:var(--gold);} .txt .red{color:var(--red);}
+  .chart{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; }
+  .cap{ font-family:ui-monospace,monospace; font-size:11px; color:var(--muted); margin-top:10px; letter-spacing:.03em; }
+  .two{ display:grid; grid-template-columns:1fr 1fr; gap:32px; }
+  .two h2{ font-size:21px; }
+  .synth{ background:linear-gradient(160deg,rgba(153,69,255,.06),rgba(20,241,149,.04));
+    border:1px solid var(--line); border-radius:14px; padding:32px; }
+  .cards{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:20px 0; }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px 18px; display:flex; gap:14px; align-items:flex-start; }
+  .card .n{ font-family:ui-monospace,monospace; font-size:20px; font-weight:700; flex:0 0 auto; }
+  .card .n.mint{color:var(--mint);} .card .n.gold{color:var(--gold);} .card .n.red{color:var(--red);}
+  .card p{ font-size:14px; line-height:1.5; color:#c4cec8; margin:0; }
+  .card b{ color:var(--ink); }
+  .foot-note{ font-size:14px; line-height:1.6; color:var(--muted); margin-top:8px; border-top:1px solid var(--line); padding-top:16px; }
+  .foot-note b{ color:var(--gold); }
+  .ft{ display:flex; justify-content:space-between; border-top:1px solid var(--line); padding-top:18px;
+    font-family:ui-monospace,monospace; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; }
+  @media(max-width:720px){ .verdicts,.two,.cards{grid-template-columns:1fr;} h1{font-size:40px;} h2{font-size:22px;} .ft{flex-direction:column;gap:6px;} }
+</style>
