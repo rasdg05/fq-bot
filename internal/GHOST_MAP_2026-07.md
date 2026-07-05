@@ -166,3 +166,15 @@ El gate previno dos overfits (umbral KL, score p_master). Measure-first funcion�
 - **ETH vive del KL, no del CVD** (CVD negativo). Cada símbolo pasa por un edge distinto.
 - El set vivo (BTC/SOL/ETH) queda vindicado por medición independiente.
 - Para agregar símbolo nuevo con los datos actuales: **ninguno califica.** Cerrado, medido.
+
+## GATE-G · CVD extendido para BTC (petición RasDG: powering-up los underpowered)
+> Se extendió el CVD de BTC de 2024→ a 2022-2026 (Binance Vision, gratis, +662 días →
+> 398,873 barras 5m). El underpowered (n=16 conf) cruzó el umbral.
+
+- Eventos con CVD: 334 → **796**. CVD-confirmados: 16 → **22** (ya gateable).
+- exp confirmado **+1.957R (WR 64%)** vs baseline +0.288R → uplift **+1.670R**.
+- **DSR (n_trials=12) = 0.875 < 0.95 → NO clarea la vara.** Marginal, no a prueba de balas.
+- Consistente con CEMENTERIO ("el +1.47R estricto n=17 lo mató el gate"). Ahora medido con
+  n suficiente: BTC-CVD es real-direccional pero estadísticamente **marginal** (cableado OFF).
+- **Ganancia:** de "underpowered/sin veredicto" a "medido: 0.875". La extensión convirtió una
+  incógnita en un número honesto. SOL en extensión (mismo procedimiento, pendiente).
