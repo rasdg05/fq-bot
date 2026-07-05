@@ -289,7 +289,7 @@ td:first-child,th:first-child{text-align:left}
 <div id="nnwrap" class="reveal">
   <div class="nnhead"><b>Flujo de decisión del motor</b><span>features → etapas → señal · <i class="up">verde peso +</i> · <i class="dn">rojo peso −</i></span></div>
   <canvas id="nn"></canvas>
-  <div class="nnfoot"><b>Representación del pipeline</b> — no es una red neuronal entrenada: es el mapa del motor de reglas (φ·w·h·κ + KL + order-flow), con su gate <b>DSR·CPCV·PBO</b> como última capa. Los inputs son features reales; la salida, la decisión real.</div>
+  <div class="nnfoot"><b>Motor de reglas gateado</b> — features reales → estructura · régimen KL · order-flow → gate <b>DSR·CPCV·PBO</b> → señal real. Medido, no deep learning.</div>
 </div>
 
 <div id="tape"><div class="rail" id="rail"></div></div>
@@ -657,7 +657,7 @@ const INTRO_VIDEO="";
         ctx.strokeStyle=rgba(wt>0?UP:DN,a);ctx.lineWidth=0.5+mg*0.85;ctx.beginPath();ctx.moveTo(A[i].x,A[i].y);ctx.lineTo(B[j].x,B[j].y);ctx.stroke();}}
     LAY.forEach(L=>L.nd.forEach(nu=>{const r=1.4+nu.a*1.9;ctx.fillStyle="rgba(228,238,250,"+(0.5+0.5*nu.a)+")";ctx.beginPath();ctx.arc(nu.x,nu.y,r,0,6.28);ctx.fill();}));
     ctx.globalCompositeOperation="source-over";ctx.textAlign="left";ctx.font="700 8.5px ui-monospace,monospace";
-    LAY.forEach(L=>{ctx.fillStyle=rgba(GOLD,.85);ctx.fillText(L.nm,L.x-5,13);ctx.fillStyle="rgba(150,160,150,.62)";ctx.font="7px ui-monospace,monospace";ctx.fillText(L.sb,L.x-5,H-3);ctx.font="700 8.5px ui-monospace,monospace";});
+    LAY.forEach(L=>{ctx.fillStyle=rgba(GOLD,.85);ctx.fillText(L.nm,L.x-5,13);});
     ctx.textAlign="right";ctx.font="6.5px ui-monospace,monospace";ctx.fillStyle="rgba(120,190,160,.8)";
     LAY[0].nd.forEach((nu,i)=>ctx.fillText(INP[i]||"",nu.x-6,nu.y+2.3));
     ctx.textAlign="left";ctx.font="700 8.5px ui-monospace,monospace";
