@@ -2888,8 +2888,10 @@ def _kl_pass(df_primary, pair):
 #     fires del motor, CRUDOS (solo TP1), etiquetados según pasen o no el filtro de calidad KL
 #     — el "escaparate ruidoso" que evita el canal muerto + el gancho de conversión.
 #   - tiers vip/trial/admin: siguen recibiendo solo las filtradas (formato VIP completo).
-# Envs (ambas default OFF -> byte-idéntico):
-#   FQ_FREE_TIER=1   -> enciende la entrega al tier "free".
+# Envs:
+#   FQ_FREE_TIER     -> entrega al tier "free". Default ON desde 2026-07-06 (RasDG:
+#                       "activa las señales de los pares que no pasaron el gate, el resto
+#                       de símbolos a Free"). FQ_FREE_TIER=0 la apaga.
 #   FQ_FREE_TO_VIP=1 -> además, los DESCARTES del filtro llegan a los VIP etiquetados
 #                       'Señal FREE' (informativa, sin upsell) — los VIP ven todo.
 #
@@ -2898,8 +2900,14 @@ def _kl_pass(df_primary, pair):
 #                (bloquea cualquier mensaje con marcadores VIP: TP2-4/convicción/boosts).
 #                Estructural: _free_broadcast NUNCA recibe el msg VIP — solo el report crudo.
 #   FREE -> VIP: PERMITIDO con etiqueta ('Señal FREE' vs 'Senal VIP', test cruzado).
-FREE_TIER_ENABLED = os.environ.get("FQ_FREE_TIER", "0").strip().lower() in ("1", "true", "yes")
+#   PARES VIP:   los fires de FQ_VIP_PAIRS (default BTC/ETH/SOL — los 3 que pasaron el
+#                gate) JAMÁS van al tier free (RasDG 2026-07-06: "quítalas de free y solo
+#                déjalas en vip"). El fantasma completo es de pago; el tier free vive de
+#                los pares cosecha.
+FREE_TIER_ENABLED = os.environ.get("FQ_FREE_TIER", "1").strip().lower() in ("1", "true", "yes")
 FREE_TO_VIP = os.environ.get("FQ_FREE_TO_VIP", "0").strip().lower() in ("1", "true", "yes")
+VIP_PAIRS = set("{}/USDT".format(_persist_ccy(p)) for p in
+                os.environ.get("FQ_VIP_PAIRS", "BTC,ETH,SOL").split(",") if p.strip())
 
 
 def _free_broadcast(decision_report, pair, kl_passed):
@@ -2909,6 +2917,9 @@ def _free_broadcast(decision_report, pair, kl_passed):
        — tras pasar el candado anti-fuga.
     2) FQ_FREE_TO_VIP=1: el descarte del filtro llega a los VIP etiquetado 'Señal FREE'."""
     if not (VIP_FORMAT_AVAILABLE and vip_format is not None):
+        return
+    # Candado de pares VIP: BTC/ETH/SOL (los que pasaron el gate) jamás al tier free.
+    if "{}/USDT".format(_persist_ccy(pair)) in VIP_PAIRS:
         return
     # Sesgo de funding para el free (FQ_FREE_FUNDING): UNA sola consulta reutilizada por los
     # dos envíos (free y free->vip). OFF -> False -> señal byte-idéntica. Defensivo por dentro.
@@ -3544,18 +3555,19 @@ def _xsym_motor_paper_scan(exchange, *, enabled, symbol_inst, pair, tf_id,
                         ts_utc=df_primary["timestamp"].iloc[-1]))
                 except Exception:
                     _seg_vetoed = False
-            if (not _seg_vetoed and broadcast_enabled
-                    and VIP_FORMAT_AVAILABLE and vip_format is not None):
+            if not _seg_vetoed and VIP_FORMAT_AVAILABLE and vip_format is not None:
                 try:
-                    msg = vip_format.build_vip_signal(
-                        field, report, tf_label=profile["label"], tf_id=tf_id, pair=pair,
-                        **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], pair),
-                        **_poc_vip_kwargs(report, exchange, symbol_inst, tf_id, pair,
-                                          float(df_primary["close"].iloc[-1])),
-                        **_funding_vip_kwargs(report, pair))
                     _kl_ok = (not kl_gated) or _kl_pass(df_primary, pair)   # tier KL-bajo (calidad)
-                    _free_broadcast(report, pair, _kl_ok)   # tier FREE: todos los fires, etiquetados
-                    if _kl_ok:
+                    # tier FREE primero: los pares cosecha difunden aquí AUNQUE no tengan
+                    # carril VIP (broadcast_enabled=False). No-op para pares VIP (candado).
+                    _free_broadcast(report, pair, _kl_ok)
+                    if broadcast_enabled and _kl_ok:
+                        msg = vip_format.build_vip_signal(
+                            field, report, tf_label=profile["label"], tf_id=tf_id, pair=pair,
+                            **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], pair),
+                            **_poc_vip_kwargs(report, exchange, symbol_inst, tf_id, pair,
+                                              float(df_primary["close"].iloc[-1])),
+                            **_funding_vip_kwargs(report, pair))
                         broadcast_to_subscribers(msg)
                 except Exception as e:
                     log.warning("[motor-xsym] %s broadcast: %s", pair, e)
@@ -3584,6 +3596,42 @@ BNB_MOTOR_PAPER_ENABLED = os.environ.get("FQ_MOTOR_PAPER_BNB", "0").strip() in (
 BNB_MOTOR_TF = os.environ.get("FQ_MOTOR_PAPER_BNB_TF", "5m")
 BNB_VIP_BROADCAST_ENABLED = os.environ.get("FQ_BNB_VIP_BROADCAST", "1").strip() not in ("0", "false", "no")
 BNB_MOTOR_LEDGER_PATH = os.environ.get("FQ_MOTOR_PAPER_BNB_LEDGER_PATH", "/data/motor_paper_BNB_USDT.jsonl")
+
+
+# Flota FREE (RasDG 2026-07-06: "activa las señales de los pares que no pasaron el gate,
+# el resto de símbolos a Free"). Los 10 símbolos cosecha del cube (los que NO pasaron el
+# gate DSR/CPCV/PBO o siguen sin medir) disparan CRUDOS (TP1) al tier free — JAMÁS a VIP
+# (broadcast_enabled=False). Ledger paper propio por símbolo: la flota además mide forward
+# gratis. FQ_FREE_PAIRS="" apaga la flota; FQ_FREE_PAIRS_TF cambia el timeframe.
+FREE_PAIRS_RAW = os.environ.get("FQ_FREE_PAIRS", "ADA,AVAX,BCH,BNB,DOGE,DOT,LINK,LTC,TRX,XRP")
+FREE_SCAN_PAIRS = [c.strip().upper() for c in FREE_PAIRS_RAW.split(",") if c.strip()]
+FREE_PAIRS_TF = os.environ.get("FQ_FREE_PAIRS_TF", "5m")
+
+
+def _free_pairs_scan(exchange, new_candle_tfs):
+    """Scan de la flota FREE (pares cosecha, sin gate): cada fire va SOLO al tier free vía
+    _xsym_motor_paper_scan(broadcast_enabled=False). Salta pares con flag legacy dedicado
+    (LINK/BNB/BCH: ya los escanea su carril) y pares VIP (candado). No-op con el tier free
+    apagado. Nunca rompe el loop (el scan por par es defensivo por dentro)."""
+    if not (FREE_TIER_ENABLED and FREE_SCAN_PAIRS and FREE_PAIRS_TF in new_candle_tfs):
+        return
+    for ccy in FREE_SCAN_PAIRS:
+        pair = "{}/USDT".format(ccy)
+        if pair in VIP_PAIRS:
+            continue                        # un par VIP jamás por el carril free
+        if (ccy == "LINK" and LINK_MOTOR_PAPER_ENABLED) or \
+           (ccy == "BNB" and BNB_MOTOR_PAPER_ENABLED) or \
+           (ccy == "BCH" and BCH_MOTOR_PAPER_ENABLED):
+            continue                        # ya lo escanea su flag dedicado
+        try:
+            _xsym_motor_paper_scan(
+                exchange, enabled=True, symbol_inst="{}-USDT-SWAP".format(ccy),
+                pair=pair, tf_id=FREE_PAIRS_TF,
+                ledger_path="/data/motor_paper_{}_USDT.jsonl".format(ccy),
+                broadcast_enabled=False,    # sin gate pasado -> jamás VIP
+                kl_gated=True)              # etiqueta KL honesta en el msg free
+        except Exception as e:
+            log.warning("[free-fleet] %s: %s", pair, e)
 
 
 # ============================================================
@@ -6021,6 +6069,11 @@ def main():
         _active.append(_lbl(SYMBOL_LINK))
     if BNB_MOTOR_PAPER_ENABLED and BNB_VIP_BROADCAST_ENABLED:
         _active.append(_lbl(SYMBOL_BNB))
+    if FREE_TIER_ENABLED:
+        _free_n = len([c for c in FREE_SCAN_PAIRS
+                       if "{}/USDT".format(c) not in VIP_PAIRS])
+        if _free_n:
+            _active.append("free×{}".format(_free_n))
     telegram_send(
         "{header}\n"
         "\n"
@@ -6118,6 +6171,8 @@ def main():
                     exchange, enabled=BNB_MOTOR_PAPER_ENABLED, symbol_inst=SYMBOL_BNB,
                     pair="BNB/USDT", tf_id=BNB_MOTOR_TF, ledger_path=BNB_MOTOR_LEDGER_PATH,
                     broadcast_enabled=BNB_VIP_BROADCAST_ENABLED, kl_gated=True)
+            # Flota FREE (pares cosecha sin gate): fires crudos SOLO al tier free.
+            _free_pairs_scan(exchange, new_candle_tfs)
 
             # RADAR proactivo / ALERTA TACTICA (FQ v5.3):
             #   - Corre en FIELD_TIMEFRAMES (default 5m+15m; 1m opt-in, 3m retirado).
