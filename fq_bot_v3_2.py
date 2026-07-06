@@ -2906,6 +2906,11 @@ def _kl_pass(df_primary, pair):
 #                los pares cosecha.
 FREE_TIER_ENABLED = os.environ.get("FQ_FREE_TIER", "1").strip().lower() in ("1", "true", "yes")
 FREE_TO_VIP = os.environ.get("FQ_FREE_TO_VIP", "0").strip().lower() in ("1", "true", "yes")
+# Echo admin de cada envío free (FQ_FREE_ADMIN_ECHO, default ON): el admin NO recibe el
+# stream free (include_admin=False), así que sin esto los envíos free son invisibles para
+# RasDG ("si dispara y nada llega a free"). El echo dice QUÉ salió y a CUÁNTOS llegó —
+# '0 entregada(s)' delata al instante una BD sin usuarios tier free.
+FREE_ADMIN_ECHO = os.environ.get("FQ_FREE_ADMIN_ECHO", "1").strip().lower() in ("1", "true", "yes")
 VIP_PAIRS = set("{}/USDT".format(_persist_ccy(p)) for p in
                 os.environ.get("FQ_VIP_PAIRS", "BTC,ETH,SOL").split(",") if p.strip())
 
@@ -2930,7 +2935,11 @@ def _free_broadcast(decision_report, pair, kl_passed):
                                                funding_favorable=fav)
             if vip_format.free_leak_guard(msg):
                 # include_admin=False: el admin ya recibe el stream VIP; sin duplicados.
-                broadcast_to_subscribers(msg, include_admin=False, tiers=["free"])
+                sent, _failed = broadcast_to_subscribers(msg, include_admin=False,
+                                                         tiers=["free"])
+                if FREE_ADMIN_ECHO and TELEGRAM_CHAT_ID:
+                    telegram_send("📤 <b>FREE</b> · {} · {} entregada(s)".format(
+                        pair, sent), TELEGRAM_CHAT_ID)
             else:
                 log.error("[free-guard] BLOQUEADO: mensaje no-FREE rumbo al tier free (%s)", pair)
         except Exception as e:
@@ -3043,6 +3052,31 @@ def _funding_vip_kwargs(report, pair):
     return {"funding_boost": True} if _funding_favorable(report, pair) else {}
 
 
+def _motor_free_broadcast(sig, verdict):
+    """Fire ABIERTO del motor base (paper §6.10.1) -> tier free, SOLO pares cosecha (los
+    VIP los bloquea el candado de _free_broadcast). RasDG 2026-07-06: "si dispara y nada
+    llega a free" — el motor base ES el generador con cadencia real en estos pares (el
+    clásico casi no dispara ahí); su subset es la población medida (+0.10R). Report crudo
+    (TP1) sintetizado del sig. Etiqueta KL honesta si el fire trae regime_tags.kl_low
+    (FQ_REGIME_TAGS=1); sin tag -> True (misma semántica que un par sin filtro activo).
+    Defensivo: JAMÁS rompe el notify admin."""
+    try:
+        pair = (verdict or {}).get("symbol")
+        if not pair or sig is None:
+            return
+        e, s, t = float(sig["entry"]), float(sig["stop"]), float(sig["tp"])
+        risk = abs(e - s)
+        if risk <= 0:
+            return
+        rep = {"direction": "long" if sig.get("direction", 0) > 0 else "short",
+               "levels": {"entry": e, "sl": s, "risk": risk,
+                          "tp1": t, "rr_tp1": abs(t - e) / risk}}
+        kl = (verdict.get("regime_tags") or {}).get("kl_low")
+        _free_broadcast(rep, pair, True if kl is None else bool(kl))
+    except Exception as ex:
+        log.debug("[motor-free] %s", ex)
+
+
 def _motor_admin_notify(sig, verdict, pos):
     """Aviso admin-only del motor paper (open + digest). SIN VIP, 0% real."""
     try:
@@ -3065,6 +3099,8 @@ def _motor_admin_notify(sig, verdict, pos):
                    kz=verdict.get("killzone", "?"), e=sig["entry"], s=sig["stop"],
                    t=sig["tp"], pid=pos.pid)
         broadcast_to_subscribers(msg, tiers=["admin"])
+        # Fires del motor base de pares COSECHA -> tier free (los VIP: candado).
+        _motor_free_broadcast(sig, verdict)
     except Exception as e:
         log.warning("[motor] notify admin: %s", e)
 
