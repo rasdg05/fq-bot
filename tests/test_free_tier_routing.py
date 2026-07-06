@@ -91,3 +91,75 @@ def test_flota_free_no_op_fuera_de_tf(monkeypatch):
                         lambda exchange, **kw: llamadas.append(kw))
     bot._free_pairs_scan(None, {"15m"})
     assert llamadas == []
+
+
+# --------- motor base (paper) -> tier free (pares cosecha) ---------
+
+def _sig(d=1):
+    return {"direction": d, "entry": 6.8050, "stop": 6.8537, "tp": 6.6530}
+
+
+def test_motor_free_cosecha_va_a_free(monkeypatch):
+    sent = []
+    monkeypatch.setattr(bot, "FREE_TIER_ENABLED", True)
+    monkeypatch.setattr(bot, "FREE_FUNDING_ENABLED", False)
+    monkeypatch.setattr(bot, "FREE_ADMIN_ECHO", False)
+    monkeypatch.setattr(bot, "broadcast_to_subscribers",
+                        lambda msg, **kw: sent.append((msg, kw)) or (1, 0))
+    bot._motor_free_broadcast(_sig(-1), {"symbol": "AVAX/USDT", "tf": "5m"})
+    assert len(sent) == 1
+    assert sent[0][1].get("tiers") == ["free"]
+    assert "AVAX" in sent[0][0]
+
+
+def test_motor_free_vip_bloqueado(monkeypatch):
+    sent = []
+    monkeypatch.setattr(bot, "FREE_TIER_ENABLED", True)
+    monkeypatch.setattr(bot, "FREE_FUNDING_ENABLED", False)
+    monkeypatch.setattr(bot, "FREE_ADMIN_ECHO", False)
+    monkeypatch.setattr(bot, "broadcast_to_subscribers",
+                        lambda msg, **kw: sent.append((msg, kw)) or (1, 0))
+    for pair in ("SOL/USDT", "BTC/USDT", "ETH/USDT"):
+        bot._motor_free_broadcast(_sig(1), {"symbol": pair, "tf": "5m"})
+    assert sent == []
+
+
+def test_motor_free_kl_honesto_del_fire(monkeypatch):
+    capt = {}
+    monkeypatch.setattr(bot, "_free_broadcast",
+                        lambda rep, pair, kl: capt.update(pair=pair, kl=kl, rep=rep))
+    bot._motor_free_broadcast(_sig(1), {"symbol": "XRP/USDT",
+                                        "regime_tags": {"kl_low": False}})
+    assert capt["kl"] is False                      # respeta el kl_low del fire
+    bot._motor_free_broadcast(_sig(1), {"symbol": "XRP/USDT"})
+    assert capt["kl"] is True                       # sin tag -> semántica sin-filtro
+    assert capt["rep"]["direction"] == "long"
+    assert capt["rep"]["levels"]["entry"] == 6.8050
+
+
+def test_free_echo_admin_con_conteo(monkeypatch):
+    echos = []
+    monkeypatch.setattr(bot, "FREE_TIER_ENABLED", True)
+    monkeypatch.setattr(bot, "FREE_FUNDING_ENABLED", False)
+    monkeypatch.setattr(bot, "FREE_ADMIN_ECHO", True)
+    monkeypatch.setattr(bot, "TELEGRAM_CHAT_ID", "123")
+    monkeypatch.setattr(bot, "broadcast_to_subscribers", lambda msg, **kw: (3, 0))
+    monkeypatch.setattr(bot, "telegram_send",
+                        lambda msg, cid=None, **kw: echos.append((msg, cid)) or True)
+    bot._free_broadcast(_report(), "XRP/USDT", True)
+    assert len(echos) == 1
+    assert "3 entregada(s)" in echos[0][0] and "XRP/USDT" in echos[0][0]
+    assert echos[0][1] == "123"
+
+
+def test_free_echo_apagable(monkeypatch):
+    echos = []
+    monkeypatch.setattr(bot, "FREE_TIER_ENABLED", True)
+    monkeypatch.setattr(bot, "FREE_FUNDING_ENABLED", False)
+    monkeypatch.setattr(bot, "FREE_ADMIN_ECHO", False)
+    monkeypatch.setattr(bot, "TELEGRAM_CHAT_ID", "123")
+    monkeypatch.setattr(bot, "broadcast_to_subscribers", lambda msg, **kw: (3, 0))
+    monkeypatch.setattr(bot, "telegram_send",
+                        lambda msg, cid=None, **kw: echos.append((msg, cid)) or True)
+    bot._free_broadcast(_report(), "XRP/USDT", True)
+    assert echos == []

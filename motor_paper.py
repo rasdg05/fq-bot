@@ -348,11 +348,12 @@ class MotorPaperRuntime:
                                       "risk_frac": d["risk_frac"], **sig}
                             # provenance: liga el pid con killzone/tf para segmentar
                             # el ledger forward (base vs +veto, por killzone/tf).
+                            rtags = _regime_tags(df_primary, sig.get("entry"),
+                                                 symbol=self.symbol)
                             self.broker.ledger.append({
                                 "event": "MOTOR_OPEN_META", "ts": ts, "pid": pos.pid,
                                 "tf": tf_id, "killzone": kz, "regime": regime,
-                                **_cvd_meta(cvd),
-                                **_regime_tags(df_primary, sig.get("entry"), symbol=self.symbol)})
+                                **_cvd_meta(cvd), **rtags})
                             if self.maker_sim:
                                 self._maker_pending.append({
                                     "pid": pos.pid, "direction": pos.direction,
@@ -360,7 +361,8 @@ class MotorPaperRuntime:
                             if self.notify_fn is not None:
                                 try:
                                     self.notify_fn(sig, {"killzone": kz, "tf": tf_id,
-                                                         "symbol": self.symbol}, pos)
+                                                         "symbol": self.symbol,
+                                                         "regime_tags": rtags}, pos)
                                 except Exception as e:
                                     log.warning("[motor] notify_fn: %s", e)
                     else:
@@ -436,7 +438,8 @@ class MotorPaperRuntime:
         if self.notify_fn is not None:
             try:
                 self.notify_fn(sig, {"killzone": pe.get("killzone"), "tf": pe.get("tf"),
-                                     "fill_type": fill_type, "symbol": self.symbol}, pos)
+                                     "fill_type": fill_type, "symbol": self.symbol,
+                                     "regime_tags": pe.get("regime_tags") or {}}, pos)
             except Exception as e:
                 log.warning("[motor] notify_fn: %s", e)
         return pos
