@@ -2,6 +2,7 @@
 """
 ================================================================================
   FQ v5.1 SIGNAL BOT - "MISTRAL EMERGENT TIME EDITION"
+  redeploy 2026-07-06: nudge post-builder-flaky (Metal snapshot fetch); sin cambios.
   Fibonacci Cuantico v5.1 - QTE + Postulado tau(t) Tiempo Emergente
   by RasDG_Sol + Claude
 ================================================================================
