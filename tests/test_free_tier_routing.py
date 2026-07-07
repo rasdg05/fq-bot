@@ -152,6 +152,29 @@ def test_free_echo_admin_con_conteo(monkeypatch):
     assert echos[0][1] == "123"
 
 
+def test_flota_digest_individual_off_y_agregado(monkeypatch):
+    import types
+    fake_rt = types.SimpleNamespace(digest_every=288, counts={"fire": 2, "opened": 1, "vetoed": 1},
+                                    account=types.SimpleNamespace(open=[]))
+    monkeypatch.setattr(bot, "FREE_TIER_ENABLED", True)
+    monkeypatch.setattr(bot, "FREE_PAIRS_TF", "5m")
+    monkeypatch.setattr(bot, "FREE_FLEET_DIGEST_EVERY", 2)
+    monkeypatch.setattr(bot, "_FREE_FLEET_TICKS", {"n": 0})
+    monkeypatch.setattr(bot, "_xsym_motor_runtime", lambda pair, lp: fake_rt)
+    monkeypatch.setattr(bot, "_xsym_motor_paper_scan", lambda exchange, **kw: None)
+    digests = []
+    monkeypatch.setattr(bot, "broadcast_to_subscribers",
+                        lambda msg, **kw: digests.append((msg, kw)) or (1, 0))
+    monkeypatch.setattr(bot, "_XSYM_MOTOR", {"XRP/USDT": fake_rt})
+    bot._free_pairs_scan(None, {"5m"})          # tick 1: sin digest
+    assert fake_rt.digest_every == 0            # individual apagado
+    assert digests == []
+    bot._free_pairs_scan(None, {"5m"})          # tick 2: digest agregado
+    assert len(digests) == 1
+    assert "Flota free" in digests[0][0]
+    assert digests[0][1].get("tiers") == ["admin"]
+
+
 def test_free_echo_apagable(monkeypatch):
     echos = []
     monkeypatch.setattr(bot, "FREE_TIER_ENABLED", True)
