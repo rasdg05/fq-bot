@@ -90,6 +90,38 @@ Baseline: política actual (suprimir todo irrev > FQ_KL_THR).
 - La deep-research del filo momentum (regime-switching continuation) corre en paralelo;
   si trae un motor de continuación genuino con evidencia, se diseña con SU propio doc.
 
+## RESULTADO DEL GATE (2026-07-07, corrido tal como quedó pre-registrado)
+
+Pool: 3,159 señales majors con irrev (2021-01 → 2026-06), h96, 4 celdas TP por señal.
+Costos aplicados: maker 0.02%/lado, SL taker 0.05%, p_maker=0.824 (14/17, ledger 07-jul),
+convertidos a R por señal vía risk_pct. Script: `/tmp/pi_blade_gate.py` (autocontenido).
+
+| Métrica | π_blade⁻ (cons) | π_blade (agresiva) | Barra |
+|---|---|---|---|
+| totR neto vs baseline (+258.0) | **+284.9 (+26.9)** | +266.7 (+8.7) | — |
+| CPCV (15 caminos) | gana 12/15, Δ+0.0095 R/señal | gana 9/15 | ≥ mayoría clara |
+| **DSR** (n_trials=39, var familia) | **0.006** | 0.000 | **> 0.95** |
+| PBO (CSCV S=8, 27 configs) | 0.157 (limpio) | — | < 0.5 |
+| Cross-symbol | 3/3 mejoran (SOL +16.9, ETH +9.8, BTC +0.1) | mixto | consistencia |
+
+### VEREDICTO: **NO PASA — no se cablea.**
+
+- La dirección es real (12/15 caminos, 3/3 símbolos, PBO limpio) pero el efecto neto es
+  **microscópico**: +0.036R por señal diferida (t≈1.0σ). Los +122R brutos del exploratorio
+  quedaron en **+27R netos en 5.5 años** — el costo maker sobre stops apretados
+  (fee/risk_pct) más el haircut de fill (0.824) se comieron el 78%.
+- Para certificar un efecto de este tamaño harían falta ~4,200 señales diferidas (hay 742).
+  No es "casi pasa": es que el filo residual de la reversión corta en tendencia, ya neto
+  de fricción, **no da de comer**.
+- Lo que SÍ queda establecido (y era la mitad del hallazgo): la escalera larga en KL alto
+  está muerta (tp4 +0.032 bruto) — la supresión actual no está dejando dinero relevante
+  sobre la mesa. **El filtro actual queda revalidado por el camino.**
+- El "otro filo" genuino, si existe, no es exprimir el residuo de la reversión: tendrá que
+  ser un motor de CONTINUACIÓN con su propia anatomía (deep-research en curso, doc propio
+  cuando aterrice).
+- Opcional sin costo: runtime paper π⁻ para acumular n forward. No urgente; no mueve
+  producto.
+
 ## Datos y reproducibilidad
 
 Pool: `/tmp/ghost_tagged.parquet` (11,729 fires 12 símbolos con irrev, ventana 64×5m) +
