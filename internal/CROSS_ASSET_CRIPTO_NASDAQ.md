@@ -48,6 +48,46 @@ es la capa compartida; el edge sigue siendo específico de cada mercado.
 podría afinar los longs del motor cripto EN VIVO (el bidireccional que mencionó el dueño). Vale el
 test — es data en mano, feed cripto ya vivo.
 
+## 🔥 La otra mitad (NASDAQ → cripto) — LA QUE MUEVE LA AGUJA (toca el producto vivo)
+
+Priorizado por impacto: esto filtra las señales de reversión cripto que YA van a VIP. Para cada
+señal VIP (KL-bajo, majors, 2021-2026, n=1681 con NQ disponible), se mide el move de NASDAQ (NQ,
+casi 24h) en las 6h PREVIAS (causal) y se ve si la dirección de la señal cripto se alinea:
+
+| señal cripto VIP filtrada por NASDAQ | n | avgR | Sharpe/trade |
+|---|---|---|---|
+| todas (baseline) | 1681 | +0.305 | 0.136 |
+| **ALINEADA con NASDAQ** | 874 | **+0.431** | **0.182** |
+| CONTRA NASDAQ | 807 | +0.169 | 0.081 |
+
+Por lado (limpio en ambos):
+- LONG cripto + NASDAQ↑: +0.380 · LONG + NASDAQ↓: +0.229
+- SHORT cripto + NASDAQ↓: **+0.485** · SHORT + NASDAQ↑ (contra): +0.132
+
+**El avgR MÁS QUE DUPLICA cuando la señal cripto se alinea con el estado de riesgo de NASDAQ**
+(+0.431 vs +0.169). Bidireccional. Es el filtro de contexto cross-asset del dueño, aplicado al
+motor cripto EN VIVO — no un motor nuevo, una capa de convicción sobre lo que ya paga.
+
+### Por qué esta mueve más la aguja
+- Toca el producto **desplegado** (señales VIP reales) → valor inmediato, sin feed de trading NQ.
+- Solo necesita la **DIRECCIÓN** de NASDAQ (un proxy delayed/gratis basta — QQQ/NQ retardado),
+  mucho más barato que un feed tick para ejecutar. Wireable de verdad.
+- Aplicación: convicción/sizing — anti-alineadas siguen siendo +0.169 (no se descartan, se bajan);
+  alineadas se refuerzan. `FQ_CROSS_ASSET` default OFF, medir forward.
+
+### Caveats honestos
+- Muestra 2021-2026 = **era de correlación cripto-equities** (post-2020). Si se descorrelacionan,
+  el filtro se debilita — es régimen-dependiente de la correlación, a vigilar.
+- 586 señales sin NQ (fines de semana, NQ cerrado) — esas no usan el filtro (default: neutral).
+- Es capa de convicción, no señal nueva. El edge base (reversión) es el mismo.
+
+## Veredicto de la ronda cross-asset
+La intuición del dueño era correcta en su FORMA CORRECTA: no se porta la señal (opuesta entre
+mercados), se porta el CONTEXTO de correlación. Y paga en AMBAS direcciones — confirma los longs de
+NASDAQ (2.18 vs 1.04) Y las señales de reversión cripto (+0.431 vs +0.169). La segunda es la que
+mueve la aguja porque toca el motor vivo. Candidato #1 a cablear (default OFF + forward).
+
 ## Reproducibilidad
-Inline en la sesión (NASDAQ longs × BTC pre-open 6h). Data `data/cme/NQ-USDT_5m.parquet` +
-`data/kl_hist_BTCUSDT.parquet`, alineados por timestamp UTC.
+NASDAQ←cripto: NASDAQ longs × BTC pre-open 6h. NASDAQ→cripto: señales VIP (ghost_tagged, KL≤0.40) ×
+NQ move 6h previo. Data `data/cme/NQ-USDT_5m.parquet`, `data/kl_hist_BTCUSDT.parquet`,
+`/tmp/ghost_tagged.parquet`. Alineados por timestamp, causal.
