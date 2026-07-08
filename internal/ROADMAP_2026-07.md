@@ -3,26 +3,37 @@
 > Estado tras la noche: motor de continuación descubierto, gateado en NASDAQ (Sharpe ~1.0 OOS),
 > afilado con el arsenal cripto. Oro cerrado como cosecha. El plan de aquí prioriza por EV/esfuerzo.
 
-## El insight que ordena todo
+## El insight que ordena todo (CORREGIDO 2026-07-08 — medido esa misma noche)
 
-El descubrimiento de NASDAQ NO es solo un mercado nuevo — es **la mitad que le falta al producto
-cripto**. El motor cripto en vivo es de REVERSIÓN (dispara en KL-bajo, se calla en trending). El
-motor de continuación dispara en KL-ALTO (trending). **Juntos cubren los dos regímenes.** Las
-sequías de VIP (3-4 semanas mudas que frustraron al dueño) son exactamente el régimen donde la
-reversión muere y la continuación viviría. Ese es el hilo de mayor EV.
+La hipótesis original era: "el motor de continuación de NASDAQ es la mitad que le falta a cripto,
+taparía las sequías VIP". **MEDIDO Y REFUTADO esa madrugada.** La firma intradía por mercado:
 
-## Prioridad 1 — Reciclar continuación → CRIPTO (mayor EV, más barato)
+| mercado | corr(apertura→resto) | firma |
+|---|---|---|
+| NASDAQ | +0.053 | momentum (pasa gate) |
+| Oro | +0.040 | momentum débil |
+| **Cripto** | **−0.032** | **REVERSIÓN** |
 
-**Qué:** correr el motor de momentum/continuación (mismo diseño NASDAQ v3: breakout + parcial+BE,
-gate KL-ALTO) sobre BTC/SOL/ETH, con el cube de 7 años que YA tenemos.
-**Por qué es #1:**
-- Resuelve el dolor real (sequías VIP) — el complemento que π_blade intentó ser y no era.
-- Cripto YA está en vivo (feed OKX) → si pasa el gate, va a forward paper INMEDIATO en el bot
-  actual (infra motor_paper + tiers ya existe). Cero data nueva que comprar.
-- Es el interés compuesto puro: el hallazgo de NASDAQ hace mejor el producto core.
-**Cómo:** experimento measure-first (gate DSR/CPCV/PBO + holdout), pre-registrado. Si pasa →
-runtime paper `FQ_CONTINUATION` default OFF, mide forward junto al motor de reversión.
-**Costo:** ~0 (data en mano). **Esfuerzo:** medio (1 sesión).
+**El signo está invertido en cripto.** Es mean-reverting intradía — lo OPUESTO de los índices. La
+continuación pierde en cripto en toda forma (breakout −0.13R, time-anchored −0.09R, DSR 0.000,
+CPCV 0% paths+). No se puede portar un motor de momentum a un mercado que revierte. Por eso el
+motor cripto en vivo (reversión) funciona: está montado sobre la firma REAL de cripto.
+
+**Lo que SÍ recicla no es la señal — es el MÉTODO:** el gate DSR/CPCV/PBO, el detector KL, las
+capas de ejecución (parcial+BE, breakout como filtro), y la disciplina. La dirección del edge NO
+transfiere; la maquinaria de medirlo, sí. Cada mercado tiene su firma y hay que medirla, no asumir.
+
+## Prioridad 1 (CORREGIDA) — Décimas de cripto en el edge que YA existe
+
+La continuación queda descartada para cripto (medido). Las décimas de cripto están en **refinar la
+reversión que ya paga**, no en un motor nuevo:
+- **Portar la gestión parcial+BE** (que en NASDAQ bajó drawdown y subió WR) al motor de reversión
+  EN VIVO — si el motor cripto aún no la tiene afinada, es una mejora de ejecución medible y
+  portable (no cambia la señal, mejora cómo se cobra). Measure-first: ¿parcial+BE mejora el Sharpe/
+  drawdown de las señales de reversión sobre el cube? Si sí → cablear.
+- Más símbolos validados (BNB en forward), mejor ejecución maker.
+**Costo:** ~0. **Esfuerzo:** bajo-medio. **Nota:** el motor ya tiene ladder gestionado (parciales+
+BE del "fantasma") — verificar si ya está optimizado antes de asumir mejora.
 
 ## Prioridad 2 — Forward paper NASDAQ (el juez definitivo)
 
