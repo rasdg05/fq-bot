@@ -7,15 +7,16 @@ type Status = 'idle' | 'loading' | 'success' | 'error'
 
 const BULLETS = [
   <>
-    <b className="font-semibold text-ink">Regla 1–5</b> del trading con sistema, explicadas con
-    ejemplos reales.
+    <b className="font-semibold text-ink">Dónde está la liquidez</b>: las huellas (liquidaciones y
+    stops) donde hay combustible.
   </>,
   <>
-    Gestión de riesgo, R:R y <b className="font-semibold text-ink">tamaño de posición</b> (con
-    números).
+    <b className="font-semibold text-ink">Hacia dónde va</b>: los imanes que el precio busca — el
+    agua siempre encuentra el desagüe.
   </>,
   <>
-    Checklist de trade + cómo <b className="font-semibold text-ink">medir y mejorar</b>.
+    <b className="font-semibold text-ink">Quién la empuja</b>: volumen y order-flow — ¿mandan
+    compradores o vendedores? + la regla de riesgo.
   </>,
 ]
 
@@ -61,7 +62,16 @@ export default function OfferCard() {
       {...inViewProps}
       className="mx-auto my-[26px] rounded-[20px] border border-hairline bg-panel px-[26px] py-[30px]"
     >
-      <h2 className="text-[24px] tracking-[-.4px]">Descarga la guía gratis</h2>
+      <img
+        src="/fq-guia.webp"
+        alt="La Receta de la Liquidez — guía gratuita FQ"
+        loading="lazy"
+        className="mx-auto mb-5 w-[230px] max-w-full drop-shadow-[0_20px_50px_rgba(0,0,0,.6)]"
+      />
+      <div className="font-mono text-[11px] uppercase tracking-[3px] text-accent">Tu regalo</div>
+      <h2 className="mt-1 text-[24px] tracking-[-.4px]">
+        La Receta de la Liquidez <span className="text-muted">— gratis</span>
+      </h2>
 
       <ul className="my-4 mb-[22px] list-none space-y-2.5">
         {BULLETS.map((b, i) => (
@@ -80,7 +90,7 @@ export default function OfferCard() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-            className="rounded-xl border border-accent2 bg-[#0c1a16] px-5 py-6 text-center"
+            className="rounded-xl border border-accent2 bg-[#0c110e] px-5 py-6 text-center"
           >
             <div className="text-[22px]">Revisa tu correo 📩</div>
             <p className="mt-2 text-[15px] text-muted">

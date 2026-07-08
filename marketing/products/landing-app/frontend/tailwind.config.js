@@ -4,30 +4,33 @@ export default {
   theme: {
     extend: {
       colors: {
-        bg: '#080a0e',
-        panel: '#11151c',
-        panel2: '#161b24',
-        hairline: '#222a35',
+        // Marca unificada FQ: obsidiana + oro + Solana (violeta→menta).
+        bg: '#050705',
+        panel: '#0e1211',
+        panel2: '#141a18',
+        hairline: '#2a2b26',
         ink: '#eef1f4',
         muted: '#9aa3b1',
         faint: '#5e6775',
-        accent: '#19b88c',
-        accent2: '#12a37f',
+        accent: '#d4af37', // oro
+        accent2: '#c8a12f', // oro oscuro
+        solV: '#9945FF', // Solana violeta
+        solM: '#14F195', // Solana menta
       },
       fontFamily: {
         sans: ['Inter', 'Helvetica Neue', 'system-ui', '-apple-system', 'sans-serif'],
         mono: ['JetBrains Mono', 'SF Mono', 'ui-monospace', 'Menlo', 'Consolas', 'monospace'],
       },
       boxShadow: {
-        glow: '0 8px 40px rgba(25,184,140,.22)',
+        glow: '0 8px 40px rgba(212,175,55,.22)',
       },
       maxWidth: {
         wrap: '760px',
       },
       keyframes: {
         glowPulse: {
-          '0%, 100%': { opacity: '0.85', filter: 'drop-shadow(0 0 0 rgba(25,184,140,0))' },
-          '50%': { opacity: '1', filter: 'drop-shadow(0 0 12px rgba(25,184,140,0.45))' },
+          '0%, 100%': { opacity: '0.85', filter: 'drop-shadow(0 0 0 rgba(212,175,55,0))' },
+          '50%': { opacity: '1', filter: 'drop-shadow(0 0 12px rgba(212,175,55,0.45))' },
         },
       },
       animation: {
