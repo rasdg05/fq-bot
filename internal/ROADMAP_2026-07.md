@@ -27,13 +27,15 @@ transfiere; la maquinaria de medirlo, sí. Cada mercado tiene su firma y hay que
 
 La continuación queda descartada para cripto (medido). Las décimas de cripto están en **refinar la
 reversión que ya paga**, no en un motor nuevo:
-- **Portar la gestión parcial+BE** (que en NASDAQ bajó drawdown y subió WR) al motor de reversión
-  EN VIVO — si el motor cripto aún no la tiene afinada, es una mejora de ejecución medible y
-  portable (no cambia la señal, mejora cómo se cobra). Measure-first: ¿parcial+BE mejora el Sharpe/
-  drawdown de las señales de reversión sobre el cube? Si sí → cablear.
-- Más símbolos validados (BNB en forward), mejor ejecución maker.
-**Costo:** ~0. **Esfuerzo:** bajo-medio. **Nota:** el motor ya tiene ladder gestionado (parciales+
-BE del "fantasma") — verificar si ya está optimizado antes de asumir mejora.
+- ~~Portar la gestión parcial+BE de NASDAQ al motor de reversión cripto~~ **MEDIDO Y DESCARTADO
+  (misma noche).** Sobre las 2,250 señales VIP (KL-bajo, majors), comparando gestiones con niveles
+  reales del cube: el **ladder actual (25%×4) ya es el mejor Sharpe (0.098)**, gana al parcial+BE
+  (0.090) en Sharpe Y en totR (+349 vs +291), mismo drawdown. **El "fantasma" ya está afinado — no
+  hay décima ahí.** El motor cripto está maduro en señal (reversión) Y en ejecución (ladder).
+- Las décimas de cripto NO están en re-gestionar lo que ya está óptimo. Vías reales que quedan:
+  **más símbolos validados** (BNB en forward), **mejor fill maker** en ejecución real, y sobre todo
+  el crecimiento por **componer método a mercados nuevos** (NASDAQ), no por exprimir el core maduro.
+**Verdicto:** el core cripto (señal + gestión) está bien construido y medido. Confirmado, no asumido.
 
 ## Prioridad 2 — Forward paper NASDAQ (el juez definitivo)
 
