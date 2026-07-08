@@ -44,6 +44,33 @@ FQ es la elección correcta para el régimen live — no un atajo, una decisión
 recibo por si alguien vuelve a sugerir "usa la grado-grado, es más completa": lo es, sobre 10k
 puntos; sobre 64, es ruido.
 
+## Adenda — crossover por longitud de ventana (el mecanismo, medido)
+
+Pregunta (sugerida por la IA externa): *¿a qué longitud de ventana la grado-grado alcanza a la
+1D?* Barrido W ∈ {32..1024} sobre 700 señales (subsample), spread de separación por medida:
+
+| W (barras 5m) | ≈ lookback | 1D (marginal) | grado-grado (2D) | gana |
+|---|---|---|---|---|
+| 32 | ~2.5h | +0.104 | +0.124 | dd (ambas ruidosas) |
+| **64** | **~5h** | **+0.042** | **−0.030** | **1D (zona operativa)** |
+| 128 | ~10h | +0.094 | −0.006 | 1D |
+| 256 | ~21h | +0.165 | −0.022 | 1D |
+| 512 | ~1.8d | +0.016 | +0.022 | empate |
+| 1024 | ~3.5d | −0.036 | **+0.141** | **dd** |
+
+**El crossover es REAL y cae en ~512-1024 barras** — exactamente el mecanismo predicho: la
+conjunta 2D necesita miles de muestras para estimarse, y solo en ventanas largas se vuelve
+estimable *mientras* la marginal 1D pierde discriminación (a 3.5 días de lookback el descriptor
+de régimen local se lava). **Confirma empíricamente el caveat de Lacasa**: la grado-grado brilla
+en series largas, la 1D en ventanas cortas. Nuestra ventana de 64 cae de lleno en zona-1D.
+
+**Caveat que impide venderlo como mejora:** W=1024 = **3.5 días de lookback** describe un régimen
+LENTO, rancio respecto a una entrada de 5m — que la dd separe ahí es curiosidad estadística sobre
+descripción de largo horizonte, NO un gate accionable para el trade siguiente. Para que signifique
+algo tendría que pasar su propio gate. Además el barrido es subsample (terciles ~230) → la línea
+1D salta por ruido; no sobre-leer puntos sueltos. Conclusión firme (la forma): **1D domina en
+corto, dd en largo, crossover ~512-1024.** Artefacto: `/tmp/dd_crossover.png` + `.json`.
+
 ## Reproducibilidad
 Script `/tmp/dd_experiment.py` (autocontenido; reusa `_hvg_degrees` del repo). Datos:
 `data/kl_hist_{BTC,ETH,SOL}USDT.parquet` (5m) + `cosecha_cubes/tp_cube_{...}_USDT.parquet`.
