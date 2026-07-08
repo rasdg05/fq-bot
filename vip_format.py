@@ -225,12 +225,13 @@ def build_free_signal(decision_report, pair=None, kl_passed=True, audience="free
     when = datetime.now(CDMX_TZ).strftime("%H:%M CDMX")
     to_vip = (audience == "vip")
     if kl_passed:
-        tag = ("  {d} Pasó el filtro — ya la recibiste en formato VIP completo.\n".format(d=GLYPHS["premium"])
+        tag = (("  {d} Par cosecha · pasó el filtro de régimen.\n".format(d=GLYPHS["premium"]) +
+                "  Informativa: tus señales operables son las 'Señal VIP' (majors gateados).\n")
                if to_vip else
                ("  {d} CALIDAD VIP — esta pasó el filtro de régimen.\n"
                 "  Los VIP la reciben con 4 TPs + gestión + order-flow.\n").format(d=GLYPHS["premium"]))
     else:
-        tag = (("  ⚠️ NO pasó el filtro de calidad (régimen no óptimo).\n"
+        tag = (("  ⚠️ Par cosecha · NO pasó el filtro de calidad (régimen no óptimo).\n"
                 "  Informativa/transparencia: tus señales operables son las 'Señal VIP'.\n")
                if to_vip else
                ("  ⚠️ FILTRADA del VIP (régimen no óptimo).\n"
