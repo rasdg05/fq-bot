@@ -152,6 +152,68 @@ def test_free_echo_admin_con_conteo(monkeypatch):
     assert echos[0][1] == "123"
 
 
+def test_echo_solo_si_entrego(monkeypatch):
+    """El echo admin '📤 FREE' SOLO si sent>0 (embudo vacío -> silencio, no ruido)."""
+    echos = []
+    monkeypatch.setattr(bot, "FREE_TIER_ENABLED", True)
+    monkeypatch.setattr(bot, "FREE_FUNDING_ENABLED", False)
+    monkeypatch.setattr(bot, "FREE_TO_VIP", False)
+    monkeypatch.setattr(bot, "FREE_ADMIN_ECHO", True)
+    monkeypatch.setattr(bot, "TELEGRAM_CHAT_ID", "123")
+    monkeypatch.setattr(bot, "telegram_send",
+                        lambda msg, cid=None, **kw: echos.append(msg) or True)
+    # 0 entregadas -> sin echo
+    monkeypatch.setattr(bot, "broadcast_to_subscribers", lambda msg, **kw: (0, 0))
+    bot._free_broadcast(_report(), "XRP/USDT", True)
+    assert echos == []
+    # 2 entregadas -> echo
+    monkeypatch.setattr(bot, "broadcast_to_subscribers", lambda msg, **kw: (2, 0))
+    bot._free_broadcast(_report(), "XRP/USDT", True)
+    assert len(echos) == 1 and "2 entregada" in echos[0]
+
+
+def test_free_to_vip_excluye_admin(monkeypatch):
+    """El stream free->VIP va a vip/trial, NUNCA al admin (no inunda el chat del dueño)."""
+    calls = []
+    monkeypatch.setattr(bot, "FREE_TIER_ENABLED", False)
+    monkeypatch.setattr(bot, "FREE_FUNDING_ENABLED", False)
+    monkeypatch.setattr(bot, "FREE_TO_VIP", True)
+    monkeypatch.setattr(bot, "broadcast_to_subscribers",
+                        lambda msg, **kw: calls.append(kw) or (1, 0))
+    bot._free_broadcast(_report(), "XRP/USDT", False)
+    assert len(calls) == 1
+    assert calls[0].get("include_admin") is False
+    assert "admin" not in calls[0].get("tiers", [])
+
+
+def test_motor_paper_push_silenciado_pero_free_sale(monkeypatch):
+    """Default: el push '🧪 Motor base' NO se manda al admin, pero el fire free SÍ se dispara."""
+    import types
+    admin_pushes = []; free_calls = []
+    monkeypatch.setattr(bot, "MOTOR_PAPER_NOTIFY", False)
+    monkeypatch.setattr(bot, "broadcast_to_subscribers",
+                        lambda msg, **kw: admin_pushes.append(msg) or (1, 0))
+    monkeypatch.setattr(bot, "_motor_free_broadcast",
+                        lambda sig, verdict: free_calls.append(verdict))
+    sig = {"direction": -1, "entry": 7.6, "stop": 7.65, "tp": 7.49}
+    pos = types.SimpleNamespace(pid=1)
+    bot._motor_admin_notify(sig, {"symbol": "LINK/USDT", "tf": "5m"}, pos)
+    assert free_calls == [{"symbol": "LINK/USDT", "tf": "5m"}]   # producto: sí
+    assert admin_pushes == []                                    # telemetría: no
+
+
+def test_motor_paper_push_con_flag(monkeypatch):
+    import types
+    admin_pushes = []
+    monkeypatch.setattr(bot, "MOTOR_PAPER_NOTIFY", True)
+    monkeypatch.setattr(bot, "broadcast_to_subscribers",
+                        lambda msg, **kw: admin_pushes.append(msg) or (1, 0))
+    monkeypatch.setattr(bot, "_motor_free_broadcast", lambda sig, verdict: None)
+    sig = {"direction": -1, "entry": 7.6, "stop": 7.65, "tp": 7.49}
+    bot._motor_admin_notify(sig, {"symbol": "LINK/USDT", "tf": "5m"}, types.SimpleNamespace(pid=1))
+    assert len(admin_pushes) == 1 and "Motor base" in admin_pushes[0]
+
+
 def test_flota_digest_individual_off_y_agregado(monkeypatch):
     import types
     fake_rt = types.SimpleNamespace(digest_every=288, counts={"fire": 2, "opened": 1, "vetoed": 1},

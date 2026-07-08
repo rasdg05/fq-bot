@@ -2814,6 +2814,11 @@ def _gold_paper_eval(field, report, df_primary, price, tf_id):
 # ledger durable propio, paralelo al ORO. Activar con FQ_MOTOR_PAPER=1.
 MOTOR_PAPER_ENABLED = os.environ.get("FQ_MOTOR_PAPER", "0").strip() in ("1", "true", "yes")
 MOTOR_PAPER_TF = os.environ.get("FQ_MOTOR_PAPER_TF", "5m")  # 5m = TF del research/cubo (=BTC): mide la MISMA poblacion del +0.109. El loop evalua 5m+15m, asi que casa.
+# Push admin POR APERTURA del motor paper ("🧪 Motor base (paper)"). Default OFF (RasDG
+# 2026-07-08: "muchísimas notificaciones, no quiero un desmadre"). Con la flota de 10 pares,
+# un push por cada apertura paper inunda el chat admin — es telemetría 0%-real. El digest
+# periódico agregado sigue llegando; el fire al tier FREE (producto) también. =1 para depurar.
+MOTOR_PAPER_NOTIFY = os.environ.get("FQ_MOTOR_PAPER_NOTIFY", "0").strip().lower() in ("1", "true", "yes")
 _MOTOR_RUNTIME = None
 _MOTOR_RUNTIME_TRIED = False
 
@@ -2940,7 +2945,10 @@ def _free_broadcast(decision_report, pair, kl_passed):
                 # include_admin=False: el admin ya recibe el stream VIP; sin duplicados.
                 sent, _failed = broadcast_to_subscribers(msg, include_admin=False,
                                                          tiers=["free"])
-                if FREE_ADMIN_ECHO and TELEGRAM_CHAT_ID:
+                # Echo admin SOLO si entregó a alguien (sent>0). Con el embudo free vacío
+                # (0 usuarios), echar "0 entregada(s)" en cada fire es puro ruido. RasDG
+                # 2026-07-08. Cuando haya usuarios free, el echo confirma la entrega.
+                if FREE_ADMIN_ECHO and TELEGRAM_CHAT_ID and sent > 0:
                     telegram_send("📤 <b>FREE</b> · {} · {} entregada(s)".format(
                         pair, sent), TELEGRAM_CHAT_ID)
             else:
@@ -2954,7 +2962,9 @@ def _free_broadcast(decision_report, pair, kl_passed):
             msg = vip_format.build_free_signal(decision_report, pair=pair, kl_passed=kl_passed,
                                                audience="vip", funding_favorable=fav)
             if vip_format.free_leak_guard(msg):   # consistencia: también etiquetada y sin formato VIP
-                broadcast_to_subscribers(msg)
+                # SOLO VIP/trial reales; el admin NO (ya recibe el echo '📤 FREE · N' — evita
+                # inundar el chat del dueño con las 10 cosecha). RasDG 2026-07-08.
+                broadcast_to_subscribers(msg, include_admin=False, tiers=["vip", "trial"])
         except Exception as e:
             log.debug("[free-to-vip] %s", e)
 
@@ -3152,6 +3162,12 @@ def _motor_admin_notify(sig, verdict, pos):
                            ov=v.get("open", 0))
                 broadcast_to_subscribers(msg, tiers=["admin"])
             return
+        # Fires del motor base de pares COSECHA -> tier free (PRODUCTO, siempre).
+        _motor_free_broadcast(sig, verdict)
+        # Push "🧪" por apertura al admin: SOLO con FQ_MOTOR_PAPER_NOTIFY=1 (telemetría; default
+        # OFF para no inundar — el digest periódico y el fire free ya cubren). RasDG 2026-07-08.
+        if not MOTOR_PAPER_NOTIFY:
+            return
         d = "LONG" if sig["direction"] > 0 else "SHORT"
         msg = ("🧪 <b>Motor base (paper)</b> {sym} {d} [{tf}/{kz}]\n"
                "entry {e:.4f} · SL {s:.4f} · TP {t:.4f} · pid={pid}\n"
@@ -3160,8 +3176,6 @@ def _motor_admin_notify(sig, verdict, pos):
                    kz=verdict.get("killzone", "?"), e=sig["entry"], s=sig["stop"],
                    t=sig["tp"], pid=pos.pid)
         broadcast_to_subscribers(msg, tiers=["admin"])
-        # Fires del motor base de pares COSECHA -> tier free (los VIP: candado).
-        _motor_free_broadcast(sig, verdict)
     except Exception as e:
         log.warning("[motor] notify admin: %s", e)
 
