@@ -57,6 +57,18 @@ def bump_tier(p_master):
     if p_master < PHI_CB:       return PHI_CB    # Alta  -> Extrema (5x -> 8x)
     return p_master                              # Extrema: ya en el tope
 
+def _px(p):
+    """Precio con decimales DINÁMICOS según magnitud. Evita el bug de precios baratos: DOGE
+    a $0.0725/0.0727/0.0708 con %.2f colapsa a $0.07=$0.07=$0.07 (entry=stop=TP, inútil).
+    >=100 (BTC/ETH) 2 dec · 10-100 3 · 1-10 4 · 0.01-1 5 · <0.01 7. Con separador de miles."""
+    try:
+        a = abs(float(p))
+    except (TypeError, ValueError):
+        return str(p)
+    d = 2 if a >= 100 else 3 if a >= 10 else 4 if a >= 1 else 5 if a >= 0.01 else 7
+    return "{:,.{}f}".format(float(p), d)
+
+
 # ============================================================
 # SENAL VIP - simplificada, ejecutable sin exponer motor
 # ============================================================
@@ -169,13 +181,13 @@ def build_vip_signal(field, decision_report, tf_label=None, tf_id=None, pair=Non
         "{rule}\n"
         "  {arrow} {side}        Conviccion {conv}\n"
         "\n"
-        "  Entry    ${entry:.2f}\n"
-        "  Stop     ${sl:.2f}    Riesgo {risk}\n"
+        "  Entry    ${entry}\n"
+        "  Stop     ${sl}    Riesgo {risk}\n"
         "\n"
-        "  TP1      ${tp1:.2f}    R {rr1:.2f}\n"
-        "  TP2      ${tp2:.2f}    R {rr2:.2f}\n"
-        "  TP3      ${tp3:.2f}    R {rr3:.2f}\n"
-        "  TP4      ${tp4:.2f}    R {rr4:.2f}\n"
+        "  TP1      ${tp1}    R {rr1:.2f}\n"
+        "  TP2      ${tp2}    R {rr2:.2f}\n"
+        "  TP3      ${tp3}    R {rr3:.2f}\n"
+        "  TP4      ${tp4}    R {rr4:.2f}\n"
         "{rule}\n"
         "{pilares}\n"
         "{rule}\n"
@@ -188,11 +200,11 @@ def build_vip_signal(field, decision_report, tf_label=None, tf_id=None, pair=Non
         cvd_line=cvd_line, poc_line=poc_line, funding_line=funding_line,
         xasset_line=xasset_line, ctx=ctx_line,
         arrow=arrow, side=side, conv=conviction, risk=risk_lbl,
-        entry=levels["entry"], sl=levels["sl"],
-        tp1=levels["tp1"], rr1=levels.get("rr_tp1", 0),
-        tp2=levels["tp2"], rr2=levels.get("rr_tp2", 0),
-        tp3=levels["tp3"], rr3=levels.get("rr_tp3", 0),
-        tp4=levels["tp4"], rr4=levels.get("rr_tp4", 0),
+        entry=_px(levels["entry"]), sl=_px(levels["sl"]),
+        tp1=_px(levels["tp1"]), rr1=levels.get("rr_tp1", 0),
+        tp2=_px(levels["tp2"]), rr2=levels.get("rr_tp2", 0),
+        tp3=_px(levels["tp3"]), rr3=levels.get("rr_tp3", 0),
+        tp4=_px(levels["tp4"]), rr4=levels.get("rr_tp4", 0),
         pilares=pilares, lev=lev, sizing=sizing,
         tags=sym_tags,
     )
@@ -256,9 +268,9 @@ def build_free_signal(decision_report, pair=None, kl_passed=True, audience="free
         "  {arrow} {side}\n"
         "{funding_line}"
         "\n"
-        "  Entry    ${entry:.2f}\n"
-        "  Stop     ${sl:.2f}\n"
-        "  TP1      ${tp1:.2f}    R {rr1:.2f}\n"
+        "  Entry    ${entry}\n"
+        "  Stop     ${sl}\n"
+        "  TP1      ${tp1}    R {rr1:.2f}\n"
         "{rule}\n"
         "{tag}"
         "{footer}"
@@ -266,8 +278,9 @@ def build_free_signal(decision_report, pair=None, kl_passed=True, audience="free
         "  {tags}"
     ).format(
         rule=RULE, bar=GLYPHS["title"], product=PRODUCT, pair=pair_label, when=when,
-        arrow=arrow, side=side, funding_line=funding_line, entry=levels["entry"], sl=levels["sl"],
-        tp1=levels["tp1"], rr1=levels.get("rr_tp1", 0), tag=tag, footer=footer, tags=sym_tags)
+        arrow=arrow, side=side, funding_line=funding_line,
+        entry=_px(levels["entry"]), sl=_px(levels["sl"]),
+        tp1=_px(levels["tp1"]), rr1=levels.get("rr_tp1", 0), tag=tag, footer=footer, tags=sym_tags)
 
 
 # Marcadores que SOLO existen en el formato VIP. Si cualquiera aparece en un mensaje rumbo
