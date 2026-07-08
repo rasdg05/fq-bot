@@ -1,4 +1,41 @@
-# ORO (GC) — Gate v3 FULL-DENSITY: el gate se pudo correr, y expuso un artefacto
+# ORO (GC) — Gate v3 FULL-DENSITY
+
+> ⚠️ **CORRECCIÓN (2026-07-08, misma sesión) — leer PRIMERO.** La sección §2-§4 de abajo
+> concluyó "artefacto direccional / label roto / oro no sirve". Al pedir el usuario retomar el
+> oro, diagnostiqué la causa raíz y **el veredicto cambió**: el split 96.6%/5.6% era un
+> **look-ahead en `analyze_gold_v2.py`** (mi harness de análisis incluía la BARRA DE ENTRADA en
+> el etiquetado; combinado con el fill maker-en-extremo — short llena alto 0.70, long llena bajo
+> 0.38 — fabricaba la patología). **NO estaba en el motor de producción ni en `bt_labeler`; las
+> validaciones cripto NO están afectadas.**
+>
+> **Re-etiquetado CAUSAL (desde la barra siguiente, j+1), n=232 (CME):**
+>
+> | reloj | n | WR | avgR | SR/trade | CPCV paths+ | DSR |
+> |---|---|---|---|---|---|---|
+> | ANTES (cripto) | 407 | 53.8% | +0.085 | 0.089 | 80% | 0.000 |
+> | **DESPUÉS (CME)** | 232 | **56.9%** | **+0.160** | **0.170** | **100%** | 0.000 |
+>
+> Por dirección (CME): short +0.131 (n=137) · long +0.201 (n=95) — **BALANCEADO, sin patología.**
+>
+> **Veredicto corregido:** (1) el oro tiene señal **real, balanceada y débilmente positiva**;
+> (2) el re-anclaje de killzones al reloj CME **MEJORA medible** (avgR +0.085→+0.160, CPCV
+> 80%→100% paths positivos) — la tesis de sesión se valida; (3) **pero NO PASA el gate**: SR/trade
+> 0.170 es genuinamente débil, DSR 0.000 tras deflación honesta. Es edge real, insuficiente para
+> certificar.
+>
+> **La decisión cambia:** NO es "el pipeline está roto" — el motor está bien, mi harness tenía el
+> bug. El oro es una señal débil-pero-real que el re-anclaje ayuda pero no empuja sobre la línea.
+> **El próximo paso de mayor EV vuelve a ser la Fase 2 CVD** (comprar los trades dirigidos a los
+> fires, ~$15-25): con labels limpios y re-anclaje funcionando, la confirmación order-flow podría
+> concentrar el edge y subir el Sharpe sobre el umbral. Sí es, después de todo, una compra de data
+> — me equivoqué al decir que ya no lo era. Oro sigue en cosecha hasta que el CVD (u otra
+> concentración) lo suba, pero el camino está claro y es barato.
+>
+> ---
+> *(Lo que sigue es el análisis ORIGINAL con la conclusión errónea, conservado como registro del
+> error y su corrección — measure-first incluye documentar cuando uno mismo se equivoca.)*
+
+# ORO (GC) — Gate v3 FULL-DENSITY [análisis original, corregido arriba]
 
 > Compra Databento ejecutada ($11.59, ohlcv-1m GC.**v.0** 2017→2026 — la simbología correcta;
 > GC.c.0 de julio era el bug de contrato muerto). 3.17M barras 1m → 640k barras 5m (densidad ×20
