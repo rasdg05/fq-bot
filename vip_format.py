@@ -62,7 +62,7 @@ def bump_tier(p_master):
 # ============================================================
 def build_vip_signal(field, decision_report, tf_label=None, tf_id=None, pair=None,
                      cvd_confirmed=None, boost_tier=False, poc_far=False,
-                     funding_boost=False):
+                     funding_boost=False, cross_asset_confirmed=False):
     """
     Senal lista para copy-paste. NO expone P_master, kappa_evo, Theta(D),
     f_confluencia ni constantes phi/alpha. Solo lo que el VIP necesita ejecutar.
@@ -92,7 +92,7 @@ def build_vip_signal(field, decision_report, tf_label=None, tf_id=None, pair=Non
     # Cada confirmación sube +1 tier; bump_tier topa en phi^3 (8x). Flags en False
     # -> byte-idéntico a la lógica histórica.
     p_eff = pm["p_master"]
-    for _conf in (boost_tier, poc_far, funding_boost):
+    for _conf in (boost_tier, poc_far, funding_boost, cross_asset_confirmed):
         if _conf:
             p_eff = bump_tier(p_eff)
     conviction = conviction_label(p_eff)
@@ -149,6 +149,13 @@ def build_vip_signal(field, decision_report, tf_label=None, tf_id=None, pair=Non
     funding_line = ""
     if funding_boost:
         funding_line = "  {d} FUNDING FAVORABLE\n".format(d=GLYPHS["premium"])
+    # Insignia de CONTEXTO CROSS-ASSET (FQ_CROSS_ASSET): la dirección de la señal se
+    # ALINEA con el estado de riesgo reciente de NASDAQ (move 6h). Subset validado OOS
+    # 2021-26 (alineada +0.431R vs contra +0.169R, gap OOS +0.274 estable). "" cuando no
+    # -> señal byte-idéntica (default OFF en el monolito).
+    xasset_line = ""
+    if cross_asset_confirmed:
+        xasset_line = "  {d} NASDAQ CONFIRMA (contexto tech)\n".format(d=GLYPHS["premium"])
 
     return (
         "{rule}\n"
@@ -157,6 +164,7 @@ def build_vip_signal(field, decision_report, tf_label=None, tf_id=None, pair=Non
         "{cvd_line}"
         "{poc_line}"
         "{funding_line}"
+        "{xasset_line}"
         "  {ctx}\n"
         "{rule}\n"
         "  {arrow} {side}        Conviccion {conv}\n"
@@ -177,7 +185,8 @@ def build_vip_signal(field, decision_report, tf_label=None, tf_id=None, pair=Non
         "  {tags} #{side}"
     ).format(
         rule=RULE, bar=GLYPHS["title"], product=PRODUCT, pair=pair_label, quality=quality,
-        cvd_line=cvd_line, poc_line=poc_line, funding_line=funding_line, ctx=ctx_line,
+        cvd_line=cvd_line, poc_line=poc_line, funding_line=funding_line,
+        xasset_line=xasset_line, ctx=ctx_line,
         arrow=arrow, side=side, conv=conviction, risk=risk_lbl,
         entry=levels["entry"], sl=levels["sl"],
         tp1=levels["tp1"], rr1=levels.get("rr_tp1", 0),

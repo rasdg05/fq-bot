@@ -3053,6 +3053,62 @@ def _funding_vip_kwargs(report, pair):
     return {"funding_boost": True} if _funding_favorable(report, pair) else {}
 
 
+# CONTEXTO CROSS-ASSET (FQ_CROSS_ASSET, default OFF). La dirección de la señal de reversión
+# cripto que se ALINEA con el estado de riesgo reciente de NASDAQ (move 6h) pertenece al subset
+# premium: VALIDADO OOS 2021-26 (alineada +0.431R vs contra +0.169R; gap TRAIN +0.251 -> TEST OOS
+# +0.274, DSR 1.000). Solo necesita la DIRECCIÓN de NASDAQ (proxy retardado gratis basta), no un
+# feed tick. Fuente configurable por FQ_NASDAQ_URL (JSON tipo Yahoo chart, 5m). Régimen-dependiente
+# de la correlación cripto-equities (a vigilar en forward).
+CROSS_ASSET_ENABLED = os.environ.get("FQ_CROSS_ASSET", "0").strip().lower() in ("1", "true", "yes")
+NASDAQ_URL = os.environ.get(
+    "FQ_NASDAQ_URL",
+    "https://query1.finance.yahoo.com/v8/finance/chart/%5ENDX?interval=5m&range=1d")
+_NASDAQ_CACHE = {"ts": 0.0, "dir": None}
+
+
+def _nasdaq_direction(ttl_s=900):
+    """Signo del move de NASDAQ en las ~6h recientes: +1 sube, -1 baja, None si no hay data.
+    Fetch de una fuente pública configurable (default Yahoo chart 5m), cache TTL. CAUSAL (usa el
+    cierre más reciente vs 6h atrás). Defensivo TOTAL: cualquier fallo -> None (sin efecto)."""
+    now = time.time()
+    if _NASDAQ_CACHE["dir"] is not None and (now - _NASDAQ_CACHE["ts"]) < ttl_s:
+        return _NASDAQ_CACHE["dir"]
+    try:
+        r = requests.get(NASDAQ_URL, timeout=6,
+                         headers={"User-Agent": "Mozilla/5.0"})
+        if r.status_code != 200:
+            return _NASDAQ_CACHE["dir"]
+        res = r.json()["chart"]["result"][0]
+        closes = [c for c in res["indicators"]["quote"][0]["close"] if c is not None]
+        if len(closes) < 74:                      # ~6h de barras 5m (72) + margen
+            return _NASDAQ_CACHE["dir"]
+        mv = closes[-1] - closes[-73]             # move ~6h
+        d = 1 if mv > 0 else -1
+        _NASDAQ_CACHE.update(ts=now, dir=d)
+        return d
+    except Exception as e:
+        log.debug("[cross-asset] nasdaq dir: %s", e)
+        return _NASDAQ_CACHE["dir"]
+
+
+def _cross_asset_vip_kwargs(report):
+    """kwarg de convicción VIP por CONTEXTO cross-asset (FQ_CROSS_ASSET): la dirección de la señal
+    se alinea con el move reciente de NASDAQ -> subset premium (validado OOS). {} si flag off /
+    sin data NASDAQ / no alinea -> señal byte-idéntica. Defensivo: JAMÁS rompe el broadcast."""
+    if not CROSS_ASSET_ENABLED:
+        return {}
+    try:
+        d = (report or {}).get("direction")
+        nd = _nasdaq_direction()
+        if nd is None or d not in ("long", "short"):
+            return {}
+        aligned = (d == "long" and nd > 0) or (d == "short" and nd < 0)
+        return {"cross_asset_confirmed": True} if aligned else {}
+    except Exception as e:
+        log.debug("[cross-asset] %s", e)
+        return {}
+
+
 def _motor_free_broadcast(sig, verdict):
     """Fire ABIERTO del motor base (paper §6.10.1) -> tier free, SOLO pares cosecha (los
     VIP los bloquea el candado de _free_broadcast). RasDG 2026-07-06: "si dispara y nada
@@ -3260,7 +3316,8 @@ def _btc_motor_paper_scan(exchange):
                         **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], "BTC/USDT"),
                         **_poc_vip_kwargs(report, exchange, SYMBOL_BTC, tf_id, "BTC/USDT",
                                           float(df_primary["close"].iloc[-1])),
-                        **_funding_vip_kwargs(report, "BTC/USDT"))
+                        **_funding_vip_kwargs(report, "BTC/USDT"),
+                        **_cross_asset_vip_kwargs(report))
                     _kl_ok = _kl_pass(df_primary, "BTC/USDT")     # tier KL-bajo (calidad)
                     _free_broadcast(report, "BTC/USDT", _kl_ok)  # tier FREE: todos los fires, etiquetados
                     if _kl_ok:
@@ -3379,7 +3436,8 @@ def _eth_motor_paper_scan(exchange):
                         **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], "ETH/USDT"),
                         **_poc_vip_kwargs(report, exchange, SYMBOL_ETH, tf_id, "ETH/USDT",
                                           float(df_primary["close"].iloc[-1])),
-                        **_funding_vip_kwargs(report, "ETH/USDT"))
+                        **_funding_vip_kwargs(report, "ETH/USDT"),
+                        **_cross_asset_vip_kwargs(report))
                     _kl_ok = _kl_pass(df_primary, "ETH/USDT")   # tier KL-bajo (calidad) — honra FQ_KL_FILTER
                     _free_broadcast(report, "ETH/USDT", _kl_ok)  # tier FREE: todos los fires, etiquetados
                     if _kl_ok:
@@ -3495,7 +3553,8 @@ def _bch_motor_paper_scan(exchange):
                         **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], "BCH/USDT"),
                         **_poc_vip_kwargs(report, exchange, SYMBOL_BCH, tf_id, "BCH/USDT",
                                           float(df_primary["close"].iloc[-1])),
-                        **_funding_vip_kwargs(report, "BCH/USDT"))
+                        **_funding_vip_kwargs(report, "BCH/USDT"),
+                        **_cross_asset_vip_kwargs(report))
                     broadcast_to_subscribers(msg)   # SIN _kl_pass a proposito: BCH va sin filtro KL
                 except Exception as e:
                     log.warning("[motor-bch] broadcast: %s", e)
@@ -3604,7 +3663,8 @@ def _xsym_motor_paper_scan(exchange, *, enabled, symbol_inst, pair, tf_id,
                             **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], pair),
                             **_poc_vip_kwargs(report, exchange, symbol_inst, tf_id, pair,
                                               float(df_primary["close"].iloc[-1])),
-                            **_funding_vip_kwargs(report, pair))
+                            **_funding_vip_kwargs(report, pair),
+                        **_cross_asset_vip_kwargs(report))
                         broadcast_to_subscribers(msg)
                 except Exception as e:
                     log.warning("[motor-xsym] %s broadcast: %s", pair, e)
@@ -3880,7 +3940,8 @@ def _evaluate_setup_v411(exchange, tf_id="15m", intra=False):
                     **_cvd_vip_kwargs(report, df_primary["timestamp"].iloc[-1], SYMBOL),
                     **_poc_vip_kwargs(report, exchange, SYMBOL, tf_id, "SOL/USDT",
                                       float(df_primary["close"].iloc[-1])),
-                    **_funding_vip_kwargs(report, "SOL/USDT"))
+                    **_funding_vip_kwargs(report, "SOL/USDT"),
+                        **_cross_asset_vip_kwargs(report))
             else:
                 msg = field_reports.build_signal_report(
                     field, report, tf_label=tf_label, tf_id=tf_id, pmin=tf_pmin)
