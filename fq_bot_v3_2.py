@@ -3643,13 +3643,42 @@ BNB_MOTOR_LEDGER_PATH = os.environ.get("FQ_MOTOR_PAPER_BNB_LEDGER_PATH", "/data/
 FREE_PAIRS_RAW = os.environ.get("FQ_FREE_PAIRS", "ADA,AVAX,BCH,BNB,DOGE,DOT,LINK,LTC,TRX,XRP")
 FREE_SCAN_PAIRS = [c.strip().upper() for c in FREE_PAIRS_RAW.split(",") if c.strip()]
 FREE_PAIRS_TF = os.environ.get("FQ_FREE_PAIRS_TF", "5m")
+# Digest AGREGADO de la flota (RasDG 2026-07-07: los 10 digests individuales llegan en
+# ráfaga sincronizada — nacen juntos en el deploy — y ametrallan el chat admin). El digest
+# por-runtime se apaga para la flota; en su lugar UNA línea cada N velas. 0 = sin digest.
+FREE_FLEET_DIGEST_EVERY = int(os.environ.get("FQ_FREE_FLEET_DIGEST_EVERY", "288"))
+_FREE_FLEET_TICKS = {"n": 0}
+
+
+def _free_fleet_digest():
+    """UNA línea admin con los contadores agregados de toda la flota free."""
+    try:
+        tot = {"fire": 0, "opened": 0, "vetoed": 0}
+        alive = 0
+        n_open = 0
+        for ccy in FREE_SCAN_PAIRS:
+            rt = _XSYM_MOTOR.get("{}/USDT".format(ccy))
+            if rt is None:
+                continue
+            alive += 1
+            for k in tot:
+                tot[k] += rt.counts.get(k, 0)
+            n_open += len(rt.account.open)
+        msg = ("📄 <b>Flota free</b> ({a} pares · {t} velas) — fire {f} · abiertas "
+               "{o} · vetadas {v} · vivas {ov}").format(
+                   a=alive, t=_FREE_FLEET_TICKS["n"], f=tot["fire"],
+                   o=tot["opened"], v=tot["vetoed"], ov=n_open)
+        broadcast_to_subscribers(msg, tiers=["admin"])
+    except Exception as e:
+        log.debug("[free-fleet-digest] %s", e)
 
 
 def _free_pairs_scan(exchange, new_candle_tfs):
     """Scan de la flota FREE (pares cosecha, sin gate): cada fire va SOLO al tier free vía
     _xsym_motor_paper_scan(broadcast_enabled=False). Salta pares con flag legacy dedicado
-    (LINK/BNB/BCH: ya los escanea su carril) y pares VIP (candado). No-op con el tier free
-    apagado. Nunca rompe el loop (el scan por par es defensivo por dentro)."""
+    (LINK/BNB/BCH: ya los escanea su carril) y pares VIP (candado). Digest por-runtime OFF
+    (ráfaga sincronizada) -> uno agregado cada FREE_FLEET_DIGEST_EVERY velas. No-op con el
+    tier free apagado. Nunca rompe el loop (el scan por par es defensivo por dentro)."""
     if not (FREE_TIER_ENABLED and FREE_SCAN_PAIRS and FREE_PAIRS_TF in new_candle_tfs):
         return
     for ccy in FREE_SCAN_PAIRS:
@@ -3661,6 +3690,9 @@ def _free_pairs_scan(exchange, new_candle_tfs):
            (ccy == "BCH" and BCH_MOTOR_PAPER_ENABLED):
             continue                        # ya lo escanea su flag dedicado
         try:
+            rt = _xsym_motor_runtime(pair, "/data/motor_paper_{}_USDT.jsonl".format(ccy))
+            if rt is not None and rt.digest_every:
+                rt.digest_every = 0         # digest individual OFF (flota: agregado)
             _xsym_motor_paper_scan(
                 exchange, enabled=True, symbol_inst="{}-USDT-SWAP".format(ccy),
                 pair=pair, tf_id=FREE_PAIRS_TF,
@@ -3669,6 +3701,9 @@ def _free_pairs_scan(exchange, new_candle_tfs):
                 kl_gated=True)              # etiqueta KL honesta en el msg free
         except Exception as e:
             log.warning("[free-fleet] %s: %s", pair, e)
+    _FREE_FLEET_TICKS["n"] += 1
+    if FREE_FLEET_DIGEST_EVERY and _FREE_FLEET_TICKS["n"] % FREE_FLEET_DIGEST_EVERY == 0:
+        _free_fleet_digest()
 
 
 # ============================================================
