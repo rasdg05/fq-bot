@@ -2921,7 +2921,9 @@ def _free_broadcast(decision_report, pair, kl_passed):
     rompe el broadcast VIP).
     1) FQ_FREE_TIER=1: el fire crudo (TP1) etiquetado va a los usuarios tier="free" de la BD
        — tras pasar el candado anti-fuga.
-    2) FQ_FREE_TO_VIP=1: el descarte del filtro llega a los VIP etiquetado 'Señal FREE'."""
+    2) FQ_FREE_TO_VIP=1: TODO el stream FREE (pares cosecha, pase o no el KL) llega también a los
+       VIP etiquetado 'Señal FREE' — "los VIP ven todo" (RasDG 2026-07-08), siempre marcada como
+       informativa/no-operable para que jamás se confunda con la premium."""
     if not (VIP_FORMAT_AVAILABLE and vip_format is not None):
         return
     # Candado de pares VIP: BTC/ETH/SOL (los que pasaron el gate) jamás al tier free.
@@ -2945,9 +2947,11 @@ def _free_broadcast(decision_report, pair, kl_passed):
                 log.error("[free-guard] BLOQUEADO: mensaje no-FREE rumbo al tier free (%s)", pair)
         except Exception as e:
             log.debug("[free-broadcast] %s", e)
-    if FREE_TO_VIP and not kl_passed:
+    if FREE_TO_VIP:
         try:
-            msg = vip_format.build_free_signal(decision_report, pair=pair, kl_passed=False,
+            # TODO el stream free al VIP, con el kl_passed REAL (la etiqueta refleja si pasó o no
+            # el filtro). audience='vip' -> siempre 'Señal FREE', informativa, sin upsell.
+            msg = vip_format.build_free_signal(decision_report, pair=pair, kl_passed=kl_passed,
                                                audience="vip", funding_favorable=fav)
             if vip_format.free_leak_guard(msg):   # consistencia: también etiquetada y sin formato VIP
                 broadcast_to_subscribers(msg)
