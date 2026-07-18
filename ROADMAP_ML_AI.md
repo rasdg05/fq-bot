@@ -59,6 +59,13 @@ sistema genere ingresos mientras tanto. El plan apunta a los tres.
 Dedicación asumida: 20–25 h/semana (compatible con seguir tradeando).
 Si podés meter 35–40 h/semana, comprimí cada fase ~3 semanas.
 
+**Ajuste por deadline de diciembre 2026 (mudanza):** no esperes a que termine
+la Fase 2 para empezar a generar ingreso. Desde que `solana-regime-lab`
+(Fase 1) esté publicado (~mes 2-3), arrancá en paralelo: aplicaciones
+livianas a roles junior/mid + outreach de contracting/freelance (ver §4,
+rol 4). La Fase 3 tal como está descrita abajo sigue siendo el push fuerte,
+pero el funnel de oportunidades arranca antes, en rolling, no en bloque.
+
 ---
 
 ## 2. Fase 1 (semanas 1–8): fundamentos + AWS MLE Associate
@@ -112,13 +119,18 @@ Reglas del proyecto público (aplican a todos):
 - Tests + CI (GitHub Actions) + type hints + `pyproject.toml`. Señal de
   ingeniería profesional, te diferencia del 95% de repos de "ML trading".
 - Un notebook demo ejecutable end-to-end en Colab.
+- **Deploy real, no solo notebook**: exponé el modelo en un endpoint vivo
+  (FastAPI + Railway/Render/Cloud Run gratuito) con monitoring básico
+  (logs de requests, drift simple). Esto es literalmente lo que evalúa la
+  cert de AWS/Google — matás dos pájaros y el portafolio sube de nivel
+  frente a los mil repos que son solo notebook.
 
 ### Checklist de salida de Fase 1
 - [ ] Cert AWS MLE-A aprobada
 - [ ] Andrew Ng ML Specialization terminada
 - [ ] `solana-regime-lab` público con README, tests, CI y notebook
 - [ ] LinkedIn en inglés reescrito: "ML Engineer | Quantitative Trading
-      Systems" con el proyecto pineado (ver §5)
+      Systems" con el proyecto pineado (ver §6)
 
 ---
 
@@ -140,6 +152,10 @@ Reglas del proyecto público (aplican a todos):
 - Es la cert de más prestigio del rubro. Path oficial de Google Cloud Skills
   Boost + practice exams. Precio $200.
 - Mismo truco: agendá el examen con fecha fija (semana 16).
+- **Opcional, bajo costo, si sobra tiempo**: un curso corto de GenAI/LLM
+  (Google Cloud Skills Boost o "Generative AI" de Coursera) — no es
+  obligatorio ni cambia tu empleabilidad tanto como los dos certs
+  principales, pero es barato y suma señal de estar al día con LLMs.
 
 **Semanas 9–16 — Proyecto estrella #2 (elegí UNO, no dos):**
 
@@ -149,7 +165,10 @@ de tu framework (distancia a niveles fib, confluencia, simetría de piernas,
 CHoCH) → LightGBM/transformer → feature importance con MDA/SHAP → test
 honesto OOS contra baseline sin esas features. Gancho enorme: une tu
 identidad de trader con rigor ML, y da para un artículo/post viral.
-*(Recomendado: es tu diferenciador más único.)*
+*(Recomendado: es tu diferenciador más único.)* Si te sobra tiempo, una
+capa opcional de sentiment (noticias/X) sumada a los técnicos enriquece el
+proyecto — pero no lo hagas a costa de recortar el rigor de la validación
+walk-forward, que es lo que realmente te diferencia.
 
 Opción B — **RL para ejecución**: agente de reinforcement learning
 (PPO/DQN con stable-baselines3) para decidir entrada escalonada/trailing
@@ -172,6 +191,8 @@ solo elegila si el env y la evaluación son impecables.
 - [ ] Proyecto #2 público con la misma calidad que el #1
 - [ ] 8+ semanas de submissions en Numerai
 - [ ] MLflow (u otro tracker) integrado en tu workflow de research
+- [ ] Ya arrancaste aplicaciones livianas + outreach de contracting (no
+      esperaste a Fase 3 para el primer contacto con el mercado)
 
 ---
 
@@ -199,7 +220,7 @@ solo elegila si el env y la evaluación son impecables.
   fintech/crypto, 30% ML generalista, 20% tiros largos (prop shops, funds).
 - **Canales**: LinkedIn + Wellfound + Web3 job boards (crypto.jobs,
   cryptocurrencyjobs.co) + HN "Who is hiring" (1º de cada mes) + referidos
-  (ver visibilidad, §5). Los referidos convierten 5–10x más que aplicar
+  (ver visibilidad, §6). Los referidos convierten 5–10x más que aplicar
   frío: pedilos.
 - **Prep de entrevistas** (paralelo, 5 h/semana):
   - ML conceptual: poder explicar todo lo de tus repos + López de Prado.
@@ -215,7 +236,40 @@ solo elegila si el env y la evaluación son impecables.
 
 ---
 
-## 5. Visibilidad (transversal, 2 h/semana desde la Fase 1)
+## 5. Fase 4 (2027+, post-colocación): diferenciación de largo plazo
+
+Todo lo de acá es real y valioso, pero **no antes de tener el rol remoto
+asegurado** — son jugadas de 6 meses a 5 años que compiten por las mismas
+horas que hoy necesitás para AWS/Google/portafolio/aplicaciones. Metelas acá
+solo cuando ya tengas el flujo de caja del rol para bancarlas sin apuro.
+
+- **CFA (Chartered Financial Analyst)**: charter completo toma 3-5 años
+  (3 niveles + 4,000h de experiencia calificada) y cuesta $5,000-10,000 USD
+  en fees+materiales. El premium salarial real ($180k-300k+, hasta $400k+
+  en portfolio management/research senior) es para el charter completo en
+  roles **buy-side**, no para "ML Engineer". Es un pivote de carrera de
+  varios años hacia asset management/hedge funds, no un acelerador del plan
+  actual. Empezarlo en 2027 en vez de hoy no cambia cuándo llega el payoff
+  (siempre son años desde que arrancás), así que no perdés nada
+  posponiéndolo.
+- **Kubernetes CKA**: cert real y respetada (~$395+ USD el examen), pero es
+  un cert de infraestructura/DevOps, relevante para roles "MLOps/Platform
+  Engineer" senior específicamente, no para ML Engineer en general.
+- **ARPM (Advanced Risk and Portfolio Management)**: bootcamp real y
+  reconocido en círculos quant, pero cuesta miles de USD — fuera de
+  presupuesto para esta etapa.
+- **CQF (Certificate in Quantitative Finance)**: alternativa a CFA más
+  técnica/cuantitativa, pero cuesta ~$20,000-22,000 USD y mínimo 6 meses.
+  Mismo criterio que el CFA: solo con el flujo de caja del rol ya asegurado.
+- Certificaciones sin verificar (ej. "Anthropic Claude certifications",
+  "IIQF CPAIT" mencionadas en algunas fuentes): no inviertas tiempo/plata
+  sin confirmar primero que son credenciales reales reconocidas por
+  empleadores — hay mucho ruido de nombres que suenan a certificación
+  oficial y no lo son.
+
+---
+
+## 6. Visibilidad (transversal, 2 h/semana desde la Fase 1)
 
 Sin título, tu descubribilidad ES el currículum:
 
@@ -235,7 +289,7 @@ Sin título, tu descubribilidad ES el currículum:
 
 ---
 
-## 6. Presupuesto y herramientas
+## 7. Presupuesto y herramientas
 
 | Ítem | Costo aprox. |
 |---|---|
@@ -254,7 +308,7 @@ modelo), SQL sólido.
 
 ---
 
-## 7. Riesgos y cómo mitigarlos
+## 8. Riesgos y cómo mitigarlos
 
 - **Dispersión**: el plan tiene exactamente 2 certs, 2 proyectos, 1 track
   record externo. Todo lo demás es "no". Cada cosa nueva que quieras sumar
@@ -271,7 +325,7 @@ modelo), SQL sólido.
 
 ---
 
-## 8. Resumen ejecutivo (si solo leés una sección)
+## 9. Resumen ejecutivo (si solo leés una sección)
 
 1. Ya tenés el activo más difícil: sistema quant real en producción con
    validación honesta. El plan es empaquetarlo, credencializarlo y venderlo.
@@ -282,6 +336,10 @@ modelo), SQL sólido.
    Numerai todas las semanas.
 4. **Nov–Ene**: 10–15 aplicaciones/semana a fintech/crypto/quant remoto,
    1 post técnico/mes, mock interviews en inglés, contracting como puente.
+   Ojo: el funnel de aplicaciones/contracting arranca desde el mes 3, en
+   rolling, no recién en noviembre (ver ajuste en §1).
 5. Meta realista: primer rol $60k–$120k remoto en 6–9 meses; $150k+ en
    1–2 años apalancando el nicho quant. Camino paralelo: contracting
    especializado y tu propio sistema como fuentes de ingreso inmediatas.
+6. **CFA/CKA/ARPM/CQF van a Fase 4 (2027+, post-colocación)** — son reales
+   y valiosos, pero no antes de tener el rol remoto asegurado (§5).
