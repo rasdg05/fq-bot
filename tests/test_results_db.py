@@ -23,7 +23,8 @@ def ledger(tmp_path, monkeypatch):
         CREATE TABLE signals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ts_emitted TEXT, ts_closed TEXT,
-            outcome TEXT, pnl_r REAL
+            outcome TEXT, pnl_r REAL,
+            symbol TEXT NOT NULL DEFAULT 'SOL'
         )
     """)
     now = datetime.now(timezone.utc)
@@ -70,7 +71,8 @@ def test_get_results_summary_empty(tmp_path, monkeypatch):
     conn.execute("""
         CREATE TABLE signals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ts_emitted TEXT, ts_closed TEXT, outcome TEXT, pnl_r REAL)
+            ts_emitted TEXT, ts_closed TEXT, outcome TEXT, pnl_r REAL,
+            symbol TEXT NOT NULL DEFAULT 'SOL')
     """)
     conn.commit()
     conn.close()

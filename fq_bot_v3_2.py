@@ -2931,6 +2931,49 @@ def _kl_pass(df_primary, pair):
         return True
 
 
+def _record_vip_signal(ccy, direction, levels, p_master_data, tf_id, field):
+    """Cerebro Etapa 0 (2026-07-20, RasDG: "cerrar el gap del ledger BTC/ETH").
+
+    Antes: BTC y ETH se broadcasteaban a clientes pero su UNICO registro era
+    el motor paper de 1 TP -- una senal podia salir a VIP y no quedar en
+    ningun registro con outcome verificable (ver MEMORY/ESTADO.md). Ahora se
+    graban en el MISMO ledger rico de SOL (4 TP + symbol), via el escritor
+    generico `log_signal` (NO log_signal_v2/v3): BTC/ETH no tienen cableada
+    la maquinaria de auto-evolucion/concepts ICT/Thompson-kappa de SOL, y
+    dejar bucket_key_v2/bucket_key_v3 en NULL para estas filas es
+    DELIBERADO -- las excluye gratis (NULL nunca matchea una igualdad SQL)
+    de toda esa estadistica sin necesitar filtrar ahi tambien. Las funciones
+    de analitica/self-audit de SOL (get_bucket_stats, get_global_metrics,
+    get_results_summary, etc.) filtran symbol='SOL' por su cuenta, asi que
+    esto tampoco las contamina.
+
+    Se llama SOLO cuando el fire realmente se difunde al VIP (mismo gate que
+    el broadcast: no vetado por sesion, no suprimido por KL) -- graba lo que
+    el cliente vio, no cada fire interno del motor. Defensivo: nunca rompe
+    el broadcast."""
+    try:
+        session, w_clock, _, _ = get_session()
+        signal_data = {
+            "direction":      direction,
+            "entry":          levels["entry"], "sl": levels["sl"],
+            "tp1":            levels["tp1"], "tp2": levels["tp2"],
+            "tp3":            levels["tp3"], "tp4": levels["tp4"],
+            "p_master_raw":   p_master_data.get("p_master_raw", p_master_data.get("p_master", 0)),
+            "p_master_final": p_master_data.get("p_master", 0),
+            "kappa_evo":      p_master_data.get("kappa_evo", 1.0),
+            "session":        getattr(field, "killzone", None) or session,
+            "w_clock":        p_master_data.get("w_effective", w_clock),
+            "pspace_count":   getattr(field, "confluence_count", 0) or 0,
+            "snapshot":       {"tf_id": tf_id, "ccy": ccy,
+                               "field": field.summary_line() if hasattr(field, "summary_line") else ""},
+        }
+        sid = ev.log_signal(signal_data, symbol=ccy)
+        if sid:
+            log.info("[ledger-multi] %s señal #%s registrada (4 TP, symbol=%s)", ccy, sid, ccy)
+    except Exception as e:
+        log.warning("[ledger-multi] %s no se pudo registrar: %s", ccy, e)
+
+
 # Tier FREE (jugada de marketing 2026-06-30; RasDG: "quiero UN SOLO canal"): NO hay canal
 # de Telegram aparte. El MISMO bot entrega por TIER de la BD:
 #   - tier "free" (usuarios que entran al bot sin pagar; default de la BD): reciben TODOS los
@@ -3388,6 +3431,10 @@ def _btc_motor_paper_scan(exchange):
                     _free_broadcast(report, "BTC/USDT", _kl_ok)  # tier FREE: todos los fires, etiquetados
                     if _kl_ok:
                         broadcast_to_subscribers(msg)
+                        # Cerebro Etapa 0: graba en el ledger rico (4 TP) lo que
+                        # el VIP realmente recibio -- ver _record_vip_signal.
+                        _record_vip_signal("BTC", report.get("direction"), report.get("levels", {}),
+                                          report.get("p_master_data", {}), tf_id, field)
                 except Exception as e:
                     log.warning("[motor-btc] broadcast: %s", e)
         hi = float(df_primary["high"].iloc[-1])
@@ -3398,6 +3445,14 @@ def _btc_motor_paper_scan(exchange):
             cts = None
         rt.on_bar(fire, field, report, df_primary, price,
                   high=hi, low=lo, ts=cts, tf_id=tf_id)
+        # Cerebro Etapa 0: cierra a outcome (tp1-4/sl/timeout/stale) las senales
+        # BTC abiertas contra SU PROPIO OHLCV (jamas SOL -- escalas de precio
+        # incompatibles). Sin esto, lo que _record_vip_signal graba quedaria
+        # abierto para siempre.
+        try:
+            ev.reconcile_outcomes(fetch_ohlcv, exchange, SYMBOL_BTC, tf_id, ccy="BTC")
+        except Exception as e:
+            log.warning("[ledger-multi] BTC reconcile: %s", e)
     except Exception as e:
         log.warning("[motor-btc] scan: %s", e)
 
@@ -3508,6 +3563,10 @@ def _eth_motor_paper_scan(exchange):
                     _free_broadcast(report, "ETH/USDT", _kl_ok)  # tier FREE: todos los fires, etiquetados
                     if _kl_ok:
                         broadcast_to_subscribers(msg)
+                        # Cerebro Etapa 0: graba en el ledger rico (4 TP) lo que
+                        # el VIP realmente recibio -- ver _record_vip_signal.
+                        _record_vip_signal("ETH", report.get("direction"), report.get("levels", {}),
+                                          report.get("p_master_data", {}), tf_id, field)
                 except Exception as e:
                     log.warning("[motor-eth] broadcast: %s", e)
         hi = float(df_primary["high"].iloc[-1])
@@ -3518,6 +3577,14 @@ def _eth_motor_paper_scan(exchange):
             cts = None
         rt.on_bar(fire, field, report, df_primary, price,
                   high=hi, low=lo, ts=cts, tf_id=tf_id)
+        # Cerebro Etapa 0: cierra a outcome (tp1-4/sl/timeout/stale) las senales
+        # ETH abiertas contra SU PROPIO OHLCV (jamas SOL -- escalas de precio
+        # incompatibles). Sin esto, lo que _record_vip_signal graba quedaria
+        # abierto para siempre.
+        try:
+            ev.reconcile_outcomes(fetch_ohlcv, exchange, SYMBOL_ETH, tf_id, ccy="ETH")
+        except Exception as e:
+            log.warning("[ledger-multi] ETH reconcile: %s", e)
     except Exception as e:
         log.warning("[motor-eth] scan: %s", e)
 
@@ -5181,9 +5248,15 @@ def command_listener(exchange):
                             continue
 
                     # === ACCESS CONTROL para comandos premium ===
+                    # BUG (2026-07-20, RasDG): /lectura NO estaba en este set ni en
+                    # ADMIN_ONLY -- cualquier usuario, VIP o no, podia pedirlo y
+                    # recibir el dump tecnico completo (multi-TF, niveles, P_master)
+                    # GRATIS. Es el UNICO comando visible en BotFather para /analisis
+                    # (los demas son alias ocultos) -- sin este gate, el paywall del
+                    # producto entero se podia saltar con el primer item del menu.
                     PREMIUM_COMMANDS = {
                         "/analisis", "/niveles", "/pspace", "/claude", "/ia",
-                        "/analisis_sol", "/analisis_btc", "/analisis_eth",
+                        "/analisis_sol", "/analisis_btc", "/analisis_eth", "/lectura",
                         "/metrics", "/entropy", "/ledger", "/evolve", "/audit",
                     }
                     if cmd_name in PREMIUM_COMMANDS:
@@ -5239,7 +5312,16 @@ def command_listener(exchange):
                 # sufijo) sigue aceptando el argumento (/analisis BTC) para quien ya
                 # lo conoce; los _sol/_btc/_eth son el atajo tap-to-use del menu,
                 # simetricos entre si (ninguno es "el default implicito").
-                if cmd_name in ("/analisis", "/analisis_sol", "/analisis_btc", "/analisis_eth"):
+                #
+                # /lectura (2026-07-20, fix RasDG): ES el comando BotFather-visible
+                # (no un alias oculto como /niveles /pspace /claude /ia), pero antes
+                # NO pasaba por este bloque -- caia directo al dispatch generico
+                # (mas abajo), que llama a cmd_lectura CRUDO sin mirar el tier. Un
+                # VIP que tocara /lectura en su menu recibia el dump admin completo
+                # en vez de la vista curada de /analisis. Ahora comparte el mismo
+                # flujo (y el mismo gate VIP, ver PREMIUM_COMMANDS arriba).
+                if cmd_name in ("/analisis", "/analisis_sol", "/analisis_btc",
+                               "/analisis_eth", "/lectura"):
                     if cmd_name == "/analisis_sol":
                         pair_ccy = "SOL"
                     elif cmd_name == "/analisis_btc":
@@ -5248,7 +5330,7 @@ def command_listener(exchange):
                         pair_ccy = "ETH"
                     else:
                         # Multi-simbolo (2026-07-20): 1er argumento SOL/BTC/ETH,
-                        # default SOL. Ej. "/analisis ETH".
+                        # default SOL. Ej. "/analisis ETH" o "/lectura BTC".
                         pair_ccy = _resolve_analisis_pair(raw_args)
 
                     tier_loc = "free"
@@ -5261,11 +5343,11 @@ def command_listener(exchange):
                             tier_loc = "free"
 
                     # Cooldown VIP/trial: 30 min por usuario, COMPARTIDO entre
-                    # /analisis, /analisis_sol, /analisis_btc y /analisis_eth
-                    # (protege la API en general, no por simbolo -- pedir BTC y
-                    # luego ETH seguido cuenta igual). Admin no rate-limitado. Se
-                    # marca el timestamp antes de la llamada cara para que errores
-                    # transitorios no permitan spam-retry.
+                    # /lectura, /analisis, /analisis_sol, /analisis_btc y
+                    # /analisis_eth (protege la API en general, no por simbolo --
+                    # pedir BTC y luego ETH seguido cuenta igual). Admin no
+                    # rate-limitado. Se marca el timestamp antes de la llamada cara
+                    # para que errores transitorios no permitan spam-retry.
                     if tier_loc in ("vip", "trial") and VIP_ANALISIS_COOLDOWN_SEC > 0:
                         now_s = time.time()
                         last_s = _VIP_ANALISIS_LAST.get(str(chat_id), 0)
@@ -5277,9 +5359,9 @@ def command_listener(exchange):
                                 "<b>{cmd} en cooldown</b>\n"
                                 "──────────────────────────────\n\n"
                                 "Espera <b>{m}m {s:02d}s</b> antes del siguiente analisis.\n\n"
-                                "Cooldown VIP = {c} min por usuario (compartido entre /analisis,\n"
-                                "/analisis_sol, /analisis_btc, /analisis_eth). Protege la API y\n"
-                                "asegura que cada lectura que pidas sea fresca.\n\n"
+                                "Cooldown VIP = {c} min por usuario (compartido entre /lectura,\n"
+                                "/analisis, /analisis_sol, /analisis_btc, /analisis_eth). Protege\n"
+                                "la API y asegura que cada lectura que pidas sea fresca.\n\n"
                                 "Las senales automaticas siguen llegando sin limite.".format(
                                     cmd=cmd_name, m=mins, s=secs,
                                     c=VIP_ANALISIS_COOLDOWN_SEC // 60),
@@ -6257,6 +6339,14 @@ def main():
             log.info("Schema v4 tf_id migrado")
         except Exception as e:
             log.warning("migrate_schema_v4: {}".format(e))
+    # Migracion schema v5 (idempotente - Cerebro Etapa 0: columna symbol
+    # SOL/BTC/ETH, additiva, filas viejas quedan symbol='SOL')
+    if hasattr(ev, "migrate_schema_v5"):
+        try:
+            ev.migrate_schema_v5()
+            log.info("Schema v5 symbol migrado")
+        except Exception as e:
+            log.warning("migrate_schema_v5: {}".format(e))
     log.info("Evolution ledger: {}".format(ev.DB_PATH))
     log.info("ICT layer:    {}".format("ON" if (ENABLE_ICT_LAYER and ICT_MODULES_AVAILABLE) else "OFF"))
     log.info("Weekend veto: {}{}".format(

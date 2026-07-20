@@ -245,7 +245,7 @@ def curvature_sign(support_w, resistance_w):
 # ============================================================
 # LEDGER - registro de senales
 # ============================================================
-def log_signal(signal_data):
+def log_signal(signal_data, symbol="SOL"):
     """
     Inserta una senal nueva al ledger. Devuelve signal_id.
 
@@ -256,6 +256,12 @@ def log_signal(signal_data):
       support_weight, resistance_weight,
       macro_btc, macro_eth, rsi6, rsi12, rsi24, h_lap_active,
       snapshot (dict completo)
+
+    symbol: 'SOL' (default, comportamiento historico) / 'BTC' / 'ETH'. Cerebro
+    Etapa 0 (2026-07-20): permite grabar fires BTC/ETH en el mismo ledger rico
+    sin tocar bucket_key_v2/v3 (quedan NULL para estas filas a proposito, asi
+    quedan fuera de la maquinaria de auto-evolucion/Thompson-kappa de SOL sin
+    necesidad de filtrar ahi tambien).
     """
     sd = signal_data
     tier = tier_from_pmaster(sd["p_master_final"])
@@ -271,8 +277,8 @@ def log_signal(signal_data):
                     p_master_raw, p_master_final, kappa_evo,
                     session, w_clock, tier, pspace_count, curvature_bal,
                     macro_btc, macro_eth, rsi6, rsi12, rsi24, h_lap_active,
-                    bucket_key, snapshot_json
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    bucket_key, snapshot_json, symbol
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """, (
                 datetime.now(timezone.utc).isoformat(),
                 sd["direction"],
@@ -298,10 +304,12 @@ def log_signal(signal_data):
                 int(sd.get("h_lap_active", 0)),
                 bucket,
                 json.dumps(sd.get("snapshot", {}), default=str),
+                symbol,
             ))
             conn.commit()
             sid = cur.lastrowid
-            log.info("Ledger: senal #{} registrada bucket={}".format(sid, bucket))
+            log.info("Ledger: senal #{} registrada bucket={} symbol={}".format(
+                sid, bucket, symbol))
             return sid
         except Exception as e:
             log.error("Ledger insert error: {}".format(e))
@@ -309,13 +317,16 @@ def log_signal(signal_data):
         finally:
             conn.close()
 
-def get_open_signals():
-    """Devuelve lista de senales sin outcome cerrado"""
+def get_open_signals(symbol="SOL"):
+    """Devuelve lista de senales sin outcome cerrado. symbol default 'SOL'
+    (comportamiento historico byte-identico); pasa 'BTC'/'ETH' para
+    reconciliar esos motores contra su propio OHLCV."""
     with _lock:
         conn = _connect()
         try:
             rows = conn.execute(
-                "SELECT * FROM signals WHERE outcome IS NULL ORDER BY id"
+                "SELECT * FROM signals WHERE outcome IS NULL AND symbol = ? ORDER BY id",
+                (symbol,)
             ).fetchall()
             return [dict(r) for r in rows]
         finally:
@@ -348,16 +359,22 @@ def close_signal(signal_id, outcome, exit_price, pnl_r, minutes_open):
         finally:
             conn.close()
 
-def count_signals(closed_only=False):
+def count_signals(closed_only=False, symbol="SOL"):
+    """symbol default 'SOL': la cadencia de self-audit/backup (should_trigger_
+    audit/backup) sigue atada SOLO al conteo de SOL, no al total mezclado con
+    BTC/ETH."""
     with _lock:
         conn = _connect()
         try:
             if closed_only:
                 row = conn.execute(
-                    "SELECT COUNT(*) as n FROM signals WHERE outcome IS NOT NULL"
+                    "SELECT COUNT(*) as n FROM signals WHERE outcome IS NOT NULL AND symbol = ?",
+                    (symbol,)
                 ).fetchone()
             else:
-                row = conn.execute("SELECT COUNT(*) as n FROM signals").fetchone()
+                row = conn.execute(
+                    "SELECT COUNT(*) as n FROM signals WHERE symbol = ?", (symbol,)
+                ).fetchone()
             return int(row["n"])
         finally:
             conn.close()
@@ -552,10 +569,17 @@ def _stale_outcome(sig, df):
             "minutes_open": minutes_open}
 
 
-def reconcile_outcomes(fetch_ohlcv_fn, exchange, symbol, timeframe="15m"):
+def reconcile_outcomes(fetch_ohlcv_fn, exchange, symbol, timeframe="15m", ccy="SOL"):
     """
-    Recorre todas las senales abiertas, fetchea velas recientes y resuelve
-    outcomes posibles. Devuelve lista de senales recien cerradas.
+    Recorre las senales abiertas de UN symbol (ccy: 'SOL' default/'BTC'/'ETH'),
+    fetchea velas recientes de ESE symbol y resuelve outcomes posibles.
+    Devuelve lista de senales recien cerradas.
+
+    ccy DEBE coincidir con el symbol/exchange-symbol que se esta fetcheando
+    (ej. ccy='BTC' junto a symbol=SYMBOL_BTC): reconciliar senales BTC contra
+    velas de SOL (o viceversa) produciria outcomes basura (escalas de precio
+    incompatibles). Default 'SOL' preserva el comportamiento historico de las
+    llamadas existentes (SOL es el unico symbol que reconciliaba hasta ahora).
 
     Ventana: dimensionada para cubrir la senal abierta mas vieja (una sola
     fetch, cap FQ_RECONCILE_MAX_CANDLES). Si una senal nacio ANTES de la
@@ -570,7 +594,7 @@ def reconcile_outcomes(fetch_ohlcv_fn, exchange, symbol, timeframe="15m"):
         log.error("pandas no disponible para reconcile_outcomes")
         return []
 
-    open_sigs = get_open_signals()
+    open_sigs = get_open_signals(symbol=ccy)
     if not open_sigs:
         return []
 
@@ -661,33 +685,36 @@ def kl_divergence(p_dist, q_dist, epsilon=1e-9):
         kl += p * math.log2(p / q)
     return kl
 
-def get_bucket_distribution(closed_only=False, last_n=None):
-    """Cuenta senales por bucket. last_n recorta a las N mas recientes."""
+def get_bucket_distribution(closed_only=False, last_n=None, symbol="SOL"):
+    """Cuenta senales por bucket. last_n recorta a las N mas recientes.
+    symbol default 'SOL': la entropia/self-audit de SOL queda byte-identica
+    (no se mezcla con la distribucion de buckets de BTC/ETH)."""
     with _lock:
         conn = _connect()
         try:
             sql = "SELECT bucket_key FROM signals"
-            conds = []
+            conds = ["symbol = ?"]
+            params = [symbol]
             if closed_only:
                 conds.append("outcome IS NOT NULL")
-            if conds:
-                sql += " WHERE " + " AND ".join(conds)
+            sql += " WHERE " + " AND ".join(conds)
             sql += " ORDER BY id DESC"
             if last_n:
                 sql += " LIMIT {}".format(int(last_n))
-            rows = conn.execute(sql).fetchall()
+            rows = conn.execute(sql, params).fetchall()
             return Counter(r["bucket_key"] for r in rows)
         finally:
             conn.close()
 
-def compute_entropy_metrics():
-    """Devuelve dict con H, drift y composicion por dimensiones"""
-    all_dist = get_bucket_distribution(closed_only=False)
-    closed_dist = get_bucket_distribution(closed_only=True)
+def compute_entropy_metrics(symbol="SOL"):
+    """Devuelve dict con H, drift y composicion por dimensiones. symbol
+    default 'SOL' (byte-identico; ver get_bucket_distribution)."""
+    all_dist = get_bucket_distribution(closed_only=False, symbol=symbol)
+    closed_dist = get_bucket_distribution(closed_only=True, symbol=symbol)
 
     # Drift: ultimas 25 vs anteriores 25
-    last_25 = get_bucket_distribution(closed_only=False, last_n=25)
-    prev_25 = _get_prev_window_distribution(25, 25)
+    last_25 = get_bucket_distribution(closed_only=False, last_n=25, symbol=symbol)
+    prev_25 = _get_prev_window_distribution(25, 25, symbol=symbol)
     kl = kl_divergence(last_25, prev_25) if prev_25 else 0.0
 
     # Marginales por dimension
@@ -719,14 +746,16 @@ def compute_entropy_metrics():
         "curvature_dist": dict(curv_counts),
     }
 
-def _get_prev_window_distribution(n, offset):
-    """Ventana de senales anterior a las ultimas N (skip primeros offset)"""
+def _get_prev_window_distribution(n, offset, symbol="SOL"):
+    """Ventana de senales anterior a las ultimas N (skip primeros offset).
+    symbol default 'SOL' (ver get_bucket_distribution)."""
     with _lock:
         conn = _connect()
         try:
             rows = conn.execute(
-                "SELECT bucket_key FROM signals ORDER BY id DESC LIMIT ? OFFSET ?",
-                (int(n), int(offset))
+                "SELECT bucket_key FROM signals WHERE symbol = ? "
+                "ORDER BY id DESC LIMIT ? OFFSET ?",
+                (symbol, int(n), int(offset))
             ).fetchall()
             return Counter(r["bucket_key"] for r in rows)
         finally:
@@ -735,18 +764,23 @@ def _get_prev_window_distribution(n, offset):
 # ============================================================
 # KAPPA EVO - modulador suave
 # ============================================================
-def get_bucket_stats(bucket_key):
+def get_bucket_stats(bucket_key, symbol="SOL"):
     """
     Calcula win-rate y expectancy_R para un bucket dado.
     Solo cuenta senales cerradas.
     Retorna None si insuficientes muestras.
+
+    symbol default 'SOL': protege el modulador kappa_evo (que afila P_master
+    EN VIVO) de mezclarse con el historico de BTC/ETH -- un bucket_key
+    coarse (session|tier|direction|curvatura) puede coincidir entre simbolos.
     """
     with _lock:
         conn = _connect()
         try:
             rows = conn.execute(
-                "SELECT outcome, pnl_r FROM signals WHERE bucket_key = ? AND outcome IS NOT NULL",
-                (bucket_key,)
+                "SELECT outcome, pnl_r FROM signals "
+                "WHERE bucket_key = ? AND outcome IS NOT NULL AND symbol = ?",
+                (bucket_key, symbol)
             ).fetchall()
         finally:
             conn.close()
@@ -766,7 +800,7 @@ def get_bucket_stats(bucket_key):
         "expectancy": expectancy,
     }
 
-def compute_kappa_evo(session, tier, direction, curvature_sign_str):
+def compute_kappa_evo(session, tier, direction, curvature_sign_str, symbol="SOL"):
     """
     Devuelve modulador kappa_evo en [1-KAPPA_EVO_MAX, 1+KAPPA_EVO_MAX].
 
@@ -776,10 +810,10 @@ def compute_kappa_evo(session, tier, direction, curvature_sign_str):
     - Bucket con expectancy negativa -> hasta 0.85 (recorta peso)
 
     Mapeo: expectancy en [-1.5R, +1.5R] -> kappa en [0.85, 1.15] linealmente,
-    clamped en los extremos.
+    clamped en los extremos. symbol default 'SOL' (ver get_bucket_stats).
     """
     bucket = make_bucket_key(session, tier, direction, curvature_sign_str)
-    stats = get_bucket_stats(bucket)
+    stats = get_bucket_stats(bucket, symbol=symbol)
     if stats is None:
         return 1.0, None
 
@@ -810,13 +844,16 @@ def log_evolution_event(bucket_key, n_samples, win_rate, expectancy_r, kappa_app
 # ============================================================
 # REPORTES
 # ============================================================
-def get_global_metrics():
-    """Win-rate global, expectancy, R-distribution"""
+def get_global_metrics(symbol="SOL"):
+    """Win-rate global, expectancy, R-distribution. symbol default 'SOL'
+    (/metrics admin sigue mostrando SOLO SOL, byte-identico)."""
     with _lock:
         conn = _connect()
         try:
             rows = conn.execute(
-                "SELECT outcome, pnl_r, tier, session, direction FROM signals WHERE outcome IS NOT NULL"
+                "SELECT outcome, pnl_r, tier, session, direction FROM signals "
+                "WHERE outcome IS NOT NULL AND symbol = ?",
+                (symbol,)
             ).fetchall()
         finally:
             conn.close()
@@ -870,31 +907,52 @@ def get_global_metrics():
         "tier_summary":  tier_summary,
     }
 
-def get_recent_signals(n=10):
+def get_recent_signals(n=10, symbol=None):
+    """/ledger admin: feed crudo de actividad reciente. symbol=None (default)
+    -> TODOS los simbolos mezclados (Cerebro Etapa 0: admin ve BTC/ETH ahora
+    que se registran, no solo SOL); pasa 'SOL'/'BTC'/'ETH' para filtrar uno.
+    A diferencia de las metricas agregadas (get_global_metrics/
+    get_results_summary), este es un feed de EVENTOS, no un numero de
+    track-record -- mezclar simbolos aqui no cambia el significado de nada."""
     with _lock:
         conn = _connect()
         try:
-            rows = conn.execute(
-                "SELECT id, ts_emitted, direction, entry_price, p_master_final, "
-                "kappa_evo, tier, outcome, pnl_r FROM signals ORDER BY id DESC LIMIT ?",
-                (int(n),)
-            ).fetchall()
+            if symbol:
+                rows = conn.execute(
+                    "SELECT id, ts_emitted, direction, entry_price, p_master_final, "
+                    "kappa_evo, tier, outcome, pnl_r, symbol FROM signals "
+                    "WHERE symbol = ? ORDER BY id DESC LIMIT ?",
+                    (symbol, int(n))
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT id, ts_emitted, direction, entry_price, p_master_final, "
+                    "kappa_evo, tier, outcome, pnl_r, symbol FROM signals "
+                    "ORDER BY id DESC LIMIT ?",
+                    (int(n),)
+                ).fetchall()
             return [dict(r) for r in rows]
         finally:
             conn.close()
 
-def get_results_summary():
+def get_results_summary(symbol="SOL"):
     """
     Track record verificable desde el ledger propio (acceso directo VIP).
     Misma forma de dict que public_outcome_announcer.compute_results_summary,
     via la estadistica compartida de ledger_stats. None si no hay cierres.
+
+    symbol default 'SOL': /resultados es el numero que se le muestra a
+    CLIENTES -- no se diluye/mezcla con BTC/ETH sin una decision explicita
+    de producto (RasDG). Combinar los 3 track records es un cambio de
+    producto deliberado, no un efecto secundario de cerrar el gap del ledger.
     """
     with _lock:
         conn = _connect()
         try:
             rows = conn.execute(
                 "SELECT outcome, pnl_r, ts_closed FROM signals "
-                "WHERE outcome IS NOT NULL ORDER BY ts_closed ASC"
+                "WHERE outcome IS NOT NULL AND symbol = ? ORDER BY ts_closed ASC",
+                (symbol,)
             ).fetchall()
         finally:
             conn.close()
@@ -995,8 +1053,10 @@ def build_audit_prompt():
         entropy["curvature_dist"],
     )
 
-def _bucket_performance_table():
-    """Tabla de desempeno por bucket con n>=4"""
+def _bucket_performance_table(symbol="SOL"):
+    """Tabla de desempeno por bucket con n>=4. symbol default 'SOL': el
+    self-audit (build_audit_prompt) no debe sugerir cambios de threshold de
+    SOL basado en buckets de BTC/ETH."""
     with _lock:
         conn = _connect()
         try:
@@ -1006,10 +1066,10 @@ def _bucket_performance_table():
                        SUM(CASE WHEN outcome IN ('tp1','tp2','tp3','tp4') THEN 1 ELSE 0 END) as wins,
                        AVG(pnl_r) as expectancy
                 FROM signals
-                WHERE outcome IS NOT NULL
+                WHERE outcome IS NOT NULL AND symbol = ?
                 GROUP BY bucket_key
                 HAVING n >= 4
-            """).fetchall()
+            """, (symbol,)).fetchall()
         finally:
             conn.close()
     return [
@@ -1071,14 +1131,15 @@ def export_db_path():
     return DB_PATH if os.path.exists(DB_PATH) else None
 
 def export_ledger_csv():
-    """Exporta ledger a CSV string para mensajes ligeros"""
+    """Exporta ledger a CSV string para mensajes ligeros. SIN filtrar por
+    symbol a proposito: es un backup, debe incluir SOL/BTC/ETH completos."""
     if pd is None:
         return None
     with _lock:
         conn = _connect()
         try:
             df = pd.read_sql_query(
-                "SELECT id, ts_emitted, direction, entry_price, p_master_final, "
+                "SELECT id, ts_emitted, symbol, direction, entry_price, p_master_final, "
                 "kappa_evo, tier, session, bucket_key, outcome, pnl_r FROM signals "
                 "ORDER BY id DESC",
                 conn
@@ -1166,9 +1227,11 @@ def format_entropy_telegram():
         e["session_dist"], e["tier_dist"], e["direction_dist"],
     )
 
-def format_ledger_telegram(n=10):
-    """Ultimas N senales del ledger"""
-    rows = get_recent_signals(n)
+def format_ledger_telegram(n=10, symbol=None):
+    """Ultimas N senales del ledger. symbol=None (default) mezcla SOL/BTC/ETH
+    (Cerebro Etapa 0: admin ve la actividad real de los 3 en /ledger); pasa
+    un symbol para filtrar a uno solo."""
+    rows = get_recent_signals(n, symbol=symbol)
     if not rows:
         return "Ledger vacio."
     lines = ["<b>ULTIMAS {} SENALES</b>".format(len(rows)), ""]
@@ -1181,8 +1244,9 @@ def format_ledger_telegram(n=10):
         kappa_marker = ""
         if r["kappa_evo"] != 1.0:
             kappa_marker = " k={:.2f}".format(r["kappa_evo"])
-        lines.append("#{} {} {} P={:.2f}{} [{}] {}{}".format(
-            r["id"], ts, r["direction"].upper()[0],
+        sym = r.get("symbol") or "SOL"
+        lines.append("#{} {} {} {} P={:.2f}{} [{}] {}{}".format(
+            r["id"], ts, sym, r["direction"].upper()[0],
             r["p_master_final"], kappa_marker, r["tier"],
             outcome, pnl
         ))
@@ -1256,28 +1320,34 @@ def migrate_schema_v2():
 # ============================================================
 # CONTADORES v2
 # ============================================================
-def count_closed_v2_buckets():
-    """Total de senales cerradas que tienen bucket_key_v2 (usado para alpha decay)"""
+def count_closed_v2_buckets(symbol="SOL"):
+    """Total de senales cerradas que tienen bucket_key_v2 (usado para alpha
+    decay). symbol default 'SOL': hoy solo SOL escribe bucket_key_v2
+    (log_signal_v2/v3); BTC/ETH se graban via log_signal simple y dejan esta
+    columna NULL a proposito, asi que este filtro es un no-op de seguridad,
+    no un cambio de comportamiento."""
     with _lock:
         conn = _connect()
         try:
             row = conn.execute(
                 "SELECT COUNT(*) AS c FROM signals "
-                "WHERE bucket_key_v2 IS NOT NULL AND outcome IS NOT NULL"
+                "WHERE bucket_key_v2 IS NOT NULL AND outcome IS NOT NULL AND symbol = ?",
+                (symbol,)
             ).fetchone()
             return int(row["c"]) if row else 0
         finally:
             conn.close()
 
-def get_bucket_stats_v2(bucket_key_v2):
-    """Como get_bucket_stats pero usando bucket_key_v2"""
+def get_bucket_stats_v2(bucket_key_v2, symbol="SOL"):
+    """Como get_bucket_stats pero usando bucket_key_v2. symbol default 'SOL'
+    (ver count_closed_v2_buckets)."""
     with _lock:
         conn = _connect()
         try:
             rows = conn.execute(
                 "SELECT outcome, pnl_r FROM signals "
-                "WHERE bucket_key_v2 = ? AND outcome IS NOT NULL",
-                (bucket_key_v2,)
+                "WHERE bucket_key_v2 = ? AND outcome IS NOT NULL AND symbol = ?",
+                (bucket_key_v2, symbol)
             ).fetchall()
         finally:
             conn.close()
@@ -1397,6 +1467,48 @@ ALTER TABLE signals ADD COLUMN tf_id TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_tf_id ON signals(tf_id);
 """
+
+# ============================================================
+# SCHEMA v5 - Cerebro Etapa 0: columna symbol (SOL/BTC/ETH)
+# ============================================================
+# Additiva, no destructiva: filas viejas (todas SOL, pre-multi-simbolo)
+# quedan symbol='SOL' via el DEFAULT. Cierra el gap de ESTADO.md: "BTC/ETH
+# se broadcastean a clientes pero su unico registro es el motor paper de
+# 1 TP -- una senal puede salir a VIP y no quedar en ningun registro con
+# outcome". Ahora BTC/ETH se graban en el MISMO ledger rico (4 TP) via
+# log_signal(signal_data, symbol=ccy) -- ver _record_vip_signal en el bot.
+#
+# IMPORTANTE: toda funcion de analitica/self-audit/kappa-evolucion de SOL
+# (get_bucket_stats, compute_kappa_evo, get_global_metrics,
+# get_results_summary, _bucket_performance_table, count_signals, etc.)
+# ahora filtra symbol='SOL' por DEFAULT -- el comportamiento para SOL es
+# BYTE-IDENTICO a antes de esta migracion. BTC/ETH acumulan su propio
+# track record en las mismas tablas, aislado.
+SCHEMA_V5_MIGRATION = """
+ALTER TABLE signals ADD COLUMN symbol TEXT NOT NULL DEFAULT 'SOL';
+
+CREATE INDEX IF NOT EXISTS idx_symbol ON signals(symbol);
+"""
+
+def migrate_schema_v5():
+    """Agrega columna symbol (default 'SOL', filas viejas quedan SOL).
+    Idempotente. Safe correr varias veces."""
+    with _lock:
+        conn = _connect()
+        try:
+            for stmt in SCHEMA_V5_MIGRATION.strip().split(";"):
+                s = stmt.strip()
+                if not s:
+                    continue
+                try:
+                    conn.execute(s)
+                except sqlite3.OperationalError as e:
+                    if "duplicate column" not in str(e).lower():
+                        log.warning("schema_v5 migration: {}".format(e))
+            conn.commit()
+            log.info("Schema v5 (symbol) migrado/verificado")
+        finally:
+            conn.close()
 
 def migrate_schema_v4():
     """Agrega columna tf_id y backfilla filas historicas a '15m' (SOL/15m era el
