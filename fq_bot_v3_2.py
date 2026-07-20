@@ -177,6 +177,15 @@ ANALISIS_PAIRS = {
     "ETH": {"symbol": SYMBOL_ETH, "pair": "ETH/USDT"},
 }
 
+# TF anchor de /lectura y /analisis on-demand (2026-07-20, RasDG: "mas adoc al
+# uso real"). Antes 15m (SCALPING); el uso real -- el propio motor paper de
+# BTC/ETH ya corre en 5m (BTC_MOTOR_TF/ETH_MOTOR_TF, el TF de la cosecha/
+# research) -- hace de 5m el marco mas representativo para el chequeo manual.
+# Cambia esto para mover el anchor de ambos comandos a la vez.
+ANALISIS_ANCHOR_TF = "5m"
+ANALISIS_ANCHOR_CANDLE_MINUTES = 5  # minutos reales de ANALISIS_ANCHOR_TF -- mantener
+                                    # sincronizado si se cambia el anchor de arriba
+
 
 def _resolve_analisis_pair(raw_args):
     """1er argumento de /analisis y sus alias -> ccy SOL/BTC/ETH (default SOL).
@@ -4876,7 +4885,7 @@ def build_analisis_context(exchange, pair_ccy="SOL"):
     symbol = pinfo["symbol"]
     pair_label = pinfo["pair"]
 
-    df = fetch_ohlcv(exchange, symbol, "15m", limit=200)
+    df = fetch_ohlcv(exchange, symbol, ANALISIS_ANCHOR_TF, limit=200)
     df = add_indicators(df)
     if len(df) < 50:
         return None
@@ -4891,10 +4900,12 @@ def build_analisis_context(exchange, pair_ccy="SOL"):
     h_factor = 1.0 if lap["active"] else 0.7
     pm_est = PHI * w_clock * h_factor * (1 + max(0, masses["count"] - 2) * 0.15)
 
-    levels = calculate_levels_v2(df, direction, pspace=masses, tf="15m")
+    levels = calculate_levels_v2(df, direction, pspace=masses, tf=ANALISIS_ANCHOR_TF)
 
     # QTE: una sola corrida 2000 paths + optimizer + paths. Sirve al mensaje
     # curado, al battle plan y a la lectura de Claude (incl. bloque optimizer).
+    # candle_minutes=5 (anchor real): sin esto, "Horizonte ~Nh" asumiria velas
+    # de 15m (default historico del QTE) y mostraria 3x las horas reales.
     qa = None
     if QTE_AVAILABLE and qt is not None:
         try:
@@ -4905,7 +4916,7 @@ def build_analisis_context(exchange, pair_ccy="SOL"):
                 df, direction=direction, levels=qte_levels,
                 ict_module=ict_smc if ICT_MODULES_AVAILABLE else None,
                 n_paths=2000, run_optimizer=True, return_paths=True,
-                adaptive=True)
+                adaptive=True, candle_minutes=ANALISIS_ANCHOR_CANDLE_MINUTES)
         except Exception as ex:
             log.warning("QTE en build_analisis_context fallo: {}".format(ex))
 
@@ -4984,7 +4995,7 @@ def claude_followup_analisis_vip(exchange, ctx=None, pair_ccy="SOL"):
             # que este on-demand ya no debe mostrar (ver nota arriba).
 
         # FQ v5.1: Phase E informativo - usa el df del contexto (sin re-fetch)
-        phase_e = compute_phase_e_informative(ctx["df"], direction, tf_id="15m")
+        phase_e = compute_phase_e_informative(ctx["df"], direction, tf_id=ANALISIS_ANCHOR_TF)
         if phase_e is not None:
             snapshot.update({
                 "phase_e_sync_score":   phase_e["sync_score"],
@@ -5797,7 +5808,8 @@ def cmd_lectura(exchange, pair_ccy="SOL"):
     Para cada TF (5m INTRADIA / 15m SCALPING / 1h SWING) muestra: bias,
     masas P-Space, P_master estimado vs umbral del perfil, direccion sugerida
     y cooldown restante. Despues la lectura tactica de Claude sobre el TF
-    anchor (15m).
+    anchor (ANALISIS_ANCHOR_TF, 5m -- 2026-07-20, "mas adoc al uso real": el
+    motor paper BTC/ETH ya corre en 5m).
 
     SIN niveles Entry/SL/TP1-4 (2026-07-20, RasDG: "me hacen sentir inseguro
     seguir el plan de los niveles crudos, es mejor esperar el precio con el
@@ -5829,7 +5841,7 @@ def cmd_lectura(exchange, pair_ccy="SOL"):
                     continue
                 last = df.iloc[-1]
                 price = float(last["close"])
-                if tf_id == "15m":
+                if tf_id == ANALISIS_ANCHOR_TF:
                     anchor_price = price
                     anchor_df = df
 
@@ -5893,7 +5905,7 @@ def cmd_lectura(exchange, pair_ccy="SOL"):
                 tf_blocks.append("<b>[{} {}]</b> error: {}\n".format(
                     tf_label, tf_id, str(ex)[:80]))
 
-        # Header (usa precio del anchor 15m si esta disponible)
+        # Header (usa precio del anchor ANALISIS_ANCHOR_TF si esta disponible)
         header_price = anchor_price if anchor_price is not None else 0.0
         header = (
             "<b>LECTURA MULTI-TF - FQ v4.4</b>\n"
@@ -5909,7 +5921,7 @@ def cmd_lectura(exchange, pair_ccy="SOL"):
             ses=session.upper(), w=w_clock,
         )
 
-        # Lectura Claude opcional sobre el TF anchor (15m)
+        # Lectura Claude opcional sobre el TF anchor (ANALISIS_ANCHOR_TF)
         claude_block = ""
         if claude_ai.is_available() and anchor_df is not None:
             try:
@@ -5941,10 +5953,10 @@ def cmd_lectura(exchange, pair_ccy="SOL"):
                 if reading:
                     claude_block = (
                         "\n{thin}\n"
-                        "  LECTURA TACTICA (Claude Sonnet, TF anchor 15m)\n"
+                        "  LECTURA TACTICA (Claude Sonnet, TF anchor {anchor})\n"
                         "{thin}\n"
                         "{r}\n\n"
-                    ).format(thin=G["thin"], r=reading)
+                    ).format(thin=G["thin"], r=reading, anchor=ANALISIS_ANCHOR_TF)
             except Exception as ex:
                 log.warning("lectura Claude block error: {}".format(ex))
 
@@ -5966,10 +5978,12 @@ def cmd_lectura(exchange, pair_ccy="SOL"):
 # ============================================================
 def cmd_analisis_vip(exchange, ctx=None, pair_ccy="SOL"):
     """
-    Version VIP de /analisis. Muestra el TF anchor 15m con formato Mistral curado
-    liderado por el PLAN DE BATALLA. Reutiliza `ctx` (build_analisis_context) si el
-    router lo pasa, evitando re-simular el QTE; si es None lo computa por su cuenta
-    (multi-simbolo: pair_ccy en SOL/BTC/ETH, default SOL).
+    Version VIP de /analisis. Muestra el TF anchor ANALISIS_ANCHOR_TF (5m) con
+    formato Mistral curado -- sesgo + interpretacion cualitativa, sin niveles
+    crudos ni plan de batalla (ver build_analisis_context, 2026-07-20).
+    Reutiliza `ctx` (build_analisis_context) si el router lo pasa, evitando
+    re-simular el QTE; si es None lo computa por su cuenta (multi-simbolo:
+    pair_ccy en SOL/BTC/ETH, default SOL).
     """
     try:
         if ctx is None:

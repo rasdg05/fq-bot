@@ -146,3 +146,49 @@ def test_adaptive_horizon_fallback_on_bad_input():
     import quantum_timelines as qt
     assert qt.adaptive_horizon(100.0, 0.0, 112.0, session_w=1.0) == qt.DEFAULT_HORIZON
     assert qt.adaptive_horizon(100.0, 1.0, None, session_w=1.0) == qt.DEFAULT_HORIZON
+
+
+# ----------------------------------------------------------------------
+# candle_minutes: /analisis on-demand movio su anchor de 15m a 5m
+# (2026-07-20, RasDG: "mas adoc al uso real"). HORIZON_MIN/MAX_CANDLES y
+# DEFAULT_HORIZON estan calibrados en horas reales asumiendo velas de 15m;
+# candle_minutes reescala esos pisos/techos para que un caller en 5m siga
+# representando las MISMAS horas (no 1/3 de ellas).
+# ----------------------------------------------------------------------
+def test_adaptive_horizon_candle_minutes_default_15_sin_cambios():
+    import quantum_timelines as qt
+    h_default = qt.adaptive_horizon(100.0, 1.0, 112.0, session_w=1.0)
+    h_explicit_15 = qt.adaptive_horizon(100.0, 1.0, 112.0, session_w=1.0,
+                                        candle_minutes=15)
+    assert h_default == h_explicit_15
+
+
+def test_adaptive_horizon_candle_minutes_5_escala_bounds_3x():
+    import quantum_timelines as qt
+    # ATR grande fuerza el techo -> compara los techos escalados directamente.
+    h_15 = qt.adaptive_horizon(100.0, 0.01, 1000.0, session_w=1.0, candle_minutes=15)
+    h_5 = qt.adaptive_horizon(100.0, 0.01, 1000.0, session_w=1.0, candle_minutes=5)
+    assert h_15 == qt.HORIZON_MAX_CANDLES
+    assert h_5 == qt.HORIZON_MAX_CANDLES * 3   # mismas horas reales, 3x mas velas de 5m
+
+
+def test_quantum_analysis_horizon_hours_usa_candle_minutes():
+    """Sin adaptive/levels, el horizon default tambien se reescala por
+    candle_minutes (288 velas de 5m == 96 velas de 15m == 24h) -> incluso con
+    horizon_candles distinto, horizon_hours debe salir IGUAL en ambos casos."""
+    import quantum_timelines as qt
+    df = qt._synth_df()
+    qa_15 = qt.quantum_analysis(df, direction="long", n_paths=50,
+                                run_optimizer=False, candle_minutes=15)
+    qa_5 = qt.quantum_analysis(df, direction="long", n_paths=50,
+                               run_optimizer=False, candle_minutes=5)
+    assert qa_5["horizon_candles"] == qa_15["horizon_candles"] * 3
+    assert qa_15["horizon_hours"] == qa_5["horizon_hours"]
+
+
+def test_quantum_analysis_default_candle_minutes_15_comportamiento_historico():
+    import quantum_timelines as qt
+    df = qt._synth_df()
+    qa = qt.quantum_analysis(df, direction="long", n_paths=50, run_optimizer=False)
+    assert qa["horizon_candles"] == qt.DEFAULT_HORIZON
+    assert qa["horizon_hours"] == qt.DEFAULT_HORIZON * 15 / 60

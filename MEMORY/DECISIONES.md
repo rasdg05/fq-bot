@@ -506,6 +506,47 @@ Entry/Stop/TP ni figuras de $ ajenas al precio actual), más ajuste de
 
 ---
 
+## 18. TF anchor de `/lectura` y `/analisis` on-demand: 15m → 5m (2026-07-20)
+
+**El pedido (RasDG).** "Cambia el TF anchor 15m en las lecturas tácticas a TF anchor 5m. Más adoc
+al uso real." El anchor (el TF cuyo precio/vela alimenta la lectura de Claude y el contexto de
+`/analisis`) era 15m desde el rediseño multi-TF (§15 pre-refactor). El "uso real" que lo hace
+menos representativo: el propio motor paper de BTC/ETH ya corre en 5m (`BTC_MOTOR_TF`/
+`ETH_MOTOR_TF`, el TF de la cosecha/research), y 5m también está en `TIMEFRAMES` desde mayo
+(intradía, junto a 15m). Alcance idéntico a §17: solo el chequeo manual on-demand
+(`cmd_lectura`, `build_analisis_context`/`cmd_analisis_vip`); la señal automática VIP/FREE y el
+RADAR (que ya usa 5m vía `FIELD_TIMEFRAMES` para sus alertas tácticas) no se tocaron.
+
+**El cambio.** Nueva constante `ANALISIS_ANCHOR_TF = "5m"` (+ `ANALISIS_ANCHOR_CANDLE_MINUTES = 5`)
+junto a `ANALISIS_PAIRS` — única fuente de verdad para mover el anchor de ambos comandos a la vez.
+`build_analisis_context` pide velas de `ANALISIS_ANCHOR_TF` (antes "15m" a fuego) y pasa `tf=` a
+`calculate_levels_v2` igual. `cmd_lectura` captura `anchor_price`/`anchor_df` en la iteración cuyo
+`tf_id == ANALISIS_ANCHOR_TF` (antes comparaba contra `"15m"` literal); el texto visible
+("LECTURA TACTICA (Claude Sonnet, TF anchor {anchor})") ahora es dinámico, no quedó hardcodeado.
+
+**El bug que evitó (candle_minutes).** `quantum_timelines.py` calculaba `horizon_hours` con
+`horizon * 15 / 60` — asumía SIEMPRE velas de 15m sin importar el TF real del `df` recibido. Si
+solo se hubiera cambiado el fetch a 5m, el "Horizonte ~24h" mostrado al VIP habría sido una
+mentira 3x (24h reales mostradas como si fueran 96 velas de 15m, cuando en realidad eran 96 velas
+de 5m = 8h). Mismo problema en los bounds `HORIZON_MIN_CANDLES`/`HORIZON_MAX_CANDLES` (24-160,
+calibrados para representar 6h-40h en velas de 15m): sin ajuste, una ventana adaptativa en 5m
+quedaría 3x más corta en horas reales de lo calibrado. Fix: nuevo parámetro `candle_minutes`
+(default 15 = comportamiento histórico, cero impacto en cualquier otro caller de
+`quantum_analysis`/`adaptive_horizon` — RADAR, Phase E, `/timelines`, fusion_engine incluidos)
+que reescala tanto `horizon_hours` como los pisos/techos del horizonte adaptativo.
+`build_analisis_context` es el único caller que pasa `candle_minutes=5`.
+
+**Evidencia.** `quantum_timelines.py` (`DEFAULT_CANDLE_MINUTES`, `adaptive_horizon`,
+`quantum_analysis`); `fq_bot_v3_2.py` (`ANALISIS_ANCHOR_TF`, `ANALISIS_ANCHOR_CANDLE_MINUTES`,
+`build_analisis_context`, `cmd_lectura`, `claude_followup_analisis_vip`, docstring de
+`cmd_analisis_vip`). Tests: `tests/test_tp_wavelength.py` (+4: `candle_minutes` default 15 sin
+cambios, escala 3x los bounds en 5m, `horizon_hours` consistente entre 15m/5m con el mismo horizon
+real, comportamiento histórico intacto sin el parámetro), `tests/test_analisis_anchor_5m.py`
+(5 nuevos: la constante es la fuente de verdad, `build_analisis_context` pide velas del anchor y
+threadea `candle_minutes` al QTE, `cmd_lectura` ancla precio/texto al TF nuevo).
+
+---
+
 ## Resumen
 
 | Decisión | Razonamiento core | Archivos / commits clave | Estado |
