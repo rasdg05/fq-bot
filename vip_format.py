@@ -349,10 +349,11 @@ def _ev_label(ev):
     if ev >= 0.0:               return "Marginal"
     return "Negativo"
 
-def build_battle_block(plan):
+def build_battle_block(plan, pair=None):
     """
     Veredicto del battle_planner como bloque lider del /analisis.
     Sin EV crudo ni P(SL) crudo en la superficie VIP.
+    pair: par mostrado en el header ("BTC/USDT" etc). None -> PAIR (SOL, default).
     """
     if not plan:
         return ""
@@ -367,7 +368,7 @@ def build_battle_block(plan):
     c = GLYPHS["bullet_chk"]
     lines = [
         RULE,
-        "  {} Plan · {}".format(GLYPHS["event"], PAIR),
+        "  {} Plan · {}".format(GLYPHS["event"], pair or PAIR),
         RULE,
         "  <b>{}</b>".format(plan["headline"]),
         "",
@@ -574,10 +575,12 @@ def _decision_hint(qa, direction):
     }.get(v["grade"])
 
 
-def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None, plan=None):
+def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None, plan=None, pair=None):
     """
     /analisis VIP. Una pantalla, sin formulas, sin score numerico.
     El veredicto del battle planner lidera si esta presente.
+    pair: par analizado ("BTC/USDT" etc, multi-simbolo /analisis [SOL|BTC|ETH]).
+    None -> PAIR (SOL, default historico).
     """
     side  = "LONG" if direction == "long" else "SHORT"
     arrow = GLYPHS["long"] if direction == "long" else GLYPHS["short"]
@@ -622,12 +625,17 @@ def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None, plan=None
         tbits.append("  {} {}".format(c, quality))
     tone_block = ("\n".join(tbits) + "\n{}\n".format(RULE)) if tbits else ""
 
-    battle = build_battle_block(plan)
+    battle = build_battle_block(plan, pair=pair)
     detalle_hdr = ("  {} Detalle".format(GLYPHS["event"]) if battle
-                   else "  {} Analisis · {}".format(GLYPHS["event"], PAIR))
+                   else "  {} Analisis · {}".format(GLYPHS["event"], pair or PAIR))
     # Si no hay plan que lidere, una linea de accion clara desde el veredicto.
     hint = None if battle else _decision_hint(qa, direction)
     decision_line = "  → {}\n".format(hint) if hint else ""
+
+    # Hashtag dinamico por par (mismo fix que build_vip_signal, linea ~144):
+    # HASHTAGS_SIGNAL hardcodeaba #SOLUSDT -> /analisis BTC o ETH mostraba el
+    # tag de SOL igual.
+    sym_tags = "#FQ #" + (pair or PAIR).split(":")[0].replace("/", "")
 
     return battle + (
         "{rule}\n"
@@ -653,7 +661,7 @@ def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None, plan=None
         decision=decision_line, riskpct=risk_pct,
         arrow=arrow, side=side, conv=conviction, risk=risk_lbl,
         entry=entry, sl=sl, sla=sla_lbl,
-        tps=tps_block, tone=tone_block, tags=HASHTAGS_SIGNAL, c=c,
+        tps=tps_block, tone=tone_block, tags=sym_tags, c=c,
     )
 
 # ============================================================
@@ -704,7 +712,7 @@ def build_help_vip():
         lux_header("{} · Tablero".format(PRODUCT), "Comandos VIP"),
         "",
         lux_item("/status", "Estado del sistema"),
-        lux_item("/lectura", "Analisis on-demand"),
+        lux_item("/lectura [SOL|BTC|ETH]", "Analisis on-demand (default SOL)"),
         lux_item("/miestado", "Tu cuenta"),
         lux_item("/renovar", "Renovar acceso"),
         lux_item("/about", "El sistema"),
@@ -722,6 +730,7 @@ def build_help_admin():
         "",
         lux_block("Alias:"),
         "   /analisis /niveles /pspace /claude /ia → /lectura",
+        "   + arg SOL|BTC|ETH (ej. /analisis ETH), default SOL",
         "   /sesion /macro → /status",
         "",
         lux_block("Admin:"),

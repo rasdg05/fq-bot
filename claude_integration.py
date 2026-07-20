@@ -53,7 +53,7 @@ def get_client():
 # ============================================================
 # SYSTEM PROMPT
 # ============================================================
-SYSTEM_PROMPT_FQ = """Eres el copiloto tactico del sistema FQ (senales SOL/USDT en OKX).
+SYSTEM_PROMPT_FQ = """Eres el copiloto tactico del sistema FQ (senales SOL/BTC/ETH en OKX).
 
 CONTEXTO TECNICO:
 Recibes snapshots cuantitativos por vela: precio, sesgo, niveles candidatos
@@ -176,7 +176,7 @@ def fmt_external(s):
 def build_general_prompt(s):
     """Lectura tactica general - comando /claude"""
     return (
-        "LECTURA TACTICA SOL/USDT EN TIEMPO REAL\n"
+        "LECTURA TACTICA {pair} EN TIEMPO REAL\n"
         "========================================\n\n"
         "ESTADO INTERNO (FQ):\n"
         "  Precio: ${:.2f}\n"
@@ -215,6 +215,7 @@ def build_general_prompt(s):
         fmt_candles(s.get("candle_evolution", [])),
         fmt_events(s.get("events", [])),
         fmt_external(s),
+        pair=s.get("pair", "SOL/USDT"),
     )
 
 def build_pspace_prompt(s):
@@ -228,7 +229,7 @@ def build_pspace_prompt(s):
     masses_text = "\n".join(masses_lines) if masses_lines else "  Sin masas detectadas"
 
     return (
-        "LECTURA P-SPACE + ORDER BOOK SOL/USDT\n"
+        "LECTURA P-SPACE + ORDER BOOK {pair}\n"
         "=====================================\n\n"
         "ESTADO ACTUAL:\n"
         "  Precio: ${:.2f}\n"
@@ -259,13 +260,14 @@ def build_pspace_prompt(s):
         fmt_walls(s.get("ask_walls", []), "ASK walls"),
         s.get("ob_pressure_interp", "N/A"),
         fmt_events(s.get("events", [])),
+        pair=s.get("pair", "SOL/USDT"),
     )
 
 def build_niveles_prompt(s):
     """Lectura de plan de entrada con afinacion"""
     plan = s.get("plan_primary", {})
     return (
-        "AFINACION DE PLAN DE ENTRADA SOL/USDT\n"
+        "AFINACION DE PLAN DE ENTRADA {pair}\n"
         "=====================================\n\n"
         "ESTADO:\n"
         "  Precio: ${:.2f}\n"
@@ -299,6 +301,7 @@ def build_niveles_prompt(s):
         fmt_walls(s.get("bid_walls", []), "BIDs"),
         fmt_walls(s.get("ask_walls", []), "ASKs"),
         fmt_external(s),
+        pair=s.get("pair", "SOL/USDT"),
     )
 
 def build_analisis_vip_prompt(s):
@@ -421,7 +424,7 @@ def build_analisis_vip_prompt(s):
         )
 
     return (
-        "ANALISIS SOL/USDT (vista VIP)\n"
+        "ANALISIS {pair} (vista VIP)\n"
         "=============================\n\n"
         "Precio:    ${price:.2f}\n"
         "Sesgo:     {bias} -> {dir}\n"
@@ -472,6 +475,7 @@ def build_analisis_vip_prompt(s):
         qte=qte_block,
         qte_opt=qte_opt_block,
         phase_e=phase_e_block,
+        pair=s.get("pair", "SOL/USDT"),
     )
 
 def build_signal_prompt(s):

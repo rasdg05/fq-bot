@@ -685,15 +685,19 @@ def candle_evolution(df, n=5):
 # ============================================================
 # SMART SNAPSHOT BUILDERS - especializados por comando
 # ============================================================
-def snapshot_for_general(df, basic_state):
-    """Snapshot para /claude general - lectura tactica completa"""
+def snapshot_for_general(df, basic_state, symbol=None, ccy=None):
+    """Snapshot para /claude general - lectura tactica completa.
+    symbol (formato swap, ej. "BTC-USDT-SWAP") y ccy (ej. "BTC") son opcionales
+    -> default SOL (comportamiento historico) para no romper llamadas viejas.
+    Multi-simbolo (/analisis BTC|ETH): sin esto, el snapshot mezclaba precio/
+    indicadores del par pedido con funding/OI/L-S ratio de SOL (siempre)."""
     snap = dict(basic_state)
     snap["events"]            = detect_all_events(df)
     snap["candle_evolution"]  = candle_evolution(df, n=5)
 
     # Datos externos compactos. Siempre poblamos las keys, aunque OKX falle,
     # para que Claude distinga "no me pasaron el dato" vs "OKX cayo".
-    funding = get_funding_rate()
+    funding = get_funding_rate(symbol) if symbol else get_funding_rate()
     if funding:
         snap["funding_pct"]    = funding["current_pct"]
         snap["funding_interp"] = funding_interpretation(funding["current_pct"])
@@ -701,13 +705,13 @@ def snapshot_for_general(df, basic_state):
         snap["funding_pct"]    = "UNAVAILABLE"
         snap["funding_interp"] = "OKX no respondio (posible geo-block del servidor o rate-limit)"
 
-    oi = get_open_interest()
+    oi = get_open_interest(symbol) if symbol else get_open_interest()
     if oi:
         snap["oi_millions"] = oi["millions"]
     else:
         snap["oi_millions"] = "UNAVAILABLE"
 
-    oi_hist = get_oi_history()
+    oi_hist = get_oi_history(symbol=symbol) if symbol else get_oi_history()
     if oi_hist:
         oi_trend = oi_trend_analysis(oi_hist)
         snap["oi_trend"]      = oi_trend["trend"]
@@ -716,7 +720,7 @@ def snapshot_for_general(df, basic_state):
         snap["oi_trend"]      = "UNAVAILABLE"
         snap["oi_change_pct"] = "UNAVAILABLE"
 
-    ls = get_long_short_ratio()
+    ls = get_long_short_ratio(symbol=ccy) if ccy else get_long_short_ratio()
     if ls:
         snap["ls_ratio"]  = ls["current"]
         snap["ls_interp"] = ls_ratio_interpretation(ls["current"])
@@ -726,12 +730,13 @@ def snapshot_for_general(df, basic_state):
 
     return snap
 
-def snapshot_for_pspace(df, basic_state, pspace_data):
-    """Snapshot para /pspace - foco en libro y walls"""
+def snapshot_for_pspace(df, basic_state, pspace_data, symbol=None):
+    """Snapshot para /pspace - foco en libro y walls. symbol opcional (default
+    SOL) para pedir el order book del par correcto en /analisis multi-simbolo."""
     snap = dict(basic_state)
     snap["pspace_full"] = pspace_data
 
-    ob = get_order_book()
+    ob = get_order_book(symbol) if symbol else get_order_book()
     if ob:
         walls = detect_liquidity_walls(ob, basic_state["price"])
         snap["bid_walls"] = walls["bid_walls"]
@@ -743,20 +748,21 @@ def snapshot_for_pspace(df, basic_state, pspace_data):
     snap["events"] = detect_all_events(df)
     return snap
 
-def snapshot_for_niveles(df, basic_state, plan_primary, plan_secondary):
-    """Snapshot para /niveles - foco en setup y triggers"""
+def snapshot_for_niveles(df, basic_state, plan_primary, plan_secondary, symbol=None):
+    """Snapshot para /niveles - foco en setup y triggers. symbol opcional
+    (default SOL) para funding/order book del par correcto."""
     snap = dict(basic_state)
     snap["plan_primary"]   = plan_primary
     snap["plan_secondary"] = plan_secondary
     snap["events"]         = detect_all_events(df)
     snap["candle_evolution"] = candle_evolution(df, n=3)
 
-    funding = get_funding_rate()
+    funding = get_funding_rate(symbol) if symbol else get_funding_rate()
     if funding:
         snap["funding_pct"]    = funding["current_pct"]
         snap["funding_interp"] = funding_interpretation(funding["current_pct"])
 
-    ob = get_order_book()
+    ob = get_order_book(symbol) if symbol else get_order_book()
     if ob:
         walls = detect_liquidity_walls(ob, basic_state["price"])
         snap["bid_walls"] = walls["bid_walls"]

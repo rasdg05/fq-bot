@@ -362,6 +362,51 @@ siguen yendo a ambos tiers; el eco admin dispara solo para pares VIP suprimidos,
 
 ---
 
+## 15. `/analisis` multi-símbolo (SOL/BTC/ETH) + fuera la tabla QTE del on-demand (2026-07-20)
+
+**El pedido (RasDG).** Extender `/analisis` (y sus alias `/lectura /niveles /pspace /claude /ia`) a
+los 3 pares VIP, y quitar "carga inútil" — la tabla cruda de probabilidades QTE que salía en cada
+lectura on-demand. También se planteó (sin decidir aún — "estoy pensando") eliminar los TP forzados
+de la señal disparada; **eso NO se tocó**, es un cambio de producto mayor (rompe el ledger de 4 TP,
+el tracking de progreso, el motor paper) que necesita decisión explícita, no se infiere de "lo estoy
+pensando".
+
+**Multi-símbolo.** `/analisis` toma un 1er argumento opcional `SOL|BTC|ETH` (default SOL, sin
+argumento = comportamiento histórico). Nueva tabla `ANALISIS_PAIRS` + `_resolve_analisis_pair(args)`
+(cae a SOL ante cualquier valor no reconocido — nunca rompe el comando). Se hiló el símbolo/par
+correcto a través de TODA la cadena que antes asumía SOL a fuego:
+- `cmd_lectura`, `build_analisis_context`, `cmd_analisis_vip` (fetch_ohlcv, header, hashtag).
+- Las 4 lecturas de Claude (`claude_followup_general/pspace/niveles/analisis_vip`): antes el prompt
+  decía "SOL/USDT" en el header sin importar el par mostrado (podía confundir a Claude analizando
+  BTC/ETH). Ahora leen `pair` del snapshot (`claude_integration.py`, fallback SOL/USDT si falta).
+- `market_context.snapshot_for_general/pspace/niveles`: antes llamaban a
+  `get_funding_rate()/get_open_interest()/get_long_short_ratio()/get_order_book()` SIN símbolo →
+  SIEMPRE traían los derivados de SOL, incluso analizando BTC/ETH (bug real, no solo cosmético).
+  Ahora aceptan `symbol=`/`ccy=` opcionales.
+- `vip_format.build_vip_analisis/build_battle_block`: el header "Plan · {par}" y el hashtag del
+  cierre (`#FQ #SOLUSDT` fijo → dinámico, mismo fix que ya tenía `build_vip_signal`) ahora usan el
+  par real en vez de la constante `PAIR` (SOL) a fuego.
+- Cooldown por TF en `/lectura`: solo se muestra para SOL (único símbolo cuyo
+  `STATE.last_signal_ts_tf` se escribe); BTC/ETH muestran una nota en vez de un número que mezclaría
+  el cooldown de SOL.
+
+**Fuera la tabla QTE del on-demand.** `cmd_lectura` corría un Monte Carlo de 500 paths + optimizer
+QAOA en el TF 15m **en cada llamada** solo para imprimir "PROBABILIDADES (sobre niveles propuestos):
+Toca SL primero X%..." — cómputo pesado sin ningún consumidor real (admin no decidía con esos
+números). Se quitó por completo (ni el texto ni el cálculo). El battle plan VIP de `/analisis`
+(`build_analisis_context`, 2000 paths) **se dejó intacto a propósito** — ese sí alimenta una
+decisión real (el veredicto que lidera el mensaje VIP). `/timelines` (deep-dive QTE explícito,
+admin) tampoco se tocó — es un comando dedicado a esos números, no "carga inútil" ahí.
+
+**Evidencia.** `fq_bot_v3_2.py` (ANALISIS_PAIRS, `_resolve_analisis_pair`, `cmd_lectura`,
+`build_analisis_context`, `cmd_analisis_vip`, las 4 `claude_followup_*`); `market_context.py`
+(`snapshot_for_general/pspace/niveles`); `claude_integration.py` (4 prompt builders + system prompt
+genérico); `vip_format.py` (`build_vip_analisis`, `build_battle_block`). Tests: 12 en
+`tests/test_analisis_multisimbolo.py` (multi-símbolo + regresión "sin tabla QTE"), 5 en
+`tests/test_claude_prompts_multisimbolo.py`, 4 en `tests/test_market_context_multisimbolo.py`.
+
+---
+
 ## Resumen
 
 | Decisión | Razonamiento core | Archivos / commits clave | Estado |

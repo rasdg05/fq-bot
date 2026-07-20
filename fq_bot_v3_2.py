@@ -166,6 +166,28 @@ SYMBOL_BCH  = "BCH-USDT-SWAP"
 SYMBOL_LINK = "LINK-USDT-SWAP"
 SYMBOL_BNB  = "BNB-USDT-SWAP"
 
+# Multi-simbolo para el analisis on-demand (/analisis /lectura /niveles /pspace
+# /claude /ia): los 3 pares VIP (SOL/BTC/ETH). El comando toma un 1er argumento
+# opcional de par (ej. "/analisis ETH"); sin argumento = SOL (comportamiento
+# historico, sin cambios). No confundir con el motor/broadcast de senales
+# (FQ_MOTOR_PAPER_ETH etc.) - esto es solo la lectura manual on-demand.
+ANALISIS_PAIRS = {
+    "SOL": {"symbol": SYMBOL,     "pair": "SOL/USDT"},
+    "BTC": {"symbol": SYMBOL_BTC, "pair": "BTC/USDT"},
+    "ETH": {"symbol": SYMBOL_ETH, "pair": "ETH/USDT"},
+}
+
+
+def _resolve_analisis_pair(raw_args):
+    """1er argumento de /analisis y sus alias -> ccy SOL/BTC/ETH (default SOL).
+    Cualquier valor no reconocido cae a SOL; jamas rompe el comando."""
+    if raw_args:
+        ccy = raw_args[0].strip().upper().split("/")[0]
+        if ccy in ANALISIS_PAIRS:
+            return ccy
+    return "SOL"
+
+
 LOOP_SECONDS = 60
 
 # 24H operativo - W_clock solo modula
@@ -4244,12 +4266,18 @@ def send_long(text, chat_id):
             p = "({}/{})\n{}".format(i+1, len(parts), p)
         telegram_send(p, chat_id)
 
-def claude_followup_general(exchange):
-    """Genera lectura Claude para /analisis"""
+def claude_followup_general(exchange, pair_ccy="SOL"):
+    """Genera lectura Claude para /analisis. Multi-simbolo: pair_ccy en
+    SOL/BTC/ETH (default SOL)."""
     if not claude_ai.is_available():
         return None
     try:
-        df = fetch_ohlcv(exchange, SYMBOL, TIMEFRAME, limit=200)
+        pinfo  = ANALISIS_PAIRS.get(pair_ccy, ANALISIS_PAIRS["SOL"])
+        ccy    = pair_ccy if pair_ccy in ANALISIS_PAIRS else "SOL"
+        symbol = pinfo["symbol"]
+        pair_label = pinfo["pair"]
+
+        df = fetch_ohlcv(exchange, symbol, TIMEFRAME, limit=200)
         df = add_indicators(df)
         last = df.iloc[-1]
         session, w_clock, _, _ = get_session()
@@ -4262,6 +4290,7 @@ def claude_followup_general(exchange):
         theta_d = macro["passed"] and tecnica["passed"] and liquidez["passed"]
         basic_state = {
             "price": float(last["close"]), "session": session, "w_clock": w_clock,
+            "pair": pair_label,
             "bias": bias["bias"], "bias_score": bias["score"],
             "mom_5": bias["mom_5"], "mom_20": bias["mom_20"],
             "btc_chg": macro["btc_change"], "eth_chg": macro["eth_change"],
@@ -4273,13 +4302,13 @@ def claude_followup_general(exchange):
             "ema200": float(last.get("ema200") or 0),
             "macd": float(last.get("macd") or 0),
         }
-        snapshot = mctx.snapshot_for_general(df, basic_state)
+        snapshot = mctx.snapshot_for_general(df, basic_state, symbol=symbol, ccy=ccy)
         reading = _escape_claude(claude_ai.tactical_general(snapshot))
         return (
             "<b>FQ · Lectura tactica</b>\n"
             "{thin}\n\n{r}\n\n"
-            "{thin}\n#FQ #SOLUSDT"
-        ).format(thin=G["thin"], r=reading)
+            "{thin}\n#FQ #{ccy}USDT"
+        ).format(thin=G["thin"], r=reading, ccy=ccy)
     except Exception as e:
         log.error("Claude followup analisis error: {}".format(e))
         return None
@@ -4762,17 +4791,25 @@ def radar_check(exchange, tf_id="15m"):
         log.warning("radar_check error [{}]: {}".format(tf_id, e))
 
 
-def build_analisis_context(exchange):
+def build_analisis_context(exchange, pair_ccy="SOL"):
     """
     Computa UNA sola vez el contexto pesado de /analisis (df + indicadores,
     sesgo, niveles, QTE de 2000 paths con optimizer + paths, battle plan) para
     COMPARTIRLO entre el mensaje curado (cmd_analisis_vip) y la lectura de Claude
     (claude_followup_analisis_vip). Evita re-simular el QTE por cada /analisis.
 
-    Devuelve dict {df,last,bias,masses,direction,pm_est,levels,qa,plan} o None si
-    no hay datos suficientes. qa/plan pueden ser None si el QTE/planner fallan.
+    Multi-simbolo: pair_ccy en SOL/BTC/ETH (default SOL). Ver ANALISIS_PAIRS.
+
+    Devuelve dict {df,last,bias,masses,direction,pm_est,levels,qa,plan,pair,ccy}
+    o None si no hay datos suficientes. qa/plan pueden ser None si el QTE/
+    planner fallan.
     """
-    df = fetch_ohlcv(exchange, SYMBOL, "15m", limit=200)
+    pinfo  = ANALISIS_PAIRS.get(pair_ccy, ANALISIS_PAIRS["SOL"])
+    ccy    = pair_ccy if pair_ccy in ANALISIS_PAIRS else "SOL"
+    symbol = pinfo["symbol"]
+    pair_label = pinfo["pair"]
+
+    df = fetch_ohlcv(exchange, symbol, "15m", limit=200)
     df = add_indicators(df)
     if len(df) < 50:
         return None
@@ -4820,10 +4857,10 @@ def build_analisis_context(exchange):
 
     return {"df": df, "last": last, "bias": bias, "masses": masses,
             "direction": direction, "pm_est": pm_est, "levels": levels,
-            "qa": qa, "plan": plan}
+            "qa": qa, "plan": plan, "pair": pair_label, "ccy": ccy, "symbol": symbol}
 
 
-def claude_followup_analisis_vip(exchange, ctx=None):
+def claude_followup_analisis_vip(exchange, ctx=None, pair_ccy="SOL"):
     """
     Follow-up Claude VERSION VIP: 4 bullets decisivos. Reutiliza el contexto
     pesado (df, niveles, QTE 2000 paths, battle plan) si el router pasa `ctx`,
@@ -4833,7 +4870,7 @@ def claude_followup_analisis_vip(exchange, ctx=None):
         return None
     try:
         if ctx is None:
-            ctx = build_analisis_context(exchange)
+            ctx = build_analisis_context(exchange, pair_ccy)
         if not ctx:
             return None
         last = ctx["last"]
@@ -4846,6 +4883,7 @@ def claude_followup_analisis_vip(exchange, ctx=None):
 
         snapshot = {
             "price": float(last["close"]),
+            "pair": ctx.get("pair", "SOL/USDT"),
             "direction": direction,
             "bias": bias["bias"],
             "entry": levels["entry"],
@@ -4936,12 +4974,18 @@ def claude_followup_analisis_vip(exchange, ctx=None):
         log.error("Claude followup analisis VIP error: {}".format(e))
         return None
 
-def claude_followup_pspace(exchange):
-    """Genera lectura Claude para /pspace"""
+def claude_followup_pspace(exchange, pair_ccy="SOL"):
+    """Genera lectura Claude para /pspace. Multi-simbolo: pair_ccy en
+    SOL/BTC/ETH (default SOL)."""
     if not claude_ai.is_available():
         return None
     try:
-        df = fetch_ohlcv(exchange, SYMBOL, TIMEFRAME, limit=200)
+        pinfo  = ANALISIS_PAIRS.get(pair_ccy, ANALISIS_PAIRS["SOL"])
+        ccy    = pair_ccy if pair_ccy in ANALISIS_PAIRS else "SOL"
+        symbol = pinfo["symbol"]
+        pair_label = pinfo["pair"]
+
+        df = fetch_ohlcv(exchange, symbol, TIMEFRAME, limit=200)
         df = add_indicators(df)
         last = df.iloc[-1]
         ps = detect_pspace(df)
@@ -4951,27 +4995,33 @@ def claude_followup_pspace(exchange):
         total_w = sw + rw
         curv_balance = (sw - rw) / total_w if total_w > 0 else 0
         basic_state = {
-            "price": float(last["close"]),
+            "price": float(last["close"]), "pair": pair_label,
             "bias": bias["bias"], "bias_score": bias["score"],
             "curvature_balance": curv_balance,
         }
-        snapshot = mctx.snapshot_for_pspace(df, basic_state, ps)
+        snapshot = mctx.snapshot_for_pspace(df, basic_state, ps, symbol=symbol)
         reading = _escape_claude(claude_ai.tactical_pspace(snapshot))
         return (
             "<b>FQ · Lectura P-Space</b>\n"
             "{thin}\n\n{r}\n\n"
-            "{thin}\n#FQ #SOLUSDT"
-        ).format(thin=G["thin"], r=reading)
+            "{thin}\n#FQ #{ccy}USDT"
+        ).format(thin=G["thin"], r=reading, ccy=ccy)
     except Exception as e:
         log.error("Claude followup pspace error: {}".format(e))
         return None
 
-def claude_followup_niveles(exchange):
-    """Genera lectura Claude para /niveles"""
+def claude_followup_niveles(exchange, pair_ccy="SOL"):
+    """Genera lectura Claude para /niveles. Multi-simbolo: pair_ccy en
+    SOL/BTC/ETH (default SOL)."""
     if not claude_ai.is_available():
         return None
     try:
-        df = fetch_ohlcv(exchange, SYMBOL, TIMEFRAME, limit=200)
+        pinfo  = ANALISIS_PAIRS.get(pair_ccy, ANALISIS_PAIRS["SOL"])
+        ccy    = pair_ccy if pair_ccy in ANALISIS_PAIRS else "SOL"
+        symbol = pinfo["symbol"]
+        pair_label = pinfo["pair"]
+
+        df = fetch_ohlcv(exchange, symbol, TIMEFRAME, limit=200)
         df = add_indicators(df)
         last = df.iloc[-1]
         session, w_clock, _, _ = get_session()
@@ -4987,18 +5037,19 @@ def claude_followup_niveles(exchange):
         plan_primary = build_trigger_plan(df, direction_main, ps, bias)
         plan_secondary = build_trigger_plan(df, "short" if direction_main == "long" else "long", ps, bias)
         basic_state = {
-            "price": float(last["close"]),
+            "price": float(last["close"]), "pair": pair_label,
             "session": session, "w_clock": w_clock,
             "bias": bias["bias"], "bias_score": bias["score"],
             "plan_sl": levels["sl"], "plan_tp3": levels["tp3"],
         }
-        snapshot = mctx.snapshot_for_niveles(df, basic_state, plan_primary, plan_secondary)
+        snapshot = mctx.snapshot_for_niveles(df, basic_state, plan_primary, plan_secondary,
+                                             symbol=symbol)
         reading = _escape_claude(claude_ai.tactical_niveles(snapshot))
         return (
             "<b>FQ · Afinacion del plan</b>\n"
             "{thin}\n\n{r}\n\n"
-            "{thin}\n#FQ #SOLUSDT"
-        ).format(thin=G["thin"], r=reading)
+            "{thin}\n#FQ #{ccy}USDT"
+        ).format(thin=G["thin"], r=reading, ccy=ccy)
     except Exception as e:
         log.error("Claude followup niveles error: {}".format(e))
         return None
@@ -5178,6 +5229,10 @@ def command_listener(exchange):
 
                 # === /analisis TIER-AWARE (F1 v5.0): admin=lectura completa, VIP=curado ===
                 if cmd_name == "/analisis":
+                    # Multi-simbolo (2026-07-20): 1er argumento SOL/BTC/ETH,
+                    # default SOL. Ej. "/analisis ETH".
+                    pair_ccy = _resolve_analisis_pair(raw_args)
+
                     tier_loc = "free"
                     if str(chat_id) == str(TELEGRAM_CHAT_ID):
                         tier_loc = "admin"
@@ -5215,20 +5270,20 @@ def command_listener(exchange):
                         # compartido entre mensaje curado y lectura de Claude.
                         analisis_ctx = None
                         if tier_loc == "admin":
-                            response = cmd_lectura(exchange)
+                            response = cmd_lectura(exchange, pair_ccy)
                             fu_fn = claude_followup_general
                         else:
-                            analisis_ctx = build_analisis_context(exchange)
+                            analisis_ctx = build_analisis_context(exchange, pair_ccy)
                             response = cmd_analisis_vip(exchange, ctx=analisis_ctx)
                             fu_fn = claude_followup_analisis_vip
                         send_long(response, chat_id)
 
                         if claude_ai.is_available():
-                            def _send_fu_analisis(fn=fu_fn, cid=chat_id, ctx=analisis_ctx):
+                            def _send_fu_analisis(fn=fu_fn, cid=chat_id, ctx=analisis_ctx, pc=pair_ccy):
                                 try:
                                     telegram_send("Interpretando datos...", cid)
                                     # El follow-up VIP reutiliza el ctx; el admin no lo usa.
-                                    fu = fn(exchange, ctx=ctx) if ctx is not None else fn(exchange)
+                                    fu = fn(exchange, ctx=ctx) if ctx is not None else fn(exchange, pc)
                                     if fu:
                                         send_long(fu, cid)
                                 except Exception as fu_e:
@@ -5255,16 +5310,26 @@ def command_listener(exchange):
                         if cmd_name in loading_map:
                             telegram_send(loading_map[cmd_name], chat_id)
 
+                        # Multi-simbolo (2026-07-20): /lectura /niveles /pspace
+                        # /claude /ia toman el mismo 1er argumento SOL/BTC/ETH
+                        # que /analisis (default SOL). Ver ANALISIS_PAIRS.
+                        is_lectura_alias = cmd_name in (
+                            "/lectura", "/niveles", "/pspace", "/claude", "/ia")
+                        pair_ccy = _resolve_analisis_pair(raw_args) if is_lectura_alias else "SOL"
+
                         # Ejecutar handler
-                        response = handler(exchange) if handler.__code__.co_argcount > 0 else handler()
+                        if is_lectura_alias:
+                            response = handler(exchange, pair_ccy)
+                        else:
+                            response = handler(exchange) if handler.__code__.co_argcount > 0 else handler()
                         send_long(response, chat_id)
 
                         # Claude follow-up en THREAD SEPARADO (no bloquea el listener)
                         if cmd_name in CLAUDE_FOLLOWUP and claude_ai.is_available():
-                            def _send_claude_fu(c=cmd_name, cid=chat_id):
+                            def _send_claude_fu(c=cmd_name, cid=chat_id, pc=pair_ccy):
                                 try:
                                     telegram_send("Interpretando datos...", cid)
-                                    fu = CLAUDE_FOLLOWUP[c](exchange)
+                                    fu = CLAUDE_FOLLOWUP[c](exchange, pc)
                                     if fu:
                                         send_long(fu, cid)
                                 except Exception as fu_e:
@@ -5636,15 +5701,21 @@ def cmd_sweep(exchange=None):
     except Exception as e:
         return "Error /sweep: {}".format(str(e)[:200])
 
-def cmd_lectura(exchange):
+def cmd_lectura(exchange, pair_ccy="SOL"):
     """
-    /lectura - vista consolidada multi-TF.
+    /lectura - vista consolidada multi-TF. Multi-simbolo: pair_ccy en
+    SOL/BTC/ETH (default SOL, comportamiento historico); ver ANALISIS_PAIRS.
     Para cada TF (5m INTRADIA / 15m SCALPING / 1h SWING) muestra: bias,
     masas P-Space, P_master estimado vs umbral del perfil, niveles
     entry/SL/TP1-4 con R:R, y cooldown restante. Despues opcionalmente
     una lectura tactica de Claude sobre el TF anchor (15m).
     """
     try:
+        pinfo  = ANALISIS_PAIRS.get(pair_ccy, ANALISIS_PAIRS["SOL"])
+        ccy    = pair_ccy if pair_ccy in ANALISIS_PAIRS else "SOL"
+        symbol = pinfo["symbol"]
+        pair_label = pinfo["pair"]
+
         session, w_clock, _, _ = get_session()
         now_utc = datetime.now(timezone.utc)
 
@@ -5655,7 +5726,7 @@ def cmd_lectura(exchange):
             profile = TF_PROFILES[tf_id]
             tf_label = profile["label"]
             try:
-                df = fetch_ohlcv(exchange, SYMBOL, tf_id, limit=200)
+                df = fetch_ohlcv(exchange, symbol, tf_id, limit=200)
                 df = add_indicators(df)
                 if len(df) < 50:
                     tf_blocks.append("<b>[{} {}]</b> datos insuficientes\n".format(
@@ -5686,16 +5757,22 @@ def cmd_lectura(exchange):
                 pm_est = PHI * w_clock * h_factor * (1 + max(0, masses["count"] - 2) * 0.15)
                 pmin = profile["PMASTER_MIN"]
 
-                last_sig_ts = STATE.last_signal_ts_tf.get(tf_id)
-                cooldown_min = profile["SIGNAL_COOLDOWN_MINUTES"]
-                if last_sig_ts:
-                    elapsed_min = (now_utc - last_sig_ts).total_seconds() / 60.0
-                    if elapsed_min < cooldown_min:
-                        cd_str = "{:.0f}m restantes".format(cooldown_min - elapsed_min)
+                # Cooldown por TF: solo trackeado para SOL (STATE.last_signal_ts_tf
+                # lo escribe el flagship SOL; BTC/ETH tienen su propio cooldown
+                # interno en el motor paralelo, no reflejado aqui).
+                if ccy == "SOL":
+                    last_sig_ts = STATE.last_signal_ts_tf.get(tf_id)
+                    cooldown_min = profile["SIGNAL_COOLDOWN_MINUTES"]
+                    if last_sig_ts:
+                        elapsed_min = (now_utc - last_sig_ts).total_seconds() / 60.0
+                        if elapsed_min < cooldown_min:
+                            cd_str = "{:.0f}m restantes".format(cooldown_min - elapsed_min)
+                        else:
+                            cd_str = "listo"
                     else:
                         cd_str = "listo"
                 else:
-                    cd_str = "listo"
+                    cd_str = "n/a (motor {} propio)".format(ccy)
 
                 risk_pct = (levels["risk"] / levels["entry"]) * 100
                 sl_anchor_lbl = SL_ANCHOR_LABELS.get(
@@ -5705,21 +5782,12 @@ def cmd_lectura(exchange):
                 while len(tp_kinds) < 4:
                     tp_kinds.append("-")
 
-                # F2 v5.0: QTE para TF anchor 15m (admin recibe block detallado)
-                qte_admin_block = ""
-                if tf_id == "15m" and QTE_AVAILABLE and qt is not None:
-                    try:
-                        qte_levels = {"entry": levels["entry"], "sl": levels["sl"],
-                                      "tp1": levels["tp1"], "tp2": levels["tp2"],
-                                      "tp3": levels["tp3"]}
-                        qa15 = qt.quantum_analysis(
-                            df, direction=direction, levels=qte_levels,
-                            ict_module=ict_smc if ICT_MODULES_AVAILABLE else None,
-                            n_paths=500, run_optimizer=True)
-                        qte_admin_block = "\n" + qt.build_qte_block_admin(qa15) + "\n"
-                    except Exception as ex:
-                        log.warning("QTE en cmd_lectura TF15m fallo: {}".format(ex))
-
+                # Sin simulacion QTE aqui a proposito (2026-07-20, RasDG: "carga
+                # inutil"): un Monte Carlo de 500 paths + optimizer QAOA por
+                # cada /lectura on-demand solo para imprimir una tabla de
+                # numeros que nadie usaba para decidir. El battle plan VIP de
+                # /analisis (2000 paths) SI se queda -- ese alimenta una
+                # decision real (cmd_analisis_vip / build_analisis_context).
                 block = (
                     "<b>[{lab} {tf}]</b>  Precio: ${px:.2f}\n"
                     "Bias: <b>{b}</b>  Masas P: {mc}  P_est: {pme:.2f}/{pmn:.2f}\n"
@@ -5730,7 +5798,7 @@ def cmd_lectura(exchange):
                     "TP2: ${t2:.2f}  R:R {r2:.2f}  ({k2})\n"
                     "TP3: ${t3:.2f}  R:R {r3:.2f}  ({k3})\n"
                     "TP4: ${t4:.2f}  R:R {r4:.2f}  ({k4})\n"
-                    "Cooldown: {cd}\n{qte}"
+                    "Cooldown: {cd}\n"
                 ).format(
                     lab=tf_label, tf=tf_id, px=price,
                     b=bias["bias"].upper(), mc=masses["count"],
@@ -5742,7 +5810,7 @@ def cmd_lectura(exchange):
                     t2=levels["tp2"], r2=levels["rr_tp2"], k2=tp_kinds[1],
                     t3=levels["tp3"], r3=levels["rr_tp3"], k3=tp_kinds[2],
                     t4=levels["tp4"], r4=levels["rr_tp4"], k4=tp_kinds[3],
-                    cd=cd_str, qte=qte_admin_block,
+                    cd=cd_str,
                 )
                 tf_blocks.append(block)
             except Exception as ex:
@@ -5755,13 +5823,13 @@ def cmd_lectura(exchange):
         header = (
             "<b>LECTURA MULTI-TF - FQ v4.4</b>\n"
             "{fence}\n"
-            "{when}  |  SOL: <b>${px:.2f}</b>\n"
+            "{when}  |  {pair}: <b>${px:.2f}</b>\n"
             "Sesion: {ses}  (W={w:.2f})\n\n"
             "{thin}\n"
             "  NIVELES + ESTADO POR TIMEFRAME\n"
             "{thin}\n"
         ).format(
-            fence=G["fence"], thin=G["thin"],
+            fence=G["fence"], thin=G["thin"], pair=pair_label,
             when=cdmx_now_str(), px=header_price,
             ses=session.upper(), w=w_clock,
         )
@@ -5780,6 +5848,7 @@ def cmd_lectura(exchange):
                 theta_d = macro["passed"] and tecnica["passed"] and liquidez["passed"]
                 basic_state = {
                     "price": float(last_a["close"]), "session": session, "w_clock": w_clock,
+                    "pair": pair_label,
                     "bias": bias_a["bias"], "bias_score": bias_a["score"],
                     "mom_5": bias_a["mom_5"], "mom_20": bias_a["mom_20"],
                     "btc_chg": macro["btc_change"], "eth_chg": macro["eth_change"],
@@ -5791,7 +5860,8 @@ def cmd_lectura(exchange):
                     "ema200": float(last_a.get("ema200") or 0),
                     "macd": float(last_a.get("macd") or 0),
                 }
-                snapshot = mctx.snapshot_for_general(anchor_df, basic_state)
+                snapshot = mctx.snapshot_for_general(anchor_df, basic_state,
+                                                     symbol=symbol, ccy=ccy)
                 reading = _escape_claude(claude_ai.tactical_general(snapshot))
                 if reading:
                     claude_block = (
@@ -5808,8 +5878,8 @@ def cmd_lectura(exchange):
             "Estos niveles son la propuesta del bot por TF. El motor solo dispara\n"
             "automaticamente cuando P_master supera el min del perfil. SL no se\n"
             "mueve hacia atras (Regla 4).\n\n"
-            "#FQ #Lectura #MultiTF"
-        ).format(thin=G["thin"])
+            "#FQ #Lectura #MultiTF #{ccy}"
+        ).format(thin=G["thin"], ccy=ccy)
 
         return header + "\n".join(tf_blocks) + claude_block + tail
     except Exception as e:
@@ -5819,15 +5889,16 @@ def cmd_lectura(exchange):
 # ============================================================
 # /analisis VIP - F1 v5.0 (curado, formato Mistral)
 # ============================================================
-def cmd_analisis_vip(exchange, ctx=None):
+def cmd_analisis_vip(exchange, ctx=None, pair_ccy="SOL"):
     """
     Version VIP de /analisis. Muestra el TF anchor 15m con formato Mistral curado
     liderado por el PLAN DE BATALLA. Reutiliza `ctx` (build_analisis_context) si el
-    router lo pasa, evitando re-simular el QTE; si es None lo computa por su cuenta.
+    router lo pasa, evitando re-simular el QTE; si es None lo computa por su cuenta
+    (multi-simbolo: pair_ccy en SOL/BTC/ETH, default SOL).
     """
     try:
         if ctx is None:
-            ctx = build_analisis_context(exchange)
+            ctx = build_analisis_context(exchange, pair_ccy)
         if not ctx:
             return "Datos insuficientes para analisis."
 
@@ -5840,6 +5911,7 @@ def cmd_analisis_vip(exchange, ctx=None):
                 last=ctx["last"],
                 qa=ctx.get("qa"),
                 plan=ctx.get("plan"),
+                pair=ctx.get("pair"),
             )
         return "Formato VIP no disponible."
     except Exception as e:
