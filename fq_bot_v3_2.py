@@ -2866,6 +2866,14 @@ KL_FILTER = set(c.strip().upper() for c in
                 os.environ.get("FQ_KL_FILTER", "").replace(",", " ").split()
                 if c.strip() and c.strip().lower() not in ("0", "false", "no", "off"))
 
+# Eco admin cuando el filtro KL SUPRIME un fire de un par VIP (SOL/BTC/ETH). Sin esto,
+# "el motor no encontró setup" (silencio real) y "el motor disparó pero el filtro lo
+# tapó" (silencio filtrado) se ven IDÉNTICOS desde el chat admin — RasDG reportó "todo
+# el mes sin disparo" en SOL/ETH cuando el motor SÍ disparaba pero el KL lo suprimía.
+# Default ON (bajo volumen: solo pares VIP, solo cuando el filtro corta). = 0 apaga.
+KL_SUPPRESS_NOTIFY = os.environ.get("FQ_KL_SUPPRESS_NOTIFY", "1").strip().lower() not in (
+    "0", "false", "no")
+
 
 def _kl_pass(df_primary, pair):
     """¿Pasa el filtro KL-bajo? True = difundir (régimen reversible donde el edge paga, o
@@ -2882,6 +2890,19 @@ def _kl_pass(df_primary, pair):
         if not r["low"]:
             log.info("[kl] %s suprimida — régimen irreversible/trending (irrev=%.3f > thr)",
                      pair, r["irrev"])
+            # Distingue "silencio" (motor no disparó) de "suprimida" (disparó, el KL
+            # la tapó) en el chat admin — solo para pares VIP, para no inundar con la
+            # flota cosecha (esos ya se ven en el stream FREE->VIP).
+            if (KL_SUPPRESS_NOTIFY and TELEGRAM_CHAT_ID
+                    and "{}/USDT".format(_persist_ccy(pair)) in VIP_PAIRS):
+                try:
+                    telegram_send(
+                        "🔇 <b>KL suprimió</b> {} · régimen irreversible/trending "
+                        "(irrev={:.3f} &gt; thr) — el motor disparó, el filtro de "
+                        "calidad tapó el envío VIP.".format(pair, r["irrev"]),
+                        TELEGRAM_CHAT_ID)
+                except Exception as ne:
+                    log.debug("[kl-suppress-notify] %s", ne)
         return bool(r["low"])
     except Exception as e:
         log.debug("[kl-filter] %s", e)
@@ -2932,12 +2953,17 @@ def _free_broadcast(decision_report, pair, kl_passed):
     if not (VIP_FORMAT_AVAILABLE and vip_format is not None):
         return
     # Candado de pares VIP: BTC/ETH/SOL (los que pasaron el gate) jamás al tier free.
-    if "{}/USDT".format(_persist_ccy(pair)) in VIP_PAIRS:
-        return
+    # OJO: esto SOLO debe bloquear el envío al tier free (abajo); NO debe cortar la
+    # rama FQ_FREE_TO_VIP (los VIP SÍ deben ver sus propios descartes KL, etiquetados
+    # 'Señal FREE' — ese es el diseño de DECISIONES.md §13: "los VIP ven todo"). Antes
+    # este `return` temprano tapaba TAMBIÉN esa rama, así que un descarte KL de SOL/BTC/
+    # ETH no le llegaba a NADIE — ni al free (correcto) ni al VIP (bug: silencio total,
+    # indistinguible de "el motor no disparó").
+    _is_vip_pair = "{}/USDT".format(_persist_ccy(pair)) in VIP_PAIRS
     # Sesgo de funding para el free (FQ_FREE_FUNDING): UNA sola consulta reutilizada por los
     # dos envíos (free y free->vip). OFF -> False -> señal byte-idéntica. Defensivo por dentro.
     fav = _funding_favorable(decision_report, pair) if FREE_FUNDING_ENABLED else False
-    if FREE_TIER_ENABLED:
+    if FREE_TIER_ENABLED and not _is_vip_pair:
         try:
             msg = vip_format.build_free_signal(decision_report, pair=pair, kl_passed=kl_passed,
                                                funding_favorable=fav)

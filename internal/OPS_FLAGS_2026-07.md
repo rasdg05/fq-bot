@@ -13,6 +13,7 @@
 | `FQ_FREE_TO_VIP` | OFF | Manda TODO el stream FREE (pares cosecha) al VIP/trial etiquetado 'Señal FREE' (NO al admin). "Los VIP ven todo." | `=1` si quieres que VIP vea las cosecha |
 | `FQ_FREE_TIER` | **ON** | Entrega la flota FREE (10 cosecha) a usuarios tier free de la BD. | dejar ON |
 | `FQ_KL_THR` | 0.34 | Umbral del filtro KL de cadencia VIP. 0.40 = más señales, mismo edge OOS (GATE-A). | `=0.40` (dial validado) |
+| `FQ_KL_SUPPRESS_NOTIFY` | **ON** | Eco admin "🔇 KL suprimió {par}" cuando el filtro KL tapa un fire de un par VIP (SOL/BTC/ETH). Sin esto, "el motor no disparó" y "disparó pero el KL lo tapó" se veían idénticos en el chat — RasDG reportó "todo el mes sin disparo" en SOL/ETH cuando en realidad el KL filtraba. `=0` para apagar el eco. |
 
 ## Ruido del portal (calma admin — sesión "no quiero un desmadre")
 

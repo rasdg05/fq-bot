@@ -340,6 +340,28 @@ filtrado. Cadencia alta en FREE (visible/vivo) + calidad en VIP (premium). Rever
 
 ---
 
+## 14. Fix: el candado VIP-pair tapaba TAMBIÉN el descarte KL hacia los VIP (2026-07-20)
+
+**El bug.** RasDG reportó "todo el mes sin disparo" en SOL/ETH. El motor SÍ disparaba (confirmado
+contra el backup `fq_motor.db`: SOL 14 opens en julio, ETH 3), pero el candado de §13
+(`if pair in VIP_PAIRS: return` al inicio de `_free_broadcast`) cortaba la función ENTERA — incluida
+la rama `FQ_FREE_TO_VIP` — para SOL/BTC/ETH. Resultado: cuando el filtro KL (§ arriba, `FQ_KL_FILTER`)
+suprimía un fire de un par VIP, ese descarte no le llegaba a NADIE: ni al tier free (correcto, el
+candado debe bloquear eso) ni al VIP etiquetado 'Señal FREE' (bug — contradice §13: "los VIP ven
+todo"). Un fire real de ETH con `kl_irrev=0.98` el 8-jul quedó sin ningún rastro visible.
+
+**El fix.** El candado ahora solo bloquea el envío al tier free (`if FREE_TIER_ENABLED and not
+_is_vip_pair`); la rama `FQ_FREE_TO_VIP` corre siempre, para cualquier par. Además, `_kl_pass` ahora
+manda un eco admin ("🔇 KL suprimió...") cuando tapa un fire de un par VIP — nuevo flag
+`FQ_KL_SUPPRESS_NOTIFY` (default ON) — para que "silencio" (el motor no encontró setup) y "suprimida"
+(el motor disparó, el filtro de calidad la tapó) se vean distintos en el chat, no idénticos.
+
+**Evidencia.** `fq_bot_v3_2.py::_free_broadcast` y `_kl_pass`; `tests/test_free_broadcast_vip_gate.py`
+(4 tests: el candado sigue tapando free para pares VIP, pero ya no tapa FREE_TO_VIP; pares no-VIP
+siguen yendo a ambos tiers; el eco admin dispara solo para pares VIP suprimidos, no para la cosecha).
+
+---
+
 ## Resumen
 
 | Decisión | Razonamiento core | Archivos / commits clave | Estado |
