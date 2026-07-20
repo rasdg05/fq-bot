@@ -166,6 +166,28 @@ SYMBOL_BCH  = "BCH-USDT-SWAP"
 SYMBOL_LINK = "LINK-USDT-SWAP"
 SYMBOL_BNB  = "BNB-USDT-SWAP"
 
+# Multi-simbolo para el analisis on-demand (/analisis /lectura /niveles /pspace
+# /claude /ia): los 3 pares VIP (SOL/BTC/ETH). El comando toma un 1er argumento
+# opcional de par (ej. "/analisis ETH"); sin argumento = SOL (comportamiento
+# historico, sin cambios). No confundir con el motor/broadcast de senales
+# (FQ_MOTOR_PAPER_ETH etc.) - esto es solo la lectura manual on-demand.
+ANALISIS_PAIRS = {
+    "SOL": {"symbol": SYMBOL,     "pair": "SOL/USDT"},
+    "BTC": {"symbol": SYMBOL_BTC, "pair": "BTC/USDT"},
+    "ETH": {"symbol": SYMBOL_ETH, "pair": "ETH/USDT"},
+}
+
+
+def _resolve_analisis_pair(raw_args):
+    """1er argumento de /analisis y sus alias -> ccy SOL/BTC/ETH (default SOL).
+    Cualquier valor no reconocido cae a SOL; jamas rompe el comando."""
+    if raw_args:
+        ccy = raw_args[0].strip().upper().split("/")[0]
+        if ccy in ANALISIS_PAIRS:
+            return ccy
+    return "SOL"
+
+
 LOOP_SECONDS = 60
 
 # 24H operativo - W_clock solo modula
@@ -2866,6 +2888,14 @@ KL_FILTER = set(c.strip().upper() for c in
                 os.environ.get("FQ_KL_FILTER", "").replace(",", " ").split()
                 if c.strip() and c.strip().lower() not in ("0", "false", "no", "off"))
 
+# Eco admin cuando el filtro KL SUPRIME un fire de un par VIP (SOL/BTC/ETH). Sin esto,
+# "el motor no encontró setup" (silencio real) y "el motor disparó pero el filtro lo
+# tapó" (silencio filtrado) se ven IDÉNTICOS desde el chat admin — RasDG reportó "todo
+# el mes sin disparo" en SOL/ETH cuando el motor SÍ disparaba pero el KL lo suprimía.
+# Default ON (bajo volumen: solo pares VIP, solo cuando el filtro corta). = 0 apaga.
+KL_SUPPRESS_NOTIFY = os.environ.get("FQ_KL_SUPPRESS_NOTIFY", "1").strip().lower() not in (
+    "0", "false", "no")
+
 
 def _kl_pass(df_primary, pair):
     """¿Pasa el filtro KL-bajo? True = difundir (régimen reversible donde el edge paga, o
@@ -2882,10 +2912,66 @@ def _kl_pass(df_primary, pair):
         if not r["low"]:
             log.info("[kl] %s suprimida — régimen irreversible/trending (irrev=%.3f > thr)",
                      pair, r["irrev"])
+            # Distingue "silencio" (motor no disparó) de "suprimida" (disparó, el KL
+            # la tapó) en el chat admin — solo para pares VIP, para no inundar con la
+            # flota cosecha (esos ya se ven en el stream FREE->VIP).
+            if (KL_SUPPRESS_NOTIFY and TELEGRAM_CHAT_ID
+                    and "{}/USDT".format(_persist_ccy(pair)) in VIP_PAIRS):
+                try:
+                    telegram_send(
+                        "🔇 <b>KL suprimió</b> {} · régimen irreversible/trending "
+                        "(irrev={:.3f} &gt; thr) — el motor disparó, el filtro de "
+                        "calidad tapó el envío VIP.".format(pair, r["irrev"]),
+                        TELEGRAM_CHAT_ID)
+                except Exception as ne:
+                    log.debug("[kl-suppress-notify] %s", ne)
         return bool(r["low"])
     except Exception as e:
         log.debug("[kl-filter] %s", e)
         return True
+
+
+def _record_vip_signal(ccy, direction, levels, p_master_data, tf_id, field):
+    """Cerebro Etapa 0 (2026-07-20, RasDG: "cerrar el gap del ledger BTC/ETH").
+
+    Antes: BTC y ETH se broadcasteaban a clientes pero su UNICO registro era
+    el motor paper de 1 TP -- una senal podia salir a VIP y no quedar en
+    ningun registro con outcome verificable (ver MEMORY/ESTADO.md). Ahora se
+    graban en el MISMO ledger rico de SOL (4 TP + symbol), via el escritor
+    generico `log_signal` (NO log_signal_v2/v3): BTC/ETH no tienen cableada
+    la maquinaria de auto-evolucion/concepts ICT/Thompson-kappa de SOL, y
+    dejar bucket_key_v2/bucket_key_v3 en NULL para estas filas es
+    DELIBERADO -- las excluye gratis (NULL nunca matchea una igualdad SQL)
+    de toda esa estadistica sin necesitar filtrar ahi tambien. Las funciones
+    de analitica/self-audit de SOL (get_bucket_stats, get_global_metrics,
+    get_results_summary, etc.) filtran symbol='SOL' por su cuenta, asi que
+    esto tampoco las contamina.
+
+    Se llama SOLO cuando el fire realmente se difunde al VIP (mismo gate que
+    el broadcast: no vetado por sesion, no suprimido por KL) -- graba lo que
+    el cliente vio, no cada fire interno del motor. Defensivo: nunca rompe
+    el broadcast."""
+    try:
+        session, w_clock, _, _ = get_session()
+        signal_data = {
+            "direction":      direction,
+            "entry":          levels["entry"], "sl": levels["sl"],
+            "tp1":            levels["tp1"], "tp2": levels["tp2"],
+            "tp3":            levels["tp3"], "tp4": levels["tp4"],
+            "p_master_raw":   p_master_data.get("p_master_raw", p_master_data.get("p_master", 0)),
+            "p_master_final": p_master_data.get("p_master", 0),
+            "kappa_evo":      p_master_data.get("kappa_evo", 1.0),
+            "session":        getattr(field, "killzone", None) or session,
+            "w_clock":        p_master_data.get("w_effective", w_clock),
+            "pspace_count":   getattr(field, "confluence_count", 0) or 0,
+            "snapshot":       {"tf_id": tf_id, "ccy": ccy,
+                               "field": field.summary_line() if hasattr(field, "summary_line") else ""},
+        }
+        sid = ev.log_signal(signal_data, symbol=ccy)
+        if sid:
+            log.info("[ledger-multi] %s señal #%s registrada (4 TP, symbol=%s)", ccy, sid, ccy)
+    except Exception as e:
+        log.warning("[ledger-multi] %s no se pudo registrar: %s", ccy, e)
 
 
 # Tier FREE (jugada de marketing 2026-06-30; RasDG: "quiero UN SOLO canal"): NO hay canal
@@ -2932,12 +3018,17 @@ def _free_broadcast(decision_report, pair, kl_passed):
     if not (VIP_FORMAT_AVAILABLE and vip_format is not None):
         return
     # Candado de pares VIP: BTC/ETH/SOL (los que pasaron el gate) jamás al tier free.
-    if "{}/USDT".format(_persist_ccy(pair)) in VIP_PAIRS:
-        return
+    # OJO: esto SOLO debe bloquear el envío al tier free (abajo); NO debe cortar la
+    # rama FQ_FREE_TO_VIP (los VIP SÍ deben ver sus propios descartes KL, etiquetados
+    # 'Señal FREE' — ese es el diseño de DECISIONES.md §13: "los VIP ven todo"). Antes
+    # este `return` temprano tapaba TAMBIÉN esa rama, así que un descarte KL de SOL/BTC/
+    # ETH no le llegaba a NADIE — ni al free (correcto) ni al VIP (bug: silencio total,
+    # indistinguible de "el motor no disparó").
+    _is_vip_pair = "{}/USDT".format(_persist_ccy(pair)) in VIP_PAIRS
     # Sesgo de funding para el free (FQ_FREE_FUNDING): UNA sola consulta reutilizada por los
     # dos envíos (free y free->vip). OFF -> False -> señal byte-idéntica. Defensivo por dentro.
     fav = _funding_favorable(decision_report, pair) if FREE_FUNDING_ENABLED else False
-    if FREE_TIER_ENABLED:
+    if FREE_TIER_ENABLED and not _is_vip_pair:
         try:
             msg = vip_format.build_free_signal(decision_report, pair=pair, kl_passed=kl_passed,
                                                funding_favorable=fav)
@@ -3340,6 +3431,10 @@ def _btc_motor_paper_scan(exchange):
                     _free_broadcast(report, "BTC/USDT", _kl_ok)  # tier FREE: todos los fires, etiquetados
                     if _kl_ok:
                         broadcast_to_subscribers(msg)
+                        # Cerebro Etapa 0: graba en el ledger rico (4 TP) lo que
+                        # el VIP realmente recibio -- ver _record_vip_signal.
+                        _record_vip_signal("BTC", report.get("direction"), report.get("levels", {}),
+                                          report.get("p_master_data", {}), tf_id, field)
                 except Exception as e:
                     log.warning("[motor-btc] broadcast: %s", e)
         hi = float(df_primary["high"].iloc[-1])
@@ -3350,6 +3445,14 @@ def _btc_motor_paper_scan(exchange):
             cts = None
         rt.on_bar(fire, field, report, df_primary, price,
                   high=hi, low=lo, ts=cts, tf_id=tf_id)
+        # Cerebro Etapa 0: cierra a outcome (tp1-4/sl/timeout/stale) las senales
+        # BTC abiertas contra SU PROPIO OHLCV (jamas SOL -- escalas de precio
+        # incompatibles). Sin esto, lo que _record_vip_signal graba quedaria
+        # abierto para siempre.
+        try:
+            ev.reconcile_outcomes(fetch_ohlcv, exchange, SYMBOL_BTC, tf_id, ccy="BTC")
+        except Exception as e:
+            log.warning("[ledger-multi] BTC reconcile: %s", e)
     except Exception as e:
         log.warning("[motor-btc] scan: %s", e)
 
@@ -3460,6 +3563,10 @@ def _eth_motor_paper_scan(exchange):
                     _free_broadcast(report, "ETH/USDT", _kl_ok)  # tier FREE: todos los fires, etiquetados
                     if _kl_ok:
                         broadcast_to_subscribers(msg)
+                        # Cerebro Etapa 0: graba en el ledger rico (4 TP) lo que
+                        # el VIP realmente recibio -- ver _record_vip_signal.
+                        _record_vip_signal("ETH", report.get("direction"), report.get("levels", {}),
+                                          report.get("p_master_data", {}), tf_id, field)
                 except Exception as e:
                     log.warning("[motor-eth] broadcast: %s", e)
         hi = float(df_primary["high"].iloc[-1])
@@ -3470,6 +3577,14 @@ def _eth_motor_paper_scan(exchange):
             cts = None
         rt.on_bar(fire, field, report, df_primary, price,
                   high=hi, low=lo, ts=cts, tf_id=tf_id)
+        # Cerebro Etapa 0: cierra a outcome (tp1-4/sl/timeout/stale) las senales
+        # ETH abiertas contra SU PROPIO OHLCV (jamas SOL -- escalas de precio
+        # incompatibles). Sin esto, lo que _record_vip_signal graba quedaria
+        # abierto para siempre.
+        try:
+            ev.reconcile_outcomes(fetch_ohlcv, exchange, SYMBOL_ETH, tf_id, ccy="ETH")
+        except Exception as e:
+            log.warning("[ledger-multi] ETH reconcile: %s", e)
     except Exception as e:
         log.warning("[motor-eth] scan: %s", e)
 
@@ -4218,12 +4333,18 @@ def send_long(text, chat_id):
             p = "({}/{})\n{}".format(i+1, len(parts), p)
         telegram_send(p, chat_id)
 
-def claude_followup_general(exchange):
-    """Genera lectura Claude para /analisis"""
+def claude_followup_general(exchange, pair_ccy="SOL"):
+    """Genera lectura Claude para /analisis. Multi-simbolo: pair_ccy en
+    SOL/BTC/ETH (default SOL)."""
     if not claude_ai.is_available():
         return None
     try:
-        df = fetch_ohlcv(exchange, SYMBOL, TIMEFRAME, limit=200)
+        pinfo  = ANALISIS_PAIRS.get(pair_ccy, ANALISIS_PAIRS["SOL"])
+        ccy    = pair_ccy if pair_ccy in ANALISIS_PAIRS else "SOL"
+        symbol = pinfo["symbol"]
+        pair_label = pinfo["pair"]
+
+        df = fetch_ohlcv(exchange, symbol, TIMEFRAME, limit=200)
         df = add_indicators(df)
         last = df.iloc[-1]
         session, w_clock, _, _ = get_session()
@@ -4236,6 +4357,7 @@ def claude_followup_general(exchange):
         theta_d = macro["passed"] and tecnica["passed"] and liquidez["passed"]
         basic_state = {
             "price": float(last["close"]), "session": session, "w_clock": w_clock,
+            "pair": pair_label,
             "bias": bias["bias"], "bias_score": bias["score"],
             "mom_5": bias["mom_5"], "mom_20": bias["mom_20"],
             "btc_chg": macro["btc_change"], "eth_chg": macro["eth_change"],
@@ -4247,13 +4369,13 @@ def claude_followup_general(exchange):
             "ema200": float(last.get("ema200") or 0),
             "macd": float(last.get("macd") or 0),
         }
-        snapshot = mctx.snapshot_for_general(df, basic_state)
+        snapshot = mctx.snapshot_for_general(df, basic_state, symbol=symbol, ccy=ccy)
         reading = _escape_claude(claude_ai.tactical_general(snapshot))
         return (
             "<b>FQ · Lectura tactica</b>\n"
             "{thin}\n\n{r}\n\n"
-            "{thin}\n#FQ #SOLUSDT"
-        ).format(thin=G["thin"], r=reading)
+            "{thin}\n#FQ #{ccy}USDT"
+        ).format(thin=G["thin"], r=reading, ccy=ccy)
     except Exception as e:
         log.error("Claude followup analisis error: {}".format(e))
         return None
@@ -4736,17 +4858,25 @@ def radar_check(exchange, tf_id="15m"):
         log.warning("radar_check error [{}]: {}".format(tf_id, e))
 
 
-def build_analisis_context(exchange):
+def build_analisis_context(exchange, pair_ccy="SOL"):
     """
     Computa UNA sola vez el contexto pesado de /analisis (df + indicadores,
     sesgo, niveles, QTE de 2000 paths con optimizer + paths, battle plan) para
     COMPARTIRLO entre el mensaje curado (cmd_analisis_vip) y la lectura de Claude
     (claude_followup_analisis_vip). Evita re-simular el QTE por cada /analisis.
 
-    Devuelve dict {df,last,bias,masses,direction,pm_est,levels,qa,plan} o None si
-    no hay datos suficientes. qa/plan pueden ser None si el QTE/planner fallan.
+    Multi-simbolo: pair_ccy en SOL/BTC/ETH (default SOL). Ver ANALISIS_PAIRS.
+
+    Devuelve dict {df,last,bias,masses,direction,pm_est,levels,qa,plan,pair,ccy}
+    o None si no hay datos suficientes. qa/plan pueden ser None si el QTE/
+    planner fallan.
     """
-    df = fetch_ohlcv(exchange, SYMBOL, "15m", limit=200)
+    pinfo  = ANALISIS_PAIRS.get(pair_ccy, ANALISIS_PAIRS["SOL"])
+    ccy    = pair_ccy if pair_ccy in ANALISIS_PAIRS else "SOL"
+    symbol = pinfo["symbol"]
+    pair_label = pinfo["pair"]
+
+    df = fetch_ohlcv(exchange, symbol, "15m", limit=200)
     df = add_indicators(df)
     if len(df) < 50:
         return None
@@ -4794,10 +4924,10 @@ def build_analisis_context(exchange):
 
     return {"df": df, "last": last, "bias": bias, "masses": masses,
             "direction": direction, "pm_est": pm_est, "levels": levels,
-            "qa": qa, "plan": plan}
+            "qa": qa, "plan": plan, "pair": pair_label, "ccy": ccy, "symbol": symbol}
 
 
-def claude_followup_analisis_vip(exchange, ctx=None):
+def claude_followup_analisis_vip(exchange, ctx=None, pair_ccy="SOL"):
     """
     Follow-up Claude VERSION VIP: 4 bullets decisivos. Reutiliza el contexto
     pesado (df, niveles, QTE 2000 paths, battle plan) si el router pasa `ctx`,
@@ -4807,7 +4937,7 @@ def claude_followup_analisis_vip(exchange, ctx=None):
         return None
     try:
         if ctx is None:
-            ctx = build_analisis_context(exchange)
+            ctx = build_analisis_context(exchange, pair_ccy)
         if not ctx:
             return None
         last = ctx["last"]
@@ -4820,6 +4950,7 @@ def claude_followup_analisis_vip(exchange, ctx=None):
 
         snapshot = {
             "price": float(last["close"]),
+            "pair": ctx.get("pair", "SOL/USDT"),
             "direction": direction,
             "bias": bias["bias"],
             "entry": levels["entry"],
@@ -4910,12 +5041,18 @@ def claude_followup_analisis_vip(exchange, ctx=None):
         log.error("Claude followup analisis VIP error: {}".format(e))
         return None
 
-def claude_followup_pspace(exchange):
-    """Genera lectura Claude para /pspace"""
+def claude_followup_pspace(exchange, pair_ccy="SOL"):
+    """Genera lectura Claude para /pspace. Multi-simbolo: pair_ccy en
+    SOL/BTC/ETH (default SOL)."""
     if not claude_ai.is_available():
         return None
     try:
-        df = fetch_ohlcv(exchange, SYMBOL, TIMEFRAME, limit=200)
+        pinfo  = ANALISIS_PAIRS.get(pair_ccy, ANALISIS_PAIRS["SOL"])
+        ccy    = pair_ccy if pair_ccy in ANALISIS_PAIRS else "SOL"
+        symbol = pinfo["symbol"]
+        pair_label = pinfo["pair"]
+
+        df = fetch_ohlcv(exchange, symbol, TIMEFRAME, limit=200)
         df = add_indicators(df)
         last = df.iloc[-1]
         ps = detect_pspace(df)
@@ -4925,27 +5062,33 @@ def claude_followup_pspace(exchange):
         total_w = sw + rw
         curv_balance = (sw - rw) / total_w if total_w > 0 else 0
         basic_state = {
-            "price": float(last["close"]),
+            "price": float(last["close"]), "pair": pair_label,
             "bias": bias["bias"], "bias_score": bias["score"],
             "curvature_balance": curv_balance,
         }
-        snapshot = mctx.snapshot_for_pspace(df, basic_state, ps)
+        snapshot = mctx.snapshot_for_pspace(df, basic_state, ps, symbol=symbol)
         reading = _escape_claude(claude_ai.tactical_pspace(snapshot))
         return (
             "<b>FQ · Lectura P-Space</b>\n"
             "{thin}\n\n{r}\n\n"
-            "{thin}\n#FQ #SOLUSDT"
-        ).format(thin=G["thin"], r=reading)
+            "{thin}\n#FQ #{ccy}USDT"
+        ).format(thin=G["thin"], r=reading, ccy=ccy)
     except Exception as e:
         log.error("Claude followup pspace error: {}".format(e))
         return None
 
-def claude_followup_niveles(exchange):
-    """Genera lectura Claude para /niveles"""
+def claude_followup_niveles(exchange, pair_ccy="SOL"):
+    """Genera lectura Claude para /niveles. Multi-simbolo: pair_ccy en
+    SOL/BTC/ETH (default SOL)."""
     if not claude_ai.is_available():
         return None
     try:
-        df = fetch_ohlcv(exchange, SYMBOL, TIMEFRAME, limit=200)
+        pinfo  = ANALISIS_PAIRS.get(pair_ccy, ANALISIS_PAIRS["SOL"])
+        ccy    = pair_ccy if pair_ccy in ANALISIS_PAIRS else "SOL"
+        symbol = pinfo["symbol"]
+        pair_label = pinfo["pair"]
+
+        df = fetch_ohlcv(exchange, symbol, TIMEFRAME, limit=200)
         df = add_indicators(df)
         last = df.iloc[-1]
         session, w_clock, _, _ = get_session()
@@ -4961,18 +5104,19 @@ def claude_followup_niveles(exchange):
         plan_primary = build_trigger_plan(df, direction_main, ps, bias)
         plan_secondary = build_trigger_plan(df, "short" if direction_main == "long" else "long", ps, bias)
         basic_state = {
-            "price": float(last["close"]),
+            "price": float(last["close"]), "pair": pair_label,
             "session": session, "w_clock": w_clock,
             "bias": bias["bias"], "bias_score": bias["score"],
             "plan_sl": levels["sl"], "plan_tp3": levels["tp3"],
         }
-        snapshot = mctx.snapshot_for_niveles(df, basic_state, plan_primary, plan_secondary)
+        snapshot = mctx.snapshot_for_niveles(df, basic_state, plan_primary, plan_secondary,
+                                             symbol=symbol)
         reading = _escape_claude(claude_ai.tactical_niveles(snapshot))
         return (
             "<b>FQ · Afinacion del plan</b>\n"
             "{thin}\n\n{r}\n\n"
-            "{thin}\n#FQ #SOLUSDT"
-        ).format(thin=G["thin"], r=reading)
+            "{thin}\n#FQ #{ccy}USDT"
+        ).format(thin=G["thin"], r=reading, ccy=ccy)
     except Exception as e:
         log.error("Claude followup niveles error: {}".format(e))
         return None
@@ -5104,8 +5248,15 @@ def command_listener(exchange):
                             continue
 
                     # === ACCESS CONTROL para comandos premium ===
+                    # BUG (2026-07-20, RasDG): /lectura NO estaba en este set ni en
+                    # ADMIN_ONLY -- cualquier usuario, VIP o no, podia pedirlo y
+                    # recibir el dump tecnico completo (multi-TF, niveles, P_master)
+                    # GRATIS. Es el UNICO comando visible en BotFather para /analisis
+                    # (los demas son alias ocultos) -- sin este gate, el paywall del
+                    # producto entero se podia saltar con el primer item del menu.
                     PREMIUM_COMMANDS = {
                         "/analisis", "/niveles", "/pspace", "/claude", "/ia",
+                        "/analisis_sol", "/analisis_btc", "/analisis_eth", "/lectura",
                         "/metrics", "/entropy", "/ledger", "/evolve", "/audit",
                     }
                     if cmd_name in PREMIUM_COMMANDS:
@@ -5151,7 +5302,37 @@ def command_listener(exchange):
                     continue
 
                 # === /analisis TIER-AWARE (F1 v5.0): admin=lectura completa, VIP=curado ===
-                if cmd_name == "/analisis":
+                # /analisis_sol, /analisis_btc, /analisis_eth (2026-07-20): comandos
+                # DEDICADOS visibles en BotFather, mismo flujo tier-aware que
+                # /analisis pero con el par fijo -- RasDG: "un VIP no ve el comando
+                # alternativo en su menu, eso no es intuitivo" + "el de SOL no debe
+                # quedar pelon, cada uno debe venir etiquetado". Los 3 con guion bajo
+                # (Telegram no admite espacios en el nombre de comando) para que se
+                # agrupen bajo /analisis en el autocompletado "/". /analisis (sin
+                # sufijo) sigue aceptando el argumento (/analisis BTC) para quien ya
+                # lo conoce; los _sol/_btc/_eth son el atajo tap-to-use del menu,
+                # simetricos entre si (ninguno es "el default implicito").
+                #
+                # /lectura (2026-07-20, fix RasDG): ES el comando BotFather-visible
+                # (no un alias oculto como /niveles /pspace /claude /ia), pero antes
+                # NO pasaba por este bloque -- caia directo al dispatch generico
+                # (mas abajo), que llama a cmd_lectura CRUDO sin mirar el tier. Un
+                # VIP que tocara /lectura en su menu recibia el dump admin completo
+                # en vez de la vista curada de /analisis. Ahora comparte el mismo
+                # flujo (y el mismo gate VIP, ver PREMIUM_COMMANDS arriba).
+                if cmd_name in ("/analisis", "/analisis_sol", "/analisis_btc",
+                               "/analisis_eth", "/lectura"):
+                    if cmd_name == "/analisis_sol":
+                        pair_ccy = "SOL"
+                    elif cmd_name == "/analisis_btc":
+                        pair_ccy = "BTC"
+                    elif cmd_name == "/analisis_eth":
+                        pair_ccy = "ETH"
+                    else:
+                        # Multi-simbolo (2026-07-20): 1er argumento SOL/BTC/ETH,
+                        # default SOL. Ej. "/analisis ETH" o "/lectura BTC".
+                        pair_ccy = _resolve_analisis_pair(raw_args)
+
                     tier_loc = "free"
                     if str(chat_id) == str(TELEGRAM_CHAT_ID):
                         tier_loc = "admin"
@@ -5161,9 +5342,12 @@ def command_listener(exchange):
                         except Exception:
                             tier_loc = "free"
 
-                    # Cooldown VIP/trial: 30 min entre /analisis por usuario.
-                    # Admin no rate-limitado. Se marca el timestamp antes de la llamada
-                    # cara para que errores transitorios no permitan spam-retry.
+                    # Cooldown VIP/trial: 30 min por usuario, COMPARTIDO entre
+                    # /lectura, /analisis, /analisis_sol, /analisis_btc y
+                    # /analisis_eth (protege la API en general, no por simbolo --
+                    # pedir BTC y luego ETH seguido cuenta igual). Admin no
+                    # rate-limitado. Se marca el timestamp antes de la llamada cara
+                    # para que errores transitorios no permitan spam-retry.
                     if tier_loc in ("vip", "trial") and VIP_ANALISIS_COOLDOWN_SEC > 0:
                         now_s = time.time()
                         last_s = _VIP_ANALISIS_LAST.get(str(chat_id), 0)
@@ -5172,13 +5356,15 @@ def command_listener(exchange):
                             mins = int(remaining // 60)
                             secs = int(remaining % 60)
                             telegram_send(
-                                "<b>/analisis en cooldown</b>\n"
+                                "<b>{cmd} en cooldown</b>\n"
                                 "──────────────────────────────\n\n"
-                                "Espera <b>{}m {:02d}s</b> antes del siguiente analisis.\n\n"
-                                "Cooldown VIP = {} min por usuario. Protege la API y\n"
-                                "asegura que cada lectura que pidas sea fresca.\n\n"
+                                "Espera <b>{m}m {s:02d}s</b> antes del siguiente analisis.\n\n"
+                                "Cooldown VIP = {c} min por usuario (compartido entre /lectura,\n"
+                                "/analisis, /analisis_sol, /analisis_btc, /analisis_eth). Protege\n"
+                                "la API y asegura que cada lectura que pidas sea fresca.\n\n"
                                 "Las senales automaticas siguen llegando sin limite.".format(
-                                    mins, secs, VIP_ANALISIS_COOLDOWN_SEC // 60),
+                                    cmd=cmd_name, m=mins, s=secs,
+                                    c=VIP_ANALISIS_COOLDOWN_SEC // 60),
                                 chat_id)
                             continue
                         _VIP_ANALISIS_LAST[str(chat_id)] = now_s
@@ -5189,28 +5375,28 @@ def command_listener(exchange):
                         # compartido entre mensaje curado y lectura de Claude.
                         analisis_ctx = None
                         if tier_loc == "admin":
-                            response = cmd_lectura(exchange)
+                            response = cmd_lectura(exchange, pair_ccy)
                             fu_fn = claude_followup_general
                         else:
-                            analisis_ctx = build_analisis_context(exchange)
+                            analisis_ctx = build_analisis_context(exchange, pair_ccy)
                             response = cmd_analisis_vip(exchange, ctx=analisis_ctx)
                             fu_fn = claude_followup_analisis_vip
                         send_long(response, chat_id)
 
                         if claude_ai.is_available():
-                            def _send_fu_analisis(fn=fu_fn, cid=chat_id, ctx=analisis_ctx):
+                            def _send_fu_analisis(fn=fu_fn, cid=chat_id, ctx=analisis_ctx, pc=pair_ccy):
                                 try:
                                     telegram_send("Interpretando datos...", cid)
                                     # El follow-up VIP reutiliza el ctx; el admin no lo usa.
-                                    fu = fn(exchange, ctx=ctx) if ctx is not None else fn(exchange)
+                                    fu = fn(exchange, ctx=ctx) if ctx is not None else fn(exchange, pc)
                                     if fu:
                                         send_long(fu, cid)
                                 except Exception as fu_e:
                                     log.error("Claude fu /analisis err: {}".format(fu_e))
                             threading.Thread(target=_send_fu_analisis, daemon=True).start()
                     except Exception as e:
-                        log.error("/analisis tier-aware error: {}\n{}".format(
-                            e, traceback.format_exc()))
+                        log.error("{} tier-aware error: {}\n{}".format(
+                            cmd_name, e, traceback.format_exc()))
                         telegram_send("Error: {}".format(str(e)[:200]), chat_id)
                     continue
 
@@ -5229,16 +5415,26 @@ def command_listener(exchange):
                         if cmd_name in loading_map:
                             telegram_send(loading_map[cmd_name], chat_id)
 
+                        # Multi-simbolo (2026-07-20): /lectura /niveles /pspace
+                        # /claude /ia toman el mismo 1er argumento SOL/BTC/ETH
+                        # que /analisis (default SOL). Ver ANALISIS_PAIRS.
+                        is_lectura_alias = cmd_name in (
+                            "/lectura", "/niveles", "/pspace", "/claude", "/ia")
+                        pair_ccy = _resolve_analisis_pair(raw_args) if is_lectura_alias else "SOL"
+
                         # Ejecutar handler
-                        response = handler(exchange) if handler.__code__.co_argcount > 0 else handler()
+                        if is_lectura_alias:
+                            response = handler(exchange, pair_ccy)
+                        else:
+                            response = handler(exchange) if handler.__code__.co_argcount > 0 else handler()
                         send_long(response, chat_id)
 
                         # Claude follow-up en THREAD SEPARADO (no bloquea el listener)
                         if cmd_name in CLAUDE_FOLLOWUP and claude_ai.is_available():
-                            def _send_claude_fu(c=cmd_name, cid=chat_id):
+                            def _send_claude_fu(c=cmd_name, cid=chat_id, pc=pair_ccy):
                                 try:
                                     telegram_send("Interpretando datos...", cid)
-                                    fu = CLAUDE_FOLLOWUP[c](exchange)
+                                    fu = CLAUDE_FOLLOWUP[c](exchange, pc)
                                     if fu:
                                         send_long(fu, cid)
                                 except Exception as fu_e:
@@ -5610,15 +5806,21 @@ def cmd_sweep(exchange=None):
     except Exception as e:
         return "Error /sweep: {}".format(str(e)[:200])
 
-def cmd_lectura(exchange):
+def cmd_lectura(exchange, pair_ccy="SOL"):
     """
-    /lectura - vista consolidada multi-TF.
+    /lectura - vista consolidada multi-TF. Multi-simbolo: pair_ccy en
+    SOL/BTC/ETH (default SOL, comportamiento historico); ver ANALISIS_PAIRS.
     Para cada TF (5m INTRADIA / 15m SCALPING / 1h SWING) muestra: bias,
     masas P-Space, P_master estimado vs umbral del perfil, niveles
     entry/SL/TP1-4 con R:R, y cooldown restante. Despues opcionalmente
     una lectura tactica de Claude sobre el TF anchor (15m).
     """
     try:
+        pinfo  = ANALISIS_PAIRS.get(pair_ccy, ANALISIS_PAIRS["SOL"])
+        ccy    = pair_ccy if pair_ccy in ANALISIS_PAIRS else "SOL"
+        symbol = pinfo["symbol"]
+        pair_label = pinfo["pair"]
+
         session, w_clock, _, _ = get_session()
         now_utc = datetime.now(timezone.utc)
 
@@ -5629,7 +5831,7 @@ def cmd_lectura(exchange):
             profile = TF_PROFILES[tf_id]
             tf_label = profile["label"]
             try:
-                df = fetch_ohlcv(exchange, SYMBOL, tf_id, limit=200)
+                df = fetch_ohlcv(exchange, symbol, tf_id, limit=200)
                 df = add_indicators(df)
                 if len(df) < 50:
                     tf_blocks.append("<b>[{} {}]</b> datos insuficientes\n".format(
@@ -5660,16 +5862,22 @@ def cmd_lectura(exchange):
                 pm_est = PHI * w_clock * h_factor * (1 + max(0, masses["count"] - 2) * 0.15)
                 pmin = profile["PMASTER_MIN"]
 
-                last_sig_ts = STATE.last_signal_ts_tf.get(tf_id)
-                cooldown_min = profile["SIGNAL_COOLDOWN_MINUTES"]
-                if last_sig_ts:
-                    elapsed_min = (now_utc - last_sig_ts).total_seconds() / 60.0
-                    if elapsed_min < cooldown_min:
-                        cd_str = "{:.0f}m restantes".format(cooldown_min - elapsed_min)
+                # Cooldown por TF: solo trackeado para SOL (STATE.last_signal_ts_tf
+                # lo escribe el flagship SOL; BTC/ETH tienen su propio cooldown
+                # interno en el motor paralelo, no reflejado aqui).
+                if ccy == "SOL":
+                    last_sig_ts = STATE.last_signal_ts_tf.get(tf_id)
+                    cooldown_min = profile["SIGNAL_COOLDOWN_MINUTES"]
+                    if last_sig_ts:
+                        elapsed_min = (now_utc - last_sig_ts).total_seconds() / 60.0
+                        if elapsed_min < cooldown_min:
+                            cd_str = "{:.0f}m restantes".format(cooldown_min - elapsed_min)
+                        else:
+                            cd_str = "listo"
                     else:
                         cd_str = "listo"
                 else:
-                    cd_str = "listo"
+                    cd_str = "n/a (motor {} propio)".format(ccy)
 
                 risk_pct = (levels["risk"] / levels["entry"]) * 100
                 sl_anchor_lbl = SL_ANCHOR_LABELS.get(
@@ -5679,21 +5887,12 @@ def cmd_lectura(exchange):
                 while len(tp_kinds) < 4:
                     tp_kinds.append("-")
 
-                # F2 v5.0: QTE para TF anchor 15m (admin recibe block detallado)
-                qte_admin_block = ""
-                if tf_id == "15m" and QTE_AVAILABLE and qt is not None:
-                    try:
-                        qte_levels = {"entry": levels["entry"], "sl": levels["sl"],
-                                      "tp1": levels["tp1"], "tp2": levels["tp2"],
-                                      "tp3": levels["tp3"]}
-                        qa15 = qt.quantum_analysis(
-                            df, direction=direction, levels=qte_levels,
-                            ict_module=ict_smc if ICT_MODULES_AVAILABLE else None,
-                            n_paths=500, run_optimizer=True)
-                        qte_admin_block = "\n" + qt.build_qte_block_admin(qa15) + "\n"
-                    except Exception as ex:
-                        log.warning("QTE en cmd_lectura TF15m fallo: {}".format(ex))
-
+                # Sin simulacion QTE aqui a proposito (2026-07-20, RasDG: "carga
+                # inutil"): un Monte Carlo de 500 paths + optimizer QAOA por
+                # cada /lectura on-demand solo para imprimir una tabla de
+                # numeros que nadie usaba para decidir. El battle plan VIP de
+                # /analisis (2000 paths) SI se queda -- ese alimenta una
+                # decision real (cmd_analisis_vip / build_analisis_context).
                 block = (
                     "<b>[{lab} {tf}]</b>  Precio: ${px:.2f}\n"
                     "Bias: <b>{b}</b>  Masas P: {mc}  P_est: {pme:.2f}/{pmn:.2f}\n"
@@ -5704,7 +5903,7 @@ def cmd_lectura(exchange):
                     "TP2: ${t2:.2f}  R:R {r2:.2f}  ({k2})\n"
                     "TP3: ${t3:.2f}  R:R {r3:.2f}  ({k3})\n"
                     "TP4: ${t4:.2f}  R:R {r4:.2f}  ({k4})\n"
-                    "Cooldown: {cd}\n{qte}"
+                    "Cooldown: {cd}\n"
                 ).format(
                     lab=tf_label, tf=tf_id, px=price,
                     b=bias["bias"].upper(), mc=masses["count"],
@@ -5716,7 +5915,7 @@ def cmd_lectura(exchange):
                     t2=levels["tp2"], r2=levels["rr_tp2"], k2=tp_kinds[1],
                     t3=levels["tp3"], r3=levels["rr_tp3"], k3=tp_kinds[2],
                     t4=levels["tp4"], r4=levels["rr_tp4"], k4=tp_kinds[3],
-                    cd=cd_str, qte=qte_admin_block,
+                    cd=cd_str,
                 )
                 tf_blocks.append(block)
             except Exception as ex:
@@ -5729,13 +5928,13 @@ def cmd_lectura(exchange):
         header = (
             "<b>LECTURA MULTI-TF - FQ v4.4</b>\n"
             "{fence}\n"
-            "{when}  |  SOL: <b>${px:.2f}</b>\n"
+            "{when}  |  {pair}: <b>${px:.2f}</b>\n"
             "Sesion: {ses}  (W={w:.2f})\n\n"
             "{thin}\n"
             "  NIVELES + ESTADO POR TIMEFRAME\n"
             "{thin}\n"
         ).format(
-            fence=G["fence"], thin=G["thin"],
+            fence=G["fence"], thin=G["thin"], pair=pair_label,
             when=cdmx_now_str(), px=header_price,
             ses=session.upper(), w=w_clock,
         )
@@ -5754,6 +5953,7 @@ def cmd_lectura(exchange):
                 theta_d = macro["passed"] and tecnica["passed"] and liquidez["passed"]
                 basic_state = {
                     "price": float(last_a["close"]), "session": session, "w_clock": w_clock,
+                    "pair": pair_label,
                     "bias": bias_a["bias"], "bias_score": bias_a["score"],
                     "mom_5": bias_a["mom_5"], "mom_20": bias_a["mom_20"],
                     "btc_chg": macro["btc_change"], "eth_chg": macro["eth_change"],
@@ -5765,7 +5965,8 @@ def cmd_lectura(exchange):
                     "ema200": float(last_a.get("ema200") or 0),
                     "macd": float(last_a.get("macd") or 0),
                 }
-                snapshot = mctx.snapshot_for_general(anchor_df, basic_state)
+                snapshot = mctx.snapshot_for_general(anchor_df, basic_state,
+                                                     symbol=symbol, ccy=ccy)
                 reading = _escape_claude(claude_ai.tactical_general(snapshot))
                 if reading:
                     claude_block = (
@@ -5782,8 +5983,8 @@ def cmd_lectura(exchange):
             "Estos niveles son la propuesta del bot por TF. El motor solo dispara\n"
             "automaticamente cuando P_master supera el min del perfil. SL no se\n"
             "mueve hacia atras (Regla 4).\n\n"
-            "#FQ #Lectura #MultiTF"
-        ).format(thin=G["thin"])
+            "#FQ #Lectura #MultiTF #{ccy}"
+        ).format(thin=G["thin"], ccy=ccy)
 
         return header + "\n".join(tf_blocks) + claude_block + tail
     except Exception as e:
@@ -5793,15 +5994,16 @@ def cmd_lectura(exchange):
 # ============================================================
 # /analisis VIP - F1 v5.0 (curado, formato Mistral)
 # ============================================================
-def cmd_analisis_vip(exchange, ctx=None):
+def cmd_analisis_vip(exchange, ctx=None, pair_ccy="SOL"):
     """
     Version VIP de /analisis. Muestra el TF anchor 15m con formato Mistral curado
     liderado por el PLAN DE BATALLA. Reutiliza `ctx` (build_analisis_context) si el
-    router lo pasa, evitando re-simular el QTE; si es None lo computa por su cuenta.
+    router lo pasa, evitando re-simular el QTE; si es None lo computa por su cuenta
+    (multi-simbolo: pair_ccy en SOL/BTC/ETH, default SOL).
     """
     try:
         if ctx is None:
-            ctx = build_analisis_context(exchange)
+            ctx = build_analisis_context(exchange, pair_ccy)
         if not ctx:
             return "Datos insuficientes para analisis."
 
@@ -5814,6 +6016,7 @@ def cmd_analisis_vip(exchange, ctx=None):
                 last=ctx["last"],
                 qa=ctx.get("qa"),
                 plan=ctx.get("plan"),
+                pair=ctx.get("pair"),
             )
         return "Formato VIP no disponible."
     except Exception as e:
@@ -6136,6 +6339,14 @@ def main():
             log.info("Schema v4 tf_id migrado")
         except Exception as e:
             log.warning("migrate_schema_v4: {}".format(e))
+    # Migracion schema v5 (idempotente - Cerebro Etapa 0: columna symbol
+    # SOL/BTC/ETH, additiva, filas viejas quedan symbol='SOL')
+    if hasattr(ev, "migrate_schema_v5"):
+        try:
+            ev.migrate_schema_v5()
+            log.info("Schema v5 symbol migrado")
+        except Exception as e:
+            log.warning("migrate_schema_v5: {}".format(e))
     log.info("Evolution ledger: {}".format(ev.DB_PATH))
     log.info("ICT layer:    {}".format("ON" if (ENABLE_ICT_LAYER and ICT_MODULES_AVAILABLE) else "OFF"))
     log.info("Weekend veto: {}{}".format(
@@ -6154,7 +6365,11 @@ def main():
 
     exchange = ccxt.okx({"enableRateLimit": True, "timeout": 20000})
 
-    # FQ v4.2 MISTRAL: comandos visibles en BotFather son los 6 minimal.
+    # FQ v4.2 MISTRAL: comandos visibles en BotFather son los 6 minimal +
+    # /analisis_sol /analisis_btc /analisis_eth (2026-07-20, atajos dedicados y
+    # SIMETRICOS de /analisis por par -- ver bloque tier-aware "/analisis
+    # TIER-AWARE" en command_listener, que los intercepta a los 4 ANTES de
+    # llegar a este dict; sus entradas aqui no se usan).
     # Los antiguos siguen funcionando como aliases internos para no romper
     # a quien los tenga memorizados, pero no aparecen en el menu publico.
     COMMANDS = {
@@ -6165,6 +6380,9 @@ def main():
         "/status":   cmd_status,
         "/lectura":  cmd_lectura,
         # /miestado y /renovar son manejados en vip_system handlers arriba
+        # /analisis_sol, /analisis_btc, /analisis_eth: manejados en el bloque tier-aware de
+        # arriba (comparten flujo con /analisis), no llegan a este dict -- registrar en
+        # BotFather igual para que aparezcan en el menu.
         # ============ ALIASES INTERNOS (ocultos del menu BotFather) ============
         "/analisis": cmd_lectura,    # consolidado en /lectura
         "/niveles":  cmd_lectura,

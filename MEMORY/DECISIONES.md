@@ -340,6 +340,89 @@ filtrado. Cadencia alta en FREE (visible/vivo) + calidad en VIP (premium). Rever
 
 ---
 
+## 14. Fix: el candado VIP-pair tapaba TAMBIÉN el descarte KL hacia los VIP (2026-07-20)
+
+**El bug.** RasDG reportó "todo el mes sin disparo" en SOL/ETH. El motor SÍ disparaba (confirmado
+contra el backup `fq_motor.db`: SOL 14 opens en julio, ETH 3), pero el candado de §13
+(`if pair in VIP_PAIRS: return` al inicio de `_free_broadcast`) cortaba la función ENTERA — incluida
+la rama `FQ_FREE_TO_VIP` — para SOL/BTC/ETH. Resultado: cuando el filtro KL (§ arriba, `FQ_KL_FILTER`)
+suprimía un fire de un par VIP, ese descarte no le llegaba a NADIE: ni al tier free (correcto, el
+candado debe bloquear eso) ni al VIP etiquetado 'Señal FREE' (bug — contradice §13: "los VIP ven
+todo"). Un fire real de ETH con `kl_irrev=0.98` el 8-jul quedó sin ningún rastro visible.
+
+**El fix.** El candado ahora solo bloquea el envío al tier free (`if FREE_TIER_ENABLED and not
+_is_vip_pair`); la rama `FQ_FREE_TO_VIP` corre siempre, para cualquier par. Además, `_kl_pass` ahora
+manda un eco admin ("🔇 KL suprimió...") cuando tapa un fire de un par VIP — nuevo flag
+`FQ_KL_SUPPRESS_NOTIFY` (default ON) — para que "silencio" (el motor no encontró setup) y "suprimida"
+(el motor disparó, el filtro de calidad la tapó) se vean distintos en el chat, no idénticos.
+
+**Evidencia.** `fq_bot_v3_2.py::_free_broadcast` y `_kl_pass`; `tests/test_free_broadcast_vip_gate.py`
+(4 tests: el candado sigue tapando free para pares VIP, pero ya no tapa FREE_TO_VIP; pares no-VIP
+siguen yendo a ambos tiers; el eco admin dispara solo para pares VIP suprimidos, no para la cosecha).
+
+---
+
+## 15. `/analisis` multi-símbolo (SOL/BTC/ETH) + fuera la tabla QTE del on-demand (2026-07-20)
+
+**El pedido (RasDG).** Extender `/analisis` (y sus alias `/lectura /niveles /pspace /claude /ia`) a
+los 3 pares VIP, y quitar "carga inútil" — la tabla cruda de probabilidades QTE que salía en cada
+lectura on-demand. También se planteó (sin decidir aún — "estoy pensando") eliminar los TP forzados
+de la señal disparada; **eso NO se tocó**, es un cambio de producto mayor (rompe el ledger de 4 TP,
+el tracking de progreso, el motor paper) que necesita decisión explícita, no se infiere de "lo estoy
+pensando".
+
+**Multi-símbolo.** `/analisis` toma un 1er argumento opcional `SOL|BTC|ETH` (default SOL, sin
+argumento = comportamiento histórico). Nueva tabla `ANALISIS_PAIRS` + `_resolve_analisis_pair(args)`
+(cae a SOL ante cualquier valor no reconocido — nunca rompe el comando). Se hiló el símbolo/par
+correcto a través de TODA la cadena que antes asumía SOL a fuego:
+- `cmd_lectura`, `build_analisis_context`, `cmd_analisis_vip` (fetch_ohlcv, header, hashtag).
+- Las 4 lecturas de Claude (`claude_followup_general/pspace/niveles/analisis_vip`): antes el prompt
+  decía "SOL/USDT" en el header sin importar el par mostrado (podía confundir a Claude analizando
+  BTC/ETH). Ahora leen `pair` del snapshot (`claude_integration.py`, fallback SOL/USDT si falta).
+- `market_context.snapshot_for_general/pspace/niveles`: antes llamaban a
+  `get_funding_rate()/get_open_interest()/get_long_short_ratio()/get_order_book()` SIN símbolo →
+  SIEMPRE traían los derivados de SOL, incluso analizando BTC/ETH (bug real, no solo cosmético).
+  Ahora aceptan `symbol=`/`ccy=` opcionales.
+- `vip_format.build_vip_analisis/build_battle_block`: el header "Plan · {par}" y el hashtag del
+  cierre (`#FQ #SOLUSDT` fijo → dinámico, mismo fix que ya tenía `build_vip_signal`) ahora usan el
+  par real en vez de la constante `PAIR` (SOL) a fuego.
+- Cooldown por TF en `/lectura`: solo se muestra para SOL (único símbolo cuyo
+  `STATE.last_signal_ts_tf` se escribe); BTC/ETH muestran una nota en vez de un número que mezclaría
+  el cooldown de SOL.
+
+**Fuera la tabla QTE del on-demand.** `cmd_lectura` corría un Monte Carlo de 500 paths + optimizer
+QAOA en el TF 15m **en cada llamada** solo para imprimir "PROBABILIDADES (sobre niveles propuestos):
+Toca SL primero X%..." — cómputo pesado sin ningún consumidor real (admin no decidía con esos
+números). Se quitó por completo (ni el texto ni el cálculo). El battle plan VIP de `/analisis`
+(`build_analisis_context`, 2000 paths) **se dejó intacto a propósito** — ese sí alimenta una
+decisión real (el veredicto que lidera el mensaje VIP). `/timelines` (deep-dive QTE explícito,
+admin) tampoco se tocó — es un comando dedicado a esos números, no "carga inútil" ahí.
+
+**Evidencia.** `fq_bot_v3_2.py` (ANALISIS_PAIRS, `_resolve_analisis_pair`, `cmd_lectura`,
+`build_analisis_context`, `cmd_analisis_vip`, las 4 `claude_followup_*`); `market_context.py`
+(`snapshot_for_general/pspace/niveles`); `claude_integration.py` (4 prompt builders + system prompt
+genérico); `vip_format.py` (`build_vip_analisis`, `build_battle_block`). Tests: 12 en
+`tests/test_analisis_multisimbolo.py` (multi-símbolo + regresión "sin tabla QTE"), 5 en
+`tests/test_claude_prompts_multisimbolo.py`, 4 en `tests/test_market_context_multisimbolo.py`.
+
+**Addendum — `/analisis_sol` / `/analisis_btc` / `/analisis_eth` dedicados (mismo día).** El
+argumento (`/analisis BTC`) no era descubrible desde el menú de Telegram: BotFather solo muestra
+nombres de comando + descripción, no invita a escribir un argumento después de tocar el ítem del
+menú. RasDG: "un VIP no ve el comando alternativo en su menú, eso no es intuitivo". Primer intento
+(`/btc` / `/eth`) descartado por el propio RasDG: Telegram no admite espacios en el nombre de un
+comando (`/analisis sol` sería `/analisis` + argumento `sol`, no un comando nuevo), así que el
+agrupamiento visual bajo `/analisis` se logra con guion bajo, no con espacio. Iteración final:
+los 3 simétricos y explícitos — ninguno "pelón" ni default implícito — `/analisis_sol`,
+`/analisis_btc`, `/analisis_eth`. Los 3 comparten el mismo bloque tier-aware que `/analisis` (mismo
+cooldown, mismo gate VIP, mismo flujo admin=completo/VIP=curado) pero con el par fijo — tap-to-use
+desde el menú, sin escribir nada. `/analisis <par>` se mantiene intacto para quien ya lo usa (SOL
+default si no hay argumento). Cooldown compartido entre los 4 (protege la API en general, no por
+símbolo). **Pendiente de RasDG:** registrar `/analisis_sol` `/analisis_btc` `/analisis_eth` en
+BotFather (`/setcommands`) para que aparezcan en el menú — el código ya los sirve sin eso, pero el
+menú de Telegram no se autogenera desde el bot.
+
+---
+
 ## Resumen
 
 | Decisión | Razonamiento core | Archivos / commits clave | Estado |

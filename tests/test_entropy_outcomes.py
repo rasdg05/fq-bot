@@ -75,7 +75,7 @@ def _patch_ledger(monkeypatch, open_sigs):
                        "exit_price": exit_price, "pnl_r": pnl_r,
                        "minutes_open": minutes_open})
 
-    monkeypatch.setattr(ec, "get_open_signals", lambda: open_sigs)
+    monkeypatch.setattr(ec, "get_open_signals", lambda symbol="SOL": open_sigs)
     monkeypatch.setattr(ec, "close_signal", fake_close)
     return closes
 
