@@ -405,14 +405,19 @@ genérico); `vip_format.py` (`build_vip_analisis`, `build_battle_block`). Tests:
 `tests/test_analisis_multisimbolo.py` (multi-símbolo + regresión "sin tabla QTE"), 5 en
 `tests/test_claude_prompts_multisimbolo.py`, 4 en `tests/test_market_context_multisimbolo.py`.
 
-**Addendum — `/btc` y `/eth` dedicados (mismo día).** El argumento (`/analisis BTC`) no era
-descubrible desde el menú de Telegram: BotFather solo muestra nombres de comando + descripción, no
-invita a escribir un argumento después de tocar el ítem del menú. RasDG: "un VIP no ve el comando
-alternativo en su menú, eso no es intuitivo". Se agregaron `/btc` y `/eth` como comandos dedicados
-que comparten el mismo bloque tier-aware que `/analisis` (mismo cooldown, mismo gate VIP, mismo
-flujo admin=completo/VIP=curado) pero con el par fijo — tap-to-use desde el menú, sin escribir
-nada. `/analisis <par>` se mantiene intacto para quien ya lo usa. Cooldown compartido entre los 3
-(protege la API en general, no por símbolo). **Pendiente de RasDG:** registrar `/btc` y `/eth` en
+**Addendum — `/analisis_sol` / `/analisis_btc` / `/analisis_eth` dedicados (mismo día).** El
+argumento (`/analisis BTC`) no era descubrible desde el menú de Telegram: BotFather solo muestra
+nombres de comando + descripción, no invita a escribir un argumento después de tocar el ítem del
+menú. RasDG: "un VIP no ve el comando alternativo en su menú, eso no es intuitivo". Primer intento
+(`/btc` / `/eth`) descartado por el propio RasDG: Telegram no admite espacios en el nombre de un
+comando (`/analisis sol` sería `/analisis` + argumento `sol`, no un comando nuevo), así que el
+agrupamiento visual bajo `/analisis` se logra con guion bajo, no con espacio. Iteración final:
+los 3 simétricos y explícitos — ninguno "pelón" ni default implícito — `/analisis_sol`,
+`/analisis_btc`, `/analisis_eth`. Los 3 comparten el mismo bloque tier-aware que `/analisis` (mismo
+cooldown, mismo gate VIP, mismo flujo admin=completo/VIP=curado) pero con el par fijo — tap-to-use
+desde el menú, sin escribir nada. `/analisis <par>` se mantiene intacto para quien ya lo usa (SOL
+default si no hay argumento). Cooldown compartido entre los 4 (protege la API en general, no por
+símbolo). **Pendiente de RasDG:** registrar `/analisis_sol` `/analisis_btc` `/analisis_eth` en
 BotFather (`/setcommands`) para que aparezcan en el menú — el código ya los sirve sin eso, pero el
 menú de Telegram no se autogenera desde el bot.
 

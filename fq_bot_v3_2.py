@@ -5183,7 +5183,7 @@ def command_listener(exchange):
                     # === ACCESS CONTROL para comandos premium ===
                     PREMIUM_COMMANDS = {
                         "/analisis", "/niveles", "/pspace", "/claude", "/ia",
-                        "/btc", "/eth",
+                        "/analisis_sol", "/analisis_btc", "/analisis_eth",
                         "/metrics", "/entropy", "/ledger", "/evolve", "/audit",
                     }
                     if cmd_name in PREMIUM_COMMANDS:
@@ -5229,15 +5229,22 @@ def command_listener(exchange):
                     continue
 
                 # === /analisis TIER-AWARE (F1 v5.0): admin=lectura completa, VIP=curado ===
-                # /btc y /eth (2026-07-20): comandos DEDICADOS visibles en BotFather,
-                # mismo flujo tier-aware que /analisis pero con el par fijo -- RasDG:
-                # "un VIP no ve el comando alternativo en su menu, eso no es intuitivo".
-                # /analisis sigue aceptando el argumento (/analisis BTC) para quien
-                # ya lo conoce; /btc y /eth son el atajo tap-to-use del menu.
-                if cmd_name in ("/analisis", "/btc", "/eth"):
-                    if cmd_name == "/btc":
+                # /analisis_sol, /analisis_btc, /analisis_eth (2026-07-20): comandos
+                # DEDICADOS visibles en BotFather, mismo flujo tier-aware que
+                # /analisis pero con el par fijo -- RasDG: "un VIP no ve el comando
+                # alternativo en su menu, eso no es intuitivo" + "el de SOL no debe
+                # quedar pelon, cada uno debe venir etiquetado". Los 3 con guion bajo
+                # (Telegram no admite espacios en el nombre de comando) para que se
+                # agrupen bajo /analisis en el autocompletado "/". /analisis (sin
+                # sufijo) sigue aceptando el argumento (/analisis BTC) para quien ya
+                # lo conoce; los _sol/_btc/_eth son el atajo tap-to-use del menu,
+                # simetricos entre si (ninguno es "el default implicito").
+                if cmd_name in ("/analisis", "/analisis_sol", "/analisis_btc", "/analisis_eth"):
+                    if cmd_name == "/analisis_sol":
+                        pair_ccy = "SOL"
+                    elif cmd_name == "/analisis_btc":
                         pair_ccy = "BTC"
-                    elif cmd_name == "/eth":
+                    elif cmd_name == "/analisis_eth":
                         pair_ccy = "ETH"
                     else:
                         # Multi-simbolo (2026-07-20): 1er argumento SOL/BTC/ETH,
@@ -5254,10 +5261,11 @@ def command_listener(exchange):
                             tier_loc = "free"
 
                     # Cooldown VIP/trial: 30 min por usuario, COMPARTIDO entre
-                    # /analisis, /btc y /eth (protege la API en general, no por
-                    # simbolo -- pedir BTC y luego ETH seguido cuenta igual).
-                    # Admin no rate-limitado. Se marca el timestamp antes de la llamada
-                    # cara para que errores transitorios no permitan spam-retry.
+                    # /analisis, /analisis_sol, /analisis_btc y /analisis_eth
+                    # (protege la API en general, no por simbolo -- pedir BTC y
+                    # luego ETH seguido cuenta igual). Admin no rate-limitado. Se
+                    # marca el timestamp antes de la llamada cara para que errores
+                    # transitorios no permitan spam-retry.
                     if tier_loc in ("vip", "trial") and VIP_ANALISIS_COOLDOWN_SEC > 0:
                         now_s = time.time()
                         last_s = _VIP_ANALISIS_LAST.get(str(chat_id), 0)
@@ -5270,8 +5278,8 @@ def command_listener(exchange):
                                 "──────────────────────────────\n\n"
                                 "Espera <b>{m}m {s:02d}s</b> antes del siguiente analisis.\n\n"
                                 "Cooldown VIP = {c} min por usuario (compartido entre /analisis,\n"
-                                "/btc, /eth). Protege la API y asegura que cada lectura que\n"
-                                "pidas sea fresca.\n\n"
+                                "/analisis_sol, /analisis_btc, /analisis_eth). Protege la API y\n"
+                                "asegura que cada lectura que pidas sea fresca.\n\n"
                                 "Las senales automaticas siguen llegando sin limite.".format(
                                     cmd=cmd_name, m=mins, s=secs,
                                     c=VIP_ANALISIS_COOLDOWN_SEC // 60),
@@ -6267,10 +6275,11 @@ def main():
 
     exchange = ccxt.okx({"enableRateLimit": True, "timeout": 20000})
 
-    # FQ v4.2 MISTRAL: comandos visibles en BotFather son los 6 minimal + /btc
-    # /eth (2026-07-20, atajos dedicados de /analisis por par -- ver bloque
-    # tier-aware "/analisis TIER-AWARE" en command_listener, que los intercepta
-    # a los tres ANTES de llegar a este dict; sus entradas aqui no se usan).
+    # FQ v4.2 MISTRAL: comandos visibles en BotFather son los 6 minimal +
+    # /analisis_sol /analisis_btc /analisis_eth (2026-07-20, atajos dedicados y
+    # SIMETRICOS de /analisis por par -- ver bloque tier-aware "/analisis
+    # TIER-AWARE" en command_listener, que los intercepta a los 4 ANTES de
+    # llegar a este dict; sus entradas aqui no se usan).
     # Los antiguos siguen funcionando como aliases internos para no romper
     # a quien los tenga memorizados, pero no aparecen en el menu publico.
     COMMANDS = {
@@ -6281,8 +6290,8 @@ def main():
         "/status":   cmd_status,
         "/lectura":  cmd_lectura,
         # /miestado y /renovar son manejados en vip_system handlers arriba
-        # /btc y /eth: manejados en el bloque tier-aware de arriba (comparten
-        # flujo con /analisis), no llegan a este dict -- registrar en
+        # /analisis_sol, /analisis_btc, /analisis_eth: manejados en el bloque tier-aware de
+        # arriba (comparten flujo con /analisis), no llegan a este dict -- registrar en
         # BotFather igual para que aparezcan en el menu.
         # ============ ALIASES INTERNOS (ocultos del menu BotFather) ============
         "/analisis": cmd_lectura,    # consolidado en /lectura
