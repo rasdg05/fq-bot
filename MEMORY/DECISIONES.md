@@ -423,6 +423,89 @@ menú de Telegram no se autogenera desde el bot.
 
 ---
 
+## 16. Cerebro Etapa 0: BTC/ETH entran al ledger rico + `/lectura` sin gate (2026-07-20)
+
+**El pedido (RasDG).** "Cerrar el gap del ledger BTC/ETH (Cerebro Etapa 0)" — las señales VIP de
+BTC/ETH (motor paper, §5) se difundían pero nunca quedaban registradas en `entropy_cognition`
+(el ledger rico con outcome tracking, entropía, kappa_evo). Solo SOL se medía. De paso, RasDG
+encontró un bug al revisar: "`/lectura` no es tier-aware".
+
+**El gap del ledger.** Nuevo helper `_record_vip_signal(ccy, ...)` escribe las señales BTC/ETH
+que SÍ llegan al VIP (no las que el motor descarta) en `entropy_cognition.log_signal(..., symbol=ccy)`,
+cableado dentro de `_btc_motor_paper_scan`/`_eth_motor_paper_scan` solo en la rama de broadcast
+exitoso, más `reconcile_outcomes(..., ccy="BTC"/"ETH")` al final de cada scan. Schema `migrate_schema_v5`
+(`ALTER TABLE signals ADD COLUMN symbol TEXT DEFAULT 'SOL'`) — idempotente, mismo patrón que v2-v4.
+
+**Aislamiento por diseño, no por filtro explícito.** Las filas BTC/ETH usan el `log_signal()` simple
+(no `log_signal_v2/v3`), que deja `bucket_key_v2`/`bucket_key_v3` en NULL a propósito — `NULL = valor`
+nunca matchea en SQL, así que el Thompson-kappa (`_bucket_beta_counts`, sobre `bucket_key_v3`) y
+`count_closed_v2_buckets` (`bucket_key_v2`) quedan aislados de BTC/ETH SIN tocar esas funciones. El
+resto de lecturas (`get_open_signals`, `count_signals`, `compute_entropy_metrics`, `get_bucket_stats`,
+`get_global_metrics`, `get_results_summary`, etc.) sí recibieron un parámetro `symbol="SOL"` explícito
+para no mezclar poblaciones — default SOL protege el número client-facing de `/resultados`.
+`get_recent_signals`/`format_ledger_telegram` quedan `symbol=None` (mezcla deliberada: es el feed
+diagnóstico de admin, no una estadística agregada).
+
+**El bug de `/lectura`.** Al investigar se encontró que `/lectura` no solo se saltaba la vista
+curada VIP — no tenía NINGÚN gate. No estaba en `PREMIUM_COMMANDS` ni en `ADMIN_ONLY`, así que
+cualquier usuario sin VIP ni trial podía escribirlo y recibir el dump técnico completo (multi-TF,
+niveles exactos, P_master) gratis, saltándose el paywall entero de la familia `/analisis`. Fix:
+`/lectura` entra a `PREMIUM_COMMANDS` y al mismo bloque tier-aware que `/analisis` (admin ve el dump
+completo, VIP ve `cmd_analisis_vip` curado).
+
+**Evidencia.** `entropy_cognition.py` (`migrate_schema_v5`, `log_signal(symbol=)`, parámetro `symbol=`
+en las funciones de lectura, `reconcile_outcomes(ccy=)`); `fq_bot_v3_2.py` (`_record_vip_signal`,
+cableado en `_btc_motor_paper_scan`/`_eth_motor_paper_scan`, `/lectura` en `PREMIUM_COMMANDS`).
+Tests: `tests/test_cerebro_etapa0_ledger.py` (18, incl. guarda de no-contaminación de kappa_evo),
+`tests/test_record_vip_signal.py` (3), `tests/test_multisimbolo_ledger_wiring.py` (5),
+`tests/test_lectura_tier_aware.py` (3, inspección de fuente — `command_listener` es un loop de
+polling sin arnés de test directo).
+
+---
+
+## 17. `/lectura` y `/analisis` on-demand: sin doble Claude, sin niveles crudos (2026-07-20)
+
+**El bug de duplicación.** RasDG reportó (con capturas) que `/lectura` mandaba la lectura táctica
+DOS VECES en mensajes separados. Causa: `cmd_lectura` ya arma su propia lectura de Claude embebida
+(vía `mctx.snapshot_for_general`), pero el bloque tier-aware de `command_listener` disparaba
+ADEMÁS un follow-up en background (`claude_followup_general`) para el admin — dos llamadas
+independientes a la API, dos mensajes. Fix: `fu_fn = None` para la rama admin (`/lectura`); la
+rama VIP conserva su follow-up porque `cmd_analisis_vip` NO trae lectura embebida propia.
+
+**Eliminar niveles crudos (el pedido de fondo).** RasDG: "los niveles ya me parecen poco efectivos,
+quiero eliminarlos por completo y quedar con la pura lectura táctica e interpretación... es mejor
+esperar el precio con el análisis en lugar de forzar entrada con niveles crudos". Alcance confirmado
+explícitamente: **solo `/lectura` y `/analisis` (on-demand)** — la señal automática disparada al
+VIP/FREE (`build_vip_signal`, con sus 4 TP) y el RADAR de alertas tácticas (`build_battle_plan`,
+`build_battle_block`) son superficies distintas y NO se tocaron.
+
+- `cmd_lectura`: se quitó el bloque Entry/SL/TP1-4 por timeframe (venía de `calculate_levels_v2`) y
+  la simulación QTE de niveles de esa vista; queda sesgo + masas-P + P_master + dirección sugerida +
+  cooldown. Header "NIVELES + ESTADO POR TIMEFRAME" → "SESGO + ESTADO POR TIMEFRAME".
+- `build_analisis_context`: ya no llama a `battle_planner.build_battle_plan` — `plan` queda siempre
+  `None` en este camino (el battle plan en $ solo vive en el RADAR).
+- `claude_followup_analisis_vip`: el snapshot que ve Claude perdió `entry/sl/sl_anchor/tp1-3/rr_tp1-3`,
+  el bloque advisory del optimizer QAOA (`qte_opt_*`/`qte_vs_*`) y `battle` — queda sesgo, masas-P,
+  RSI y las probabilidades QTE (cualitativas, sin niveles).
+- `vip_format.build_vip_analisis`: se quitó el bloque "Detalle" con Entry/Stop/TP1-3 en $; el mensaje
+  ahora se apoya en `_market_tone`/`_quality_note`/`_decision_hint` (ya existían, cero números crudos)
+  más dos bullets de cierre genéricos en vez de "SL estructural"/"TPs en liquidez real".
+- `claude_integration.build_analisis_vip_prompt`: reescrito — sin bloque de battle plan ni optimizer
+  QAOA en el prompt; la regla "SI puedes y debes citar precios exactos" se invirtió a "NO cites
+  precios exactos"; los 4 bullets pedidos pasaron de "DONDE ENTRAR: precio exacto" /
+  "INVALIDACIÓN: precio exacto" a equivalentes cualitativos (contexto estructural, confirmación
+  esperada, gestión sin niveles).
+
+**Evidencia.** `fq_bot_v3_2.py` (`command_listener` bloque tier-aware, `cmd_lectura`,
+`build_analisis_context`, `claude_followup_analisis_vip`); `vip_format.py` (`build_vip_analisis`);
+`claude_integration.py` (`build_analisis_vip_prompt`). Tests: `tests/test_lectura_no_duplica_claude.py`
+(2, inspección de fuente), `tests/test_analisis_sin_niveles.py` (4: `build_analisis_context` nunca
+arma battle plan, snapshot de Claude sin niveles/battle, `build_vip_analisis` y el prompt sin
+Entry/Stop/TP ni figuras de $ ajenas al precio actual), más ajuste de
+`tests/test_qte_verdict.py::test_vip_analisis_sin_plan_lidera_con_accion_y_distancia`.
+
+---
+
 ## Resumen
 
 | Decisión | Razonamiento core | Archivos / commits clave | Estado |

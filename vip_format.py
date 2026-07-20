@@ -577,8 +577,13 @@ def _decision_hint(qa, direction):
 
 def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None, plan=None, pair=None):
     """
-    /analisis VIP. Una pantalla, sin formulas, sin score numerico.
-    El veredicto del battle planner lidera si esta presente.
+    /analisis VIP. Sesgo + interpretacion, sin niveles crudos de entrada/salida
+    (2026-07-20, RasDG: "los niveles ya me parecen poco efectivos, es mejor
+    esperar el precio con el analisis en lugar de forzar entrada con niveles
+    crudos"). `levels`/`plan` se conservan en la firma por compatibilidad de
+    llamada, pero ya no se imprime ningun precio de entry/SL/TP aqui -- ese
+    plan de batalla en $ sigue vivo solo en el RADAR automatico (otra
+    superficie, no se toca).
     pair: par analizado ("BTC/USDT" etc, multi-simbolo /analisis [SOL|BTC|ETH]).
     None -> PAIR (SOL, default historico).
     """
@@ -588,28 +593,6 @@ def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None, plan=None
     conviction = conviction_label(pm_est)
 
     when = datetime.now(CDMX_TZ).strftime("%H:%M CDMX")
-
-    entry    = levels["entry"]
-    sl       = levels["sl"]
-    risk_pct = (levels["risk"] / entry) * 100 if entry > 0 else 0
-    risk_lbl = risk_band(risk_pct)
-    sla_lbl  = SL_ANCHOR_LABEL_VIP.get(
-        levels.get("sl_anchor", ""), levels.get("sl_anchor", "estructura"))
-
-    tp_meta = levels.get("tp_meta") or []
-    tp_lines = []
-    for i in range(min(3, len(tp_meta))):
-        kind_lbl = TP_KIND_LABEL_VIP.get(tp_meta[i]["kind"], tp_meta[i]["kind"])
-        tp_lines.append("  TP{n}     ${p:.2f}   R {rr:.2f}   {k}".format(
-            n=i+1, p=tp_meta[i]["price"], rr=tp_meta[i]["rr"], k=kind_lbl))
-    if not tp_lines:
-        for i in range(1, 4):
-            p = levels.get("tp{}".format(i))
-            rr = levels.get("rr_tp{}".format(i), 0)
-            if p is not None:
-                tp_lines.append("  TP{n}     ${p:.2f}   R {rr:.2f}".format(
-                    n=i, p=p, rr=rr))
-    tps_block = "\n".join(tp_lines)
 
     # Bloque cualitativo: tono + horizonte + nota de certeza (sin numeros crudos)
     tone = _market_tone(qa, direction)
@@ -625,10 +608,10 @@ def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None, plan=None
         tbits.append("  {} {}".format(c, quality))
     tone_block = ("\n".join(tbits) + "\n{}\n".format(RULE)) if tbits else ""
 
+    # plan siempre None en este camino on-demand -> battle siempre "".
     battle = build_battle_block(plan, pair=pair)
     detalle_hdr = ("  {} Detalle".format(GLYPHS["event"]) if battle
                    else "  {} Analisis · {}".format(GLYPHS["event"], pair or PAIR))
-    # Si no hay plan que lidere, una linea de accion clara desde el veredicto.
     hint = None if battle else _decision_hint(qa, direction)
     decision_line = "  → {}\n".format(hint) if hint else ""
 
@@ -644,24 +627,17 @@ def build_vip_analisis(direction, levels, bias, pm_est, last, qa=None, plan=None
         "{rule}\n"
         "  {arrow} Sesgo {side}     Conviccion {conv}\n"
         "{decision}"
-        "\n"
-        "  Entry   ${entry:.2f}\n"
-        "  Stop    ${sl:.2f}   Riesgo {risk} ({riskpct:.1f}% al stop)\n"
-        "    anclado a {sla}\n"
-        "\n"
-        "{tps}\n"
         "{rule}\n"
         "{tone}"
-        "  {c} SL estructural\n"
-        "  {c} TPs en liquidez real\n"
+        "  {c} Esperar confirmacion de precio antes de entrar\n"
+        "  {c} Sin plan de entrada numerico -- lectura, no niveles\n"
         "{rule}\n"
         "  {tags}"
     ).format(
         rule=RULE, dhdr=detalle_hdr, when=when, px=float(last["close"]),
-        decision=decision_line, riskpct=risk_pct,
-        arrow=arrow, side=side, conv=conviction, risk=risk_lbl,
-        entry=entry, sl=sl, sla=sla_lbl,
-        tps=tps_block, tone=tone_block, tags=sym_tags, c=c,
+        decision=decision_line,
+        arrow=arrow, side=side, conv=conviction,
+        tone=tone_block, tags=sym_tags, c=c,
     )
 
 # ============================================================
