@@ -405,6 +405,17 @@ genérico); `vip_format.py` (`build_vip_analisis`, `build_battle_block`). Tests:
 `tests/test_analisis_multisimbolo.py` (multi-símbolo + regresión "sin tabla QTE"), 5 en
 `tests/test_claude_prompts_multisimbolo.py`, 4 en `tests/test_market_context_multisimbolo.py`.
 
+**Addendum — `/btc` y `/eth` dedicados (mismo día).** El argumento (`/analisis BTC`) no era
+descubrible desde el menú de Telegram: BotFather solo muestra nombres de comando + descripción, no
+invita a escribir un argumento después de tocar el ítem del menú. RasDG: "un VIP no ve el comando
+alternativo en su menú, eso no es intuitivo". Se agregaron `/btc` y `/eth` como comandos dedicados
+que comparten el mismo bloque tier-aware que `/analisis` (mismo cooldown, mismo gate VIP, mismo
+flujo admin=completo/VIP=curado) pero con el par fijo — tap-to-use desde el menú, sin escribir
+nada. `/analisis <par>` se mantiene intacto para quien ya lo usa. Cooldown compartido entre los 3
+(protege la API en general, no por símbolo). **Pendiente de RasDG:** registrar `/btc` y `/eth` en
+BotFather (`/setcommands`) para que aparezcan en el menú — el código ya los sirve sin eso, pero el
+menú de Telegram no se autogenera desde el bot.
+
 ---
 
 ## Resumen
