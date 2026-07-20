@@ -5374,16 +5374,26 @@ def command_listener(exchange):
                         # Contexto pesado (QTE 2000 + battle plan) UNA sola vez,
                         # compartido entre mensaje curado y lectura de Claude.
                         analisis_ctx = None
+                        # Fix (2026-07-20, RasDG: "por que la lectura tactica se
+                        # duplica en dos mensajes"): cmd_lectura YA arma su propia
+                        # lectura de Claude embebida (bloque "LECTURA TACTICA...",
+                        # via mctx.snapshot_for_general adentro de la funcion). El
+                        # follow-up de abajo (claude_followup_general) volvia a
+                        # bajar velas, recalcular todo y preguntarle a Claude OTRA
+                        # VEZ -- dos llamadas, dos mensajes, misma lectura con
+                        # formato distinto. Admin-only (el VIP reutiliza analisis_ctx,
+                        # nunca duplico). Se quita el follow-up para admin; cmd_lectura
+                        # ya entrega la lectura tactica en el mismo mensaje.
+                        fu_fn = None
                         if tier_loc == "admin":
                             response = cmd_lectura(exchange, pair_ccy)
-                            fu_fn = claude_followup_general
                         else:
                             analisis_ctx = build_analisis_context(exchange, pair_ccy)
                             response = cmd_analisis_vip(exchange, ctx=analisis_ctx)
                             fu_fn = claude_followup_analisis_vip
                         send_long(response, chat_id)
 
-                        if claude_ai.is_available():
+                        if fu_fn is not None and claude_ai.is_available():
                             def _send_fu_analisis(fn=fu_fn, cid=chat_id, ctx=analisis_ctx, pc=pair_ccy):
                                 try:
                                     telegram_send("Interpretando datos...", cid)
