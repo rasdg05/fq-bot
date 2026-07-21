@@ -1059,6 +1059,24 @@ TP_KIND_LABELS = {
 }
 
 # ============================================================
+# MINUTOS REALES POR VELA, POR TF (2026-07-21)
+# ============================================================
+# quantum_timelines.quantum_analysis()/adaptive_horizon() necesitan saber
+# cuantos minutos representa CADA VELA del df que reciben (candle_minutes)
+# para que horizon_hours y los bounds del horizonte adaptativo (calibrados en
+# horas reales, no en cantidad de velas) sigan siendo correctos sin importar
+# el TF -- ver ANALISIS_ANCHOR_CANDLE_MINUTES para el caso ya resuelto de
+# /lectura y /analisis on-demand.
+_TF_MINUTES = {"1m": 1, "3m": 3, "5m": 5, "15m": 15, "1h": 60, "4h": 240, "1d": 1440}
+
+
+def _tf_candle_minutes(tf_id):
+    """Minutos reales por vela del TF dado. 15 (comportamiento historico del
+    QTE) si el TF no esta mapeado -- nunca rompe, solo pierde precision."""
+    return _TF_MINUTES.get(tf_id, 15)
+
+
+# ============================================================
 # LONGITUD DE ONDA DE TPs POR TIMEFRAME (FQ v5.5)
 # ============================================================
 # Las bandas R:R de los TPs son relativas al riesgo (distancia al SL). En TFs
@@ -4672,11 +4690,20 @@ def radar_check(exchange, tf_id="15m"):
                       "tp3": levels["tp3"], "tp4": levels["tp4"]}
         # 1m/3m -> menos paths para latencia; 15m -> mantiene 2000
         n_paths_tf = 800 if tf_id in ("1m", "3m") else 2000
+        # candle_minutes (2026-07-21, auditoria RasDG post-fix de /analisis):
+        # adaptive=True aqui SI ejecuta adaptive_horizon() -- sin este
+        # parametro, el canal de campo 5m (default de FIELD_TIMEFRAMES) usaba
+        # los pisos/techos de horizonte calibrados para velas de 15m (6h-40h)
+        # como si fueran velas de 5m, simulando solo 1/3 del horizonte real
+        # (2h-13.3h). Eso afecta directo las probabilidades (p_sl/EV) que
+        # deciden el veredicto y la promocion a VIP -- no es solo un texto
+        # "Horizonte ~Nh" (RADAR no muestra esa linea al cliente, a diferencia
+        # de /analisis), es la ventana real de la simulacion.
         qa = qt.quantum_analysis(
             df, direction=direction, levels=qte_levels,
             ict_module=ict_smc if ICT_MODULES_AVAILABLE else None,
             n_paths=n_paths_tf, run_optimizer=False, return_paths=True,
-            adaptive=True)
+            adaptive=True, candle_minutes=_tf_candle_minutes(tf_id))
         if qa.get("paths") is None:
             return
         fd = _build_field_data_standalone(df, None, None)
