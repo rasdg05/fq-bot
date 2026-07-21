@@ -615,6 +615,46 @@ tocar código que funciona.
 
 ---
 
+## 21. Pesos del picker táctico del RADAR, condicionados al ledger real (2026-07-21)
+
+**El pedido (RasDG).** "Ajusta el battle planner/RADAR para priorizar TP2 como objetivo principal
+SI EL DATO LO RESPALDA." Punto de partida incómodo: `_compute_tactical_tps` (el picker de 3 TPs de
+la alerta táctica que SÍ llega a clientes VIP) ya traía cierres parciales fijos 40/35/25 -- y su
+propio docstring confesaba que ese reparto estaba "calibrado sobre las dos ganadoras históricas que
+cerraron en TP2". Dos señales. La observación de RasDG apuntaba exactamente a esa costura.
+
+**Por qué no se hardcodeó TP2 de una vez.** No tengo acceso al ledger de producción desde esta
+sesión -- no hay forma de confirmar "el dato lo respalda" mirando una sola captura de pantalla.
+Solución: en vez de decidir por RasDG, el código consulta el ledger EN VIVO en cada alerta táctica
+(`entropy_cognition.get_tp_distribution_by_tf`, el mismo motor de `/tphits`, §19) y decide caso por
+caso, por symbol+TF, con umbrales explícitos -- la hipótesis se auto-verifica con datos frescos en
+vez de congelarse en el código.
+
+**El mecanismo.** `_empirical_tp_weights(symbol="SOL", tf_id=None)`: si hay >= 20 cierres en ese TF
+Y el TP más frecuente entre los wins es `tp2` con >= 45% de esos wins, mueve 10 puntos hacia el slot
+MEDIO del picker (40/35/25 → 30/45/20) -- el "tp2" del ledger (señal automática de 4 TP, banda
+estructural ~1.5R-2.5R) es la misma banda R:R que el candidato tp2 de `_compute_tactical_tps`, que
+tras ordenar por R:R casi siempre cae en la posición media de la salida. Cualquier excepción (DB no
+lista, ledger vacío) cae al 40/35/25 default sin romper la alerta.
+
+**Kill switch, default OFF.** `FQ_TP_WEIGHT_EMPIRICAL=0` por defecto: el código YA sabe calcular el
+ajuste, pero no se enciende solo. RasDG lo activa cuando `/tphits` confirme el patrón con más de 2
+señales -- la disciplina "ledger como juez" (Disciplinas inegociables, #5) aplica también a activar
+la feature, no solo a medirla.
+
+**Alcance.** Solo el picker táctico del RADAR (`_compute_tactical_tps`, llamado desde `radar_check`
+en la rama de promoción a VIP). No toca la señal automática de 4 TP (`build_vip_signal`), no toca
+`/lectura`/`/analisis` (§17), no mueve ningún precio de TP -- solo redistribuye el % de cierre
+parcial entre los 3 TPs ya calculados.
+
+**Evidencia.** `fq_bot_v3_2.py` (`_empirical_tp_weights`, `TP_WEIGHT_EMPIRICAL_ENABLED`,
+`_compute_tactical_tps(weights=)`, cableado en `radar_check`). Tests:
+`tests/test_empirical_tp_weights.py` (11: flag off por defecto, gates de n/top_tp/pct/tf, boost
+cuando todo alinea, excepción cae a default, override de `weights` en `_compute_tactical_tps`,
+cableado en `radar_check` por inspección de fuente).
+
+---
+
 ## Resumen
 
 | Decisión | Razonamiento core | Archivos / commits clave | Estado |
