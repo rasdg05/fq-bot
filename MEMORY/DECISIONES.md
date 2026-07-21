@@ -582,6 +582,39 @@ fuente, igual criterio que `/lectura` en §16).
 
 ---
 
+## 20. `radar_check` en 5m simulaba solo 1/3 del horizonte real (2026-07-21)
+
+**El pedido (RasDG).** Tras el fix de `candle_minutes` en §18 (TF anchor de `/analisis`), RasDG
+pidió auditar si otros callers de `quantum_analysis` tenían el mismo bug -- puntualmente
+`radar_check` cuando corre en `field_tf="5m"` (ya en producción vía `FIELD_TIMEFRAMES`, el canal de
+campo por defecto desde v5.3).
+
+**Lo que se encontró.** `radar_check` llama `qt.quantum_analysis(df, ..., adaptive=True)` -- SÍ
+ejecuta `adaptive_horizon()` (a diferencia del gate QTE legado de `_evaluate_setup_v411` y del QTE
+pre-fusión de `fusion_engine.py`, que corren con `adaptive=False` y por tanto no activan el bug) --
+sin pasar `candle_minutes`. Auditoría completa: solo 2 call sites en todo el repo usan
+`adaptive=True` -- `build_analisis_context` (ya arreglado en §18) y `radar_check`.
+
+**La diferencia con §18.** RADAR no muestra "Horizonte ~Nh" al cliente (`build_tactical_alert`/
+`build_battle_block` no referencian `horizon_hours` en absoluto) -- así que NO es un texto que
+mienta al cliente. Es más serio: `HORIZON_MIN_CANDLES`/`HORIZON_MAX_CANDLES` (24-160, calibrados
+para 6h-40h en velas de 15m) se aplicaban tal cual a velas de 5m, simulando solo 2h-13.3h en vez de
+6h-40h reales. Esa ventana truncada alimenta directo las probabilidades (`p_sl`/`EV`) que
+`battle_planner.build_battle_plan` usa para el veredicto, y que `_should_promote_tactical_to_vip`
+usa para decidir si la alerta llega a clientes VIP -- afectaba la CALIDAD DE LA DECISIÓN del canal
+de campo 5m en producción, no solo un número mostrado.
+
+**El fix.** Nuevo helper genérico `_tf_candle_minutes(tf_id)` (dict `_TF_MINUTES`, fallback 15) en
+`fq_bot_v3_2.py`; `radar_check` pasa `candle_minutes=_tf_candle_minutes(tf_id)` a
+`quantum_analysis`. `ANALISIS_ANCHOR_CANDLE_MINUTES` (§18) se deja como estaba -- ya correcto, sin
+tocar código que funciona.
+
+**Evidencia.** `fq_bot_v3_2.py` (`_TF_MINUTES`, `_tf_candle_minutes`, `radar_check`). Tests:
+`tests/test_radar_candle_minutes.py` (5: helper con TFs conocidos/desconocidos, `radar_check` en
+5m/15m/1m pasa el `candle_minutes` correcto a `quantum_analysis`).
+
+---
+
 ## Resumen
 
 | Decisión | Razonamiento core | Archivos / commits clave | Estado |
