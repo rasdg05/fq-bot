@@ -33,6 +33,10 @@ watchPatterns = [
   # cockpit.html sale "No changes to watched files" -> SKIPPED y el portal nunca se
   # actualiza (pasó con #165: quitar el pie legal quedó desplegado a medias).
   "cockpit.html",
+  # EXCEPCION: tools/cockpit_server.py SI es runtime (el launcher lo lanza como hijo
+  # con FQ_COCKPIT=1, ver launcher.py) -- a diferencia del resto de tools/ (research,
+  # corre en CI), un fix a las rutas del server (p.ej. las guías PDF) debe redeployar.
+  "tools/cockpit_server.py",
 ]
 
 # UN SOLO SERVICIO. El launcher arranca VIP + maintenance siempre, y el bot

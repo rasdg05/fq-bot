@@ -9,6 +9,7 @@ señal"). stdlib puro (http.server), cero dependencias, cero cómputo: sirve DOS
   GET /              -> cockpit.html (la interfaz; archivo estático del repo)
   GET /cockpit.json  -> el JSON que el motor deja caer (cockpit.py, write atómico)
   GET /health        -> ok
+  GET /<guia>.pdf    -> guías gratis (lead magnets), allowlist de MEMORY/marketing/
 
 Puerto: FQ_COCKPIT_PORT > PORT > 8080. En Railway: exponer el puerto en el servicio
 (Settings -> Networking -> Generate Domain) y la URL pública muestra el cockpit.
@@ -23,6 +24,15 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HTML = os.path.join(ROOT, "cockpit.html")
 STATE = os.environ.get("FQ_COCKPIT_PATH") or (
     "/data/cockpit.json" if os.path.isdir("/data") else "data/cockpit.json")
+
+# Guías gratis (lead magnets, PR "plataforma completa"): allowlist explícito de
+# archivos estáticos servidos por su nombre exacto -- nunca por path del cliente,
+# para no abrir un directorio-listing ni traversal.
+MARKETING_DIR = os.path.join(ROOT, "MEMORY", "marketing")
+STATIC_PDFS = {
+    "/guia-3-reglas.pdf": "guia-3-reglas.pdf",
+    "/como-se-construye-una-ventaja.pdf": "como-se-construye-una-ventaja.pdf",
+}
 
 
 class _H(BaseHTTPRequestHandler):
@@ -57,6 +67,12 @@ class _H(BaseHTTPRequestHandler):
                                "application/json")
             elif path == "/health":
                 self._send(200, "ok", "text/plain")
+            elif path in STATIC_PDFS:
+                try:
+                    with open(os.path.join(MARKETING_DIR, STATIC_PDFS[path]), "rb") as fh:
+                        self._send(200, fh.read(), "application/pdf")
+                except FileNotFoundError:
+                    self._send(404, "guía no encontrada", "text/plain")
             else:
                 self._send(404, "not found", "text/plain")
         except Exception:

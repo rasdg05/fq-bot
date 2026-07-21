@@ -99,10 +99,10 @@ body{background:var(--bg);color:var(--text);
 /* sección "cómo obtener acceso" */
 #access{margin-top:16px;border:1px solid var(--line2);border-radius:12px;background:var(--panel2);padding:20px 24px}
 #access .hd{font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:var(--gold);margin-bottom:16px}
-#access .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-bottom:18px}
-#access .step .no{font-size:11px;letter-spacing:.1em;color:var(--goldline);font-weight:700;margin-bottom:6px}
-#access .step h3{font-size:13px;color:var(--text);font-weight:600;margin-bottom:5px;letter-spacing:.02em}
-#access .step p{font-size:11.5px;line-height:1.55;color:var(--text2)}
+#access .steps,#segmentos .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-bottom:18px}
+#access .step .no,#segmentos .step .no{font-size:11px;letter-spacing:.1em;color:var(--goldline);font-weight:700;margin-bottom:6px}
+#access .step h3,#segmentos .step h3{font-size:13px;color:var(--text);font-weight:600;margin-bottom:5px;letter-spacing:.02em}
+#access .step p,#segmentos .step p{font-size:11.5px;line-height:1.55;color:var(--text2)}
 
 /* barra CTA fija (idea de la otra sesión) — slim, elegante, no tapa contenido */
 #stickybar{position:fixed;left:0;right:0;bottom:0;z-index:5;display:flex;align-items:center;
@@ -237,6 +237,83 @@ td:first-child,th:first-child{text-align:left}
   -webkit-mask-image:linear-gradient(180deg,#000 60%,transparent 100%);
           mask-image:linear-gradient(180deg,#000 60%,transparent 100%);}
 @media (prefers-reduced-motion:reduce){#heroart{opacity:.5}}
+
+/* ======== plataforma: nav + secciones nuevas (estructura tipo "producto completo",
+   mismos tokens de marca — hairline dorado, panel oscuro, tipografía mono) ======== */
+#navlinks{display:flex;gap:20px;flex-wrap:wrap;padding:10px 2px;border-bottom:1px solid var(--line2)}
+#navlinks a{font-size:10.5px;letter-spacing:.08em;color:var(--text2);text-decoration:none}
+#navlinks a:hover{color:var(--gold)}
+
+.eyebrow2{font-size:9.5px;letter-spacing:.26em;text-transform:uppercase;color:var(--gold);margin-bottom:9px}
+.h2big{font-size:18px;line-height:1.32;color:var(--text);font-weight:700;letter-spacing:.005em;margin-bottom:8px;max-width:56ch}
+.h2sub{font-size:12px;line-height:1.6;color:var(--text2);max-width:62ch;margin-bottom:16px}
+
+#problema,#dashboard-preview,#segmentos,#manifiesto,#guias,#faq{
+  margin-top:16px;border:1px solid var(--line2);border-radius:12px;background:var(--panel2);padding:22px 24px}
+
+/* ---- tira de prueba (números reales, no vanidad social) ---- */
+#proof{margin-top:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;
+  background:var(--line2);border:1px solid var(--line2);border-radius:12px;overflow:hidden}
+.proofitem{background:var(--panel);padding:16px 18px;display:flex;flex-direction:column;gap:6px}
+.proofitem b{font-size:16px;color:var(--gold);letter-spacing:.02em;font-variant-numeric:tabular-nums}
+.proofitem span{font-size:10.5px;line-height:1.5;color:var(--text2)}
+
+/* ---- contraste de 2 columnas (problema/manifiesto) ---- */
+.split2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.split2 .col{border:1px solid var(--line2);border-radius:10px;padding:16px 18px;background:var(--panel)}
+.split2 .col.bad{border-top:2px solid rgba(224,94,94,.45)}
+.split2 .col.good{border-top:2px solid var(--goldline)}
+.split2 .colhd{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--text2);margin-bottom:10px}
+.split2 .col.good .colhd{color:var(--gold)}
+.split2 ul{list-style:none}
+.split2 li{font-size:12px;line-height:1.6;color:var(--text2);padding-left:14px;position:relative;margin-bottom:8px}
+.split2 li:before{content:"–";position:absolute;left:0;color:var(--muted)}
+.split2 .col.good li:before{content:"·";color:var(--goldline);font-weight:700}
+
+/* ---- pill-nav de la vista previa del motor (tabs a secciones ya vivas) ---- */
+.pillnav{display:flex;gap:9px;flex-wrap:wrap;margin-top:6px}
+.pillnav a{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text2);
+  border:1px solid var(--line);border-radius:999px;padding:8px 15px;text-decoration:none;
+  transition:color .15s ease,border-color .15s ease,background .15s ease}
+.pillnav a:hover{color:var(--gold);border-color:rgba(212,175,55,.5);background:var(--golddim)}
+
+/* ---- guías gratis (lead magnets reales, descarga directa) ---- */
+.guiagrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.guiacard{display:block;border:1px solid var(--line2);border-radius:10px;background:var(--panel);
+  padding:18px 20px;text-decoration:none;transition:transform .15s ease,border-color .15s ease}
+.guiacard:hover{transform:translateY(-2px);border-color:rgba(201,162,39,.4)}
+.gtag{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.guiacard h3{font-size:14px;color:var(--text);font-weight:700;margin-bottom:6px;letter-spacing:.01em}
+.guiacard p{font-size:11.5px;line-height:1.55;color:var(--text2);margin-bottom:10px}
+.glink{font-size:10.5px;letter-spacing:.08em;color:var(--gold);font-weight:600}
+
+/* ---- FAQ (details/summary nativos, sin JS) ---- */
+.faqlist{display:flex;flex-direction:column;gap:2px}
+#faq details{margin:0;padding:14px 2px;border-bottom:1px solid var(--line2);color:var(--text2);font-size:12px}
+#faq details:last-child{border-bottom:none}
+#faq summary{font-size:12.5px;letter-spacing:.01em;text-transform:none;color:var(--text);font-weight:600;
+  cursor:pointer;list-style:none}
+#faq summary::-webkit-details-marker{display:none}
+#faq summary:before{content:"+ ";color:var(--gold);font-weight:700}
+#faq details[open] summary:before{content:"– "}
+#faq details p{margin-top:8px;line-height:1.6;padding-left:14px}
+
+/* ---- footer ---- */
+#sitefoot{margin-top:28px;border-top:1px solid var(--line2);padding-top:22px}
+.footcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:20px;margin-bottom:18px}
+.footbrand{font-size:14px;font-weight:700;letter-spacing:.2em;color:var(--text)}
+.footbrand b{color:var(--gold)}
+.footcol p{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5}
+.foothd{font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin-bottom:9px}
+.footcol a{display:block;font-size:11.5px;color:var(--text2);text-decoration:none;margin-bottom:7px}
+.footcol a:hover{color:var(--gold)}
+.footlegal{display:flex;flex-direction:column;gap:2px;border-top:1px solid var(--line2);padding-top:6px;margin-bottom:14px}
+.footlegal details{padding:10px 2px;border-bottom:1px solid var(--line2);font-size:10.5px;color:var(--text2)}
+.footlegal details:last-child{border-bottom:none}
+.footlegal summary{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--text2);cursor:pointer;list-style:none}
+.footlegal summary::-webkit-details-marker{display:none}
+.footlegal p{margin-top:7px;line-height:1.6}
+.footbottom{font-size:8.6px;color:var(--muted);letter-spacing:.03em}
 </style>
 </head>
 <body data-palette="#c9a227,#21c96b,#e05e5e">
@@ -278,6 +355,14 @@ td:first-child,th:first-child{text-align:left}
   </div>
 </div>
 
+<nav id="navlinks" aria-label="Secciones">
+  <a href="#problema">Por qué FQ</a>
+  <a href="#dashboard-preview">El motor en vivo</a>
+  <a href="#segmentos">Para quién es</a>
+  <a href="#guias">Guías gratis</a>
+  <a href="#faq">Preguntas</a>
+</nav>
+
 <div id="pitch" class="reveal">
   <div class="txt">
     <div class="eyebrow">Motor de señales · cripto perpetuos · en vivo</div>
@@ -289,6 +374,50 @@ td:first-child,th:first-child{text-align:left}
   <div class="acts">
     <a class="cta gold" data-tg href="#" target="_blank" rel="noopener">Únete gratis en Telegram →</a>
     <a class="cta ghost" data-tg href="#" target="_blank" rel="noopener">Planes VIP</a>
+  </div>
+</div>
+
+<div id="proof" class="reveal">
+  <div class="proofitem"><b>DSR&nbsp;&gt;&nbsp;0.95</b><span>Gate anti-sobreajuste (Deflated Sharpe, López de Prado) — ninguna ventaja toca capital sin pasarlo</span></div>
+  <div class="proofitem"><b>+0.27R · +0.34R</b><span>Uplift de order-flow (CVD) medido <i>forward</i>, SOL y BTC, sobre 5 años de datos tick</span></div>
+  <div class="proofitem"><b>DSR 0.997</b><span>Persistencia de flujo (F2) en BTC, re-confirmada con 44 pruebas independientes</span></div>
+  <div class="proofitem"><b>Medida o muerte</b><span>Lo que no aguanta el gate se descarta y se documenta como muerto — no se reintenta a ciegas</span></div>
+</div>
+
+<div id="problema" class="reveal">
+  <div class="eyebrow2">El problema real</div>
+  <h2 class="h2big">La mayoría de las "señales" de cripto no se pueden auditar.</h2>
+  <div class="split2">
+    <div class="col bad">
+      <div class="colhd">Lo que ves en un grupo cualquiera</div>
+      <ul>
+        <li>Te gritan "compra" o "vende" sin mostrar el porqué.</li>
+        <li>La cuenta solo publica las operaciones que ganaron.</li>
+        <li>La convicción sale de la "sensación de mercado", no de un dato verificable.</li>
+        <li>Ninguna estrategia sobrevive el mismo mes dos veces — y nadie lo dice.</li>
+      </ul>
+    </div>
+    <div class="col good">
+      <div class="colhd">Lo que hace FQ distinto</div>
+      <ul>
+        <li>Cada señal trae su régimen (KL), su order-flow (CVD) y su funding, visibles antes de decidir.</li>
+        <li>El motor no filtra su propio registro: fires y vetos quedan a la vista, en vivo, aquí abajo.</li>
+        <li>Ninguna ventaja entra a producción sin pasar <b>DSR&nbsp;&gt;&nbsp;0.95 · CPCV · PBO</b>.</li>
+        <li>Lo que no pasa el gate se descarta con la misma disciplina con la que se acepta lo que sí pasa.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div id="dashboard-preview" class="reveal">
+  <div class="eyebrow2">Vista previa del motor</div>
+  <h2 class="h2big">No son capturas de pantalla. Es el motor decidiendo, aquí mismo.</h2>
+  <p class="h2sub">Cuatro vistas del mismo motor en vivo — sin actor, sin retoque.</p>
+  <div class="pillnav">
+    <a href="#nnwrap">Flujo de decisión</a>
+    <a href="#grid">Panel en vivo</a>
+    <a href="#logwrap">Registro de decisiones</a>
+    <a href="#eqwrap">Curva del fantasma</a>
   </div>
 </div>
 
@@ -315,6 +444,44 @@ td:first-child,th:first-child{text-align:left}
   <canvas id="eqc"></canvas>
 </div>
 
+<div id="segmentos" class="reveal">
+  <div class="eyebrow2">Para quién es esto</div>
+  <h2 class="h2big">Construido para quien ya opera — no para quien busca un milagro.</h2>
+  <div class="steps">
+    <div class="step"><div class="no">Ya operas perpetuos</div><h3>Demasiadas pestañas, una sola decisión</h3>
+      <p>TradingView, Twitter, Discord — armas la lectura a mano cada vez. El motor ya cruzó order-flow, régimen y funding antes de que abras el gráfico.</p></div>
+    <div class="step"><div class="no">Vienes de grupos de señales</div><h3>Ya no confías en nadie, con razón</h3>
+      <p>Te prometieron rentabilidad y nunca mostraron el fracaso. Aquí el registro muestra fires <b>y</b> vetos, en vivo, sin editar.</p></div>
+    <div class="step"><div class="no">Te interesa el motor, no solo la señal</div><h3>Quieres ver cómo se valida una ventaja real</h3>
+      <p>Cada estrategia documentada con su gate estadístico (DSR·CPCV·PBO), medida <i>forward</i> antes de creerse — measure-first como disciplina de ingeniería.</p></div>
+  </div>
+</div>
+
+<div id="manifiesto" class="reveal">
+  <div class="eyebrow2">Para que quede claro</div>
+  <h2 class="h2big">No es señales. Es un motor que se puede auditar.</h2>
+  <div class="split2">
+    <div class="col bad">
+      <div class="colhd">FQ no es</div>
+      <ul>
+        <li>Un grupo que grita "compra/vende" sin mostrar el porqué.</li>
+        <li>Predicciones de IA sobre el precio futuro.</li>
+        <li>Una comunidad de gurús con capturas de ganancias sueltas.</li>
+        <li>Rentabilidad garantizada — nadie puede prometerla, con o sin datos.</li>
+      </ul>
+    </div>
+    <div class="col good">
+      <div class="colhd">FQ sí es</div>
+      <ul>
+        <li>Un motor de reglas con régimen, order-flow y funding visibles en cada señal.</li>
+        <li>Un gate estadístico (DSR·CPCV·PBO) que decide qué ventaja sobrevive.</li>
+        <li>Un registro de decisiones en vivo — fires y vetos, sin retoque.</li>
+        <li>Disciplina medida <i>forward</i>, antes de creer cualquier número.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
 <div id="access" class="reveal">
   <div class="hd">Cómo obtener acceso</div>
   <div class="steps">
@@ -326,6 +493,47 @@ td:first-child,th:first-child{text-align:left}
       <p>Filtro KL de calidad + convicción por φ y order-flow, con TP escalonados y tamaño sugerido.</p></div>
   </div>
   <a class="cta gold" data-tg href="#" target="_blank" rel="noopener">Empezar gratis en Telegram →</a>
+</div>
+
+<div id="guias" class="reveal">
+  <div class="eyebrow2">Guías gratis</div>
+  <h2 class="h2big">Antes de operar nada, lee esto.</h2>
+  <p class="h2sub">Sin correo, sin registro. Descarga directa — o pídelas dentro del bot.</p>
+  <div class="guiagrid">
+    <a class="guiacard" href="/guia-3-reglas.pdf" target="_blank" rel="noopener">
+      <div class="gtag">PDF · 10 min</div>
+      <h3>Por qué sigues perdiendo</h3>
+      <p>Las 3 reglas que separan a quien mide de quien improvisa. La guía corta, directa al punto.</p>
+      <span class="glink">Descargar guía →</span>
+    </a>
+    <a class="guiacard" href="/como-se-construye-una-ventaja.pdf" target="_blank" rel="noopener">
+      <div class="gtag">PDF · lectura profunda</div>
+      <h3>Cómo se construye una ventaja</h3>
+      <p>El marco measure-first completo: por qué un filtro apaga señales, y cómo se audita un motor real.</p>
+      <span class="glink">Descargar guía →</span>
+    </a>
+  </div>
+</div>
+
+<div id="faq" class="reveal">
+  <div class="eyebrow2">Preguntas frecuentes</div>
+  <h2 class="h2big">Lo que preguntarías antes de confiar en un motor.</h2>
+  <div class="faqlist">
+    <details><summary>¿Qué es FQ Capital?</summary>
+      <p>Un motor de señales para perpetuos cripto que solo dispara cuando su ventaja pasó un gate estadístico estricto. Cada señal muestra la lógica que la generó: régimen, order-flow y funding.</p></details>
+    <details><summary>¿Esto reemplaza al bot de Telegram?</summary>
+      <p>No. El motor y los canales FREE/VIP siguen exactamente igual. Esta página es una ventana pública a cómo decide el motor, no un producto aparte.</p></details>
+    <details><summary>¿Es un servicio de señales como cualquier otro?</summary>
+      <p>No en el sentido de "confía en mí". Cada ventaja se mide <i>forward</i> antes de creerse, y lo que no pasa el gate se descarta y se documenta — no se esconde ni se reintenta en silencio.</p></details>
+    <details><summary>¿Qué significan DSR, CPCV y PBO?</summary>
+      <p>Son las pruebas que corrigen el sesgo de "probé 50 variantes y me quedé con la que brilló" (multiple-testing). El DSR (Deflated Sharpe Ratio) descuenta ese sobreajuste; CPCV y PBO confirman que la ventaja no depende de una sola partición de los datos.</p></details>
+    <details><summary>¿Garantizan ganancias?</summary>
+      <p>No. Ninguna estrategia, por bien medida que esté, garantiza resultados futuros. Operar derivados cripto con apalancamiento conlleva riesgo real de pérdida total de capital.</p></details>
+    <details><summary>¿Cómo empiezo?</summary>
+      <p>Gratis, en Telegram, sin tarjeta. Recibes todas las señales del motor con su lógica visible; el VIP añade el filtro de calidad y la gestión escalonada de TPs.</p></details>
+    <details><summary>¿Puedo ver al motor fallar, no solo acertar?</summary>
+      <p>Sí — es el punto. El registro de decisiones más arriba muestra fires y vetos en tiempo real, sin editar ni retocar.</p></details>
+  </div>
 </div>
 
 <div id="closer" class="reveal">
@@ -341,6 +549,41 @@ td:first-child,th:first-child{text-align:left}
     futuros.
   </div>
 </div>
+
+<footer id="sitefoot">
+  <div class="footcols">
+    <div class="footcol">
+      <div class="footbrand">F<b>Q</b> CAPITAL</div>
+      <p>Mesa de liquidez institucional · perpetuos cripto.</p>
+    </div>
+    <div class="footcol">
+      <div class="foothd">Sitio</div>
+      <a href="#problema">Por qué FQ</a>
+      <a href="#dashboard-preview">El motor en vivo</a>
+      <a href="#guias">Guías gratis</a>
+      <a href="#faq">Preguntas</a>
+    </div>
+    <div class="footcol">
+      <div class="foothd">Contacto</div>
+      <a data-tg href="#" target="_blank" rel="noopener">Hablar por Telegram</a>
+    </div>
+  </div>
+  <div class="footlegal">
+    <details><summary>Aviso de riesgo</summary>
+      <p>El trading de criptomonedas con apalancamiento conlleva alto riesgo — puedes perder todo tu capital.
+      FQ no es asesoría financiera; las señales son informativas y operas bajo tu propia responsabilidad.
+      Rendimientos pasados no garantizan resultados futuros. Opera solo capital que puedas permitirte perder.</p></details>
+    <details><summary>Términos de servicio</summary>
+      <p>El acceso VIP es personal e intransferible. Las señales no constituyen una recomendación de inversión.
+      No se garantiza disponibilidad ininterrumpida del servicio. El reembolso se evalúa caso por caso dentro
+      de las primeras 48 horas. El uso continuado del servicio implica la aceptación de estos términos.</p></details>
+    <details><summary>Privacidad</summary>
+      <p>Guardamos tu identificador de Telegram, tu estado de suscripción y tu historial de pagos — nada más.
+      No vendemos ni compartimos tus datos con terceros; se usan solo para operar tu acceso al servicio. Puedes
+      solicitar la baja y el borrado escribiendo /desuscribir dentro del bot.</p></details>
+  </div>
+  <div class="footbottom">© 2026 FQ CAPITAL. Contenido educativo/informativo — no constituye asesoría de inversión.</div>
+</footer>
 
 </div>
 

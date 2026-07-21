@@ -67,3 +67,29 @@ def test_server_sirve_html_json_health(tmp_path, monkeypatch):
         assert r2.status == 200 and b"FQ CAPITAL" in r2.read()   # marca institucional
     finally:
         httpd.shutdown()
+
+
+def test_server_sirve_guias_pdf_por_allowlist():
+    """Las 2 guías gratis (lead magnets) se sirven por nombre exacto, no por path
+    del cliente -- y cualquier otro .pdf pedido da 404 (sin listar el directorio)."""
+    import importlib
+    import tools.cockpit_server as srv
+    importlib.reload(srv)
+    httpd = __import__("http.server", fromlist=["ThreadingHTTPServer"]).ThreadingHTTPServer(
+        ("127.0.0.1", 0), srv._H)
+    t = threading.Thread(target=httpd.serve_forever, daemon=True)
+    t.start()
+    base = "http://127.0.0.1:%d" % httpd.server_address[1]
+    try:
+        for name in ("guia-3-reglas.pdf", "como-se-construye-una-ventaja.pdf"):
+            r = urllib.request.urlopen(base + "/" + name, timeout=5)
+            assert r.status == 200
+            assert r.headers.get("Content-Type") == "application/pdf"
+            assert r.read(4) == b"%PDF"
+        try:
+            urllib.request.urlopen(base + "/otro-archivo.pdf", timeout=5)
+            assert False, "un pdf fuera del allowlist no deberia servirse"
+        except urllib.error.HTTPError as e:
+            assert e.code == 404
+    finally:
+        httpd.shutdown()
