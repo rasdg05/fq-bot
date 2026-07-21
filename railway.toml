@@ -37,6 +37,9 @@ watchPatterns = [
   # con FQ_COCKPIT=1, ver launcher.py) -- a diferencia del resto de tools/ (research,
   # corre en CI), un fix a las rutas del server (p.ej. las guías PDF) debe redeployar.
   "tools/cockpit_server.py",
+  # EXCEPCION: tools/analysis_feeder.py SI es runtime (hijo con FQ_ANALYSIS_EXTRA=1):
+  # la capa de observación oro/Nasdaq del portal. Un fix suyo debe redeployar.
+  "tools/analysis_feeder.py",
 ]
 
 # UN SOLO SERVICIO. El launcher arranca VIP + maintenance siempre, y el bot

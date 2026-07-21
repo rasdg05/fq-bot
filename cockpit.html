@@ -150,6 +150,7 @@ body{background:var(--bg);color:var(--text);
 .tier{font-size:8.5px;letter-spacing:.22em;color:var(--gold);border:1px solid var(--line);
   padding:2px 8px;text-transform:uppercase}
 .tier.lab{color:var(--muted);border-color:var(--line2)}
+.tier.ana{color:var(--sol2);border-color:rgba(20,241,149,.32)}
 .inst .px{margin-left:auto;font-size:19px;font-weight:700;font-variant-numeric:tabular-nums}
 .inst .dx{font-size:11.5px;font-variant-numeric:tabular-nums}
 .inst .dx .chglab{color:var(--muted);font-size:9px;margin-left:4px;letter-spacing:.06em;font-variant-numeric:normal}
@@ -508,7 +509,7 @@ td:first-child,th:first-child{text-align:left}
 
 <div id="gridhint" class="reveal">Toca cualquier instrumento para su análisis a fondo.</div>
 <div id="grid" class="reveal"></div>
-<div id="roadmapnote" class="reveal">Próximamente en el panel: <b>oro (XAU)</b> y <b>Nasdaq 100</b> — ya validados en research (walk-forward), en cola para conectarse al panel en vivo. No los mostramos hasta que su dato sea real.</div>
+<div id="roadmapnote" class="reveal"><b>Oro</b> y <b>Nasdaq 100</b> entran como instrumentos en <b>observación</b>: les leemos el mercado con las mismas herramientas que a cripto — sentimiento y apalancamiento en vivo — sin emitir señales automáticas. Dato real de OKX y MEXC, no un simulacro.</div>
 
 <div id="logwrap" class="reveal">
   <div class="lt"><h2>REGISTRO DE DECISIONES DEL MOTOR</h2><span class="cur"></span></div>
@@ -801,11 +802,26 @@ function demoInit(){
       spark:Array.from({length:48},()=>px[s]),irrev:0.2+Math.random()*0.35,
       funding_pctl:Math.random(),counts:{fire:0,opened:0,vetoed:0},open:0,killzone:"london_open_kz"};
   }
+  // instrumentos de análisis (oro/Nasdaq): observación, no señales
+  const ax={XAU:{p:4088,d:"Oro · XAU"},NAS100:{p:29118,d:"Nasdaq 100"}};
+  for(const s in ax){
+    demoState.symbols[s]={analysis:true,display:ax[s].d,price:ax[s].p,
+      spark:Array.from({length:48},()=>ax[s].p),irrev:0.1+Math.random()*0.3,
+      funding_pctl:Math.random()};
+  }
 }
 function demoTick(){
   const kz=["asia_kz","london_open_kz","silver_bullet_lo","ny_am_kz","silver_bullet_ny_pm","fuera"];
-  for(const s of SYMS_DEFAULT){
+  for(const s in demoState.symbols){
     const st=demoState.symbols[s];
+    if(st.analysis){                    // análisis: solo mueve precio/medidores, sin señales
+      st.price*=(1+(Math.random()-0.5)*0.0022);
+      st.spark.push(st.price);st.spark=st.spark.slice(-48);
+      st.irrev=Math.min(.95,Math.max(.02,st.irrev+(Math.random()-.5)*.04));
+      st.funding_pctl=Math.min(.99,Math.max(.01,st.funding_pctl+(Math.random()-.5)*.04));
+      st.chg_24h=(st.price/st.spark[0]-1)*100;
+      st.updated=Date.now()/1e3; continue;
+    }
     st.price*=(1+(Math.random()-0.5)*0.0032);
     st.spark.push(st.price);st.spark=st.spark.slice(-48);
     st.irrev=Math.min(.95,Math.max(.02,st.irrev+(Math.random()-.5)*.05));
@@ -835,7 +851,7 @@ const kzLabel=k=>KZ_ES[k]||k||"—";
 function instCard(sym){
   const el=document.createElement("div");el.className="inst";el.id="c-"+sym;
   el.innerHTML=`
-   <div class="hd"><span class="nm">${sym}<span style="color:var(--muted)">/USDT</span></span>
+   <div class="hd"><span class="nm" id="nm-${sym}">${sym}<span style="color:var(--muted)">/USDT</span></span>
      <span class="tier" id="tr-${sym}"></span>
      <span class="px" id="p-${sym}">—</span></div>
    <div class="kzrow"><span class="dx" id="d-${sym}"></span><span class="kz" id="kz-${sym}" style="margin-left:auto">—</span></div>
@@ -850,7 +866,7 @@ function instCard(sym){
      <div class="notch" style="left:50%"></div><div class="notch" style="left:70%"></div>
      <div class="pin" id="fp-${sym}" style="left:50%"></div></div>
    <div class="verdict" id="fst-${sym}">leyendo apalancamiento…</div>
-   <div class="foot"><span>señales <b id="cf-${sym}">0</b></span><span>aperturas <b id="co-${sym}">0</b></span>
+   <div class="foot" id="foot-${sym}"><span>señales <b id="cf-${sym}">0</b></span><span>aperturas <b id="co-${sym}">0</b></span>
      <span>suprimidas <b id="cv-${sym}">0</b></span><span>vivas <b id="cl-${sym}">0</b></span>
      <span class="more" style="margin-left:auto">Ver detalle →</span></div>`;
   el.tabIndex=0; el.setAttribute("role","button");
@@ -889,16 +905,28 @@ function render(d){
         +(is24?'<span class="chglab">24h</span>':'');
         P("d").className="dx "+(ch>=0?"up":"dn");}
     }
-    P("kz").textContent=kzLabel(st.killzone);
+    P("kz").textContent=st.analysis?"Observación":kzLabel(st.killzone);
     const tr=P("tr");
-    if(st.vip===false){tr.textContent="LABORATORIO";tr.className="tier lab";}
+    if(st.analysis){tr.textContent="ANÁLISIS";tr.className="tier ana";}
+    else if(st.vip===false){tr.textContent="LABORATORIO";tr.className="tier lab";}
     else if(st.vip===true){tr.textContent="PRODUCCIÓN";tr.className="tier";}
+    // instrumentos de análisis: nombre amable (Oro/Nasdaq), sin contadores de señal
+    const nm=P("nm");
+    if(nm){ if(st.analysis&&st.display) nm.textContent=st.display;
+      else nm.innerHTML=s+'<span style="color:var(--muted)">/USDT</span>'; }
+    const foot=P("foot");
+    if(foot&&st.analysis&&!foot.dataset.ana){
+      foot.dataset.ana="1";
+      foot.innerHTML='<span style="color:var(--muted)">Solo análisis · sin señal automática</span>'
+        +'<span class="more" style="margin-left:auto">Ver detalle →</span>';
+    }
     spark(P("sp"),st.spark);
     if(st.irrev!=null){
       P("iv").textContent=st.irrev.toFixed(3);
       P("ip").style.left=(Math.min(st.irrev,1)*100)+"%";
-      P("ist").innerHTML=st.irrev<=0.34?"<b>EN RANGO ✓</b> — el mercado va y viene, terreno claro para el motor"
-                                        :"<b>TENDENCIA FUERTE △</b> — el mercado corre parejo, mejor cautela";
+      P("ist").innerHTML=st.irrev<=0.34
+        ?("<b>EN RANGO ✓</b> — el mercado va y viene, "+(st.analysis?"sin dirección dominante":"terreno claro para el motor"))
+        :"<b>TENDENCIA FUERTE △</b> — el mercado corre parejo, mejor cautela";
     }
     if(st.funding_pctl!=null){
       P("fv").textContent=st.funding_pctl.toFixed(2);
@@ -906,9 +934,12 @@ function render(d){
       P("fst").innerHTML=st.funding_pctl<=0.5?"frío → <b>viento de cola del LONG ✓</b>"
         :st.funding_pctl>=0.7?"caliente → <b>combustible del SHORT ✓</b>":"zona <b>neutra</b> — sin sesgo";
     }
-    const c=st.counts||{};
-    P("cf").textContent=c.fire||0;P("co").textContent=c.opened||0;
-    P("cv").textContent=c.vetoed||0;P("cl").textContent=st.open||0;
+    // instrumentos de análisis no tienen contadores de señal (el foot se reemplazó)
+    if(!st.analysis){
+      const c=st.counts||{};
+      P("cf").textContent=c.fire||0;P("co").textContent=c.opened||0;
+      P("cv").textContent=c.vetoed||0;P("cl").textContent=st.open||0;
+    }
   }
   renderTape(syms,d);
   renderLog(d,syms);
@@ -927,8 +958,8 @@ function narr(st){
   const S=[];
   if(st.irrev!=null){
     S.push(st.irrev<=0.34
-      ? "El mercado <b>va y viene dentro de un rango</b> — terreno donde el motor encuentra sus mejores lecturas."
-      : "El mercado está en <b>tendencia fuerte</b>, corriendo parejo — el filtro de calidad se pone más exigente.");
+      ? "El mercado <b>va y viene dentro de un rango</b> — sin una dirección dominante clara."
+      : "El mercado está en <b>tendencia fuerte</b>, corriendo parejo en una dirección.");
   }
   if(st.funding_pctl!=null){
     S.push(st.funding_pctl<=0.5
@@ -937,53 +968,57 @@ function narr(st){
       ? "Los apalancados están <b>calientes</b>: exceso de largos pagando de más, combustible para una corrección."
       : "El apalancamiento está en <b>zona neutra</b>, sin un sesgo claro por ahora.");
   }
-  const fires=(st.counts&&st.counts.fire)||0;
-  S.push(fires>0
-    ? ("El motor disparó <b>"+fires+"</b> "+(fires===1?"señal":"señales")+" en esta sesión.")
-    : "El motor <b>no ha disparado</b> en esta sesión — normal cuando no hay una ventaja clara. La plataforma sigue midiendo.");
+  if(st.analysis){
+    S.push("Instrumento en <b>observación</b> — leemos su contexto con las mismas herramientas que cripto, sin emitir señales automáticas.");
+  }else{
+    const fires=(st.counts&&st.counts.fire)||0;
+    S.push(fires>0
+      ? ("El motor disparó <b>"+fires+"</b> "+(fires===1?"señal":"señales")+" en esta sesión.")
+      : "El motor <b>no ha disparado</b> en esta sesión — normal cuando no hay una ventaja clara. La plataforma sigue midiendo.");
+  }
   return S.join(" ");
 }
 function renderDetail(d,sym){
   const st=(d.symbols||{})[sym]; if(!st) return;
   const body=document.getElementById("detailbody");
+  const name=st.analysis&&st.display?st.display:sym+'<span>/USDT</span>';
   const chg=st.chg_24h!=null?st.chg_24h:(st.spark&&st.spark.length>1&&st.spark[0]?(st.price-st.spark[0])/st.spark[0]*100:null);
-  const tier=st.vip===false?'<span class="tier lab">LABORATORIO</span>':'<span class="tier">PRODUCCIÓN</span>';
+  const tier=st.analysis?'<span class="tier ana">ANÁLISIS</span>'
+    :st.vip===false?'<span class="tier lab">LABORATORIO</span>':'<span class="tier">PRODUCCIÓN</span>';
   const reading=st.reading?('<p>'+st.reading+'</p><div class="rsrc">Lectura del motor · '+sym+'</div>')
     :('<p>'+narr(st)+'</p><div class="rsrc">Lectura automática del dato en vivo — sin opinión humana ni predicción.</div>');
   const evs=(d.events||[]).filter(e=>e.sym===sym).slice(-6).reverse();
-  const evHtml=evs.length?evs.map(e=>{
+  const evHtml=evs.length?('<div class="devents">'+evs.map(e=>{
     const t=new Date((e.t||0)*1000).toLocaleTimeString("es-MX",{hour12:false});
     const K={read:"LECTURA",fire:"SEÑAL",open:"APERTURA",veto:"VETO",close:"CIERRE"};
     return '<div class="del '+e.kind+'"><span class="dt">'+t+'</span> · <span class="dk">'+(K[e.kind]||e.kind.toUpperCase())+'</span> · '+e.text+'</div>';
-  }).join(''):'<div class="dempty">Sin eventos recientes para este instrumento.</div>';
+  }).join('')+'</div>'):'';
+  const sess=st.analysis?'Observación · sin señales':kzLabel(st.killzone);
+  const cta=st.analysis
+    ? '<a class="cta gold" data-tg href="#" target="_blank" rel="noopener">Recibir análisis y señales en Telegram →</a>'
+    : '<a class="cta gold" data-tg href="#" target="_blank" rel="noopener">Recibir señales de '+sym+' en Telegram →</a>';
   const iv=st.irrev, fv=st.funding_pctl;
   body.innerHTML=`
-    <div class="dhd"><span class="dnm" id="dtitle">${sym}<span>/USDT</span></span> ${tier}
+    <div class="dhd"><span class="dnm" id="dtitle">${name}</span> ${tier}
       <span class="dpx">$${fmtP(st.price)}</span></div>
     <div class="dsub">
       ${chg!=null?'<span class="ddx '+(chg>=0?'up':'dn')+'">'+(chg>=0?'▲ ':'▼ ')+Math.abs(chg).toFixed(2)+'% 24h</span>':''}
-      <span class="dsess" style="margin-left:auto">${kzLabel(st.killzone)}</span></div>
+      <span class="dsess" style="margin-left:auto">${sess}</span></div>
     <canvas id="dchart"></canvas>
     <div class="dread"><div class="rl">Lectura FQ</div>${reading}</div>
     <div class="dmetrics">
       <div class="dm"><div class="dmt"><span>Sentimiento del mercado</span><b>${iv!=null?iv.toFixed(3):'—'}</b></div>
         <div class="dtrack"><div class="dzone" style="left:0;width:34%;background:var(--up);opacity:.3"></div>
           <div class="dpin" style="left:${iv!=null?pct(iv):0}%"></div></div>
-        <div class="dexp">${iv==null?'Calibrando…':iv<=0.34?'<b>En rango</b> — va y viene, terreno del motor.':'<b>Tendencia fuerte</b> — corre parejo, más cautela.'}</div></div>
+        <div class="dexp">${iv==null?'Calibrando…':iv<=0.34?'<b>En rango</b> — va y viene, sin dirección dominante.':'<b>Tendencia fuerte</b> — corre parejo, más cautela.'}</div></div>
       <div class="dm"><div class="dmt"><span>Termómetro de apalancados</span><b>${fv!=null?fv.toFixed(2):'—'}</b></div>
         <div class="dtrack"><div class="dzone" style="left:0;width:50%;background:var(--goldline);opacity:.3"></div>
           <div class="dzone" style="left:70%;width:30%;background:var(--dn);opacity:.3"></div>
           <div class="dpin" style="left:${fv!=null?pct(fv):50}%"></div></div>
         <div class="dexp">${fv==null?'Leyendo…':fv<=0.5?'<b>Fríos</b> — viento de cola para largos.':fv>=0.7?'<b>Calientes</b> — combustible para cortos.':'<b>Neutro</b> — sin sesgo.'}</div></div>
     </div>
-    <div class="dcounts">
-      <div class="dc"><s>Señales</s><b>${(st.counts&&st.counts.fire)||0}</b></div>
-      <div class="dc"><s>Aperturas</s><b>${(st.counts&&st.counts.opened)||0}</b></div>
-      <div class="dc"><s>Suprimidas</s><b>${(st.counts&&st.counts.vetoed)||0}</b></div>
-      <div class="dc"><s>Vivas</s><b>${st.open||0}</b></div>
-    </div>
-    <div class="devents">${evHtml}</div>
-    <a class="cta gold" data-tg href="#" target="_blank" rel="noopener">Recibir señales de ${sym} en Telegram →</a>
+    ${evHtml}
+    ${cta}
     <div class="dnote">Contenido educativo/informativo — no es asesoría de inversión.</div>`;
   setCTAs((_lastData||{}).bot);         // re-enlaza el CTA recién inyectado
   const cv=document.getElementById("dchart"); if(cv) spark(cv,st.spark);

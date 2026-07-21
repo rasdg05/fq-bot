@@ -121,6 +121,31 @@ def test_server_sirve_guias_pdf_por_allowlist():
         httpd.shutdown()
 
 
+def test_server_mezcla_analisis_extra(tmp_path, monkeypatch):
+    """El /cockpit.json = motor (cripto) + análisis (oro/Nasdaq) mezclados. El feeder
+    de análisis vive en OTRO proceso/archivo; si no está, se sirve solo el motor."""
+    import importlib
+    state_p = tmp_path / "cockpit.json"
+    extra_p = tmp_path / "cockpit_extra.json"
+    state_p.write_text(json.dumps({"symbols": {"SOL": {"price": 150.0, "vip": True}},
+                                   "events": []}))
+    extra_p.write_text(json.dumps({"symbols": {"XAU": {"analysis": True, "price": 4088.0,
+                                                        "display": "Oro · XAU"}}}))
+    monkeypatch.setenv("FQ_COCKPIT_PATH", str(state_p))
+    monkeypatch.setenv("FQ_ANALYSIS_EXTRA_PATH", str(extra_p))
+    import tools.cockpit_server as srv
+    importlib.reload(srv)
+    merged = srv._merged_state()
+    assert "SOL" in merged["symbols"] and "XAU" in merged["symbols"]
+    assert merged["symbols"]["XAU"]["analysis"] is True
+    assert merged["symbols"]["SOL"]["price"] == 150.0
+    # sin archivo extra -> solo motor, sin reventar
+    extra_p.unlink()
+    importlib.reload(srv)
+    merged2 = srv._merged_state()
+    assert "SOL" in merged2["symbols"] and "XAU" not in merged2["symbols"]
+
+
 def test_server_post_waitlist_y_get_verify(tmp_path, monkeypatch):
     """El flujo completo contra el server real: POST /waitlist guarda (sin
     API key de Resend no manda correo pero tampoco revienta), y GET /verify

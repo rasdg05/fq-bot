@@ -27,6 +27,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HTML = os.path.join(ROOT, "cockpit.html")
 STATE = os.environ.get("FQ_COCKPIT_PATH") or (
     "/data/cockpit.json" if os.path.isdir("/data") else "data/cockpit.json")
+# Capa de ANÁLISIS (oro/Nasdaq, no señales) — la escribe tools/analysis_feeder.py en
+# OTRO proceso. Se MEZCLA aquí al servir: el motor y el feeder nunca comparten estado,
+# así por la interfaz jamás se cae la señal. Si el archivo no está, se sirve solo el motor.
+EXTRA = os.environ.get("FQ_ANALYSIS_EXTRA_PATH") or (
+    "/data/cockpit_extra.json" if os.path.isdir("/data") else "data/cockpit_extra.json")
 
 # waitlist.py vive en la raíz del repo, no en tools/ -- al correr este archivo
 # directo (python tools/cockpit_server.py, como lo lanza launcher.py) sys.path[0]
@@ -49,6 +54,34 @@ STATIC_PDFS = {
 
 # mismo handle del bot que usan cockpit.html/cockpit.py para los CTA del embudo.
 _BOT = os.environ.get("FQ_VIP_BOT_USERNAME", "").strip().lstrip("@")
+
+
+def _merged_state():
+    """Estado del panel = motor (cripto, cockpit.json) + análisis (oro/Nasdaq,
+    cockpit_extra.json), mezclados al servir. Desacoplado y defensivo: si el motor
+    aún no escribe, base vacía; si el feeder de análisis no está, se omite. Un
+    archivo corrupto de una capa jamás tumba la otra."""
+    state = {"symbols": {}, "events": [], "note": "sin telemetría aún"}
+    try:
+        with open(STATE) as fh:
+            base = json.load(fh)
+        if isinstance(base, dict):
+            state = base
+            state.setdefault("symbols", {})
+            state.setdefault("events", [])
+    except Exception:
+        pass
+    try:
+        with open(EXTRA) as fh:
+            extra = json.load(fh)
+        exs = (extra or {}).get("symbols") or {}
+        if exs:
+            # el análisis se suma; no pisa un símbolo del motor si por algo coincidiera
+            for k, v in exs.items():
+                state["symbols"].setdefault(k, v)
+    except Exception:
+        pass
+    return state
 
 
 def _verify_page(status):
@@ -113,13 +146,7 @@ class _H(BaseHTTPRequestHandler):
                 except FileNotFoundError:
                     self._send(404, "cockpit.html no encontrado", "text/plain")
             elif path == "/cockpit.json":
-                try:
-                    with open(STATE, "rb") as fh:
-                        self._send(200, fh.read(), "application/json")
-                except FileNotFoundError:
-                    self._send(200, json.dumps({"symbols": {}, "events": [],
-                                                "note": "sin telemetría aún"}),
-                               "application/json")
+                self._send(200, json.dumps(_merged_state()), "application/json")
             elif path == "/health":
                 self._send(200, "ok", "text/plain")
             elif path in STATIC_PDFS:
