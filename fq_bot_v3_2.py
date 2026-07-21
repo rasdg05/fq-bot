@@ -4500,62 +4500,8 @@ def _synth_tp(entry, sl, direction, rr):
             "rr": rr, "kind": "synthetic"}
 
 
-# Cierres parciales default del TP picker tactico (nearest/mid/farthest tras
-# ordenar por R:R -- ver _compute_tactical_tps). Historicamente calibrados
-# sobre solo DOS ganadoras que cerraron en TP2 (ver docstring abajo); desde
-# 2026-07-21 pueden reemplazarse en runtime por _empirical_tp_weights si el
-# ledger (ya con /tphits, mas muestra que 2 senales) respalda la hipotesis.
-_DEFAULT_TACTICAL_TP_WEIGHTS = (40, 35, 25)
-
-# Kill switch (default OFF, RasDG: "priorizar TP2 si el dato lo respalda"):
-# activa el ajuste de pesos empirico en el picker tactico del RADAR. Off por
-# defecto hasta confirmar con /tphits que el patron aguanta con mas datos --
-# no se enciende solo porque el codigo ya sepa calcularlo.
-TP_WEIGHT_EMPIRICAL_ENABLED = os.environ.get(
-    "FQ_TP_WEIGHT_EMPIRICAL", "0").strip() in ("1", "true", "yes")
-TP_WEIGHT_EMPIRICAL_MIN_N   = 20     # cierres minimos en ese TF para confiar en el %
-TP_WEIGHT_EMPIRICAL_MIN_PCT = 0.45   # el TP top debe dominar >=45% de los wins
-TP_WEIGHT_EMPIRICAL_BOOST   = 10     # puntos que se mueven hacia el slot medio
-
-
-def _empirical_tp_weights(symbol="SOL", tf_id=None):
-    """
-    Pesos de cierre parcial para _compute_tactical_tps, derivados del ledger
-    real via entropy_cognition.get_tp_distribution_by_tf (comando /tphits),
-    en vez del 40/35/25 fijo calibrado sobre 2 señales historicas.
-
-    El "tp2" del ledger (señal automatica de 4 TP, banda estructural
-    ~1.5R-2.5R) es conceptualmente el mismo slot que el candidato tp2 de
-    _compute_tactical_tps (misma banda R:R) -- que tras ordenar por R:R casi
-    siempre cae en la posicion MEDIA de la salida (nearest/mid/farthest).
-    Por eso, si el ledger muestra que tp2 domina los wins de ese TF, el boost
-    se aplica al slot medio (indice 1), no a un TP especifico por nombre.
-
-    Devuelve (40,35,25) [default, sin cambios] salvo que:
-      - TP_WEIGHT_EMPIRICAL_ENABLED este ON (flag, off por defecto), Y
-      - haya >= TP_WEIGHT_EMPIRICAL_MIN_N cierres en ese tf_id, Y
-      - el TP mas frecuente entre los wins sea 'tp2' con >= MIN_PCT de esos wins.
-    Cualquier excepcion (DB no lista, ev no disponible) cae al default -- esto
-    nunca debe romper una alerta tactica en vivo.
-    """
-    if not TP_WEIGHT_EMPIRICAL_ENABLED:
-        return _DEFAULT_TACTICAL_TP_WEIGHTS
-    try:
-        dist = ev.get_tp_distribution_by_tf(symbol=symbol)
-        d = dist.get(tf_id)
-        if not d or d["n"] < TP_WEIGHT_EMPIRICAL_MIN_N:
-            return _DEFAULT_TACTICAL_TP_WEIGHTS
-        if d.get("top_tp") != "tp2" or d.get("top_tp_pct", 0) < TP_WEIGHT_EMPIRICAL_MIN_PCT:
-            return _DEFAULT_TACTICAL_TP_WEIGHTS
-        b = TP_WEIGHT_EMPIRICAL_BOOST
-        return (40 - b // 2, 35 + b, 25 - (b - b // 2))
-    except Exception as e:
-        log.warning("_empirical_tp_weights fallo, uso default: {}".format(e))
-        return _DEFAULT_TACTICAL_TP_WEIGHTS
-
-
 def _compute_tactical_tps(direction, entry, sl, structural_tps=None, plan=None,
-                          qa=None, tf=None, weights=None):
+                          qa=None, tf=None):
     """
     FQ v5.2 TP PICKER CONTEXTUAL.
 
@@ -4565,13 +4511,9 @@ def _compute_tactical_tps(direction, entry, sl, structural_tps=None, plan=None,
       - extension_score medio -> cap [2.5R, 4R]
       - extension_score bajo -> cap 2.5R
 
-    Cierres parciales (40/35/25 por default, calibrados originalmente sobre
-    solo dos ganadoras que cerraron en TP2). Si structural_tps esta vacio o
-    plan/qa son None, hace fallback a 1.0R/1.8R/2.5R.
-
-    weights: tupla opcional de 3 ints que reemplaza el 40/35/25 default (ver
-    _empirical_tp_weights, 2026-07-21) -- permite pesar el slot medio segun
-    el ledger real en vez de la calibracion original de 2 señales.
+    Cierres parciales fijos (40/35/25) calibrados sobre las dos ganadoras
+    historicas que cerraron en TP2. Si structural_tps esta vacio o plan/qa
+    son None, hace fallback a 1.0R/1.8R/2.5R.
 
     FQ v5.5:
       - Cap anti-sobre-extension en contexto favorable: 8.0R -> 6.5R, para que
@@ -4622,7 +4564,7 @@ def _compute_tactical_tps(direction, entry, sl, structural_tps=None, plan=None,
 
     # Garantizar orden monotono (TP2 > TP1, TP3 > TP2 en distancia R)
     tps_sorted = sorted([tp1, tp2, tp3], key=lambda t: t["rr"])
-    weights = list(weights) if weights else list(_DEFAULT_TACTICAL_TP_WEIGHTS)
+    weights = [40, 35, 25]
     out = []
     for tp, w in zip(tps_sorted, weights):
         out.append({"price": round(tp["price"], 4),
@@ -4870,16 +4812,11 @@ def radar_check(exchange, tf_id="15m"):
                     t_entry = float(z["ref"])
                 t_sl = float(plan["invalidation"])
 
-            # TP picker contextual: structural_tps de levels + plan + qa.
-            # weights: 40/35/25 default, salvo que el ledger real respalde
-            # pesar mas el slot medio (FQ_TP_WEIGHT_EMPIRICAL, off por defecto
-            # -- ver _empirical_tp_weights, 2026-07-21).
+            # TP picker contextual: structural_tps de levels + plan + qa
             structural_tps = levels.get("tp_meta") or []
-            tp_weights = _empirical_tp_weights(symbol="SOL", tf_id=tf_id)
             tps_short = _compute_tactical_tps(
                 direction, t_entry, t_sl,
-                structural_tps=structural_tps, plan=plan, qa=qa, tf=tf_id,
-                weights=tp_weights)
+                structural_tps=structural_tps, plan=plan, qa=qa, tf=tf_id)
 
             vol_label = (volume_quality.volume_quality_label(vol_data["score"])
                          if vol_data else None)
