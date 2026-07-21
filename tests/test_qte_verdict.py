@@ -114,7 +114,8 @@ def test_vip_analisis_sin_plan_lidera_con_accion_y_distancia():
     out = vip_format.build_vip_analisis(
         "long", dict(_LEVELS), "alcista", 3.0, _LAST, qa=qa, plan=None)
     assert "→" in out                  # linea de accion presente
-    assert "al stop" in out            # distancia a invalidacion
+    assert "Entry" not in out and "Stop" not in out  # sin niveles crudos
+    assert "$142" not in out           # sin precio de SL de _LEVELS (no el precio actual)
     assert "Horizonte" not in out or "~" in out  # horizonte solo si qa lo trae
     assert "<" not in out              # sin HTML roto
 

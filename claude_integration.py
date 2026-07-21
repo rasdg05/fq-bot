@@ -307,40 +307,13 @@ def build_niveles_prompt(s):
 def build_analisis_vip_prompt(s):
     """
     Prompt VIP /analisis. El LLM recibe payload del motor y emite lectura
-    cualitativa de 4 bullets. Sin formulas crudas en el output.
+    cualitativa de 4 bullets. Sin formulas crudas ni precios exactos en el
+    output (2026-07-20, RasDG: "los niveles ya me parecen poco efectivos,
+    es mejor esperar el precio con el analisis en lugar de forzar entrada
+    con niveles crudos") -- el snapshot de este on-demand ya no trae
+    entry/SL/TP ni battle plan (esos siguen vivos solo en la senal
+    automatica VIP/FREE y en el RADAR, otras superficies que no se tocan).
     """
-    # VEREDICTO del battle planner (lidera). Claude lo confirma o corrige.
-    battle = s.get("battle")
-    battle_block = ""
-    if battle:
-        zb = ""
-        z = battle.get("zone")
-        if z:
-            acc = z.get("accumulate") or []
-            acc_str = " · ".join(
-                "{}% ${:.2f}".format(a["weight_pct"], a["price"]) for a in acc) or "-"
-            zb = (
-                "  Zona {lbl} ${lo:.2f}-${hi:.2f}\n"
-                "    P(regreso a zona) {rp:.0%} · EV desde zona {ev:+.2f}R · P(SL) {ps:.0%}\n"
-                "    acumular: {acc}\n"
-            ).format(lbl=z["label"], lo=z["low"], hi=z["high"],
-                     rp=z["reach_prob"], ev=z["ev_cond"], ps=z["p_sl_cond"], acc=acc_str)
-        trig = "  Gatillo: {}\n".format(battle["trigger"]) if battle.get("trigger") else ""
-        tps = battle.get("tps") or []
-        tps_str = " / ".join("${:.2f}".format(t) for t in tps[:3]) if tps else "-"
-        battle_block = (
-            "VEREDICTO DEL MOTOR (battle planner sobre 2000 paths):\n"
-            "  {verdict}: {headline}\n"
-            "  {rationale}\n"
-            "  A mercado AHORA: EV {mev:+.2f}R · P(SL) {mpsl:.0%}\n"
-            "{zone}{trig}"
-            "  Objetivos: {tps}    Invalida: ${inv:.2f}\n\n"
-        ).format(
-            verdict=battle.get("verdict", "?"), headline=battle.get("headline", ""),
-            rationale=battle.get("rationale", ""), mev=battle.get("market_ev", 0) or 0,
-            mpsl=battle.get("market_p_sl", 0) or 0, zone=zb, trig=trig,
-            tps=tps_str, inv=battle.get("invalidation", 0) or 0)
-
     qte_block = ""
     if s.get("qte_p_tp1") is not None:
         # Distribucion de regimenes (top 3) en formato corto
@@ -377,24 +350,6 @@ def build_analisis_vip_prompt(s):
         if s.get("qte_verdict_label"):
             qte_block += "  Veredicto del motor: {}\n\n".format(s["qte_verdict_label"])
 
-    # Alternativa del optimizer QAOA (advisory). Solo si el QAOA hallo niveles
-    # que cumplen constraints (P_SL<=35%, EV>=1R sobre los 2000 paths).
-    qte_opt_block = ""
-    if s.get("qte_opt_sl") is not None:
-        qte_opt_block = (
-            "QTE OPTIMIZER (alternativa ADVISORY - NO cambia los niveles del bot):\n"
-            "  niveles bot:   SL ${bsl:.2f}   EV {bev:+.2f}R   P(SL) {bpsl:.0%}\n"
-            "  QTE-optimized: SL ${osl:.2f}   TP1 ${ot1:.2f}  TP2 ${ot2:.2f}  TP3 ${ot3:.2f}\n"
-            "                 EV {oev:+.2f}R   P(SL) {opsl:.0%}   (deltaEV {dR:+.2f}R)\n\n"
-        ).format(
-            bsl=s.get("sl", 0), bev=s.get("qte_vs_baseline_ev", 0) or 0,
-            bpsl=s.get("qte_vs_baseline_p_sl", 0) or 0,
-            osl=s.get("qte_opt_sl", 0), ot1=s.get("qte_opt_tp1", 0),
-            ot2=s.get("qte_opt_tp2", 0), ot3=s.get("qte_opt_tp3", 0),
-            oev=s.get("qte_opt_ev", 0) or 0, opsl=s.get("qte_opt_p_sl", 0) or 0,
-            dR=s.get("qte_vs_delta_R", 0) or 0,
-        )
-
     # Sync emergente: payload tecnico para que el LLM module su lectura.
     # Es input, no debe ser citado en el output.
     phase_e_block = ""
@@ -428,52 +383,43 @@ def build_analisis_vip_prompt(s):
         "=============================\n\n"
         "Precio:    ${price:.2f}\n"
         "Sesgo:     {bias} -> {dir}\n"
-        "Entry:     ${entry:.2f}\n"
-        "Stop:      ${sl:.2f}  anclado a {sla}\n"
-        "TP1:       ${tp1:.2f}  R {rr1:.2f}\n"
-        "TP2:       ${tp2:.2f}  R {rr2:.2f}\n"
-        "TP3:       ${tp3:.2f}  R {rr3:.2f}\n"
         "Masas P:   {pc}    RSI14: {rsi:.0f}\n\n"
-        "{battle}"
         "{qte}"
-        "{qte_opt}"
         "{phase_e}"
         "----\n"
-        "TU ROL: copiloto de ejecucion intradia. El motor ya decidio. Tu confirmas\n"
-        "o corriges con postura clara, anclando a Order Blocks, liquidez y barridas.\n"
+        "TU ROL: copiloto de lectura intradia. NO hay plan de entrada numerico\n"
+        "para este chequeo -- el cliente pidio dejar de forzar entradas con\n"
+        "niveles crudos y esperar que el precio confirme. Tu trabajo es\n"
+        "interpretar sesgo + probabilidades, no fijar precios.\n"
         "\n"
         "REGLAS DE OUTPUT (lo lee un cliente VIP):\n"
         "- No cites porcentajes crudos ni multiplos de R en el texto. Usa lenguaje\n"
         "  cualitativo: probabilidad alta/media/baja, edge claro/marginal, campo\n"
         "  neutro, trampa probable, regimen ranging, etc.\n"
-        "- SI puedes y debes citar precios exactos: entry, SL, invalida, gatillo,\n"
-        "  niveles de TP, zonas de acumulacion.\n"
+        "- NO cites precios exactos de entry, SL, TP, zonas de acumulacion ni\n"
+        "  gatillos numericos -- no los tienes en este payload y el cliente no\n"
+        "  los quiere aqui. Habla de estructura (Order Blocks, liquidez, barridas)\n"
+        "  en terminos relativos, no de niveles.\n"
         "- No menciones nombres de version, modelos, frameworks ni jerga interna.\n"
         "\n"
         "ENTREGA EXACTAMENTE 4 BULLETS (max 280 palabras):\n"
-        "  1. VEREDICTO: 'CONFIRMO ejecutar/acumular/esperar/stand down' o\n"
-        "     'CORRIJO a X porque ...'. Sin tibieza. Si dudas, da el gatillo exacto.\n"
-        "  2. DONDE ENTRAR / ACUMULAR: precios exactos y por que ahi gana mas.\n"
-        "  3. INVALIDACION: precio exacto que mata la idea + que harias si se da.\n"
-        "  4. GESTION: a que TP asegurar parcial / cuando mover SL a BE, anclado\n"
-        "     a liquidez real.\n"
+        "  1. VEREDICTO: 'A favor / selectivo / sin edge / stand down'. Sin\n"
+        "     tibieza -- di que tan convencido estas y por que.\n"
+        "  2. CONTEXTO ESTRUCTURAL: que esta haciendo el precio ahora (liquidez,\n"
+        "     Order Blocks, barridas) sin dar coordenadas exactas.\n"
+        "  3. QUE ESPERAR ANTES DE ACTUAR: la confirmacion de precio que\n"
+        "     validaria o mataria la idea, descrita cualitativamente.\n"
+        "  4. GESTION: como pensar el riesgo/tamano en este escenario, sin\n"
+        "     numeros de nivel.\n"
         "\n"
-        "Cero relleno. Si coincides con stand down, dilo directo y da el unico\n"
-        "evento (barrida + confirmacion) que te haria reenganchar."
+        "Cero relleno. Si coincides con stand down, dilo directo y describe el\n"
+        "unico evento (barrida + confirmacion) que te haria reenganchar."
     ).format(
         price=s.get("price", 0),
         bias=s.get("bias", "?"),
         dir=s.get("direction", "?").upper(),
-        entry=s.get("entry", 0),
-        sl=s.get("sl", 0),
-        sla=s.get("sl_anchor", "estructura"),
-        tp1=s.get("tp1", 0), rr1=s.get("rr_tp1", 0),
-        tp2=s.get("tp2", 0), rr2=s.get("rr_tp2", 0),
-        tp3=s.get("tp3", 0), rr3=s.get("rr_tp3", 0),
         pc=s.get("pspace_count", 0), rsi=s.get("rsi14", 0),
-        battle=battle_block,
         qte=qte_block,
-        qte_opt=qte_opt_block,
         phase_e=phase_e_block,
         pair=s.get("pair", "SOL/USDT"),
     )

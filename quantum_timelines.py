@@ -59,6 +59,13 @@ HORIZON_SESSION_REF_W   = 1.00    # peso killzone de referencia (neutro)
 HORIZON_SESSION_FMIN    = 0.70    # killzone fuerte (Silver Bullet) -> ventana mas corta
 HORIZON_SESSION_FMAX    = 1.50    # asia / fuera de KZ -> ventana mas larga
 
+# HORIZON_MIN/MAX_CANDLES y DEFAULT_HORIZON estan calibrados asumiendo velas de
+# 15m (6h-40h reales). `candle_minutes` (parametro de adaptive_horizon/
+# quantum_analysis, default 15 = comportamiento historico) reescala esos pisos/
+# techos a velas reales cuando el caller opera en otro TF (p.ej. 5m), para que
+# el horizonte siga representando las mismas horas reales sin importar la vela.
+DEFAULT_CANDLE_MINUTES  = 15
+
 # Constraints del optimizer (heredados del plan)
 OPT_MAX_P_SL          = 0.35    # rechazar setups con >35% prob de SL primero
 OPT_MIN_EV_R          = 1.0     # rechazar setups con EV<1R
@@ -747,9 +754,10 @@ def _current_session_weight():
         return HORIZON_SESSION_REF_W
 
 
-def adaptive_horizon(entry, atr, tp_far, session_w=None, default=DEFAULT_HORIZON):
+def adaptive_horizon(entry, atr, tp_far, session_w=None, default=DEFAULT_HORIZON,
+                      candle_minutes=DEFAULT_CANDLE_MINUTES):
     """
-    Horizonte (velas 15m) sustentado en estructura real + tiempo universal.
+    Horizonte (velas del TF fed) sustentado en estructura real + tiempo universal.
 
     1) Estructura: cuantas velas toma recorrer la distancia entry -> TP mas
        lejano a la velocidad neta tipica (ATR * eficiencia), con un colchon
@@ -758,8 +766,12 @@ def adaptive_horizon(entry, atr, tp_far, session_w=None, default=DEFAULT_HORIZON
        Killzone fuerte (Silver Bullet/London/NY open) -> momentum rapido ->
        ventana mas corta; Asia/fuera de KZ -> ventana mas larga.
 
-    Devuelve int de velas acotado a [HORIZON_MIN_CANDLES, HORIZON_MAX_CANDLES].
-    Si faltan datos, cae al default (96 = 24h) sin romper.
+    Devuelve int de velas acotado a [HORIZON_MIN_CANDLES, HORIZON_MAX_CANDLES]
+    escalados por `candle_minutes` (default 15 = los bounds tal cual, 6h-40h).
+    Si el caller opera en otro TF (p.ej. 5m), se reescala para seguir
+    representando las MISMAS horas reales (72-480 velas de 5m, no 24-160).
+    Si faltan datos, cae al default (96 velas de 15m-equivalente = 24h) sin
+    romper.
     """
     atr_v = _safe_float(atr, 0.0)
     entry_v = _safe_float(entry, 0.0)
@@ -782,7 +794,10 @@ def adaptive_horizon(entry, atr, tp_far, session_w=None, default=DEFAULT_HORIZON
         factor = max(HORIZON_SESSION_FMIN, min(HORIZON_SESSION_FMAX, factor))
         candles *= factor
 
-    candles = max(HORIZON_MIN_CANDLES, min(HORIZON_MAX_CANDLES, candles))
+    scale = DEFAULT_CANDLE_MINUTES / candle_minutes if candle_minutes else 1.0
+    min_c = HORIZON_MIN_CANDLES * scale
+    max_c = HORIZON_MAX_CANDLES * scale
+    candles = max(min_c, min(max_c, candles))
     return int(round(candles))
 
 
@@ -813,14 +828,21 @@ def _farthest_tp(levels, entry, direction):
 # ============================================================
 def quantum_analysis(df_15m, df_1h=None, df_4h=None, direction=None,
                      pspace=None, levels=None, ict_module=None,
-                     n_paths=DEFAULT_N_PATHS_VIP, horizon=DEFAULT_HORIZON,
+                     n_paths=DEFAULT_N_PATHS_VIP, horizon=None,
                      seed=42, run_optimizer=True, return_paths=False,
-                     adaptive=False):
+                     adaptive=False, candle_minutes=DEFAULT_CANDLE_MINUTES):
     """
     Funcion publica principal del QTE.
 
     levels: dict con keys entry, sl, tp1, tp2, tp3 (de calculate_levels_v2).
             Si es None, usa proxies basicos del df.
+
+    candle_minutes: minutos reales por vela de `df_15m` (default 15 =
+    comportamiento historico). Solo afecta la conversion a horas
+    (`horizon_hours`) y el reescalado de los pisos/techos del horizonte
+    adaptativo -- si el caller opera en otro TF (p.ej. 5m), pasa
+    candle_minutes=5 para que "Horizonte ~Nh" siga representando horas
+    reales en vez de asumir velas de 15m.
 
     Returns: dict con probabilidades, regimenes, niveles optimizados (si aplica),
              coherencia y metadata.
@@ -829,6 +851,8 @@ def quantum_analysis(df_15m, df_1h=None, df_4h=None, direction=None,
 
     if direction is None:
         direction = "long"
+    if horizon is None:
+        horizon = int(round(DEFAULT_HORIZON * DEFAULT_CANDLE_MINUTES / candle_minutes))
 
     # Ventana de tiempo emergente: si se pide, el horizonte se sustenta en
     # estructura real (distancia al TP mas lejano / velocidad ATR) y en el
@@ -837,7 +861,8 @@ def quantum_analysis(df_15m, df_1h=None, df_4h=None, direction=None,
         try:
             feat = _extract_market_features(df_15m)
             tp_far = _farthest_tp(levels, feat["price"], direction)
-            horizon = adaptive_horizon(feat["price"], feat["atr"], tp_far)
+            horizon = adaptive_horizon(feat["price"], feat["atr"], tp_far,
+                                       candle_minutes=candle_minutes)
         except Exception as e:
             log.warning("adaptive_horizon fallo, uso default {}: {}".format(
                 horizon, e))
@@ -899,7 +924,7 @@ def quantum_analysis(df_15m, df_1h=None, df_4h=None, direction=None,
     result = {
         "n_paths": n_paths,
         "horizon_candles": horizon,
-        "horizon_hours": horizon * 15 / 60,
+        "horizon_hours": horizon * candle_minutes / 60,
         "elapsed_ms": elapsed_ms,
         "probabilities": probs,
         "regimes": regimes,

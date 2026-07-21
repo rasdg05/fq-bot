@@ -177,6 +177,15 @@ ANALISIS_PAIRS = {
     "ETH": {"symbol": SYMBOL_ETH, "pair": "ETH/USDT"},
 }
 
+# TF anchor de /lectura y /analisis on-demand (2026-07-20, RasDG: "mas adoc al
+# uso real"). Antes 15m (SCALPING); el uso real -- el propio motor paper de
+# BTC/ETH ya corre en 5m (BTC_MOTOR_TF/ETH_MOTOR_TF, el TF de la cosecha/
+# research) -- hace de 5m el marco mas representativo para el chequeo manual.
+# Cambia esto para mover el anchor de ambos comandos a la vez.
+ANALISIS_ANCHOR_TF = "5m"
+ANALISIS_ANCHOR_CANDLE_MINUTES = 5  # minutos reales de ANALISIS_ANCHOR_TF -- mantener
+                                    # sincronizado si se cambia el anchor de arriba
+
 
 def _resolve_analisis_pair(raw_args):
     """1er argumento de /analisis y sus alias -> ccy SOL/BTC/ETH (default SOL).
@@ -4876,7 +4885,7 @@ def build_analisis_context(exchange, pair_ccy="SOL"):
     symbol = pinfo["symbol"]
     pair_label = pinfo["pair"]
 
-    df = fetch_ohlcv(exchange, symbol, "15m", limit=200)
+    df = fetch_ohlcv(exchange, symbol, ANALISIS_ANCHOR_TF, limit=200)
     df = add_indicators(df)
     if len(df) < 50:
         return None
@@ -4891,10 +4900,12 @@ def build_analisis_context(exchange, pair_ccy="SOL"):
     h_factor = 1.0 if lap["active"] else 0.7
     pm_est = PHI * w_clock * h_factor * (1 + max(0, masses["count"] - 2) * 0.15)
 
-    levels = calculate_levels_v2(df, direction, pspace=masses, tf="15m")
+    levels = calculate_levels_v2(df, direction, pspace=masses, tf=ANALISIS_ANCHOR_TF)
 
     # QTE: una sola corrida 2000 paths + optimizer + paths. Sirve al mensaje
     # curado, al battle plan y a la lectura de Claude (incl. bloque optimizer).
+    # candle_minutes=5 (anchor real): sin esto, "Horizonte ~Nh" asumiria velas
+    # de 15m (default historico del QTE) y mostraria 3x las horas reales.
     qa = None
     if QTE_AVAILABLE and qt is not None:
         try:
@@ -4905,22 +4916,16 @@ def build_analisis_context(exchange, pair_ccy="SOL"):
                 df, direction=direction, levels=qte_levels,
                 ict_module=ict_smc if ICT_MODULES_AVAILABLE else None,
                 n_paths=2000, run_optimizer=True, return_paths=True,
-                adaptive=True)
+                adaptive=True, candle_minutes=ANALISIS_ANCHOR_CANDLE_MINUTES)
         except Exception as ex:
             log.warning("QTE en build_analisis_context fallo: {}".format(ex))
 
-    # Battle plan sobre los paths recien simulados (sin re-simular)
+    # Sin battle plan aqui a proposito (2026-07-20, RasDG: "quiero eliminar
+    # los niveles crudos por completo, es mejor esperar el precio con el
+    # analisis en lugar de forzar entrada con niveles"). El battle plan
+    # (zona/gatillo/objetivos en $) queda solo para el RADAR automatico
+    # (build_radar_alert), que es una superficie distinta y no se toca.
     plan = None
-    if (BATTLE_PLANNER_AVAILABLE and battle_planner is not None
-            and qa is not None and qa.get("paths") is not None):
-        try:
-            fd = _build_field_data_standalone(df, None, None)
-            plan = battle_planner.build_battle_plan(
-                direction=direction, current_price=float(last["close"]),
-                field_data=fd, levels=levels,
-                paths=qa["paths"], qa=qa, atr=levels.get("atr"))
-        except Exception as ex:
-            log.warning("battle_planner en build_analisis_context fallo: {}".format(ex))
 
     return {"df": df, "last": last, "bias": bias, "masses": masses,
             "direction": direction, "pm_est": pm_est, "levels": levels,
@@ -4944,21 +4949,17 @@ def claude_followup_analisis_vip(exchange, ctx=None, pair_ccy="SOL"):
         bias = ctx["bias"]
         masses = ctx["masses"]
         direction = ctx["direction"]
-        levels = ctx["levels"]
         qa = ctx.get("qa")
-        plan = ctx.get("plan")
 
+        # Sin niveles crudos (entry/SL/TP) ni plan de batalla en este snapshot
+        # a proposito (2026-07-20, RasDG: "eliminarlos por completo, es mejor
+        # esperar el precio con el analisis en lugar de forzar entrada con
+        # niveles"). Claude recibe sesgo + probabilidades QTE, no precios.
         snapshot = {
             "price": float(last["close"]),
             "pair": ctx.get("pair", "SOL/USDT"),
             "direction": direction,
             "bias": bias["bias"],
-            "entry": levels["entry"],
-            "sl": levels["sl"],
-            "sl_anchor": levels.get("sl_anchor", "-"),
-            "tp1": levels["tp1"], "rr_tp1": levels["rr_tp1"],
-            "tp2": levels["tp2"], "rr_tp2": levels["rr_tp2"],
-            "tp3": levels["tp3"], "rr_tp3": levels["rr_tp3"],
             "pspace_count": masses["count"],
             "rsi14": float(last.get("rsi14") or 0),
         }
@@ -4989,28 +4990,12 @@ def claude_followup_analisis_vip(exchange, ctx=None, pair_ccy="SOL"):
             if _v:
                 snapshot["qte_verdict_label"] = _v["label"]
                 snapshot["qte_verdict_grade"] = _v["grade"]
-            # Alternativa del optimizer (advisory) si el QAOA hallo niveles
-            opt = qa.get("optimized_levels")
-            vb = qa.get("vs_baseline")
-            if opt and vb:
-                snapshot.update({
-                    "qte_opt_sl":  opt["sl"],
-                    "qte_opt_tp1": opt["tp1"],
-                    "qte_opt_tp2": opt["tp2"],
-                    "qte_opt_tp3": opt["tp3"],
-                    "qte_opt_ev":  opt["expected_R"],
-                    "qte_opt_p_sl": opt["p_sl"],
-                    "qte_vs_delta_R":       vb["delta_R"],
-                    "qte_vs_baseline_p_sl": vb["baseline_p_sl"],
-                    "qte_vs_baseline_ev":   vb["baseline_ev_R"],
-                })
-
-        # PLAN DE BATALLA ya construido en el contexto -> Claude lo confirma/corrige
-        if plan is not None:
-            snapshot["battle"] = _battle_snapshot(plan)
+            # Sin optimizer advisory (qte_opt_*/qte_vs_*) ni battle plan aqui
+            # a proposito -- ambos son niveles $ de entrada/TP, exactamente lo
+            # que este on-demand ya no debe mostrar (ver nota arriba).
 
         # FQ v5.1: Phase E informativo - usa el df del contexto (sin re-fetch)
-        phase_e = compute_phase_e_informative(ctx["df"], direction, tf_id="15m")
+        phase_e = compute_phase_e_informative(ctx["df"], direction, tf_id=ANALISIS_ANCHOR_TF)
         if phase_e is not None:
             snapshot.update({
                 "phase_e_sync_score":   phase_e["sync_score"],
@@ -5374,16 +5359,26 @@ def command_listener(exchange):
                         # Contexto pesado (QTE 2000 + battle plan) UNA sola vez,
                         # compartido entre mensaje curado y lectura de Claude.
                         analisis_ctx = None
+                        # Fix (2026-07-20, RasDG: "por que la lectura tactica se
+                        # duplica en dos mensajes"): cmd_lectura YA arma su propia
+                        # lectura de Claude embebida (bloque "LECTURA TACTICA...",
+                        # via mctx.snapshot_for_general adentro de la funcion). El
+                        # follow-up de abajo (claude_followup_general) volvia a
+                        # bajar velas, recalcular todo y preguntarle a Claude OTRA
+                        # VEZ -- dos llamadas, dos mensajes, misma lectura con
+                        # formato distinto. Admin-only (el VIP reutiliza analisis_ctx,
+                        # nunca duplico). Se quita el follow-up para admin; cmd_lectura
+                        # ya entrega la lectura tactica en el mismo mensaje.
+                        fu_fn = None
                         if tier_loc == "admin":
                             response = cmd_lectura(exchange, pair_ccy)
-                            fu_fn = claude_followup_general
                         else:
                             analisis_ctx = build_analisis_context(exchange, pair_ccy)
                             response = cmd_analisis_vip(exchange, ctx=analisis_ctx)
                             fu_fn = claude_followup_analisis_vip
                         send_long(response, chat_id)
 
-                        if claude_ai.is_available():
+                        if fu_fn is not None and claude_ai.is_available():
                             def _send_fu_analisis(fn=fu_fn, cid=chat_id, ctx=analisis_ctx, pc=pair_ccy):
                                 try:
                                     telegram_send("Interpretando datos...", cid)
@@ -5811,9 +5806,16 @@ def cmd_lectura(exchange, pair_ccy="SOL"):
     /lectura - vista consolidada multi-TF. Multi-simbolo: pair_ccy en
     SOL/BTC/ETH (default SOL, comportamiento historico); ver ANALISIS_PAIRS.
     Para cada TF (5m INTRADIA / 15m SCALPING / 1h SWING) muestra: bias,
-    masas P-Space, P_master estimado vs umbral del perfil, niveles
-    entry/SL/TP1-4 con R:R, y cooldown restante. Despues opcionalmente
-    una lectura tactica de Claude sobre el TF anchor (15m).
+    masas P-Space, P_master estimado vs umbral del perfil, direccion sugerida
+    y cooldown restante. Despues la lectura tactica de Claude sobre el TF
+    anchor (ANALISIS_ANCHOR_TF, 5m -- 2026-07-20, "mas adoc al uso real": el
+    motor paper BTC/ETH ya corre en 5m).
+
+    SIN niveles Entry/SL/TP1-4 (2026-07-20, RasDG: "me hacen sentir inseguro
+    seguir el plan de los niveles crudos, es mejor esperar el precio con el
+    analisis en lugar de forzar entrada con niveles crudos"). Esto es SOLO
+    el chequeo manual on-demand -- la senal automatica que dispara al VIP/
+    FREE (build_vip_signal) sigue trayendo sus 4 TP intacta, sin cambios.
     """
     try:
         pinfo  = ANALISIS_PAIRS.get(pair_ccy, ANALISIS_PAIRS["SOL"])
@@ -5839,7 +5841,7 @@ def cmd_lectura(exchange, pair_ccy="SOL"):
                     continue
                 last = df.iloc[-1]
                 price = float(last["close"])
-                if tf_id == "15m":
+                if tf_id == ANALISIS_ANCHOR_TF:
                     anchor_price = price
                     anchor_df = df
 
@@ -5854,9 +5856,6 @@ def cmd_lectura(exchange, pair_ccy="SOL"):
                 else:
                     direction = "long"  # default neutral
                 dir_glyph = G["long"] if direction == "long" else G["short"]
-
-                # F1 v5.0: niveles anti-stop-hunt con anclaje estructural ICT
-                levels = calculate_levels_v2(df, direction, pspace=masses, tf=tf_id)
 
                 h_factor = 1.0 if lap["active"] else 0.7
                 pm_est = PHI * w_clock * h_factor * (1 + max(0, masses["count"] - 2) * 0.15)
@@ -5879,42 +5878,25 @@ def cmd_lectura(exchange, pair_ccy="SOL"):
                 else:
                     cd_str = "n/a (motor {} propio)".format(ccy)
 
-                risk_pct = (levels["risk"] / levels["entry"]) * 100
-                sl_anchor_lbl = SL_ANCHOR_LABELS.get(
-                    levels.get("sl_anchor", ""), levels.get("sl_anchor", "-"))
-                tp_meta = levels.get("tp_meta") or []
-                tp_kinds = [TP_KIND_LABELS.get(t["kind"], t["kind"]) for t in tp_meta[:4]]
-                while len(tp_kinds) < 4:
-                    tp_kinds.append("-")
-
-                # Sin simulacion QTE aqui a proposito (2026-07-20, RasDG: "carga
-                # inutil"): un Monte Carlo de 500 paths + optimizer QAOA por
-                # cada /lectura on-demand solo para imprimir una tabla de
-                # numeros que nadie usaba para decidir. El battle plan VIP de
-                # /analisis (2000 paths) SI se queda -- ese alimenta una
-                # decision real (cmd_analisis_vip / build_analisis_context).
+                # Sin niveles Entry/SL/TP1-4 a proposito (2026-07-20, RasDG:
+                # "es mejor esperar el precio con el analisis en lugar de
+                # forzar entrada con niveles crudos") -- este chequeo manual
+                # queda en sesgo + contexto, sin plan de entrada numerico. La
+                # senal automatica al VIP/FREE (build_vip_signal) no se toca.
+                # Tampoco simulacion QTE aqui (2026-07-20, "carga inutil"): un
+                # Monte Carlo de 500 paths + optimizer QAOA por cada /lectura
+                # on-demand solo para imprimir numeros que nadie usaba. El
+                # battle plan VIP de /analisis (2000 paths) SI se queda.
                 block = (
                     "<b>[{lab} {tf}]</b>  Precio: ${px:.2f}\n"
                     "Bias: <b>{b}</b>  Masas P: {mc}  P_est: {pme:.2f}/{pmn:.2f}\n"
                     "Direccion sugerida: {dg} <b>{dir}</b>\n"
-                    "Entry: <b>${e:.2f}</b>   SL: ${sl:.2f}  ({rp:.2f}%)\n"
-                    "  anclado a {sla}\n"
-                    "TP1: ${t1:.2f}  R:R {r1:.2f}  ({k1})\n"
-                    "TP2: ${t2:.2f}  R:R {r2:.2f}  ({k2})\n"
-                    "TP3: ${t3:.2f}  R:R {r3:.2f}  ({k3})\n"
-                    "TP4: ${t4:.2f}  R:R {r4:.2f}  ({k4})\n"
                     "Cooldown: {cd}\n"
                 ).format(
                     lab=tf_label, tf=tf_id, px=price,
                     b=bias["bias"].upper(), mc=masses["count"],
                     pme=pm_est, pmn=pmin,
                     dg=dir_glyph, dir=direction.upper(),
-                    e=levels["entry"], sl=levels["sl"], rp=risk_pct,
-                    sla=sl_anchor_lbl,
-                    t1=levels["tp1"], r1=levels["rr_tp1"], k1=tp_kinds[0],
-                    t2=levels["tp2"], r2=levels["rr_tp2"], k2=tp_kinds[1],
-                    t3=levels["tp3"], r3=levels["rr_tp3"], k3=tp_kinds[2],
-                    t4=levels["tp4"], r4=levels["rr_tp4"], k4=tp_kinds[3],
                     cd=cd_str,
                 )
                 tf_blocks.append(block)
@@ -5923,7 +5905,7 @@ def cmd_lectura(exchange, pair_ccy="SOL"):
                 tf_blocks.append("<b>[{} {}]</b> error: {}\n".format(
                     tf_label, tf_id, str(ex)[:80]))
 
-        # Header (usa precio del anchor 15m si esta disponible)
+        # Header (usa precio del anchor ANALISIS_ANCHOR_TF si esta disponible)
         header_price = anchor_price if anchor_price is not None else 0.0
         header = (
             "<b>LECTURA MULTI-TF - FQ v4.4</b>\n"
@@ -5931,7 +5913,7 @@ def cmd_lectura(exchange, pair_ccy="SOL"):
             "{when}  |  {pair}: <b>${px:.2f}</b>\n"
             "Sesion: {ses}  (W={w:.2f})\n\n"
             "{thin}\n"
-            "  NIVELES + ESTADO POR TIMEFRAME\n"
+            "  SESGO + ESTADO POR TIMEFRAME\n"
             "{thin}\n"
         ).format(
             fence=G["fence"], thin=G["thin"], pair=pair_label,
@@ -5939,7 +5921,7 @@ def cmd_lectura(exchange, pair_ccy="SOL"):
             ses=session.upper(), w=w_clock,
         )
 
-        # Lectura Claude opcional sobre el TF anchor (15m)
+        # Lectura Claude opcional sobre el TF anchor (ANALISIS_ANCHOR_TF)
         claude_block = ""
         if claude_ai.is_available() and anchor_df is not None:
             try:
@@ -5971,18 +5953,18 @@ def cmd_lectura(exchange, pair_ccy="SOL"):
                 if reading:
                     claude_block = (
                         "\n{thin}\n"
-                        "  LECTURA TACTICA (Claude Sonnet, TF anchor 15m)\n"
+                        "  LECTURA TACTICA (Claude Sonnet, TF anchor {anchor})\n"
                         "{thin}\n"
                         "{r}\n\n"
-                    ).format(thin=G["thin"], r=reading)
+                    ).format(thin=G["thin"], r=reading, anchor=ANALISIS_ANCHOR_TF)
             except Exception as ex:
                 log.warning("lectura Claude block error: {}".format(ex))
 
         tail = (
             "{thin}\n"
-            "Estos niveles son la propuesta del bot por TF. El motor solo dispara\n"
-            "automaticamente cuando P_master supera el min del perfil. SL no se\n"
-            "mueve hacia atras (Regla 4).\n\n"
+            "Lectura, no plan de entrada: esperá que el precio confirme antes de\n"
+            "actuar. El motor solo dispara automaticamente cuando P_master supera\n"
+            "el min del perfil, con su propio SL/TP (no mostrados aqui).\n\n"
             "#FQ #Lectura #MultiTF #{ccy}"
         ).format(thin=G["thin"], ccy=ccy)
 
@@ -5996,10 +5978,12 @@ def cmd_lectura(exchange, pair_ccy="SOL"):
 # ============================================================
 def cmd_analisis_vip(exchange, ctx=None, pair_ccy="SOL"):
     """
-    Version VIP de /analisis. Muestra el TF anchor 15m con formato Mistral curado
-    liderado por el PLAN DE BATALLA. Reutiliza `ctx` (build_analisis_context) si el
-    router lo pasa, evitando re-simular el QTE; si es None lo computa por su cuenta
-    (multi-simbolo: pair_ccy en SOL/BTC/ETH, default SOL).
+    Version VIP de /analisis. Muestra el TF anchor ANALISIS_ANCHOR_TF (5m) con
+    formato Mistral curado -- sesgo + interpretacion cualitativa, sin niveles
+    crudos ni plan de batalla (ver build_analisis_context, 2026-07-20).
+    Reutiliza `ctx` (build_analisis_context) si el router lo pasa, evitando
+    re-simular el QTE; si es None lo computa por su cuenta (multi-simbolo:
+    pair_ccy en SOL/BTC/ETH, default SOL).
     """
     try:
         if ctx is None:
