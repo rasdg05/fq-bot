@@ -5279,7 +5279,7 @@ def command_listener(exchange):
                               "/evolve", "/concepts", "/weekend", "/campo",
                               "/gencode", "/grant", "/broadcast",
                               "/atribucion", "/regimen", "/sweep",
-                              "/timelines", "/paper", "/cadencia"}
+                              "/timelines", "/paper", "/cadencia", "/tphits"}
                 if cmd_name in ADMIN_ONLY and str(chat_id) != str(TELEGRAM_CHAT_ID):
                     telegram_send(
                         "Comando no disponible. Usa /help para ver tus comandos.",
@@ -6126,6 +6126,22 @@ def cmd_weekend(exchange=None):
     except Exception as e:
         return "Error /weekend: {}".format(str(e)[:200])
 
+def cmd_tphits(exchange=None):
+    """Admin: desglose de que TP (tp1..tp4) se toca mas seguido, por TF.
+
+    Nace de una observacion de RasDG (2026-07-21) mirando una lectura de
+    ETH en 5m: "ese TP2 es el mas verga -- simetrico y repetible, no importa
+    la direccion". Antes de tocar producto (battle planner, /lectura, etc.)
+    con esa hipotesis, esto la mide contra el ledger real en vez de una
+    sola captura de pantalla."""
+    try:
+        out = ev.format_tp_distribution_telegram()
+        if not out:
+            return "Sin cierres registrados todavia (ni SOL, ni BTC, ni ETH)."
+        return out
+    except Exception as e:
+        return "Error /tphits: {}".format(str(e)[:200])
+
 def cmd_campo(exchange):
     """v4.1.1: Lectura on-demand del estado del campo (sin disparar senal)"""
     if not (ENABLE_ICT_LAYER and ICT_MODULES_AVAILABLE):
@@ -6386,6 +6402,7 @@ def main():
         "/campo":     cmd_campo,
         "/concepts":  lambda exc=None: cmd_concepts(),
         "/weekend":   lambda exc=None: cmd_weekend(),
+        "/tphits":    lambda exc=None: cmd_tphits(),
         # ============ ADMIN v4.3 - capa ML ============
         "/atribucion": lambda exc=None: cmd_atribucion(),
         "/regimen":    cmd_regimen,

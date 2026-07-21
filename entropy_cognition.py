@@ -1887,6 +1887,99 @@ def get_weekend_performance():
         return {"n": n, "win_rate": wins/n, "expectancy": sum(pnls)/len(pnls) if pnls else 0}
     return {"weekend": _stats(weekend), "weekday": _stats(weekday)}
 
+
+def get_tp_distribution_by_tf(symbol=None):
+    """Desglose de outcomes (tp1..tp4/sl/timeout) por tf_id -- valida
+    hipotesis del tipo "en 5m, TP2 es el objetivo mas repetible" con datos
+    del ledger en vez de anecdota (RasDG, 2026-07-21).
+
+    symbol=None (default): mezcla SOL/BTC/ETH -- la muestra por TF ya es
+    chica, partirla mas sin pedirlo explicito la deja sin señal. Pasa
+    'SOL'/'BTC'/'ETH' para aislar un simbolo.
+
+    'stale' se excluye (outcome no auditable, no es ni win ni loss real).
+    tf_id NULL (señales pre-schema-v4) cae al anchor historico "15m" -- ver
+    _RECONCILE_ANCHOR_TF, mismo criterio que reconcile_outcomes.
+
+    Devuelve {tf_id: {n, win_rate, expectancy, dist, win_dist, top_tp,
+    top_tp_pct}} o {} si no hay cierres. top_tp/top_tp_pct: el outcome
+    ganador mas frecuente ENTRE LOS WINS de ese TF y su proporcion (None/0
+    si ese TF no tiene ningun win todavia)."""
+    with _lock:
+        conn = _connect()
+        try:
+            if symbol:
+                rows = conn.execute(
+                    "SELECT tf_id, outcome, pnl_r FROM signals "
+                    "WHERE outcome IS NOT NULL AND outcome != 'stale' AND symbol = ?",
+                    (symbol,)
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT tf_id, outcome, pnl_r FROM signals "
+                    "WHERE outcome IS NOT NULL AND outcome != 'stale'"
+                ).fetchall()
+        finally:
+            conn.close()
+
+    if not rows:
+        return {}
+
+    by_tf = defaultdict(list)
+    for r in rows:
+        by_tf[r["tf_id"] or _RECONCILE_ANCHOR_TF].append(r)
+
+    out = {}
+    for tf, rs in by_tf.items():
+        n = len(rs)
+        wins = [r for r in rs if r["outcome"] in ("tp1", "tp2", "tp3", "tp4")]
+        dist = Counter(r["outcome"] for r in rs)
+        win_dist = Counter(r["outcome"] for r in wins)
+        top = win_dist.most_common(1)
+        pnls = [r["pnl_r"] for r in rs if r["pnl_r"] is not None]
+        out[tf] = {
+            "n": n,
+            "win_rate": len(wins) / n,
+            "expectancy": sum(pnls) / len(pnls) if pnls else 0,
+            "dist": dict(dist),
+            "win_dist": dict(win_dist),
+            "top_tp": top[0][0] if top else None,
+            "top_tp_pct": (top[0][1] / len(wins)) if top and wins else 0,
+        }
+    return out
+
+
+def format_tp_distribution_telegram(symbol=None):
+    """Formato admin de get_tp_distribution_by_tf. None si no hay cierres."""
+    data = get_tp_distribution_by_tf(symbol=symbol)
+    if not data:
+        return None
+    label = symbol or "SOL+BTC+ETH"
+    lines = [
+        "<b>DISTRIBUCION DE TP POR TIMEFRAME</b> ({})".format(label),
+        "",
+    ]
+    for tf in sorted(data.keys()):
+        d = data[tf]
+        dist_str = " ".join(
+            "{}={}".format(k, v) for k, v in sorted(d["dist"].items())
+        )
+        top_line = ""
+        if d["top_tp"]:
+            top_line = "  TP mas frecuente entre wins: <b>{}</b> ({:.0%} de los wins)".format(
+                d["top_tp"].upper(), d["top_tp_pct"])
+        lines.append(
+            "[{tf}]  n={n}  WR={wr:.0%}  Exp={exp:+.2f}R\n"
+            "  {dist}\n"
+            "{top}".format(
+                tf=tf, n=d["n"], wr=d["win_rate"], exp=d["expectancy"],
+                dist=dist_str, top=top_line,
+            )
+        )
+        lines.append("")
+    return "\n".join(lines).rstrip()
+
+
 def build_audit_prompt_v3():
     """
     Audit enriquecido con desglose por concepto ICT.
