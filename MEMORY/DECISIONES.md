@@ -547,6 +547,41 @@ threadea `candle_minutes` al QTE, `cmd_lectura` ancla precio/texto al TF nuevo).
 
 ---
 
+## 19. `/tphits`: medir qué TP se toca más seguido, por TF (2026-07-21)
+
+**El pedido (RasDG).** Viendo una captura de `/lectura` de ETH en 5m (de antes del fix de §17-18,
+con niveles crudos todavía visibles), RasDG señaló: "ese TP2 es el más verga -- simétrico y
+repetible como patrón, independientemente de la dirección del mercado. En 5m." Antes de tocar
+producto con esa hipótesis (reintroducir un nivel en `/lectura`, o pesar el battle planner hacia
+TP2), había que verificar si el ledger la respalda con datos reales en vez de una sola captura.
+
+**Lo que ya existía vs. lo nuevo.** El battle planner (`battle_planner.py`) YA soporta múltiples
+TPs (`tps`, top 3 en `build_battle_block`) y YA usa el régimen dominante del QTE para gatear
+STAND_DOWN -- las dos cosas que RasDG pidió como mejora resultaron ya construidas. Lo que faltaba
+era la métrica: nada calculaba "de los TPs alcanzados, ¿cuál gana más seguido, por timeframe?".
+
+**El comando.** `/tphits` (admin-only) desglosa outcomes (`tp1`..`tp4`/`sl`/`timeout`) por `tf_id`
+desde el ledger: n, win rate, expectancy, distribución completa, y el TP más frecuente ENTRE LOS
+WINS de cada TF con su proporción. `symbol=None` por default (mezcla SOL/BTC/ETH -- la muestra por
+TF ya es chica, partirla más sin pedirlo explícito la deja sin señal); acepta `symbol=` para aislar
+uno. `stale` se excluye (no auditable). `tf_id` NULL (señales pre-schema-v4) cae al anchor
+histórico "15m", mismo criterio que `reconcile_outcomes`.
+
+**Por qué no se tocó producto todavía.** Es un comando de medición, no una reversión del fix de
+niveles crudos de §17: no reintroduce nada en `/lectura`/`/analisis`, no cambia el battle planner.
+Con datos reales (¿TP2 realmente domina en 5m? ¿en qué símbolo, con qué n?) se decide después si
+vale la pena una acción de producto -- la disciplina "ledger como juez" del repo (ver Disciplinas
+inegociables, #5) aplica aquí antes que en cualquier otro lado.
+
+**Evidencia.** `entropy_cognition.py` (`get_tp_distribution_by_tf`, `format_tp_distribution_telegram`);
+`fq_bot_v3_2.py` (`cmd_tphits`, registrado en `COMMANDS`/`ADMIN_ONLY`). Tests:
+`tests/test_tp_distribution_by_tf.py` (10: agrupación por TF, top TP entre wins, TF sin wins,
+tf_id NULL cae al anchor, stale excluido, symbol None mezcla / symbol filtra, formato Telegram),
+`tests/test_tphits_command.py` (5: comando + registro en COMMANDS/ADMIN_ONLY por inspección de
+fuente, igual criterio que `/lectura` en §16).
+
+---
+
 ## Resumen
 
 | Decisión | Razonamiento core | Archivos / commits clave | Estado |
