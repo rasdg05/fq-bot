@@ -157,6 +157,11 @@ body{background:var(--bg);color:var(--text);
 .kzrow{display:flex;gap:10px;margin-top:2px}
 .kz{font-size:9px;letter-spacing:.18em;color:var(--muted);text-transform:uppercase}
 canvas.spark{width:100%;height:46px;display:block;margin:9px 0 4px}
+#gridhint{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);
+  margin:14px 2px 0;opacity:.85}
+#roadmapnote{font-size:10.5px;line-height:1.55;color:var(--muted);letter-spacing:.02em;
+  margin:14px 2px 0;border-left:2px solid var(--line);padding-left:12px}
+#roadmapnote b{color:var(--text2)}
 .rowlbl{display:flex;justify-content:space-between;align-items:baseline;
   font-size:9px;letter-spacing:.2em;color:var(--muted);text-transform:uppercase;margin-top:8px}
 .rowlbl b{font-size:12px;letter-spacing:.04em;color:var(--text);font-variant-numeric:tabular-nums}
@@ -304,6 +309,60 @@ td:first-child,th:first-child{text-align:left}
 .waitmsg.ok{color:var(--up)}
 .waitmsg.err{color:var(--dn)}
 
+/* ---- detalle por instrumento (Macro view / deep dive) ---- */
+.inst{cursor:pointer}
+.inst .more{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);
+  opacity:0;transition:opacity .18s ease}
+.inst:hover .more{opacity:.9}
+#detail{position:fixed;inset:0;z-index:40;display:none;align-items:flex-start;justify-content:center;
+  padding:32px 16px;overflow-y:auto;background:rgba(3,5,3,.72);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)}
+#detail.on{display:flex}
+#detailcard{position:relative;width:100%;max-width:720px;margin:auto;background:var(--panel2);
+  border:1px solid var(--line);border-radius:14px;padding:26px 26px 24px;
+  box-shadow:0 24px 70px rgba(0,0,0,.6);animation:dpop .22s ease}
+@keyframes dpop{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.dclose{position:absolute;right:14px;top:12px;background:none;border:none;color:var(--muted);
+  font-size:22px;line-height:1;cursor:pointer;padding:4px}
+.dclose:hover{color:var(--text)}
+.dhd{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:4px}
+.dhd .dnm{font-size:22px;font-weight:700;letter-spacing:.06em}
+.dhd .dnm span{color:var(--muted);font-weight:400;font-size:15px}
+.dhd .dpx{margin-left:auto;font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
+.dhd .ddx{font-size:13px;font-variant-numeric:tabular-nums}
+.dsub{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.dsub .dsess{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--text2)}
+#dchart{display:block;width:100%;height:clamp(120px,22vw,170px);margin:4px 0 16px}
+.dread{border:1px solid var(--line2);border-left:2px solid var(--goldline);border-radius:8px;
+  background:var(--panel);padding:14px 16px;margin-bottom:16px}
+.dread .rl{font-size:9px;letter-spacing:.24em;text-transform:uppercase;color:var(--gold);margin-bottom:8px}
+.dread p{font-size:12.5px;line-height:1.62;color:var(--text2);margin:0}
+.dread p b{color:var(--text)}
+.dread .rsrc{font-size:9px;color:var(--muted);letter-spacing:.04em;margin-top:9px}
+.dmetrics{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+@media(max-width:560px){.dmetrics{grid-template-columns:1fr}}
+.dm{border:1px solid var(--line2);border-radius:8px;padding:12px 14px;background:var(--panel)}
+.dm .dmt{display:flex;justify-content:space-between;align-items:baseline}
+.dm .dmt span{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.dm .dmt b{font-size:15px;font-variant-numeric:tabular-nums;color:var(--text)}
+.dm .dtrack{position:relative;height:5px;background:var(--panel2);margin:9px 0 8px;border-radius:3px;overflow:hidden}
+.dm .dzone{position:absolute;top:0;bottom:0}
+.dm .dpin{position:absolute;top:-2px;width:3px;height:9px;background:var(--gold);box-shadow:0 0 7px var(--golddim);transition:left .6s ease}
+.dm .dexp{font-size:10.5px;line-height:1.5;color:var(--text2)}
+.dm .dexp b{color:var(--text)}
+.dcounts{display:flex;gap:18px;flex-wrap:wrap;border-top:1px solid var(--line2);border-bottom:1px solid var(--line2);
+  padding:12px 2px;margin-bottom:16px}
+.dcounts .dc{display:flex;flex-direction:column;gap:2px}
+.dcounts .dc s{font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);text-decoration:none}
+.dcounts .dc b{font-size:16px;font-variant-numeric:tabular-nums;color:var(--text)}
+.devents{margin-bottom:18px}
+.devents .del{font-size:11px;color:var(--text2);padding:3px 0;font-family:ui-monospace,monospace}
+.devents .del .dt{color:var(--muted)}
+.devents .del.fire .dk{color:var(--gold);font-weight:700}
+.devents .del.open .dk{color:var(--up)} .devents .del.veto .dk{color:var(--dn)}
+.devents .dempty{font-size:11px;color:var(--muted);font-style:italic}
+#detailcard .cta{width:100%;justify-content:center}
+.dnote{font-size:9px;color:var(--muted);text-align:center;margin-top:10px;line-height:1.5}
+
 /* ---- FAQ (details/summary nativos, sin JS) ---- */
 .faqlist{display:flex;flex-direction:column;gap:2px}
 #faq details{margin:0;padding:14px 2px;border-bottom:1px solid var(--line2);color:var(--text2);font-size:12px}
@@ -447,7 +506,9 @@ td:first-child,th:first-child{text-align:left}
 
 <div id="tape"><div class="rail" id="rail"></div></div>
 
+<div id="gridhint" class="reveal">Toca cualquier instrumento para su análisis a fondo.</div>
 <div id="grid" class="reveal"></div>
+<div id="roadmapnote" class="reveal">Próximamente en el panel: <b>oro (XAU)</b> y <b>Nasdaq 100</b> — ya validados en research (walk-forward), en cola para conectarse al panel en vivo. No los mostramos hasta que su dato sea real.</div>
 
 <div id="logwrap" class="reveal">
   <div class="lt"><h2>REGISTRO DE DECISIONES DEL MOTOR</h2><span class="cur"></span></div>
@@ -585,7 +646,7 @@ td:first-child,th:first-child{text-align:left}
     <div class="footcol">
       <div class="foothd">Sitio</div>
       <a href="#problema">Por qué FQ</a>
-      <a href="#dashboard-preview">El motor en vivo</a>
+      <a href="#dashboard-preview">El mercado en vivo</a>
       <a href="#guias">Guías gratis</a>
       <a href="#faq">Preguntas</a>
     </div>
@@ -617,6 +678,15 @@ td:first-child,th:first-child{text-align:left}
   <span class="sbtxt"><b>Señales del motor</b>, gratis en Telegram — sin tarjeta.</span>
   <a class="cta gold" data-tg href="#" target="_blank" rel="noopener">Únete gratis →</a>
   <button class="x" id="sbx" aria-label="cerrar">×</button>
+</div>
+
+<!-- ====== detalle por instrumento (Macro view / deep dive) — overlay, se llena por JS
+     con el MISMO dato del panel en vivo (cockpit.json). Se abre al clic en una tarjeta. ====== -->
+<div id="detail" aria-hidden="true">
+  <div id="detailcard" role="dialog" aria-modal="true" aria-labelledby="dtitle">
+    <button class="dclose" id="dclose" aria-label="cerrar detalle">×</button>
+    <div id="detailbody"></div>
+  </div>
 </div>
 
 <script>
@@ -781,7 +851,10 @@ function instCard(sym){
      <div class="pin" id="fp-${sym}" style="left:50%"></div></div>
    <div class="verdict" id="fst-${sym}">leyendo apalancamiento…</div>
    <div class="foot"><span>señales <b id="cf-${sym}">0</b></span><span>aperturas <b id="co-${sym}">0</b></span>
-     <span>suprimidas <b id="cv-${sym}">0</b></span><span>vivas <b id="cl-${sym}">0</b></span></div>`;
+     <span>suprimidas <b id="cv-${sym}">0</b></span><span>vivas <b id="cl-${sym}">0</b></span>
+     <span class="more" style="margin-left:auto">Ver detalle →</span></div>`;
+  el.tabIndex=0; el.setAttribute("role","button");
+  el.setAttribute("aria-label","Ver detalle de "+sym);
   return el;
 }
 function spark(cv,data){
@@ -839,7 +912,110 @@ function render(d){
   }
   renderTape(syms,d);
   renderLog(d,syms);
+  _lastData=d;                          // el modal de detalle lo reusa (mismo dato del panel)
+  if(_detailSym && d.symbols && d.symbols[_detailSym]) renderDetail(d,_detailSym);
 }
+
+/* ================= DETALLE POR INSTRUMENTO (Macro view / deep dive) =================
+   Sin dato nuevo ni llamadas LLM desde la web: reusa cockpit.json. La "Lectura FQ"
+   usa st.reading si el motor la sella (enriquecimiento opcional); si no, arma un
+   resumen HONESTO del dato medido — nunca texto inventado. */
+let _detailSym=null, _lastData=null;
+function pct(v){return Math.round(Math.min(1,Math.max(0,v))*100);}
+function narr(st){
+  // Resumen data-driven: cada frase se deriva de un número real del panel.
+  const S=[];
+  if(st.irrev!=null){
+    S.push(st.irrev<=0.34
+      ? "El mercado <b>va y viene dentro de un rango</b> — terreno donde el motor encuentra sus mejores lecturas."
+      : "El mercado está en <b>tendencia fuerte</b>, corriendo parejo — el filtro de calidad se pone más exigente.");
+  }
+  if(st.funding_pctl!=null){
+    S.push(st.funding_pctl<=0.5
+      ? "Los apalancados están <b>fríos</b>: poca presión compradora forzada, viento de cola para los largos."
+      : st.funding_pctl>=0.7
+      ? "Los apalancados están <b>calientes</b>: exceso de largos pagando de más, combustible para una corrección."
+      : "El apalancamiento está en <b>zona neutra</b>, sin un sesgo claro por ahora.");
+  }
+  const fires=(st.counts&&st.counts.fire)||0;
+  S.push(fires>0
+    ? ("El motor disparó <b>"+fires+"</b> "+(fires===1?"señal":"señales")+" en esta sesión.")
+    : "El motor <b>no ha disparado</b> en esta sesión — normal cuando no hay una ventaja clara. La plataforma sigue midiendo.");
+  return S.join(" ");
+}
+function renderDetail(d,sym){
+  const st=(d.symbols||{})[sym]; if(!st) return;
+  const body=document.getElementById("detailbody");
+  const chg=st.chg_24h!=null?st.chg_24h:(st.spark&&st.spark.length>1&&st.spark[0]?(st.price-st.spark[0])/st.spark[0]*100:null);
+  const tier=st.vip===false?'<span class="tier lab">LABORATORIO</span>':'<span class="tier">PRODUCCIÓN</span>';
+  const reading=st.reading?('<p>'+st.reading+'</p><div class="rsrc">Lectura del motor · '+sym+'</div>')
+    :('<p>'+narr(st)+'</p><div class="rsrc">Lectura automática del dato en vivo — sin opinión humana ni predicción.</div>');
+  const evs=(d.events||[]).filter(e=>e.sym===sym).slice(-6).reverse();
+  const evHtml=evs.length?evs.map(e=>{
+    const t=new Date((e.t||0)*1000).toLocaleTimeString("es-MX",{hour12:false});
+    const K={read:"LECTURA",fire:"SEÑAL",open:"APERTURA",veto:"VETO",close:"CIERRE"};
+    return '<div class="del '+e.kind+'"><span class="dt">'+t+'</span> · <span class="dk">'+(K[e.kind]||e.kind.toUpperCase())+'</span> · '+e.text+'</div>';
+  }).join(''):'<div class="dempty">Sin eventos recientes para este instrumento.</div>';
+  const iv=st.irrev, fv=st.funding_pctl;
+  body.innerHTML=`
+    <div class="dhd"><span class="dnm" id="dtitle">${sym}<span>/USDT</span></span> ${tier}
+      <span class="dpx">$${fmtP(st.price)}</span></div>
+    <div class="dsub">
+      ${chg!=null?'<span class="ddx '+(chg>=0?'up':'dn')+'">'+(chg>=0?'▲ ':'▼ ')+Math.abs(chg).toFixed(2)+'% 24h</span>':''}
+      <span class="dsess" style="margin-left:auto">${kzLabel(st.killzone)}</span></div>
+    <canvas id="dchart"></canvas>
+    <div class="dread"><div class="rl">Lectura FQ</div>${reading}</div>
+    <div class="dmetrics">
+      <div class="dm"><div class="dmt"><span>Sentimiento del mercado</span><b>${iv!=null?iv.toFixed(3):'—'}</b></div>
+        <div class="dtrack"><div class="dzone" style="left:0;width:34%;background:var(--up);opacity:.3"></div>
+          <div class="dpin" style="left:${iv!=null?pct(iv):0}%"></div></div>
+        <div class="dexp">${iv==null?'Calibrando…':iv<=0.34?'<b>En rango</b> — va y viene, terreno del motor.':'<b>Tendencia fuerte</b> — corre parejo, más cautela.'}</div></div>
+      <div class="dm"><div class="dmt"><span>Termómetro de apalancados</span><b>${fv!=null?fv.toFixed(2):'—'}</b></div>
+        <div class="dtrack"><div class="dzone" style="left:0;width:50%;background:var(--goldline);opacity:.3"></div>
+          <div class="dzone" style="left:70%;width:30%;background:var(--dn);opacity:.3"></div>
+          <div class="dpin" style="left:${fv!=null?pct(fv):50}%"></div></div>
+        <div class="dexp">${fv==null?'Leyendo…':fv<=0.5?'<b>Fríos</b> — viento de cola para largos.':fv>=0.7?'<b>Calientes</b> — combustible para cortos.':'<b>Neutro</b> — sin sesgo.'}</div></div>
+    </div>
+    <div class="dcounts">
+      <div class="dc"><s>Señales</s><b>${(st.counts&&st.counts.fire)||0}</b></div>
+      <div class="dc"><s>Aperturas</s><b>${(st.counts&&st.counts.opened)||0}</b></div>
+      <div class="dc"><s>Suprimidas</s><b>${(st.counts&&st.counts.vetoed)||0}</b></div>
+      <div class="dc"><s>Vivas</s><b>${st.open||0}</b></div>
+    </div>
+    <div class="devents">${evHtml}</div>
+    <a class="cta gold" data-tg href="#" target="_blank" rel="noopener">Recibir señales de ${sym} en Telegram →</a>
+    <div class="dnote">Contenido educativo/informativo — no es asesoría de inversión.</div>`;
+  setCTAs((_lastData||{}).bot);         // re-enlaza el CTA recién inyectado
+  const cv=document.getElementById("dchart"); if(cv) spark(cv,st.spark);
+}
+function openDetail(sym){
+  _detailSym=sym;
+  const ov=document.getElementById("detail");
+  ov.classList.add("on"); ov.setAttribute("aria-hidden","false");
+  if(_lastData) renderDetail(_lastData,sym);
+  document.getElementById("dclose").focus();
+}
+function closeDetail(){
+  _detailSym=null;
+  const ov=document.getElementById("detail");
+  ov.classList.remove("on"); ov.setAttribute("aria-hidden","true");
+}
+(function(){ try{
+  const grid=document.getElementById("grid");
+  if(grid) grid.addEventListener("click",e=>{
+    const card=e.target.closest(".inst"); if(!card||!card.id.startsWith("c-")) return;
+    openDetail(card.id.slice(2));
+  });
+  if(grid) grid.addEventListener("keydown",e=>{
+    if(e.key!=="Enter"&&e.key!==" ") return;
+    const card=e.target.closest(".inst"); if(!card||!card.id.startsWith("c-")) return;
+    e.preventDefault(); openDetail(card.id.slice(2));
+  });
+  const ov=document.getElementById("detail"), cl=document.getElementById("dclose");
+  if(cl) cl.onclick=closeDetail;
+  if(ov) ov.addEventListener("click",e=>{ if(e.target===ov) closeDetail(); });
+  document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&_detailSym) closeDetail(); });
+}catch(e){} })();
 let _tapeX=0,_tapeLast=0;
 const _reduceMotion=matchMedia("(prefers-reduced-motion: reduce)").matches;
 function renderTape(syms,d){

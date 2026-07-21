@@ -50,6 +50,31 @@ def test_ring_de_eventos_capado(tmp_path, monkeypatch):
     assert d["events"][-1]["text"].endswith("79")      # conserva los últimos
 
 
+def test_set_reading_sella_por_simbolo(tmp_path, monkeypatch):
+    _reset(tmp_path, monkeypatch)
+    cockpit.tick("SOL/USDT", price=150.0, closes=[1, 2, 3])
+    cockpit.set_reading("SOL/USDT", "El mercado va y viene; apalancados fríos.")
+    d = json.load(open(str(tmp_path / "cockpit.json")))
+    s = d["symbols"]["SOL"]
+    assert s["reading"].startswith("El mercado va y viene")
+    assert s["price"] == 150.0          # no pisa el resto del estado del símbolo
+
+
+def test_set_reading_off_es_noop(tmp_path, monkeypatch):
+    _reset(tmp_path, monkeypatch, enabled=False)
+    cockpit.set_reading("SOL/USDT", "esto no debe guardarse")
+    assert not os.path.exists(str(tmp_path / "cockpit.json"))
+    assert cockpit._state["symbols"] == {}
+
+
+def test_set_reading_vacio_borra_la_lectura(tmp_path, monkeypatch):
+    _reset(tmp_path, monkeypatch)
+    cockpit.set_reading("SOL/USDT", "lectura previa")
+    cockpit.set_reading("SOL/USDT", "")
+    d = json.load(open(str(tmp_path / "cockpit.json")))
+    assert "reading" not in d["symbols"]["SOL"]
+
+
 def test_server_sirve_html_json_health(tmp_path, monkeypatch):
     import importlib
     monkeypatch.setenv("FQ_COCKPIT_PATH", str(tmp_path / "cockpit.json"))
