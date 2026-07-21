@@ -5838,11 +5838,14 @@ def cmd_lectura(exchange, pair_ccy="SOL"):
     anchor (ANALISIS_ANCHOR_TF, 5m -- 2026-07-20, "mas adoc al uso real": el
     motor paper BTC/ETH ya corre en 5m).
 
-    SIN niveles Entry/SL/TP1-4 (2026-07-20, RasDG: "me hacen sentir inseguro
-    seguir el plan de los niveles crudos, es mejor esperar el precio con el
-    analisis en lugar de forzar entrada con niveles crudos"). Esto es SOLO
-    el chequeo manual on-demand -- la senal automatica que dispara al VIP/
-    FREE (build_vip_signal) sigue trayendo sus 4 TP intacta, sin cambios.
+    Niveles Entry/SL/TP1-TP2 (2026-07-21, RasDG: "regresame TP1 y 2 en TF 5m
+    y el nivel crudo de eso, eso si me sirve para operar" -- reversion
+    PARCIAL del intento sin niveles del 2026-07-20: la version sin numeros
+    quedo "muy confusa" para decidir en vivo). SOLO en el bloque
+    ANALISIS_ANCHOR_TF (5m); 15m/1h se quedan en sesgo+contexto, sin TP3/TP4
+    en ningun TF (esos siguen sin mostrarse -- el pedido fue especificamente
+    TP1/TP2). La senal automatica al VIP/FREE (build_vip_signal) no se toca,
+    sigue con sus 4 TP intactos e independiente de este chequeo manual.
     """
     try:
         pinfo  = ANALISIS_PAIRS.get(pair_ccy, ANALISIS_PAIRS["SOL"])
@@ -5905,27 +5908,56 @@ def cmd_lectura(exchange, pair_ccy="SOL"):
                 else:
                     cd_str = "n/a (motor {} propio)".format(ccy)
 
-                # Sin niveles Entry/SL/TP1-4 a proposito (2026-07-20, RasDG:
-                # "es mejor esperar el precio con el analisis en lugar de
-                # forzar entrada con niveles crudos") -- este chequeo manual
-                # queda en sesgo + contexto, sin plan de entrada numerico. La
-                # senal automatica al VIP/FREE (build_vip_signal) no se toca.
-                # Tampoco simulacion QTE aqui (2026-07-20, "carga inutil"): un
-                # Monte Carlo de 500 paths + optimizer QAOA por cada /lectura
-                # on-demand solo para imprimir numeros que nadie usaba. El
-                # battle plan VIP de /analisis (2000 paths) SI se queda.
-                block = (
-                    "<b>[{lab} {tf}]</b>  Precio: ${px:.2f}\n"
-                    "Bias: <b>{b}</b>  Masas P: {mc}  P_est: {pme:.2f}/{pmn:.2f}\n"
-                    "Direccion sugerida: {dg} <b>{dir}</b>\n"
-                    "Cooldown: {cd}\n"
-                ).format(
-                    lab=tf_label, tf=tf_id, px=price,
-                    b=bias["bias"].upper(), mc=masses["count"],
-                    pme=pm_est, pmn=pmin,
-                    dg=dir_glyph, dir=direction.upper(),
-                    cd=cd_str,
-                )
+                # Niveles Entry/SL/TP1-TP2 SOLO en el anchor 5m (2026-07-21,
+                # RasDG: "regresame TP1 y 2 en TF 5m, eso si me sirve para
+                # operar" -- reversion parcial de la version sin niveles del
+                # 2026-07-20, que quedo "muy confusa" para decidir en vivo).
+                # 15m/1h se quedan en sesgo+contexto; TP3/TP4 no vuelven en
+                # ningun TF (el pedido fue especificamente TP1/TP2). Tampoco
+                # vuelve la simulacion QTE aqui (2026-07-20, "carga inutil");
+                # el battle plan VIP de /analisis (2000 paths) sigue vivo ahi.
+                if tf_id == ANALISIS_ANCHOR_TF:
+                    levels = calculate_levels_v2(df, direction, pspace=masses, tf=tf_id)
+                    risk_pct = (levels["risk"] / levels["entry"]) * 100
+                    sl_anchor_lbl = SL_ANCHOR_LABELS.get(
+                        levels.get("sl_anchor", ""), levels.get("sl_anchor", "-"))
+                    tp_meta = levels.get("tp_meta") or []
+                    tp_kinds = [TP_KIND_LABELS.get(t["kind"], t["kind"]) for t in tp_meta[:2]]
+                    while len(tp_kinds) < 2:
+                        tp_kinds.append("-")
+                    block = (
+                        "<b>[{lab} {tf}]</b>  Precio: ${px:.2f}\n"
+                        "Bias: <b>{b}</b>  Masas P: {mc}  P_est: {pme:.2f}/{pmn:.2f}\n"
+                        "Direccion sugerida: {dg} <b>{dir}</b>\n"
+                        "Entry: <b>${e:.2f}</b>   SL: ${sl:.2f}  ({rp:.2f}%)\n"
+                        "  anclado a {sla}\n"
+                        "TP1: ${t1:.2f}  R:R {r1:.2f}  ({k1})\n"
+                        "TP2: ${t2:.2f}  R:R {r2:.2f}  ({k2})\n"
+                        "Cooldown: {cd}\n"
+                    ).format(
+                        lab=tf_label, tf=tf_id, px=price,
+                        b=bias["bias"].upper(), mc=masses["count"],
+                        pme=pm_est, pmn=pmin,
+                        dg=dir_glyph, dir=direction.upper(),
+                        e=levels["entry"], sl=levels["sl"], rp=risk_pct,
+                        sla=sl_anchor_lbl,
+                        t1=levels["tp1"], r1=levels["rr_tp1"], k1=tp_kinds[0],
+                        t2=levels["tp2"], r2=levels["rr_tp2"], k2=tp_kinds[1],
+                        cd=cd_str,
+                    )
+                else:
+                    block = (
+                        "<b>[{lab} {tf}]</b>  Precio: ${px:.2f}\n"
+                        "Bias: <b>{b}</b>  Masas P: {mc}  P_est: {pme:.2f}/{pmn:.2f}\n"
+                        "Direccion sugerida: {dg} <b>{dir}</b>\n"
+                        "Cooldown: {cd}\n"
+                    ).format(
+                        lab=tf_label, tf=tf_id, px=price,
+                        b=bias["bias"].upper(), mc=masses["count"],
+                        pme=pm_est, pmn=pmin,
+                        dg=dir_glyph, dir=direction.upper(),
+                        cd=cd_str,
+                    )
                 tf_blocks.append(block)
             except Exception as ex:
                 log.warning("lectura TF {} error: {}".format(tf_id, ex))
@@ -5940,12 +5972,12 @@ def cmd_lectura(exchange, pair_ccy="SOL"):
             "{when}  |  {pair}: <b>${px:.2f}</b>\n"
             "Sesion: {ses}  (W={w:.2f})\n\n"
             "{thin}\n"
-            "  SESGO + ESTADO POR TIMEFRAME\n"
+            "  SESGO + NIVELES ({anchor}) POR TIMEFRAME\n"
             "{thin}\n"
         ).format(
             fence=G["fence"], thin=G["thin"], pair=pair_label,
             when=cdmx_now_str(), px=header_price,
-            ses=session.upper(), w=w_clock,
+            ses=session.upper(), w=w_clock, anchor=ANALISIS_ANCHOR_TF,
         )
 
         # Lectura Claude opcional sobre el TF anchor (ANALISIS_ANCHOR_TF)
@@ -5989,11 +6021,12 @@ def cmd_lectura(exchange, pair_ccy="SOL"):
 
         tail = (
             "{thin}\n"
-            "Lectura, no plan de entrada: esperá que el precio confirme antes de\n"
-            "actuar. El motor solo dispara automaticamente cuando P_master supera\n"
-            "el min del perfil, con su propio SL/TP (no mostrados aqui).\n\n"
+            "Niveles {anchor}: propuesta del bot para ese TF, no los de la senal\n"
+            "automatica (esa dispara sola cuando P_master supera el min del perfil,\n"
+            "con sus propios 4 TP). SL no se mueve hacia atras (Regla 4). Resto de\n"
+            "TFs: sesgo sin niveles -- esperá que el precio confirme ahi.\n\n"
             "#FQ #Lectura #MultiTF #{ccy}"
-        ).format(thin=G["thin"], ccy=ccy)
+        ).format(thin=G["thin"], ccy=ccy, anchor=ANALISIS_ANCHOR_TF)
 
         return header + "\n".join(tf_blocks) + claude_block + tail
     except Exception as e:
