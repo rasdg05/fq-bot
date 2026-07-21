@@ -8,6 +8,7 @@ import threading
 import urllib.request
 
 import cockpit
+import waitlist
 
 
 def _reset(tmp_path, monkeypatch, enabled=True):
@@ -91,5 +92,53 @@ def test_server_sirve_guias_pdf_por_allowlist():
             assert False, "un pdf fuera del allowlist no deberia servirse"
         except urllib.error.HTTPError as e:
             assert e.code == 404
+    finally:
+        httpd.shutdown()
+
+
+def test_server_post_waitlist_y_get_verify(tmp_path, monkeypatch):
+    """El flujo completo contra el server real: POST /waitlist guarda (sin
+    API key de Resend no manda correo pero tampoco revienta), y GET /verify
+    con el token recien creado marca verificado y sirve la pagina de
+    confirmacion con la guia + el link de Telegram."""
+    import importlib
+    monkeypatch.setattr(waitlist, "DB_PATH", str(tmp_path / "wl.db"))
+    monkeypatch.setattr(waitlist, "RESEND_API_KEY", "")
+    monkeypatch.setattr(waitlist, "_rate", {})
+    monkeypatch.setenv("FQ_VIP_BOT_USERNAME", "fq_test_bot")
+    import tools.cockpit_server as srv
+    importlib.reload(srv)
+    httpd = __import__("http.server", fromlist=["ThreadingHTTPServer"]).ThreadingHTTPServer(
+        ("127.0.0.1", 0), srv._H)
+    t = threading.Thread(target=httpd.serve_forever, daemon=True)
+    t.start()
+    base = "http://127.0.0.1:%d" % httpd.server_address[1]
+    try:
+        body = json.dumps({"email": "lead@ejemplo.com"}).encode()
+        req = urllib.request.Request(base + "/waitlist", data=body, method="POST",
+                                      headers={"Content-Type": "application/json"})
+        r = urllib.request.urlopen(req, timeout=5)
+        assert r.status == 200 and json.loads(r.read())["ok"] is True
+
+        c = waitlist._conn()
+        token = c.execute("SELECT token FROM waitlist WHERE email=?",
+                           ("lead@ejemplo.com",)).fetchone()[0]
+        c.close()
+
+        r2 = urllib.request.urlopen(base + "/verify?token=" + token, timeout=5)
+        html = r2.read().decode()
+        assert r2.status == 200
+        assert "Correo verificado" in html
+        assert "/guia-3-reglas.pdf" in html
+        assert "t.me/fq_test_bot" in html
+
+        # payload invalido -> 400, sin datos -> no revienta el server
+        bad = urllib.request.Request(base + "/waitlist", data=b"no-es-json", method="POST",
+                                      headers={"Content-Type": "application/json"})
+        try:
+            urllib.request.urlopen(bad, timeout=5)
+            assert False, "un correo invalido no deberia aceptarse"
+        except urllib.error.HTTPError as e:
+            assert e.code == 400
     finally:
         httpd.shutdown()

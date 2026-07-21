@@ -292,6 +292,18 @@ td:first-child,th:first-child{text-align:left}
 .guiacard p{font-size:11.5px;line-height:1.55;color:var(--text2);margin-bottom:10px}
 .glink{font-size:10.5px;letter-spacing:.08em;color:var(--gold);font-weight:600}
 
+/* ---- captura de correo real (pipeline propio: waitlist.py + cockpit_server.py) ---- */
+.waitform{margin-top:20px;border-top:1px solid var(--line2);padding-top:18px}
+.waitform label{display:block;font-size:11px;line-height:1.5;color:var(--text2);margin-bottom:10px}
+.waitrow{display:flex;gap:10px;flex-wrap:wrap}
+.waitrow input{flex:1;min-width:220px;background:var(--panel);border:1px solid var(--line);border-radius:8px;
+  padding:11px 14px;color:var(--text);font:12px "SF Mono","JetBrains Mono",monospace}
+.waitrow input::placeholder{color:var(--muted)}
+.waitrow input:focus{outline:none;border-color:rgba(212,175,55,.55)}
+.waitmsg{font-size:11px;margin-top:10px;color:var(--text2);min-height:14px}
+.waitmsg.ok{color:var(--up)}
+.waitmsg.err{color:var(--dn)}
+
 /* ---- FAQ (details/summary nativos, sin JS) ---- */
 .faqlist{display:flex;flex-direction:column;gap:2px}
 #faq details{margin:0;padding:14px 2px;border-bottom:1px solid var(--line2);color:var(--text2);font-size:12px}
@@ -518,6 +530,14 @@ td:first-child,th:first-child{text-align:left}
       <span class="glink">Descargar guía →</span>
     </a>
   </div>
+  <form id="waitlistform" class="waitform">
+    <label for="wemail">¿Prefieres recibirla por correo? Te mandamos un link de confirmación.</label>
+    <div class="waitrow">
+      <input id="wemail" type="email" name="email" placeholder="tucorreo@dominio.com" required autocomplete="email" maxlength="254">
+      <button type="submit" class="cta gold">Enviarme la guía →</button>
+    </div>
+    <div id="waitmsg" class="waitmsg" role="status" aria-live="polite"></div>
+  </form>
 </div>
 
 <div id="faq" class="reveal">
@@ -670,6 +690,36 @@ function setCTAs(bot){
   if(!bar) return;
   if(sessionStorage.getItem("fq_sb")==="0") bar.style.display="none";
   if(x) x.onclick=()=>{ bar.style.display="none"; try{sessionStorage.setItem("fq_sb","0")}catch(e){} };
+}catch(e){} })();
+
+// captura de correo (guías gratis): POST /waitlist, mismo origen -- pipeline
+// propio (waitlist.py), sin formularios de terceros.
+(function(){ try{
+  const f=document.getElementById("waitlistform"); if(!f) return;
+  const msg=document.getElementById("waitmsg");
+  f.addEventListener("submit", async function(ev){
+    ev.preventDefault();
+    const email=document.getElementById("wemail").value.trim();
+    const btn=f.querySelector("button");
+    btn.disabled=true; msg.className="waitmsg"; msg.textContent="Enviando…";
+    try{
+      const r=await fetch("/waitlist",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({email:email})});
+      const d=await r.json().catch(()=>({ok:false}));
+      if(r.ok && d.ok){
+        msg.className="waitmsg ok";
+        msg.textContent="Listo — revisa tu correo para confirmar (el link expira en 48h).";
+        f.reset();
+      }else{
+        msg.className="waitmsg err";
+        msg.textContent=d.error||"Ese correo no parece válido.";
+      }
+    }catch(e){
+      msg.className="waitmsg err";
+      msg.textContent="No se pudo enviar — intenta de nuevo.";
+    }
+    btn.disabled=false;
+  });
 }catch(e){} })();
 
 function demoInit(){
