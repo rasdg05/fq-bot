@@ -509,7 +509,7 @@ td:first-child,th:first-child{text-align:left}
 
 <div id="gridhint" class="reveal">Toca cualquier instrumento para su análisis a fondo.</div>
 <div id="grid" class="reveal"></div>
-<div id="roadmapnote" class="reveal"><b>Oro</b> y <b>Nasdaq 100</b> entran como instrumentos en <b>observación</b>: les leemos el mercado con las mismas herramientas que a cripto — sentimiento y apalancamiento en vivo — sin emitir señales automáticas. Dato real de OKX y MEXC, no un simulacro.</div>
+<div id="roadmapnote" class="reveal"><b>Oro</b>, <b>Nasdaq 100</b>, <b>S&amp;P 500</b> y <b>petróleo</b> entran como instrumentos en <b>observación</b>: les leemos el mercado con las mismas herramientas que a cripto — sentimiento y apalancamiento en vivo — sin emitir señales automáticas. Dato real de OKX y MEXC, no un simulacro.</div>
 
 <div id="logwrap" class="reveal">
   <div class="lt"><h2>REGISTRO DE DECISIONES DEL MOTOR</h2><span class="cur"></span></div>
@@ -802,8 +802,9 @@ function demoInit(){
       spark:Array.from({length:48},()=>px[s]),irrev:0.2+Math.random()*0.35,
       funding_pctl:Math.random(),counts:{fire:0,opened:0,vetoed:0},open:0,killzone:"london_open_kz"};
   }
-  // instrumentos de análisis (oro/Nasdaq): observación, no señales
-  const ax={XAU:{p:4088,d:"Oro · XAU"},NAS100:{p:29118,d:"Nasdaq 100"}};
+  // instrumentos de análisis (oro/Nasdaq/S&P/petróleo): observación, no señales
+  const ax={XAU:{p:4088,d:"Oro · XAU"},NAS100:{p:29118,d:"Nasdaq 100"},
+    SPX500:{p:7499,d:"S&P 500"},USOIL:{p:84.6,d:"Petróleo · WTI"}};
   for(const s in ax){
     demoState.symbols[s]={analysis:true,display:ax[s].d,price:ax[s].p,
       spark:Array.from({length:48},()=>ax[s].p),irrev:0.1+Math.random()*0.3,

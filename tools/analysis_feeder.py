@@ -38,10 +38,13 @@ INTERVAL = int(os.environ.get("FQ_ANALYSIS_INTERVAL", "180"))
 SPARK_N = 48
 UA = {"User-Agent": "fq-analysis"}
 
-# Instrumentos de análisis. display = etiqueta amable para el portal.
+# Instrumentos de análisis. display = etiqueta amable para el portal. Sumar uno es
+# una línea: la capa de análisis (regime + funding) es genérica por símbolo.
 INSTRUMENTS = [
     {"key": "XAU",    "venue": "okx",  "display": "Oro · XAU",     "okx": "XAU-USDT-SWAP", "fund_sym": "XAU/USDT"},
     {"key": "NAS100", "venue": "mexc", "display": "Nasdaq 100",    "mexc": "NAS100_USDT"},
+    {"key": "SPX500", "venue": "mexc", "display": "S&P 500",       "mexc": "SPX500_USDT"},
+    {"key": "USOIL",  "venue": "mexc", "display": "Petróleo · WTI", "mexc": "USOIL_USDT"},
 ]
 
 
