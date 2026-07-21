@@ -615,6 +615,39 @@ tocar código que funciona.
 
 ---
 
+## 21. `/lectura`: TP1/TP2 de vuelta, SOLO en el TF anchor 5m (2026-07-21)
+
+**El pedido (RasDG), con capturas del bot en vivo.** "Como quedó ahora no dice TPs y está muy
+confuso. Regrésame TP1 y 2 en TF 5m y el nivel crudo de eso, eso te dije que sí me servía para
+operar." Reversión parcial de §17 (2026-07-20, mismo día anterior): la eliminación TOTAL de
+niveles crudos de `/lectura` resultó ser un sobre-corrección -- sin ningún número, el chequeo
+manual on-demand que RasDG usa para decidir sus propias entradas (no el de los clientes VIP, que
+ven `cmd_analisis_vip` curado) quedó "muy confuso" en la práctica real, no solo en la intención.
+
+**Alcance exacto de la reversión (no es un rollback completo de §17).**
+- Vuelven Entry, SL, TP1, TP2 (con R:R y ancla estructural) -- **SOLO** en el bloque cuyo
+  `tf_id == ANALISIS_ANCHOR_TF` (5m). El pedido fue explícitamente "TF 5m", no "todos los TF".
+- TP3/TP4 **NO** vuelven en ningún TF -- el pedido fue específicamente TP1/TP2, no los 4 niveles
+  completos. 15m/1h se quedan en sesgo+contexto, sin ningún nivel.
+- La simulación QTE (500 paths + optimizer, la "carga inútil" de §15) sigue sin volver -- eso no
+  fue lo que RasDG pidió recuperar.
+- `/analisis` (VIP, `cmd_analisis_vip`/`build_vip_analisis`) **NO se tocó** -- las capturas y el
+  pedido fueron específicamente sobre `/lectura` (el dump admin multi-TF que RasDG usa el mismo
+  para operar, distinto del mensaje curado que ven los clientes VIP). Sigue sin niveles crudos.
+- La señal automática VIP/FREE (`build_vip_signal`, 4 TP) sigue sin tocarse, como en §17.
+
+**Por qué solo 5m y no también 15m/1h.** RasDG fue explícito con el TF; además 5m es el
+`ANALISIS_ANCHOR_TF` (§18) -- el TF que ya lidera la lectura táctica de Claude y el que más se
+acerca al "uso real" (motor paper BTC/ETH). El condicional usa la constante, no `"5m"` a fuego, así
+que si el anchor cambia en el futuro, los niveles lo siguen automáticamente (sellado por test).
+
+**Evidencia.** `fq_bot_v3_2.py::cmd_lectura` (bloque condicional `if tf_id == ANALISIS_ANCHOR_TF`,
+header y tail actualizados para reflejar que 5m sí trae niveles). Tests (4 nuevos en
+`tests/test_analisis_multisimbolo.py`): el bloque 5m trae Entry/SL/TP1/TP2, NO trae TP3/TP4, 15m/1h
+siguen sin ningún nivel, y los niveles siguen al `ANALISIS_ANCHOR_TF` si cambia (no hardcodeado).
+
+---
+
 ## Resumen
 
 | Decisión | Razonamiento core | Archivos / commits clave | Estado |
