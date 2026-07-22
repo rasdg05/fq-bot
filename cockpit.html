@@ -166,6 +166,10 @@ body{background:var(--bg);color:var(--text);
 .up{color:var(--up)} .dn{color:var(--dn)}
 .kzrow{display:flex;gap:10px;margin-top:2px}
 .kz{font-size:9px;letter-spacing:.18em;color:var(--muted);text-transform:uppercase}
+.charline{font-size:11px;line-height:1.4;color:var(--text2);margin-top:7px;padding-left:9px;
+  border-left:2px solid var(--line2)}
+.charline.calm{border-left-color:var(--up);color:var(--text)}
+.charline.warn{border-left-color:var(--dn);color:var(--text)}
 canvas.spark{width:100%;height:46px;display:block;margin:9px 0 4px}
 #gridhint{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);
   margin:14px 2px 0;opacity:.85}
@@ -888,6 +892,21 @@ const KZ_ES={
   ny_am_kz:"Mañana NY", ny_pm_kz:"Tarde NY", eu_pre_open:"Pre-apertura Europa",
   asia_kz:"Sesión Asia", fuera:"Fuera de sesión"};
 const kzLabel=k=>KZ_ES[k]||k||"—";
+// carácter del mercado: SÍNTESIS en lenguaje llano de sentimiento (irrev) +
+// apalancamiento (funding) juntos — el "siéntelo de un vistazo". Alineado a la
+// semántica honesta de regime-lab: irrev alto = mercado con estructura/asimetría,
+// irrev bajo = equilibrado/eficiente. Todo derivado del dato real.
+function marketCharacter(irrev, funding){
+  if(irrev==null) return {txt:"Leyendo el mercado…", cls:""};
+  const structured = irrev>0.34;
+  const hot  = funding!=null && funding>=0.7;
+  const cold = funding!=null && funding<=0.5;
+  if(!structured && cold) return {txt:"Ambiente calmado — equilibrado y apalancados fríos", cls:"calm"};
+  if(!structured && hot)  return {txt:"Calma tensa — equilibrado, pero apalancados calientes", cls:"warn"};
+  if(structured && hot)   return {txt:"Mercado caliente — con estructura y apalancados sobrecalentados", cls:"warn"};
+  if(structured && cold)  return {txt:"Movimiento con dirección — estructura y apalancados fríos", cls:""};
+  return {txt: structured?"Mercado con estructura":"Mercado equilibrado", cls: structured?"warn":"calm"};
+}
 function instCard(sym){
   const el=document.createElement("div");el.className="inst";el.id="c-"+sym;
   el.innerHTML=`
@@ -895,6 +914,7 @@ function instCard(sym){
      <span class="tier" id="tr-${sym}"></span>
      <span class="px" id="p-${sym}">—</span></div>
    <div class="kzrow"><span class="dx" id="d-${sym}"></span><span class="kz" id="kz-${sym}" style="margin-left:auto">—</span></div>
+   <div class="charline" id="ch-${sym}">Leyendo el mercado…</div>
    <canvas class="spark" id="sp-${sym}"></canvas>
    <div class="rowlbl"><span>Sentimiento del mercado</span><b id="iv-${sym}">—</b></div>
    <div class="track"><div class="zone" style="left:0;width:34%;background:var(--up)"></div>
@@ -961,6 +981,8 @@ function render(d){
         +'<span class="more" style="margin-left:auto">Ver detalle →</span>';
     }
     spark(P("sp"),st.spark);
+    const ch=P("ch");
+    if(ch){ const mc=marketCharacter(st.irrev,st.funding_pctl); ch.textContent=mc.txt; ch.className="charline "+mc.cls; }
     if(st.irrev!=null){
       P("iv").textContent=st.irrev.toFixed(3);
       P("ip").style.left=(Math.min(st.irrev,1)*100)+"%";
