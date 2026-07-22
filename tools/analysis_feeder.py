@@ -15,8 +15,10 @@ motor al servir `/cockpit.json`. Si el feeder muere, el panel de cripto sigue
 intacto. Hijo no-crítico del launcher con FQ_ANALYSIS_EXTRA=1.
 
 Fuentes (públicas, sin claves):
-  - XAU     -> OKX  `XAU-USDT-SWAP`  (velas + funding; mismo venue que cripto)
-  - NAS100  -> MEXC contract `NAS100_USDT` (kline + funding + ticker 24h)
+  - XAU (oro)          -> OKX  `XAU-USDT-SWAP` (velas + funding; venue de cripto)
+  - índices/FX/materias -> MEXC contract (kline + funding + ticker 24h): Nasdaq 100,
+    S&P 500, Dow (US30), WTI, Brent (UKOIL) y majors de FX (EUR/GBP/AUD contra USD).
+    El contrato XXX_USDT cotiza como XXX/USD, así que el funding se lee sin invertir.
 
 Uso:
   FQ_ANALYSIS_EXTRA=1 python tools/analysis_feeder.py         # loop
@@ -53,10 +55,21 @@ _CCY_NAME = {"USD": "EE.UU.", "EUR": "Eurozona", "GBP": "Reino Unido", "JPY": "J
 # Instrumentos de análisis. display = etiqueta amable para el portal. Sumar uno es
 # una línea: la capa de análisis (regime + funding) es genérica por símbolo.
 INSTRUMENTS = [
-    {"key": "XAU",    "venue": "okx",  "display": "Oro · XAU",     "okx": "XAU-USDT-SWAP", "fund_sym": "XAU/USDT"},
-    {"key": "NAS100", "venue": "mexc", "display": "Nasdaq 100",    "mexc": "NAS100_USDT"},
-    {"key": "SPX500", "venue": "mexc", "display": "S&P 500",       "mexc": "SPX500_USDT"},
-    {"key": "USOIL",  "venue": "mexc", "display": "Petróleo · WTI", "mexc": "USOIL_USDT"},
+    # índices
+    {"key": "NAS100", "venue": "mexc", "display": "Nasdaq 100",     "mexc": "NAS100_USDT"},
+    {"key": "SPX500", "venue": "mexc", "display": "S&P 500",        "mexc": "SPX500_USDT"},
+    {"key": "US30",   "venue": "mexc", "display": "Dow Jones · US30", "mexc": "US30_USDT"},
+    # materias primas
+    {"key": "XAU",    "venue": "okx",  "display": "Oro · XAU",      "okx": "XAU-USDT-SWAP", "fund_sym": "XAU/USDT"},
+    {"key": "USOIL",  "venue": "mexc", "display": "Petróleo · WTI",  "mexc": "USOIL_USDT"},
+    {"key": "UKOIL",  "venue": "mexc", "display": "Petróleo · Brent", "mexc": "UKOIL_USDT"},
+    # divisas (FX majors). El contrato XXX_USDT cotiza igual que XXX/USD, así que el
+    # LONG del contrato == LONG del par convencional: el termómetro de apalancados
+    # se lee correcto sin invertir. (USD/JPY, USD/CAD quedan pendientes: su contrato
+    # sale invertido y requiere voltear precio Y lado del funding — se hará aparte.)
+    {"key": "EUR",    "venue": "mexc", "display": "Euro · EUR/USD",  "mexc": "EUR_USDT"},
+    {"key": "GBP",    "venue": "mexc", "display": "Libra · GBP/USD",  "mexc": "GBP_USDT"},
+    {"key": "AUD",    "venue": "mexc", "display": "Aussie · AUD/USD", "mexc": "AUD_USDT"},
 ]
 
 
