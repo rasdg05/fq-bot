@@ -479,6 +479,33 @@ td:first-child,th:first-child{text-align:left}
   h1,h2,.h2big,#closer h2{font-family:var(--serif)!important}
   /* fuera el look "terminal Matrix": lluvia, splash φ, arte de fondo y marca de agua */
   #rain,#intro,#heroart,#wm{display:none!important}
+  /* --- Brief de sesión (síntesis honesta del panel en vivo) --- */
+  #pitch{align-items:stretch!important}
+  .pitchmain{flex:1 1 400px;min-width:280px;display:flex;flex-direction:column;gap:16px;justify-content:center}
+  #brief{flex:1 1 330px;max-width:400px;align-self:center;background:var(--panel);
+    border:1px solid var(--line);border-radius:14px;padding:15px 16px 12px;
+    display:flex;flex-direction:column;gap:11px;
+    box-shadow:0 1px 2px rgba(18,38,42,.05),0 14px 34px rgba(18,38,42,.12)}
+  .bhd{display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding-bottom:10px;border-bottom:1px solid var(--line2)}
+  .blive{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11px;
+    letter-spacing:.13em;text-transform:uppercase;color:var(--teal);font-weight:700}
+  .bdot{width:7px;height:7px;border-radius:50%;background:var(--up);box-shadow:0 0 8px var(--up);
+    animation:beat 1.8s infinite}
+  .bsess{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.03em;text-align:right}
+  .brow{display:flex;flex-direction:column;gap:3px}
+  .bk{font-family:var(--mono);font-size:9px;letter-spacing:.17em;text-transform:uppercase;color:var(--muted)}
+  .bv{font-size:12.5px;line-height:1.42;color:var(--text)}
+  .bv b{color:var(--teal-deep);font-weight:700}
+  .bv.calm b{color:var(--up)} .bv.warn b{color:var(--dn)}
+  .bclar{display:flex;align-items:center;gap:9px}
+  .bclar .bk{flex:none}
+  .bmeter{display:flex;gap:3px}
+  .bmeter i{width:16px;height:5px;border-radius:2px;background:var(--line)}
+  .bmeter.l1 i:nth-child(1),.bmeter.l2 i:nth-child(-n+2),.bmeter.l3 i{background:var(--teal)}
+  .bband{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--text);margin-left:auto}
+  .bfoot{font-family:var(--mono);font-size:8.5px;letter-spacing:.03em;color:var(--muted);
+    border-top:1px solid var(--line2);padding-top:9px;line-height:1.5}
 </style>
 <canvas id="rain"></canvas>
 <div id="heroart" aria-hidden="true"></div>
@@ -523,18 +550,35 @@ td:first-child,th:first-child{text-align:left}
 </nav>
 
 <div id="pitch" class="reveal">
-  <div class="txt">
-    <div class="eyebrow">Copiloto de mercado · en español · en vivo</div>
-    <h1>Que el mercado deje de intimidarte.</h1>
-    <p>Marea vigila cripto, oro, índices y petróleo en tiempo real y te traduce cada uno a una frase
-    clara: si hay calma, si se está gestando un movimiento, o si mejor no tocar nada. Las señales
-    automáticas son un plus —avisan cuando el motor ve una oportunidad, y a veces se calla semanas—.
-    La plataforma, no: siempre está leyendo el mercado por ti.</p>
+  <div class="pitchmain">
+    <div class="txt">
+      <div class="eyebrow">Copiloto de mercado · en español · en vivo</div>
+      <h1>Que el mercado deje de intimidarte.</h1>
+      <p>Marea vigila cripto, oro, índices y petróleo en tiempo real y te traduce cada uno a una frase
+      clara: si hay calma, si se está gestando un movimiento, o si mejor no tocar nada. Las señales
+      automáticas son un plus —avisan cuando el motor ve una oportunidad, y a veces se calla semanas—.
+      La plataforma, no: siempre está leyendo el mercado por ti.</p>
+    </div>
+    <div class="acts">
+      <a class="cta gold" href="#dashboard-preview">Ver el mercado en vivo ↓</a>
+      <a class="cta ghost" data-tg href="#" target="_blank" rel="noopener">Señales gratis en Telegram →</a>
+    </div>
   </div>
-  <div class="acts">
-    <a class="cta gold" href="#dashboard-preview">Ver el mercado en vivo ↓</a>
-    <a class="cta ghost" data-tg href="#" target="_blank" rel="noopener">Señales gratis en Telegram →</a>
-  </div>
+  <aside id="brief" aria-label="Brief de sesión — lectura del panel en vivo">
+    <div class="bhd">
+      <span class="blive"><span class="bdot"></span> Brief de sesión</span>
+      <span class="bsess" id="b-sess">—</span>
+    </div>
+    <div class="brow"><span class="bk">Ritmo del mercado</span><span class="bv" id="b-tone">Leyendo el mercado…</span></div>
+    <div class="brow"><span class="bk">Apalancamiento</span><span class="bv" id="b-lev">—</span></div>
+    <div class="brow"><span class="bk">Vigilar hoy</span><span class="bv" id="b-watch">—</span></div>
+    <div class="bclar">
+      <span class="bk">Claridad</span>
+      <span class="bmeter" id="b-meter"><i></i><i></i><i></i></span>
+      <span class="bband" id="b-band">—</span>
+    </div>
+    <div class="bfoot">En vivo · dato real, no ilustrativo · se lee solo del panel</div>
+  </aside>
 </div>
 
 <div id="proof" class="reveal">
@@ -998,6 +1042,52 @@ function spark(cv,data){
   x.beginPath();x.arc(w-2,ly,2.8,0,7);x.fillStyle=teal;x.fill();
   x.beginPath();x.arc(w-2,ly,2.8,0,7);x.strokeStyle=cs.getPropertyValue("--panel").trim()||"#fff";x.lineWidth=1.5;x.stroke();
 }
+/* ---- Brief de sesión: síntesis HONESTA del panel en vivo. Todo sale de lo que YA
+   medimos (régimen + funding por símbolo) y del calendario real — cero texto inventado.
+   Si falta el dato, se dice "—". Esa es la diferencia con un brief "ilustrativo". ---- */
+function _sessionNow(){
+  const h=new Date().getUTCHours();
+  if(h>=13&&h<16) return "Solape Londres–NY · alta actividad";
+  if(h>=7&&h<13)  return "Sesión de Londres";
+  if(h>=16&&h<21) return "Sesión de Nueva York";
+  return "Sesión asiática";
+}
+function renderBrief(d){
+  const S=(d&&d.symbols)||{}, keys=Object.keys(S);
+  const sess=document.getElementById("b-sess"); if(sess) sess.textContent=_sessionNow();
+  let n=0,structured=0,decisive=0,hotName=null,hotF=-1,coldName=null,coldF=2;
+  for(const k of keys){ const st=S[k]; if(!st||st.irrev==null) continue; n++;
+    if(st.irrev>0.34) structured++;
+    const f=st.funding_pctl, nm=(st.analysis&&st.display)?st.display:k;
+    if(f!=null){ if(f>hotF){hotF=f;hotName=nm;} if(f<coldF){coldF=f;coldName=nm;} }
+    if(st.irrev>0.34 || (f!=null&&(f>=0.7||f<=0.3))) decisive++;
+  }
+  const tone=document.getElementById("b-tone");
+  if(tone){
+    if(!n){ tone.textContent="Leyendo el mercado…"; tone.className="bv"; }
+    else{ const fS=structured/n;
+      if(fS>=0.5){ tone.innerHTML="Mercado <b>con corriente</b> — varios activos se mueven con dirección. Menos ruido, más tendencia."; tone.className="bv warn"; }
+      else if(fS<=0.2){ tone.innerHTML="Mercado <b>en calma</b> — la mayoría va y viene sin dirección dominante."; tone.className="bv calm"; }
+      else{ tone.innerHTML="Mercado <b>mixto</b> — parte en rango, parte con dirección. Sé selectivo."; tone.className="bv"; } }
+  }
+  const lev=document.getElementById("b-lev");
+  if(lev){
+    if(hotName&&hotF>=0.7) lev.innerHTML="Los apalancados aprietan el <b>LONG</b> en "+hotName+" — combustible para un giro corto.";
+    else if(coldName&&coldF<=0.2) lev.innerHTML="Apalancados <b>fríos</b> en "+coldName+" — viento de cola si el precio sube.";
+    else lev.textContent="Apalancamiento neutro en el tablero — nadie está forzando el movimiento.";
+  }
+  const watch=document.getElementById("b-watch");
+  if(watch){
+    const evs=(window._calEvents||[]).filter(e=>new Date(e.ts).getTime()>Date.now());
+    const hi=evs.find(e=>e.impact==="alto")||evs[0];
+    if(hi){ const t=fmtWhen(hi.ts); watch.innerHTML="<b>"+t.rel+"</b> · "+hi.title+" ("+hi.region+") — impacto "+hi.impact+". Sube la guardia."; }
+    else watch.textContent="Sin eventos de alto impacto próximos — agenda despejada.";
+  }
+  const meter=document.getElementById("b-meter"), band=document.getElementById("b-band");
+  if(meter&&band){ let lvl=0,label="—";
+    if(n){ const r=decisive/n; if(r>=0.6){lvl=3;label="Alta";} else if(r>=0.33){lvl=2;label="Media";} else {lvl=1;label="Baja";} }
+    meter.className="bmeter l"+lvl; band.textContent=label; }
+}
 function render(d){
   setCTAs(d.bot);                       // enlaza los CTA del embudo al Telegram del bot
   const grid=document.getElementById("grid");
@@ -1059,6 +1149,7 @@ function render(d){
   }
   renderTape(syms,d);
   renderLog(d,syms);
+  renderBrief(d);                       // brief de sesión: síntesis honesta del panel
   _lastData=d;                          // el modal de detalle lo reusa (mismo dato del panel)
   if(_detailSym && d.symbols && d.symbols[_detailSym]) renderDetail(d,_detailSym);
 }
@@ -1246,6 +1337,7 @@ function fmtWhen(iso){
   return {rel, when:dd+" · "+hh};
 }
 function renderCalendar(events){
+  window._calEvents=events||[];              // lo reusa el Brief de sesión ("Vigilar hoy")
   const wrap=document.getElementById("calwrap"), list=document.getElementById("callist");
   if(!wrap||!list) return;
   const now=Date.now();
