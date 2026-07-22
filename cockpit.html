@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>FQ CAPITAL · Fibonacci Quantum Framework — Terminal</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%23d4af37' stroke-width='2'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='%23d4af37' font-family='Georgia,serif'%3E%CF%86%3C/text%3E%3C/svg%3E">
+<!-- titulares: sans geométrica redondeada (look SaaS moderno, gratis/sin licencia via Fontshare);
+     el resto de la interfaz se queda en monoespaciado -- esa es la identidad "terminal" de marca. -->
+<link rel="preconnect" href="https://api.fontshare.com" crossorigin>
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=general-sans@600,700&display=swap">
+<!-- PWA: instalable + alertas nativas -->
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#050705">
+<link rel="apple-touch-icon" href="/icon.svg">
 <style>
 /* ============================================================================
    FQ CAPITAL — TERMINAL DE OPERACIONES · Fibonacci Quantum Framework
@@ -20,6 +28,7 @@
   --gold:#d4af37; --goldline:#c9a227; --golddim:rgba(212,175,55,.14);
   --up:#21c96b; --dn:#e05e5e; --rain:#1e5c33;
   --sol1:#9945FF; --sol2:#14F195;
+  --display:"General Sans","Helvetica Neue",Arial,sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
@@ -47,6 +56,11 @@ body{background:var(--bg);color:var(--text);
 #right{margin-left:auto;display:flex;gap:18px;align-items:center}
 .live{display:flex;align-items:center;gap:7px;font-size:10px;letter-spacing:.24em;color:var(--up)}
 .live.demo{color:var(--gold)}
+.alertbtn{background:transparent;border:1px solid rgba(212,175,55,.42);color:var(--gold);
+  font:600 10px/1 inherit;letter-spacing:.08em;padding:7px 11px;border-radius:8px;cursor:pointer;
+  white-space:nowrap;transition:background .15s ease,border-color .15s ease}
+.alertbtn:hover{background:var(--golddim)}
+.alertbtn.on{color:var(--up);border-color:rgba(33,201,107,.45)}
 .live .dot{width:7px;height:7px;border-radius:50%;background:currentColor;
   box-shadow:0 0 9px currentColor;animation:beat 1.8s infinite}
 @keyframes beat{0%,100%{opacity:1}50%{opacity:.3}}
@@ -70,7 +84,7 @@ body{background:var(--bg);color:var(--text);
   background:linear-gradient(180deg,var(--sol1),var(--sol2))}
 #pitch .txt{flex:1;min-width:290px}
 #pitch .eyebrow{font-size:9.5px;letter-spacing:.26em;text-transform:uppercase;color:var(--gold);margin-bottom:9px}
-#pitch h1{font-size:21px;line-height:1.24;color:var(--text);font-weight:700;letter-spacing:.005em;margin-bottom:9px}
+#pitch h1{font-family:var(--display);font-size:26px;line-height:1.22;color:var(--text);font-weight:700;letter-spacing:-.01em;margin-bottom:9px}
 #pitch p{font-size:12px;line-height:1.62;color:var(--text2);max-width:64ch}
 #pitch .acts{display:flex;gap:11px;flex-wrap:wrap;align-items:center}
 
@@ -99,10 +113,10 @@ body{background:var(--bg);color:var(--text);
 /* sección "cómo obtener acceso" */
 #access{margin-top:16px;border:1px solid var(--line2);border-radius:12px;background:var(--panel2);padding:20px 24px}
 #access .hd{font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:var(--gold);margin-bottom:16px}
-#access .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-bottom:18px}
-#access .step .no{font-size:11px;letter-spacing:.1em;color:var(--goldline);font-weight:700;margin-bottom:6px}
-#access .step h3{font-size:13px;color:var(--text);font-weight:600;margin-bottom:5px;letter-spacing:.02em}
-#access .step p{font-size:11.5px;line-height:1.55;color:var(--text2)}
+#access .steps,#segmentos .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-bottom:18px}
+#access .step .no,#segmentos .step .no{font-size:11px;letter-spacing:.1em;color:var(--goldline);font-weight:700;margin-bottom:6px}
+#access .step h3,#segmentos .step h3{font-size:13px;color:var(--text);font-weight:600;margin-bottom:5px;letter-spacing:.02em}
+#access .step p,#segmentos .step p{font-size:11.5px;line-height:1.55;color:var(--text2)}
 
 /* barra CTA fija (idea de la otra sesión) — slim, elegante, no tapa contenido */
 #stickybar{position:fixed;left:0;right:0;bottom:0;z-index:5;display:flex;align-items:center;
@@ -118,7 +132,7 @@ body{background:var(--bg);color:var(--text);
 /* cierre + disclaimer mínimo */
 #closer{margin-top:16px;border:1px solid var(--line);border-radius:12px;
   background:linear-gradient(135deg,rgba(12,15,12,.94),rgba(22,16,4,.92));padding:26px 22px;text-align:center}
-#closer h2{font-size:17px;color:var(--text);font-weight:700;letter-spacing:.02em;margin-bottom:7px;border:none;padding:0}
+#closer h2{font-family:var(--display);font-size:20px;color:var(--text);font-weight:700;letter-spacing:-.008em;margin-bottom:7px;border:none;padding:0}
 #closer p{font-size:12px;color:var(--text2);margin-bottom:15px;letter-spacing:.02em}
 #closer .acts{display:flex;gap:11px;justify-content:center;flex-wrap:wrap;margin-bottom:16px}
 #disclaimer{font-size:8.6px;line-height:1.6;color:var(--muted);letter-spacing:.03em;max-width:70ch;
@@ -145,13 +159,46 @@ body{background:var(--bg);color:var(--text);
 .tier{font-size:8.5px;letter-spacing:.22em;color:var(--gold);border:1px solid var(--line);
   padding:2px 8px;text-transform:uppercase}
 .tier.lab{color:var(--muted);border-color:var(--line2)}
+.tier.ana{color:var(--sol2);border-color:rgba(20,241,149,.32)}
 .inst .px{margin-left:auto;font-size:19px;font-weight:700;font-variant-numeric:tabular-nums}
 .inst .dx{font-size:11.5px;font-variant-numeric:tabular-nums}
 .inst .dx .chglab{color:var(--muted);font-size:9px;margin-left:4px;letter-spacing:.06em;font-variant-numeric:normal}
 .up{color:var(--up)} .dn{color:var(--dn)}
 .kzrow{display:flex;gap:10px;margin-top:2px}
 .kz{font-size:9px;letter-spacing:.18em;color:var(--muted);text-transform:uppercase}
+.charline{font-size:11px;line-height:1.4;color:var(--text2);margin-top:7px;padding-left:9px;
+  border-left:2px solid var(--line2)}
+.charline.calm{border-left-color:var(--up);color:var(--text)}
+.charline.warn{border-left-color:var(--dn);color:var(--text)}
 canvas.spark{width:100%;height:46px;display:block;margin:9px 0 4px}
+#gridhint{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);
+  margin:14px 2px 0;opacity:.85}
+#roadmapnote{font-size:10.5px;line-height:1.55;color:var(--muted);letter-spacing:.02em;
+  margin:14px 2px 0;border-left:2px solid var(--line);padding-left:12px}
+#roadmapnote b{color:var(--text2)}
+
+/* ---- calendario económico ---- */
+#calwrap{margin-top:16px;border:1px solid var(--line2);border-top:1px solid var(--line);
+  border-radius:12px;background:var(--panel);padding:14px 16px 12px}
+.calhd{display:flex;align-items:baseline;gap:4px 12px;flex-wrap:wrap;margin-bottom:10px}
+.calhd b{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);font-weight:700}
+.calhd span{font-size:9.5px;color:var(--muted);letter-spacing:.04em}
+.calrow{display:grid;grid-template-columns:auto 40px 1fr auto auto;gap:10px;align-items:center;
+  padding:8px 4px;border-top:1px solid var(--line2);font-size:11.5px}
+.calrow:first-child{border-top:none}
+.calimp{font-size:8px;color:var(--muted);letter-spacing:-1px}
+.calrow.hi .calimp{color:var(--dn)}
+.calccy{font-size:10px;font-weight:700;letter-spacing:.06em;color:var(--text2)}
+.caltitle{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.calregion{color:var(--muted);font-size:10px}
+.calfc{font-size:9.5px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.calwhen{text-align:right;display:flex;flex-direction:column;line-height:1.25}
+.calwhen b{font-size:11px;color:var(--gold);font-weight:600}
+.calwhen span{font-size:8.5px;color:var(--muted)}
+.calrow.hi .calwhen b{color:var(--dn)}
+.calfoot{font-size:9px;color:var(--muted);letter-spacing:.03em;margin-top:10px;line-height:1.5;
+  border-top:1px solid var(--line2);padding-top:8px}
+@media(max-width:560px){.calrow{grid-template-columns:auto 34px 1fr auto}.calfc{display:none}}
 .rowlbl{display:flex;justify-content:space-between;align-items:baseline;
   font-size:9px;letter-spacing:.2em;color:var(--muted);text-transform:uppercase;margin-top:8px}
 .rowlbl b{font-size:12px;letter-spacing:.04em;color:var(--text);font-variant-numeric:tabular-nums}
@@ -237,6 +284,149 @@ td:first-child,th:first-child{text-align:left}
   -webkit-mask-image:linear-gradient(180deg,#000 60%,transparent 100%);
           mask-image:linear-gradient(180deg,#000 60%,transparent 100%);}
 @media (prefers-reduced-motion:reduce){#heroart{opacity:.5}}
+
+/* ======== plataforma: nav + secciones nuevas (estructura tipo "producto completo",
+   mismos tokens de marca — hairline dorado, panel oscuro, tipografía mono) ======== */
+#navlinks{display:flex;gap:20px;flex-wrap:wrap;padding:10px 2px;border-bottom:1px solid var(--line2)}
+#navlinks a{font-size:10.5px;letter-spacing:.08em;color:var(--text2);text-decoration:none}
+#navlinks a:hover{color:var(--gold)}
+
+.eyebrow2{font-size:9.5px;letter-spacing:.26em;text-transform:uppercase;color:var(--gold);margin-bottom:9px}
+.h2big{font-family:var(--display);font-size:21px;line-height:1.28;color:var(--text);font-weight:700;letter-spacing:-.008em;margin-bottom:8px;max-width:56ch}
+.h2sub{font-size:12px;line-height:1.6;color:var(--text2);max-width:62ch;margin-bottom:16px}
+
+#problema,#dashboard-preview,#segmentos,#manifiesto,#guias,#faq{
+  margin-top:16px;border:1px solid var(--line2);border-radius:12px;background:var(--panel2);padding:22px 24px}
+
+/* ---- tira de prueba (números reales, no vanidad social) ---- */
+#proof{margin-top:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1px;
+  background:var(--line2);border:1px solid var(--line2);border-radius:12px;overflow:hidden}
+.proofitem{background:var(--panel);padding:16px 18px;display:flex;flex-direction:column;gap:6px}
+.proofitem b{font-size:16px;color:var(--gold);letter-spacing:.02em;font-variant-numeric:tabular-nums}
+.proofitem span{font-size:10.5px;line-height:1.5;color:var(--text2)}
+
+/* ---- contraste de 2 columnas (problema/manifiesto) ---- */
+.split2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.split2 .col{border:1px solid var(--line2);border-radius:10px;padding:16px 18px;background:var(--panel)}
+.split2 .col.bad{border-top:2px solid rgba(224,94,94,.45)}
+.split2 .col.good{border-top:2px solid var(--goldline)}
+.split2 .colhd{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--text2);margin-bottom:10px}
+.split2 .col.good .colhd{color:var(--gold)}
+.split2 ul{list-style:none}
+.split2 li{font-size:12px;line-height:1.6;color:var(--text2);padding-left:14px;position:relative;margin-bottom:8px}
+.split2 li:before{content:"–";position:absolute;left:0;color:var(--muted)}
+.split2 .col.good li:before{content:"·";color:var(--goldline);font-weight:700}
+
+/* ---- pill-nav de la vista previa del motor (tabs a secciones ya vivas) ---- */
+.pillnav{display:flex;gap:9px;flex-wrap:wrap;margin-top:6px}
+.pillnav a{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text2);
+  border:1px solid var(--line);border-radius:999px;padding:8px 15px;text-decoration:none;
+  transition:color .15s ease,border-color .15s ease,background .15s ease}
+.pillnav a:hover{color:var(--gold);border-color:rgba(212,175,55,.5);background:var(--golddim)}
+
+/* ---- guías gratis (lead magnets reales, descarga directa) ---- */
+.guiagrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.guiacard{display:block;border:1px solid var(--line2);border-radius:10px;background:var(--panel);
+  padding:18px 20px;text-decoration:none;transition:transform .15s ease,border-color .15s ease}
+.guiacard:hover{transform:translateY(-2px);border-color:rgba(201,162,39,.4)}
+.gtag{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.guiacard h3{font-size:14px;color:var(--text);font-weight:700;margin-bottom:6px;letter-spacing:.01em}
+.guiacard p{font-size:11.5px;line-height:1.55;color:var(--text2);margin-bottom:10px}
+.glink{font-size:10.5px;letter-spacing:.08em;color:var(--gold);font-weight:600}
+
+/* ---- captura de correo real (pipeline propio: waitlist.py + cockpit_server.py) ---- */
+.waitform{margin-top:20px;border-top:1px solid var(--line2);padding-top:18px}
+.waitform label{display:block;font-size:11px;line-height:1.5;color:var(--text2);margin-bottom:10px}
+.waitrow{display:flex;gap:10px;flex-wrap:wrap}
+.waitrow input{flex:1;min-width:220px;background:var(--panel);border:1px solid var(--line);border-radius:8px;
+  padding:11px 14px;color:var(--text);font:12px "SF Mono","JetBrains Mono",monospace}
+.waitrow input::placeholder{color:var(--muted)}
+.waitrow input:focus{outline:none;border-color:rgba(212,175,55,.55)}
+.waitmsg{font-size:11px;margin-top:10px;color:var(--text2);min-height:14px}
+.waitmsg.ok{color:var(--up)}
+.waitmsg.err{color:var(--dn)}
+
+/* ---- detalle por instrumento (Macro view / deep dive) ---- */
+.inst{cursor:pointer}
+.inst .more{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);
+  opacity:0;transition:opacity .18s ease}
+.inst:hover .more{opacity:.9}
+#detail{position:fixed;inset:0;z-index:40;display:none;align-items:flex-start;justify-content:center;
+  padding:32px 16px;overflow-y:auto;background:rgba(3,5,3,.72);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)}
+#detail.on{display:flex}
+#detailcard{position:relative;width:100%;max-width:720px;margin:auto;background:var(--panel2);
+  border:1px solid var(--line);border-radius:14px;padding:26px 26px 24px;
+  box-shadow:0 24px 70px rgba(0,0,0,.6);animation:dpop .22s ease}
+@keyframes dpop{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.dclose{position:absolute;right:14px;top:12px;background:none;border:none;color:var(--muted);
+  font-size:22px;line-height:1;cursor:pointer;padding:4px}
+.dclose:hover{color:var(--text)}
+.dhd{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:4px}
+.dhd .dnm{font-size:22px;font-weight:700;letter-spacing:.06em}
+.dhd .dnm span{color:var(--muted);font-weight:400;font-size:15px}
+.dhd .dpx{margin-left:auto;font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
+.dhd .ddx{font-size:13px;font-variant-numeric:tabular-nums}
+.dsub{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.dsub .dsess{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--text2)}
+#dchart{display:block;width:100%;height:clamp(120px,22vw,170px);margin:4px 0 16px}
+.dread{border:1px solid var(--line2);border-left:2px solid var(--goldline);border-radius:8px;
+  background:var(--panel);padding:14px 16px;margin-bottom:16px}
+.dread .rl{font-size:9px;letter-spacing:.24em;text-transform:uppercase;color:var(--gold);margin-bottom:8px}
+.dread p{font-size:12.5px;line-height:1.62;color:var(--text2);margin:0}
+.dread p b{color:var(--text)}
+.dread .rsrc{font-size:9px;color:var(--muted);letter-spacing:.04em;margin-top:9px}
+.dmetrics{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+@media(max-width:560px){.dmetrics{grid-template-columns:1fr}}
+.dm{border:1px solid var(--line2);border-radius:8px;padding:12px 14px;background:var(--panel)}
+.dm .dmt{display:flex;justify-content:space-between;align-items:baseline}
+.dm .dmt span{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.dm .dmt b{font-size:15px;font-variant-numeric:tabular-nums;color:var(--text)}
+.dm .dtrack{position:relative;height:5px;background:var(--panel2);margin:9px 0 8px;border-radius:3px;overflow:hidden}
+.dm .dzone{position:absolute;top:0;bottom:0}
+.dm .dpin{position:absolute;top:-2px;width:3px;height:9px;background:var(--gold);box-shadow:0 0 7px var(--golddim);transition:left .6s ease}
+.dm .dexp{font-size:10.5px;line-height:1.5;color:var(--text2)}
+.dm .dexp b{color:var(--text)}
+.dcounts{display:flex;gap:18px;flex-wrap:wrap;border-top:1px solid var(--line2);border-bottom:1px solid var(--line2);
+  padding:12px 2px;margin-bottom:16px}
+.dcounts .dc{display:flex;flex-direction:column;gap:2px}
+.dcounts .dc s{font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);text-decoration:none}
+.dcounts .dc b{font-size:16px;font-variant-numeric:tabular-nums;color:var(--text)}
+.devents{margin-bottom:18px}
+.devents .del{font-size:11px;color:var(--text2);padding:3px 0;font-family:ui-monospace,monospace}
+.devents .del .dt{color:var(--muted)}
+.devents .del.fire .dk{color:var(--gold);font-weight:700}
+.devents .del.open .dk{color:var(--up)} .devents .del.veto .dk{color:var(--dn)}
+.devents .dempty{font-size:11px;color:var(--muted);font-style:italic}
+#detailcard .cta{width:100%;justify-content:center}
+.dnote{font-size:9px;color:var(--muted);text-align:center;margin-top:10px;line-height:1.5}
+
+/* ---- FAQ (details/summary nativos, sin JS) ---- */
+.faqlist{display:flex;flex-direction:column;gap:2px}
+#faq details{margin:0;padding:14px 2px;border-bottom:1px solid var(--line2);color:var(--text2);font-size:12px}
+#faq details:last-child{border-bottom:none}
+#faq summary{font-size:12.5px;letter-spacing:.01em;text-transform:none;color:var(--text);font-weight:600;
+  cursor:pointer;list-style:none}
+#faq summary::-webkit-details-marker{display:none}
+#faq summary:before{content:"+ ";color:var(--gold);font-weight:700}
+#faq details[open] summary:before{content:"– "}
+#faq details p{margin-top:8px;line-height:1.6;padding-left:14px}
+
+/* ---- footer ---- */
+#sitefoot{margin-top:28px;border-top:1px solid var(--line2);padding-top:22px}
+.footcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:20px;margin-bottom:18px}
+.footbrand{font-size:14px;font-weight:700;letter-spacing:.2em;color:var(--text)}
+.footbrand b{color:var(--gold)}
+.footcol p{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5}
+.foothd{font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin-bottom:9px}
+.footcol a{display:block;font-size:11.5px;color:var(--text2);text-decoration:none;margin-bottom:7px}
+.footcol a:hover{color:var(--gold)}
+.footlegal{display:flex;flex-direction:column;gap:2px;border-top:1px solid var(--line2);padding-top:6px;margin-bottom:14px}
+.footlegal details{padding:10px 2px;border-bottom:1px solid var(--line2);font-size:10.5px;color:var(--text2)}
+.footlegal details:last-child{border-bottom:none}
+.footlegal summary{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--text2);cursor:pointer;list-style:none}
+.footlegal summary::-webkit-details-marker{display:none}
+.footlegal p{margin-top:7px;line-height:1.6}
+.footbottom{font-size:8.6px;color:var(--muted);letter-spacing:.03em}
 </style>
 </head>
 <body data-palette="#c9a227,#21c96b,#e05e5e">
@@ -272,35 +462,97 @@ td:first-child,th:first-child{text-align:left}
   </div>
   <div class="solrule"></div>
   <div id="right">
+    <button id="alertbtn" class="alertbtn" hidden title="Recibe un aviso del navegador cuando el motor dispara una señal">🔔 Alertas</button>
     <a class="cta gold" data-tg href="#" target="_blank" rel="noopener">Solicitar acceso</a>
     <div class="live" id="mode"><span class="dot"></span><span id="modetxt">LIVE</span></div>
     <span id="utc">—</span>
   </div>
 </div>
 
+<nav id="navlinks" aria-label="Secciones">
+  <a href="#problema">Por qué FQ</a>
+  <a href="#dashboard-preview">El mercado en vivo</a>
+  <a href="#segmentos">Para quién es</a>
+  <a href="#guias">Guías gratis</a>
+  <a href="#faq">Preguntas</a>
+</nav>
+
 <div id="pitch" class="reveal">
   <div class="txt">
-    <div class="eyebrow">Motor de señales · cripto perpetuos · en vivo</div>
-    <h1>El algoritmo que ves operando es el producto.</h1>
-    <p>Cada ventaja pasa el gate anti-sobreajuste de López de Prado — <b>DSR&nbsp;&gt;&nbsp;0.95, CPCV, PBO</b> —
-    y se mide <i>forward</i> antes de creerla. Order-flow con signo, régimen por irreversibilidad, funding
-    direccional. No son capturas de pantalla: es el motor decidiendo en vivo, aquí abajo.</p>
+    <div class="eyebrow">Copiloto de trading · cripto perpetuos · en vivo</div>
+    <h1>Entiende el mercado antes de operar. No memorices indicadores.</h1>
+    <p>Sentimiento del mercado, tendencia y presión de los apalancados, por moneda, actualizándose solo
+    — sin que necesites diez años de experiencia para leerlo. Las señales automáticas son un plus: avisan
+    cuando el motor encuentra una oportunidad clara, y a veces se queda callado semanas enteras. La
+    plataforma, no.</p>
   </div>
   <div class="acts">
-    <a class="cta gold" data-tg href="#" target="_blank" rel="noopener">Únete gratis en Telegram →</a>
-    <a class="cta ghost" data-tg href="#" target="_blank" rel="noopener">Planes VIP</a>
+    <a class="cta gold" href="#dashboard-preview">Ver el mercado en vivo ↓</a>
+    <a class="cta ghost" data-tg href="#" target="_blank" rel="noopener">Señales gratis en Telegram →</a>
+  </div>
+</div>
+
+<div id="proof" class="reveal">
+  <div class="proofitem"><b>Siempre activo</b><span>El mercado no descansa aunque el motor esté en silencio semanas — la plataforma tampoco</span></div>
+  <div class="proofitem"><b>Cero relleno</b><span>Si no hay ventaja clara, no dispara nada. Preferimos callarnos a inventarte una señal</span></div>
+  <div class="proofitem"><b>+0.27R · +0.34R</b><span>Cuando sí dispara: resultado medido en SOL y BTC sobre 5 años de datos reales, no un backtest bonito</span></div>
+  <div class="proofitem"><b>Con respaldo, no con humo</b><span>Cada señal pasó una prueba estadística seria — el detalle, para quien quiera profundizar, está en las preguntas frecuentes</span></div>
+</div>
+
+<div id="problema" class="reveal">
+  <div class="eyebrow2">El problema real</div>
+  <h2 class="h2big">La mayoría de la "info" de cripto no te deja entender nada.</h2>
+  <div class="split2">
+    <div class="col bad">
+      <div class="colhd">Lo que ves en un grupo cualquiera</div>
+      <ul>
+        <li>Te gritan "compra" o "vende" sin mostrar el porqué.</li>
+        <li>La cuenta solo publica las operaciones que ganaron.</li>
+        <li>La convicción sale de la "sensación de mercado", no de un dato verificable.</li>
+        <li>Ninguna estrategia sobrevive el mismo mes dos veces — y nadie lo dice.</li>
+      </ul>
+    </div>
+    <div class="col good">
+      <div class="colhd">Lo que hace FQ distinto</div>
+      <ul>
+        <li>Ves el sentimiento del mercado, la tendencia y la presión de los apalancados de cada moneda — no solo un "compra" o "vende" sin explicación.</li>
+        <li>La plataforma no se apaga cuando el motor está callado: el contexto se actualiza solo, todo el tiempo.</li>
+        <li>Cuando el motor sí dispara una señal, ya pasó una prueba estadística seria (para quien quiera el detalle: <b>DSR&nbsp;&gt;&nbsp;0.95 · CPCV · PBO</b>).</li>
+        <li>Puedes ver el historial completo de sus decisiones — no solo las que salieron bien.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div id="dashboard-preview" class="reveal">
+  <div class="eyebrow2">Vista previa de la plataforma</div>
+  <h2 class="h2big">No son capturas de pantalla. Es el mercado en vivo, aquí mismo.</h2>
+  <p class="h2sub">Cuatro vistas del mismo panel en vivo — sin actor, sin retoque. Dispare o no una señal, esto sigue corriendo.</p>
+  <div class="pillnav">
+    <a href="#nnwrap">Cómo se lee el mercado</a>
+    <a href="#grid">Sentimiento en vivo</a>
+    <a href="#logwrap">Historial de decisiones</a>
+    <a href="#eqwrap">Resultado medido</a>
   </div>
 </div>
 
 <div id="nnwrap" class="reveal">
-  <div class="nnhead"><b>Flujo de decisión del motor</b><span>features → etapas → señal · <i class="up">verde peso +</i> · <i class="dn">rojo peso −</i></span></div>
+  <div class="nnhead"><b>Cómo el mercado se convierte en una señal</b><span>datos → filtros → decisión · <i class="up">verde ayuda</i> · <i class="dn">rojo frena</i></span></div>
   <canvas id="nn"></canvas>
-  <div class="nnfoot"><b>Motor de reglas gateado</b> — features reales → estructura · régimen KL · order-flow → gate <b>DSR·CPCV·PBO</b> → señal real.</div>
+  <div class="nnfoot"><b>Nada de corazonadas</b> — precio, tendencia y presión de los apalancados pasan por un filtro estadístico serio (<b>DSR·CPCV·PBO</b>) antes de convertirse en señal.</div>
 </div>
 
 <div id="tape"><div class="rail" id="rail"></div></div>
 
+<div id="gridhint" class="reveal">Toca cualquier instrumento para su análisis a fondo.</div>
 <div id="grid" class="reveal"></div>
+<div id="roadmapnote" class="reveal"><b>Oro</b>, <b>Nasdaq 100</b>, <b>S&amp;P 500</b> y <b>petróleo</b> entran como instrumentos en <b>observación</b>: les leemos el mercado con las mismas herramientas que a cripto — sentimiento y apalancamiento en vivo — sin emitir señales automáticas. Dato real de OKX y MEXC, no un simulacro.</div>
+
+<div id="calwrap" class="reveal" hidden>
+  <div class="calhd"><b>Calendario económico</b><span>Lo que mueve el mercado esta semana — impacto alto y medio</span></div>
+  <div id="callist"></div>
+  <div class="calfoot">Horarios en tu zona local. Fuente pública (ForexFactory). Los eventos de alto impacto suelen disparar volatilidad — súbele la guardia.</div>
+</div>
 
 <div id="logwrap" class="reveal">
   <div class="lt"><h2>REGISTRO DE DECISIONES DEL MOTOR</h2><span class="cur"></span></div>
@@ -315,22 +567,109 @@ td:first-child,th:first-child{text-align:left}
   <canvas id="eqc"></canvas>
 </div>
 
-<div id="access" class="reveal">
-  <div class="hd">Cómo obtener acceso</div>
+<div id="segmentos" class="reveal">
+  <div class="eyebrow2">Para quién es esto</div>
+  <h2 class="h2big">Para quien quiere entender el mercado — no memorizar un manual.</h2>
   <div class="steps">
-    <div class="step"><div class="no">01 — Únete gratis</div><h3>Entra al bot en Telegram</h3>
-      <p>Recibes todas las señales del motor, sin filtro. Cero tarjeta, cero fricción.</p></div>
-    <div class="step"><div class="no">02 — Observa la medida</div><h3>Cada señal trae su lógica</h3>
-      <p>Régimen KL, funding, order-flow — a la vista. Nada oculto: mides antes de creer.</p></div>
-    <div class="step"><div class="no">03 — Sube a VIP</div><h3>Las señales filtradas por calidad</h3>
-      <p>Filtro KL de calidad + convicción por φ y order-flow, con TP escalonados y tamaño sugerido.</p></div>
+    <div class="step"><div class="no">Ya operas perpetuos</div><h3>Demasiadas pestañas, una sola decisión</h3>
+      <p>TradingView, Twitter, Discord — armas la lectura a mano cada vez. Aquí el sentimiento, la tendencia y el apalancamiento de cada moneda ya están cruzados antes de que abras el gráfico.</p></div>
+    <div class="step"><div class="no">Estás empezando</div><h3>No necesitas hablar "quant" para entender el mercado</h3>
+      <p>Sin jerga ni cursos de meses: el panel te dice si el mercado está tranquilo o agitado, y quién está pagando de más por apalancarse. En español simple.</p></div>
+    <div class="step"><div class="no">Vienes de grupos de señales</div><h3>Ya no confías en nadie, con razón</h3>
+      <p>Te prometieron rentabilidad y nunca mostraron el fracaso. Aquí el historial muestra aciertos <b>y</b> vetos, en vivo, sin editar.</p></div>
+  </div>
+</div>
+
+<div id="manifiesto" class="reveal">
+  <div class="eyebrow2">Para que quede claro</div>
+  <h2 class="h2big">No es un canal de señales. Es un copiloto para leer el mercado.</h2>
+  <div class="split2">
+    <div class="col bad">
+      <div class="colhd">FQ no es</div>
+      <ul>
+        <li>Un grupo que grita "compra/vende" sin mostrar el porqué.</li>
+        <li>Predicciones de IA sobre el precio futuro.</li>
+        <li>Una comunidad de gurús con capturas de ganancias sueltas.</li>
+        <li>Rentabilidad garantizada — nadie puede prometerla, con o sin datos.</li>
+      </ul>
+    </div>
+    <div class="col good">
+      <div class="colhd">FQ sí es</div>
+      <ul>
+        <li>Un panel en vivo que traduce el mercado a algo que se entiende: tranquilo o agitado, quién paga de más por apalancarse, qué tan fuerte es la tendencia.</li>
+        <li>Señales automáticas como plus — con su propia prueba estadística detrás (DSR·CPCV·PBO), no una corazonada.</li>
+        <li>Un historial de decisiones en vivo — aciertos y vetos, sin retoque.</li>
+        <li>Algo que se sigue actualizando aunque el motor lleve semanas calladito.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div id="access" class="reveal">
+  <div class="hd">Cómo empezar</div>
+  <div class="steps">
+    <div class="step"><div class="no">01 — Mira el mercado</div><h3>Entra a la plataforma, sin registro</h3>
+      <p>El panel de arriba ya está en vivo — sentimiento, tendencia y apalancamiento, actualizándose solo.</p></div>
+    <div class="step"><div class="no">02 — Súmate a Telegram (opcional)</div><h3>El plus: señales automáticas gratis</h3>
+      <p>Cuando el motor encuentra una oportunidad clara, te avisa ahí. A veces se tarda semanas — la plataforma no.</p></div>
+    <div class="step"><div class="no">03 — Sube a VIP</div><h3>Señales filtradas por calidad</h3>
+      <p>Filtro de calidad + convicción por order-flow, con objetivos escalonados y tamaño sugerido.</p></div>
   </div>
   <a class="cta gold" data-tg href="#" target="_blank" rel="noopener">Empezar gratis en Telegram →</a>
 </div>
 
+<div id="guias" class="reveal">
+  <div class="eyebrow2">Guías gratis</div>
+  <h2 class="h2big">Antes de operar nada, lee esto.</h2>
+  <p class="h2sub">Sin correo, sin registro. Descarga directa — o pídelas dentro del bot.</p>
+  <div class="guiagrid">
+    <a class="guiacard" href="/guia-3-reglas.pdf" target="_blank" rel="noopener">
+      <div class="gtag">PDF · 10 min</div>
+      <h3>Por qué sigues perdiendo</h3>
+      <p>Las 3 reglas que separan a quien mide de quien improvisa. La guía corta, directa al punto.</p>
+      <span class="glink">Descargar guía →</span>
+    </a>
+    <a class="guiacard" href="/como-se-construye-una-ventaja.pdf" target="_blank" rel="noopener">
+      <div class="gtag">PDF · lectura profunda</div>
+      <h3>Cómo se construye una ventaja</h3>
+      <p>El marco measure-first completo: por qué un filtro apaga señales, y cómo se audita un motor real.</p>
+      <span class="glink">Descargar guía →</span>
+    </a>
+  </div>
+  <form id="waitlistform" class="waitform">
+    <label for="wemail">¿Prefieres recibirla por correo? Te mandamos un link de confirmación.</label>
+    <div class="waitrow">
+      <input id="wemail" type="email" name="email" placeholder="tucorreo@dominio.com" required autocomplete="email" maxlength="254">
+      <button type="submit" class="cta gold">Enviarme la guía →</button>
+    </div>
+    <div id="waitmsg" class="waitmsg" role="status" aria-live="polite"></div>
+  </form>
+</div>
+
+<div id="faq" class="reveal">
+  <div class="eyebrow2">Preguntas frecuentes</div>
+  <h2 class="h2big">Lo que preguntarías antes de confiar en una plataforma nueva.</h2>
+  <div class="faqlist">
+    <details><summary>¿Qué es FQ Capital?</summary>
+      <p>Un copiloto en vivo para operar cripto: te muestra el sentimiento del mercado, la tendencia y el apalancamiento de cada moneda, actualizándose solo. Además, un motor de señales que avisa por Telegram cuando encuentra una oportunidad clara — con su lógica siempre visible.</p></details>
+    <details><summary>¿Esto reemplaza al bot de Telegram?</summary>
+      <p>No. Telegram sigue exactamente igual, FREE y VIP. La plataforma es el panel completo; Telegram es solo el canal donde te avisa cuando el motor dispara.</p></details>
+    <details><summary>¿Es un servicio de señales como cualquier otro?</summary>
+      <p>No en el sentido de "confía en mí". Cada ventaja se mide <i>forward</i> antes de creerse, y lo que no pasa el gate se descarta y se documenta — no se esconde ni se reintenta en silencio.</p></details>
+    <details><summary>¿Qué significan DSR, CPCV y PBO?</summary>
+      <p>Son las pruebas que corrigen el sesgo de "probé 50 variantes y me quedé con la que brilló" (multiple-testing). El DSR (Deflated Sharpe Ratio) descuenta ese sobreajuste; CPCV y PBO confirman que la ventaja no depende de una sola partición de los datos.</p></details>
+    <details><summary>¿Garantizan ganancias?</summary>
+      <p>No. Ninguna estrategia, por bien medida que esté, garantiza resultados futuros. Operar derivados cripto con apalancamiento conlleva riesgo real de pérdida total de capital.</p></details>
+    <details><summary>¿Cómo empiezo?</summary>
+      <p>Gratis, en Telegram, sin tarjeta. Recibes todas las señales del motor con su lógica visible; el VIP añade el filtro de calidad y la gestión escalonada de TPs.</p></details>
+    <details><summary>¿Puedo ver al motor fallar, no solo acertar?</summary>
+      <p>Sí — es el punto. El registro de decisiones más arriba muestra fires y vetos en tiempo real, sin editar ni retocar.</p></details>
+  </div>
+</div>
+
 <div id="closer" class="reveal">
-  <h2>Empieza a recibir las señales.</h2>
-  <p>Gratis en Telegram, sin tarjeta. El motor decide con la medida; tú operas.</p>
+  <h2>Empieza a ver el mercado claro.</h2>
+  <p>El panel de arriba ya está en vivo y es gratis. Súmate a Telegram para el plus: señales automáticas, sin tarjeta.</p>
   <div class="acts">
     <a class="cta gold" data-tg href="#" target="_blank" rel="noopener">Comenzar gratis →</a>
     <a class="cta ghost" data-tg href="#" target="_blank" rel="noopener">Acceso VIP</a>
@@ -342,12 +681,56 @@ td:first-child,th:first-child{text-align:left}
   </div>
 </div>
 
+<footer id="sitefoot">
+  <div class="footcols">
+    <div class="footcol">
+      <div class="footbrand">F<b>Q</b> CAPITAL</div>
+      <p>Mesa de liquidez institucional · perpetuos cripto.</p>
+    </div>
+    <div class="footcol">
+      <div class="foothd">Sitio</div>
+      <a href="#problema">Por qué FQ</a>
+      <a href="#dashboard-preview">El mercado en vivo</a>
+      <a href="#guias">Guías gratis</a>
+      <a href="#faq">Preguntas</a>
+    </div>
+    <div class="footcol">
+      <div class="foothd">Contacto</div>
+      <a data-tg href="#" target="_blank" rel="noopener">Hablar por Telegram</a>
+    </div>
+  </div>
+  <div class="footlegal">
+    <details><summary>Aviso de riesgo</summary>
+      <p>El trading de criptomonedas con apalancamiento conlleva alto riesgo — puedes perder todo tu capital.
+      FQ no es asesoría financiera; las señales son informativas y operas bajo tu propia responsabilidad.
+      Rendimientos pasados no garantizan resultados futuros. Opera solo capital que puedas permitirte perder.</p></details>
+    <details><summary>Términos de servicio</summary>
+      <p>El acceso VIP es personal e intransferible. Las señales no constituyen una recomendación de inversión.
+      No se garantiza disponibilidad ininterrumpida del servicio. El reembolso se evalúa caso por caso dentro
+      de las primeras 48 horas. El uso continuado del servicio implica la aceptación de estos términos.</p></details>
+    <details><summary>Privacidad</summary>
+      <p>Guardamos tu identificador de Telegram, tu estado de suscripción y tu historial de pagos — nada más.
+      No vendemos ni compartimos tus datos con terceros; se usan solo para operar tu acceso al servicio. Puedes
+      solicitar la baja y el borrado escribiendo /desuscribir dentro del bot.</p></details>
+  </div>
+  <div class="footbottom">© 2026 FQ CAPITAL. Contenido educativo/informativo — no constituye asesoría de inversión.</div>
+</footer>
+
 </div>
 
 <div id="stickybar">
   <span class="sbtxt"><b>Señales del motor</b>, gratis en Telegram — sin tarjeta.</span>
   <a class="cta gold" data-tg href="#" target="_blank" rel="noopener">Únete gratis →</a>
   <button class="x" id="sbx" aria-label="cerrar">×</button>
+</div>
+
+<!-- ====== detalle por instrumento (Macro view / deep dive) — overlay, se llena por JS
+     con el MISMO dato del panel en vivo (cockpit.json). Se abre al clic en una tarjeta. ====== -->
+<div id="detail" aria-hidden="true">
+  <div id="detailcard" role="dialog" aria-modal="true" aria-labelledby="dtitle">
+    <button class="dclose" id="dclose" aria-label="cerrar detalle">×</button>
+    <div id="detailbody"></div>
+  </div>
 </div>
 
 <script>
@@ -424,6 +807,36 @@ function setCTAs(bot){
   if(x) x.onclick=()=>{ bar.style.display="none"; try{sessionStorage.setItem("fq_sb","0")}catch(e){} };
 }catch(e){} })();
 
+// captura de correo (guías gratis): POST /waitlist, mismo origen -- pipeline
+// propio (waitlist.py), sin formularios de terceros.
+(function(){ try{
+  const f=document.getElementById("waitlistform"); if(!f) return;
+  const msg=document.getElementById("waitmsg");
+  f.addEventListener("submit", async function(ev){
+    ev.preventDefault();
+    const email=document.getElementById("wemail").value.trim();
+    const btn=f.querySelector("button");
+    btn.disabled=true; msg.className="waitmsg"; msg.textContent="Enviando…";
+    try{
+      const r=await fetch("/waitlist",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({email:email})});
+      const d=await r.json().catch(()=>({ok:false}));
+      if(r.ok && d.ok){
+        msg.className="waitmsg ok";
+        msg.textContent="Listo — revisa tu correo para confirmar (el link expira en 48h).";
+        f.reset();
+      }else{
+        msg.className="waitmsg err";
+        msg.textContent=d.error||"Ese correo no parece válido.";
+      }
+    }catch(e){
+      msg.className="waitmsg err";
+      msg.textContent="No se pudo enviar — intenta de nuevo.";
+    }
+    btn.disabled=false;
+  });
+}catch(e){} })();
+
 function demoInit(){
   const px={SOL:80.65,BTC:61603,ETH:1708,BCH:210.1,BNB:551.2};
   demoState={symbols:{},events:[]};
@@ -432,11 +845,27 @@ function demoInit(){
       spark:Array.from({length:48},()=>px[s]),irrev:0.2+Math.random()*0.35,
       funding_pctl:Math.random(),counts:{fire:0,opened:0,vetoed:0},open:0,killzone:"london_open_kz"};
   }
+  // instrumentos de análisis (oro/Nasdaq/S&P/petróleo): observación, no señales
+  const ax={XAU:{p:4088,d:"Oro · XAU"},NAS100:{p:29118,d:"Nasdaq 100"},
+    SPX500:{p:7499,d:"S&P 500"},USOIL:{p:84.6,d:"Petróleo · WTI"}};
+  for(const s in ax){
+    demoState.symbols[s]={analysis:true,display:ax[s].d,price:ax[s].p,
+      spark:Array.from({length:48},()=>ax[s].p),irrev:0.1+Math.random()*0.3,
+      funding_pctl:Math.random()};
+  }
 }
 function demoTick(){
-  const kz=["asia_kz","london_open_kz","silver_bullet_lo","ny_am_kz","silver_bullet_ny_p","fuera"];
-  for(const s of SYMS_DEFAULT){
+  const kz=["asia_kz","london_open_kz","silver_bullet_lo","ny_am_kz","silver_bullet_ny_pm","fuera"];
+  for(const s in demoState.symbols){
     const st=demoState.symbols[s];
+    if(st.analysis){                    // análisis: solo mueve precio/medidores, sin señales
+      st.price*=(1+(Math.random()-0.5)*0.0022);
+      st.spark.push(st.price);st.spark=st.spark.slice(-48);
+      st.irrev=Math.min(.95,Math.max(.02,st.irrev+(Math.random()-.5)*.04));
+      st.funding_pctl=Math.min(.99,Math.max(.01,st.funding_pctl+(Math.random()-.5)*.04));
+      st.chg_24h=(st.price/st.spark[0]-1)*100;
+      st.updated=Date.now()/1e3; continue;
+    }
     st.price*=(1+(Math.random()-0.5)*0.0032);
     st.spark.push(st.price);st.spark=st.spark.slice(-48);
     st.irrev=Math.min(.95,Math.max(.02,st.irrev+(Math.random()-.5)*.05));
@@ -446,7 +875,7 @@ function demoTick(){
       if(Math.random()<0.6){st.counts.opened++;st.open=1;
         demoState.events.push({t:Date.now()/1e3,sym:s,kind:"open",text:(Math.random()<.5?"LONG":"SHORT")+" abierta @ "+st.price.toFixed(2)});}
       else{st.counts.vetoed++;demoState.events.push({t:Date.now()/1e3,sym:s,kind:"veto",text:"suprimida · régimen no óptimo"});}
-      demoState.events.push({t:Date.now()/1e3,sym:s,kind:"fire",text:"SEÑAL DEL MOTOR [5m/"+st.killzone+"]"});}
+      demoState.events.push({t:Date.now()/1e3,sym:s,kind:"fire",text:"SEÑAL DEL MOTOR [5m/"+kzLabel(st.killzone)+"]"});}
     st.updated=Date.now()/1e3;
   }
   demoState.events=demoState.events.slice(-60);
@@ -455,26 +884,53 @@ function demoTick(){
 
 /* ================= RENDER ================= */
 const fmtP=v=>v>=1000?v.toLocaleString("en-US",{maximumFractionDigits:0}):v>=100?v.toFixed(2):v.toFixed(3);
+// nombres de sesión en español llano -- el backend maneja slugs tipo ICT
+// (silver_bullet_ny_pm, ny_am_kz...) que no le dicen nada a alguien sin jerga.
+const KZ_ES={
+  silver_bullet_lo:"Londres · hora clave", silver_bullet_ny_am:"NY mañana · hora clave",
+  silver_bullet_ny_pm:"NY tarde · hora clave", london_open_kz:"Apertura Londres",
+  ny_am_kz:"Mañana NY", ny_pm_kz:"Tarde NY", eu_pre_open:"Pre-apertura Europa",
+  asia_kz:"Sesión Asia", fuera:"Fuera de sesión"};
+const kzLabel=k=>KZ_ES[k]||k||"—";
+// carácter del mercado: SÍNTESIS en lenguaje llano de sentimiento (irrev) +
+// apalancamiento (funding) juntos — el "siéntelo de un vistazo". Alineado a la
+// semántica honesta de regime-lab: irrev alto = mercado con estructura/asimetría,
+// irrev bajo = equilibrado/eficiente. Todo derivado del dato real.
+function marketCharacter(irrev, funding){
+  if(irrev==null) return {txt:"Leyendo el mercado…", cls:""};
+  const structured = irrev>0.34;
+  const hot  = funding!=null && funding>=0.7;
+  const cold = funding!=null && funding<=0.5;
+  if(!structured && cold) return {txt:"Ambiente calmado — equilibrado y apalancados fríos", cls:"calm"};
+  if(!structured && hot)  return {txt:"Calma tensa — equilibrado, pero apalancados calientes", cls:"warn"};
+  if(structured && hot)   return {txt:"Mercado caliente — con estructura y apalancados sobrecalentados", cls:"warn"};
+  if(structured && cold)  return {txt:"Movimiento con dirección — estructura y apalancados fríos", cls:""};
+  return {txt: structured?"Mercado con estructura":"Mercado equilibrado", cls: structured?"warn":"calm"};
+}
 function instCard(sym){
   const el=document.createElement("div");el.className="inst";el.id="c-"+sym;
   el.innerHTML=`
-   <div class="hd"><span class="nm">${sym}<span style="color:var(--muted)">/USDT</span></span>
+   <div class="hd"><span class="nm" id="nm-${sym}">${sym}<span style="color:var(--muted)">/USDT</span></span>
      <span class="tier" id="tr-${sym}"></span>
      <span class="px" id="p-${sym}">—</span></div>
    <div class="kzrow"><span class="dx" id="d-${sym}"></span><span class="kz" id="kz-${sym}" style="margin-left:auto">—</span></div>
+   <div class="charline" id="ch-${sym}">Leyendo el mercado…</div>
    <canvas class="spark" id="sp-${sym}"></canvas>
-   <div class="rowlbl"><span>Régimen · KL irreversibilidad</span><b id="iv-${sym}">—</b></div>
+   <div class="rowlbl"><span>Sentimiento del mercado</span><b id="iv-${sym}">—</b></div>
    <div class="track"><div class="zone" style="left:0;width:34%;background:var(--up)"></div>
      <div class="notch" style="left:34%"></div><div class="pin" id="ip-${sym}" style="left:0%"></div></div>
-   <div class="verdict" id="ist-${sym}">calibrando régimen…</div>
-   <div class="rowlbl"><span>Funding · percentil 90 días</span><b id="fv-${sym}">—</b></div>
+   <div class="verdict" id="ist-${sym}">leyendo el mercado…</div>
+   <div class="rowlbl"><span>Termómetro de apalancados</span><b id="fv-${sym}">—</b></div>
    <div class="track"><div class="zone" style="left:0;width:50%;background:var(--goldline)"></div>
      <div class="zone" style="left:70%;width:30%;background:var(--dn)"></div>
      <div class="notch" style="left:50%"></div><div class="notch" style="left:70%"></div>
      <div class="pin" id="fp-${sym}" style="left:50%"></div></div>
-   <div class="verdict" id="fst-${sym}">leyendo funding…</div>
-   <div class="foot"><span>señales <b id="cf-${sym}">0</b></span><span>aperturas <b id="co-${sym}">0</b></span>
-     <span>suprimidas <b id="cv-${sym}">0</b></span><span>vivas <b id="cl-${sym}">0</b></span></div>`;
+   <div class="verdict" id="fst-${sym}">leyendo apalancamiento…</div>
+   <div class="foot" id="foot-${sym}"><span>señales <b id="cf-${sym}">0</b></span><span>aperturas <b id="co-${sym}">0</b></span>
+     <span>suprimidas <b id="cv-${sym}">0</b></span><span>vivas <b id="cl-${sym}">0</b></span>
+     <span class="more" style="margin-left:auto">Ver detalle →</span></div>`;
+  el.tabIndex=0; el.setAttribute("role","button");
+  el.setAttribute("aria-label","Ver detalle de "+sym);
   return el;
 }
 function spark(cv,data){
@@ -509,16 +965,30 @@ function render(d){
         +(is24?'<span class="chglab">24h</span>':'');
         P("d").className="dx "+(ch>=0?"up":"dn");}
     }
-    P("kz").textContent=st.killzone||"—";
+    P("kz").textContent=st.analysis?"Observación":kzLabel(st.killzone);
     const tr=P("tr");
-    if(st.vip===false){tr.textContent="LABORATORIO";tr.className="tier lab";}
+    if(st.analysis){tr.textContent="ANÁLISIS";tr.className="tier ana";}
+    else if(st.vip===false){tr.textContent="LABORATORIO";tr.className="tier lab";}
     else if(st.vip===true){tr.textContent="PRODUCCIÓN";tr.className="tier";}
+    // instrumentos de análisis: nombre amable (Oro/Nasdaq), sin contadores de señal
+    const nm=P("nm");
+    if(nm){ if(st.analysis&&st.display) nm.textContent=st.display;
+      else nm.innerHTML=s+'<span style="color:var(--muted)">/USDT</span>'; }
+    const foot=P("foot");
+    if(foot&&st.analysis&&!foot.dataset.ana){
+      foot.dataset.ana="1";
+      foot.innerHTML='<span style="color:var(--muted)">Solo análisis · sin señal automática</span>'
+        +'<span class="more" style="margin-left:auto">Ver detalle →</span>';
+    }
     spark(P("sp"),st.spark);
+    const ch=P("ch");
+    if(ch){ const mc=marketCharacter(st.irrev,st.funding_pctl); ch.textContent=mc.txt; ch.className="charline "+mc.cls; }
     if(st.irrev!=null){
       P("iv").textContent=st.irrev.toFixed(3);
       P("ip").style.left=(Math.min(st.irrev,1)*100)+"%";
-      P("ist").innerHTML=st.irrev<=0.34?"<b>REVERSIBLE ✓</b> — régimen donde el edge paga"
-                                        :"<b>TRENDING △</b> — filtro de calidad en control";
+      P("ist").innerHTML=st.irrev<=0.34
+        ?("<b>EN RANGO ✓</b> — el mercado va y viene, "+(st.analysis?"sin dirección dominante":"terreno claro para el motor"))
+        :"<b>TENDENCIA FUERTE △</b> — el mercado corre parejo, mejor cautela";
     }
     if(st.funding_pctl!=null){
       P("fv").textContent=st.funding_pctl.toFixed(2);
@@ -526,13 +996,123 @@ function render(d){
       P("fst").innerHTML=st.funding_pctl<=0.5?"frío → <b>viento de cola del LONG ✓</b>"
         :st.funding_pctl>=0.7?"caliente → <b>combustible del SHORT ✓</b>":"zona <b>neutra</b> — sin sesgo";
     }
-    const c=st.counts||{};
-    P("cf").textContent=c.fire||0;P("co").textContent=c.opened||0;
-    P("cv").textContent=c.vetoed||0;P("cl").textContent=st.open||0;
+    // instrumentos de análisis no tienen contadores de señal (el foot se reemplazó)
+    if(!st.analysis){
+      const c=st.counts||{};
+      P("cf").textContent=c.fire||0;P("co").textContent=c.opened||0;
+      P("cv").textContent=c.vetoed||0;P("cl").textContent=st.open||0;
+    }
   }
   renderTape(syms,d);
   renderLog(d,syms);
+  _lastData=d;                          // el modal de detalle lo reusa (mismo dato del panel)
+  if(_detailSym && d.symbols && d.symbols[_detailSym]) renderDetail(d,_detailSym);
 }
+
+/* ================= DETALLE POR INSTRUMENTO (Macro view / deep dive) =================
+   Sin dato nuevo ni llamadas LLM desde la web: reusa cockpit.json. La "Lectura FQ"
+   usa st.reading si el motor la sella (enriquecimiento opcional); si no, arma un
+   resumen HONESTO del dato medido — nunca texto inventado. */
+let _detailSym=null, _lastData=null;
+function pct(v){return Math.round(Math.min(1,Math.max(0,v))*100);}
+function narr(st){
+  // Resumen data-driven: cada frase se deriva de un número real del panel.
+  const S=[];
+  if(st.irrev!=null){
+    S.push(st.irrev<=0.34
+      ? "El mercado <b>va y viene dentro de un rango</b> — sin una dirección dominante clara."
+      : "El mercado está en <b>tendencia fuerte</b>, corriendo parejo en una dirección.");
+  }
+  if(st.funding_pctl!=null){
+    S.push(st.funding_pctl<=0.5
+      ? "Los apalancados están <b>fríos</b>: poca presión compradora forzada, viento de cola para los largos."
+      : st.funding_pctl>=0.7
+      ? "Los apalancados están <b>calientes</b>: exceso de largos pagando de más, combustible para una corrección."
+      : "El apalancamiento está en <b>zona neutra</b>, sin un sesgo claro por ahora.");
+  }
+  if(st.analysis){
+    S.push("Instrumento en <b>observación</b> — leemos su contexto con las mismas herramientas que cripto, sin emitir señales automáticas.");
+  }else{
+    const fires=(st.counts&&st.counts.fire)||0;
+    S.push(fires>0
+      ? ("El motor disparó <b>"+fires+"</b> "+(fires===1?"señal":"señales")+" en esta sesión.")
+      : "El motor <b>no ha disparado</b> en esta sesión — normal cuando no hay una ventaja clara. La plataforma sigue midiendo.");
+  }
+  return S.join(" ");
+}
+function renderDetail(d,sym){
+  const st=(d.symbols||{})[sym]; if(!st) return;
+  const body=document.getElementById("detailbody");
+  const name=st.analysis&&st.display?st.display:sym+'<span>/USDT</span>';
+  const chg=st.chg_24h!=null?st.chg_24h:(st.spark&&st.spark.length>1&&st.spark[0]?(st.price-st.spark[0])/st.spark[0]*100:null);
+  const tier=st.analysis?'<span class="tier ana">ANÁLISIS</span>'
+    :st.vip===false?'<span class="tier lab">LABORATORIO</span>':'<span class="tier">PRODUCCIÓN</span>';
+  const reading=st.reading?('<p>'+st.reading+'</p><div class="rsrc">Lectura del motor · '+sym+'</div>')
+    :('<p>'+narr(st)+'</p><div class="rsrc">Lectura automática del dato en vivo — sin opinión humana ni predicción.</div>');
+  const evs=(d.events||[]).filter(e=>e.sym===sym).slice(-6).reverse();
+  const evHtml=evs.length?('<div class="devents">'+evs.map(e=>{
+    const t=new Date((e.t||0)*1000).toLocaleTimeString("es-MX",{hour12:false});
+    const K={read:"LECTURA",fire:"SEÑAL",open:"APERTURA",veto:"VETO",close:"CIERRE"};
+    return '<div class="del '+e.kind+'"><span class="dt">'+t+'</span> · <span class="dk">'+(K[e.kind]||e.kind.toUpperCase())+'</span> · '+e.text+'</div>';
+  }).join('')+'</div>'):'';
+  const sess=st.analysis?'Observación · sin señales':kzLabel(st.killzone);
+  const cta=st.analysis
+    ? '<a class="cta gold" data-tg href="#" target="_blank" rel="noopener">Recibir análisis y señales en Telegram →</a>'
+    : '<a class="cta gold" data-tg href="#" target="_blank" rel="noopener">Recibir señales de '+sym+' en Telegram →</a>';
+  const iv=st.irrev, fv=st.funding_pctl;
+  body.innerHTML=`
+    <div class="dhd"><span class="dnm" id="dtitle">${name}</span> ${tier}
+      <span class="dpx">$${fmtP(st.price)}</span></div>
+    <div class="dsub">
+      ${chg!=null?'<span class="ddx '+(chg>=0?'up':'dn')+'">'+(chg>=0?'▲ ':'▼ ')+Math.abs(chg).toFixed(2)+'% 24h</span>':''}
+      <span class="dsess" style="margin-left:auto">${sess}</span></div>
+    <canvas id="dchart"></canvas>
+    <div class="dread"><div class="rl">Lectura FQ</div>${reading}</div>
+    <div class="dmetrics">
+      <div class="dm"><div class="dmt"><span>Sentimiento del mercado</span><b>${iv!=null?iv.toFixed(3):'—'}</b></div>
+        <div class="dtrack"><div class="dzone" style="left:0;width:34%;background:var(--up);opacity:.3"></div>
+          <div class="dpin" style="left:${iv!=null?pct(iv):0}%"></div></div>
+        <div class="dexp">${iv==null?'Calibrando…':iv<=0.34?'<b>En rango</b> — va y viene, sin dirección dominante.':'<b>Tendencia fuerte</b> — corre parejo, más cautela.'}</div></div>
+      <div class="dm"><div class="dmt"><span>Termómetro de apalancados</span><b>${fv!=null?fv.toFixed(2):'—'}</b></div>
+        <div class="dtrack"><div class="dzone" style="left:0;width:50%;background:var(--goldline);opacity:.3"></div>
+          <div class="dzone" style="left:70%;width:30%;background:var(--dn);opacity:.3"></div>
+          <div class="dpin" style="left:${fv!=null?pct(fv):50}%"></div></div>
+        <div class="dexp">${fv==null?'Leyendo…':fv<=0.5?'<b>Fríos</b> — viento de cola para largos.':fv>=0.7?'<b>Calientes</b> — combustible para cortos.':'<b>Neutro</b> — sin sesgo.'}</div></div>
+    </div>
+    ${evHtml}
+    ${cta}
+    <div class="dnote">Contenido educativo/informativo — no es asesoría de inversión.</div>`;
+  setCTAs((_lastData||{}).bot);         // re-enlaza el CTA recién inyectado
+  const cv=document.getElementById("dchart"); if(cv) spark(cv,st.spark);
+}
+function openDetail(sym){
+  _detailSym=sym;
+  const ov=document.getElementById("detail");
+  ov.classList.add("on"); ov.setAttribute("aria-hidden","false");
+  if(_lastData) renderDetail(_lastData,sym);
+  document.getElementById("dclose").focus();
+}
+function closeDetail(){
+  _detailSym=null;
+  const ov=document.getElementById("detail");
+  ov.classList.remove("on"); ov.setAttribute("aria-hidden","true");
+}
+(function(){ try{
+  const grid=document.getElementById("grid");
+  if(grid) grid.addEventListener("click",e=>{
+    const card=e.target.closest(".inst"); if(!card||!card.id.startsWith("c-")) return;
+    openDetail(card.id.slice(2));
+  });
+  if(grid) grid.addEventListener("keydown",e=>{
+    if(e.key!=="Enter"&&e.key!==" ") return;
+    const card=e.target.closest(".inst"); if(!card||!card.id.startsWith("c-")) return;
+    e.preventDefault(); openDetail(card.id.slice(2));
+  });
+  const ov=document.getElementById("detail"), cl=document.getElementById("dclose");
+  if(cl) cl.onclick=closeDetail;
+  if(ov) ov.addEventListener("click",e=>{ if(e.target===ov) closeDetail(); });
+  document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&_detailSym) closeDetail(); });
+}catch(e){} })();
 let _tapeX=0,_tapeLast=0;
 const _reduceMotion=matchMedia("(prefers-reduced-motion: reduce)").matches;
 function renderTape(syms,d){
@@ -545,7 +1125,7 @@ function renderTape(syms,d){
   }
   for(const s of wp){                                // precios EN SITIO: no toca la estructura -> no reinicia el scroll
     const st=d.symbols[s];
-    const txt="$"+fmtP(st.price)+(st.irrev!=null?" · KL "+st.irrev.toFixed(2):"")+(st.funding_pctl!=null?" · F p"+st.funding_pctl.toFixed(2):"");
+    const txt="$"+fmtP(st.price)+(st.irrev!=null?" · merc "+st.irrev.toFixed(2):"")+(st.funding_pctl!=null?" · apal "+st.funding_pctl.toFixed(2):"");
     rail.querySelectorAll('[data-v="'+s+'"]').forEach(el=>{el.textContent=txt;});
   }
 }
@@ -569,14 +1149,14 @@ function renderLog(d,syms){
   for(const s of syms){
     const st=d.symbols[s];if(!st||st.price==null)continue;
     const t=new Date().toLocaleTimeString("es-MX",{hour12:false});
-    lines.push(`<div class="ln read"><span class="t">${t}</span> · <span class="s">${s}</span> <span class="k">LECTURA</span> · vela 5m ${fmtP(st.price)}${st.irrev!=null?" · KL "+st.irrev.toFixed(2)+(st.irrev<=0.34?" ✓":" △"):""}${st.funding_pctl!=null?" · funding p"+st.funding_pctl.toFixed(2):""}</div>`);
+    lines.push(`<div class="ln read"><span class="t">${t}</span> · <span class="s">${s}</span> <span class="k">LECTURA</span> · vela 5m ${fmtP(st.price)}${st.irrev!=null?" · mercado "+st.irrev.toFixed(2)+(st.irrev<=0.34?" ✓":" △"):""}${st.funding_pctl!=null?" · apalanc. "+st.funding_pctl.toFixed(2):""}</div>`);
   }
   document.getElementById("log").innerHTML=lines.slice(-15).reverse().join("");
 }
 function renderTable(d,syms){
-  let h="<table><tr><th>instrumento</th><th>precio</th><th>KL irrev</th><th>funding pctl</th><th>sesión</th><th>señales</th><th>aperturas</th><th>suprimidas</th></tr>";
+  let h="<table><tr><th>instrumento</th><th>precio</th><th>sentimiento</th><th>apalanc.</th><th>sesión</th><th>señales</th><th>aperturas</th><th>suprimidas</th></tr>";
   for(const s of syms){const st=d.symbols[s]||{};const c=st.counts||{};
-    h+=`<tr><td>${s}/USDT</td><td>${st.price!=null?fmtP(st.price):"—"}</td><td>${st.irrev!=null?st.irrev.toFixed(3):"—"}</td><td>${st.funding_pctl!=null?st.funding_pctl.toFixed(2):"—"}</td><td>${st.killzone||"—"}</td><td>${c.fire||0}</td><td>${c.opened||0}</td><td>${c.vetoed||0}</td></tr>`}
+    h+=`<tr><td>${s}/USDT</td><td>${st.price!=null?fmtP(st.price):"—"}</td><td>${st.irrev!=null?st.irrev.toFixed(3):"—"}</td><td>${st.funding_pctl!=null?st.funding_pctl.toFixed(2):"—"}</td><td>${kzLabel(st.killzone)}</td><td>${c.fire||0}</td><td>${c.opened||0}</td><td>${c.vetoed||0}</td></tr>`}
   document.getElementById("tbl").innerHTML=h+"</table>";
 }
 function setMode(demo){
@@ -592,11 +1172,98 @@ async function loop(){
     else{
       const r=await fetch("cockpit.json",{cache:"no-store"});
       const d=await r.json();
-      if(d&&d.symbols&&Object.keys(d.symbols).length){ render(d); setMode(false); }
+      if(d&&d.symbols&&Object.keys(d.symbols).length){ render(d); checkNewSignals(d.events); setMode(false); }
       else{ if(!demoState) demoInit(); render(demoTick()); setMode(true); }
     }
   }catch(e){ if(!demoState) demoInit(); render(demoTick()); setMode(true); }
   setTimeout(loop, DEMO?1600:3000);
+}
+
+/* ---- calendario económico (fuente pública, se refresca lento) ---- */
+function fmtWhen(iso){
+  const d=new Date(iso), now=new Date();
+  const mins=Math.round((d-now)/60000);
+  let rel;
+  if(mins<60) rel="en "+mins+" min";
+  else if(mins<60*24) rel="en "+Math.round(mins/60)+" h";
+  else rel="en "+Math.round(mins/1440)+" d";
+  const hh=d.toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"});
+  const dd=d.toLocaleDateString("es-MX",{weekday:"short",day:"numeric",month:"short"});
+  return {rel, when:dd+" · "+hh};
+}
+function renderCalendar(events){
+  const wrap=document.getElementById("calwrap"), list=document.getElementById("callist");
+  if(!wrap||!list) return;
+  const now=Date.now();
+  const up=(events||[]).filter(e=>new Date(e.ts).getTime()>now).slice(0,8);
+  if(!up.length){ wrap.hidden=true; return; }
+  list.innerHTML=up.map(e=>{
+    const t=fmtWhen(e.ts);
+    const hi=e.impact==="alto";
+    return '<div class="calrow'+(hi?" hi":"")+'">'
+      +'<span class="calimp" title="impacto '+e.impact+'">'+(hi?"●●":"●")+'</span>'
+      +'<span class="calccy">'+(e.ccy||"")+'</span>'
+      +'<span class="caltitle">'+e.title+'<span class="calregion"> · '+e.region+'</span></span>'
+      +'<span class="calfc">'+(e.forecast?("prev. "+e.forecast):"")+'</span>'
+      +'<span class="calwhen"><b>'+t.rel+'</b><span>'+t.when+'</span></span>'
+      +'</div>';
+  }).join("");
+  wrap.hidden=false;
+}
+async function calendarLoop(){
+  try{
+    const r=await fetch("calendar.json",{cache:"no-store"});
+    const d=await r.json();
+    renderCalendar(d&&d.events);
+  }catch(e){ /* sin calendario: la sección queda oculta */ }
+  setTimeout(calendarLoop, 300000);            // refresca cada 5 min (el dato cambia lento)
+}
+/* ---- PWA + alertas nativas (pista 1D): service worker para instalar/offline,
+   y una notificación del navegador cuando aparece una señal NUEVA. Todo
+   opcional y no-crítico: si el navegador no soporta algo, se ignora. ---- */
+(function(){ try{
+  if("serviceWorker" in navigator && location.protocol==="https:"){
+    navigator.serviceWorker.register("/sw.js").catch(()=>{});
+  }
+}catch(e){} })();
+let _alertsOn=false, _seenFire=null;
+(function(){ try{
+  const btn=document.getElementById("alertbtn");
+  if(!btn || !("Notification" in window)) return;
+  btn.hidden=false;
+  if(Notification.permission==="granted"){ _alertsOn=true; btn.classList.add("on"); btn.textContent="🔔 Alertas ON"; }
+  btn.onclick=async()=>{
+    if(_alertsOn){ _alertsOn=false; btn.classList.remove("on"); btn.textContent="🔔 Alertas"; return; }
+    let perm=Notification.permission;
+    if(perm!=="granted") perm=await Notification.requestPermission();
+    if(perm==="granted"){ _alertsOn=true; btn.classList.add("on"); btn.textContent="🔔 Alertas ON";
+      try{ new Notification("FQ CAPITAL", {body:"Alertas activadas — te avisaremos cuando el motor dispare.", icon:"/icon.svg"}); }catch(e){}
+    }
+  };
+}catch(e){} })();
+// vigila el feed de eventos; cuando aparece un FIRE nuevo, notifica.
+function checkNewSignals(events){
+  try{
+    const fires=(events||[]).filter(e=>e.kind==="fire");
+    if(!fires.length) return;
+    const latest=fires[fires.length-1];
+    const key=(latest.t||0)+"|"+latest.sym;
+    if(_seenFire===null){ _seenFire=key; return; }   // primera carga: no notifiques histórico
+    if(key!==_seenFire){
+      _seenFire=key;
+      if(_alertsOn && document.hidden){
+        try{ new Notification("⚡ Señal FQ · "+(latest.sym||""), {body:latest.text||"El motor disparó una señal.", icon:"/icon.svg", tag:"fq-signal"}); }catch(e){}
+      }
+    }
+  }catch(e){}
+}
+if(!DEMO) calendarLoop();
+else { /* demo: un par de eventos de muestra para la vista previa */
+  renderCalendar([
+    {ts:new Date(Date.now()+95*60000).toISOString(), ccy:"USD", region:"EE.UU.", impact:"alto", title:"Decisión de tasas (FOMC)", forecast:"4.50%"},
+    {ts:new Date(Date.now()+300*60000).toISOString(), ccy:"EUR", region:"Eurozona", impact:"medio", title:"IPC interanual", forecast:"2.4%"},
+    {ts:new Date(Date.now()+1400*60000).toISOString(), ccy:"USD", region:"EE.UU.", impact:"alto", title:"Nóminas no agrícolas (NFP)", forecast:"180K"},
+  ]);
 }
 
 /* ---- count-up de precios (anima el número al actualizar) ---- */

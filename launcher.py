@@ -151,6 +151,12 @@ def _bots():
     # OPCIONAL a propósito (regla RasDG): si el server muere, el bot VIP sigue.
     if os.environ.get("FQ_COCKPIT", "0").strip().lower() in ("1", "true", "yes"):
         bots.append(("cockpit", [sys.executable, "-u", "tools/cockpit_server.py"], False))
+    # Análisis extra (FQ_ANALYSIS_EXTRA=1): capa de observación oro/Nasdaq para el
+    # portal — NO emite señales, solo mide contexto (regime/funding) con datos
+    # públicos (OKX/MEXC) y escribe cockpit_extra.json, que el server mezcla. Hijo
+    # no-crítico y desacoplado: si muere, el panel de cripto del motor sigue intacto.
+    if os.environ.get("FQ_ANALYSIS_EXTRA", "0").strip().lower() in ("1", "true", "yes"):
+        bots.append(("analysis", [sys.executable, "-u", "tools/analysis_feeder.py"], False))
     return bots
 
 GRACE_SECONDS = 8       # tiempo para que los hijos atiendan SIGTERM

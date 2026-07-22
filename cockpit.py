@@ -136,6 +136,33 @@ def tick(symbol, ts=None, price=None, closes=None, killzone=None,
         log.debug("[cockpit] tick: %s", e)
 
 
+def set_reading(symbol, text):
+    """Sella una LECTURA por símbolo (narración) para el detail page del portal.
+    Enriquecimiento OPCIONAL y no-crítico: el motor puede llamar esto con el
+    mismo texto editorial que ya genera (public_content_generator), y el detail
+    page lo muestra en 'Lectura FQ'. Si nunca se llama, el front cae a un
+    resumen honesto del dato medido. No-op con el flag OFF; jamás rompe el tick.
+
+    El símbolo se normaliza igual que en tick() ('SOL/USDT' -> 'SOL') para caer
+    en la MISMA entrada de estado; si aún no hay tick de ese símbolo, se crea una
+    entrada mínima para no perder la lectura."""
+    if not _ENABLED:
+        return
+    try:
+        sym = str(symbol or "?").split("/")[0].split("-")[0].upper()
+        clean = str(text or "").strip()
+        with _lock:
+            slot = _state["symbols"].setdefault(sym, {})
+            if clean:
+                slot["reading"] = clean[:600]
+                slot["reading_ts"] = time.time()
+            else:
+                slot.pop("reading", None)
+        _write_maybe(force=True)
+    except Exception as e:
+        log.debug("[cockpit] set_reading: %s", e)
+
+
 def log_event(symbol, kind, text):
     """Evento REAL del motor (fire/veto/open/close/...) al ring del feed."""
     if not _ENABLED:
