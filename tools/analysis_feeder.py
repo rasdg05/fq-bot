@@ -34,9 +34,21 @@ if ROOT not in sys.path:
 
 OUT = os.environ.get("FQ_ANALYSIS_EXTRA_PATH") or (
     "/data/cockpit_extra.json" if os.path.isdir("/data") else "data/cockpit_extra.json")
+CAL_OUT = os.environ.get("FQ_CALENDAR_PATH") or (
+    "/data/cockpit_calendar.json" if os.path.isdir("/data") else "data/cockpit_calendar.json")
 INTERVAL = int(os.environ.get("FQ_ANALYSIS_INTERVAL", "180"))
+CAL_INTERVAL = int(os.environ.get("FQ_CALENDAR_INTERVAL", "3600"))   # el calendario cambia lento
 SPARK_N = 48
 UA = {"User-Agent": "fq-analysis"}
+
+# Calendario económico: feed semanal PÚBLICO y gratis de ForexFactory (faireconomy).
+# Solo lectura, best-effort — jamás bloquea nada. Traducimos país->moneda e impacto
+# al español; nos quedamos con lo accionable (High/Medium) y lo que aún no ocurre.
+CAL_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
+_IMPACT_ES = {"High": "alto", "Medium": "medio", "Low": "bajo", "Holiday": "feriado"}
+_CCY_NAME = {"USD": "EE.UU.", "EUR": "Eurozona", "GBP": "Reino Unido", "JPY": "Japón",
+             "CNY": "China", "AUD": "Australia", "CAD": "Canadá", "CHF": "Suiza",
+             "NZD": "N. Zelanda"}
 
 # Instrumentos de análisis. display = etiqueta amable para el portal. Sumar uno es
 # una línea: la capa de análisis (regime + funding) es genérica por símbolo.
@@ -144,36 +156,93 @@ def build_one(inst):
     return None
 
 
+def _atomic_write(path, payload):
+    d = os.path.dirname(path)
+    if d:
+        os.makedirs(d, exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w") as fh:
+        json.dump(payload, fh, default=str)
+    os.replace(tmp, path)                            # atómico: el server jamás lee a medias
+
+
 def run_once():
     symbols = {}
     for inst in INSTRUMENTS:
         row = build_one(inst)
         if row:
             symbols[inst["key"]] = row
-    payload = {"updated": time.time(), "symbols": symbols}
-    d = os.path.dirname(OUT)
-    if d:
-        os.makedirs(d, exist_ok=True)
-    tmp = OUT + ".tmp"
-    with open(tmp, "w") as fh:
-        json.dump(payload, fh, default=str)
-    os.replace(tmp, OUT)                             # atómico: el server jamás lee a medias
+    _atomic_write(OUT, {"updated": time.time(), "symbols": symbols})
     return symbols
+
+
+def fetch_calendar(max_events=40):
+    """Calendario económico de la semana (ForexFactory, gratis). Devuelve solo
+    eventos de impacto alto/medio que AÚN no ocurrieron, en español. Best-effort:
+    cualquier fallo devuelve [] y el portal simplemente no muestra la sección."""
+    import datetime as _dt
+    try:
+        rows = _get(CAL_URL, timeout=15)
+    except Exception as e:
+        sys.stderr.write("[analysis] calendario: %s\n" % e)
+        return []
+    now = _dt.datetime.now(_dt.timezone.utc)
+    out = []
+    for ev in rows or []:
+        impact = ev.get("impact")
+        if impact not in ("High", "Medium"):
+            continue
+        try:
+            when = _dt.datetime.fromisoformat(ev.get("date"))
+            if when.tzinfo is None:
+                when = when.replace(tzinfo=_dt.timezone.utc)
+        except Exception:
+            continue
+        if when < now:                               # solo lo que viene
+            continue
+        ccy = (ev.get("country") or "").upper()
+        out.append({
+            "title": ev.get("title"),
+            "ccy": ccy,
+            "region": _CCY_NAME.get(ccy, ccy),
+            "impact": _IMPACT_ES.get(impact, impact.lower()),
+            "impact_rank": 2 if impact == "High" else 1,
+            "ts": when.astimezone(_dt.timezone.utc).isoformat(),
+            "forecast": ev.get("forecast") or "",
+            "previous": ev.get("previous") or "",
+        })
+    out.sort(key=lambda e: e["ts"])
+    return out[:max_events]
+
+
+def run_calendar_once():
+    events = fetch_calendar()
+    _atomic_write(CAL_OUT, {"updated": time.time(), "events": events})
+    return events
 
 
 def main():
     if "--once" in sys.argv:
         syms = run_once()
-        sys.stdout.write("[analysis] once -> %s\n" % ", ".join(sorted(syms)) if syms
-                         else "[analysis] once -> (sin datos)\n")
+        cal = run_calendar_once()
+        sys.stdout.write("[analysis] once -> %s | calendario: %d eventos\n"
+                         % (", ".join(sorted(syms)) or "(sin datos)", len(cal)))
         return 0
-    sys.stdout.write("[analysis] feeder cada %ds -> %s\n" % (INTERVAL, OUT))
+    sys.stdout.write("[analysis] feeder cada %ds -> %s (+ calendario cada %ds)\n"
+                     % (INTERVAL, OUT, CAL_INTERVAL))
     sys.stdout.flush()
+    last_cal = 0.0
     while True:
         try:
             run_once()
         except Exception as e:
             sys.stderr.write("[analysis] loop: %s\n" % e)
+        if time.time() - last_cal >= CAL_INTERVAL:
+            try:
+                run_calendar_once()
+                last_cal = time.time()
+            except Exception as e:
+                sys.stderr.write("[analysis] calendario loop: %s\n" % e)
         time.sleep(INTERVAL)
 
 

@@ -163,6 +163,29 @@ canvas.spark{width:100%;height:46px;display:block;margin:9px 0 4px}
 #roadmapnote{font-size:10.5px;line-height:1.55;color:var(--muted);letter-spacing:.02em;
   margin:14px 2px 0;border-left:2px solid var(--line);padding-left:12px}
 #roadmapnote b{color:var(--text2)}
+
+/* ---- calendario económico ---- */
+#calwrap{margin-top:16px;border:1px solid var(--line2);border-top:1px solid var(--line);
+  border-radius:12px;background:var(--panel);padding:14px 16px 12px}
+.calhd{display:flex;align-items:baseline;gap:4px 12px;flex-wrap:wrap;margin-bottom:10px}
+.calhd b{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);font-weight:700}
+.calhd span{font-size:9.5px;color:var(--muted);letter-spacing:.04em}
+.calrow{display:grid;grid-template-columns:auto 40px 1fr auto auto;gap:10px;align-items:center;
+  padding:8px 4px;border-top:1px solid var(--line2);font-size:11.5px}
+.calrow:first-child{border-top:none}
+.calimp{font-size:8px;color:var(--muted);letter-spacing:-1px}
+.calrow.hi .calimp{color:var(--dn)}
+.calccy{font-size:10px;font-weight:700;letter-spacing:.06em;color:var(--text2)}
+.caltitle{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.calregion{color:var(--muted);font-size:10px}
+.calfc{font-size:9.5px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.calwhen{text-align:right;display:flex;flex-direction:column;line-height:1.25}
+.calwhen b{font-size:11px;color:var(--gold);font-weight:600}
+.calwhen span{font-size:8.5px;color:var(--muted)}
+.calrow.hi .calwhen b{color:var(--dn)}
+.calfoot{font-size:9px;color:var(--muted);letter-spacing:.03em;margin-top:10px;line-height:1.5;
+  border-top:1px solid var(--line2);padding-top:8px}
+@media(max-width:560px){.calrow{grid-template-columns:auto 34px 1fr auto}.calfc{display:none}}
 .rowlbl{display:flex;justify-content:space-between;align-items:baseline;
   font-size:9px;letter-spacing:.2em;color:var(--muted);text-transform:uppercase;margin-top:8px}
 .rowlbl b{font-size:12px;letter-spacing:.04em;color:var(--text);font-variant-numeric:tabular-nums}
@@ -510,6 +533,12 @@ td:first-child,th:first-child{text-align:left}
 <div id="gridhint" class="reveal">Toca cualquier instrumento para su análisis a fondo.</div>
 <div id="grid" class="reveal"></div>
 <div id="roadmapnote" class="reveal"><b>Oro</b>, <b>Nasdaq 100</b>, <b>S&amp;P 500</b> y <b>petróleo</b> entran como instrumentos en <b>observación</b>: les leemos el mercado con las mismas herramientas que a cripto — sentimiento y apalancamiento en vivo — sin emitir señales automáticas. Dato real de OKX y MEXC, no un simulacro.</div>
+
+<div id="calwrap" class="reveal" hidden>
+  <div class="calhd"><b>Calendario económico</b><span>Lo que mueve el mercado esta semana — impacto alto y medio</span></div>
+  <div id="callist"></div>
+  <div class="calfoot">Horarios en tu zona local. Fuente pública (ForexFactory). Los eventos de alto impacto suelen disparar volatilidad — súbele la guardia.</div>
+</div>
 
 <div id="logwrap" class="reveal">
   <div class="lt"><h2>REGISTRO DE DECISIONES DEL MOTOR</h2><span class="cur"></span></div>
@@ -1116,6 +1145,54 @@ async function loop(){
     }
   }catch(e){ if(!demoState) demoInit(); render(demoTick()); setMode(true); }
   setTimeout(loop, DEMO?1600:3000);
+}
+
+/* ---- calendario económico (fuente pública, se refresca lento) ---- */
+function fmtWhen(iso){
+  const d=new Date(iso), now=new Date();
+  const mins=Math.round((d-now)/60000);
+  let rel;
+  if(mins<60) rel="en "+mins+" min";
+  else if(mins<60*24) rel="en "+Math.round(mins/60)+" h";
+  else rel="en "+Math.round(mins/1440)+" d";
+  const hh=d.toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"});
+  const dd=d.toLocaleDateString("es-MX",{weekday:"short",day:"numeric",month:"short"});
+  return {rel, when:dd+" · "+hh};
+}
+function renderCalendar(events){
+  const wrap=document.getElementById("calwrap"), list=document.getElementById("callist");
+  if(!wrap||!list) return;
+  const now=Date.now();
+  const up=(events||[]).filter(e=>new Date(e.ts).getTime()>now).slice(0,8);
+  if(!up.length){ wrap.hidden=true; return; }
+  list.innerHTML=up.map(e=>{
+    const t=fmtWhen(e.ts);
+    const hi=e.impact==="alto";
+    return '<div class="calrow'+(hi?" hi":"")+'">'
+      +'<span class="calimp" title="impacto '+e.impact+'">'+(hi?"●●":"●")+'</span>'
+      +'<span class="calccy">'+(e.ccy||"")+'</span>'
+      +'<span class="caltitle">'+e.title+'<span class="calregion"> · '+e.region+'</span></span>'
+      +'<span class="calfc">'+(e.forecast?("prev. "+e.forecast):"")+'</span>'
+      +'<span class="calwhen"><b>'+t.rel+'</b><span>'+t.when+'</span></span>'
+      +'</div>';
+  }).join("");
+  wrap.hidden=false;
+}
+async function calendarLoop(){
+  try{
+    const r=await fetch("calendar.json",{cache:"no-store"});
+    const d=await r.json();
+    renderCalendar(d&&d.events);
+  }catch(e){ /* sin calendario: la sección queda oculta */ }
+  setTimeout(calendarLoop, 300000);            // refresca cada 5 min (el dato cambia lento)
+}
+if(!DEMO) calendarLoop();
+else { /* demo: un par de eventos de muestra para la vista previa */
+  renderCalendar([
+    {ts:new Date(Date.now()+95*60000).toISOString(), ccy:"USD", region:"EE.UU.", impact:"alto", title:"Decisión de tasas (FOMC)", forecast:"4.50%"},
+    {ts:new Date(Date.now()+300*60000).toISOString(), ccy:"EUR", region:"Eurozona", impact:"medio", title:"IPC interanual", forecast:"2.4%"},
+    {ts:new Date(Date.now()+1400*60000).toISOString(), ccy:"USD", region:"EE.UU.", impact:"alto", title:"Nóminas no agrícolas (NFP)", forecast:"180K"},
+  ]);
 }
 
 /* ---- count-up de precios (anima el número al actualizar) ---- */

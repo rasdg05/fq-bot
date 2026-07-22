@@ -146,6 +146,39 @@ def test_server_mezcla_analisis_extra(tmp_path, monkeypatch):
     assert "SOL" in merged2["symbols"] and "XAU" not in merged2["symbols"]
 
 
+def test_server_sirve_calendario(tmp_path, monkeypatch):
+    """GET /calendar.json sirve el archivo del feeder; si no existe, {events: []}."""
+    import importlib
+    cal_p = tmp_path / "cockpit_calendar.json"
+    cal_p.write_text(json.dumps({"events": [{"title": "CPI y/y", "ccy": "USD",
+                                             "impact": "alto", "ts": "2026-07-23T12:30:00+00:00"}]}))
+    monkeypatch.setenv("FQ_CALENDAR_PATH", str(cal_p))
+    import tools.cockpit_server as srv
+    importlib.reload(srv)
+    httpd = __import__("http.server", fromlist=["ThreadingHTTPServer"]).ThreadingHTTPServer(
+        ("127.0.0.1", 0), srv._H)
+    t = threading.Thread(target=httpd.serve_forever, daemon=True)
+    t.start()
+    base = "http://127.0.0.1:%d" % httpd.server_address[1]
+    try:
+        r = urllib.request.urlopen(base + "/calendar.json", timeout=5)
+        d = json.loads(r.read())
+        assert d["events"][0]["title"] == "CPI y/y"
+        # sin archivo -> {events: []}, sin reventar
+        cal_p.unlink()
+        importlib.reload(srv)
+        # nuevo server con el módulo recargado
+        h2 = __import__("http.server", fromlist=["ThreadingHTTPServer"]).ThreadingHTTPServer(
+            ("127.0.0.1", 0), srv._H)
+        threading.Thread(target=h2.serve_forever, daemon=True).start()
+        b2 = "http://127.0.0.1:%d" % h2.server_address[1]
+        r2 = urllib.request.urlopen(b2 + "/calendar.json", timeout=5)
+        assert json.loads(r2.read())["events"] == []
+        h2.shutdown()
+    finally:
+        httpd.shutdown()
+
+
 def test_server_post_waitlist_y_get_verify(tmp_path, monkeypatch):
     """El flujo completo contra el server real: POST /waitlist guarda (sin
     API key de Resend no manda correo pero tampoco revienta), y GET /verify

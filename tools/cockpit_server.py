@@ -32,6 +32,9 @@ STATE = os.environ.get("FQ_COCKPIT_PATH") or (
 # así por la interfaz jamás se cae la señal. Si el archivo no está, se sirve solo el motor.
 EXTRA = os.environ.get("FQ_ANALYSIS_EXTRA_PATH") or (
     "/data/cockpit_extra.json" if os.path.isdir("/data") else "data/cockpit_extra.json")
+# Calendario económico (lo escribe analysis_feeder desde el feed gratis de ForexFactory).
+CALENDAR = os.environ.get("FQ_CALENDAR_PATH") or (
+    "/data/cockpit_calendar.json" if os.path.isdir("/data") else "data/cockpit_calendar.json")
 
 # waitlist.py vive en la raíz del repo, no en tools/ -- al correr este archivo
 # directo (python tools/cockpit_server.py, como lo lanza launcher.py) sys.path[0]
@@ -147,6 +150,12 @@ class _H(BaseHTTPRequestHandler):
                     self._send(404, "cockpit.html no encontrado", "text/plain")
             elif path == "/cockpit.json":
                 self._send(200, json.dumps(_merged_state()), "application/json")
+            elif path == "/calendar.json":
+                try:
+                    with open(CALENDAR, "rb") as fh:
+                        self._send(200, fh.read(), "application/json")
+                except Exception:
+                    self._send(200, json.dumps({"events": []}), "application/json")
             elif path == "/health":
                 self._send(200, "ok", "text/plain")
             elif path in STATIC_PDFS:
