@@ -9,6 +9,10 @@
      el resto de la interfaz se queda en monoespaciado -- esa es la identidad "terminal" de marca. -->
 <link rel="preconnect" href="https://api.fontshare.com" crossorigin>
 <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=general-sans@600,700&display=swap">
+<!-- PWA: instalable + alertas nativas -->
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#050705">
+<link rel="apple-touch-icon" href="/icon.svg">
 <style>
 /* ============================================================================
    FQ CAPITAL — TERMINAL DE OPERACIONES · Fibonacci Quantum Framework
@@ -52,6 +56,11 @@ body{background:var(--bg);color:var(--text);
 #right{margin-left:auto;display:flex;gap:18px;align-items:center}
 .live{display:flex;align-items:center;gap:7px;font-size:10px;letter-spacing:.24em;color:var(--up)}
 .live.demo{color:var(--gold)}
+.alertbtn{background:transparent;border:1px solid rgba(212,175,55,.42);color:var(--gold);
+  font:600 10px/1 inherit;letter-spacing:.08em;padding:7px 11px;border-radius:8px;cursor:pointer;
+  white-space:nowrap;transition:background .15s ease,border-color .15s ease}
+.alertbtn:hover{background:var(--golddim)}
+.alertbtn.on{color:var(--up);border-color:rgba(33,201,107,.45)}
 .live .dot{width:7px;height:7px;border-radius:50%;background:currentColor;
   box-shadow:0 0 9px currentColor;animation:beat 1.8s infinite}
 @keyframes beat{0%,100%{opacity:1}50%{opacity:.3}}
@@ -449,6 +458,7 @@ td:first-child,th:first-child{text-align:left}
   </div>
   <div class="solrule"></div>
   <div id="right">
+    <button id="alertbtn" class="alertbtn" hidden title="Recibe un aviso del navegador cuando el motor dispara una señal">🔔 Alertas</button>
     <a class="cta gold" data-tg href="#" target="_blank" rel="noopener">Solicitar acceso</a>
     <div class="live" id="mode"><span class="dot"></span><span id="modetxt">LIVE</span></div>
     <span id="utc">—</span>
@@ -1140,7 +1150,7 @@ async function loop(){
     else{
       const r=await fetch("cockpit.json",{cache:"no-store"});
       const d=await r.json();
-      if(d&&d.symbols&&Object.keys(d.symbols).length){ render(d); setMode(false); }
+      if(d&&d.symbols&&Object.keys(d.symbols).length){ render(d); checkNewSignals(d.events); setMode(false); }
       else{ if(!demoState) demoInit(); render(demoTick()); setMode(true); }
     }
   }catch(e){ if(!demoState) demoInit(); render(demoTick()); setMode(true); }
@@ -1185,6 +1195,45 @@ async function calendarLoop(){
     renderCalendar(d&&d.events);
   }catch(e){ /* sin calendario: la sección queda oculta */ }
   setTimeout(calendarLoop, 300000);            // refresca cada 5 min (el dato cambia lento)
+}
+/* ---- PWA + alertas nativas (pista 1D): service worker para instalar/offline,
+   y una notificación del navegador cuando aparece una señal NUEVA. Todo
+   opcional y no-crítico: si el navegador no soporta algo, se ignora. ---- */
+(function(){ try{
+  if("serviceWorker" in navigator && location.protocol==="https:"){
+    navigator.serviceWorker.register("/sw.js").catch(()=>{});
+  }
+}catch(e){} })();
+let _alertsOn=false, _seenFire=null;
+(function(){ try{
+  const btn=document.getElementById("alertbtn");
+  if(!btn || !("Notification" in window)) return;
+  btn.hidden=false;
+  if(Notification.permission==="granted"){ _alertsOn=true; btn.classList.add("on"); btn.textContent="🔔 Alertas ON"; }
+  btn.onclick=async()=>{
+    if(_alertsOn){ _alertsOn=false; btn.classList.remove("on"); btn.textContent="🔔 Alertas"; return; }
+    let perm=Notification.permission;
+    if(perm!=="granted") perm=await Notification.requestPermission();
+    if(perm==="granted"){ _alertsOn=true; btn.classList.add("on"); btn.textContent="🔔 Alertas ON";
+      try{ new Notification("FQ CAPITAL", {body:"Alertas activadas — te avisaremos cuando el motor dispare.", icon:"/icon.svg"}); }catch(e){}
+    }
+  };
+}catch(e){} })();
+// vigila el feed de eventos; cuando aparece un FIRE nuevo, notifica.
+function checkNewSignals(events){
+  try{
+    const fires=(events||[]).filter(e=>e.kind==="fire");
+    if(!fires.length) return;
+    const latest=fires[fires.length-1];
+    const key=(latest.t||0)+"|"+latest.sym;
+    if(_seenFire===null){ _seenFire=key; return; }   // primera carga: no notifiques histórico
+    if(key!==_seenFire){
+      _seenFire=key;
+      if(_alertsOn && document.hidden){
+        try{ new Notification("⚡ Señal FQ · "+(latest.sym||""), {body:latest.text||"El motor disparó una señal.", icon:"/icon.svg", tag:"fq-signal"}); }catch(e){}
+      }
+    }
+  }catch(e){}
 }
 if(!DEMO) calendarLoop();
 else { /* demo: un par de eventos de muestra para la vista previa */

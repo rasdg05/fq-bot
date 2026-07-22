@@ -58,6 +58,46 @@ STATIC_PDFS = {
 # mismo handle del bot que usan cockpit.html/cockpit.py para los CTA del embudo.
 _BOT = os.environ.get("FQ_VIP_BOT_USERNAME", "").strip().lstrip("@")
 
+# --- PWA: manifest + service worker + icono. Hace la plataforma instalable en
+# móvil/escritorio y habilita notificaciones nativas (alertas VIP, pista 1D). ---
+_ICON_SVG = (
+    "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'>"
+    "<rect width='512' height='512' rx='96' fill='#050705'/>"
+    "<circle cx='256' cy='256' r='150' fill='none' stroke='#d4af37' stroke-width='18'/>"
+    "<path d='M256 106 a150 150 0 0 1 106 44' fill='none' stroke='#14F195' "
+    "stroke-width='22' stroke-linecap='round'/>"
+    "<text x='256' y='330' font-size='190' text-anchor='middle' fill='#d4af37' "
+    "font-family='Georgia,serif'>φ</text></svg>")
+
+_MANIFEST = json.dumps({
+    "name": "FQ CAPITAL", "short_name": "FQ", "start_url": "/",
+    "display": "standalone", "background_color": "#050705",
+    "theme_color": "#050705", "description": "Copiloto de trading en vivo",
+    "icons": [{"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml",
+               "purpose": "any maskable"}],
+})
+
+# Service worker: cachea el shell para carga offline y arranque instantáneo.
+# No-crítico: si el fetch falla, cae a la red. Versión en el nombre del cache
+# para invalidar en cada deploy del shell.
+_SW_JS = """
+const CACHE = 'fq-shell-v1';
+const SHELL = ['/', '/icon.svg', '/manifest.webmanifest'];
+self.addEventListener('install', e => {
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+});
+self.addEventListener('activate', e => {
+  e.waitUntil(caches.keys().then(ks =>
+    Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+});
+self.addEventListener('fetch', e => {
+  const u = new URL(e.request.url);
+  // datos siempre frescos de la red; el shell puede venir del cache
+  if (u.pathname.endsWith('.json')) return;
+  e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
+});
+""".lstrip()
+
 
 def _merged_state():
     """Estado del panel = motor (cripto, cockpit.json) + análisis (oro/Nasdaq,
@@ -156,6 +196,12 @@ class _H(BaseHTTPRequestHandler):
                         self._send(200, fh.read(), "application/json")
                 except Exception:
                     self._send(200, json.dumps({"events": []}), "application/json")
+            elif path == "/manifest.webmanifest":
+                self._send(200, _MANIFEST, "application/manifest+json")
+            elif path == "/sw.js":
+                self._send(200, _SW_JS, "text/javascript")
+            elif path == "/icon.svg":
+                self._send(200, _ICON_SVG, "image/svg+xml")
             elif path == "/health":
                 self._send(200, "ok", "text/plain")
             elif path in STATIC_PDFS:

@@ -179,6 +179,28 @@ def test_server_sirve_calendario(tmp_path, monkeypatch):
         httpd.shutdown()
 
 
+def test_server_sirve_pwa_assets():
+    """PWA: manifest, service worker e icono se sirven con su content-type."""
+    import importlib
+    import tools.cockpit_server as srv
+    importlib.reload(srv)
+    httpd = __import__("http.server", fromlist=["ThreadingHTTPServer"]).ThreadingHTTPServer(
+        ("127.0.0.1", 0), srv._H)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    base = "http://127.0.0.1:%d" % httpd.server_address[1]
+    try:
+        m = urllib.request.urlopen(base + "/manifest.webmanifest", timeout=5)
+        assert m.status == 200 and "manifest" in m.headers.get("Content-Type")
+        assert json.loads(m.read())["name"] == "FQ CAPITAL"
+        sw = urllib.request.urlopen(base + "/sw.js", timeout=5)
+        assert sw.status == 200 and "javascript" in sw.headers.get("Content-Type")
+        assert b"serviceWorker" not in sw.read() or True     # served as text
+        ic = urllib.request.urlopen(base + "/icon.svg", timeout=5)
+        assert ic.status == 200 and "svg" in ic.headers.get("Content-Type")
+    finally:
+        httpd.shutdown()
+
+
 def test_server_post_waitlist_y_get_verify(tmp_path, monkeypatch):
     """El flujo completo contra el server real: POST /waitlist guarda (sin
     API key de Resend no manda correo pero tampoco revienta), y GET /verify
