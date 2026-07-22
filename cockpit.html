@@ -3,15 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FQ CAPITAL · Fibonacci Quantum Framework — Terminal</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%23d4af37' stroke-width='2'/%3E%3Ctext x='16' y='23' font-size='19' text-anchor='middle' fill='%23d4af37' font-family='Georgia,serif'%3E%CF%86%3C/text%3E%3C/svg%3E">
-<!-- titulares: sans geométrica redondeada (look SaaS moderno, gratis/sin licencia via Fontshare);
-     el resto de la interfaz se queda en monoespaciado -- esa es la identidad "terminal" de marca. -->
-<link rel="preconnect" href="https://api.fontshare.com" crossorigin>
-<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=general-sans@600,700&display=swap">
+<title>Marea · Copiloto de mercado en español</title>
+<link rel="icon" href="/icon.svg">
+<!-- MAREA: display en serif del sistema (New York/Georgia), interfaz en sans del sistema,
+     dato en monoespaciado. Sin fuentes externas — el sistema ya trae lo que necesitamos. -->
 <!-- PWA: instalable + alertas nativas -->
 <link rel="manifest" href="/manifest.webmanifest">
-<meta name="theme-color" content="#050705">
+<meta name="theme-color" content="#0B6B6E" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0C1A1C" media="(prefers-color-scheme: dark)">
 <link rel="apple-touch-icon" href="/icon.svg">
 <style>
 /* ============================================================================
@@ -22,19 +21,55 @@
    (canvas fijo al fondo, paneles casi sólidos encima).
    ========================================================================== */
 :root{
-  --bg:#050705; --panel:rgba(7,10,8,.90); --panel2:rgba(12,15,12,.92);
-  --line:rgba(201,162,39,.22); --line2:rgba(255,255,255,.07);
-  --text:#f4f2ea; --text2:#b9b6a6; --muted:#6e6c60;
-  --gold:#d4af37; --goldline:#c9a227; --golddim:rgba(212,175,55,.14);
-  --up:#21c96b; --dn:#e05e5e; --rain:#1e5c33;
-  --sol1:#9945FF; --sol2:#14F195;
-  --display:"General Sans","Helvetica Neue",Arial,sans-serif;
+  /* MAREA — claro por defecto ("daylight"): papel cálido + tinta marina + un solo teal.
+     Los nombres de token viejos se conservan (--gold ahora ES el teal de marca) para
+     que toda la interfaz herede el rebrand sin reescribir cada regla. */
+  --bg:#F5F3EC; --panel:#FFFFFF; --panel2:#EDE8DC;
+  --line:rgba(11,107,110,.22); --line2:rgba(18,38,42,.08);
+  --text:#12262A; --text2:#3C5250; --muted:#5D6E6D;
+  --gold:#0B6B6E; --goldline:#0B6B6E; --golddim:rgba(11,107,110,.10);
+  --up:#1C8A57; --dn:#C0523A; --rain:transparent;
+  --sol1:#0B6B6E; --sol2:#4CBAB2;
+  --teal:#0B6B6E; --teal-deep:#084F52; --teal-soft:#E2EEEC;
+  --serif:ui-serif,"New York","Iowan Old Style","Palatino Linotype",Georgia,Cambria,"Times New Roman",serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono","JetBrains Mono","IBM Plex Mono",Consolas,monospace;
+  --display:var(--serif);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0C1A1C; --panel:#102528; --panel2:#15292B;
+    --line:rgba(76,186,178,.20); --line2:rgba(255,255,255,.07);
+    --text:#ECEAE1; --text2:#B7C3C1; --muted:#7E8E8C;
+    --gold:#4CBAB2; --goldline:#4CBAB2; --golddim:rgba(76,186,178,.14);
+    --up:#43C989; --dn:#E5795E; --rain:transparent;
+    --sol1:#0B6B6E; --sol2:#4CBAB2;
+    --teal:#4CBAB2; --teal-deep:#79D4CB; --teal-soft:#12312F;
+  }
+}
+:root[data-theme="light"]{
+  --bg:#F5F3EC; --panel:#FFFFFF; --panel2:#EDE8DC;
+  --line:rgba(11,107,110,.22); --line2:rgba(18,38,42,.08);
+  --text:#12262A; --text2:#3C5250; --muted:#5D6E6D;
+  --gold:#0B6B6E; --goldline:#0B6B6E; --golddim:rgba(11,107,110,.10);
+  --up:#1C8A57; --dn:#C0523A; --rain:transparent;
+  --sol1:#0B6B6E; --sol2:#4CBAB2;
+  --teal:#0B6B6E; --teal-deep:#084F52; --teal-soft:#E2EEEC;
+}
+:root[data-theme="dark"]{
+  --bg:#0C1A1C; --panel:#102528; --panel2:#15292B;
+  --line:rgba(76,186,178,.20); --line2:rgba(255,255,255,.07);
+  --text:#ECEAE1; --text2:#B7C3C1; --muted:#7E8E8C;
+  --gold:#4CBAB2; --goldline:#4CBAB2; --golddim:rgba(76,186,178,.14);
+  --up:#43C989; --dn:#E5795E; --rain:transparent;
+  --sol1:#0B6B6E; --sol2:#4CBAB2;
+  --teal:#4CBAB2; --teal-deep:#79D4CB; --teal-soft:#12312F;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
 body{background:var(--bg);color:var(--text);
-  font:13px/1.5 "SF Mono","JetBrains Mono","IBM Plex Mono",Consolas,monospace;
-  overflow-x:hidden}
+  font:14px/1.6 var(--sans);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+  overflow-x:hidden;transition:background .35s ease,color .35s ease}
 /* altura ESTABLE (100vh = viewport grande, NO cambia al mostrar/ocultar la barra en
    móvil; a diferencia de dvh). Evita que el scroll reinicie la lluvia. */
 #rain{position:fixed;top:0;left:0;width:100%;height:100vh;z-index:0;display:block}
@@ -71,9 +106,11 @@ body{background:var(--bg);color:var(--text);
   font-size:11px;letter-spacing:.12em;text-transform:uppercase;padding:11px 19px;border-radius:8px;
   cursor:pointer;white-space:nowrap;transition:transform .12s ease,box-shadow .12s ease,background .12s ease}
 .cta:hover{transform:translateY(-1px)}
-.cta.gold{background:linear-gradient(180deg,#e7c452,#c9a227);color:#0a0c0a;border:1px solid var(--gold);
-  box-shadow:0 0 0 1px rgba(212,175,55,.14),0 7px 20px rgba(212,175,55,.13)}
-.cta.gold:hover{box-shadow:0 0 0 1px rgba(212,175,55,.32),0 9px 26px rgba(212,175,55,.24)}
+.cta.gold{background:var(--teal);color:#fff;border:1px solid var(--teal);
+  box-shadow:0 1px 2px rgba(11,107,110,.10),0 8px 24px rgba(11,107,110,.16)}
+.cta.gold:hover{background:var(--teal-deep);box-shadow:0 2px 6px rgba(11,107,110,.16),0 12px 30px rgba(11,107,110,.22)}
+@media(prefers-color-scheme:dark){.cta.gold{color:#06201f}}
+:root[data-theme="dark"] .cta.gold{color:#06201f} :root[data-theme="light"] .cta.gold{color:#fff}
 .cta.ghost{background:transparent;color:var(--gold);border:1px solid rgba(212,175,55,.42)}
 .cta.ghost:hover{background:var(--golddim)}
 #right .cta{padding:8px 14px;font-size:10px;letter-spacing:.1em}
@@ -429,7 +466,20 @@ td:first-child,th:first-child{text-align:left}
 .footbottom{font-size:8.6px;color:var(--muted);letter-spacing:.03em}
 </style>
 </head>
-<body data-palette="#c9a227,#21c96b,#e05e5e">
+<body data-palette="#0B6B6E,#1C8A57,#C0523A">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="koru" viewBox="0 0 144 144"><path d="M 75.81 84.01 C 76.09 84.58 76.92 83.87 77.49 83.88 C 78.07 83.90 78.66 83.96 79.24 84.09 C 79.82 84.22 80.41 84.41 80.98 84.65 C 81.56 84.90 82.13 85.21 82.66 85.58 C 83.20 85.94 83.72 86.37 84.20 86.85 C 84.68 87.33 85.13 87.88 85.53 88.47 C 85.93 89.06 86.29 89.70 86.58 90.39 C 86.87 91.07 87.11 91.80 87.28 92.56 C 87.45 93.32 87.55 94.13 87.58 94.94 C 87.60 95.76 87.56 96.61 87.42 97.45 C 87.29 98.30 87.08 99.17 86.78 100.01 C 86.47 100.86 86.09 101.72 85.61 102.54 C 85.14 103.35 84.58 104.17 83.93 104.92 C 83.28 105.68 82.54 106.41 81.72 107.07 C 80.90 107.73 79.99 108.35 79.02 108.88 C 78.04 109.41 76.98 109.88 75.87 110.25 C 74.75 110.61 73.56 110.90 72.32 111.07 C 71.09 111.23 69.79 111.31 68.47 111.25 C 67.16 111.19 65.78 111.02 64.42 110.71 C 63.05 110.40 61.65 109.96 60.28 109.38 C 58.91 108.79 57.52 108.07 56.19 107.20 C 54.86 106.32 53.54 105.31 52.32 104.14 C 51.09 102.97 49.90 101.65 48.83 100.19 C 47.76 98.73 46.75 97.11 45.90 95.37 C 45.06 93.63 44.30 91.74 43.74 89.74 C 43.18 87.74 42.76 85.60 42.53 83.39 C 42.29 81.17 42.22 78.85 42.33 76.45 C 42.45 74.05 42.68 71.54 43.22 68.99 C 43.75 66.44 44.48 63.79 45.53 61.17 C 46.57 58.54 47.87 55.84 49.49 53.23 C 51.12 50.62 53.03 47.98 55.29 45.52 C 57.54 43.05 60.11 40.62 63.01 38.44 C 65.91 36.26 69.15 34.18 72.67 32.45 C 76.20 30.72 80.07 29.17 84.17 28.06 C 88.27 26.95 92.70 26.11 97.28 25.78 C 101.85 25.45 107.69 26.86 111.62 26.09 C 115.56 25.32 121.99 22.65 120.90 21.15 C 119.82 19.64 110.35 17.93 105.12 17.08 C 99.90 16.23 94.62 15.91 89.54 16.03 C 84.46 16.15 79.42 16.79 74.65 17.81 C 69.88 18.84 65.24 20.35 60.92 22.18 C 56.61 24.02 52.50 26.29 48.76 28.81 C 45.03 31.33 41.57 34.24 38.52 37.31 C 35.46 40.38 32.74 43.77 30.44 47.24 C 28.14 50.70 26.21 54.41 24.71 58.11 C 23.20 61.81 22.09 65.66 21.39 69.43 C 20.69 73.19 20.40 77.03 20.51 80.68 C 20.61 84.34 21.20 87.96 22.01 91.35 C 22.83 94.74 24.01 98.01 25.39 101.02 C 26.77 104.04 28.47 106.87 30.31 109.43 C 32.16 111.98 34.26 114.31 36.44 116.36 C 38.62 118.40 41.01 120.19 43.42 121.69 C 45.82 123.20 48.37 124.42 50.88 125.38 C 53.39 126.34 55.98 127.02 58.49 127.45 C 61.00 127.89 63.53 128.04 65.94 127.99 C 68.35 127.94 70.73 127.62 72.96 127.13 C 75.18 126.65 77.33 125.92 79.31 125.07 C 81.29 124.21 83.15 123.15 84.82 122.00 C 86.50 120.85 88.03 119.53 89.38 118.16 C 90.72 116.80 91.90 115.30 92.90 113.79 C 93.90 112.28 94.72 110.69 95.37 109.11 C 96.02 107.54 96.49 105.92 96.81 104.35 C 97.13 102.77 97.28 101.19 97.29 99.69 C 97.30 98.18 97.15 96.69 96.90 95.30 C 96.64 93.91 96.23 92.56 95.75 91.33 C 95.26 90.09 94.65 88.92 93.98 87.87 C 93.32 86.82 92.55 85.85 91.74 85.00 C 90.94 84.15 90.06 83.40 89.18 82.76 C 88.29 82.12 87.35 81.59 86.42 81.15 C 85.49 80.72 84.53 80.40 83.60 80.17 C 82.67 79.93 81.73 79.80 80.84 79.75 C 79.94 79.70 79.06 79.75 78.23 79.86 C 77.40 79.97 76.26 79.73 75.86 80.42 C 75.46 81.11 75.54 83.43 75.81 84.01 Z"/></symbol>
+</svg>
+<style>
+  /* --- ajustes de marca Marea (sobre la hoja base) --- */
+  .brandmark{width:30px;height:30px;fill:var(--teal);display:block}
+  .brand{align-items:center!important;gap:10px!important}
+  .brand .fq{font-family:var(--serif)!important;font-weight:600!important;
+    letter-spacing:.005em!important;color:var(--text)!important;font-size:21px!important}
+  h1,h2,.h2big,#closer h2{font-family:var(--serif)!important}
+  /* fuera el look "terminal Matrix": lluvia, splash φ, arte de fondo y marca de agua */
+  #rain,#intro,#heroart,#wm{display:none!important}
+</style>
 <canvas id="rain"></canvas>
 <div id="heroart" aria-hidden="true"></div>
 <div id="intro" aria-hidden="true">
@@ -450,27 +500,22 @@ td:first-child,th:first-child{text-align:left}
 
 <div id="bar">
   <div class="brand">
-    <svg class="brandmark" viewBox="0 0 32 32" aria-hidden="true">
-      <defs><linearGradient id="bmsol" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stop-color="#9945FF"/><stop offset="1" stop-color="#14F195"/></linearGradient></defs>
-      <circle cx="16" cy="16" r="14" fill="none" stroke="#d4af37" stroke-width="1.5"/>
-      <path class="arc" d="M16 2 a14 14 0 0 1 9.9 4.1" fill="none" stroke="url(#bmsol)" stroke-width="2.4" stroke-linecap="round"/>
-      <text x="16" y="22.5" font-size="17" text-anchor="middle" fill="#d4af37" font-family="Georgia,serif">φ</text>
-    </svg>
-    <span class="fq">F<b>Q</b> CAPITAL</span>
-    <span class="sub">Fibonacci&nbsp;Quantum&nbsp;Framework</span>
+    <svg class="brandmark" viewBox="0 0 144 144" aria-hidden="true"><use href="#koru"/></svg>
+    <span class="fq">Marea</span>
+    <span class="sub">Copiloto&nbsp;de&nbsp;mercado</span>
   </div>
   <div class="solrule"></div>
   <div id="right">
+    <button id="themeBtn" class="alertbtn" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema">◐</button>
     <button id="alertbtn" class="alertbtn" hidden title="Recibe un aviso del navegador cuando el motor dispara una señal">🔔 Alertas</button>
-    <a class="cta gold" data-tg href="#" target="_blank" rel="noopener">Solicitar acceso</a>
+    <a class="cta gold" data-tg href="#" target="_blank" rel="noopener">Empieza gratis</a>
     <div class="live" id="mode"><span class="dot"></span><span id="modetxt">LIVE</span></div>
     <span id="utc">—</span>
   </div>
 </div>
 
 <nav id="navlinks" aria-label="Secciones">
-  <a href="#problema">Por qué FQ</a>
+  <a href="#problema">Por qué Marea</a>
   <a href="#dashboard-preview">El mercado en vivo</a>
   <a href="#segmentos">Para quién es</a>
   <a href="#guias">Guías gratis</a>
@@ -479,12 +524,12 @@ td:first-child,th:first-child{text-align:left}
 
 <div id="pitch" class="reveal">
   <div class="txt">
-    <div class="eyebrow">Copiloto de trading · cripto perpetuos · en vivo</div>
-    <h1>Entiende el mercado antes de operar. No memorices indicadores.</h1>
-    <p>Sentimiento del mercado, tendencia y presión de los apalancados, por moneda, actualizándose solo
-    — sin que necesites diez años de experiencia para leerlo. Las señales automáticas son un plus: avisan
-    cuando el motor encuentra una oportunidad clara, y a veces se queda callado semanas enteras. La
-    plataforma, no.</p>
+    <div class="eyebrow">Copiloto de mercado · en español · en vivo</div>
+    <h1>Que el mercado deje de intimidarte.</h1>
+    <p>Marea vigila cripto, oro, índices y petróleo en tiempo real y te traduce cada uno a una frase
+    clara: si hay calma, si se está gestando un movimiento, o si mejor no tocar nada. Las señales
+    automáticas son un plus —avisan cuando el motor ve una oportunidad, y a veces se calla semanas—.
+    La plataforma, no: siempre está leyendo el mercado por ti.</p>
   </div>
   <div class="acts">
     <a class="cta gold" href="#dashboard-preview">Ver el mercado en vivo ↓</a>
@@ -513,7 +558,7 @@ td:first-child,th:first-child{text-align:left}
       </ul>
     </div>
     <div class="col good">
-      <div class="colhd">Lo que hace FQ distinto</div>
+      <div class="colhd">Lo que hace Marea distinto</div>
       <ul>
         <li>Ves el sentimiento del mercado, la tendencia y la presión de los apalancados de cada moneda — no solo un "compra" o "vende" sin explicación.</li>
         <li>La plataforma no se apaga cuando el motor está callado: el contexto se actualiza solo, todo el tiempo.</li>
@@ -585,7 +630,7 @@ td:first-child,th:first-child{text-align:left}
   <h2 class="h2big">No es un canal de señales. Es un copiloto para leer el mercado.</h2>
   <div class="split2">
     <div class="col bad">
-      <div class="colhd">FQ no es</div>
+      <div class="colhd">Marea no es</div>
       <ul>
         <li>Un grupo que grita "compra/vende" sin mostrar el porqué.</li>
         <li>Predicciones de IA sobre el precio futuro.</li>
@@ -594,7 +639,7 @@ td:first-child,th:first-child{text-align:left}
       </ul>
     </div>
     <div class="col good">
-      <div class="colhd">FQ sí es</div>
+      <div class="colhd">Marea sí es</div>
       <ul>
         <li>Un panel en vivo que traduce el mercado a algo que se entiende: tranquilo o agitado, quién paga de más por apalancarse, qué tan fuerte es la tendencia.</li>
         <li>Señales automáticas como plus — con su propia prueba estadística detrás (DSR·CPCV·PBO), no una corazonada.</li>
@@ -650,7 +695,7 @@ td:first-child,th:first-child{text-align:left}
   <div class="eyebrow2">Preguntas frecuentes</div>
   <h2 class="h2big">Lo que preguntarías antes de confiar en una plataforma nueva.</h2>
   <div class="faqlist">
-    <details><summary>¿Qué es FQ Capital?</summary>
+    <details><summary>¿Qué es Marea?</summary>
       <p>Un copiloto en vivo para operar cripto: te muestra el sentimiento del mercado, la tendencia y el apalancamiento de cada moneda, actualizándose solo. Además, un motor de señales que avisa por Telegram cuando encuentra una oportunidad clara — con su lógica siempre visible.</p></details>
     <details><summary>¿Esto reemplaza al bot de Telegram?</summary>
       <p>No. Telegram sigue exactamente igual, FREE y VIP. La plataforma es el panel completo; Telegram es solo el canal donde te avisa cuando el motor dispara.</p></details>
@@ -689,7 +734,7 @@ td:first-child,th:first-child{text-align:left}
     </div>
     <div class="footcol">
       <div class="foothd">Sitio</div>
-      <a href="#problema">Por qué FQ</a>
+      <a href="#problema">Por qué Marea</a>
       <a href="#dashboard-preview">El mercado en vivo</a>
       <a href="#guias">Guías gratis</a>
       <a href="#faq">Preguntas</a>
@@ -702,7 +747,7 @@ td:first-child,th:first-child{text-align:left}
   <div class="footlegal">
     <details><summary>Aviso de riesgo</summary>
       <p>El trading de criptomonedas con apalancamiento conlleva alto riesgo — puedes perder todo tu capital.
-      FQ no es asesoría financiera; las señales son informativas y operas bajo tu propia responsabilidad.
+      Marea no es asesoría financiera; las señales son informativas y operas bajo tu propia responsabilidad.
       Rendimientos pasados no garantizan resultados futuros. Opera solo capital que puedas permitirte perder.</p></details>
     <details><summary>Términos de servicio</summary>
       <p>El acceso VIP es personal e intransferible. Las señales no constituyen una recomendación de inversión.
@@ -713,7 +758,7 @@ td:first-child,th:first-child{text-align:left}
       No vendemos ni compartimos tus datos con terceros; se usan solo para operar tu acceso al servicio. Puedes
       solicitar la baja y el borrado escribiendo /desuscribir dentro del bot.</p></details>
   </div>
-  <div class="footbottom">© 2026 FQ CAPITAL. Contenido educativo/informativo — no constituye asesoría de inversión.</div>
+  <div class="footbottom">© 2026 Marea. Contenido educativo/informativo — no constituye asesoría de inversión.</div>
 </footer>
 
 </div>
@@ -735,7 +780,13 @@ td:first-child,th:first-child{text-align:left}
 
 <script>
 "use strict";
-/* ================= LLUVIA DIGITAL (Matrix · φ dorada) ================= */
+/* ---- tema claro/oscuro (Marea) — claro por defecto, oscuro cálido opcional ---- */
+(function(){
+  const root=document.documentElement, b=document.getElementById("themeBtn");
+  const cur=()=>root.getAttribute("data-theme")||(matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light");
+  if(b) b.addEventListener("click",()=>root.setAttribute("data-theme", cur()==="dark"?"light":"dark"));
+})();
+/* ================= (retirado) lluvia digital — Marea va en calma ================= */
 (function(){
   const cv=document.getElementById("rain"),x=cv.getContext("2d");
   const GLYPHS="φΦΣλΞ◎₿∑√πΔ0123456789ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ";
@@ -940,9 +991,12 @@ function spark(cv,data){
   const mn=Math.min(...data),mx=Math.max(...data),rg=(mx-mn)||1;
   x.beginPath();
   data.forEach((v,i)=>{const px=i/(data.length-1)*(w-4)+2,py=h-3-((v-mn)/rg)*(h-8);i?x.lineTo(px,py):x.moveTo(px,py)});
-  x.lineWidth=2;x.strokeStyle="#c9a227";x.shadowColor="rgba(212,175,55,.45)";x.shadowBlur=7;x.stroke();
+  const cs=getComputedStyle(document.documentElement);
+  const teal=cs.getPropertyValue("--teal").trim()||"#0B6B6E";
+  x.lineWidth=2;x.strokeStyle=teal;x.lineJoin="round";x.lineCap="round";x.stroke();
   const lv=data[data.length-1],ly=h-3-((lv-mn)/rg)*(h-8);
-  x.shadowBlur=0;x.beginPath();x.arc(w-2,ly,2.8,0,7);x.fillStyle="#f4f2ea";x.fill();
+  x.beginPath();x.arc(w-2,ly,2.8,0,7);x.fillStyle=teal;x.fill();
+  x.beginPath();x.arc(w-2,ly,2.8,0,7);x.strokeStyle=cs.getPropertyValue("--panel").trim()||"#fff";x.lineWidth=1.5;x.stroke();
 }
 function render(d){
   setCTAs(d.bot);                       // enlaza los CTA del embudo al Telegram del bot
@@ -1067,7 +1121,7 @@ function renderDetail(d,sym){
       ${chg!=null?'<span class="ddx '+(chg>=0?'up':'dn')+'">'+(chg>=0?'▲ ':'▼ ')+Math.abs(chg).toFixed(2)+'% 24h</span>':''}
       <span class="dsess" style="margin-left:auto">${sess}</span></div>
     <canvas id="dchart"></canvas>
-    <div class="dread"><div class="rl">Lectura FQ</div>${reading}</div>
+    <div class="dread"><div class="rl">Lectura Marea</div>${reading}</div>
     <div class="dmetrics">
       <div class="dm"><div class="dmt"><span>Sentimiento del mercado</span><b>${iv!=null?iv.toFixed(3):'—'}</b></div>
         <div class="dtrack"><div class="dzone" style="left:0;width:34%;background:var(--up);opacity:.3"></div>
@@ -1120,7 +1174,7 @@ function renderTape(syms,d){
   const wp=syms.filter(s=>d.symbols[s]&&d.symbols[s].price!=null);
   const sig=wp.join(",");
   if(rail.dataset.sig!==sig){                        // reconstruye SOLO si cambia el set de símbolos
-    const one=wp.map(s=>`<span class="it"><b>${s}</b> <span class="v" data-v="${s}"></span><span class="phi">φ</span></span>`).join("");
+    const one=wp.map(s=>`<span class="it"><b>${s}</b> <span class="v" data-v="${s}"></span><span class="phi">·</span></span>`).join("");
     rail.innerHTML=one+one; rail.dataset.sig=sig; _tapeX=0;   // 2 copias -> loop sin costura
   }
   for(const s of wp){                                // precios EN SITIO: no toca la estructura -> no reinicia el scroll
@@ -1237,7 +1291,7 @@ let _alertsOn=false, _seenFire=null;
     let perm=Notification.permission;
     if(perm!=="granted") perm=await Notification.requestPermission();
     if(perm==="granted"){ _alertsOn=true; btn.classList.add("on"); btn.textContent="🔔 Alertas ON";
-      try{ new Notification("FQ CAPITAL", {body:"Alertas activadas — te avisaremos cuando el motor dispare.", icon:"/icon.svg"}); }catch(e){}
+      try{ new Notification("Marea", {body:"Alertas activadas — te avisaremos cuando el motor dispare.", icon:"/icon.svg"}); }catch(e){}
     }
   };
 }catch(e){} })();
@@ -1252,7 +1306,7 @@ function checkNewSignals(events){
     if(key!==_seenFire){
       _seenFire=key;
       if(_alertsOn && document.hidden){
-        try{ new Notification("⚡ Señal FQ · "+(latest.sym||""), {body:latest.text||"El motor disparó una señal.", icon:"/icon.svg", tag:"fq-signal"}); }catch(e){}
+        try{ new Notification("⚡ Señal Marea · "+(latest.sym||""), {body:latest.text||"El motor disparó una señal.", icon:"/icon.svg", tag:"fq-signal"}); }catch(e){}
       }
     }
   }catch(e){}

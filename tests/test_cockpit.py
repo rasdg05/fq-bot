@@ -90,7 +90,7 @@ def test_server_sirve_html_json_health(tmp_path, monkeypatch):
         r = urllib.request.urlopen(base + "/cockpit.json", timeout=5)
         assert r.status == 200 and "symbols" in json.loads(r.read().decode())
         r2 = urllib.request.urlopen(base + "/", timeout=5)
-        assert r2.status == 200 and b"FQ CAPITAL" in r2.read()   # marca institucional
+        assert r2.status == 200 and b"Marea" in r2.read()   # marca (rebrand Marea)
     finally:
         httpd.shutdown()
 
@@ -191,7 +191,7 @@ def test_server_sirve_pwa_assets():
     try:
         m = urllib.request.urlopen(base + "/manifest.webmanifest", timeout=5)
         assert m.status == 200 and "manifest" in m.headers.get("Content-Type")
-        assert json.loads(m.read())["name"] == "FQ CAPITAL"
+        assert json.loads(m.read())["name"] == "Marea"
         sw = urllib.request.urlopen(base + "/sw.js", timeout=5)
         assert sw.status == 200 and "javascript" in sw.headers.get("Content-Type")
         assert b"serviceWorker" not in sw.read() or True     # served as text

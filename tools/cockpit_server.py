@@ -62,17 +62,14 @@ _BOT = os.environ.get("FQ_VIP_BOT_USERNAME", "").strip().lstrip("@")
 # móvil/escritorio y habilita notificaciones nativas (alertas VIP, pista 1D). ---
 _ICON_SVG = (
     "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'>"
-    "<rect width='512' height='512' rx='96' fill='#050705'/>"
-    "<circle cx='256' cy='256' r='150' fill='none' stroke='#d4af37' stroke-width='18'/>"
-    "<path d='M256 106 a150 150 0 0 1 106 44' fill='none' stroke='#14F195' "
-    "stroke-width='22' stroke-linecap='round'/>"
-    "<text x='256' y='330' font-size='190' text-anchor='middle' fill='#d4af37' "
-    "font-family='Georgia,serif'>φ</text></svg>")
+    "<rect width='512' height='512' rx='104' fill='#F3EFE4'/>"
+    "<g transform='translate(98,98) scale(2.2)'><path d=\"M 75.81 84.01 C 76.09 84.58 76.92 83.87 77.49 83.88 C 78.07 83.90 78.66 83.96 79.24 84.09 C 79.82 84.22 80.41 84.41 80.98 84.65 C 81.56 84.90 82.13 85.21 82.66 85.58 C 83.20 85.94 83.72 86.37 84.20 86.85 C 84.68 87.33 85.13 87.88 85.53 88.47 C 85.93 89.06 86.29 89.70 86.58 90.39 C 86.87 91.07 87.11 91.80 87.28 92.56 C 87.45 93.32 87.55 94.13 87.58 94.94 C 87.60 95.76 87.56 96.61 87.42 97.45 C 87.29 98.30 87.08 99.17 86.78 100.01 C 86.47 100.86 86.09 101.72 85.61 102.54 C 85.14 103.35 84.58 104.17 83.93 104.92 C 83.28 105.68 82.54 106.41 81.72 107.07 C 80.90 107.73 79.99 108.35 79.02 108.88 C 78.04 109.41 76.98 109.88 75.87 110.25 C 74.75 110.61 73.56 110.90 72.32 111.07 C 71.09 111.23 69.79 111.31 68.47 111.25 C 67.16 111.19 65.78 111.02 64.42 110.71 C 63.05 110.40 61.65 109.96 60.28 109.38 C 58.91 108.79 57.52 108.07 56.19 107.20 C 54.86 106.32 53.54 105.31 52.32 104.14 C 51.09 102.97 49.90 101.65 48.83 100.19 C 47.76 98.73 46.75 97.11 45.90 95.37 C 45.06 93.63 44.30 91.74 43.74 89.74 C 43.18 87.74 42.76 85.60 42.53 83.39 C 42.29 81.17 42.22 78.85 42.33 76.45 C 42.45 74.05 42.68 71.54 43.22 68.99 C 43.75 66.44 44.48 63.79 45.53 61.17 C 46.57 58.54 47.87 55.84 49.49 53.23 C 51.12 50.62 53.03 47.98 55.29 45.52 C 57.54 43.05 60.11 40.62 63.01 38.44 C 65.91 36.26 69.15 34.18 72.67 32.45 C 76.20 30.72 80.07 29.17 84.17 28.06 C 88.27 26.95 92.70 26.11 97.28 25.78 C 101.85 25.45 107.69 26.86 111.62 26.09 C 115.56 25.32 121.99 22.65 120.90 21.15 C 119.82 19.64 110.35 17.93 105.12 17.08 C 99.90 16.23 94.62 15.91 89.54 16.03 C 84.46 16.15 79.42 16.79 74.65 17.81 C 69.88 18.84 65.24 20.35 60.92 22.18 C 56.61 24.02 52.50 26.29 48.76 28.81 C 45.03 31.33 41.57 34.24 38.52 37.31 C 35.46 40.38 32.74 43.77 30.44 47.24 C 28.14 50.70 26.21 54.41 24.71 58.11 C 23.20 61.81 22.09 65.66 21.39 69.43 C 20.69 73.19 20.40 77.03 20.51 80.68 C 20.61 84.34 21.20 87.96 22.01 91.35 C 22.83 94.74 24.01 98.01 25.39 101.02 C 26.77 104.04 28.47 106.87 30.31 109.43 C 32.16 111.98 34.26 114.31 36.44 116.36 C 38.62 118.40 41.01 120.19 43.42 121.69 C 45.82 123.20 48.37 124.42 50.88 125.38 C 53.39 126.34 55.98 127.02 58.49 127.45 C 61.00 127.89 63.53 128.04 65.94 127.99 C 68.35 127.94 70.73 127.62 72.96 127.13 C 75.18 126.65 77.33 125.92 79.31 125.07 C 81.29 124.21 83.15 123.15 84.82 122.00 C 86.50 120.85 88.03 119.53 89.38 118.16 C 90.72 116.80 91.90 115.30 92.90 113.79 C 93.90 112.28 94.72 110.69 95.37 109.11 C 96.02 107.54 96.49 105.92 96.81 104.35 C 97.13 102.77 97.28 101.19 97.29 99.69 C 97.30 98.18 97.15 96.69 96.90 95.30 C 96.64 93.91 96.23 92.56 95.75 91.33 C 95.26 90.09 94.65 88.92 93.98 87.87 C 93.32 86.82 92.55 85.85 91.74 85.00 C 90.94 84.15 90.06 83.40 89.18 82.76 C 88.29 82.12 87.35 81.59 86.42 81.15 C 85.49 80.72 84.53 80.40 83.60 80.17 C 82.67 79.93 81.73 79.80 80.84 79.75 C 79.94 79.70 79.06 79.75 78.23 79.86 C 77.40 79.97 76.26 79.73 75.86 80.42 C 75.46 81.11 75.54 83.43 75.81 84.01 Z\" fill='#0B6B6E'/></g>"
+    "</svg>")
 
 _MANIFEST = json.dumps({
-    "name": "FQ CAPITAL", "short_name": "FQ", "start_url": "/",
-    "display": "standalone", "background_color": "#050705",
-    "theme_color": "#050705", "description": "Copiloto de trading en vivo",
+    "name": "Marea", "short_name": "Marea", "start_url": "/",
+    "display": "standalone", "background_color": "#F5F3EC",
+    "theme_color": "#0B6B6E", "description": "Copiloto de mercado en español, en vivo",
     "icons": [{"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml",
                "purpose": "any maskable"}],
 })
@@ -147,22 +144,22 @@ def _verify_page(status):
         body = "<p>Revisa que copiaste el link completo, o vuelve al sitio y regístrate de nuevo.</p>"
     return ("""<!doctype html><html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FQ CAPITAL · Verificación</title>
+<title>Marea · Verificación</title>
 <style>
-body{{margin:0;background:#050705;color:#f4f2ea;font:15px/1.6 -apple-system,"Helvetica Neue",Arial,sans-serif;
+body{{margin:0;background:#F5F3EC;color:#12262A;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
   display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px}}
-.card{{max-width:440px;border:1px solid rgba(201,162,39,.22);border-radius:12px;background:rgba(12,15,12,.92);
-  padding:32px 28px;text-align:center}}
-.card b{{color:#d4af37;letter-spacing:.2em;font-size:11px;text-transform:uppercase;display:block;margin-bottom:14px}}
-h1{{font-size:20px;margin:0 0 12px}}
-p{{color:#b9b6a6;margin:0 0 8px}}
+.card{{max-width:440px;border:1px solid rgba(11,107,110,.22);border-radius:16px;background:#FFFFFF;
+  padding:32px 28px;text-align:center;box-shadow:0 10px 30px rgba(18,38,42,.07)}}
+.card b{{color:#0B6B6E;letter-spacing:.14em;font-size:11px;text-transform:uppercase;display:block;margin-bottom:14px}}
+h1{{font-size:22px;margin:0 0 12px;font-family:ui-serif,Georgia,"Times New Roman",serif;font-weight:600}}
+p{{color:#5D6E6D;margin:0 0 8px}}
 .btn{{display:inline-block;text-decoration:none;font-weight:700;font-size:12px;letter-spacing:.06em;
-  text-transform:uppercase;padding:12px 20px;border-radius:8px}}
-.btn.gold{{background:linear-gradient(180deg,#e7c452,#c9a227);color:#0a0c0a}}
-.btn.ghost{{background:transparent;color:#d4af37;border:1px solid rgba(212,175,55,.42);margin-top:10px}}
-a{{color:#d4af37}}
+  text-transform:uppercase;padding:12px 20px;border-radius:10px}}
+.btn.gold{{background:#0B6B6E;color:#fff}}
+.btn.ghost{{background:transparent;color:#0B6B6E;border:1px solid rgba(11,107,110,.42);margin-top:10px}}
+a{{color:#0B6B6E}}
 </style></head><body>
-<div class="card"><b>FQ CAPITAL</b><h1>{heading}</h1>{body}</div>
+<div class="card"><b>Marea</b><h1>{heading}</h1>{body}</div>
 </body></html>""").format(heading=heading, body=body)
 
 
