@@ -511,6 +511,16 @@ td:first-child,th:first-child{text-align:left}
   .bband{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--text);margin-left:auto}
   .bfoot{font-family:var(--mono);font-size:8.5px;letter-spacing:.03em;color:var(--muted);
     border-top:1px solid var(--line2);padding-top:9px;line-height:1.5}
+  .bfoot #b-clar{color:var(--teal);font-weight:700}
+  /* trío de mini-medidores (instrument panel del brief) */
+  .bgauges{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:2px 0}
+  .bg{display:flex;flex-direction:column;align-items:center;gap:5px;text-align:center}
+  .bgk{font-family:var(--mono);font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+  .bgm{display:flex;gap:2px}
+  .bgm i{width:11px;height:4px;border-radius:1px;background:var(--line)}
+  .bgm.l1 i:nth-child(1),.bgm.l2 i:nth-child(-n+2),.bgm.l3 i{background:var(--teal)}
+  .bgm.hot.l2 i:nth-child(-n+2),.bgm.hot.l3 i{background:var(--dn)}
+  .bgw{font-family:var(--mono);font-size:9.5px;font-weight:700;color:var(--text);letter-spacing:.01em}
   /* --- marea ambiental en el hero (Marea = mar en calma, no lluvia Matrix) --- */
   #pitch{position:relative;overflow:hidden}
   #tide{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;opacity:.55}
@@ -585,19 +595,19 @@ td:first-child,th:first-child{text-align:left}
     <div class="brow"><span class="bk">Ritmo del mercado</span><span class="bv" id="b-tone">Leyendo el mercado…</span></div>
     <div class="brow"><span class="bk">Apalancamiento</span><span class="bv" id="b-lev">—</span></div>
     <div class="brow"><span class="bk">Vigilar hoy</span><span class="bv" id="b-watch">—</span></div>
-    <div class="bclar">
-      <span class="bk">Claridad</span>
-      <span class="bmeter" id="b-meter"><i></i><i></i><i></i></span>
-      <span class="bband" id="b-band">—</span>
+    <div class="bgauges">
+      <div class="bg"><span class="bgk">Corriente</span><span class="bgm" id="bg-trend"><i></i><i></i><i></i></span><span class="bgw" id="bgw-trend">—</span></div>
+      <div class="bg"><span class="bgk">Apalancado</span><span class="bgm" id="bg-lev"><i></i><i></i><i></i></span><span class="bgw" id="bgw-lev">—</span></div>
+      <div class="bg"><span class="bgk">Pulso</span><span class="bgm" id="bg-pulse"><i></i><i></i><i></i></span><span class="bgw" id="bgw-pulse">—</span></div>
     </div>
-    <div class="bfoot">En vivo · dato real, no ilustrativo · se lee solo del panel</div>
+    <div class="bfoot"><span id="b-clar">Claridad —</span> · en vivo, dato real, no ilustrativo</div>
   </aside>
 </div>
 
 <div id="proof" class="reveal">
   <div class="proofitem"><b>Siempre activo</b><span>El mercado no descansa aunque el motor esté en silencio semanas — la plataforma tampoco</span></div>
   <div class="proofitem"><b>Cero relleno</b><span>Si no hay ventaja clara, no dispara nada. Preferimos callarnos a inventarte una señal</span></div>
-  <div class="proofitem"><b>+0.27R · +0.34R</b><span>Cuando sí dispara: resultado medido en SOL y BTC sobre 5 años de datos reales, no un backtest bonito</span></div>
+  <div class="proofitem"><b>+0.27 · +0.34 · +0.29R</b><span>R validado con Deflated Sharpe en <b>SOL</b> y <b>BTC</b> (order-flow) y <b>ETH</b> (régimen KL, DSR 1.00), sobre años de datos reales — no un backtest bonito</span></div>
   <div class="proofitem"><b>Con respaldo, no con humo</b><span>Cada señal pasó una prueba estadística seria — el detalle, para quien quiera profundizar, está en las preguntas frecuentes</span></div>
 </div>
 
@@ -1068,11 +1078,14 @@ function _sessionNow(){
 function renderBrief(d){
   const S=(d&&d.symbols)||{}, keys=Object.keys(S);
   const sess=document.getElementById("b-sess"); if(sess) sess.textContent=_sessionNow();
-  let n=0,structured=0,decisive=0,hotName=null,hotF=-1,coldName=null,coldF=2;
-  for(const k of keys){ const st=S[k]; if(!st||st.irrev==null) continue; n++;
+  let n=0,structured=0,decisive=0,hotName=null,hotF=-1,coldName=null,coldF=2,sumF=0,nF=0,vols=[];
+  for(const k of keys){ const st=S[k]; if(!st) continue;
+    if(st.spark&&st.spark.length>3){ const a=st.spark,mn=Math.min(...a),mx=Math.max(...a),
+      mean=a.reduce((x,y)=>x+y,0)/a.length; if(mean>0) vols.push((mx-mn)/mean); }   // pulso
+    if(st.irrev==null) continue; n++;
     if(st.irrev>0.34) structured++;
     const f=st.funding_pctl, nm=(st.analysis&&st.display)?st.display:k;
-    if(f!=null){ if(f>hotF){hotF=f;hotName=nm;} if(f<coldF){coldF=f;coldName=nm;} }
+    if(f!=null){ sumF+=f; nF++; if(f>hotF){hotF=f;hotName=nm;} if(f<coldF){coldF=f;coldName=nm;} }
     if(st.irrev>0.34 || (f!=null&&(f>=0.7||f<=0.3))) decisive++;
   }
   const tone=document.getElementById("b-tone");
@@ -1096,10 +1109,25 @@ function renderBrief(d){
     if(hi){ const t=fmtWhen(hi.ts); watch.innerHTML="<b>"+t.rel+"</b> · "+hi.title+" ("+hi.region+") — impacto "+hi.impact+". Sube la guardia."; }
     else watch.textContent="Sin eventos de alto impacto próximos — agenda despejada.";
   }
-  const meter=document.getElementById("b-meter"), band=document.getElementById("b-band");
-  if(meter&&band){ let lvl=0,label="—";
-    if(n){ const r=decisive/n; if(r>=0.6){lvl=3;label="Alta";} else if(r>=0.33){lvl=2;label="Media";} else {lvl=1;label="Baja";} }
-    meter.className="bmeter l"+lvl; band.textContent=label; }
+  // trío de mini-medidores (instrument panel) — misma data honesta, forma glanceable
+  function setG(id,wid,level,word,hot){ const m=document.getElementById(id),w=document.getElementById(wid);
+    if(m) m.className="bgm"+(hot?" hot":"")+" l"+level; if(w) w.textContent=word; }
+  // Corriente (tendencia = fracción con dirección)
+  { let lv=0,wd="—"; if(n){ const r=structured/n;
+      if(r>=0.5){lv=3;wd="Fuerte";} else if(r<=0.2){lv=1;wd="Rango";} else {lv=2;wd="Mixto";} }
+    setG("bg-trend","bgw-trend",lv,wd,false); }
+  // Apalancado (funding medio del tablero)
+  { let lv=0,wd="—",hot=false; if(nF){ const mf=sumF/nF;
+      if(mf>=0.6){lv=3;wd="Caliente";hot=true;} else if(mf<=0.4){lv=1;wd="Frío";} else {lv=2;wd="Neutro";} }
+    setG("bg-lev","bgw-lev",lv,wd,hot); }
+  // Pulso (volatilidad = dispersión mediana del spark)
+  { let lv=0,wd="—",hot=false; if(vols.length){ vols.sort((a,b)=>a-b); const med=vols[Math.floor(vols.length/2)];
+      if(med>=0.03){lv=3;wd="Agitado";hot=true;} else if(med<=0.012){lv=1;wd="Tranquilo";} else {lv=2;wd="Normal";} }
+    setG("bg-pulse","bgw-pulse",lv,wd,hot); }
+  // "Claridad" (síntesis de decisividad) va ahora al footer
+  { const c=document.getElementById("b-clar"); if(c){ let label="—";
+      if(n){ const r=decisive/n; label = r>=0.6?"Alta":r>=0.33?"Media":"Baja"; }
+      c.textContent="Claridad "+label; } }
 }
 function render(d){
   setCTAs(d.bot);                       // enlaza los CTA del embudo al Telegram del bot
