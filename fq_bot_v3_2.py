@@ -5917,22 +5917,25 @@ def cmd_lectura(exchange, pair_ccy="SOL"):
                 # vuelve la simulacion QTE aqui (2026-07-20, "carga inutil");
                 # el battle plan VIP de /analisis (2000 paths) sigue vivo ahi.
                 if tf_id == ANALISIS_ANCHOR_TF:
-                    levels = calculate_levels_v2(df, direction, pspace=masses, tf=tf_id)
+                    # Ladder áureo v1 (RasDG 2026-07-23): reversión del selector de
+                    # bandas v2, que en 5m dejaba TP1 en un fallback ("extension Fib")
+                    # y pegaba el 1.272 en TP2 con el 1.618 fuera de vista. v1 da
+                    # objetivos áureos relativos a la ENTRADA (φ²·rango / φ·rango) —
+                    # consistentes y alcanzables para operar en 5m. Etiquetas HONESTAS:
+                    # son proyecciones φ del rango, NO extensiones 1.272/1.618. No toca
+                    # la señal automática al VIP/FREE (build_vip_signal intacto).
+                    levels = calculate_levels(df, direction)
                     risk_pct = (levels["risk"] / levels["entry"]) * 100
-                    sl_anchor_lbl = SL_ANCHOR_LABELS.get(
-                        levels.get("sl_anchor", ""), levels.get("sl_anchor", "-"))
-                    tp_meta = levels.get("tp_meta") or []
-                    tp_kinds = [TP_KIND_LABELS.get(t["kind"], t["kind"]) for t in tp_meta[:2]]
-                    while len(tp_kinds) < 2:
-                        tp_kinds.append("-")
+                    sl_anchor_lbl = ("EMA50 / mínimo de 10 velas" if direction == "long"
+                                     else "EMA50 / máximo de 10 velas")
                     block = (
                         "<b>[{lab} {tf}]</b>  Precio: ${px:.2f}\n"
                         "Bias: <b>{b}</b>  Masas P: {mc}  P_est: {pme:.2f}/{pmn:.2f}\n"
                         "Direccion sugerida: {dg} <b>{dir}</b>\n"
                         "Entry: <b>${e:.2f}</b>   SL: ${sl:.2f}  ({rp:.2f}%)\n"
                         "  anclado a {sla}\n"
-                        "TP1: ${t1:.2f}  R:R {r1:.2f}  ({k1})\n"
-                        "TP2: ${t2:.2f}  R:R {r2:.2f}  ({k2})\n"
+                        "TP1: ${t1:.2f}  R:R {r1:.2f}  (proy. áurea φ² · 0.382 del rango)\n"
+                        "TP2: ${t2:.2f}  R:R {r2:.2f}  (proy. áurea φ · 0.618 del rango)\n"
                         "Cooldown: {cd}\n"
                     ).format(
                         lab=tf_label, tf=tf_id, px=price,
@@ -5941,8 +5944,8 @@ def cmd_lectura(exchange, pair_ccy="SOL"):
                         dg=dir_glyph, dir=direction.upper(),
                         e=levels["entry"], sl=levels["sl"], rp=risk_pct,
                         sla=sl_anchor_lbl,
-                        t1=levels["tp1"], r1=levels["rr_tp1"], k1=tp_kinds[0],
-                        t2=levels["tp2"], r2=levels["rr_tp2"], k2=tp_kinds[1],
+                        t1=levels["tp1"], r1=levels["rr_tp1"],
+                        t2=levels["tp2"], r2=levels["rr_tp2"],
                         cd=cd_str,
                     )
                 else:
