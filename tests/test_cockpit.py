@@ -121,6 +121,34 @@ def test_server_sirve_guias_pdf_por_allowlist():
         httpd.shutdown()
 
 
+def test_server_sirve_fuentes_woff2_con_cache_inmutable():
+    """La tipografía propia (Fraunces + Hanken) se sirve por allowlist exacto, como
+    font/woff2 con cache inmutable de un año; woff2 fuera del allowlist -> 404."""
+    import importlib
+    import tools.cockpit_server as srv
+    importlib.reload(srv)
+    httpd = __import__("http.server", fromlist=["ThreadingHTTPServer"]).ThreadingHTTPServer(
+        ("127.0.0.1", 0), srv._H)
+    t = threading.Thread(target=httpd.serve_forever, daemon=True)
+    t.start()
+    base = "http://127.0.0.1:%d" % httpd.server_address[1]
+    try:
+        for name in ("fraunces-600.woff2", "hanken-400.woff2",
+                     "hanken-500.woff2", "hanken-700.woff2"):
+            r = urllib.request.urlopen(base + "/fonts/" + name, timeout=5)
+            assert r.status == 200
+            assert r.headers.get("Content-Type") == "font/woff2"
+            assert "immutable" in (r.headers.get("Cache-Control") or "")
+            assert r.read(4) == b"wOF2"          # firma woff2 real, no un placeholder
+        try:
+            urllib.request.urlopen(base + "/fonts/otra.woff2", timeout=5)
+            assert False, "una fuente fuera del allowlist no deberia servirse"
+        except urllib.error.HTTPError as e:
+            assert e.code == 404
+    finally:
+        httpd.shutdown()
+
+
 def test_server_mezcla_analisis_extra(tmp_path, monkeypatch):
     """El /cockpit.json = motor (cripto) + análisis (oro/Nasdaq) mezclados. El feeder
     de análisis vive en OTRO proceso/archivo; si no está, se sirve solo el motor."""

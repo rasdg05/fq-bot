@@ -55,6 +55,17 @@ STATIC_PDFS = {
     "/como-se-construye-una-ventaja.pdf": "como-se-construye-una-ventaja.pdf",
 }
 
+# Tipografía propia self-hosteada (Fraunces display + Hanken Grotesk texto). Allowlist
+# explícito por nombre exacto -- nunca por path del cliente (sin traversal). woff2
+# inmutable con cache de un año: la marca no se ve genérica y no re-descarga por carga.
+FONTS_DIR = os.path.join(ROOT, "assets", "fonts")
+STATIC_FONTS = {
+    "/fonts/fraunces-600.woff2": "fraunces-600.woff2",
+    "/fonts/hanken-400.woff2": "hanken-400.woff2",
+    "/fonts/hanken-500.woff2": "hanken-500.woff2",
+    "/fonts/hanken-700.woff2": "hanken-700.woff2",
+}
+
 # mismo handle del bot que usan cockpit.html/cockpit.py para los CTA del embudo.
 _BOT = os.environ.get("FQ_VIP_BOT_USERNAME", "").strip().lstrip("@")
 
@@ -166,12 +177,12 @@ a{{color:#0B6B6E}}
 class _H(BaseHTTPRequestHandler):
     server_version = "fq-cockpit"
 
-    def _send(self, code, body, ctype):
+    def _send(self, code, body, ctype, cache="no-store"):
         data = body if isinstance(body, bytes) else body.encode()
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", cache)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(data)
@@ -207,6 +218,13 @@ class _H(BaseHTTPRequestHandler):
                         self._send(200, fh.read(), "application/pdf")
                 except FileNotFoundError:
                     self._send(404, "guía no encontrada", "text/plain")
+            elif path in STATIC_FONTS:
+                try:
+                    with open(os.path.join(FONTS_DIR, STATIC_FONTS[path]), "rb") as fh:
+                        self._send(200, fh.read(), "font/woff2",
+                                   cache="public, max-age=31536000, immutable")
+                except FileNotFoundError:
+                    self._send(404, "fuente no encontrada", "text/plain")
             elif path == "/verify":
                 qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
                 token = (qs.get("token") or [""])[0]
