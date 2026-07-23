@@ -44,14 +44,23 @@ compara base vs base+KL vs base+flujo con n creciendo — **la data decide**, no
 y **sin** el confirmador de flujo (el flujo le resta, −0.167). El tag de ambos igual se
 graba para poder medir las dos caras.
 
-### Pendientes de wiring (requieren tu OK — tocan runtime)
-- **Scan + feed de barras por símbolo:** existen BTC/ETH/SOL/BCH. **BNB y LINK necesitan
-  su `_<sym>_motor_paper_scan` + su feed de velas 5m.** (No prender a ciegas.)
-- **Revivir `audits`:** el audit periódico (n_closed, winR, expectancy, DSR-drift) hoy
-  escribe 0 filas. Cablear un writer cada N cierres para tener rastro de validación.
-- **Honestidad del proof strip:** hasta n suficiente vivo, los números salen de la
-  investigación **validada con DSR** y etiquetados como "histórico/cubo" — no del n=1
-  de ETH ni del n=24 selecto de SOL.
+### Estado del wiring (actualizado 2026-07-23)
+- **Switch `FQ_FORWARD_MEASURE` — HECHO** (`launcher.py::_apply_forward_measure`). Con
+  `=1` prende BCH/BNB/LINK en paper (broadcast OFF) + `FQ_REGIME_TAGS=1`, vía setdefault
+  (tus overrides de Railway ganan). **NO toca `FQ_KL_FILTER`** — measure-first taggea,
+  no gatea (el edge de BCH vive en irrev-ALTO; gatearlo lo dañaría).
+- **Scans BNB/LINK — YA existían** (no hubo que escribirlos): flags dedicados
+  `FQ_MOTOR_PAPER_BNB/LINK` + la flota free (`_xsym_motor_paper_scan`, broadcast off,
+  ledger propio por símbolo). El switch solo los enciende.
+- **`audits` revivida — HECHO**: se arregló un DEADLOCK en `save_audit` (tomaba `_lock`
+  y `compute_entropy_metrics` lo re-tomaba) y se desacopló el write de Claude — la fila
+  cuantitativa se escribe siempre cada N cierres.
+- **Honestidad del proof strip — HECHO**: los números salen de investigación validada
+  con DSR y etiquetados por tier (SOL/BTC order-flow, ETH régimen KL). El forward vivo,
+  cuando `forward_measure.py` tenga n suficiente, los reemplaza etiquetados como "vivo".
+
+**Para encenderlo:** en Railway pon `FQ_FORWARD_MEASURE=1` (y ya). Empieza a acumular
+BCH/BNB/LINK forward sin exponer clientes; léelo con `python tools/forward_measure.py`.
 
 ## Salida esperada (cuando corra unas semanas)
 `forward_measure.py` imprime, por símbolo, la R base vs +KL vs +flujo con n real. Ese es
