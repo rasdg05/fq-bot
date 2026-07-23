@@ -1083,10 +1083,14 @@ def _bucket_performance_table(symbol="SOL"):
     ]
 
 def save_audit(n_closed, metrics, opus_response):
+    # compute_entropy_metrics() hace su PROPIA conexión y toma _lock por dentro
+    # (vía _get_prev_window_distribution). Si se llamara con _lock ya tomado ->
+    # DEADLOCK (threading.Lock no es reentrante) y colgaba el bot al disparar el
+    # audit. Se calcula ANTES de tomar el lock.
+    entropy = compute_entropy_metrics()
     with _lock:
         conn = _connect()
         try:
-            entropy = compute_entropy_metrics()
             conn.execute("""
                 INSERT INTO audits (ts, n_closed, win_rate, expectancy_r, entropy_h, kl_drift, opus_response, metrics_json)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)

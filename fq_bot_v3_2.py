@@ -6326,28 +6326,37 @@ def evolution_periodic_hook(exchange):
                     )
                 )
 
-        # Self-audit cada 25 cerradas
-        if ev.should_trigger_audit() and claude_ai.is_available():
+        # Self-audit cada 25 cerradas. La fila CUANTITATIVA (n_closed, winR,
+        # expectancy, entropy, kl_drift) se escribe SIEMPRE -> rastro de validación
+        # continua. La narrativa Opus es enriquecimiento best-effort (solo si Claude
+        # está disponible). Antes TODO iba gated por Claude, así que la tabla audits
+        # quedaba vacía y el anti-doble-trigger nunca avanzaba.
+        if ev.should_trigger_audit():
             n = ev.count_signals(closed_only=True)
-            log.info("Triggering self-audit Opus (n={})".format(n))
-            broadcast_to_subscribers(
-                "<b>SELF-AUDIT EVOLUTIVO ACTIVADO</b>\n"
-                "{} senales cerradas. Auditando ledger...".format(n)
-            )
-            prompt = ev.build_audit_prompt_v3() if hasattr(ev, "build_audit_prompt_v3") else ev.build_audit_prompt()
-            if prompt:
-                opus_response = ev_claude.self_audit(prompt)
-                metrics = ev.get_global_metrics()
-                ev.save_audit(n, metrics, opus_response)
-                audit_msg = (
-                    "<b>FQ · Auditoria evolutiva</b>\n"
-                    "{thin}\n\n{r}\n\n"
-                    "{thin}\n"
-                    "Estas son SUGERENCIAS. RasDG decide.\n"
-                    "#FQ #SelfAudit"
-                ).format(thin=G["thin"], r=opus_response)
-                for p in split_telegram_message(audit_msg):
-                    broadcast_to_subscribers(p)
+            metrics = ev.get_global_metrics()
+            opus_response = ""
+            if claude_ai.is_available():
+                try:
+                    log.info("Triggering self-audit Opus (n={})".format(n))
+                    broadcast_to_subscribers(
+                        "<b>SELF-AUDIT EVOLUTIVO ACTIVADO</b>\n"
+                        "{} senales cerradas. Auditando ledger...".format(n)
+                    )
+                    prompt = ev.build_audit_prompt_v3() if hasattr(ev, "build_audit_prompt_v3") else ev.build_audit_prompt()
+                    if prompt:
+                        opus_response = ev_claude.self_audit(prompt)
+                        audit_msg = (
+                            "<b>FQ · Auditoria evolutiva</b>\n"
+                            "{thin}\n\n{r}\n\n"
+                            "{thin}\n"
+                            "Estas son SUGERENCIAS. RasDG decide.\n"
+                            "#FQ #SelfAudit"
+                        ).format(thin=G["thin"], r=opus_response)
+                        for p in split_telegram_message(audit_msg):
+                            broadcast_to_subscribers(p)
+                except Exception as e:
+                    log.error("self-audit Opus error (la fila cuantitativa igual se guarda): {}".format(e))
+            ev.save_audit(n, metrics, opus_response)   # SIEMPRE guarda el snapshot cuantitativo
 
         # Backup cada N senales totales (configurable via FQ_BACKUP_EVERY_N).
         # mark_backup_done() evita re-envio en cada cierre de vela.
