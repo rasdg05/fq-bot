@@ -66,6 +66,13 @@ STATIC_FONTS = {
     "/fonts/hanken-700.woff2": "hanken-700.woff2",
 }
 
+# Imagen de marca (render 3D de la ola-koru, fondo removido). Mismo criterio que las
+# fuentes: allowlist exacto + cache inmutable, servida como webp con alfa.
+IMG_DIR = os.path.join(ROOT, "assets", "img")
+STATIC_IMAGES = {
+    "/assets/koru-3d.webp": ("koru-3d.webp", "image/webp"),
+}
+
 # mismo handle del bot que usan cockpit.html/cockpit.py para los CTA del embudo.
 _BOT = os.environ.get("FQ_VIP_BOT_USERNAME", "").strip().lstrip("@")
 
@@ -225,6 +232,14 @@ class _H(BaseHTTPRequestHandler):
                                    cache="public, max-age=31536000, immutable")
                 except FileNotFoundError:
                     self._send(404, "fuente no encontrada", "text/plain")
+            elif path in STATIC_IMAGES:
+                fname, ctype = STATIC_IMAGES[path]
+                try:
+                    with open(os.path.join(IMG_DIR, fname), "rb") as fh:
+                        self._send(200, fh.read(), ctype,
+                                   cache="public, max-age=31536000, immutable")
+                except FileNotFoundError:
+                    self._send(404, "imagen no encontrada", "text/plain")
             elif path == "/verify":
                 qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
                 token = (qs.get("token") or [""])[0]

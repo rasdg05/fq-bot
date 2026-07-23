@@ -495,9 +495,34 @@ td:first-child,th:first-child{text-align:left}
   h1,h2,.h2big,#closer h2{font-family:var(--serif)!important}
   /* fuera el look "terminal Matrix": lluvia, splash φ, arte de fondo y marca de agua */
   #rain,#intro,#heroart,#wm{display:none!important}
-  /* --- Brief de sesión (síntesis honesta del panel en vivo) --- */
-  #pitch{align-items:stretch!important}
-  .pitchmain{flex:1 1 400px;min-width:280px;display:flex;flex-direction:column;gap:16px;justify-content:center}
+  /* --- Hero: koru 3D flotando a la derecha (estilo Revolut), texto a la izquierda --- */
+  #pitch{align-items:center!important;min-height:340px}
+  .pitchmain{flex:1 1 400px;min-width:280px;max-width:58%;display:flex;flex-direction:column;gap:16px;justify-content:center}
+  .heroglow{position:absolute;inset:0;z-index:0;pointer-events:none;
+    background:radial-gradient(48% 62% at 80% 50%, color-mix(in srgb,var(--teal) 16%,transparent) 0%, transparent 62%)}
+  .heroart3d{position:absolute;top:50%;right:-2%;transform:translateY(-50%);z-index:1;
+    width:min(50%,480px);pointer-events:none;filter:drop-shadow(0 26px 44px rgba(9,52,54,.26))}
+  .heroart3d .floaty{animation:koruFloat 9.5s ease-in-out infinite;will-change:transform}
+  .heroart3d img{display:block;width:100%}
+  @keyframes koruFloat{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-14px) rotate(-1.2deg)}}
+  @media (prefers-reduced-motion:reduce){.heroart3d .floaty{animation:none}}
+  /* --- Brief de sesión: ahora su propia sección bajo el hero --- */
+  #briefsec{margin-top:16px}
+  .briefwrap{border:1px solid var(--line);border-radius:12px;background:var(--panel);
+    padding:22px 24px;display:flex;align-items:center;gap:28px;flex-wrap:wrap;position:relative;overflow:hidden}
+  .briefwrap::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;
+    background:linear-gradient(180deg,var(--sol1),var(--sol2))}
+  .briefintro{flex:1 1 360px;min-width:270px}
+  .briefintro .eyebrow{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:9px}
+  .briefintro h2{font-family:var(--serif);font-size:22px;line-height:1.2;color:var(--text);
+    font-weight:700;letter-spacing:-.01em;margin:0 0 8px;border:none;padding:0}
+  .briefintro p{font-size:12px;line-height:1.62;color:var(--text2);max-width:52ch}
+  @media(max-width:760px){
+    .heroart3d{width:120%;right:-32%;opacity:.24}
+    .pitchmain{max-width:100%}
+    .briefwrap{flex-direction:column;align-items:stretch}
+    #briefsec .briefintro+#brief,.briefwrap #brief{max-width:none}
+  }
   #brief{flex:1 1 330px;max-width:400px;align-self:center;background:var(--panel);
     border:1px solid var(--line);border-radius:14px;padding:15px 16px 12px;
     display:flex;flex-direction:column;gap:11px;
@@ -535,7 +560,7 @@ td:first-child,th:first-child{text-align:left}
   /* --- marea ambiental en el hero (Marea = mar en calma, no lluvia Matrix) --- */
   #pitch{position:relative;overflow:hidden}
   #tide{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;opacity:.55}
-  #pitch .pitchmain,#pitch #brief{position:relative;z-index:1}
+  #pitch .pitchmain{position:relative;z-index:2}
   /* botones con micro-interacción de profundidad */
   .cta{will-change:transform}
   @media (prefers-reduced-motion:reduce){ #tide{display:none} .tilt{transform:none!important} }
@@ -584,6 +609,8 @@ td:first-child,th:first-child{text-align:left}
 
 <div id="pitch" class="reveal">
   <canvas id="tide" aria-hidden="true"></canvas>
+  <div class="heroglow" aria-hidden="true"></div>
+  <div class="heroart3d" aria-hidden="true"><div class="floaty"><img src="/assets/koru-3d.webp" alt="" width="1200" height="851" fetchpriority="high"></div></div>
   <div class="pitchmain">
     <div class="txt">
       <div class="eyebrow">Copiloto de mercado · en español · en vivo</div>
@@ -598,22 +625,33 @@ td:first-child,th:first-child{text-align:left}
       <a class="cta ghost" data-tg href="#" target="_blank" rel="noopener">Señales gratis en Telegram →</a>
     </div>
   </div>
-  <aside id="brief" aria-label="Brief de sesión — lectura del panel en vivo">
-    <div class="bhd">
-      <span class="blive"><span class="bdot"></span> Brief de sesión</span>
-      <span class="bsess" id="b-sess">—</span>
-    </div>
-    <div class="brow"><span class="bk">Ritmo del mercado</span><span class="bv" id="b-tone">Leyendo el mercado…</span></div>
-    <div class="brow"><span class="bk">Apalancamiento</span><span class="bv" id="b-lev">—</span></div>
-    <div class="brow"><span class="bk">Vigilar hoy</span><span class="bv" id="b-watch">—</span></div>
-    <div class="bgauges">
-      <div class="bg"><span class="bgk">Corriente</span><span class="bgm" id="bg-trend"><i></i><i></i><i></i></span><span class="bgw" id="bgw-trend">—</span></div>
-      <div class="bg"><span class="bgk">Apalancado</span><span class="bgm" id="bg-lev"><i></i><i></i><i></i></span><span class="bgw" id="bgw-lev">—</span></div>
-      <div class="bg"><span class="bgk">Pulso</span><span class="bgm" id="bg-pulse"><i></i><i></i><i></i></span><span class="bgw" id="bgw-pulse">—</span></div>
-    </div>
-    <div class="bfoot"><span id="b-clar">Claridad —</span> · en vivo, dato real, no ilustrativo</div>
-  </aside>
 </div>
+
+<section id="briefsec" class="reveal" aria-label="Brief de sesión en vivo">
+  <div class="briefwrap">
+    <div class="briefintro">
+      <div class="eyebrow">Tu lectura del mercado · en vivo</div>
+      <h2>El brief de sesión, en tu idioma.</h2>
+      <p>Cada vez que abres, Marea sintetiza todo el panel en una lectura honesta: el ritmo, dónde
+      aprietan los apalancados y qué vigilar hoy. Dato real del motor, no un ejemplo bonito.</p>
+    </div>
+    <aside id="brief" aria-label="Brief de sesión — lectura del panel en vivo">
+      <div class="bhd">
+        <span class="blive"><span class="bdot"></span> Brief de sesión</span>
+        <span class="bsess" id="b-sess">—</span>
+      </div>
+      <div class="brow"><span class="bk">Ritmo del mercado</span><span class="bv" id="b-tone">Leyendo el mercado…</span></div>
+      <div class="brow"><span class="bk">Apalancamiento</span><span class="bv" id="b-lev">—</span></div>
+      <div class="brow"><span class="bk">Vigilar hoy</span><span class="bv" id="b-watch">—</span></div>
+      <div class="bgauges">
+        <div class="bg"><span class="bgk">Corriente</span><span class="bgm" id="bg-trend"><i></i><i></i><i></i></span><span class="bgw" id="bgw-trend">—</span></div>
+        <div class="bg"><span class="bgk">Apalancado</span><span class="bgm" id="bg-lev"><i></i><i></i><i></i></span><span class="bgw" id="bgw-lev">—</span></div>
+        <div class="bg"><span class="bgk">Pulso</span><span class="bgm" id="bg-pulse"><i></i><i></i><i></i></span><span class="bgw" id="bgw-pulse">—</span></div>
+      </div>
+      <div class="bfoot"><span id="b-clar">Claridad —</span> · en vivo, dato real, no ilustrativo</div>
+    </aside>
+  </div>
+</section>
 
 <div id="proof" class="reveal">
   <div class="proofitem"><b>Siempre activo</b><span>El mercado no descansa aunque el motor esté en silencio semanas — la plataforma tampoco</span></div>
