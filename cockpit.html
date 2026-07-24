@@ -495,6 +495,42 @@ td:first-child,th:first-child{text-align:left}
   h1,h2,.h2big,#closer h2{font-family:var(--serif)!important}
   /* fuera el look "terminal Matrix": lluvia, splash φ, arte de fondo y marca de agua */
   #rain,#intro,#heroart,#wm{display:none!important}
+  /* --- pase SEAMLESS: fuera los bloques densos/Matrix que rompían la calma y
+     duplicaban el mensaje. La red neuronal y el log crudo son herencia del viejo FQ;
+     el "fantasma del VIP" es críptico; #manifiesto repetía a #problema; las pestañas
+     apuntaban a bloques ya retirados. Menos momentos, más ricos. --- */
+  #nnwrap,#logwrap,#eqwrap,#manifiesto,.pillnav{display:none!important}
+  /* grilla curada: 6 instrumentos estrella; el resto tras "ver todos" (menos muro) */
+  #grid:not(.expanded) .inst.gm-hidden{display:none}
+  .gridmore{display:block;margin:18px auto 0;padding:11px 24px;font-family:var(--sans);
+    font-size:12px;font-weight:600;letter-spacing:.03em;color:var(--teal);background:transparent;
+    border:1px solid var(--line);border-radius:999px;cursor:pointer;
+    transition:background .2s ease,border-color .2s ease}
+  .gridmore:hover{background:var(--golddim);border-color:var(--teal)}
+  /* === SEAMLESS: bandas full-bleed en vez de tarjetas apiladas ===
+     Las secciones narrativas dejan de ser cajas con borde y pasan a bandas de ancho
+     completo que fluyen una en otra con tintes alternos. Los datos (tarjetas .inst,
+     brief, guías) conservan su borde -- ahí el borde SÍ tiene sentido. */
+  #problema,#dashboard-preview,#segmentos,#access,#guias,#faq,#closer{
+    margin:0!important;border:none!important;border-radius:0!important;
+    width:100vw;margin-left:calc(50% - 50vw)!important;
+    padding:clamp(46px,7vh,92px) max(22px,calc(50vw - 540px))!important;background:transparent}
+  /* tintes alternos = ritmo sin cajas (crema / arena), un cierre marino de drama */
+  #problema,#segmentos,#guias{background:var(--sand)!important}
+  #closer{background:linear-gradient(150deg,#0C1A1C 0%,#123230 100%)!important;color:#ECEAE1;text-align:center}
+  #closer h2{color:#fff!important} #closer p{color:#B7C3C1!important}
+  /* el bloque de mercado (intro + ticker + grilla + nota) respira junto, sin bordes */
+  #dashboard-preview{padding-bottom:8px!important}
+  #tape,#gridhint,#grid,#roadmapnote{margin-top:14px}
+  #roadmapnote{max-width:64ch;margin-left:auto;margin-right:auto}
+  /* reveals más fluidos (un pelín más lentos y con más recorrido = sensación de agua) */
+  .reveal{transition:opacity .8s cubic-bezier(.16,1,.3,1),transform .8s cubic-bezier(.16,1,.3,1)}
+  /* móvil: el reloj UTC de la barra se salía a la derecha (se cortaba) -> ocúltalo
+     en pantallas chicas; la barra respira y no queda contenido fuera del viewport */
+  @media(max-width:560px){#utc{display:none}}
+  /* móvil chico: la barra iba apretada (marca+tagline+alertas+CTA+LIVE); el tagline
+     "COPILOTO DE MERCADO" cede primero -> nada se corta ni a 360px */
+  @media(max-width:560px){.brand .sub{display:none}}
   /* --- Hero: koru 3D flotando a la derecha (estilo Revolut), texto a la izquierda --- */
   #pitch{align-items:center!important;min-height:340px}
   .pitchmain{flex:1 1 400px;min-width:280px;max-width:58%;display:flex;flex-direction:column;gap:16px;justify-content:center}
@@ -1184,8 +1220,26 @@ function render(d){
   setCTAs(d.bot);                       // enlaza los CTA del embudo al Telegram del bot
   const grid=document.getElementById("grid");
   let syms=Object.keys(d.symbols||{}).length?Object.keys(d.symbols):SYMS_DEFAULT;
-  syms=[...syms].sort((a,b)=>((d.symbols[b]||{}).vip?1:0)-((d.symbols[a]||{}).vip?1:0));
+  // SEAMLESS: los 6 estrella primero (lo que el trader busca), el resto detrás de
+  // "ver todos" — para no tirar un muro de 24 tarjetas en la landing.
+  const FEATURED=["BTC","ETH","SOL","XAU","NAS100","US30"];
+  syms=[...syms].sort((a,b)=>{
+    const fa=FEATURED.indexOf(a), fb=FEATURED.indexOf(b);
+    if(fa>=0||fb>=0) return (fa<0?99:fa)-(fb<0?99:fb);
+    return ((d.symbols[b]||{}).vip?1:0)-((d.symbols[a]||{}).vip?1:0);
+  });
   for(const s of syms){ if(!document.getElementById("c-"+s)) grid.appendChild(instCard(s)); }
+  // oculta las tarjetas más allá de las 6 primeras (idempotente por poll) + botón toggle
+  [...grid.children].forEach((c,i)=>c.classList.toggle("gm-hidden", i>=6));
+  if(grid.children.length>6 && !document.getElementById("gridmore")){
+    const btn=document.createElement("button");
+    btn.id="gridmore"; btn.className="gridmore reveal in";
+    const label=()=>grid.classList.contains("expanded")
+      ? "Ver menos ↑" : ("Ver los "+grid.children.length+" instrumentos ↓");
+    btn.textContent=label();
+    btn.onclick=()=>{ grid.classList.toggle("expanded"); btn.textContent=label(); };
+    grid.insertAdjacentElement("afterend", btn);
+  }
   for(const s of syms){
     const st=d.symbols[s]; if(!st) continue;
     const P=id=>document.getElementById(id+"-"+s);
