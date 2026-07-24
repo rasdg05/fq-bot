@@ -5306,7 +5306,8 @@ def command_listener(exchange):
                               "/evolve", "/concepts", "/weekend", "/campo",
                               "/gencode", "/grant", "/broadcast",
                               "/atribucion", "/regimen", "/sweep",
-                              "/timelines", "/paper", "/cadencia", "/tphits"}
+                              "/timelines", "/paper", "/cadencia", "/tphits",
+                              "/forward"}
                 if cmd_name in ADMIN_ONLY and str(chat_id) != str(TELEGRAM_CHAT_ID):
                     telegram_send(
                         "Comando no disponible. Usa /help para ver tus comandos.",
@@ -6205,6 +6206,24 @@ def cmd_tphits(exchange=None):
     except Exception as e:
         return "Error /tphits: {}".format(str(e)[:200])
 
+def cmd_forward(exchange=None):
+    """Admin: track record FORWARD real desde los ledgers motor_paper_*.jsonl.
+
+    Reporta, por simbolo, la R de trades CERRADOS segmentada por filtro
+    (base / +flujo / +KL) con n y win-rate, y verifica la cadena hash. Es la
+    mitad de LECTURA del disenio measure-first: solo lee, nunca toca el motor
+    ni lo que se difunde. Se alimenta encendiendo FQ_FORWARD_MEASURE=1, que
+    acumula BCH/BNB/LINK en paper sin exponer clientes."""
+    try:
+        from tools import forward_measure as fm
+        ledger_dir = (os.environ.get("FQ_LEDGER_DIR")
+                      or ("/data" if os.path.isdir("/data") else "."))
+        min_n = int(os.environ.get("FQ_FORWARD_MIN_N", "30"))
+        report, paths = fm.run(ledger_dir, min_n)
+        return fm.format_telegram(report, paths, min_n)
+    except Exception as e:
+        return "Error /forward: {}".format(str(e)[:200])
+
 def cmd_campo(exchange):
     """v4.1.1: Lectura on-demand del estado del campo (sin disparar senal)"""
     if not (ENABLE_ICT_LAYER and ICT_MODULES_AVAILABLE):
@@ -6475,6 +6494,7 @@ def main():
         "/concepts":  lambda exc=None: cmd_concepts(),
         "/weekend":   lambda exc=None: cmd_weekend(),
         "/tphits":    lambda exc=None: cmd_tphits(),
+        "/forward":   lambda exc=None: cmd_forward(),
         # ============ ADMIN v4.3 - capa ML ============
         "/atribucion": lambda exc=None: cmd_atribucion(),
         "/regimen":    cmd_regimen,

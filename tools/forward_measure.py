@@ -163,6 +163,47 @@ def print_report(report, paths, min_n):
     print("-" * 74)
 
 
+def _fmt_row_tg(label, b):
+    if not b["n"]:
+        return "%-8s   —" % label
+    return "%-8s n=%-3d %3.0f%% %+.3fR" % (
+        label, b["n"], b["winrate"] * 100, b["mean_r"])
+
+
+def format_telegram(report, paths, min_n):
+    """Mismo reporte que print_report pero en HTML de Telegram (tablas en <pre>
+    para que las columnas alineen). Lo consume el comando admin /forward del bot."""
+    if not paths:
+        return ("<b>FORWARD · medición</b>\n"
+                "Sin ledgers <code>motor_paper_*.jsonl</code> todavía.\n"
+                "Enciende <b>FQ_FORWARD_MEASURE=1</b> en Railway para empezar a "
+                "acumular BCH/BNB/LINK forward (sin exponer clientes).")
+    out = ["<b>FORWARD · R real por símbolo y filtro</b>",
+           "Solo trades <b>cerrados</b> — mide cadencia + edge por filtro.", ""]
+    for sym, d in report.items():
+        s = d["summary"]
+        integ = ("✓" if d["chain_ok"] else
+                 "✗ %d rupturas" % d["chain_breaks"] if d["chain_ok"] is False
+                 else "s/cadena")
+        out.append("<b>%s</b>  cerrados=%d · abiertos=%d · cadena %s"
+                   % (sym, d["closed"], d["still_open"], integ))
+        block = [_fmt_row_tg("base", s["base"]),
+                 _fmt_row_tg("+flujo", s["flujo"])]
+        if s["kl_tagged"]:
+            block.append(_fmt_row_tg("+KL", s["kl"]))
+        else:
+            block.append("+KL      — sin tag kl_low (FQ_REGIME_TAGS=1)")
+        out.append("<pre>" + "\n".join(block) + "</pre>")
+    total = sum(d["closed"] for d in report.values())
+    out.append("──────────────────────────────")
+    out.append("TOTAL cerrados: <b>%d</b> · umbral n≥%d por símbolo" % (total, min_n))
+    if total < min_n:
+        out.append("⚠️ Muestra insuficiente: esto mide la <b>cadencia</b>, no la "
+                   "verdad todavía. Ningún número es concluyente aún — sube la "
+                   "cadencia y mantén FQ_REGIME_TAGS=1 para poblar +KL.")
+    return "\n".join(out)
+
+
 def main():
     ap = argparse.ArgumentParser()
     default_dir = "/data" if os.path.isdir("/data") else "."

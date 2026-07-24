@@ -98,3 +98,26 @@ def test_open_sin_cierre_no_cuenta(tmp_path):
     path = _write_ledger(tmp_path, "BNB", evs)
     closed, _ok, _b, still_open = fm.load_trades(path)
     assert len(closed) == 0 and still_open == 1
+
+
+def test_format_telegram_sin_ledgers_dice_como_encender():
+    # sin datos: no inventa, apunta a FQ_FORWARD_MEASURE=1 (lo consume /forward)
+    msg = fm.format_telegram({}, [], 30)
+    assert "FQ_FORWARD_MEASURE" in msg and "<b>" in msg
+
+
+def test_format_telegram_reporta_buckets_y_veredicto(tmp_path):
+    evs = [
+        _ev(0, {"event": "OPEN", "pid": 1, "direction": 1, "ts": "t0"}),
+        _ev(1, {"event": "MOTOR_OPEN_META", "pid": 1, "regime": "stable",
+                "cvd_confirmed": True, "kl_low": True}),
+        _ev(2, {"event": "CLOSE", "pid": 1, "pnl_r": 2.0, "reason": "tp"}),
+    ]
+    _write_ledger(tmp_path, "BCH", evs)
+    report, paths = fm.run(str(tmp_path), 30)
+    msg = fm.format_telegram(report, paths, 30)
+    assert "<b>BCH</b>" in msg
+    assert "base" in msg and "+flujo" in msg and "+KL" in msg
+    assert "<pre>" in msg                       # tabla monoespaciada
+    # 1 cerrado < umbral 30 -> veredicto honesto de cadencia
+    assert "insuficiente" in msg.lower()
