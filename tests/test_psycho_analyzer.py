@@ -91,3 +91,59 @@ def test_reporte_completo_no_revienta_y_trae_secciones():
 
 def test_demo_end_to_end_cli():
     assert pa.main(["--demo", "--min-n", "12"]) == 0
+
+
+# ---------------------------------------------------------------- Fase 2: régimen
+def test_regime_at_as_of_lookup():
+    tl = [(datetime(2026, 1, 1), "frío·con dirección"),
+          (datetime(2026, 1, 5), "caliente·sin dirección"),
+          (datetime(2026, 1, 9), "frío·con dirección")]
+    assert pa._regime_at(tl, datetime(2025, 12, 31)) is None      # antes del primero
+    assert pa._regime_at(tl, datetime(2026, 1, 3)) == "frío·con dirección"
+    assert pa._regime_at(tl, datetime(2026, 1, 5)) == "caliente·sin dirección"  # borde
+    assert pa._regime_at(tl, datetime(2026, 1, 20)) == "frío·con dirección"     # último
+
+
+def test_attach_regime_por_simbolo_y_global():
+    base = datetime(2026, 1, 5, 10, 0, 0)
+    trades = [
+        {"open_dt": base, "close_dt": None, "symbol": "US100", "pnl": 10.0, "win": True},
+        {"open_dt": base, "close_dt": None, "symbol": "BTCUSD", "pnl": -5.0, "win": False},
+    ]
+    timelines = {"US100": [(datetime(2026, 1, 1), "frío·con dirección")],
+                 "*": [(datetime(2026, 1, 1), "caliente·sin dirección")]}
+    tagged = pa.attach_regime(trades, timelines)
+    assert tagged == 2
+    assert trades[0]["regime"] == "frío·con dirección"       # timeline propio del símbolo
+    assert trades[1]["regime"] == "caliente·sin dirección"   # cae al global "*"
+
+
+def test_revenge_por_regimen_revela_dependencia_del_clima():
+    # misma reentrada revenge: pierde en 'caliente', aguanta en 'frío'
+    base = datetime(2026, 1, 5, 10, 0, 0)
+    trades, tl = [], []
+    hot = "caliente·sin dirección"
+    cold = "frío·con dirección"
+    # bloque caliente (revenge pierde) y bloque frío (revenge aguanta)
+    tl = [(datetime(2026, 1, 4), hot), (datetime(2026, 2, 1), cold)]
+    t = base
+    for _ in range(20):                       # bloque caliente
+        trades.append({"open_dt": t, "close_dt": t + timedelta(minutes=10),
+                       "symbol": "X", "pnl": -20.0, "win": False})
+        trades.append({"open_dt": t + timedelta(minutes=15), "close_dt": None,
+                       "symbol": "X", "pnl": -30.0, "win": False})   # revenge que sangra
+        t += timedelta(hours=5)
+    t = datetime(2026, 2, 5, 10, 0, 0)
+    for _ in range(20):                       # bloque frío
+        trades.append({"open_dt": t, "close_dt": t + timedelta(minutes=10),
+                       "symbol": "X", "pnl": -20.0, "win": False})
+        trades.append({"open_dt": t + timedelta(minutes=15), "close_dt": None,
+                       "symbol": "X", "pnl": 25.0, "win": True})     # revenge que aguanta
+        t += timedelta(hours=5)
+    trades.sort(key=lambda x: x["open_dt"])
+    pa.attach_regime(trades, {"*": tl})
+    rep = pa.analyze(trades, min_n=10)
+    rbr = rep["revenge_by_regime"]
+    assert rbr[hot]["mean"] < 0 < rbr[cold]["mean"]         # el clima separa el edge
+    txt = pa.format_report(rep)
+    assert "clima decide" in txt.lower() and "régimen de mercado" in txt.lower()

@@ -145,9 +145,15 @@ honestos con la incertidumbre — y eso, paradójicamente, nos hace más creíbl
   ("revenge"), ventanas de vulnerabilidad y fortalezas gateadas por n≥min, y costo
   acotado de la indisciplina. Python puro, sin IA generativa: pura estadística
   honesta. `python tools/psycho_analyzer.py --demo` para verlo.
-- **Fase 2 — Cruce con régimen de mercado (nuestra ventaja).** Etiquetar cada
-  trade con el clima de mercado de nuestro feed y revelar patrones clima-
-  dependientes. **Este es el momento en que superamos a HybridTrader.**
+- **Fase 2 — Cruce con régimen de mercado (nuestra ventaja). ✅ CONSTRUIDO**
+  (`tools/regime_timeline.py` + cruce en `psycho_analyzer.py`). Cada trade se
+  etiqueta con el clima de mercado —calculado con la MISMA irreversibilidad KL
+  validada en producción (`validate_regime_irreversibility`)— y el análisis revela
+  patrones **clima-dependientes**: p.ej. la reentrada revenge sangra en
+  «caliente·sin dirección» y aguanta en «frío·con dirección». **Este es el momento
+  en que superamos a HybridTrader** (ellos no tienen motor de mercado). Último
+  cabo: OHLCV histórico por símbolo del usuario (crypto vía Binance Vision ya;
+  índices/oro necesitan fuente). `python tools/psycho_analyzer.py --demo` lo muestra.
 - **Fase 3 — Coach en Telegram + checklist pre-sesión** con nuestro tono.
 - **Fase 4 — Conexión read-only a broker/exchange** para que sea automático.
 

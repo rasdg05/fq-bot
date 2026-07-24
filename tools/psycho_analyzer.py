@@ -205,6 +205,32 @@ def _post_loss_reentries(trades, window_min=REENTRY_MIN):
     return reentry, rest
 
 
+def _regime_at(timeline, dt):
+    """Último régimen (etiqueta) en/antes de `dt`. timeline: [(datetime, label)] asc.
+    Pura Python (bisect por la izquierda) — no depende de numpy."""
+    import bisect
+    if not timeline:
+        return None
+    ts = [t for t, _ in timeline]
+    i = bisect.bisect_right(ts, dt) - 1
+    return timeline[i][1] if i >= 0 else None
+
+
+def attach_regime(trades, timelines):
+    """timelines: {symbol: [(datetime, label)] asc}. Etiqueta trade['regime'] con el
+    régimen vigente al abrir, del timeline de su símbolo (o de '*' si es global).
+    Devuelve cuántos quedaron etiquetados. Los símbolos sin timeline se dejan sin
+    régimen (no se inventa). Es la Fase 2: el clima de mercado de NUESTRO feed."""
+    tagged = 0
+    for t in trades:
+        tl = timelines.get(t["symbol"]) or timelines.get("*")
+        lab = _regime_at(tl, t["open_dt"]) if tl else None
+        if lab:
+            t["regime"] = lab
+            tagged += 1
+    return tagged
+
+
 def analyze(trades, min_n=MIN_N):
     if not trades:
         return {"n": 0}
@@ -230,7 +256,7 @@ def analyze(trades, min_n=MIN_N):
     # "lo que ganarías siendo perfecto" — es lo que te cuestan tus peores contextos.
     revenge_cost = revenge["reentry"]["pnl"] if revenge["reentry"]["pnl"] < 0 else 0.0
 
-    return {
+    out = {
         "n": overall["n"],
         "overall": overall,
         "by_hour": by_hour,
@@ -243,6 +269,17 @@ def analyze(trades, min_n=MIN_N):
         "revenge_cost": revenge_cost,
         "min_n": min_n,
     }
+
+    # --- Fase 2: cruce con el RÉGIMEN de mercado (la ventaja que la competencia
+    # no tiene). Solo si hay trades etiquetados con régimen (attach_regime). ---
+    tagged = [t for t in trades if t.get("regime")]
+    if tagged:
+        out["regime_coverage"] = len(tagged)
+        out["by_regime"] = _group(tagged, lambda t: t["regime"])
+        # el insight clave: tu MISMO patrón (reentrada revenge) según el clima.
+        re_tagged = [t for t in reentry if t.get("regime")]
+        out["revenge_by_regime"] = _group(re_tagged, lambda t: t["regime"])
+    return out
 
 
 # ------------------------------------------------------------------- reporte
@@ -310,6 +347,28 @@ def format_report(rep, meta=None):
             L.append("    %-10s %s" % (sym, _fmt_b(b)))
         L.append("")
 
+    # --- Fase 2: régimen de mercado (nuestra ventaja) ---
+    if rep.get("by_regime"):
+        L.append("• Por régimen de mercado — NUESTRA lectura (%d trades con clima)"
+                 % rep["regime_coverage"])
+        for reg, b in sorted(rep["by_regime"].items(), key=lambda kv: kv[1]["pnl"]):
+            tag = "" if b["n"] >= rep["min_n"] else "  (muestra chica)"
+            L.append("    %-22s %s%s" % (reg, _fmt_b(b), tag))
+        L.append("")
+        rbr = rep.get("revenge_by_regime") or {}
+        big = {k: v for k, v in rbr.items() if v["n"] >= max(5, rep["min_n"] // 2)}
+        if big:
+            L.append("• Tu reentrada post-pérdida × clima  (lo que ellos NO pueden ver)")
+            for reg, b in sorted(big.items(), key=lambda kv: kv[1]["mean"] or 0):
+                L.append("    %-22s %s" % (reg, _fmt_b(b)))
+            worst = min(big.items(), key=lambda kv: kv[1]["mean"] or 0)
+            best = max(big.items(), key=lambda kv: kv[1]["mean"] or 0)
+            if worst[0] != best[0]:
+                L.append("    → No es que reentrar sea malo: te sangra en «%s» y aguanta"
+                         % worst[0])
+                L.append("      en «%s». El clima decide, no tú." % best[0])
+            L.append("")
+
     # costo de la indisciplina (honesto)
     if rep["revenge_cost"] < 0:
         L.append("Costo de la indisciplina (solo reentradas revenge): %+.1f" % rep["revenge_cost"])
@@ -348,19 +407,71 @@ def _demo_trades(seed=0):
     return trades
 
 
+def _demo_with_regime(seed=0):
+    """Demo Fase 2: además de los trades, un timeline global de clima que alterna, y
+    reentradas revenge que SANGRAN en «caliente·sin dirección» y aguantan en «frío».
+    Muestra el cruce sin datos reales (todo sintético, claramente)."""
+    import random
+    from datetime import datetime as _dt
+    rng = random.Random(seed)
+    t0 = _dt(2026, 1, 5, 0, 0, 0)
+    timeline = [(t0 + timedelta(days=5 * k),
+                 "caliente·sin dirección" if k % 2 == 0 else "frío·con dirección")
+                for k in range(40)]
+
+    def reg(dt):
+        lab = None
+        for ts, l in timeline:
+            if ts <= dt:
+                lab = l
+            else:
+                break
+        return lab
+
+    trades, t = [], t0 + timedelta(hours=8)
+    for _ in range(240):
+        t += timedelta(hours=rng.choice([1, 2, 3, 5, 20]))
+        hot = reg(t) == "caliente·sin dirección"
+        win = rng.random() < (0.44 if hot else 0.52)
+        pnl = round(rng.uniform(20, 120) if win else -rng.uniform(20, 140), 1)
+        close = t + timedelta(minutes=rng.choice([8, 15, 40, 90]))
+        trades.append({"open_dt": t, "close_dt": close,
+                       "symbol": rng.choice(["US100", "XAUUSD", "BTCUSD"]),
+                       "pnl": pnl, "win": pnl > 0})
+        if pnl < 0 and rng.random() < 0.55:                 # a veces reentra dolido
+            t2 = close + timedelta(minutes=rng.choice([5, 12, 25]))
+            p_lose = 0.78 if hot else 0.42                  # el clima decide el daño
+            p2 = round(-rng.uniform(30, 150) if rng.random() < p_lose
+                       else rng.uniform(20, 90), 1)
+            trades.append({"open_dt": t2, "close_dt": t2 + timedelta(minutes=20),
+                           "symbol": "US100", "pnl": p2, "win": p2 > 0})
+            t = t2
+    trades.sort(key=lambda x: x["open_dt"])
+    return trades, {"*": timeline}
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--file", help="CSV de trades del broker")
     ap.add_argument("--min-n", type=int, default=MIN_N)
     ap.add_argument("--demo", action="store_true", help="datos sintéticos, sin archivo")
+    ap.add_argument("--klines-dir", help="carpeta con kl_hist_<SYM>.(parquet|csv) para "
+                    "etiquetar cada trade con el régimen de mercado (Fase 2)")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
 
+    meta = {"skipped": 0}
     if args.demo:
-        trades, meta = _demo_trades(), {"skipped": 0}
+        trades, timelines = _demo_with_regime()
+        attach_regime(trades, timelines)
     elif args.file:
         trades, meta = load_trades(args.file)
+        if args.klines_dir:
+            import regime_timeline as rt                     # numpy solo si se pide
+            syms = sorted({t["symbol"] for t in trades})
+            timelines = rt.timelines_from_klines_dir(syms, args.klines_dir)
+            meta["regime_tagged"] = attach_regime(trades, timelines)
     else:
         ap.error("da --file <csv> o --demo")
 
