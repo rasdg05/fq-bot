@@ -90,7 +90,7 @@ def test_server_sirve_html_json_health(tmp_path, monkeypatch):
         r = urllib.request.urlopen(base + "/cockpit.json", timeout=5)
         assert r.status == 200 and "symbols" in json.loads(r.read().decode())
         r2 = urllib.request.urlopen(base + "/", timeout=5)
-        assert r2.status == 200 and b"FQ CAPITAL" in r2.read()   # marca institucional
+        assert r2.status == 200 and b"Marea" in r2.read()   # marca (rebrand Marea)
     finally:
         httpd.shutdown()
 
@@ -115,6 +115,61 @@ def test_server_sirve_guias_pdf_por_allowlist():
         try:
             urllib.request.urlopen(base + "/otro-archivo.pdf", timeout=5)
             assert False, "un pdf fuera del allowlist no deberia servirse"
+        except urllib.error.HTTPError as e:
+            assert e.code == 404
+    finally:
+        httpd.shutdown()
+
+
+def test_server_sirve_fuentes_woff2_con_cache_inmutable():
+    """La tipografía propia (Fraunces + Hanken) se sirve por allowlist exacto, como
+    font/woff2 con cache inmutable de un año; woff2 fuera del allowlist -> 404."""
+    import importlib
+    import tools.cockpit_server as srv
+    importlib.reload(srv)
+    httpd = __import__("http.server", fromlist=["ThreadingHTTPServer"]).ThreadingHTTPServer(
+        ("127.0.0.1", 0), srv._H)
+    t = threading.Thread(target=httpd.serve_forever, daemon=True)
+    t.start()
+    base = "http://127.0.0.1:%d" % httpd.server_address[1]
+    try:
+        for name in ("fraunces-600.woff2", "hanken-400.woff2",
+                     "hanken-500.woff2", "hanken-700.woff2"):
+            r = urllib.request.urlopen(base + "/fonts/" + name, timeout=5)
+            assert r.status == 200
+            assert r.headers.get("Content-Type") == "font/woff2"
+            assert "immutable" in (r.headers.get("Cache-Control") or "")
+            assert r.read(4) == b"wOF2"          # firma woff2 real, no un placeholder
+        try:
+            urllib.request.urlopen(base + "/fonts/otra.woff2", timeout=5)
+            assert False, "una fuente fuera del allowlist no deberia servirse"
+        except urllib.error.HTTPError as e:
+            assert e.code == 404
+    finally:
+        httpd.shutdown()
+
+
+def test_server_sirve_imagen_koru_con_cache_inmutable():
+    """El render 3D de marca (koru) se sirve por allowlist exacto como image/webp con
+    cache inmutable; el archivo es un webp real (RIFF/WEBP); otra imagen -> 404."""
+    import importlib
+    import tools.cockpit_server as srv
+    importlib.reload(srv)
+    httpd = __import__("http.server", fromlist=["ThreadingHTTPServer"]).ThreadingHTTPServer(
+        ("127.0.0.1", 0), srv._H)
+    t = threading.Thread(target=httpd.serve_forever, daemon=True)
+    t.start()
+    base = "http://127.0.0.1:%d" % httpd.server_address[1]
+    try:
+        r = urllib.request.urlopen(base + "/assets/koru-3d.webp", timeout=5)
+        assert r.status == 200
+        assert r.headers.get("Content-Type") == "image/webp"
+        assert "immutable" in (r.headers.get("Cache-Control") or "")
+        head = r.read(12)
+        assert head[:4] == b"RIFF" and head[8:12] == b"WEBP"     # webp real
+        try:
+            urllib.request.urlopen(base + "/assets/otra.webp", timeout=5)
+            assert False, "una imagen fuera del allowlist no deberia servirse"
         except urllib.error.HTTPError as e:
             assert e.code == 404
     finally:
@@ -191,7 +246,7 @@ def test_server_sirve_pwa_assets():
     try:
         m = urllib.request.urlopen(base + "/manifest.webmanifest", timeout=5)
         assert m.status == 200 and "manifest" in m.headers.get("Content-Type")
-        assert json.loads(m.read())["name"] == "FQ CAPITAL"
+        assert json.loads(m.read())["name"] == "Marea"
         sw = urllib.request.urlopen(base + "/sw.js", timeout=5)
         assert sw.status == 200 and "javascript" in sw.headers.get("Content-Type")
         assert b"serviceWorker" not in sw.read() or True     # served as text

@@ -15,8 +15,10 @@ motor al servir `/cockpit.json`. Si el feeder muere, el panel de cripto sigue
 intacto. Hijo no-crítico del launcher con FQ_ANALYSIS_EXTRA=1.
 
 Fuentes (públicas, sin claves):
-  - XAU     -> OKX  `XAU-USDT-SWAP`  (velas + funding; mismo venue que cripto)
-  - NAS100  -> MEXC contract `NAS100_USDT` (kline + funding + ticker 24h)
+  - XAU (oro)          -> OKX  `XAU-USDT-SWAP` (velas + funding; venue de cripto)
+  - índices/FX/materias -> MEXC contract (kline + funding + ticker 24h): Nasdaq 100,
+    S&P 500, Dow (US30), WTI, Brent (UKOIL) y majors de FX (EUR/GBP/AUD contra USD).
+    El contrato XXX_USDT cotiza como XXX/USD, así que el funding se lee sin invertir.
 
 Uso:
   FQ_ANALYSIS_EXTRA=1 python tools/analysis_feeder.py         # loop
@@ -53,10 +55,23 @@ _CCY_NAME = {"USD": "EE.UU.", "EUR": "Eurozona", "GBP": "Reino Unido", "JPY": "J
 # Instrumentos de análisis. display = etiqueta amable para el portal. Sumar uno es
 # una línea: la capa de análisis (regime + funding) es genérica por símbolo.
 INSTRUMENTS = [
-    {"key": "XAU",    "venue": "okx",  "display": "Oro · XAU",     "okx": "XAU-USDT-SWAP", "fund_sym": "XAU/USDT"},
-    {"key": "NAS100", "venue": "mexc", "display": "Nasdaq 100",    "mexc": "NAS100_USDT"},
-    {"key": "SPX500", "venue": "mexc", "display": "S&P 500",       "mexc": "SPX500_USDT"},
-    {"key": "USOIL",  "venue": "mexc", "display": "Petróleo · WTI", "mexc": "USOIL_USDT"},
+    # índices
+    {"key": "NAS100", "venue": "mexc", "display": "Nasdaq 100",     "mexc": "NAS100_USDT"},
+    {"key": "SPX500", "venue": "mexc", "display": "S&P 500",        "mexc": "SPX500_USDT"},
+    {"key": "US30",   "venue": "mexc", "display": "Dow Jones · US30", "mexc": "US30_USDT"},
+    # materias primas
+    {"key": "XAU",    "venue": "okx",  "display": "Oro · XAU",      "okx": "XAU-USDT-SWAP", "fund_sym": "XAU/USDT"},
+    {"key": "USOIL",  "venue": "mexc", "display": "Petróleo · WTI",  "mexc": "USOIL_USDT"},
+    {"key": "UKOIL",  "venue": "mexc", "display": "Petróleo · Brent", "mexc": "UKOIL_USDT"},
+    # divisas (FX majors). Directos: el contrato XXX_USDT cotiza como XXX/USD, así
+    # que el LONG del contrato == LONG del par: el termómetro se lee sin invertir.
+    {"key": "EUR",    "venue": "mexc", "display": "Euro · EUR/USD",  "mexc": "EUR_USDT"},
+    {"key": "GBP",    "venue": "mexc", "display": "Libra · GBP/USD",  "mexc": "GBP_USDT"},
+    {"key": "AUD",    "venue": "mexc", "display": "Aussie · AUD/USD", "mexc": "AUD_USDT"},
+    # invertidos: el contrato cotiza XXX/USD pero se muestra USD/XXX (1/precio) y con
+    # el lado del funding volteado (long del par = short del contrato). Ver _mexc_instrument.
+    {"key": "JPY",    "venue": "mexc", "display": "Yen · USD/JPY",    "mexc": "JPY_USDT", "invert": True},
+    {"key": "CAD",    "venue": "mexc", "display": "Loonie · USD/CAD", "mexc": "CAD_USDT", "invert": True},
 ]
 
 
@@ -107,14 +122,22 @@ def _okx_instrument(inst):
 
 
 def _mexc_instrument(inst):
-    """Nasdaq por MEXC contract: kline + ticker (24h) + funding history (percentil)."""
-    sym = inst["mexc"]
+    """MEXC contract: kline + ticker (24h) + funding history (percentil). Con
+    `invert`: el contrato XXX_USDT cotiza como XXX/USD; para mostrar USD/XXX
+    (p.ej. USD/JPY) invertimos precio, spark y régimen (1/precio) Y el lado del
+    funding — el LONG del par es el SHORT del contrato, así que pctl y rate se
+    voltean. Sin esto, USD/JPY saldría en $0.0067 y el termómetro al revés."""
+    sym = inst["mexc"]; inv = bool(inst.get("invert"))
     k = _get("https://contract.mexc.com/api/v1/contract/kline/%s?interval=Min5&limit=%d"
              % (sym, 300))
     kd = (k or {}).get("data") or {}
     closes = [float(x) for x in (kd.get("close") or [])]  # MEXC: ya cronológico
     if len(closes) < 16:
         return None
+    if inv:
+        closes = [1.0 / c for c in closes if c]           # XXX/USD -> USD/XXX
+        if len(closes) < 16:
+            return None
     price = closes[-1]
     out = {"analysis": True, "display": inst["display"], "price": price,
            "spark": closes[-SPARK_N:], "updated": time.time()}
@@ -126,19 +149,22 @@ def _mexc_instrument(inst):
         t = _get("https://contract.mexc.com/api/v1/contract/ticker?symbol=%s" % sym)
         rf = (t.get("data") or {}).get("riseFallRate")
         if rf is not None:
-            out["chg_24h"] = round(float(rf) * 100.0, 2)
+            chg = float(rf) * 100.0
+            out["chg_24h"] = round(-chg if inv else chg, 2)
     except Exception:
         pass
     try:                                            # funding + percentil desde la historia
         f = _get("https://contract.mexc.com/api/v1/contract/funding_rate/%s" % sym)
         rate = float((f.get("data") or {}).get("fundingRate"))
-        out["funding_rate"] = round(rate, 8)
+        out["funding_rate"] = round(-rate if inv else rate, 8)
         h = _get("https://contract.mexc.com/api/v1/contract/funding_rate/history"
                  "?symbol=%s&page_num=1&page_size=200" % sym)
         hist = [float(x["fundingRate"]) for x in
                 ((h.get("data") or {}).get("resultList") or []) if "fundingRate" in x]
         if len(hist) >= 10:
             pctl = sum(1 for v in hist if v <= rate) / float(len(hist))
+            if inv:
+                pctl = 1.0 - pctl                          # long del par = short del contrato
             out["funding_pctl"] = round(pctl, 3)
     except Exception:
         pass

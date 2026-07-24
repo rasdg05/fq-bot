@@ -39,6 +39,40 @@ sys.path.insert(0, ".")
 sys.path.insert(0, "tools")
 import numerai_signals_features as nsf  # noqa: E402
 
+
+# --- cache de klines: parquet en producción; CSV de respaldo donde no hay motor
+# parquet (pyarrow/fastparquet). El pipeline corre igual en cualquier entorno; el
+# schema del fetcher (ts en ms como int) sobrevive el round-trip por CSV sin perder
+# tipos, así que la señal sale idéntica. ---
+def _parquet_available():
+    for _eng in ("pyarrow", "fastparquet"):
+        try:
+            __import__(_eng)
+            return True
+        except Exception:
+            pass
+    return False
+
+
+_HAS_PARQUET = _parquet_available()
+
+
+def _kl_path(data_dir, bsym):
+    """Ruta del cache de klines por token, con la extensión que el entorno soporta."""
+    ext = "parquet" if _HAS_PARQUET else "csv"
+    return os.path.join(data_dir, "kl_hist_%s.%s" % (bsym, ext))
+
+
+def _write_klines(df, path):
+    if path.endswith(".parquet"):
+        df.to_parquet(path, index=False)
+    else:
+        df.to_csv(path, index=False)
+
+
+def _read_klines(path):
+    return pd.read_parquet(path) if path.endswith(".parquet") else pd.read_csv(path)
+
 # Universo DEFAULT mínimo: tokens con perp USDT en Binance que el bot ya conoce / puede
 # bajar gratis. El universo REAL de Numerai Crypto (>=100) llega por numerapi
 # (napi.download_dataset) y se mapea numerai_symbol -> binance_symbol aquí; los tokens sin
@@ -58,10 +92,16 @@ def _load_panel(universe, data_dir):
     escribe 'ts' (ms); prior_day_profile pide 'timestamp' -> se renombra."""
     panel = {}
     for nsym, bsym in universe.items():
-        p = os.path.join(data_dir, "kl_hist_%s.parquet" % bsym)
+        p = _kl_path(data_dir, bsym)
         if not os.path.exists(p):
-            continue
-        df = pd.read_parquet(p)
+            # respaldo a la otra extensión: un fetcher de prod pudo dejar parquet y
+            # este entorno correr sin motor parquet (o al revés).
+            alt = os.path.join(data_dir, "kl_hist_%s.%s" % (
+                bsym, "csv" if p.endswith(".parquet") else "parquet"))
+            if not os.path.exists(alt):
+                continue
+            p = alt
+        df = _read_klines(p)
         if "ts" in df.columns and "timestamp" not in df.columns:
             df = df.rename(columns={"ts": "timestamp"})
         panel[nsym] = df
@@ -106,7 +146,7 @@ def _self_test():
             "close": close, "volume": rng.uniform(1e3, 1e4, n),
             "taker_buy_base": rng.uniform(1e2, 5e3, n)})
         bsym = "T%02dUSDT" % i
-        df.to_parquet(os.path.join(d, "kl_hist_%s.parquet" % bsym), index=False)
+        _write_klines(df, _kl_path(d, bsym))
         uni["TK%02d" % i] = bsym
     out = os.path.join(d, "sub.csv")
     sub = build_panel_csv(uni, d, out)

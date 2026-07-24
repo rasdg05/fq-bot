@@ -229,9 +229,38 @@ def _shutdown(signum=None, frame=None):
     sys.exit(0)
 
 
+def _apply_forward_measure():
+    """FQ_FORWARD_MEASURE=1 — modo measure-first (auditoría 2026-07): prende los
+    motores paper del set candidato (BCH/BNB/LINK, hoy default OFF) con broadcast
+    OFF y tags de régimen ON, para acumular R FORWARD por símbolo SIN exponer
+    clientes. Se aplica sobre os.environ ANTES de spawnear -> los hijos lo heredan.
+
+    Regla clave: NO toca FQ_KL_FILTER. Measure-first = TAGGEAR, no gatear. El edge
+    de BCH vive en irrev-ALTO, así que el filtro KL-bajo lo dañaría; aquí solo se
+    graba el tag (kl_low) para comparar base vs base+KL en análisis. setdefault:
+    cualquier valor que ya hayas puesto en Railway gana."""
+    if os.environ.get("FQ_FORWARD_MEASURE", "0").strip().lower() not in ("1", "true", "yes"):
+        return
+    defaults = {
+        "FQ_REGIME_TAGS": "1",                                    # graba kl_low -> bucket +KL
+        "FQ_MOTOR_PAPER_BCH": "1", "FQ_BCH_VIP_BROADCAST": "0",
+        "FQ_MOTOR_PAPER_BNB": "1", "FQ_BNB_VIP_BROADCAST": "0",
+        "FQ_MOTOR_PAPER_LINK": "1", "FQ_LINK_VIP_BROADCAST": "0",
+    }
+    applied = []
+    for k, v in defaults.items():
+        if not os.environ.get(k, "").strip():
+            os.environ[k] = v
+            applied.append("{}={}".format(k, v))
+    _log("FQ_FORWARD_MEASURE=1 -> measure-first: BCH/BNB/LINK paper, broadcast OFF, "
+         "regime tags ON. setdefault aplicado: {}".format(", ".join(applied) or "(ya seteado)"))
+    _log("  NO se toca FQ_KL_FILTER (se taggea, no se gatea). Lee: python tools/forward_measure.py")
+
+
 def main():
     signal.signal(signal.SIGTERM, _shutdown)
     signal.signal(signal.SIGINT, _shutdown)
+    _apply_forward_measure()                # measure-first: env de los hijos ANTES de spawnear
 
     bots = _bots()
     if not _public_enabled():

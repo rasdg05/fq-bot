@@ -108,9 +108,9 @@ def _self_test():
     rng = np.random.default_rng(0)
     for tok in toks:
         c = 100.0 * np.exp(np.cumsum(rng.normal(0, 0.02, n)))
-        pd.DataFrame({"ts": ts, "open": c, "high": c * 1.01, "low": c * 0.99, "close": c,
-                      "volume": rng.uniform(1e3, 1e4, n)}).to_parquet(
-            os.path.join(d, "kl_hist_%sUSDT.parquet" % tok), index=False)
+        df = pd.DataFrame({"ts": ts, "open": c, "high": c * 1.01, "low": c * 0.99,
+                           "close": c, "volume": rng.uniform(1e3, 1e4, n)})
+        ncp._write_klines(df, ncp._kl_path(d, "%sUSDT" % tok))
     # con los parquets ya puestos, build sin fetch (red) — replica run() sin la parte de red.
     mapping = to_binance(live_universe(universe_file=uf, data_dir=d))
     sub = ncp.build_panel_csv(mapping, d, os.path.join(d, "sub.csv"))

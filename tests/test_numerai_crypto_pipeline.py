@@ -21,9 +21,10 @@ def test_submission_columns_and_range(tmp_path):
     uni = {}
     for i in range(6):
         c = 100.0 * np.exp(np.cumsum(rng.normal(0, 0.02, n)))
-        pd.DataFrame({"ts": ts, "open": c, "high": c * 1.01, "low": c * 0.99,
-                      "close": c, "volume": rng.uniform(1e3, 1e4, n)}).to_parquet(
-            tmp_path / ("kl_hist_S%dUSDT.parquet" % i), index=False)
+        df = pd.DataFrame({"ts": ts, "open": c, "high": c * 1.01, "low": c * 0.99,
+                           "close": c, "volume": rng.uniform(1e3, 1e4, n)})
+        # cache-agnóstico: parquet donde hay motor, CSV donde no (mismo que el pipeline)
+        ncp._write_klines(df, ncp._kl_path(str(tmp_path), "S%dUSDT" % i))
         uni["S%d" % i] = "S%dUSDT" % i
     sub = ncp.build_panel_csv(uni, str(tmp_path), str(tmp_path / "s.csv"))
     assert list(sub.columns) == ["symbol", "signal"]

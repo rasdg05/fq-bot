@@ -5306,7 +5306,8 @@ def command_listener(exchange):
                               "/evolve", "/concepts", "/weekend", "/campo",
                               "/gencode", "/grant", "/broadcast",
                               "/atribucion", "/regimen", "/sweep",
-                              "/timelines", "/paper", "/cadencia", "/tphits"}
+                              "/timelines", "/paper", "/cadencia", "/tphits",
+                              "/forward"}
                 if cmd_name in ADMIN_ONLY and str(chat_id) != str(TELEGRAM_CHAT_ID):
                     telegram_send(
                         "Comando no disponible. Usa /help para ver tus comandos.",
@@ -5917,22 +5918,25 @@ def cmd_lectura(exchange, pair_ccy="SOL"):
                 # vuelve la simulacion QTE aqui (2026-07-20, "carga inutil");
                 # el battle plan VIP de /analisis (2000 paths) sigue vivo ahi.
                 if tf_id == ANALISIS_ANCHOR_TF:
-                    levels = calculate_levels_v2(df, direction, pspace=masses, tf=tf_id)
+                    # Ladder áureo v1 (RasDG 2026-07-23): reversión del selector de
+                    # bandas v2, que en 5m dejaba TP1 en un fallback ("extension Fib")
+                    # y pegaba el 1.272 en TP2 con el 1.618 fuera de vista. v1 da
+                    # objetivos áureos relativos a la ENTRADA (φ²·rango / φ·rango) —
+                    # consistentes y alcanzables para operar en 5m. Etiquetas HONESTAS:
+                    # son proyecciones φ del rango, NO extensiones 1.272/1.618. No toca
+                    # la señal automática al VIP/FREE (build_vip_signal intacto).
+                    levels = calculate_levels(df, direction)
                     risk_pct = (levels["risk"] / levels["entry"]) * 100
-                    sl_anchor_lbl = SL_ANCHOR_LABELS.get(
-                        levels.get("sl_anchor", ""), levels.get("sl_anchor", "-"))
-                    tp_meta = levels.get("tp_meta") or []
-                    tp_kinds = [TP_KIND_LABELS.get(t["kind"], t["kind"]) for t in tp_meta[:2]]
-                    while len(tp_kinds) < 2:
-                        tp_kinds.append("-")
+                    sl_anchor_lbl = ("EMA50 / mínimo de 10 velas" if direction == "long"
+                                     else "EMA50 / máximo de 10 velas")
                     block = (
                         "<b>[{lab} {tf}]</b>  Precio: ${px:.2f}\n"
                         "Bias: <b>{b}</b>  Masas P: {mc}  P_est: {pme:.2f}/{pmn:.2f}\n"
                         "Direccion sugerida: {dg} <b>{dir}</b>\n"
                         "Entry: <b>${e:.2f}</b>   SL: ${sl:.2f}  ({rp:.2f}%)\n"
                         "  anclado a {sla}\n"
-                        "TP1: ${t1:.2f}  R:R {r1:.2f}  ({k1})\n"
-                        "TP2: ${t2:.2f}  R:R {r2:.2f}  ({k2})\n"
+                        "TP1: ${t1:.2f}  R:R {r1:.2f}  (proy. áurea φ² · 0.382 del rango)\n"
+                        "TP2: ${t2:.2f}  R:R {r2:.2f}  (proy. áurea φ · 0.618 del rango)\n"
                         "Cooldown: {cd}\n"
                     ).format(
                         lab=tf_label, tf=tf_id, px=price,
@@ -5941,8 +5945,8 @@ def cmd_lectura(exchange, pair_ccy="SOL"):
                         dg=dir_glyph, dir=direction.upper(),
                         e=levels["entry"], sl=levels["sl"], rp=risk_pct,
                         sla=sl_anchor_lbl,
-                        t1=levels["tp1"], r1=levels["rr_tp1"], k1=tp_kinds[0],
-                        t2=levels["tp2"], r2=levels["rr_tp2"], k2=tp_kinds[1],
+                        t1=levels["tp1"], r1=levels["rr_tp1"],
+                        t2=levels["tp2"], r2=levels["rr_tp2"],
                         cd=cd_str,
                     )
                 else:
@@ -6202,6 +6206,24 @@ def cmd_tphits(exchange=None):
     except Exception as e:
         return "Error /tphits: {}".format(str(e)[:200])
 
+def cmd_forward(exchange=None):
+    """Admin: track record FORWARD real desde los ledgers motor_paper_*.jsonl.
+
+    Reporta, por simbolo, la R de trades CERRADOS segmentada por filtro
+    (base / +flujo / +KL) con n y win-rate, y verifica la cadena hash. Es la
+    mitad de LECTURA del disenio measure-first: solo lee, nunca toca el motor
+    ni lo que se difunde. Se alimenta encendiendo FQ_FORWARD_MEASURE=1, que
+    acumula BCH/BNB/LINK en paper sin exponer clientes."""
+    try:
+        from tools import forward_measure as fm
+        ledger_dir = (os.environ.get("FQ_LEDGER_DIR")
+                      or ("/data" if os.path.isdir("/data") else "."))
+        min_n = int(os.environ.get("FQ_FORWARD_MIN_N", "30"))
+        report, paths = fm.run(ledger_dir, min_n)
+        return fm.format_telegram(report, paths, min_n)
+    except Exception as e:
+        return "Error /forward: {}".format(str(e)[:200])
+
 def cmd_campo(exchange):
     """v4.1.1: Lectura on-demand del estado del campo (sin disparar senal)"""
     if not (ENABLE_ICT_LAYER and ICT_MODULES_AVAILABLE):
@@ -6323,28 +6345,37 @@ def evolution_periodic_hook(exchange):
                     )
                 )
 
-        # Self-audit cada 25 cerradas
-        if ev.should_trigger_audit() and claude_ai.is_available():
+        # Self-audit cada 25 cerradas. La fila CUANTITATIVA (n_closed, winR,
+        # expectancy, entropy, kl_drift) se escribe SIEMPRE -> rastro de validación
+        # continua. La narrativa Opus es enriquecimiento best-effort (solo si Claude
+        # está disponible). Antes TODO iba gated por Claude, así que la tabla audits
+        # quedaba vacía y el anti-doble-trigger nunca avanzaba.
+        if ev.should_trigger_audit():
             n = ev.count_signals(closed_only=True)
-            log.info("Triggering self-audit Opus (n={})".format(n))
-            broadcast_to_subscribers(
-                "<b>SELF-AUDIT EVOLUTIVO ACTIVADO</b>\n"
-                "{} senales cerradas. Auditando ledger...".format(n)
-            )
-            prompt = ev.build_audit_prompt_v3() if hasattr(ev, "build_audit_prompt_v3") else ev.build_audit_prompt()
-            if prompt:
-                opus_response = ev_claude.self_audit(prompt)
-                metrics = ev.get_global_metrics()
-                ev.save_audit(n, metrics, opus_response)
-                audit_msg = (
-                    "<b>FQ · Auditoria evolutiva</b>\n"
-                    "{thin}\n\n{r}\n\n"
-                    "{thin}\n"
-                    "Estas son SUGERENCIAS. RasDG decide.\n"
-                    "#FQ #SelfAudit"
-                ).format(thin=G["thin"], r=opus_response)
-                for p in split_telegram_message(audit_msg):
-                    broadcast_to_subscribers(p)
+            metrics = ev.get_global_metrics()
+            opus_response = ""
+            if claude_ai.is_available():
+                try:
+                    log.info("Triggering self-audit Opus (n={})".format(n))
+                    broadcast_to_subscribers(
+                        "<b>SELF-AUDIT EVOLUTIVO ACTIVADO</b>\n"
+                        "{} senales cerradas. Auditando ledger...".format(n)
+                    )
+                    prompt = ev.build_audit_prompt_v3() if hasattr(ev, "build_audit_prompt_v3") else ev.build_audit_prompt()
+                    if prompt:
+                        opus_response = ev_claude.self_audit(prompt)
+                        audit_msg = (
+                            "<b>FQ · Auditoria evolutiva</b>\n"
+                            "{thin}\n\n{r}\n\n"
+                            "{thin}\n"
+                            "Estas son SUGERENCIAS. RasDG decide.\n"
+                            "#FQ #SelfAudit"
+                        ).format(thin=G["thin"], r=opus_response)
+                        for p in split_telegram_message(audit_msg):
+                            broadcast_to_subscribers(p)
+                except Exception as e:
+                    log.error("self-audit Opus error (la fila cuantitativa igual se guarda): {}".format(e))
+            ev.save_audit(n, metrics, opus_response)   # SIEMPRE guarda el snapshot cuantitativo
 
         # Backup cada N senales totales (configurable via FQ_BACKUP_EVERY_N).
         # mark_backup_done() evita re-envio en cada cierre de vela.
@@ -6463,6 +6494,7 @@ def main():
         "/concepts":  lambda exc=None: cmd_concepts(),
         "/weekend":   lambda exc=None: cmd_weekend(),
         "/tphits":    lambda exc=None: cmd_tphits(),
+        "/forward":   lambda exc=None: cmd_forward(),
         # ============ ADMIN v4.3 - capa ML ============
         "/atribucion": lambda exc=None: cmd_atribucion(),
         "/regimen":    cmd_regimen,
