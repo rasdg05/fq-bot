@@ -521,7 +521,9 @@ td:first-child,th:first-child{text-align:left}
     .heroart3d{width:120%;right:-32%;opacity:.24}
     .pitchmain{max-width:100%}
     .briefwrap{flex-direction:column;align-items:stretch}
-    #briefsec .briefintro+#brief,.briefwrap #brief{max-width:none}
+    /* en columna, flex-basis (360px/330px) se vuelve ALTURA e infla el bloque con
+       un hueco enorme -> que cada hijo se mida por su contenido */
+    .briefwrap .briefintro,.briefwrap #brief{flex:0 0 auto;max-width:none}
   }
   #brief{flex:1 1 330px;max-width:400px;align-self:center;background:var(--panel);
     border:1px solid var(--line);border-radius:14px;padding:15px 16px 12px;
@@ -1530,9 +1532,14 @@ const INTRO_VIDEO="";
   const intro=document.getElementById("intro");
   if(_reduceMotion){ if(intro)intro.remove(); }
   else{ setTimeout(()=>{ if(intro)intro.remove(); }, 2300); }
+  // threshold:0 (no un % del elemento) para que también revele elementos MÁS ALTOS
+  // que el viewport -- p.ej. #grid en móvil (24 tarjetas apiladas, ~8000px): con
+  // threshold .12 pedía ver 986px a la vez, imposible en un teléfono -> se quedaba
+  // en opacity:0 para siempre. rootMargin negativo abajo da el timing de "entró en
+  // vista" sin depender de la altura.
   const io=new IntersectionObserver((es)=>{es.forEach(en=>{ if(en.isIntersecting){
     en.target.classList.add("in"); io.unobserve(en.target); }});},
-    {threshold:.12, rootMargin:"0px 0px -8% 0px"});
+    {threshold:0, rootMargin:"0px 0px -10% 0px"});
   document.querySelectorAll(".reveal").forEach(el=>io.observe(el));
 }catch(e){ document.querySelectorAll(".reveal").forEach(el=>el.classList.add("in"));
   const i=document.getElementById("intro"); if(i)i.remove(); } })();
