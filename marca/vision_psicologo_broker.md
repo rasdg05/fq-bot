@@ -139,9 +139,12 @@ honestos con la incertidumbre — y eso, paradójicamente, nos hace más creíbl
 
 - **Fase 0 — Papel (aquí).** Este doc + definir el formato CSV mínimo y las
   métricas v1.
-- **Fase 1 — Import CSV + análisis básico.** Segmentación por hora/día/sesión/
-  instrumento, top patrones por costo, ventanas de vulnerabilidad, fortalezas.
-  Sin conexión a broker, sin IA generativa: pura estadística honesta.
+- **Fase 1 — Import CSV + análisis básico. ✅ CONSTRUIDO** (`tools/psycho_analyzer.py`).
+  Ingestión flexible de CSV de broker (MT4/MT5/cTrader/Binance/Bybit), segmentación
+  por hora/día/sesión/instrumento, detección de la reentrada post-pérdida
+  ("revenge"), ventanas de vulnerabilidad y fortalezas gateadas por n≥min, y costo
+  acotado de la indisciplina. Python puro, sin IA generativa: pura estadística
+  honesta. `python tools/psycho_analyzer.py --demo` para verlo.
 - **Fase 2 — Cruce con régimen de mercado (nuestra ventaja).** Etiquetar cada
   trade con el clima de mercado de nuestro feed y revelar patrones clima-
   dependientes. **Este es el momento en que superamos a HybridTrader.**
