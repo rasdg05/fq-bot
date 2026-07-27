@@ -1,0 +1,21 @@
+{
+  "medidoEl": "2026-07-27T09:05:28.750Z",
+  "datos": "721 velas diarias de BTC-USD y ETH-USD (Kraken), 28,308 predicciones",
+  "particion": "temporal por activo: 70% más viejo para ajustar, 30% más nuevo para medir",
+  "cierre": {
+    "a": 1.0066,
+    "b": 0.0881,
+    "eceOutOfSample": 6.28,
+    "eceCrudo": 5.86,
+    "brier": 0.2062,
+    "usable": false
+  },
+  "toca": {
+    "a": 0.2409,
+    "b": -0.1089,
+    "eceOutOfSample": 7.63,
+    "eceCrudo": 10.47,
+    "brier": 0.1308,
+    "usable": false
+  }
+}

@@ -13,6 +13,7 @@ npm run validate     # VALIDATION_REPORT (V1–V24 + red-team + S1/T1/C1)
 npm run perf         # medición de rendimiento en laboratorio (necesita `vite preview`)
 npm run probe:live   # sonda contra las APIs reales de los venues
 npm run probe:supply # mide la oferta real de mercados relevantes
+npm run calibrate    # calibra el modelo de precio contra historia real
 ```
 
 ## Cómo está armado
@@ -27,7 +28,8 @@ src/
   screens/     una pantalla por destino + hojas (depósito, post-operación)
   styles/      tokens.css — la única fuente de color y tipografía
   lib/         strings (todo el copy), flags, formato
-vault/         PRODUCT · VOICE · PLAYBOOKS · RULINGS · COMPLIANCE · DATA_SOURCES · HANDOFF
+vault/         PRODUCT · VOICE · PLAYBOOKS · RULINGS · COMPLIANCE · ACELERACION
+               DATA_SOURCES · MODEL · HANDOFF · locks de tokens y calibración
 scripts/       validate.mjs · perf.mjs · shots.mjs · sondas de red
 ```
 
@@ -82,6 +84,16 @@ camino completo, verificando que `scrollWidth === innerWidth` en cada pantalla.
 los dos recorridos que importan —usuario nuevo y recurrente—, y falla si algún
 presupuesto se rompe. Es medición de laboratorio: detecta regresiones, no
 sustituye datos de campo.
+
+## El Edge y su modelo
+
+El Edge sólo se muestra cuando hay una lectura independiente del precio. Hoy
+existe para las preguntas que también cotizan en una casa global; para los
+mercados de Latam puro hace falta modelo propio, y el que construimos **no pasa
+su propia puerta de calibración** — medido, no supuesto, en `vault/MODEL.md`.
+
+`npm run calibrate` reproduce la medición contra velas diarias públicas. La
+puerta se abre bajando el error, nunca bajando el umbral (R-031).
 
 ## Vault
 

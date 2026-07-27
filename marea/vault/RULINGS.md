@@ -80,3 +80,14 @@ Se agrega una línea cuando un hallazgo de audit es recurrente o de producto.
 - **R-029** — En parimutuel no se muestra resultado no realizado: no existe
   hasta que el mercado resuelve, y saldría siempre en verde. Se muestran las
   dos cifras honestas: lo que cobras si aciertas y lo que arriesgas.
+
+<!-- ciclo del modelo propio -->
+- **R-030** — La lectura de Marea es una cuenta reproducible con datos
+  públicos, nunca una opinión. Su base se muestra al usuario y se puede
+  rehacer. (modelo)
+- **R-031** — Ningún modelo produce Edge sin calibración medida **fuera de
+  muestra** por debajo del máximo admisible. La puerta está en el código y se
+  abre bajando el error, nunca bajando el umbral. (modelo)
+- **R-032** — Toda partición de datos para medir un modelo es temporal y por
+  activo. Partir por posición en el arreglo separa por activo y devuelve un
+  número inflado. (modelo)

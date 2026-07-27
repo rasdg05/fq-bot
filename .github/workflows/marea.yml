@@ -1,0 +1,60 @@
+name: Marea — CI y deploy
+
+# El SPA de Marea es independiente del worker de Python: sólo corre cuando
+# cambia `marea/`, para no gastar CI en cada push del bot.
+on:
+  push:
+    branches: [main]
+    paths: ["marea/**", ".github/workflows/marea.yml"]
+  pull_request:
+    paths: ["marea/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: marea-pages
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: marea
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: marea/package-lock.json
+      - run: npm ci
+      - name: Tipos
+        run: npx tsc -b --noEmit
+      - name: VALIDATION_REPORT (V1-V24, red-team, S1/T1/C1, P1/P2)
+        run: npm run validate
+      - name: Build
+        run: npm run build
+        env:
+          # en Pages la app cuelga de /<repo>/, no de la raíz
+          VITE_BASE: /${{ github.event.repository.name }}/
+          VITE_RELEASE: ${{ github.sha }}
+      - uses: actions/upload-pages-artifact@v3
+        if: github.ref == 'refs/heads/main'
+        with:
+          path: marea/dist
+
+  desplegar:
+    needs: verificar
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

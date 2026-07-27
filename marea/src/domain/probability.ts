@@ -1,4 +1,14 @@
 import type { VenueMarket } from "@/adapters/venues/types";
+import CALIBRATION from "../../vault/calibration.lock.json";
+import {
+  applyCalibration,
+  isUsable,
+  priceBasis,
+  priceProbability,
+  type Calibration,
+  type PriceQuestion,
+} from "./priceModel";
+
 
 /**
  * De dónde sale la probabilidad de Marea.
@@ -91,6 +101,47 @@ export function createConsensusProvider(
         probability,
         basis: `Consenso ponderado por liquidez entre ${names}.`,
         sources: venues.size,
+      };
+    },
+  };
+}
+
+/* ---------------------------------------------------------------------------
+   Lectura propia por modelo de precio
+--------------------------------------------------------------------------- */
+
+/**
+ * Proveedor de lectura propia para preguntas de precio.
+ *
+ * La puerta es la calibración medida fuera de muestra, no la elegancia del
+ * modelo: si el error esperado no baja del máximo, **no devuelve lectura** y
+ * por lo tanto no hay Edge (R-031). Hoy la puerta está cerrada, y eso está
+ * medido en `vault/calibration.lock.json`, no supuesto.
+ */
+export function createPriceModelProvider(
+  questions: Map<string, PriceQuestion>,
+  keyOf: (quotes: VenueMarket[]) => string | undefined,
+  calibrations: { cierre: Calibration; toca: Calibration } = {
+    cierre: CALIBRATION.cierre,
+    toca: CALIBRATION.toca,
+  },
+): MareaProbabilityProvider {
+  return {
+    id: "modelo-de-precio",
+    read(quotes) {
+      const key = keyOf(quotes);
+      if (!key) return null;
+      const question = questions.get(key);
+      if (!question) return null;
+
+      const calibration = question.touch ? calibrations.toca : calibrations.cierre;
+      // un modelo descalibrado no produce Edge: produce ruido con decimales
+      if (!isUsable(calibration)) return null;
+
+      return {
+        probability: applyCalibration(priceProbability(question), calibration),
+        basis: priceBasis(question),
+        sources: 1,
       };
     },
   };

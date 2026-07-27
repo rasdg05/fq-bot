@@ -4,3 +4,4 @@ dist
 .vitest-report.json
 tsconfig.tsbuildinfo
 perf-report.json
+calibration-report.json
