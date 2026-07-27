@@ -9,6 +9,8 @@ import { createAggregatedMarketDataAdapter } from "./aggregatedMarketDataAdapter
 import { createPolymarketAdapter } from "./venues/polymarket";
 import { createKalshiAdapter } from "./venues/kalshi";
 import { createConsensusProvider } from "@/domain/probability";
+import { createOwnMarketsAdapter } from "./ownMarkets/ownMarketsAdapter";
+import { FLAGS, isOwnMarketMode } from "@/lib/flags";
 import type { Adapters } from "@/state/store";
 
 /**
@@ -33,8 +35,10 @@ export function resolveAdapters(): Adapters {
       })
     : createMemoryAnalytics();
 
-  const marketData =
-    CONFIG.dataSource === "aggregated"
+  const marketData = isOwnMarketMode(FLAGS)
+    ? // mercados propios de Latam: Marea crea la pregunta y corre el pozo
+      createOwnMarketsAdapter()
+    : CONFIG.dataSource === "aggregated"
       ? createAggregatedMarketDataAdapter({
           venues: [
             createPolymarketAdapter({ limit: 200 }),

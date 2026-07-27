@@ -49,6 +49,7 @@ export const S = {
     latam: "LATAM",
     resolved: "Resuelto",
     closingSoon: "Cierra pronto",
+    closed: "Cerrado",
   },
 
   market: {
@@ -66,6 +67,7 @@ export const S = {
     edgeExplainer:
       "Edge es la diferencia entre la probabilidad del mercado y la nuestra. Solo la mostramos cuando pasa de 4 puntos.",
     volume: "Volumen",
+    pot: "Pozo",
     closes: "Cierra",
     resolution: "Cómo se resuelve",
     yes: "Sí",
@@ -79,6 +81,35 @@ export const S = {
       "Tu operación se completa en el mercado con más liquidez. Marea no es tu contraparte y no cobra spread escondido.",
     maxLoss: "Lo máximo que puedes perder es lo que pones.",
     openDetail: "Ver mercado",
+    payout: "Paga",
+    payoutHint: (multiplier: string, toWin: string) =>
+      `Si aciertas, cobras ${toWin} (${multiplier}).`,
+    poolTitle: "Cómo se reparte",
+    poolBody: (si: string, no: string, fee: string) =>
+      `Al Sí hay ${si} y al No ${no}. Quien acierta se reparte todo el pozo menos ${fee} de comisión. Marea no apuesta contra ti.`,
+    hereLabel: "Aquí",
+    referenceLabel: (venue: string) => venue,
+    edgeCardWith: (label: string, pp: string) => `${label} ${pp}%`,
+    edgeDetailWith: (here: string, label: string, there: string, edge: string) =>
+      `Aquí ${here}% · ${label} ${there}% · Edge ${edge}%`,
+    betCta: "Apostar",
+    closedForBets: "Este mercado ya cerró.",
+  },
+
+  points: {
+    title: "Tus puntos",
+    disclaimer:
+      "Estás jugando con puntos, no con dinero. No se cambian por efectivo ni por cripto.",
+    disclaimerShort: "Puntos, no dinero.",
+    why: "Por qué puntos primero",
+    whyBody:
+      "Antes de que alguien arriesgue un peso queremos saber si los mercados están bien hechos y si la resolución es transparente. Cuando eso esté probado y el marco legal resuelto, avisamos.",
+    topUp: "Recargar puntos",
+    topUpDone: "Puntos recargados",
+    topUpUnavailable: "Ya recargaste hoy. Vuelve mañana.",
+    welcome: (amount: string) => `Te dimos ${amount} para empezar.`,
+    balanceZero: "Te quedaste sin puntos",
+    balanceZeroBody: "Recarga y sigue apostando. Explorar no cuesta nada.",
   },
 
   wallet: {
@@ -125,6 +156,8 @@ export const S = {
     open: "Abiertas",
     settled: "Cerradas",
     pnl: "Resultado",
+    toWin: "Si aciertas",
+    atRisk: "Arriesgas",
     invested: "Invertido",
     side: "Lado",
     loading: "Cargando portafolio",

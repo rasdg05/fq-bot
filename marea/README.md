@@ -56,6 +56,7 @@ Declarado en `src/lib/flags.ts`:
 
 | Flag | Valor en esta build | Qué significa |
 |---|---|---|
+| `market_engine` | `"parimutuel_points"` | Mercados propios de Latam con motor de pozo, jugando con puntos. `parimutuel_money` usa el mismo motor con dinero y exige la puerta de elegibilidad |
 | `mock_data` | `true` | Los mercados salen del adapter mock, con el mismo contrato que va a usar la agregación real |
 | `deposit_provider` | `"onramp"` | Hay camino de tarjeta y de transferencia; si el proveedor cae, la UI lo dice y deja la transferencia abierta |
 | `trade_execution_mode` | `"aggregated"` | La operación se completa en el mercado con más liquidez. Marea **no** es la contraparte, y el copy del detalle lo declara |

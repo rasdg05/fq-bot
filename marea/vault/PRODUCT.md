@@ -44,6 +44,16 @@ Fusión de referencias:
 | 7 | Soft launch sin market maker propio ni order book propio |
 | 8 | Datos: mock → adapter de agregación (mismo contrato) |
 | 9 | Trade puede ser agregación / deep-link al inicio, con copy honesto |
+| 10 | **Mercados propios de Latam con motor parimutuel.** Marea escribe la pregunta, corre el pozo y cita la fuente de resolución. La agregación queda como suministro complementario |
+| 11 | **Se arranca con puntos, no con dinero** (Fase 1 del roadmap de la visión). Sin custodia y sin riesgo regulatorio mientras se valida el apetito |
+
+## Consecuencia abierta de la decisión 10
+
+El Edge necesita una lectura independiente del pozo. Hoy sólo existe para las
+preguntas que también cotizan en una casa global —y en ésas la lectura es de
+ella, no nuestra, así que el copy la nombra (R-027)—. **En los mercados de Latam
+puro no hay Edge todavía**: hace falta un modelo propio de probabilidad. Es el
+pendiente número uno del producto, y está medido en `DATA_SOURCES.md`.
 
 ## Scope de soft launch
 

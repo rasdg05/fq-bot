@@ -31,7 +31,8 @@ export function closesIn(iso?: string, now: number = Date.now()): string | null 
   if (!iso) return null;
   const delta = new Date(iso).getTime() - now;
   if (Number.isNaN(delta)) return null;
-  if (delta <= 0) return "cerrado";
+  // el llamador antepone "Cierra": aquí sólo va el plazo, nunca el estado
+  if (delta <= 0) return null;
   const hours = Math.floor(delta / 3_600_000);
   if (hours < 1) return `en ${Math.max(1, Math.floor(delta / 60_000))} min`;
   if (hours < 24) return `en ${hours} h`;

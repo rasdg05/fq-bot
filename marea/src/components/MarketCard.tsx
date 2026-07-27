@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 import { S } from "@/lib/strings";
 import { compactUsd, pct, closesIn } from "@/lib/format";
+import { formatMultiplier, payoutMultiplier } from "@/domain/parimutuel";
 
 export type MarketCardVariant = "default" | "edge" | "live" | "compact";
 
@@ -34,6 +35,8 @@ export function MarketCard({ market, variant, onOpen }: MarketCardProps) {
   const compact = resolved === "compact";
   const showEdge = hasEdge(market) && market.edge !== null;
   const closes = closesIn(market.closesAt);
+  // en mercado propio lo que importa es cuánto paga, no cuánto se ha operado
+  const pool = market.pool;
 
   const handleOpen = React.useCallback(() => onOpen(market), [onOpen, market]);
 
@@ -66,8 +69,9 @@ export function MarketCard({ market, variant, onOpen }: MarketCardProps) {
             </Badge>
           ) : null}
           {market.hot ? <Badge tone="hot">{S.badges.hot}</Badge> : null}
-          {market.region === "latam" ? (
-            <Badge tone="latam">{S.badges.latam}</Badge>
+          {/* el país dice más que "LATAM" cuando todo el catálogo es de Latam */}
+          {market.country || market.region === "latam" ? (
+            <Badge tone="latam">{market.country ?? S.badges.latam}</Badge>
           ) : null}
           <span className="ml-auto text-[12px] font-medium text-muted">
             {S.categories[market.category]}
@@ -116,12 +120,20 @@ export function MarketCard({ market, variant, onOpen }: MarketCardProps) {
                 ) : (
                   <TrendingDown aria-hidden className="h-3 w-3" />
                 )}
-                {S.market.edgeCard(formatEdgePp(market.edge as number))}
+                {/* la lectura puede no ser nuestra: se nombra quien la da (R-027) */}
+                {S.market.edgeCardWith(
+                  market.edgeLabel ?? S.market.mareaProbability,
+                  formatEdgePp(market.edge as number),
+                )}
               </Badge>
             ) : null}
             <span className="text-[12px] text-muted">
-              {compactUsd(market.volume)}
-              {closes ? ` · ${S.market.closes} ${closes}` : ""}
+              {pool
+                ? `${S.market.payout} ${formatMultiplier(payoutMultiplier(pool, "si"))}`
+                : compactUsd(market.volume)}
+              {closes
+                ? ` · ${S.market.closes} ${closes}`
+                : ` · ${S.badges.closed}`}
             </span>
           </div>
         </div>

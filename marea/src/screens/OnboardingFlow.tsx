@@ -3,6 +3,9 @@ import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/StateViews";
 import { S } from "@/lib/strings";
 import { useApp } from "@/state/store";
+import { isPointsMode } from "@/lib/flags";
+import { formatStake } from "@/lib/units";
+import { WELCOME_GRANT } from "@/domain/points";
 
 /**
  * P0 tiene un techo, no una duración fija. Un splash existe para tapar trabajo
@@ -86,9 +89,15 @@ function Splash() {
   );
 }
 
-/** P1 — la promesa. Un solo CTA, abajo. */
+/**
+ * P1 — la promesa. Un solo CTA, abajo.
+ *
+ * Jugando con puntos no hace falta wallet: pedirla sería fricción por costumbre,
+ * no por necesidad. En ese modo P1 lleva directo al feed (R-028).
+ */
 function StepPromise() {
   const { actions } = useApp();
+  const points = isPointsMode();
   return (
     <>
       <div className="flex flex-1 flex-col justify-center">
@@ -98,12 +107,22 @@ function StepPromise() {
         <p className="mt-4 text-[16px] leading-relaxed text-text2">
           {S.onboarding.p1Body}
         </p>
+        {points ? (
+          <p
+            data-testid="onboarding-points-note"
+            className="mt-5 rounded-card border border-line bg-panel px-4 py-3 text-[14px] leading-relaxed text-text2"
+          >
+            {S.points.welcome(formatStake(WELCOME_GRANT))} {S.points.disclaimer}
+          </p>
+        ) : null}
       </div>
       <div className="pb-6">
         <Button
           size="lg"
           data-testid="onboarding-start"
-          onClick={() => actions.goToOnboardingStep("p2")}
+          onClick={() =>
+            points ? actions.finishOnboarding("explore") : actions.goToOnboardingStep("p2")
+          }
         >
           {S.onboarding.p1Cta}
         </Button>

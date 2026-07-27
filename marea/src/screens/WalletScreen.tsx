@@ -4,7 +4,9 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/StateViews";
 import { S } from "@/lib/strings";
-import { usd, shortAddress } from "@/lib/format";
+import { shortAddress } from "@/lib/format";
+import { formatStake } from "@/lib/units";
+import { isPointsMode } from "@/lib/flags";
 import { useApp } from "@/state/store";
 
 /**
@@ -14,6 +16,7 @@ export function WalletScreen() {
   const { state, actions } = useApp();
   const [copied, setCopied] = React.useState(false);
   const wallet = state.wallet;
+  const points = isPointsMode();
 
   const copy = React.useCallback(async () => {
     if (!wallet) return;
@@ -29,8 +32,43 @@ export function WalletScreen() {
   return (
     <div data-testid="wallet-screen" className="pb-6">
       <h1 className="px-4 pb-4 pt-5 font-display text-[24px] font-semibold text-text">
-        {S.wallet.title}
+        {points ? S.points.title : S.wallet.title}
       </h1>
+
+      {points ? (
+        <div className="space-y-4 px-4">
+          <Card className="p-5">
+            <p className="text-[12px] uppercase tracking-wide text-muted">
+              {S.header.balance}
+            </p>
+            <p className="mt-1 font-display text-prob font-semibold text-text tabular-nums">
+              {formatStake(state.points.balance)}
+            </p>
+            <p className="mt-2 text-[14px] leading-relaxed text-text2">
+              {state.points.balance <= 0
+                ? S.points.balanceZeroBody
+                : S.points.disclaimer}
+            </p>
+            <Button
+              size="lg"
+              className="mt-5"
+              data-testid="points-topup-cta"
+              onClick={() => actions.openDeposit("wallet_tab")}
+            >
+              {S.points.topUp}
+            </Button>
+          </Card>
+
+          <Card className="p-5">
+            <p className="text-[12px] font-bold uppercase tracking-wide text-muted">
+              {S.points.why}
+            </p>
+            <p className="mt-2 text-[14px] leading-relaxed text-text2">
+              {S.points.whyBody}
+            </p>
+          </Card>
+        </div>
+      ) : null}
 
       {state.walletError ? (
         <div className="pb-4">
@@ -42,14 +80,14 @@ export function WalletScreen() {
         </div>
       ) : null}
 
-      {wallet ? (
+      {!points && wallet ? (
         <div className="space-y-4 px-4">
           <Card className="p-5">
             <p className="text-[12px] uppercase tracking-wide text-muted">
               {S.header.balance}
             </p>
             <p className="mt-1 font-display text-prob font-semibold text-text tabular-nums">
-              {usd(wallet.balance)}
+              {formatStake(wallet.balance)}
             </p>
             {wallet.balance <= 0 ? (
               <p className="mt-2 text-[14px] leading-relaxed text-text2">
@@ -91,7 +129,9 @@ export function WalletScreen() {
             <p className="mt-0.5 text-[14px] text-text">{wallet.chain}</p>
           </Card>
         </div>
-      ) : (
+      ) : null}
+
+      {!points && !wallet ? (
         <div className="space-y-3 px-4">
           <Card className="p-5">
             <p className="font-display text-[18px] font-semibold text-text">
@@ -121,7 +161,7 @@ export function WalletScreen() {
             </Button>
           </Card>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -1,7 +1,16 @@
 import * as React from "react";
 import type { AppError, Market, Position, Wallet } from "@/domain/types";
 import type { CountryCode } from "@/domain/eligibility";
-import { toAppError } from "@/domain/errors";
+import {
+  apply as applyPoints,
+  dailyTopUp,
+  emptyLedger,
+  grantWelcome,
+  canStake,
+  type PointsLedger,
+} from "@/domain/points";
+import { isPointsMode } from "@/lib/flags";
+import { appError as appErrorFor, toAppError } from "@/domain/errors";
 import {
   marketDataAdapter,
   type MarketDataAdapter,
@@ -45,6 +54,8 @@ export interface AppState {
   postTrade: { side: "si" | "no"; size: number; title: string } | null;
   /** País declarado o inferido: define elegibilidad para depositar y operar. */
   country?: CountryCode;
+  /** Ledger de puntos. Sólo vive en el motor de puntos. */
+  points: PointsLedger;
 }
 
 type Action =
@@ -65,7 +76,8 @@ type Action =
   | { type: "trade_busy"; busy: boolean }
   | { type: "trade_error"; error: AppError | null }
   | { type: "post_trade"; value: AppState["postTrade"] }
-  | { type: "balance"; balance: number };
+  | { type: "balance"; balance: number }
+  | { type: "points"; ledger: PointsLedger };
 
 const ONBOARDING_KEY = "marea.onboarding_completed";
 
@@ -105,6 +117,8 @@ export function initialState(overrides: Partial<AppState> = {}): AppState {
     tradeBusy: false,
     tradeError: null,
     postTrade: null,
+    // la bienvenida se entrega al arrancar: explorar y jugar no cuestan nada
+    points: isPointsMode() ? grantWelcome(emptyLedger()) : emptyLedger(),
     ...overrides,
   };
 }
@@ -146,6 +160,8 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, tradeError: action.error, tradeBusy: false };
     case "post_trade":
       return { ...state, postTrade: action.value, tradeBusy: false };
+    case "points":
+      return { ...state, points: action.ledger };
     case "balance":
       return {
         ...state,
@@ -328,12 +344,27 @@ function createActions(
       dispatch({ type: "trade_busy", busy: true });
       dispatch({ type: "trade_error", error: null });
       try {
+        if (isPointsMode() && !canStake(getState().points, size)) {
+          throw appErrorFor("E_TRADE_INIT_FAILED", { market_id: market.id });
+        }
         await adapters.marketData.prepareTrade({
           marketId: market.id,
           side,
           size,
         });
         adapters.analytics.track("trade_confirmed", { market_id: market.id, side });
+        if (isPointsMode()) {
+          dispatch({
+            type: "points",
+            ledger: applyPoints(getState().points, {
+              id: `b-${Date.now()}`,
+              amount: -size,
+              reason: "apuesta",
+              at: new Date().toISOString(),
+              marketId: market.id,
+            }),
+          });
+        }
         dispatch({
           type: "post_trade",
           value: { side, size, title: market.title },
@@ -353,6 +384,22 @@ function createActions(
     },
     setBalance(balance: number) {
       dispatch({ type: "balance", balance });
+    },
+    /** Recarga diaria: existe para el que se quedó en cero, no como ingreso. */
+    topUpPoints() {
+      const ledger = getState().points;
+      const amount = dailyTopUp(ledger);
+      if (amount <= 0) return false;
+      dispatch({
+        type: "points",
+        ledger: applyPoints(ledger, {
+          id: `t-${Date.now()}`,
+          amount,
+          reason: "recarga_diaria",
+          at: new Date().toISOString(),
+        }),
+      });
+      return true;
     },
   };
 }

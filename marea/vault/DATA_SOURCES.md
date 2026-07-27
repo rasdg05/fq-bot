@@ -67,6 +67,11 @@ Lectura honesta de las tres opciones:
 La recomendación es 3, con 1 como núcleo. Ninguna de las tres se decide desde
 el código: es decisión de producto y de marco legal.
 
+**Decidido (27 de julio de 2026): opción 1 como núcleo.** Marea crea sus propios
+mercados de Latam con motor parimutuel, arrancando con puntos. La agregación
+queda como referencia externa para el Edge de las preguntas que también cotizan
+afuera, y como suministro complementario más adelante.
+
 ## Estado del código
 
 - `VITE_DATA_SOURCE=aggregated` enciende la agregación real. Funciona hoy.

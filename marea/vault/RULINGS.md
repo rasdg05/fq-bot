@@ -58,3 +58,25 @@ Se agrega una línea cuando un hallazgo de audit es recurrente o de producto.
   techo, no duración fija, y avanza en cuanto el shell pintó. (perf)
 - **R-022** — Ninguna integración sin credenciales finge hablar con un
   proveedor: degrada a su camino simulado y lo declara. (integraciones)
+
+<!-- ciclo de mercados propios (parimutuel) -->
+- **R-023** — El pago que se muestra incluye la apuesta que se está por hacer.
+  Enseñar el multiplicador de antes de entrar sería enseñar un pago que el
+  usuario no va a recibir. (parimutuel)
+- **R-024** — Si nadie acertó, se devuelve el pozo íntegro y la casa no cobra
+  comisión. Quedarnos con un pozo que nadie ganó es lo que hace una casa.
+- **R-025** — Un mercado propio no se publica sin fuente pública verificable,
+  criterio inequívoco y ventana de disputa. La resolución nunca es
+  discrecional: "porque Marea lo dice" no existe. Se valida al cargar el
+  catálogo, no en producción.
+- **R-026** — Jugando con puntos no aparece ningún símbolo de moneda en la
+  interfaz, y el canje por dinero no existe como función. Habilitarlo exige
+  borrar código, no cambiar copy.
+- **R-027** — Si la lectura contra la que se compara el precio no es nuestra,
+  el Edge lleva el nombre de quien la da. Llamar "Marea" al precio de otra
+  casa sería mentir.
+- **R-028** — No se pide wallet cuando el producto no la necesita. En modo
+  puntos el onboarding llega al feed en un tap.
+- **R-029** — En parimutuel no se muestra resultado no realizado: no existe
+  hasta que el mercado resuelve, y saldría siempre en verde. Se muestran las
+  dos cifras honestas: lo que cobras si aciertas y lo que arriesgas.

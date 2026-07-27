@@ -84,11 +84,15 @@ await page.goto(BASE, { waitUntil: "load" });
 
 // recorrido real: la interacción es lo que hace medible el INP
 if (!returning) {
+  // en el motor de puntos el onboarding es un solo tap; con wallet son tres
   await page.getByTestId("onboarding-start").waitFor({ timeout: 15_000 });
   await page.getByTestId("onboarding-start").click();
-  await page.getByTestId("onboarding-create-wallet").click();
-  await page.getByTestId("onboarding-explore").waitFor();
-  await page.getByTestId("onboarding-explore").click();
+  const wallet = page.getByTestId("onboarding-create-wallet");
+  if (await wallet.isVisible().catch(() => false)) {
+    await wallet.click();
+    await page.getByTestId("onboarding-explore").waitFor();
+    await page.getByTestId("onboarding-explore").click();
+  }
 }
 await page.getByTestId("home-screen").waitFor({ timeout: 15_000 });
 const timeToFeedMs = Date.now() - started;
@@ -96,8 +100,6 @@ const timeToFeedMs = Date.now() - started;
 await page.locator("[data-testid=market-card] button").first().click();
 await page.getByTestId("market-detail").waitFor();
 await page.getByTestId("side-no").click();
-await page.getByTestId("detail-deposit-cta").click();
-await page.getByTestId("deposit-sheet").waitFor();
 await page.waitForTimeout(600);
 
 const raw = await page.evaluate(() => {

@@ -2,26 +2,31 @@
 
 ## Veredicto
 
-**SOFT_LAUNCH_READY** para la superficie construida, sobre datos simulados.
-`npm run validate` → `PASS` (V1–V24, RT/1–RT/10, más S1/T1/C1).
+**SOFT_LAUNCH_READY** con mercados propios de Latam y motor parimutuel,
+jugando con **puntos, no dinero** (Fase 1 del roadmap de la visión).
+`npm run validate` → `PASS` (V1–V24, RT/1–RT/10, S1/T1/C1, P1/P2).
 `npm run perf` → `PASS` en laboratorio, ambos recorridos.
 
-**No listo para dinero real.** Los bloqueantes están en §5 y ninguno es de
-código.
+Esta modalidad **no necesita** los bloqueantes de §5: sin dinero no hay
+custodia ni licencia. Pasar a `parimutuel_money` sí los exige, y la validación
+falla si alguien lo intenta sin encender la puerta de elegibilidad.
 
-## Checklist de soft launch
+## Checklist de soft launch (modo puntos)
 
-- [x] Wallet: crear (primario) y conectar (secundario), con error accionable
-- [x] Feed con Edge visible, regla de 4 pp aplicada en dominio
-- [x] Detalle con criterio de resolución antes del CTA
-- [x] Iniciar depósito, con caída de proveedor cubierta
-- [x] Portafolio vacío y con datos
+- [x] Catálogo propio de Latam, cada mercado con su fuente pública citada
+- [x] Motor parimutuel: pozo, pago con la apuesta incluida, comisión de 3 %,
+      liquidación proporcional y devolución íntegra si nadie acertó
+- [x] Contrato de resolución que rechaza lo discrecional y exige ventana de disputa
+- [x] Puntos: bienvenida, sin crédito, sin canje, recarga diaria acotada
+- [x] Onboarding de un tap hasta el feed, sin wallet
+- [x] Detalle con reparto del pozo y criterio de resolución antes del CTA
+- [x] Portafolio con pago potencial, no con un resultado inventado
 - [x] Errores accionables en español
 - [x] Métricas móviles: targets ≥ 44 px, cero desborde a 390 px, contraste ≥ 4.5:1
-- [x] Adapters de agregación reales, verificados contra APIs vivas
-- [x] Sinks de analítica y errores reales, con lista blanca de datos
-- [x] Elegibilidad por país y juego responsable en el dominio
 - [x] Rendimiento medido, no declarado
+
+Lo construido para el camino con dinero sigue vivo y probado (wallet, depósito,
+elegibilidad, agregación), fuera del camino mientras el motor sea de puntos.
 
 ## Rendimiento medido
 
@@ -30,9 +35,12 @@ latencia. Reproducible con `npm run perf`.
 
 | Recorrido | LCP | INP | CLS | Al feed | Transferido |
 |---|---|---|---|---|---|
-| Usuario nuevo | 1596 ms | 96 ms | 0.003 | 2.2 s | 170 kB |
-| Usuario recurrente | 1560 ms | 96 ms | 0.003 | 1.6 s | 169 kB |
+| Usuario nuevo | 1752 ms | 80 ms | 0.001 | 1.8 s | 175 kB |
+| Usuario recurrente | 1356 ms | 104 ms | 0 | 1.5 s | 175 kB |
 | Presupuesto | 2500 ms | 200 ms | 0.1 | 75 s | — |
+
+El tiempo al feed bajó de 2.2 s a 1.8 s al quitar la wallet del camino: en modo
+puntos no hace falta, y pedirla era fricción por costumbre (R-028).
 
 La primera medición dio **2656 ms de LCP para el usuario nuevo, sobre
 presupuesto**. La causa era nuestra: el splash de P0 esperaba 1400 ms fijos y
@@ -46,12 +54,14 @@ representativo porque el servidor corre en la misma máquina.
 
 ## Caminos documentados
 
-**Camino feliz (con fondos).** Splash → promesa → crear wallet → depositar →
-feed → detalle → lado → monto → operar → portafolio.
+**Camino feliz (puntos).** Splash → promesa, con la unidad declarada → feed →
+detalle → lado → monto → se ve el pago → apostar → portafolio.
 
-**Camino sin fondos (explore-before-fund).** Splash → promesa → crear wallet →
-`Explorar mercados` → feed → detalle completo → intento de operar → hoja de
-depósito en contexto. Nunca se pide dinero, documento ni frase semilla antes.
+**Sin puntos.** El CTA del detalle ofrece recargar en contexto y abre la hoja de
+puntos. Explorar el catálogo completo nunca cuesta nada.
+
+**Camino con dinero (cuando se habilite).** Splash → promesa → crear wallet →
+depositar → feed → … → portafolio. `Explorar mercados` en P3 lo salta entero.
 
 ## Qué es real y qué es simulado
 
@@ -61,7 +71,10 @@ depósito en contexto. Nunca se pide dinero, documento ni frase semilla antes.
 | Analítica y errores | **Real**, activo al configurar endpoint; sin él, memoria |
 | Web Vitals | **Real**, medido en dispositivo y en laboratorio |
 | Elegibilidad por país | **Real** en el dominio, con la puerta apagada mientras no se mueva dinero |
-| Wallet y depósito | **Simulado.** Requiere contrato con proveedor: es un bloqueante legal, no técnico |
+| Wallet y depósito | **Simulado**, y fuera del camino en modo puntos. Requiere contrato con proveedor: bloqueante legal, no técnico |
+| Motor de mercado | **Real.** Parimutuel propio, con pozo, comisión de 3 % y liquidación probada |
+| Catálogo de Latam | **Real.** 12 mercados de 6 países, cada uno con su fuente pública citada |
+| Puntos | **Real.** Bienvenida de 1,000, sin crédito, sin canje por dinero |
 
 ## Hallazgos que se volvieron regla
 
@@ -75,8 +88,19 @@ depósito en contexto. Nunca se pide dinero, documento ni frase semilla antes.
 | El splash fijo costaba 1060 ms de LCP | Importante | R-021 |
 | Un Edge negativo mostraba icono al alza | Importante | R-018 |
 | `onboarding_completed` podía marcarse sin llegar al feed | Importante | R-015 |
+| El portafolio mostraba un resultado no realizado que en parimutuel no existe y salía siempre en verde | Crítico | R-029 |
+| El mosaico de volumen filtraba un símbolo de dólar en modo puntos | Importante | R-026 |
+| "Cierra cerrado" en mercados vencidos, y HOT en todas las cards | Menor | — (corregido) |
 
-## §5 — Lo que falta y no puede resolverse desde el código
+## Pendiente número uno de producto
+
+**El Edge todavía no existe en los mercados de Latam puro.** Necesita una
+lectura independiente del pozo, y hoy sólo la hay para las preguntas que
+también cotizan en una casa global. Las opciones son un modelo propio de
+probabilidad o ampliar el catálogo con preguntas que tengan referencia externa.
+Ninguna se resuelve sin decidir cuál queremos.
+
+## §5 — Lo que falta para pasar a dinero real
 
 1. **Opinión legal por país.** `COMPLIANCE.md` §3 lista las preguntas concretas.
    Cada respuesta es una línea en `src/domain/eligibility.ts`. Sin esto no hay

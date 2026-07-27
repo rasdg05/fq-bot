@@ -10,7 +10,9 @@ import {
   type RecordedEvent,
 } from "@/adapters/analyticsAdapter";
 import { createMemoryErrorReporter } from "@/adapters/errorReporter";
+import { createOwnMarketsAdapter } from "@/adapters/ownMarkets/ownMarketsAdapter";
 import type { AppState } from "@/state/store";
+import { FLAGS, type MarketEngine } from "@/lib/flags";
 
 export interface Harness {
   events: RecordedEvent[];
@@ -23,13 +25,23 @@ export function renderApp(options: {
   overrides?: Partial<AppState>;
   marketDataAdapter?: MarketDataAdapter;
   walletAdapter?: WalletAdapter;
+  /**
+   * Motor bajo prueba. El default es `aggregated` porque las suites V1–V24 y
+   * de red-team cubren la superficie con dinero y wallet; el motor propio de
+   * puntos, que hoy es el default de producto, tiene su propia suite.
+   */
+  engine?: MarketEngine;
 } = {}) {
+  FLAGS.market_engine = options.engine ?? "aggregated";
+  const ownMarkets = FLAGS.market_engine !== "aggregated";
   const analytics = createMemoryAnalytics();
   const errors = createMemoryErrorReporter();
   const adapters = {
     marketData:
       options.marketDataAdapter ??
-      createMockMarketDataAdapter({ latencyMs: 0, ...options.marketData }),
+      (ownMarkets
+        ? createOwnMarketsAdapter()
+        : createMockMarketDataAdapter({ latencyMs: 0, ...options.marketData })),
     wallet:
       options.walletAdapter ??
       createMockWalletAdapter({ latencyMs: 0, ...options.wallet }),

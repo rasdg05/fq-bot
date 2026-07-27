@@ -1,7 +1,7 @@
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { S } from "@/lib/strings";
-import { usd } from "@/lib/format";
+import { formatStake } from "@/lib/units";
 import { useApp } from "@/state/store";
 
 /**
@@ -25,7 +25,7 @@ export function PostTradeSheet() {
           <p className="text-[15px] leading-relaxed text-text2">
             {S.postTrade.body(
               post.side === "si" ? S.market.yes : S.market.no,
-              usd(post.size),
+              formatStake(post.size),
               post.title,
             )}
           </p>

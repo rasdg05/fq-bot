@@ -35,12 +35,24 @@ export interface Market {
   mareaProbability?: number;
   /** El porqué de esa lectura, mostrable. Sin base no se muestra Edge (R-019). */
   mareaBasis?: string;
+  /**
+   * Cómo se llama la lectura frente a la que se compara el precio. En mercados
+   * propios la lectura viene de una casa global, no de un modelo nuestro, y
+   * llamarla "Marea" sería mentir (R-027).
+   */
+  edgeLabel?: string;
+  /** Etiqueta del precio propio en el detalle: "Mercado" o "Aquí". */
+  priceLabel?: string;
+  /** Estado del pozo, cuando el mercado es parimutuel propio. */
+  pool?: { si: number; no: number; feeBps: number };
   /** Dónde se completa la operación cuando la ejecución es agregada. */
   venue?: { id: string; label: string; url?: string };
   /** Marca de tracción para el badge HOT. */
   hot?: boolean;
   /** Región del mercado, para el badge LATAM. */
   region?: "latam" | "global";
+  /** País concreto. En un producto todo-Latam informa más que "LATAM". */
+  country?: string;
   closesAt?: string;
 }
 
@@ -55,10 +67,17 @@ export interface Position {
   size: number;
   /** Precio de entrada, 0..1. */
   entry_price: number;
-  /** Resultado no realizado en USD. */
+  /**
+   * Resultado realizado. En parimutuel se queda en cero hasta que el mercado
+   * resuelve: no hay marca a mercado porque no puedes salirte antes (R-029).
+   */
   pnl: number;
   status: PositionStatus;
   marketTitle?: string;
+  /** Lo que se cobra si el lado acierta, con el pozo de ahora. */
+  toWin?: number;
+  /** Cuánto paga cada unidad, con el pozo de ahora. */
+  multiplier?: number;
 }
 
 export interface Wallet {

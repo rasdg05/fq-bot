@@ -2,7 +2,7 @@ import * as React from "react";
 import { Card } from "@/components/ui/card";
 import { EmptyState, ErrorState, ListSkeleton } from "@/components/StateViews";
 import { S } from "@/lib/strings";
-import { usd } from "@/lib/format";
+import { formatStake } from "@/lib/units";
 import { useApp } from "@/state/store";
 import { cn } from "@/lib/cn";
 
@@ -97,26 +97,44 @@ function Section({
                 <p className="mt-0.5 text-[15px] font-bold text-text">
                   {position.side === "si" ? S.market.yes : S.market.no}
                   <span className="ml-2 font-mono text-[13px] font-medium text-text2 tabular-nums">
-                    {usd(position.size)}
+                    {formatStake(position.size)}
                   </span>
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-[12px] uppercase tracking-wide text-muted">
-                  {S.portfolio.pnl}
-                </p>
-                {/* el signo acompaña al color: el resultado se lee sin él (R-005) */}
-                <p
-                  className={cn(
-                    "mt-0.5 font-mono text-[15px] font-bold tabular-nums",
-                    position.pnl > 0 && "text-[color:var(--up)]",
-                    position.pnl < 0 && "text-[color:var(--dn)]",
-                    position.pnl === 0 && "text-text2",
-                  )}
-                >
-                  {position.pnl > 0 ? "+" : position.pnl < 0 ? "−" : ""}
-                  {usd(Math.abs(position.pnl))}
-                </p>
+                {position.toWin !== undefined ? (
+                  <>
+                    {/* en parimutuel lo honesto es el pago potencial, no un
+                        resultado que no existe hasta que resuelve (R-029) */}
+                    <p className="text-[12px] uppercase tracking-wide text-muted">
+                      {S.portfolio.toWin}
+                    </p>
+                    <p
+                      data-testid="position-towin"
+                      className="mt-0.5 font-mono text-[15px] font-bold tabular-nums text-text"
+                    >
+                      {formatStake(position.toWin)}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[12px] uppercase tracking-wide text-muted">
+                      {S.portfolio.pnl}
+                    </p>
+                    {/* el signo acompaña al color: se lee sin él (R-005) */}
+                    <p
+                      className={cn(
+                        "mt-0.5 font-mono text-[15px] font-bold tabular-nums",
+                        position.pnl > 0 && "text-[color:var(--up)]",
+                        position.pnl < 0 && "text-[color:var(--dn)]",
+                        position.pnl === 0 && "text-text2",
+                      )}
+                    >
+                      {position.pnl > 0 ? "+" : position.pnl < 0 ? "−" : ""}
+                      {formatStake(Math.abs(position.pnl))}
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           </Card>

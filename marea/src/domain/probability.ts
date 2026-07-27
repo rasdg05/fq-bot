@@ -33,6 +33,32 @@ export const noReadingProvider: MareaProbabilityProvider = {
 };
 
 /**
+ * Lectura por referencia externa: para un mercado propio, la casa global con
+ * liquidez profunda es una opinión independiente sobre la misma pregunta.
+ * La diferencia contra nuestro pozo es un Edge real y explicable — pero la
+ * lectura **no es nuestra**, y el copy tiene que decirlo (R-027).
+ */
+export function createReferenceProvider(
+  reference: Map<string, { probability: number; venue: string }>,
+  keyOf: (quotes: VenueMarket[]) => string | undefined,
+): MareaProbabilityProvider {
+  return {
+    id: "referencia-externa",
+    read(quotes) {
+      const key = keyOf(quotes);
+      if (!key) return null;
+      const hit = reference.get(key);
+      if (!hit) return null;
+      return {
+        probability: hit.probability,
+        basis: `Precio de la misma pregunta en ${hit.venue}.`,
+        sources: 1,
+      };
+    },
+  };
+}
+
+/**
  * Consenso entre casas, ponderado por liquidez.
  *
  * Cuando la misma pregunta cotiza en dos venues, el consenso ponderado es una

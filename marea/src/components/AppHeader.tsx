@@ -2,7 +2,8 @@ import { Wallet as WalletIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/state/store";
 import { S } from "@/lib/strings";
-import { usd } from "@/lib/format";
+import { formatStake } from "@/lib/units";
+import { isPointsMode } from "@/lib/flags";
 
 function Brandmark() {
   // espiral de marea: una sola idea gráfica, hereda el teal de los tokens
@@ -28,7 +29,10 @@ function Brandmark() {
 export function AppHeader() {
   const { state, actions } = useApp();
   const wallet = state.wallet;
-  const balance = wallet?.balance ?? 0;
+  // en modo puntos el saldo vive en el ledger, no en la wallet
+  const points = isPointsMode();
+  const balance = points ? state.points.balance : (wallet?.balance ?? 0);
+  const hasAccount = points || wallet !== null;
   const noFunds = balance <= 0;
 
   return (
@@ -50,7 +54,7 @@ export function AppHeader() {
               {S.header.balance}
             </div>
             <div className="font-mono text-[14px] font-semibold text-text tabular-nums">
-              {wallet ? usd(balance) : "—"}
+              {hasAccount ? formatStake(balance) : "—"}
             </div>
           </div>
           {noFunds ? (
@@ -61,7 +65,7 @@ export function AppHeader() {
               onClick={() => actions.openDeposit("header")}
             >
               <WalletIcon aria-hidden className="h-4 w-4" />
-              {S.header.deposit}
+              {points ? S.points.topUp : S.header.deposit}
             </Button>
           ) : null}
         </div>

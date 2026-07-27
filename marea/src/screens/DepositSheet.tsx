@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { S } from "@/lib/strings";
 import { FLAGS } from "@/lib/flags";
 import { canDeposit } from "@/domain/eligibility";
+import { isPointsMode } from "@/lib/flags";
+import { formatStake } from "@/lib/units";
 import { shortAddress } from "@/lib/format";
 import { useApp } from "@/state/store";
 import { cn } from "@/lib/cn";
@@ -63,6 +65,8 @@ function Option({
 export function DepositSheet() {
   const { state, actions } = useApp();
   const [done, setDone] = React.useState<"onramp" | "transfer" | null>(null);
+  const [toppedUp, setToppedUp] = React.useState<boolean | null>(null);
+  const points = isPointsMode();
 
   const onrampDisabled = FLAGS.deposit_provider !== "onramp";
   const providerDown =
@@ -86,11 +90,75 @@ export function DepositSheet() {
     (open: boolean) => {
       if (!open) {
         setDone(null);
+        setToppedUp(null);
         actions.closeDeposit();
       }
     },
     [actions],
   );
+
+  /**
+   * Modo puntos: no hay depósito que hacer. La hoja recarga y, sobre todo,
+   * declara que esto no es dinero — no en la letra chica, en el cuerpo (R-026).
+   */
+  if (points) {
+    return (
+      <Sheet
+        open={state.depositOpen}
+        onOpenChange={close}
+        title={S.points.topUp}
+        description={S.points.disclaimer}
+      >
+        <div data-testid="points-sheet" className="space-y-3 pb-2">
+          <div className="rounded-card border border-line2 bg-panel px-4 py-4">
+            <p className="text-[12px] uppercase tracking-wide text-muted">
+              {S.points.title}
+            </p>
+            <p className="mt-1 font-display text-prob font-semibold text-text tabular-nums">
+              {formatStake(state.points.balance)}
+            </p>
+          </div>
+
+          <div className="rounded-card border border-line2 bg-panel px-4 py-4">
+            <p className="text-[15px] font-semibold text-text">{S.points.why}</p>
+            <p className="mt-1.5 text-[13px] leading-relaxed text-text2">
+              {S.points.whyBody}
+            </p>
+          </div>
+
+          {toppedUp === false ? (
+            <p
+              data-testid="points-topup-unavailable"
+              role="status"
+              className="rounded-card border border-line bg-panel2 px-4 py-3 text-[13px] text-text2"
+            >
+              {S.points.topUpUnavailable}
+            </p>
+          ) : null}
+          {toppedUp === true ? (
+            <p
+              data-testid="points-topup-done"
+              role="status"
+              className="rounded-card border border-line bg-panel2 px-4 py-3 text-[13px] text-text2"
+            >
+              {S.points.topUpDone}
+            </p>
+          ) : null}
+
+          <Button
+            size="lg"
+            data-testid="points-topup"
+            onClick={() => setToppedUp(actions.topUpPoints())}
+          >
+            {S.points.topUp}
+          </Button>
+          <Button variant="ghost" size="lg" onClick={() => close(false)}>
+            {S.deposit.close}
+          </Button>
+        </div>
+      </Sheet>
+    );
+  }
 
   return (
     <Sheet

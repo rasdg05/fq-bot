@@ -48,3 +48,23 @@ Nunca callejón sin salida.
 
 Splash → promesa → wallet → `Explorar mercados` → feed → detalle → intento de
 operar → deposit sheet contextual. En ningún punto anterior se pide dinero.
+
+## Mercados propios (motor parimutuel)
+
+Orden de construcción: motor de pozo → contrato de resolución → ledger de
+puntos → catálogo → adapter → interfaz.
+
+**Publicar un mercado.** Se escribe la pregunta en español, cerrada (Sí/No), y
+se declara antes que nada: institución que publica el dato, URL pública,
+criterio en una frase, fecha de publicación y ventana de disputa. Sin eso el
+catálogo no carga.
+
+**Onboarding en modo puntos.** P0 splash → P1 promesa con la declaración de que
+son puntos → feed. Un tap. No hay wallet porque no hace falta (R-028).
+
+**Apostar.** Detalle → lado → monto → se muestra el pago con la apuesta ya
+incluida → apostar → confirmación con dos salidas.
+
+**Liquidar.** Cierra el mercado → se lee la fuente citada → ventana de disputa →
+se reparte el pozo perdedor entre los ganadores menos comisión. Si nadie
+acertó, se devuelve todo sin comisión.

@@ -244,6 +244,65 @@ check("C1", "una build con dinero real exige la puerta de elegibilidad activa", 
   return [];
 });
 
+/* ------------------------------- P1 -------------------------------------- */
+check("P1", "el motor de puntos no puede convertirse en dinero por descuido", () => {
+  const problems = [];
+  const points = read(join(SRC, "domain", "points.ts"));
+  const flags = read(join(SRC, "lib", "flags.ts"));
+
+  // el canje no existe como función: habilitarlo exige borrar código (R-026)
+  if (!/export function canCashOut\(\): false/.test(points)) {
+    problems.push("canCashOut ya no está clavado en false: el canje dejó de ser imposible");
+  }
+  if (!/no se prestan|insuficiente/.test(points)) {
+    problems.push("el ledger de puntos permite saldo negativo: eso es crédito");
+  }
+  // con dinero real hay que declarar el motor y la puerta de elegibilidad
+  if (/market_engine:\s*"parimutuel_money"/.test(flags) && !/eligibility_enforced:\s*true/.test(flags)) {
+    problems.push("el motor pasó a dinero sin encender la puerta de elegibilidad");
+  }
+
+  // ninguna pantalla arma montos a mano: todo pasa por la unidad vigente
+  const screens = code.filter((file) => /screens|components/.test(file));
+  for (const file of screens) {
+    const text = read(file);
+    // `compactUsd` y `usd` sólo son legítimos tras comprobar que NO hay pozo
+    for (const match of text.matchAll(/\b(compactUsd|usd)\(/g)) {
+      const line = text.slice(0, match.index).split("\n").length;
+      // se mira el bloque alrededor: el uso legítimo va tras comprobar el pozo
+      const context = text.split("\n").slice(Math.max(0, line - 6), line + 1).join(" ");
+      if (!/\bpool\b|isPointsMode|!points/.test(context)) {
+        problems.push(
+          `${rel(file)}:${line} usa ${match[1]}() sin comprobar la unidad vigente`,
+        );
+      }
+    }
+  }
+  return problems;
+});
+
+/* ------------------------------- P2 -------------------------------------- */
+check("P2", "ningún mercado propio se publica sin fuente verificable", () => {
+  const catalog = read(join(SRC, "adapters", "ownMarkets", "catalog.ts"));
+  const problems = [];
+  // la validación tiene que correr al cargar el módulo, no en producción
+  if (!/assertPublishable/.test(catalog)) {
+    problems.push("el catálogo no valida sus especificaciones de resolución");
+  }
+  const sources = [...catalog.matchAll(/sourceUrl:\s*"([^"]+)"/g)].map((m) => m[1]);
+  if (sources.length === 0) problems.push("el catálogo no cita ninguna fuente");
+  for (const url of sources) {
+    if (!/^https:\/\//.test(url)) problems.push(`fuente no pública: ${url}`);
+  }
+  const criteria = [...catalog.matchAll(/criterion:\s*\n?\s*"([^"]+)"/g)].map((m) => m[1]);
+  for (const criterion of criteria) {
+    if (/marea (decide|determina)/i.test(criterion)) {
+      problems.push(`criterio discrecional: "${criterion.slice(0, 40)}…"`);
+    }
+  }
+  return problems;
+});
+
 /* --------------------------- pruebas de comportamiento -------------------- */
 const run = spawnSync(
   "npx",

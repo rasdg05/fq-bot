@@ -8,10 +8,11 @@ import { ErrorState } from "@/components/StateViews";
 import { cn } from "@/lib/cn";
 import { S } from "@/lib/strings";
 import { FLAGS } from "@/lib/flags";
-import { compactUsd, pct, usd, closesIn } from "@/lib/format";
+import { compactUsd, pct, closesIn } from "@/lib/format";
 import { useApp } from "@/state/store";
-
-const AMOUNTS = [5, 10, 25, 50];
+import { formatStake, stakePresets } from "@/lib/units";
+import { isPointsMode } from "@/lib/flags";
+import { formatMultiplier, quote } from "@/domain/parimutuel";
 
 /**
  * Detalle de mercado. Una sola zona de decisión: lado → monto → operar, toda
@@ -21,15 +22,19 @@ const AMOUNTS = [5, 10, 25, 50];
  */
 export function MarketDetailScreen({ market }: { market: Market }) {
   const { state, actions } = useApp();
+  const AMOUNTS = React.useMemo(() => stakePresets(), []);
   const [side, setSide] = React.useState<"si" | "no">("si");
   const [amount, setAmount] = React.useState(AMOUNTS[1]);
 
-  const balance = state.wallet?.balance ?? 0;
+  const points = isPointsMode();
+  const balance = points ? state.points.balance : (state.wallet?.balance ?? 0);
   const needsFunds = balance < amount;
   const closed = market.status === "resolved";
   const closes = closesIn(market.closesAt);
   const showEdge = hasEdge(market) && market.edge !== null;
   const marketPct = pct(market.probability);
+  // cotización real del pozo, incluyendo la apuesta que está por hacerse (R-023)
+  const priced = market.pool ? quote(market.pool, side, amount) : null;
   const mareaPct =
     market.mareaProbability !== undefined ? pct(market.mareaProbability) : null;
 
@@ -56,8 +61,8 @@ export function MarketDetailScreen({ market }: { market: Market }) {
           {market.status === "closing_soon" ? (
             <Badge tone="hot">{S.badges.closingSoon}</Badge>
           ) : null}
-          {market.region === "latam" ? (
-            <Badge tone="latam">{S.badges.latam}</Badge>
+          {market.country || market.region === "latam" ? (
+            <Badge tone="latam">{market.country ?? S.badges.latam}</Badge>
           ) : null}
           <span className="text-[12px] font-medium text-muted">
             {S.categories[market.category]}
@@ -81,12 +86,15 @@ export function MarketDetailScreen({ market }: { market: Market }) {
               </span>
             </div>
             <div className="mt-1 text-[12px] font-medium uppercase tracking-wide text-muted">
-              {S.market.probability}
+              {market.pool ? S.market.hereLabel : S.market.probability}
             </div>
           </div>
           {showEdge ? (
             <Badge tone="edge" className="mb-3" data-testid="edge-badge-detail">
-              {S.market.edgeCard(formatEdgePp(market.edge as number))}
+              {S.market.edgeCardWith(
+                market.edgeLabel ?? S.market.mareaProbability,
+                formatEdgePp(market.edge as number),
+              )}
             </Badge>
           ) : null}
         </div>
@@ -98,14 +106,21 @@ export function MarketDetailScreen({ market }: { market: Market }) {
               data-testid="edge-detail-line"
               className="font-mono text-[14px] font-semibold text-text tabular-nums"
             >
-              {S.market.edgeDetail(
-                marketPct,
-                mareaPct,
-                formatEdgePp(market.edge as number),
-              )}
+              {market.edgeLabel
+                ? S.market.edgeDetailWith(
+                    marketPct,
+                    market.edgeLabel,
+                    mareaPct,
+                    formatEdgePp(market.edge as number),
+                  )
+                : S.market.edgeDetail(
+                    marketPct,
+                    mareaPct,
+                    formatEdgePp(market.edge as number),
+                  )}
             </p>
             <p className="mt-1.5 text-[13px] leading-relaxed text-text2">
-              {S.market.edgeExplainer}
+              {market.mareaBasis ?? S.market.edgeExplainer}
             </p>
           </div>
         ) : null}
@@ -113,10 +128,11 @@ export function MarketDetailScreen({ market }: { market: Market }) {
         <dl className="mt-4 grid grid-cols-2 gap-3">
           <div className="rounded-card border border-line2 bg-panel px-4 py-3">
             <dt className="text-[12px] uppercase tracking-wide text-muted">
-              {S.market.volume}
+              {/* en mercado propio no es volumen operado: es el pozo */}
+              {market.pool ? S.market.pot : S.market.volume}
             </dt>
             <dd className="mt-0.5 font-mono text-[15px] font-semibold text-text tabular-nums">
-              {compactUsd(market.volume)}
+              {market.pool ? formatStake(market.volume) : compactUsd(market.volume)}
             </dd>
           </div>
           <div className="rounded-card border border-line2 bg-panel px-4 py-3">
@@ -124,10 +140,28 @@ export function MarketDetailScreen({ market }: { market: Market }) {
               {S.market.closes}
             </dt>
             <dd className="mt-0.5 font-mono text-[15px] font-semibold text-text tabular-nums">
-              {closes ?? "—"}
+              {closes ?? S.badges.closed}
             </dd>
           </div>
         </dl>
+
+        {market.pool ? (
+          <section
+            data-testid="pool-breakdown"
+            className="mt-4 rounded-card border border-line2 bg-panel px-4 py-3"
+          >
+            <h2 className="text-[12px] font-bold uppercase tracking-wide text-muted">
+              {S.market.poolTitle}
+            </h2>
+            <p className="mt-1.5 text-[14px] leading-relaxed text-text2">
+              {S.market.poolBody(
+                formatStake(market.pool.si),
+                formatStake(market.pool.no),
+                `${(market.pool.feeBps / 100).toFixed(0)}%`,
+              )}
+            </p>
+          </section>
+        ) : null}
 
         {/* el criterio de resolución va ANTES del CTA de operar (R-013) */}
         <section
@@ -189,7 +223,7 @@ export function MarketDetailScreen({ market }: { market: Market }) {
                     : "border-line2 font-medium text-text2",
                 )}
               >
-                {usd(value)}
+                {formatStake(value)}
               </button>
             ))}
           </div>
@@ -212,7 +246,7 @@ export function MarketDetailScreen({ market }: { market: Market }) {
               data-testid="detail-deposit-cta"
               onClick={() => actions.openDeposit("market_detail")}
             >
-              {S.header.deposit}
+              {points ? S.points.topUp : S.header.deposit}
             </Button>
           ) : (
             <Button
@@ -223,13 +257,32 @@ export function MarketDetailScreen({ market }: { market: Market }) {
               loadingLabel={S.market.tradePreparing}
               onClick={() => void actions.submitTrade(market, side, amount)}
             >
-              {S.market.tradeCta} {usd(amount)}
+              {market.pool ? S.market.betCta : S.market.tradeCta} {formatStake(amount)}
             </Button>
           )}
-          <p className="mt-3 text-center text-[12px] leading-relaxed text-muted">
+          {priced && !closed ? (
+            <p
+              data-testid="payout-hint"
+              className="mt-3 text-center text-[13px] font-semibold text-text"
+            >
+              {S.market.payoutHint(
+                formatMultiplier(priced.multiplier),
+                formatStake(priced.toWin),
+              )}
+            </p>
+          ) : null}
+          <p className="mt-2 text-center text-[12px] leading-relaxed text-muted">
             {closed ? S.market.tradeDisabledReason : S.market.maxLoss}
           </p>
-          {FLAGS.trade_execution_mode === "aggregated" ? (
+          {points ? (
+            <p
+              data-testid="points-disclaimer"
+              className="mt-2 text-center text-[12px] leading-relaxed text-muted"
+            >
+              {S.points.disclaimer}
+            </p>
+          ) : null}
+          {!market.pool && FLAGS.trade_execution_mode === "aggregated" ? (
             <p
               data-testid="aggregation-notice"
               className="mt-2 text-center text-[12px] leading-relaxed text-muted"
