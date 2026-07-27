@@ -1,0 +1,113 @@
+{
+  "generatedAt": "2026-07-27T23:58:29.408Z",
+  "seeds": [
+    {
+      "id": "btc-cierre-2026-08-02",
+      "title": "¿Bitcoin cierra la semana arriba de 64,000 dólares?",
+      "category": "cripto",
+      "country": "LATAM",
+      "closesAt": "2026-08-01T23:59:00.000Z",
+      "pool": {
+        "si": 500,
+        "no": 500,
+        "feeBps": 300
+      },
+      "referenceKey": "bitcoin above 64000",
+      "rule": {
+        "kind": "precio",
+        "par": "BTC/USD",
+        "umbral": 64000,
+        "comparacion": "arriba",
+        "modo": "cierre"
+      },
+      "resolution": {
+        "sourceName": "Kraken (velas diarias públicas)",
+        "sourceUrl": "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=1440",
+        "criterion": "Se resuelve Sí si la vela diaria de BTC/USD en Kraken correspondiente al domingo 2026-08-02 cierra por encima de 64,000 dólares. Se lee del endpoint público de Kraken, que cualquiera puede consultar.",
+        "settlesAt": "2026-08-02T23:59:00.000Z",
+        "disputeWindowHours": 12
+      }
+    },
+    {
+      "id": "btc-toca-2026-07-27",
+      "title": "¿Bitcoin toca 69,000 dólares en 30 días?",
+      "category": "cripto",
+      "country": "LATAM",
+      "closesAt": "2026-08-25T23:48:25.524Z",
+      "pool": {
+        "si": 300,
+        "no": 600,
+        "feeBps": 300
+      },
+      "rule": {
+        "kind": "precio",
+        "par": "BTC/USD",
+        "umbral": 69000,
+        "comparacion": "arriba",
+        "modo": "toca",
+        "desde": "2026-07-27T23:48:25.524Z"
+      },
+      "resolution": {
+        "sourceName": "Kraken (velas diarias públicas)",
+        "sourceUrl": "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=1440",
+        "criterion": "Se resuelve Sí si el precio de BTC/USD en Kraken alcanza o supera 69,000 dólares en cualquier momento entre el 2026-07-27 y el 2026-08-26, medido sobre el máximo de las velas diarias públicas.",
+        "settlesAt": "2026-08-26T23:48:25.524Z",
+        "disputeWindowHours": 12
+      }
+    },
+    {
+      "id": "eth-cierre-2026-08-02",
+      "title": "¿Ethereum cierra la semana arriba de 1,900 dólares?",
+      "category": "cripto",
+      "country": "LATAM",
+      "closesAt": "2026-08-01T23:59:00.000Z",
+      "pool": {
+        "si": 500,
+        "no": 500,
+        "feeBps": 300
+      },
+      "referenceKey": "ethereum above 1900",
+      "rule": {
+        "kind": "precio",
+        "par": "ETH/USD",
+        "umbral": 1900,
+        "comparacion": "arriba",
+        "modo": "cierre"
+      },
+      "resolution": {
+        "sourceName": "Kraken (velas diarias públicas)",
+        "sourceUrl": "https://api.kraken.com/0/public/OHLC?pair=ETHUSD&interval=1440",
+        "criterion": "Se resuelve Sí si la vela diaria de ETH/USD en Kraken correspondiente al domingo 2026-08-02 cierra por encima de 1,900 dólares. Se lee del endpoint público de Kraken, que cualquiera puede consultar.",
+        "settlesAt": "2026-08-02T23:59:00.000Z",
+        "disputeWindowHours": 12
+      }
+    },
+    {
+      "id": "eth-toca-2026-07-27",
+      "title": "¿Ethereum toca 2,000 dólares en 30 días?",
+      "category": "cripto",
+      "country": "LATAM",
+      "closesAt": "2026-08-25T23:48:25.524Z",
+      "pool": {
+        "si": 300,
+        "no": 600,
+        "feeBps": 300
+      },
+      "rule": {
+        "kind": "precio",
+        "par": "ETH/USD",
+        "umbral": 2000,
+        "comparacion": "arriba",
+        "modo": "toca",
+        "desde": "2026-07-27T23:48:25.524Z"
+      },
+      "resolution": {
+        "sourceName": "Kraken (velas diarias públicas)",
+        "sourceUrl": "https://api.kraken.com/0/public/OHLC?pair=ETHUSD&interval=1440",
+        "criterion": "Se resuelve Sí si el precio de ETH/USD en Kraken alcanza o supera 2,000 dólares en cualquier momento entre el 2026-07-27 y el 2026-08-26, medido sobre el máximo de las velas diarias públicas.",
+        "settlesAt": "2026-08-26T23:48:25.524Z",
+        "disputeWindowHours": 12
+      }
+    }
+  ]
+}
