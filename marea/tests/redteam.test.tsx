@@ -3,12 +3,12 @@ import { screen, waitFor, within } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { renderApp, READY_NO_FUNDS, READY_WITH_FUNDS } from "./helpers";
 import { S } from "@/lib/strings";
-import { SPLASH_MS } from "@/screens/OnboardingFlow";
+import { SPLASH_MAX_MS } from "@/screens/OnboardingFlow";
 import { MOCK_MARKETS } from "@/adapters/mock/markets";
 import { appError } from "@/domain/errors";
 
 const waitForP1 = () =>
-  screen.findByTestId("onboarding-start", {}, { timeout: SPLASH_MS + 2000 });
+  screen.findByTestId("onboarding-start", {}, { timeout: SPLASH_MAX_MS + 2000 });
 
 /**
  * RED-TEAM UX. Diez escenarios adversarios. Cualquiera en rojo bloquea el

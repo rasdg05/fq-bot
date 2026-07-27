@@ -9,7 +9,11 @@
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
-    "validate": "node scripts/validate.mjs"
+    "validate": "node scripts/validate.mjs",
+    "perf": "node scripts/perf.mjs",
+    "shots": "node scripts/shots.mjs",
+    "probe:live": "tsx scripts/live-probe.mts",
+    "probe:supply": "tsx scripts/supply-probe.mts"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.1",

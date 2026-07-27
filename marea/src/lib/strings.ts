@@ -40,6 +40,7 @@ export const S = {
     deportes: "Deportes",
     politica: "Política",
     cultura: "Cultura",
+    otros: "Otros",
   },
 
   badges: {
@@ -60,6 +61,8 @@ export const S = {
     /** Detalle: "Mercado 62% · Marea 69% · Edge +7%" */
     edgeDetail: (market: string, marea: string, edge: string) =>
       `Mercado ${market}% · Marea ${marea}% · Edge ${edge}%`,
+    edgeBasis: "Base de la lectura",
+    venueNotice: (venue: string) => `Este mercado vive en ${venue}.`,
     edgeExplainer:
       "Edge es la diferencia entre la probabilidad del mercado y la nuestra. Solo la mostramos cuando pasa de 4 puntos.",
     volume: "Volumen",
@@ -110,6 +113,8 @@ export const S = {
       "Te vamos a llevar con nuestro proveedor de pago para comprar USDC.",
     startedTransfer: "Envía USDC a tu dirección de Marea en la red Polygon.",
     minNote: "Sin monto mínimo. Empieza con lo que quieras.",
+    blockedTitle: "Todavía no abrimos depósitos donde estás",
+    keepExploring: "Seguir explorando",
   },
 
   portfolio: {

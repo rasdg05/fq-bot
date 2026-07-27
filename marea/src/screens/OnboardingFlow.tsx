@@ -4,7 +4,16 @@ import { ErrorState } from "@/components/StateViews";
 import { S } from "@/lib/strings";
 import { useApp } from "@/state/store";
 
-export const SPLASH_MS = 1400;
+/**
+ * P0 tiene un techo, no una duración fija. Un splash existe para tapar trabajo
+ * real; si la app ya está lista, esperar es tiempo muerto que se paga en LCP.
+ * Avanzamos en cuanto el shell pintó, con un mínimo para que no dé un flashazo,
+ * y nunca más allá del techo (R-021).
+ */
+export const SPLASH_MAX_MS = 1500;
+export const SPLASH_MIN_MS = 350;
+/** Compatibilidad con el presupuesto declarado: el techo es lo que se valida. */
+export const SPLASH_MS = SPLASH_MAX_MS;
 
 /**
  * Onboarding value-first, P0–P4. Cinco pasos, ninguno bloqueante, sin KYC y sin
@@ -15,11 +24,22 @@ export function OnboardingFlow() {
   const { state, actions } = useApp();
   const step = state.onboardingStep;
 
-  // P0 — splash breve y auto-avance: nada que tocar
+  // P0 — avanza en cuanto pintó el primer frame, con mínimo y techo
   React.useEffect(() => {
     if (step !== "p0") return;
-    const timer = setTimeout(() => actions.goToOnboardingStep("p1"), SPLASH_MS);
-    return () => clearTimeout(timer);
+    const advance = () => actions.goToOnboardingStep("p1");
+    const ceiling = setTimeout(advance, SPLASH_MAX_MS);
+    const floor = setTimeout(() => {
+      // tras el primer frame ya no hay nada que tapar: seguimos
+      requestAnimationFrame(() => {
+        clearTimeout(ceiling);
+        advance();
+      });
+    }, SPLASH_MIN_MS);
+    return () => {
+      clearTimeout(ceiling);
+      clearTimeout(floor);
+    };
   }, [step, actions]);
 
   // P2 → P3 en cuanto la wallet existe

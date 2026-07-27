@@ -13,6 +13,7 @@ const CATEGORIES: MarketCategory[] = [
   "deportes",
   "politica",
   "cultura",
+  "otros",
 ];
 
 function normalize(value: string): string {

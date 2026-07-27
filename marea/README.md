@@ -6,29 +6,49 @@ supera 4 puntos porcentuales.
 
 ```bash
 npm install
-npm run dev        # desarrollo
-npm run build      # build de producción
-npm run test       # pruebas
-npm run validate   # VALIDATION_REPORT (V1–V24 + red-team)
+npm run dev          # desarrollo
+npm run build        # build de producción
+npm run test         # pruebas
+npm run validate     # VALIDATION_REPORT (V1–V24 + red-team + S1/T1/C1)
+npm run perf         # medición de rendimiento en laboratorio (necesita `vite preview`)
+npm run probe:live   # sonda contra las APIs reales de los venues
+npm run probe:supply # mide la oferta real de mercados relevantes
 ```
 
 ## Cómo está armado
 
 ```
 src/
-  domain/      contratos y reglas: Market, Position, Wallet, AppError, regla de Edge
-  adapters/    marketData · wallet · analytics · errorReporter (mock intercambiable)
+  domain/      contratos y reglas: Edge, errores, probabilidad propia, elegibilidad
+  adapters/    puertos + implementaciones: mock, agregación real, sinks HTTP
+    venues/    Polymarket y Kalshi normalizados a un contrato común
   state/       store único (reducer + acciones) con adapters inyectables
   components/  primitivas de UI y piezas compartidas
   screens/     una pantalla por destino + hojas (depósito, post-operación)
   styles/      tokens.css — la única fuente de color y tipografía
   lib/         strings (todo el copy), flags, formato
-vault/         PRODUCT · VOICE · PLAYBOOKS · RULINGS · tokens.lock.json
-scripts/       validate.mjs (suite V) · shots.mjs (capturas móviles)
+vault/         PRODUCT · VOICE · PLAYBOOKS · RULINGS · COMPLIANCE · DATA_SOURCES · HANDOFF
+scripts/       validate.mjs · perf.mjs · shots.mjs · sondas de red
 ```
 
 Reglas estructurales: UI ≠ datos ≠ wallet ≠ analítica ≠ errores. Las pantallas
 sólo hablan con el store; el store sólo habla con los adapters.
+
+## Configuración
+
+Todo entra por variables `VITE_*` (ver `.env.example`). Lo que no está
+configurado degrada a su camino simulado y la app lo declara — nunca finge
+haber hablado con un proveedor (R-022).
+
+| Variable | Efecto |
+|---|---|
+| `VITE_DATA_SOURCE=aggregated` | Mercados reales de Polymarket + Kalshi |
+| `VITE_ANALYTICS_ENDPOINT` | Enciende el sink real de analítica |
+| `VITE_ERROR_ENDPOINT` | Enciende el reporter real de errores |
+| `VITE_KALSHI_SERIES` | Series curadas; sin ellas Kalshi devuelve combinadas sin liquidez |
+
+Antes de conectar la fuente real, lee `vault/DATA_SOURCES.md`: está medido que
+la agregación sola deja el feed en inglés y sin Edge.
 
 ## Qué es real y qué es simulado
 
@@ -56,6 +76,11 @@ El contraste de todos los pares texto/superficie se calcula en
 
 `scripts/shots.mjs` levanta la build en un viewport de 390×844 y captura el
 camino completo, verificando que `scrollWidth === innerWidth` en cada pantalla.
+
+`npm run perf` mide LCP, INP, CLS y TTFB con CPU 4× más lenta y 4G lenta, en
+los dos recorridos que importan —usuario nuevo y recurrente—, y falla si algún
+presupuesto se rompe. Es medición de laboratorio: detecta regresiones, no
+sustituye datos de campo.
 
 ## Vault
 

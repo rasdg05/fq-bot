@@ -172,6 +172,78 @@ check("V24", "cero drift del design system entre fases", () => {
   return problems;
 });
 
+/* ------------------------------- S1 -------------------------------------- */
+check("S1", "ningún secreto ni credencial incrustada en el código", () => {
+  const problems = [];
+  const patterns = [
+    /\bsk[-_](?:live|test|prod)[-_][A-Za-z0-9]{8,}/,
+    /\bBearer\s+[A-Za-z0-9._-]{20,}/,
+    /\b(?:api[_-]?key|secret|password|token)\s*[:=]\s*["'][^"'$\s]{16,}["']/i,
+    /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
+  ];
+  for (const file of code) {
+    const text = read(file);
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match) problems.push(`${rel(file)} parece llevar un secreto: "${match[0].slice(0, 24)}…"`);
+    }
+  }
+  // toda integración entra por configuración de entorno, nunca por literal
+  const config = read(join(SRC, "lib", "config.ts"));
+  if (!/VITE_/.test(config)) problems.push("config.ts no lee variables de entorno");
+  return problems;
+});
+
+/* ------------------------------- T1 -------------------------------------- */
+check("T1", "la telemetría no puede sacar datos sensibles del dispositivo", () => {
+  const problems = [];
+  const analytics = read(join(SRC, "adapters", "analytics", "httpAnalytics.ts"));
+  const reporter = read(join(SRC, "adapters", "errors", "httpErrorReporter.ts"));
+
+  const listOf = (text, name) => {
+    const start = text.indexOf(name);
+    if (start === -1) return null;
+    const open = text.indexOf("[", start);
+    const close = text.indexOf("]", open);
+    return text.slice(open + 1, close);
+  };
+
+  const allowed = listOf(analytics, "ALLOWED_PROPS");
+  const context = listOf(reporter, "CONTEXT_ALLOWED");
+  if (!allowed || !context) return ["falta la lista blanca de propiedades"];
+
+  // ninguna de estas puede estar permitida, ni por descuido futuro (R-020)
+  const forbidden = ["address", "email", "phone", "telefono", "size", "amount", "balance", "query", "title", "user_message"];
+  for (const [name, list] of [["analítica", allowed], ["errores", context]]) {
+    for (const key of forbidden) {
+      if (new RegExp(`["']${key}["']`).test(list)) {
+        problems.push(`la lista blanca de ${name} permite "${key}"`);
+      }
+    }
+  }
+  // el reporter nunca manda el mensaje que ve el usuario
+  if (/user_message_es/.test(reporter)) {
+    problems.push("el reporter de errores envía el mensaje del usuario");
+  }
+  return problems;
+});
+
+/* ------------------------------- C1 -------------------------------------- */
+check("C1", "una build con dinero real exige la puerta de elegibilidad activa", () => {
+  const flags = read(join(SRC, "lib", "flags.ts"));
+  const mock = /mock_data:\s*true/.test(flags);
+  const enforced = /eligibility_enforced:\s*true/.test(flags);
+  // con datos simulados no se mueve dinero y la puerta puede estar abierta;
+  // en cuanto deja de ser simulado, encenderla es obligatorio (COMPLIANCE §4)
+  if (!mock && !enforced) {
+    return [
+      "la build ya no es simulada pero `eligibility_enforced` sigue apagado: " +
+        "no se puede recibir dinero sin la tabla de países activa",
+    ];
+  }
+  return [];
+});
+
 /* --------------------------- pruebas de comportamiento -------------------- */
 const run = spawnSync(
   "npx",

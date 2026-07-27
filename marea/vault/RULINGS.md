@@ -46,3 +46,15 @@ Se agrega una línea cuando un hallazgo de audit es recurrente o de producto.
 - **R-018** — Todo indicador con dirección (icono de Edge, flechas de resultado)
   sigue el signo del dato: un Edge negativo nunca apunta hacia arriba.
   (audit_cycle F2-A2, visual)
+
+<!-- ciclo de integraciones reales -->
+- **R-019** — El Edge nunca se muestra sin una base declarada (`mareaBasis`):
+  si no hay lectura propia auditable, no hay Edge. Una sola casa no produce
+  consenso: comparar un precio consigo mismo daría cero. (integraciones)
+- **R-020** — La telemetría sale por lista blanca, nunca por lista negra:
+  direcciones, montos, saldos, texto del usuario y el mensaje de error que ve
+  el usuario no salen del dispositivo. (integraciones)
+- **R-021** — Un splash tapa trabajo real; nunca fabrica espera. P0 tiene
+  techo, no duración fija, y avanza en cuanto el shell pintó. (perf)
+- **R-022** — Ninguna integración sin credenciales finge hablar con un
+  proveedor: degrada a su camino simulado y lo declara. (integraciones)

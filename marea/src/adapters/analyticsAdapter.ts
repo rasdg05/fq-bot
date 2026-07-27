@@ -15,7 +15,9 @@ export type AnalyticsEvent =
   | "deposit_method_selected"
   | "view_portfolio"
   | "trade_confirmed"
-  | "explore_without_funds";
+  | "explore_without_funds"
+  | "web_vital"
+  | "eligibility_blocked";
 
 export interface AnalyticsAdapter {
   track(event: AnalyticsEvent, props?: Record<string, unknown>): void;

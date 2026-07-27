@@ -10,7 +10,9 @@ export type MarketCategory =
   | "economia"
   | "deportes"
   | "politica"
-  | "cultura";
+  | "cultura"
+  /** Sin señal clara para clasificar. Preferimos decirlo a inventar categoría. */
+  | "otros";
 
 export interface Market {
   id: string;
@@ -31,6 +33,10 @@ export interface Market {
   resolution_summary: string;
   /** Probabilidad estimada por Marea, 0..1. Ausente => no hay lectura propia. */
   mareaProbability?: number;
+  /** El porqué de esa lectura, mostrable. Sin base no se muestra Edge (R-019). */
+  mareaBasis?: string;
+  /** Dónde se completa la operación cuando la ejecución es agregada. */
+  venue?: { id: string; label: string; url?: string };
   /** Marca de tracción para el badge HOT. */
   hot?: boolean;
   /** Región del mercado, para el badge LATAM. */

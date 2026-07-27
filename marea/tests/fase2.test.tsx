@@ -3,12 +3,12 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { renderApp, READY_NO_FUNDS, READY_WITH_FUNDS } from "./helpers";
 import { S } from "@/lib/strings";
-import { SPLASH_MS } from "@/screens/OnboardingFlow";
+import { SPLASH_MAX_MS, SPLASH_MIN_MS } from "@/screens/OnboardingFlow";
 import { createMockWalletAdapter } from "@/adapters/walletAdapter";
 
 /** P0 se auto-avanza: esperamos al CTA de P1 con margen sobre el splash. */
 const waitForP1 = () =>
-  screen.findByTestId("onboarding-start", {}, { timeout: SPLASH_MS + 2000 });
+  screen.findByTestId("onboarding-start", {}, { timeout: SPLASH_MAX_MS + 2000 });
 
 /** Camino feliz completo del onboarding, sin depositar. */
 async function walkOnboarding(user: ReturnType<typeof userEvent.setup>) {
@@ -39,7 +39,7 @@ describe("Fase 2 — activación", () => {
     // 3 taps + 3 lecturas: presupuesto humano generoso por paso
     const TAPS = 3;
     const HUMAN_MS_PER_STEP = 12_000;
-    const budget = SPLASH_MS + TAPS * HUMAN_MS_PER_STEP + machine;
+    const budget = SPLASH_MAX_MS + TAPS * HUMAN_MS_PER_STEP + machine;
     expect(budget).toBeLessThan(75_000);
     // y ningún paso extra escondido: exactamente 3 decisiones hasta el feed
     expect(TAPS).toBeLessThanOrEqual(3);
@@ -216,16 +216,18 @@ describe("Fase 2 — activación", () => {
     expect(app.eventNames()).not.toContain("onboarding_completed");
   });
 
-  it("P0 dura menos de 1.5 s", async () => {
+  it("P0 tiene techo de 1.5 s y avanza en cuanto el shell pintó", async () => {
     vi.useFakeTimers();
     try {
       renderApp();
       expect(screen.getByTestId("onboarding")).toHaveAttribute("data-step", "p0");
-      expect(SPLASH_MS).toBeLessThanOrEqual(1500);
+      expect(SPLASH_MAX_MS).toBeLessThanOrEqual(1500);
+      // no espera el techo: con el mínimo cumplido ya sigue
       await act(async () => {
-        vi.advanceTimersByTime(SPLASH_MS + 10);
+        vi.advanceTimersByTime(SPLASH_MIN_MS + 40);
       });
       expect(screen.getByTestId("onboarding")).toHaveAttribute("data-step", "p1");
+      expect(SPLASH_MIN_MS).toBeLessThan(SPLASH_MAX_MS);
     } finally {
       vi.useRealTimers();
     }

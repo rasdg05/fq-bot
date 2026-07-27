@@ -6,6 +6,7 @@ import { ErrorState } from "@/components/StateViews";
 import { Button } from "@/components/ui/button";
 import { S } from "@/lib/strings";
 import { FLAGS } from "@/lib/flags";
+import { canDeposit } from "@/domain/eligibility";
 import { shortAddress } from "@/lib/format";
 import { useApp } from "@/state/store";
 import { cn } from "@/lib/cn";
@@ -67,6 +68,12 @@ export function DepositSheet() {
   const providerDown =
     state.depositError?.code === "E_DEPOSIT_PROVIDER_UNAVAILABLE";
 
+  // la elegibilidad limita depositar, nunca explorar (R-002)
+  const gate = FLAGS.eligibility_enforced
+    ? canDeposit(state.country, 0, { depositedUsd: 0 })
+    : ({ allowed: true, remainingUsd: Infinity } as const);
+  const blocked = gate.allowed === false;
+
   const handle = React.useCallback(
     async (kind: "onramp" | "transfer") => {
       const ok = await actions.startDeposit(kind);
@@ -93,7 +100,31 @@ export function DepositSheet() {
       description={S.deposit.subtitle}
     >
       <div data-testid="deposit-sheet" className="space-y-3 pb-2">
-        {state.depositError ? (
+        {blocked ? (
+          <div
+            data-testid="deposit-blocked"
+            role="status"
+            className="rounded-card border border-line bg-panel2 px-4 py-4"
+          >
+            <p className="text-[15px] font-semibold text-text">
+              {S.deposit.blockedTitle}
+            </p>
+            <p className="mt-1.5 text-[13px] leading-relaxed text-text2">
+              {gate.allowed === false ? gate.message : ""}
+            </p>
+            <Button
+              size="lg"
+              variant="secondary"
+              className="mt-4"
+              data-testid="deposit-blocked-explore"
+              onClick={() => close(false)}
+            >
+              {S.deposit.keepExploring}
+            </Button>
+          </div>
+        ) : null}
+
+        {!blocked && state.depositError ? (
           <div className="-mx-4">
             <ErrorState
               error={state.depositError}
@@ -105,6 +136,7 @@ export function DepositSheet() {
           </div>
         ) : null}
 
+        {blocked ? null : (
         <Option
           testId="deposit-onramp"
           icon={CreditCard}
@@ -118,7 +150,9 @@ export function DepositSheet() {
           loading={state.depositBusy}
           onClick={() => void handle("onramp")}
         />
+        )}
 
+        {blocked ? null : (
         <Option
           testId="deposit-transfer"
           icon={ArrowDownToLine}
@@ -131,10 +165,13 @@ export function DepositSheet() {
           loading={state.depositBusy}
           onClick={() => void handle("transfer")}
         />
+        )}
 
+        {blocked ? null : (
         <p className="px-1 pt-1 text-[12px] leading-relaxed text-muted">
           {S.deposit.minNote}
         </p>
+        )}
 
         {done ? (
           <p
@@ -147,9 +184,11 @@ export function DepositSheet() {
           </p>
         ) : null}
 
-        <Button variant="ghost" size="lg" onClick={() => close(false)}>
-          {S.deposit.close}
-        </Button>
+        {blocked ? null : (
+          <Button variant="ghost" size="lg" onClick={() => close(false)}>
+            {S.deposit.close}
+          </Button>
+        )}
       </div>
     </Sheet>
   );

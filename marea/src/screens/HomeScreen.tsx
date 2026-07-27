@@ -13,6 +13,7 @@ const CATEGORIES: MarketCategory[] = [
   "deportes",
   "politica",
   "cultura",
+  "otros",
 ];
 
 function isHot(market: Market): boolean {

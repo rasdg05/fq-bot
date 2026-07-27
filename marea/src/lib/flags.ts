@@ -14,6 +14,12 @@ export interface Flags {
   trade_execution_mode: TradeExecutionMode;
   /** Envío de errores a un servicio externo. */
   error_reporting: boolean;
+  /**
+   * Aplica la tabla de elegibilidad por país antes de depositar u operar.
+   * Apagado en la build simulada (no se mueve dinero); encenderlo es requisito
+   * para cualquier build con dinero real (ver vault/COMPLIANCE.md).
+   */
+  eligibility_enforced: boolean;
 }
 
 export const FLAGS: Flags = {
@@ -21,6 +27,7 @@ export const FLAGS: Flags = {
   deposit_provider: "onramp",
   trade_execution_mode: "aggregated",
   error_reporting: false,
+  eligibility_enforced: false,
 };
 
 /** Override para pruebas y para simular caídas de proveedor. */

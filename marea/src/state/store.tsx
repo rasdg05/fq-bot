@@ -1,5 +1,6 @@
 import * as React from "react";
 import type { AppError, Market, Position, Wallet } from "@/domain/types";
+import type { CountryCode } from "@/domain/eligibility";
 import { toAppError } from "@/domain/errors";
 import {
   marketDataAdapter,
@@ -42,6 +43,8 @@ export interface AppState {
   tradeBusy: boolean;
   tradeError: AppError | null;
   postTrade: { side: "si" | "no"; size: number; title: string } | null;
+  /** País declarado o inferido: define elegibilidad para depositar y operar. */
+  country?: CountryCode;
 }
 
 type Action =
