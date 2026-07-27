@@ -1,0 +1,215 @@
+{
+ "fecha": "2026-07-27",
+ "tomadoEn": "2026-07-27T20:33:17.582Z",
+ "fuente": "Deribit — get_book_summary_by_currency (kind=option), mark_iv",
+ "monedas": {
+  "BTC": {
+   "subyacente": 65166.69,
+   "vencimientos": [
+    {
+     "expiry": "28JUL26",
+     "dias": 0,
+     "atm": 0.2623,
+     "abajo10": 0.6149,
+     "arriba10": 0.4864,
+     "interesAbierto": 2717,
+     "n": 23
+    },
+    {
+     "expiry": "29JUL26",
+     "dias": 1,
+     "atm": 0.3014,
+     "abajo10": 0.5734,
+     "arriba10": 0.4317,
+     "interesAbierto": 1544,
+     "n": 21
+    },
+    {
+     "expiry": "30JUL26",
+     "dias": 2,
+     "atm": 0.3573,
+     "abajo10": 0.5329,
+     "arriba10": 0.4326,
+     "interesAbierto": 968,
+     "n": 22
+    },
+    {
+     "expiry": "31JUL26",
+     "dias": 3,
+     "atm": 0.3625,
+     "abajo10": 0.5161,
+     "arriba10": 0.4505,
+     "interesAbierto": 148636,
+     "n": 63
+    },
+    {
+     "expiry": "7AUG26",
+     "dias": 10,
+     "atm": 0.343,
+     "abajo10": 0.4243,
+     "arriba10": 0.3626,
+     "interesAbierto": 23335,
+     "n": 19
+    },
+    {
+     "expiry": "14AUG26",
+     "dias": 17,
+     "atm": 0.3453,
+     "abajo10": 0.4127,
+     "arriba10": 0.3465,
+     "interesAbierto": 3476,
+     "n": 15
+    },
+    {
+     "expiry": "28AUG26",
+     "dias": 31,
+     "atm": 0.3473,
+     "abajo10": 0.3986,
+     "arriba10": 0.3363,
+     "interesAbierto": 43901,
+     "n": 49
+    },
+    {
+     "expiry": "25SEP26",
+     "dias": 59,
+     "atm": 0.3639,
+     "abajo10": 0.4015,
+     "arriba10": 0.3501,
+     "interesAbierto": 94780,
+     "n": 60
+    },
+    {
+     "expiry": "25DEC26",
+     "dias": 150,
+     "atm": 0.4062,
+     "abajo10": 0.4273,
+     "arriba10": 0.3949,
+     "interesAbierto": 92527,
+     "n": 58
+    },
+    {
+     "expiry": "26MAR27",
+     "dias": 241,
+     "atm": 0.4223,
+     "abajo10": 0.4383,
+     "arriba10": 0.412,
+     "interesAbierto": 24051,
+     "n": 51
+    },
+    {
+     "expiry": "25JUN27",
+     "dias": 332,
+     "atm": 0.4326,
+     "abajo10": 0.4462,
+     "arriba10": 0.4233,
+     "interesAbierto": 4293,
+     "n": 37
+    }
+   ]
+  },
+  "ETH": {
+   "subyacente": 1945.04,
+   "vencimientos": [
+    {
+     "expiry": "28JUL26",
+     "dias": 0,
+     "atm": 0.3785,
+     "abajo10": 0.8663,
+     "arriba10": 0.7441,
+     "interesAbierto": 21202,
+     "n": 23
+    },
+    {
+     "expiry": "29JUL26",
+     "dias": 1,
+     "atm": 0.4404,
+     "abajo10": 0.7089,
+     "arriba10": 0.645,
+     "interesAbierto": 10817,
+     "n": 28
+    },
+    {
+     "expiry": "30JUL26",
+     "dias": 2,
+     "atm": 0.4962,
+     "abajo10": 0.6754,
+     "arriba10": 0.6058,
+     "interesAbierto": 6428,
+     "n": 30
+    },
+    {
+     "expiry": "31JUL26",
+     "dias": 3,
+     "atm": 0.5067,
+     "abajo10": 0.6491,
+     "arriba10": 0.582,
+     "interesAbierto": 429950,
+     "n": 49
+    },
+    {
+     "expiry": "7AUG26",
+     "dias": 10,
+     "atm": 0.4943,
+     "abajo10": 0.5546,
+     "arriba10": 0.5159,
+     "interesAbierto": 98699,
+     "n": 13
+    },
+    {
+     "expiry": "14AUG26",
+     "dias": 17,
+     "atm": 0.4929,
+     "abajo10": 0.5343,
+     "arriba10": 0.5037,
+     "interesAbierto": 8113,
+     "n": 12
+    },
+    {
+     "expiry": "28AUG26",
+     "dias": 31,
+     "atm": 0.4914,
+     "abajo10": 0.5189,
+     "arriba10": 0.4957,
+     "interesAbierto": 188459,
+     "n": 33
+    },
+    {
+     "expiry": "25SEP26",
+     "dias": 59,
+     "atm": 0.5116,
+     "abajo10": 0.5288,
+     "arriba10": 0.5104,
+     "interesAbierto": 392659,
+     "n": 59
+    },
+    {
+     "expiry": "25DEC26",
+     "dias": 150,
+     "atm": 0.5437,
+     "abajo10": 0.5526,
+     "arriba10": 0.5409,
+     "interesAbierto": 447591,
+     "n": 44
+    },
+    {
+     "expiry": "26MAR27",
+     "dias": 241,
+     "atm": 0.563,
+     "abajo10": 0.5705,
+     "arriba10": 0.5607,
+     "interesAbierto": 114853,
+     "n": 39
+    },
+    {
+     "expiry": "25JUN27",
+     "dias": 332,
+     "atm": 0.5762,
+     "abajo10": 0.5839,
+     "arriba10": 0.5728,
+     "interesAbierto": 33339,
+     "n": 30
+    }
+   ]
+  }
+ }
+}

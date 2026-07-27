@@ -3,6 +3,9 @@ name: Marea — superficie de volatilidad diaria
 # La historia de la superficie por vencimiento no existe en ningún endpoint
 # público: sólo se ve el estado de hoy. Por eso se guarda a diario, y cada día
 # que no corre es un dato que no se recupera (R-037).
+# Opcional: el camino principal es local (`npm run deploy`, `npm run daily`).
+# Actions es gratis en repos públicos; en privados consume la cuota del plan.
+# Ver marea/vault/LANZAMIENTO.md.
 on:
   schedule:
     # 20:05 UTC, después del corte diario de Deribit (08:00 UTC) y lejos de

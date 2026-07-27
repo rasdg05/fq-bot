@@ -5,3 +5,13 @@ dist
 tsconfig.tsbuildinfo
 perf-report.json
 calibration-report.json
+
+# El .gitignore de la raíz ignora `data/` (los datos del bot de Python). Aquí
+# sí queremos versionar la superficie de volatilidad: es el dataset del
+# producto y su valor está justo en acumularse día a día (R-037).
+!/data/
+!/data/iv/
+!/data/iv/*.json
+!/data/iv/*.md
+# las bitácoras del cron son ruido local, no dataset
+/data/iv/*.log

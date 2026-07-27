@@ -2,6 +2,9 @@ name: Marea — CI y deploy
 
 # El SPA de Marea es independiente del worker de Python: sólo corre cuando
 # cambia `marea/`, para no gastar CI en cada push del bot.
+# Opcional: el camino principal es local (`npm run deploy`, `npm run daily`).
+# Actions es gratis en repos públicos; en privados consume la cuota del plan.
+# Ver marea/vault/LANZAMIENTO.md.
 on:
   push:
     branches: [main]

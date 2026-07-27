@@ -15,7 +15,11 @@
     "probe:live": "tsx scripts/live-probe.mts",
     "probe:supply": "tsx scripts/supply-probe.mts",
     "calibrate": "NODE_USE_ENV_PROXY=1 tsx scripts/calibrate.mts",
-    "collect:iv": "NODE_USE_ENV_PROXY=1 tsx scripts/collect-iv.mts"
+    "collect:iv": "NODE_USE_ENV_PROXY=1 tsx scripts/collect-iv.mts",
+    "ci": "tsc -b --noEmit && node scripts/validate.mjs && npm run build",
+    "daily": "node scripts/daily.mjs",
+    "cron:install": "node scripts/install-cron.mjs",
+    "deploy": "node scripts/deploy.mjs"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.1",

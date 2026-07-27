@@ -4,9 +4,16 @@ Mobile-first, español Latam. El diferenciador es el **Edge visible**: la
 probabilidad del mercado y la de Marea, lado a lado, cuando la diferencia
 supera 4 puntos porcentuales.
 
+**Para lanzar:** `npm run deploy`. Todo corre desde tu máquina, sin CI —
+el runbook completo está en [`vault/LANZAMIENTO.md`](vault/LANZAMIENTO.md).
+
 ```bash
 npm install
 npm run dev          # desarrollo
+npm run ci           # tipos + validación + build (lo que haría un CI)
+npm run deploy       # verifica, construye y publica
+npm run daily        # guarda la superficie de volatilidad del día
+npm run cron:install # y que corra sola todos los días
 npm run build        # build de producción
 npm run test         # pruebas
 npm run validate     # VALIDATION_REPORT (V1–V24 + red-team + S1/T1/C1)

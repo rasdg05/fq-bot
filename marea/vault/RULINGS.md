@@ -108,3 +108,6 @@ Se agrega una línea cuando un hallazgo de audit es recurrente o de producto.
   entra únicamente si su error fuera de muestra baja del máximo admisible, y la
   validación falla si alguien lo enchufa antes. Si la referencia se cae, el
   Edge se apaga: nunca se muestra una lectura vieja como fresca. (producto)
+- **R-039** — El producto se lanza y se opera desde la máquina de quien lo
+  construye. El CI es opcional: `npm run ci`, `npm run deploy` y `npm run daily`
+  hacen lo mismo sin depender de una cuenta de pago. (operación)

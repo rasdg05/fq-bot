@@ -6,7 +6,7 @@
  * Parte de comportamiento: vitest. Cada prueba cuyo nombre empieza con `V<n>`
  * o `RT/<n>` se cosecha de aquí y entra al reporte con su veredicto real.
  */
-import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join, relative, extname } from "node:path";
 import { spawnSync } from "node:child_process";
 
@@ -337,6 +337,27 @@ check("E1", "el Edge sale sólo de referencia externa medida", () => {
         `el lock de "${tipo}" dice usable=${entry.usable} con ${entry.eceOutOfSample} pp y máximo ${max} pp`,
       );
     }
+  }
+  return problems;
+});
+
+/* ------------------------------- D1 -------------------------------------- */
+check("D1", "el dataset de volatilidad llega de verdad al repo", () => {
+  // se ignoró en silencio una vez: el .gitignore de la raíz excluye `data/`
+  // y los archivos del día se quedaban sólo en disco. Un dataset que no se
+  // versiona no se acumula, y acumularse es todo su valor (R-037).
+  const problems = [];
+  const dir = join(ROOT, "data", "iv");
+  if (!existsSync(dir)) return ["falta data/iv: el recolector nunca corrió"];
+
+  const dias = readdirSync(dir).filter((f) => f.endsWith(".json"));
+  if (dias.length === 0) problems.push("no hay ningún día guardado en data/iv");
+
+  for (const dia of dias) {
+    const rel = `data/iv/${dia}`;
+    const ignored = spawnSync("git", ["check-ignore", "-q", rel], { cwd: ROOT });
+    // salida 0 = está ignorado, que es justo lo que no queremos
+    if (ignored.status === 0) problems.push(`${rel} está ignorado por git y no se versiona`);
   }
   return problems;
 });
