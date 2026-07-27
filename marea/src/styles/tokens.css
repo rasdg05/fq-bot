@@ -1,0 +1,168 @@
+/* ============================================================================
+   MAREA — design tokens
+   Un solo sistema de tokens. El tema oscuro es un set real de valores, no una
+   inversión de clases (R-012). Los valores heredan del rebrand de marca:
+   papel cálido + tinta marina + un solo teal (ver cockpit.html :root).
+   Todo par texto/superficie definido aquí está verificado a >= 4.5:1 por
+   `tests/contrast.test.ts`.
+   ==========================================================================*/
+
+@font-face {
+  font-family: "Fraunces";
+  src: url("/fonts/fraunces-600.woff2") format("woff2");
+  font-weight: 600 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Hanken Grotesk";
+  src: url("/fonts/hanken-400.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Hanken Grotesk";
+  src: url("/fonts/hanken-500.woff2") format("woff2");
+  font-weight: 500 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Hanken Grotesk";
+  src: url("/fonts/hanken-700.woff2") format("woff2");
+  font-weight: 700 800;
+  font-display: swap;
+}
+
+:root {
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+  --font-sans: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Consolas, monospace;
+
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+
+  /* --- oscuro: default de la app (superficie de mercado, energía oscura) --- */
+  --bg: #0c1a1c;
+  --panel: #102528;
+  --panel2: #15292b;
+  --line: rgba(76, 186, 178, 0.2);
+  --line2: rgba(255, 255, 255, 0.07);
+  --text: #eceae1;
+  --text2: #b7c3c1;
+  --muted: #7e8e8c;
+  --teal: #4cbab2;
+  --teal-deep: #79d4cb;
+  --teal-soft: #12312f;
+  --teal-ink: #06201f;
+  --up: #43c989;
+  --dn: #e5795e;
+  --hot: #e8a33d;
+  --live: #ff6b5a;
+  --shadow-1: rgba(0, 0, 0, 0.4);
+  --shadow-2: rgba(0, 0, 0, 0.35);
+  color-scheme: dark;
+}
+
+/* --- claro: "daylight" de marca, papel cálido + tinta marina --- */
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f5f3ec;
+    --panel: #ffffff;
+    --panel2: #ede8dc;
+    --line: rgba(11, 107, 110, 0.22);
+    --line2: rgba(18, 38, 42, 0.08);
+    --text: #12262a;
+    --text2: #3c5250;
+    --muted: #5d6e6d;
+    --teal: #0b6b6e;
+    --teal-deep: #084f52;
+    --teal-soft: #e2eeec;
+    --teal-ink: #ffffff;
+    --up: #157048;
+    --dn: #a8412b;
+    --hot: #8a5a0b;
+    --live: #b03a22;
+    --shadow-1: rgba(18, 38, 42, 0.06);
+    --shadow-2: rgba(18, 38, 42, 0.08);
+    color-scheme: light;
+  }
+}
+
+:root[data-theme="light"] {
+  --bg: #f5f3ec;
+  --panel: #ffffff;
+  --panel2: #ede8dc;
+  --line: rgba(11, 107, 110, 0.22);
+  --line2: rgba(18, 38, 42, 0.08);
+  --text: #12262a;
+  --text2: #3c5250;
+  --muted: #5d6e6d;
+  --teal: #0b6b6e;
+  --teal-deep: #084f52;
+  --teal-soft: #e2eeec;
+  --teal-ink: #ffffff;
+  --up: #157048;
+  --dn: #a8412b;
+  --hot: #8a5a0b;
+  --live: #b03a22;
+  --shadow-1: rgba(18, 38, 42, 0.06);
+  --shadow-2: rgba(18, 38, 42, 0.08);
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #0c1a1c;
+  --panel: #102528;
+  --panel2: #15292b;
+  --line: rgba(76, 186, 178, 0.2);
+  --line2: rgba(255, 255, 255, 0.07);
+  --text: #eceae1;
+  --text2: #b7c3c1;
+  --muted: #7e8e8c;
+  --teal: #4cbab2;
+  --teal-deep: #79d4cb;
+  --teal-soft: #12312f;
+  --teal-ink: #06201f;
+  --up: #43c989;
+  --dn: #e5795e;
+  --hot: #e8a33d;
+  --live: #ff6b5a;
+  --shadow-1: rgba(0, 0, 0, 0.4);
+  --shadow-2: rgba(0, 0, 0, 0.35);
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* sin scroll horizontal en móvil (V11) */
+  overflow-x: hidden;
+  overscroll-behavior-y: none;
+}
+
+/* focus visible real en todo elemento accionable (a11y) */
+:where(button, a, [role="button"], input, [tabindex]):focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

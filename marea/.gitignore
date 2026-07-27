@@ -1,0 +1,6 @@
+node_modules
+dist
+.vite
+.vitest-report.json
+tsconfig.tsbuildinfo
+perf-report.json

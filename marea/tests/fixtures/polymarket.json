@@ -1,0 +1,190 @@
+[
+ {
+  "id": "2063134",
+  "question": "Will Adanech Abiebie be the next Prime Minister of Ethiopia?",
+  "slug": "will-adanech-abiebie-be-the-next-prime-minister-of-ethiopia",
+  "description": "General elections are scheduled to be held in Ethiopia on June 1, 2026.\n\nThis market will resolve to the next individual who officially assumes the office of Prime Minister of Ethiopia following the 2026 General elections.\n\nTo count for resolution, the individual must be officially appointed and swo",
+  "resolutionSource": "",
+  "outcomes": "[\"Yes\", \"No\"]",
+  "outcomePrices": "[\"0.002\", \"0.998\"]",
+  "lastTradePrice": 0.003,
+  "bestBid": 0.001,
+  "bestAsk": 0.003,
+  "volumeNum": 50068045.723744184,
+  "liquidityNum": 33154.70721,
+  "endDate": "2026-06-01T00:00:00Z",
+  "closed": false,
+  "active": true,
+  "acceptingOrders": true,
+  "events": [
+   {
+    "title": "Next Prime Minister of Ethiopia?",
+    "slug": "next-prime-minister-of-ethiopia"
+   }
+  ]
+ },
+ {
+  "id": "1654958",
+  "question": "Will there be no change in Fed interest rates after the July 2026 meeting?",
+  "slug": "will-there-be-no-change-in-fed-interest-rates-after-the-july-2026-meeting",
+  "description": "The FED interest rates are defined in this market by the upper bound of the target federal funds range. The decisions on the target federal funds range are made by the Federal Open Market Committee (FOMC) meetings.\n\nThis market will resolve to the amount of basis points the upper bound of the target",
+  "outcomes": "[\"Yes\", \"No\"]",
+  "outcomePrices": "[\"0.8005\", \"0.1995\"]",
+  "lastTradePrice": 0.801,
+  "bestBid": 0.8,
+  "bestAsk": 0.801,
+  "volumeNum": 28379159.16997101,
+  "liquidityNum": 385771.43892,
+  "endDate": "2026-07-29T00:00:00Z",
+  "closed": false,
+  "active": true,
+  "acceptingOrders": true,
+  "events": [
+   {
+    "title": "Fed Decision in July?",
+    "slug": "fed-decision-in-july-181"
+   }
+  ]
+ },
+ {
+  "id": "665374",
+  "question": "Will the U.S. invade Iran before 2027?",
+  "slug": "will-the-us-invade-iran-before-2027",
+  "description": "This market will resolve to \"Yes\" if the United States commences a military offensive intended to establish control over any portion of Iran by December 31, 2026, 11:59 PM ET. Otherwise, this market will resolve to \"No\".\n\nFor the purposes of this market, land de facto controlled by Iran or the Unite",
+  "resolutionSource": "",
+  "outcomes": "[\"Yes\", \"No\"]",
+  "outcomePrices": "[\"0.205\", \"0.795\"]",
+  "lastTradePrice": 0.2,
+  "bestBid": 0.2,
+  "bestAsk": 0.21,
+  "volumeNum": 48511674.107022785,
+  "liquidityNum": 823596.5456,
+  "endDate": "2026-12-31T00:00:00Z",
+  "closed": false,
+  "active": true,
+  "acceptingOrders": true,
+  "events": [
+   {
+    "title": "Will the U.S. invade Iran before 2027?",
+    "slug": "will-the-us-invade-iran-before-2027"
+   }
+  ]
+ },
+ {
+  "id": "1654956",
+  "question": "Will the Fed decrease interest rates by 50+ bps after the July 2026 meeting?",
+  "slug": "will-the-fed-decrease-interest-rates-by-50-bps-after-the-july-2026-meeting",
+  "description": "The FED interest rates are defined in this market by the upper bound of the target federal funds range. The decisions on the target federal funds range are made by the Federal Open Market Committee (FOMC) meetings.\n\nThis market will resolve to the amount of basis points the upper bound of the target",
+  "outcomes": "[\"Yes\", \"No\"]",
+  "outcomePrices": "[\"0.0015\", \"0.9985\"]",
+  "lastTradePrice": 0.002,
+  "bestBid": 0.001,
+  "bestAsk": 0.002,
+  "volumeNum": 14390636.842148907,
+  "liquidityNum": 2152245.1127,
+  "endDate": "2026-07-29T00:00:00Z",
+  "closed": false,
+  "active": true,
+  "acceptingOrders": true,
+  "events": [
+   {
+    "title": "Fed Decision in July?",
+    "slug": "fed-decision-in-july-181"
+   }
+  ]
+ },
+ {
+  "id": "1654959",
+  "question": "Will the Fed increase interest rates by 25 bps after the July 2026 meeting?",
+  "slug": "will-the-fed-increase-interest-rates-by-25-bps-after-the-july-2026-meeting",
+  "description": "The FED interest rates are defined in this market by the upper bound of the target federal funds range. The decisions on the target federal funds range are made by the Federal Open Market Committee (FOMC) meetings.\n\nThis market will resolve to the amount of basis points the upper bound of the target",
+  "outcomes": "[\"Yes\", \"No\"]",
+  "outcomePrices": "[\"0.1945\", \"0.8055\"]",
+  "lastTradePrice": 0.195,
+  "bestBid": 0.194,
+  "bestAsk": 0.195,
+  "volumeNum": 19023694.99955146,
+  "liquidityNum": 369409.66681,
+  "endDate": "2026-07-29T00:00:00Z",
+  "closed": false,
+  "active": true,
+  "acceptingOrders": true,
+  "events": [
+   {
+    "title": "Fed Decision in July?",
+    "slug": "fed-decision-in-july-181"
+   }
+  ]
+ },
+ {
+  "id": "1654960",
+  "question": "Will the Fed increase interest rates by 50+ bps after the July 2026 meeting?",
+  "slug": "will-the-fed-increase-interest-rates-by-50-bps-after-the-july-2026-meeting",
+  "description": "The FED interest rates are defined in this market by the upper bound of the target federal funds range. The decisions on the target federal funds range are made by the Federal Open Market Committee (FOMC) meetings.\n\nThis market will resolve to the amount of basis points the upper bound of the target",
+  "outcomes": "[\"Yes\", \"No\"]",
+  "outcomePrices": "[\"0.0065\", \"0.9935\"]",
+  "lastTradePrice": 0.007,
+  "bestBid": 0.006,
+  "bestAsk": 0.007,
+  "volumeNum": 18811749.625544816,
+  "liquidityNum": 1117948.30355,
+  "endDate": "2026-07-29T00:00:00Z",
+  "closed": false,
+  "active": true,
+  "acceptingOrders": true,
+  "events": [
+   {
+    "title": "Fed Decision in July?",
+    "slug": "fed-decision-in-july-181"
+   }
+  ]
+ },
+ {
+  "id": "2774056",
+  "question": "Strait of Hormuz traffic returns to normal by August 31?",
+  "slug": "strait-of-hormuz-traffic-returns-to-normal-by-august-31-20260702154212320",
+  "description": "This market will resolve to “Yes” if IMF Portwatch publishes a 7-day moving average of transit calls (“Arrivals of Ships”) for the Strait of Hormuz equal to or above 60 for any date between market creation and August 31, 2026. Otherwise, this market will resolve to “No”.\n\nDaily transit calls include",
+  "resolutionSource": "",
+  "outcomes": "[\"Yes\", \"No\"]",
+  "outcomePrices": "[\"0.145\", \"0.855\"]",
+  "lastTradePrice": 0.15,
+  "bestBid": 0.14,
+  "bestAsk": 0.15,
+  "volumeNum": 3089896.8015069957,
+  "liquidityNum": 309829.4177,
+  "endDate": "2026-08-31T00:00:00Z",
+  "closed": false,
+  "active": true,
+  "acceptingOrders": true,
+  "events": [
+   {
+    "title": "Strait of Hormuz traffic returns to normal by August 31?",
+    "slug": "strait-of-hormuz-traffic-returns-to-normal-by-august-31-20260702154212320"
+   }
+  ]
+ },
+ {
+  "id": "2952486",
+  "question": "Israel x Iran ceasefire continues through July 31?",
+  "slug": "israel-x-iran-ceasefire-continues-through-july-31-20260716224448968-384-155-519-798-243",
+  "description": "This market will resolve to \"Yes\" if a state of ceasefire remains in effect between Israel and Iran through the listed date, 11:59 PM Iran Standard Time (IRST). Otherwise this market will resolve to “No”. \n\nA state of ceasefire will be considered to no longer be in effect between Israel and Iran if ",
+  "resolutionSource": "",
+  "outcomes": "[\"Yes\", \"No\"]",
+  "outcomePrices": "[\"0.875\", \"0.125\"]",
+  "lastTradePrice": 0.87,
+  "bestBid": 0.87,
+  "bestAsk": 0.88,
+  "volumeNum": 1559153.339908998,
+  "liquidityNum": 67359.6617,
+  "endDate": "2026-07-31T23:59:00Z",
+  "closed": false,
+  "active": true,
+  "acceptingOrders": true,
+  "events": [
+   {
+    "title": "Israel x Iran ceasefire continues through...?",
+    "slug": "israel-x-iran-ceasefire-continues-throughptptpt-20260716224448963"
+   }
+  ]
+ }
+]
