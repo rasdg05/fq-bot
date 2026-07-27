@@ -1,6 +1,11 @@
 # HANDOFF — estado de soft launch
 
-## Veredicto
+> **Estado actual: BLOCKED.** Ver [`SOFT_LAUNCH.md`](SOFT_LAUNCH.md), que
+> manda sobre este documento. Dos agujeros de ciclo de vida —los mercados
+> cierran sin liquidarse, y el catálogo se vacía solo— aparecieron al revisar
+> el estado real. La app está terminada; el producto todavía no.
+
+## Veredicto anterior (superficie construida)
 
 **SOFT_LAUNCH_READY** con mercados propios de Latam y motor parimutuel,
 jugando con **puntos, no dinero** (Fase 1 del roadmap de la visión).

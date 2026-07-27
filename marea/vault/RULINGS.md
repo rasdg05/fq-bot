@@ -111,3 +111,8 @@ Se agrega una línea cuando un hallazgo de audit es recurrente o de producto.
 - **R-039** — El producto se lanza y se opera desde la máquina de quien lo
   construye. El CI es opcional: `npm run ci`, `npm run deploy` y `npm run daily`
   hacen lo mismo sin depender de una cuenta de pago. (operación)
+- **R-040** — Un mercado que cierra tiene que liquidarse y pagar. Publicar
+  mercados sin proceso de resolución rompe la única promesa que sostiene el
+  producto, más que cualquier funcionalidad que falte. (producto)
+- **R-041** — Un catálogo con fechas fijas caduca. Antes de lanzar se define
+  el ritmo de reposición y quién escribe los mercados nuevos. (producto)

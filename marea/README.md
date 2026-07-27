@@ -4,7 +4,10 @@ Mobile-first, español Latam. El diferenciador es el **Edge visible**: la
 probabilidad del mercado y la de Marea, lado a lado, cuando la diferencia
 supera 4 puntos porcentuales.
 
-**Para lanzar:** `npm run deploy`. Todo corre desde tu máquina, sin CI —
+**Antes de lanzar**, lee [`vault/SOFT_LAUNCH.md`](vault/SOFT_LAUNCH.md): la app
+está lista, el producto tiene dos bloqueantes de ciclo de vida.
+
+**Para publicar:** `npm run deploy`. Todo corre desde tu máquina, sin CI —
 el runbook completo está en [`vault/LANZAMIENTO.md`](vault/LANZAMIENTO.md).
 
 ```bash
