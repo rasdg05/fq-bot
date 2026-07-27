@@ -20,33 +20,63 @@ sería inventar.
 
 ## Qué se midió
 
-`npm run calibrate` contra 721 velas diarias de BTC-USD y ETH-USD (Kraken),
-28,308 predicciones, horizontes de 7/14/30 días y umbrales de ±10 % alrededor
-del precio. Partición temporal **por activo**: el 70 % más viejo de la historia
-de cada uno para ajustar, el 30 % más nuevo para medir.
+`npm run calibrate` contra 721 velas diarias de BTC-USD y ETH-USD (Kraken) más
+el índice DVOL de Deribit, horizontes de 7/14/30 días y umbrales de ±10 %
+alrededor del precio. Evaluación **walk-forward** de 5 pliegues con ventana
+expansiva: cada bloque se prueba con parámetros ajustados sólo con lo anterior.
+17,430 predicciones fuera de muestra.
 
-| | Error de calibración (fuera de muestra) | Brier | ¿Sirve? |
-|---|---|---|---|
-| Cierre | 5.86 pp crudo · 6.28 pp recalibrado | 0.206 | **No** |
-| Toca | 10.47 pp crudo · 7.63 pp recalibrado | 0.131 | **No** |
-| Máximo admisible | 2 pp | | |
+### El resultado
 
-Dentro de muestra el modelo de cierre daba 2.38 pp, que parecía publicable.
-Fuera de muestra da 5.86 pp. **Esa diferencia es el hallazgo.**
+| Configuración (preguntas de cierre) | Error agrupado fuera de muestra |
+|---|---|
+| Volatilidad realizada, normal | 3.49 pp |
+| **Volatilidad implícita, colas t(12)** | **3.29 pp** |
+| Máximo admisible | 2 pp |
+| | **No pasa** |
+
+Por horizonte, con la mejor configuración: 7 días 2.97 pp · 14 días 3.33 pp ·
+30 días 4.74 pp. Ninguno pasa por separado.
+
+Para preguntas de "toca" lo mejor es 6.24 pp con colas t(4). Muy lejos.
+
+### De dónde vino cada mejora
+
+Partimos de 6.28 pp. Atribución honesta de la bajada:
+
+| Cambio | Aporte |
+|---|---|
+| Arreglar la medición (agrupar regímenes, quitar Platt) | −2.79 pp |
+| Volatilidad implícita en vez de realizada | −0.18 pp |
+| Colas de t de Student sobre lo anterior | −0.02 pp |
+
+**La volatilidad implícita ayudó poco.** Casi toda la mejora vino de medir
+bien, no de modelar mejor. Decir que "la implícita bajó el error de 6.28 a
+3.29" sería cierto en la aritmética y falso en la causa.
 
 ## Por qué falla
 
-El sesgo es casi siempre negativo: el modelo dice "arriba" más seguido de lo
-que pasa. Un modelo sin deriva aplicado a un tramo de historia con tendencia
-tiene que fallar en esa dirección, y el tramo de prueba fue justo eso. La cola
-lo muestra crudo: en el tramo 90-100 % predice 94.9 % y ocurre el 72 %.
+Dos cosas, y ninguna es la volatilidad.
 
-El de "toca" está peor. El principio de reflexión —duplicar la probabilidad
-terminal— supone monitoreo continuo y cero deriva; contra precios reales
-sobreestima entre 3 y 32 pp según el tramo.
+**Régimen.** El sesgo es casi siempre en una dirección: el modelo dice "arriba"
+más seguido de lo que pasa. El tramo de ajuste subió 58 % (BTC) y 27 % (ETH);
+el de prueba cayó 26 % y 35 %. Un modelo sin deriva medido en una ventana
+direccional falla ahí por construcción — y **agregarle deriva sería apostar
+dirección**, que es justo lo que no hacemos. Por eso la medición correcta
+agrupa subidas y bajadas en lugar de promediar pliegues cortos: medido por
+pliegues de tres meses el error sube a 14.5 pp, pero eso mide si adivinamos la
+tendencia del trimestre, no si estamos calibrados.
 
-La recalibración de Platt no lo arregla: dos parámetros ajustados en un régimen
-no transfieren a otro. Eso también es información.
+**Plazo.** DVOL es un índice a 30 días constantes, y nuestras preguntas vencen
+a 7, 14 y 30. Usar una volatilidad de 30 días para una pregunta de 7 es un
+desajuste de plazo, y se nota: con volatilidad realizada el horizonte de 7 días
+sale mejor (2.78 pp) que con implícita (2.97 pp), mientras que a 14 y 30 días
+gana la implícita. La superficie histórica por vencimiento no está en ningún
+endpoint público simple.
+
+El escalado de Platt **empeora**: 3.49 pp crudo → 6.22 pp corregido. Dos
+parámetros ajustados en un régimen no transfieren a otro. Quedó desactivado en
+el lock (`a=1, b=0`) y la herramienta sólo lo aplica si mejora (R-034).
 
 ## Por qué no se muestra
 
@@ -61,23 +91,28 @@ error medido contra `MAX_USABLE_ECE_PP`, y `createPriceModelProvider` devuelve
 
 Para abrir la puerta hay que **bajar el error medido**, no bajar el umbral.
 
-## Qué intentar después, en orden
+## Qué queda por intentar
 
-1. **Volatilidad implícita en vez de realizada.** La realizada mira atrás; el
-   mercado de opciones ya cotiza lo que espera. Para BTC y ETH hay superficie
-   pública; para el peso mexicano, en el mercado de opciones OTC.
-2. **Deriva del basis de futuros.** El futuro perpetuo ya contiene la deriva
-   que el modelo asume en cero. Es un dato, no un pronóstico.
-3. **Historia más larga, con varios regímenes.** Dos años son un régimen y
-   medio. Con seis a ocho años el ajuste no queda pegado a la última tendencia.
-4. **Calibración por horizonte.** 7 y 30 días no se comportan igual y hoy
-   comparten un solo par de parámetros.
-5. **Distribución de colas gruesas** (t de Student) en vez de la normal, que es
-   donde el error se concentra.
+Ya se probaron y quedaron en el código: volatilidad implícita, colas gruesas,
+evaluación walk-forward, y descartar el escalado de Platt. Lo que falta:
 
-Ninguno es especulativo: los cinco son medibles con el mismo `npm run
-calibrate` que produjo esta tabla. El criterio de éxito está fijado de
-antemano: error fuera de muestra ≤ 2 pp.
+1. **Volatilidad implícita del plazo que corresponde**, no el índice a 30 días.
+   Es el desajuste más claro que quedó. La superficie por vencimiento no está
+   en un endpoint público histórico: hay que empezar a guardarla a diario desde
+   hoy, o pagar por historia. Es la apuesta con más probabilidad de mover la
+   aguja, y es la que no se puede hacer en una tarde.
+2. **Más activos y más historia.** Dos activos y dos años son, en la práctica,
+   un régimen y medio. El error agrupado sobre seis u ocho años y una decena de
+   activos diría mucho más que este.
+3. **Aceptar que 2 pp puede ser inalcanzable** para un modelo sin deriva a este
+   tamaño de muestra, y decidir el producto en consecuencia: subir el umbral de
+   Edge por encima de 4 pp para que el error del modelo sea una fracción chica,
+   o dejar el Edge sólo donde hay referencia externa. Es decisión de producto,
+   no de ingeniería.
+
+Lo que **no** se va a intentar: agregar una deriva ajustada a la historia
+reciente. Bajaría el error medido y sería una apuesta direccional disfrazada de
+calibración.
 
 ## Mientras tanto
 

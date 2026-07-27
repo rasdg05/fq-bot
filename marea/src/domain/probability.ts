@@ -122,8 +122,9 @@ export function createPriceModelProvider(
   questions: Map<string, PriceQuestion>,
   keyOf: (quotes: VenueMarket[]) => string | undefined,
   calibrations: { cierre: Calibration; toca: Calibration } = {
-    cierre: CALIBRATION.cierre,
-    toca: CALIBRATION.toca,
+    // el lock es JSON: se estrecha al contrato en el único punto de entrada
+    cierre: CALIBRATION.cierre as Calibration,
+    toca: CALIBRATION.toca as Calibration,
   },
 ): MareaProbabilityProvider {
   return {
@@ -138,9 +139,15 @@ export function createPriceModelProvider(
       // un modelo descalibrado no produce Edge: produce ruido con decimales
       if (!isUsable(calibration)) return null;
 
+      // las colas las fijó la calibración, no la pregunta: usar otras haría
+      // que el número mostrado no sea el que se midió
+      const medido = { ...question, nu: calibration.nu ?? question.nu ?? undefined };
       return {
-        probability: applyCalibration(priceProbability(question), calibration),
-        basis: priceBasis(question),
+        probability: applyCalibration(priceProbability(medido), calibration),
+        basis: priceBasis(
+          medido,
+          calibration.fuenteVolatilidad === "implicita" ? "implicita" : "realizada",
+        ),
         sources: 1,
       };
     },

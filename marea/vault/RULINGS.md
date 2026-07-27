@@ -91,3 +91,13 @@ Se agrega una línea cuando un hallazgo de audit es recurrente o de producto.
 - **R-032** — Toda partición de datos para medir un modelo es temporal y por
   activo. Partir por posición en el arreglo separa por activo y devuelve un
   número inflado. (modelo)
+- **R-033** — La calibración se mide agrupando todas las predicciones fuera de
+  muestra sobre varios regímenes. Promediar pliegues cortos mide si adivinamos
+  la tendencia del período, que es otra cosa y no es lo que hacemos. (modelo)
+- **R-034** — Una corrección de calibración sólo se aplica si mejora el error
+  fuera de muestra. Ajustada en un régimen y aplicada en otro puede empeorar,
+  y en la medición del 27 de julio lo hizo. (modelo)
+- **R-035** — Los hiperparámetros del modelo (colas, ventanas) se eligen con el
+  tramo de ajuste, nunca mirando el número que después se reporta. (modelo)
+- **R-036** — No se agrega deriva ajustada a la historia reciente para bajar el
+  error medido: sería una apuesta direccional disfrazada de calibración. (modelo)

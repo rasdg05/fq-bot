@@ -4,6 +4,7 @@ import {
   isUsable,
   logit,
   normalCdf,
+  studentCdf,
   priceBasis,
   priceProbability,
   realizedVolatility,
@@ -92,6 +93,32 @@ describe("Modelo de precio", () => {
   });
 });
 
+describe("Colas gruesas", () => {
+  it("con muchos grados de libertad converge a la normal", () => {
+    for (const x of [-2, -0.5, 0, 1, 2.5]) {
+      expect(studentCdf(x, 500)).toBeCloseTo(normalCdf(x), 4);
+    }
+  });
+
+  it("es simétrica y centrada", () => {
+    expect(studentCdf(0, 4)).toBeCloseTo(0.5, 6);
+    expect(studentCdf(-1.5, 4) + studentCdf(1.5, 4)).toBeCloseTo(1, 6);
+  });
+
+  it("engorda la cola lejana, que es donde la normal se equivoca", () => {
+    // escalada a varianza uno: más masa lejos, menos a media distancia
+    expect(studentCdf(-3, 4)).toBeGreaterThan(normalCdf(-3));
+    expect(studentCdf(-1, 4)).toBeLessThan(normalCdf(-1));
+  });
+
+  it("las colas cambian la probabilidad de un umbral lejano", () => {
+    const lejano = { ...question({ strike: 160 }) };
+    const normal = terminalProbability(lejano);
+    const gruesa = terminalProbability({ ...lejano, nu: 4 });
+    expect(gruesa).not.toBeCloseTo(normal, 3);
+  });
+});
+
 describe("Recalibración", () => {
   it("logit y sigmoide se deshacen", () => {
     for (const p of [0.05, 0.3, 0.5, 0.87]) {
@@ -131,6 +158,12 @@ describe("Puerta de calibración en producción", () => {
     // vault/calibration.lock.json y `npm run calibrate`
     expect(CALIBRATION.cierre.usable).toBe(false);
     expect(CALIBRATION.cierre.eceOutOfSample).toBeGreaterThan(MAX_USABLE_ECE_PP);
+    // el lock declara con qué se midió, para que producción use lo mismo
+    expect(CALIBRATION.cierre.fuenteVolatilidad).toBe("implicita");
+    expect(CALIBRATION.cierre.nu).toBe(12);
+    // el escalado de Platt quedó desactivado porque empeoraba (R-034)
+    expect(CALIBRATION.cierre.a).toBe(1);
+    expect(CALIBRATION.cierre.b).toBe(0);
 
     const provider = createPriceModelProvider(questions, () => "k");
     expect(provider.read(quotes)).toBeNull();
@@ -147,6 +180,14 @@ describe("Puerta de calibración en producción", () => {
     expect(reading!.probability).toBeGreaterThan(0);
     expect(reading!.probability).toBeLessThan(0.5);
     expect(reading!.basis).toContain("volatilidad");
+  });
+
+  it("la base declara si la volatilidad la puso el mercado de opciones", () => {
+    const provider = createPriceModelProvider(questions, () => "k", {
+      cierre: { a: 1, b: 0, eceOutOfSample: 1, fuenteVolatilidad: "implicita" },
+      toca: { a: 1, b: 0, eceOutOfSample: 1 },
+    });
+    expect(provider.read(quotes)!.basis).toContain("mercado de opciones");
   });
 
   it("sin pregunta de precio asociada no inventa nada", () => {

@@ -33,6 +33,12 @@ export interface PriceQuestion {
    * ("¿toca 4,500 antes de octubre?") en lugar de por el valor final.
    */
   touch?: boolean;
+  /**
+   * Grados de libertad de la t de Student para las colas. La normal
+   * (`undefined` o muy alto) subestima los saltos grandes; valores bajos
+   * engordan las colas. Se elige con datos, no por gusto.
+   */
+  nu?: number;
 }
 
 /** Días hábiles al año para anualizar. Cripto opera todos los días. */
@@ -56,6 +62,65 @@ export function normalCdf(x: number): number {
 }
 
 /**
+ * Acumulada de una t de Student **escalada a varianza uno**, para que `σ`
+ * signifique lo mismo que con la normal y las dos sean comparables.
+ * Se calcula con la beta incompleta regularizada por fracción continua.
+ */
+export function studentCdf(x: number, nu: number): number {
+  if (!Number.isFinite(nu) || nu > 200) return normalCdf(x);
+  const dof = Math.max(2.5, nu);
+  // reescalar: la t con nu grados tiene varianza nu/(nu-2)
+  const t = x * Math.sqrt(dof / (dof - 2));
+  const p = 0.5 * incompleteBeta(dof / (dof + t * t), dof / 2, 0.5);
+  return t > 0 ? 1 - p : p;
+}
+
+function logGamma(z: number): number {
+  const c = [
+    76.18009172947146, -86.50532032941677, 24.01409824083091,
+    -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5,
+  ];
+  let y = z;
+  let tmp = z + 5.5;
+  tmp -= (z + 0.5) * Math.log(tmp);
+  let ser = 1.000000000190015;
+  for (let j = 0; j < 6; j += 1) ser += c[j] / ++y;
+  return -tmp + Math.log((2.5066282746310005 * ser) / z);
+}
+
+/** Beta incompleta regularizada I_x(a,b), por fracción continua de Lentz. */
+function incompleteBeta(x: number, a: number, b: number): number {
+  if (x <= 0) return 0;
+  if (x >= 1) return 1;
+  const front =
+    Math.exp(
+      logGamma(a + b) - logGamma(a) - logGamma(b) + a * Math.log(x) + b * Math.log(1 - x),
+    ) / a;
+
+  let f = 1;
+  let c = 1;
+  let d = 0;
+  for (let i = 0; i <= 300; i += 1) {
+    const m = Math.floor(i / 2);
+    let numerator: number;
+    if (i === 0) numerator = 1;
+    else if (i % 2 === 0) numerator = (m * (b - m) * x) / ((a + 2 * m - 1) * (a + 2 * m));
+    else {
+      numerator = -((a + m) * (a + b + m) * x) / ((a + 2 * m) * (a + 2 * m + 1));
+    }
+    d = 1 + numerator * d;
+    if (Math.abs(d) < 1e-30) d = 1e-30;
+    d = 1 / d;
+    c = 1 + numerator / c;
+    if (Math.abs(c) < 1e-30) c = 1e-30;
+    const delta = c * d;
+    f *= delta;
+    if (Math.abs(1 - delta) < 1e-10) break;
+  }
+  return front * (f - 1);
+}
+
+/**
  * Probabilidad de que el precio final quede del lado de la pregunta.
  *
  * Bajo el supuesto lognormal sin deriva (no pronosticamos dirección: eso sería
@@ -76,7 +141,8 @@ export function terminalProbability(question: PriceQuestion): number {
   const sigma = annualVolatility * Math.sqrt(t);
   // sin deriva: el punto medio de la distribución es el precio de hoy
   const d = Math.log(strike / spot) / sigma;
-  const pAbove = normalCdf(-d);
+  const pAbove =
+    question.nu === undefined ? normalCdf(-d) : studentCdf(-d, question.nu);
   return direction === "above" ? pAbove : 1 - pAbove;
 }
 
@@ -123,10 +189,17 @@ export function realizedVolatility(closes: number[]): number | null {
 }
 
 /** El porqué, en una frase que el usuario puede verificar. */
-export function priceBasis(question: PriceQuestion): string {
+export function priceBasis(
+  question: PriceQuestion,
+  fuente: "realizada" | "implicita" = "realizada",
+): string {
   const vol = Math.round(question.annualVolatility * 100);
   const dias = Math.round(question.daysToResolve);
-  return `Calculado con el precio de hoy, la volatilidad de ${vol}% anual de los últimos 30 días y los ${dias} días que faltan.`;
+  const origen =
+    fuente === "implicita"
+      ? `la volatilidad de ${vol}% anual que cotiza el mercado de opciones`
+      : `la volatilidad de ${vol}% anual de los últimos 30 días`;
+  return `Calculado con el precio de hoy, ${origen} y los ${dias} días que faltan.`;
 }
 
 
@@ -154,6 +227,10 @@ export interface Calibration {
   eceOutOfSample: number;
   /** Cuándo se ajustó, para saber si ya envejeció. */
   fittedAt?: string;
+  /** Fuente de volatilidad con la que se midió este error. */
+  fuenteVolatilidad?: string;
+  /** Grados de libertad de las colas con los que se midió. */
+  nu?: number | null;
 }
 
 const EPSILON = 1e-6;
