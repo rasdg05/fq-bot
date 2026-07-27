@@ -63,7 +63,23 @@ const run = (command, argv) =>
 try {
   paso("Tipos", () => run("npx", ["tsc", "-b", "--noEmit"]));
   paso("VALIDATION_REPORT", () => run("node", ["scripts/validate.mjs"]));
-  paso("Build", () => run("npm", ["run", "build"]));
+  paso("Build", () => {
+    const salida = execFileSync("npm", ["run", "build"], {
+      cwd: ROOT,
+      encoding: "utf8",
+      env: process.env,
+    });
+    process.stdout.write(salida);
+    // un aviso del bundler suele ser un recurso que no se va a resolver:
+    // mejor enterarse antes de publicar que por un 404 en el teléfono
+    const avisos = salida
+      .split("\n")
+      .filter((linea) => /didn't resolve|\[warn\]|warning:/i.test(linea));
+    if (avisos.length > 0) {
+      console.warn(`\n⚠ La build dejó ${avisos.length} aviso(s):`);
+      for (const aviso of avisos.slice(0, 5)) console.warn(`   ${aviso.trim()}`);
+    }
+  });
 } catch {
   console.error("\n✗ La verificación falló. No se publica nada.");
   process.exit(1);
