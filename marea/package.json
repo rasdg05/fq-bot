@@ -14,7 +14,8 @@
     "shots": "node scripts/shots.mjs",
     "probe:live": "tsx scripts/live-probe.mts",
     "probe:supply": "tsx scripts/supply-probe.mts",
-    "calibrate": "NODE_USE_ENV_PROXY=1 tsx scripts/calibrate.mts"
+    "calibrate": "NODE_USE_ENV_PROXY=1 tsx scripts/calibrate.mts",
+    "collect:iv": "NODE_USE_ENV_PROXY=1 tsx scripts/collect-iv.mts"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.1",

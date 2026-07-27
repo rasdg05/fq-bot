@@ -101,3 +101,10 @@ Se agrega una línea cuando un hallazgo de audit es recurrente o de producto.
   tramo de ajuste, nunca mirando el número que después se reporta. (modelo)
 - **R-036** — No se agrega deriva ajustada a la historia reciente para bajar el
   error medido: sería una apuesta direccional disfrazada de calibración. (modelo)
+- **R-037** — La superficie de volatilidad por vencimiento se guarda a diario
+  desde hoy: su historia no existe en ningún endpoint público y cada día que no
+  se guarda es un dato que no se recupera. (datos)
+- **R-038** — El Edge sale sólo de referencia externa medida. Un modelo propio
+  entra únicamente si su error fuera de muestra baja del máximo admisible, y la
+  validación falla si alguien lo enchufa antes. Si la referencia se cae, el
+  Edge se apaga: nunca se muestra una lectura vieja como fresca. (producto)

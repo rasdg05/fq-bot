@@ -1,7 +1,14 @@
 # MODEL — la lectura propia de Marea
 
-El Edge necesita una probabilidad nuestra, independiente del pozo. Este doc
-dice qué modelo construimos, qué mide, y por qué **hoy no se muestra**.
+El Edge necesita una probabilidad independiente del pozo. Este doc dice qué
+modelo propio construimos, qué mide, y por qué **no se usa**.
+
+> **Decisión tomada (27 de julio de 2026).** El Edge sale **sólo de referencia
+> externa**: el precio de la misma pregunta en una casa global con liquidez.
+> El modelo propio queda como investigación, con su banco de pruebas, hasta
+> que baje de 2 pp (R-038). No es una espera pasiva: la superficie de
+> volatilidad por vencimiento ya se está guardando a diario para poder
+> recalibrarlo — ver `data/iv/README.md`.
 
 ## Qué es
 
@@ -114,9 +121,23 @@ Lo que **no** se va a intentar: agregar una deriva ajustada a la historia
 reciente. Bajaría el error medido y sería una apuesta direccional disfrazada de
 calibración.
 
-## Mientras tanto
+## Cómo funciona el Edge hoy
 
-El Edge sigue existiendo donde hay una lectura independiente de verdad: las
-preguntas que también cotizan en una casa global. Ahí la lectura es de ella y
-el copy la nombra (R-027). En los mercados de Latam puro no hay Edge, y eso se
-ve en el producto como ausencia, no como un número inventado.
+La referencia externa está enchufada en producción: al listar mercados, el
+adapter propio consulta Polymarket y Kalshi y empareja las preguntas que
+existen en las dos partes. Donde hay pareja, hay Edge, y el copy nombra a quien
+da la lectura (R-027). Donde no la hay —la mayoría del catálogo de Latam— no
+hay Edge, y se ve como ausencia, no como un número inventado.
+
+Tres reglas de la referencia, todas probadas:
+
+- **Se refresca sola**, con caché corta para no golpear los venues en cada
+  listado.
+- **Si el venue se cae, el Edge se apaga.** No se muestra la referencia previa:
+  un precio viejo presentado como fresco es peor que ninguno.
+- **Nunca rompe el feed.** Un fallo de referencia se reporta y los mercados
+  siguen listándose sin Edge.
+
+`npm run validate` verifica que el modelo de precio no esté enchufado al camino
+de producción y que la referencia sí lo esté — si alguien enchufa el modelo por
+distracción, la validación falla.

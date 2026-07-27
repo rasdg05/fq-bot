@@ -34,6 +34,16 @@ export interface OwnMarketsOptions {
   seeds?: OwnMarketSeed[];
   /** Precio de la misma pregunta en una casa global, por `referenceKey`. */
   reference?: Map<string, ReferenceQuote>;
+  /**
+   * Carga la referencia externa al listar. Es la **única** fuente de Edge
+   * (R-038): si falla o si no hay pareja para la pregunta, no hay Edge, y eso
+   * se ve como ausencia y no como un número viejo.
+   */
+  loadReference?: () => Promise<Map<string, ReferenceQuote>>;
+  /** Cuánto vale una referencia antes de volver a pedirla. */
+  referenceTtlMs?: number;
+  /** Se avisa cuando la referencia no se pudo cargar, para observabilidad. */
+  onReferenceError?: (error: unknown) => void;
   /** Se llama cuando una apuesta se acepta, para descontar del ledger. */
   onStake?: (marketId: string, side: Side, stake: number) => void;
   now?: () => number;
@@ -55,6 +65,36 @@ export function createOwnMarketsAdapter(
   poolOf: (marketId: string) => Pool | undefined;
 } {
   const now = options.now ?? (() => Date.now());
+  const referenceTtl = options.referenceTtlMs ?? 60_000;
+  let reference = options.reference;
+  let referenceAt = options.reference ? now() : 0;
+  let cargando: Promise<void> | null = null;
+
+  /**
+   * Refresca la referencia si venció. Una caída no rompe el feed: se descarta
+   * la referencia vieja y los mercados quedan sin Edge, que es la verdad.
+   */
+  async function refreshReference(): Promise<void> {
+    if (!options.loadReference) return;
+    if (reference && now() - referenceAt < referenceTtl) return;
+    if (cargando) return cargando;
+
+    cargando = (async () => {
+      try {
+        reference = await options.loadReference!();
+        referenceAt = now();
+      } catch (error) {
+        // sin referencia fresca no se muestra una vieja: se apaga el Edge
+        reference = undefined;
+        referenceAt = 0;
+        options.onReferenceError?.(error);
+      } finally {
+        cargando = null;
+      }
+    })();
+    return cargando;
+  }
+
   const live = new Map<string, LiveMarket>(
     (options.seeds ?? OWN_MARKETS).map((seed) => [
       seed.id,
@@ -73,9 +113,7 @@ export function createOwnMarketsAdapter(
 
   function toMarket(entry: LiveMarket, threshold = hotThreshold()): Market {
     const { seed, pool } = entry;
-    const reference = seed.referenceKey
-      ? options.reference?.get(seed.referenceKey)
-      : undefined;
+    const quote = seed.referenceKey ? reference?.get(seed.referenceKey) : undefined;
     const closed = new Date(seed.closesAt).getTime() <= now();
 
     return withEdge({
@@ -89,9 +127,9 @@ export function createOwnMarketsAdapter(
       // el criterio se arma desde la especificación validada, nunca a mano
       resolution_summary: resolutionSummary(seed.resolution),
       // la lectura independiente viene de afuera; si no hay, no hay Edge
-      mareaProbability: reference?.probability,
-      mareaBasis: reference ? `Precio de la misma pregunta en ${reference.venue}.` : undefined,
-      edgeLabel: reference?.venue,
+      mareaProbability: quote?.probability,
+      mareaBasis: quote ? `Precio de la misma pregunta en ${quote.venue}.` : undefined,
+      edgeLabel: quote?.venue,
       priceLabel: "Aquí",
       pool: { ...pool },
       region: "latam",
@@ -104,6 +142,7 @@ export function createOwnMarketsAdapter(
 
   return {
     async listMarkets() {
+      await refreshReference();
       const threshold = hotThreshold();
       return [...live.values()]
         .map((entry) => toMarket(entry, threshold))
@@ -111,6 +150,7 @@ export function createOwnMarketsAdapter(
     },
 
     async getMarket(id) {
+      await refreshReference();
       const entry = live.get(id);
       if (!entry) throw appError("E_MARKET_DETAIL_FAILED", { id });
       return toMarket(entry);

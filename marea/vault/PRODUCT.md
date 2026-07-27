@@ -47,13 +47,15 @@ Fusión de referencias:
 | 10 | **Mercados propios de Latam con motor parimutuel.** Marea escribe la pregunta, corre el pozo y cita la fuente de resolución. La agregación queda como suministro complementario |
 | 11 | **Se arranca con puntos, no con dinero** (Fase 1 del roadmap de la visión). Sin custodia y sin riesgo regulatorio mientras se valida el apetito |
 
-## Consecuencia abierta de la decisión 10
+| 12 | **El Edge sale sólo de referencia externa**: el precio de la misma pregunta en una casa global. Un modelo propio sólo entra si baja de 2 pp de error medido |
 
-El Edge necesita una lectura independiente del pozo. Hoy sólo existe para las
-preguntas que también cotizan en una casa global —y en ésas la lectura es de
-ella, no nuestra, así que el copy la nombra (R-027)—. **En los mercados de Latam
-puro no hay Edge todavía**: hace falta un modelo propio de probabilidad. Es el
-pendiente número uno del producto, y está medido en `DATA_SOURCES.md`.
+## Consecuencia asumida de la decisión 12
+
+En los mercados de Latam puro **no hay Edge**, porque no hay nadie más que
+cotice esas preguntas. Eso es una decisión, no una carencia temporal: preferimos
+que el Edge falte a que sea un número que no se sostiene. El modelo propio se
+sigue trabajando —la superficie de volatilidad ya se guarda a diario— pero no
+condiciona el lanzamiento. Detalle en `MODEL.md`.
 
 ## Scope de soft launch
 

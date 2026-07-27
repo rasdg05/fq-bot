@@ -1,0 +1,55 @@
+name: Marea — superficie de volatilidad diaria
+
+# La historia de la superficie por vencimiento no existe en ningún endpoint
+# público: sólo se ve el estado de hoy. Por eso se guarda a diario, y cada día
+# que no corre es un dato que no se recupera (R-037).
+on:
+  schedule:
+    # 20:05 UTC, después del corte diario de Deribit (08:00 UTC) y lejos de
+    # la hora en punto, donde se amontonan los cron de todo el mundo.
+    - cron: "5 20 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: marea-iv
+  cancel-in-progress: false
+
+jobs:
+  guardar:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: marea
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: marea/package-lock.json
+      - run: npm ci
+
+      - name: Tomar la superficie
+        run: npm run collect:iv
+
+      - name: Guardar el día
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          if [ -z "$(git status --porcelain marea/data/iv)" ]; then
+            echo "sin cambios: el día ya estaba guardado"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add marea/data/iv
+          git commit -m "datos: superficie de volatilidad del $(date -u +%F)"
+          # el cron y un push humano pueden cruzarse: rebase y reintento
+          for i in 1 2 3; do
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}" && \
+              git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            sleep $((i * 5))
+          done
+          exit 1

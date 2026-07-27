@@ -303,6 +303,44 @@ check("P2", "ningún mercado propio se publica sin fuente verificable", () => {
   return problems;
 });
 
+/* ------------------------------- E1 -------------------------------------- */
+check("E1", "el Edge sale sólo de referencia externa medida", () => {
+  const problems = [];
+  const wiring = read(join(SRC, "adapters", "index.ts"));
+
+  // el modelo de precio es investigación hasta que pase su calibración: no
+  // puede colarse al camino de producción por un import distraído (R-038)
+  if (/createPriceModelProvider/.test(wiring)) {
+    problems.push(
+      "src/adapters/index.ts enchufa el modelo de precio: hoy el Edge sólo sale de referencia externa",
+    );
+  }
+  // y la referencia sí tiene que estar enchufada, o el Edge es cero siempre
+  if (!/loadReference/.test(wiring)) {
+    problems.push("la referencia externa no está enchufada: el Edge sería cero en todas partes");
+  }
+
+  // la puerta del modelo sigue cerrada mientras la calibración no pase
+  const lock = JSON.parse(readFileSync(join(ROOT, "vault", "calibration.lock.json"), "utf8"));
+  const model = read(join(SRC, "domain", "priceModel.ts"));
+  const max = Number(model.match(/MAX_USABLE_ECE_PP\s*=\s*([\d.]+)/)?.[1] ?? NaN);
+  if (!Number.isFinite(max)) problems.push("no se pudo leer el máximo admisible del modelo");
+  for (const tipo of ["cierre", "toca"]) {
+    const entry = lock[tipo];
+    if (!entry) {
+      problems.push(`el lock de calibración no declara "${tipo}"`);
+      continue;
+    }
+    // la coherencia importa: `usable` no puede decir que sí si el error no pasa
+    if (entry.usable !== entry.eceOutOfSample <= max) {
+      problems.push(
+        `el lock de "${tipo}" dice usable=${entry.usable} con ${entry.eceOutOfSample} pp y máximo ${max} pp`,
+      );
+    }
+  }
+  return problems;
+});
+
 /* --------------------------- pruebas de comportamiento -------------------- */
 const run = spawnSync(
   "npx",

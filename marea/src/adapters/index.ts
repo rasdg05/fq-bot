@@ -9,7 +9,10 @@ import { createAggregatedMarketDataAdapter } from "./aggregatedMarketDataAdapter
 import { createPolymarketAdapter } from "./venues/polymarket";
 import { createKalshiAdapter } from "./venues/kalshi";
 import { createConsensusProvider } from "@/domain/probability";
-import { createOwnMarketsAdapter } from "./ownMarkets/ownMarketsAdapter";
+import {
+  createOwnMarketsAdapter,
+  referenceFromVenues,
+} from "./ownMarkets/ownMarketsAdapter";
 import { FLAGS, isOwnMarketMode } from "@/lib/flags";
 import type { Adapters } from "@/state/store";
 
@@ -35,9 +38,33 @@ export function resolveAdapters(): Adapters {
       })
     : createMemoryAnalytics();
 
+  /**
+   * Referencia externa: el precio de la misma pregunta en una casa global. Es
+   * la única fuente de Edge (R-038). Si el venue no responde, no hay Edge —
+   * nunca un número viejo presentado como fresco.
+   */
+  const loadReference = async () => {
+    const venues = [
+      createPolymarketAdapter({ limit: 200 }),
+      createKalshiAdapter({ seriesTickers: CONFIG.kalshiSeries }),
+    ];
+    const settled = await Promise.allSettled(venues.map((v) => v.listMarkets()));
+    const quotes = settled.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
+    return referenceFromVenues(quotes);
+  };
+
   const marketData = isOwnMarketMode(FLAGS)
     ? // mercados propios de Latam: Marea crea la pregunta y corre el pozo
-      createOwnMarketsAdapter()
+      createOwnMarketsAdapter({
+        loadReference,
+        onReferenceError: (error) =>
+          errors.report({
+            code: "E_MARKETS_FETCH_FAILED",
+            user_message_es: "No pudimos cargar los mercados. Revisa tu conexión.",
+            retryable: true,
+            context: { kind: "referencia", cause: String(error) },
+          }),
+      })
     : CONFIG.dataSource === "aggregated"
       ? createAggregatedMarketDataAdapter({
           venues: [

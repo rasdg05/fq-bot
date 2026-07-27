@@ -75,6 +75,60 @@ describe("Mercados propios — adapter", () => {
     ).rejects.toMatchObject({ code: "E_TRADE_INIT_FAILED" });
   });
 
+  it("la referencia externa se carga sola y enciende el Edge", async () => {
+    const seed = OWN_MARKETS.find((entry) => entry.referenceKey)!;
+    let cargas = 0;
+    const adapter = createOwnMarketsAdapter({
+      loadReference: async () => {
+        cargas += 1;
+        return new Map([[seed.referenceKey!, { probability: 0.9, venue: "Polymarket" }]]);
+      },
+    });
+    const markets = await adapter.listMarkets();
+    expect(cargas).toBe(1);
+    expect(markets.find((m) => m.id === seed.id)!.edge).not.toBeNull();
+
+    // dentro del TTL no se vuelve a pedir
+    await adapter.listMarkets();
+    expect(cargas).toBe(1);
+  });
+
+  it("si la referencia se cae, no hay Edge y el feed sigue vivo", async () => {
+    let fallos = 0;
+    const adapter = createOwnMarketsAdapter({
+      loadReference: async () => {
+        throw new Error("venue caído");
+      },
+      onReferenceError: () => {
+        fallos += 1;
+      },
+    });
+    const markets = await adapter.listMarkets();
+    expect(markets.length).toBeGreaterThan(8);
+    expect(markets.every((m) => m.edge === null)).toBe(true);
+    expect(fallos).toBe(1);
+  });
+
+  it("una referencia vencida no se muestra vieja: se apaga", async () => {
+    const seed = OWN_MARKETS.find((entry) => entry.referenceKey)!;
+    let reloj = 0;
+    let sano = true;
+    const adapter = createOwnMarketsAdapter({
+      now: () => reloj,
+      referenceTtlMs: 1_000,
+      loadReference: async () => {
+        if (!sano) throw new Error("venue caído");
+        return new Map([[seed.referenceKey!, { probability: 0.9, venue: "Polymarket" }]]);
+      },
+    });
+
+    expect((await adapter.getMarket(seed.id)).edge).not.toBeNull();
+    // vence el TTL y ahora el venue falla: mejor sin Edge que con uno viejo
+    reloj = 5_000;
+    sano = false;
+    expect((await adapter.getMarket(seed.id)).edge).toBeNull();
+  });
+
   it("la posición trae pago potencial, no un resultado inventado", async () => {
     const adapter = createOwnMarketsAdapter();
     const [first] = await adapter.listMarkets();
