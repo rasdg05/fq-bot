@@ -22,6 +22,14 @@ export interface Pool {
   feeBps: number;
 }
 
+/**
+ * Cuántos apostadores distintos necesita un mercado para que su resultado
+ * signifique algo. Con uno solo, el pozo perdedor es la semilla de la casa y el
+ * "mercado" es una persona hablando sola; con dos ya hay desacuerdo, que es de
+ * lo que se trata. Debajo de esto se anula y se devuelve todo (R-059).
+ */
+export const MIN_APOSTADORES = 2;
+
 /** Semilla mínima del pozo, para que el primero en entrar no vea un pago absurdo. */
 export const SEED = 100;
 

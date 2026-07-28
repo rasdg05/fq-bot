@@ -6,8 +6,10 @@ import {
   cookieDeSesion,
   cookieVacia,
   firmarSesion,
+  generarCodigoRecuperacion,
   hashear,
   leerCookie,
+  normalizarCodigo,
   problemasDeAlta,
   sesionSegura,
   verificar,
@@ -31,6 +33,8 @@ export interface Contexto {
   store: Store;
   seeds: () => OwnMarketSeed[];
   seguro: boolean;
+  /** Recibe los eventos de analítica ya validados. */
+  registrarEventos: (eventos: Record<string, unknown>[], usuario?: string) => void;
 }
 
 function json(res: ServerResponse, code: number, cuerpo: unknown, cookie?: string) {
@@ -108,18 +112,28 @@ export async function manejarApi(
     }
 
     const { hash, salt } = hashear(password);
+    // el código se muestra una sola vez y de él sólo guardamos el hash
+    const codigo = generarCodigoRecuperacion();
+    const recuperacion = hashear(codigo);
     const creado = ctx.store.crearUsuario({
       id: randomUUID(),
       usuario,
       correo,
       hash,
       salt,
+      recuperacionHash: recuperacion.hash,
+      recuperacionSalt: recuperacion.salt,
       creado: new Date().toISOString(),
       // la bienvenida se entrega al crear la cuenta, una sola vez por cuenta
       puntos: WELCOME_GRANT,
     });
 
-    json(res, 201, perfil(ctx.store, creado.id, ctx.seeds()), cookieDeSesion(firmarSesion(creado.id), ctx.seguro));
+    json(
+      res,
+      201,
+      { ...perfil(ctx.store, creado.id, ctx.seeds()), codigoRecuperacion: codigo },
+      cookieDeSesion(firmarSesion(creado.id), ctx.seguro),
+    );
     return true;
   }
 
@@ -154,6 +168,57 @@ export async function manejarApi(
     }
     ctx.store.marcarRecarga(sesion.id, new Date().toISOString().slice(0, 10), monto);
     json(res, 200, perfil(ctx.store, sesion.id, ctx.seeds()));
+    return true;
+  }
+
+  if (ruta === "/api/cuenta/recuperar" && metodo === "POST") {
+    const cuerpo = await cuerpoJson(req);
+    const usuario = ctx.store.usuarioPorNombre(texto(cuerpo.usuario));
+    const codigo = normalizarCodigo(texto(cuerpo.codigo));
+    const nueva = texto(cuerpo.password);
+
+    if (nueva.length < 8) {
+      return error(res, 400, "La contraseña nueva necesita al menos 8 caracteres."), true;
+    }
+    // mismo mensaje para usuario inexistente y código malo: decir cuál falló
+    // le regalaría a cualquiera la lista de usuarios
+    const generico = "Ese código no corresponde a esa cuenta.";
+    if (!usuario?.recuperacionHash || !usuario.recuperacionSalt) {
+      return error(res, 401, generico), true;
+    }
+    const intento = hashear(codigo, usuario.recuperacionSalt);
+    if (intento.hash !== usuario.recuperacionHash) {
+      return error(res, 401, generico), true;
+    }
+
+    const { hash, salt } = hashear(nueva);
+    ctx.store.cambiarPassword(usuario.id, hash, salt);
+    json(
+      res,
+      200,
+      perfil(ctx.store, usuario.id, ctx.seeds()),
+      cookieDeSesion(firmarSesion(usuario.id), ctx.seguro),
+    );
+    return true;
+  }
+
+  /* ------------------------------- analítica -------------------------------- */
+
+  /**
+   * Sink propio de eventos. Sin esto se lanza a ciegas: no se sabe si la gente
+   * vuelve, y entonces no se sabe si una campaña sirvió.
+   *
+   * Se guarda aquí y no en un tercero por dos razones: no le regalamos el
+   * comportamiento de nuestros usuarios a nadie, y el dato acumulado es del
+   * producto (ESTRATEGIA §3). Lo que llega ya viene filtrado por lista blanca
+   * desde el cliente (R-020) y aquí se vuelve a filtrar: nunca se confía en lo
+   * que manda un navegador.
+   */
+  if (ruta === "/api/eventos" && metodo === "POST") {
+    const cuerpo = await cuerpoJson(req);
+    const eventos = Array.isArray(cuerpo.events) ? cuerpo.events : [cuerpo];
+    ctx.registrarEventos(eventos as Record<string, unknown>[], sesion?.usuario);
+    res.writeHead(204).end();
     return true;
   }
 

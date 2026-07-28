@@ -14,6 +14,7 @@ import {
 } from "./mercados.mts";
 import { correrCiclo, type ResumenCiclo } from "./ciclo.mts";
 import { metaDeMercado } from "./compartir.mts";
+import { createRegistroDeEventos } from "./eventos.mts";
 import type { OwnMarketSeed } from "../src/adapters/ownMarkets/catalog";
 
 /**
@@ -62,6 +63,7 @@ function aceptaGzip(req: IncomingMessage): boolean {
 }
 
 const store = new Store(DATOS);
+const registrarEventos = createRegistroDeEventos(join(DATOS, "eventos"));
 let seeds: OwnMarketSeed[] = todosLosSeeds(ROOT);
 sembrarPozos(store, seeds);
 
@@ -111,6 +113,7 @@ async function servir(req: IncomingMessage, res: ServerResponse) {
         store,
         seeds: () => seeds,
         seguro: (req.headers["x-forwarded-proto"] ?? "http") === "https",
+        registrarEventos,
       });
       if (!atendido) {
         res.writeHead(404, { "content-type": TIPOS[".json"] });

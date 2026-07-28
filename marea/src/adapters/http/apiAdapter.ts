@@ -66,7 +66,8 @@ export function createApiClient(options: ApiOptions = {}) {
     },
 
     registro(datos: { usuario: string; password: string; correo?: string }) {
-      return pedir<Cuenta>("/cuenta/registro", {
+      // el código de recuperación viaja una sola vez, aquí
+      return pedir<Cuenta & { codigoRecuperacion: string }>("/cuenta/registro", {
         method: "POST",
         body: JSON.stringify(datos),
       });
@@ -74,6 +75,13 @@ export function createApiClient(options: ApiOptions = {}) {
 
     entrar(datos: { usuario: string; password: string }) {
       return pedir<Cuenta>("/cuenta/entrar", {
+        method: "POST",
+        body: JSON.stringify(datos),
+      });
+    },
+
+    recuperar(datos: { usuario: string; codigo: string; password: string }) {
+      return pedir<Cuenta>("/cuenta/recuperar", {
         method: "POST",
         body: JSON.stringify(datos),
       });

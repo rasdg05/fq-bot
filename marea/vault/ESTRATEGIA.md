@@ -27,7 +27,7 @@ cosas, dos ya construidas:
 |---|---|---|
 | **Semilla de la casa** | ✓ construido | Cada mercado nace con puntos nuestros de los dos lados, así que el primero que entra ve un precio y un pago reales, no un pozo en cero |
 | **La semilla corre la misma suerte** | ✓ construido | Está en el denominador del reparto (R-044): si el lado de la casa pierde, la casa pierde. No es un adorno |
-| **Mínimo de participación** | ✗ falta | Con dinero real: si un mercado no llega a N apostadores distintos, se anula y se devuelve todo. Evita el mercado de dos personas donde uno se lleva al otro |
+| **Mínimo de participación** | ✓ construido | Un mercado con menos de 2 apostadores distintos se anula y se devuelve todo, íntegro y sin comisión (R-059). Con uno solo, el pozo perdedor era nuestra semilla: esa persona no le ganó a nadie |
 
 **El costo honesto de la semilla:** es capital en riesgo. Con puntos vale cero.
 Con dinero, cada mercado nuevo inmoviliza capital nuestro que puede perderse.
@@ -60,6 +60,43 @@ jornada, sin que nadie escriba nada.
 | Inflación / tasas | Bajo | Brasil sí; México con token | ✓ automático |
 | **Reality shows** (La Casa de los Famosos) | Altísimo | **No hay fuente estable** | Requiere confirmación humana |
 | Política / mañanera | Alto | No, y además es delicado | No por ahora |
+
+### 2.1 · Mercados de evento nacional (reality y sucesos)
+
+La categoría con más tracción potencial de todo el catálogo, y la única
+importante que hoy **no** se puede leer sola. Vale la pena escribir cómo se
+haría, porque el día que se decida hay que hacerlo bien.
+
+**Cuáles califican.** Un evento de relevancia nacional sirve como mercado si
+cumple las tres condiciones de R-025, sin excepción:
+
+1. **Fuente pública y única.** La cuenta oficial del programa, el organismo
+   electoral, la federación. No "lo que digan los medios".
+2. **Criterio numérico o de lista.** "Quién sale de la casa esta semana",
+   "cuántos goles", "qué porcentaje". Nunca "si estuvo bien" ni "si cumplió".
+3. **Momento de resolución conocido de antemano.** El domingo de la gala, el
+   día del conteo. Sin eso, el mercado no se puede cerrar a tiempo.
+
+| Evento | Fuente | Criterio | Automatizable |
+|---|---|---|---|
+| La Casa de los Famosos (quién sale) | Cuenta oficial del programa | Lista de nominados, uno sale | No — anuncio en vivo |
+| Liga MX, Libertadores, selección | ESPN público | Marcador final | **Sí, ya construido** |
+| Premios (Latin Grammy, Ariel) | Sitio oficial del premio | Ganador por categoría | No — anuncio en vivo |
+| Elecciones | Organismo electoral (INE, CNE) | Conteo oficial | Parcial, y con cuidado |
+| Precio de la gasolina, salario mínimo | Diario oficial | Cifra publicada | Sí, con lector nuevo |
+
+**El costo real, dicho sin adorno.** Cada mercado de anuncio en vivo es **una
+persona mirando** y confirmando en la app. Con la ventana de disputa de 12 h no
+hay prisa, pero hay que hacerlo. Por eso la regla operativa que propongo:
+
+> **Máximo tres mercados de confirmación humana a la vez**, y sólo de eventos
+> con audiencia grande. Si un mercado no justifica que alguien se siente a
+> verlo, no se publica.
+
+**Lo que sube el techo:** si un reality publica su resultado en una API o en un
+feed estable, se mueve al oráculo de series y deja de costar. Vale la pena
+revisarlo cada temporada — igual que revisamos las APIs institucionales y
+resultó que Brasil sí publicaba.
 
 **Sobre los reality shows:** es la mejor idea de crecimiento de esta lista y
 también la única sin fuente automática. Quien decide quién sale de la casa es
@@ -125,6 +162,34 @@ relación valor/esfuerzo:
 | **Aviso cuando alguien que sigues apuesta** | Es el bucle que trae a la gente de vuelta sin pagar publicidad | Medio |
 | **Copiar la apuesta de otro** | Lo más pedido y lo más delicado: con dinero real es asesoría de inversión disfrazada | Alto, y con pregunta legal |
 
+### 4.1 · Copiar apuestas — lo que hay que saber antes de construirlo
+
+**Qué es:** ver lo que apostó alguien con buena precisión y repetirlo con un
+tap, o en automático.
+
+**Por qué se pide:** es el bucle social más potente que existe en este tipo de
+producto. Convierte a los que le atinan en creadores de contenido con público,
+y a los demás les da una razón para volver todos los días.
+
+**Cómo se construiría, en orden:**
+
+1. **Copia manual** — botón "apostar igual" en la posición de otro. Casi gratis
+   de construir sobre lo que ya existe, y ya prueba si a la gente le interesa.
+2. **Aviso al seguir** — te llega cuando alguien que sigues apuesta. Necesita
+   notificaciones, que es infraestructura nueva.
+3. **Copia automática** — con tope por apuesta y tope diario. Aquí empieza lo
+   delicado.
+
+**Los tres límites que hay que respetar:**
+
+- **El que copia mueve el precio del que copió.** En parimutuel, cien personas
+  copiando la misma apuesta empeoran el pago de todos, incluido el original.
+  Hay que mostrarlo antes de copiar, no después.
+- **La precisión pasada no predice.** Una racha de cinco aciertos es ruido con
+  cinco mercados. La tabla ya muestra el denominador (`8/10`, no `80 %`) justo
+  por esto, y la copia tiene que hacer lo mismo.
+- **Con dinero real cambia el marco legal.** Ver el punto de abajo.
+
 **La advertencia sobre copy-trade:** con puntos es un juego. Con dinero real,
 "copia las apuestas de este usuario" puede caer en recomendación de inversión
 según el país, y eso cambia el marco regulatorio entero. Se puede construir,
@@ -148,13 +213,15 @@ usuario que llegue**:
 - Ve su lugar en la tabla y puede compartir. ✓
 - El feed no se vacía. ✓
 
+- Si olvida su contraseña, la recupera con su código. ✓
+- Medimos si vuelve. ✓
+
 Lo que falta para llamarlo producto terminado, en orden:
 
-1. **Analítica en producción.** Hoy se lanza a ciegas: no sabemos si vuelven.
-2. **Recuperación de cuenta.** Si alguien olvida su contraseña, hoy pierde todo.
-3. **Tarjeta de resultado y referido**, que son crecimiento, no adorno.
-4. **Mínimo de participación** antes de tocar dinero real.
-
-Antes de gastar un peso en publicidad, los puntos 1 y 2. Sin el 1 no se sabe si
-la campaña sirvió; sin el 2, cada usuario que olvida su contraseña es un usuario
-perdido para siempre.
+1. **Tarjeta de resultado para redes** — "le atiné 8 de 10" es lo que se
+   presume, y hoy sólo se puede compartir el mercado, no el logro.
+2. **Código de referido** — trae usuarios a costo cero.
+3. **Seguir a alguien y avisos** — el bucle que trae de vuelta sin pagar
+   publicidad.
+4. **Panel de lo que mide la analítica** — los eventos ya se guardan; falta
+   verlos sin abrir un archivo por SSH.

@@ -169,3 +169,17 @@ Se agrega una línea cuando un hallazgo de audit es recurrente o de producto.
 - **R-058** — Los datos que se publican o se venden son agregados: probabilidad,
   volumen, resultado y calibración. Quién apostó qué no sale nunca. Un usuario
   no es un producto. (datos)
+- **R-059** — Un mercado con un solo apostador se anula y se devuelve todo. Con
+  uno solo, el pozo perdedor es la semilla de la casa: esa persona no le ganó a
+  nadie, y cobrarle a la casa no es un mercado. (liquidez)
+- **R-060** — El código de recuperación se muestra una sola vez, se guarda
+  hasheado y la app no cierra la hoja hasta que el usuario dice que lo guardó.
+  Sin correo obligatorio no hay otra vía, y una cuenta perdida es un usuario
+  perdido para siempre. (producto)
+- **R-061** — La analítica se guarda en casa y se filtra dos veces: lista blanca
+  en el cliente (R-020) y otra vez en el servidor. Nunca se confía en lo que
+  manda un navegador, y el comportamiento de nuestros usuarios no se le regala
+  a un tercero. (datos)
+- **R-062** — Un mercado de confirmación humana sólo se publica si el evento
+  justifica que una persona se siente a verlo: máximo tres a la vez. Lo demás
+  espera a que su fuente abra un endpoint. (producto)

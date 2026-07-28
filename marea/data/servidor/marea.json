@@ -16,6 +16,16 @@
       "salt": "84c87a6663a5c3bad988a2d64bd71885",
       "creado": "2026-07-28T05:32:07.551Z",
       "puntos": 900
+    },
+    {
+      "id": "ab131af6-4468-4fee-844c-3190eae5dc84",
+      "usuario": "rasdg",
+      "hash": "0806a34e85054282833c28a1c47cc597d3ffbdf49d32fb77edd0385ec985323803534004dfd2a7fd3c29782ec8f64dde64ae6af0f48c0483742e6475b0ea5829",
+      "salt": "d729a4cc5e636378bc1ce43f6c065ec7",
+      "recuperacionHash": "5260dbb4da8104733ac86a510b07a48e22ec092619a4113c49f784473060d9461060d74be7ae65befcd95e6c746cb76cbeeb6b9aec75824d42f063b16d7851a4",
+      "recuperacionSalt": "46f6ad02a4cae27fcb394f03f44d70c6",
+      "creado": "2026-07-28T07:42:38.352Z",
+      "puntos": 1000
     }
   ],
   "apuestas": [
@@ -145,6 +155,60 @@
       "marketId": "br-ipca-5",
       "si": 430,
       "no": 350,
+      "feeBps": 300
+    },
+    {
+      "marketId": "mx-puebla-guadalajara-2026-08-01",
+      "si": 400,
+      "no": 400,
+      "feeBps": 300
+    },
+    {
+      "marketId": "mx-atletico-de-san-luis-tijuana-2026-08-01",
+      "si": 400,
+      "no": 400,
+      "feeBps": 300
+    },
+    {
+      "marketId": "mx-fc-juarez-pumas-unam-2026-08-01",
+      "si": 400,
+      "no": 400,
+      "feeBps": 300
+    },
+    {
+      "marketId": "mx-queretaro-tigres-uanl-2026-08-01",
+      "si": 400,
+      "no": 400,
+      "feeBps": 300
+    },
+    {
+      "marketId": "mx-atlas-monterrey-2026-08-02",
+      "si": 400,
+      "no": 400,
+      "feeBps": 300
+    },
+    {
+      "marketId": "mx-leon-pachuca-2026-08-02",
+      "si": 400,
+      "no": 400,
+      "feeBps": 300
+    },
+    {
+      "marketId": "mx-cruz-azul-atlante-2026-08-02",
+      "si": 400,
+      "no": 400,
+      "feeBps": 300
+    },
+    {
+      "marketId": "mx-america-santos-2026-08-02",
+      "si": 400,
+      "no": 400,
+      "feeBps": 300
+    },
+    {
+      "marketId": "mx-toluca-necaxa-2026-08-03",
+      "si": 400,
+      "no": 400,
       "feeBps": 300
     }
   ],

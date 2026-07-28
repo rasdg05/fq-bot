@@ -30,6 +30,9 @@ export interface Usuario {
   puntos: number;
   /** Última recarga diaria reclamada, para no regalar puntos infinitos. */
   ultimaRecarga?: string;
+  /** Hash del código de recuperación. El código en claro no se guarda nunca. */
+  recuperacionHash?: string;
+  recuperacionSalt?: string;
 }
 
 export interface Apuesta {
@@ -146,6 +149,16 @@ export class Store {
       if (saldo < 0) throw new Error("saldo insuficiente");
       usuario.puntos = saldo;
       return saldo;
+    });
+  }
+
+  /** Cambia la contraseña. Se usa al recuperar la cuenta. */
+  cambiarPassword(usuarioId: string, hash: string, salt: string): void {
+    this.mutar((datos) => {
+      const usuario = datos.usuarios.find((u) => u.id === usuarioId);
+      if (!usuario) throw new Error("usuario desconocido");
+      usuario.hash = hash;
+      usuario.salt = salt;
     });
   }
 

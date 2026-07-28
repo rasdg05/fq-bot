@@ -69,6 +69,12 @@ export interface AppState {
   cuentaAbierta: boolean;
   cuentaBusy: boolean;
   cuentaError: string | null;
+  /**
+   * Código de recuperación recién entregado. Se muestra una sola vez y no se
+   * guarda en ningún lado: es lo único que devuelve la cuenta si se olvida la
+   * contraseña, y sólo el usuario lo tiene.
+   */
+  codigoRecuperacion: string | null;
 }
 
 type Action =
@@ -95,7 +101,8 @@ type Action =
   | { type: "cuenta"; cuenta: Cuenta | null }
   | { type: "cuenta_abierta"; abierta: boolean }
   | { type: "cuenta_busy"; busy: boolean }
-  | { type: "cuenta_error"; error: string | null };
+  | { type: "cuenta_error"; error: string | null }
+  | { type: "codigo_recuperacion"; codigo: string | null };
 
 const ONBOARDING_KEY = "marea.onboarding_completed";
 
@@ -160,6 +167,7 @@ export function initialState(overrides: Partial<AppState> = {}): AppState {
     cuentaAbierta: false,
     cuentaBusy: false,
     cuentaError: null,
+    codigoRecuperacion: null,
     // la bienvenida se entrega al arrancar: explorar y jugar no cuestan nada
     points: isPointsMode() ? grantWelcome(emptyLedger()) : emptyLedger(),
     ...overrides,
@@ -228,6 +236,8 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, cuentaBusy: action.busy, cuentaError: null };
     case "cuenta_error":
       return { ...state, cuentaError: action.error, cuentaBusy: false };
+    case "codigo_recuperacion":
+      return { ...state, codigoRecuperacion: action.codigo };
     case "balance":
       return {
         ...state,
@@ -359,7 +369,8 @@ function createActions(
       try {
         const cuenta = await adapters.api.registro(datos);
         dispatch({ type: "cuenta", cuenta });
-        dispatch({ type: "cuenta_abierta", abierta: false });
+        // no se cierra la hoja: primero tiene que guardar su código
+        dispatch({ type: "codigo_recuperacion", codigo: cuenta.codigoRecuperacion });
         adapters.analytics.track("cuenta_creada");
         return true;
       } catch (error) {
@@ -386,6 +397,28 @@ function createActions(
       } finally {
         inFlight.cuenta = false;
       }
+    },
+
+    async recuperarCuenta(datos: { usuario: string; codigo: string; password: string }) {
+      if (!adapters.api || inFlight.cuenta) return false;
+      inFlight.cuenta = true;
+      dispatch({ type: "cuenta_busy", busy: true });
+      try {
+        dispatch({ type: "cuenta", cuenta: await adapters.api.recuperar(datos) });
+        dispatch({ type: "cuenta_abierta", abierta: false });
+        return true;
+      } catch (error) {
+        dispatch({ type: "cuenta_error", error: fallaCuenta(error) });
+        return false;
+      } finally {
+        inFlight.cuenta = false;
+      }
+    },
+
+    /** El usuario dice que ya guardó su código: recién ahí se cierra la hoja. */
+    codigoGuardado() {
+      dispatch({ type: "codigo_recuperacion", codigo: null });
+      dispatch({ type: "cuenta_abierta", abierta: false });
     },
 
     async salir() {

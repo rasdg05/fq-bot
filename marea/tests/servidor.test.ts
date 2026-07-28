@@ -5,7 +5,15 @@ import { join } from "node:path";
 import { Store } from "../server/store.mts";
 import { correrCiclo } from "../server/ciclo.mts";
 import { posicionesDe, sembrarPozos } from "../server/mercados.mts";
-import { hashear, firmarSesion, leerSesion, verificar } from "../server/auth.mts";
+import {
+  hashear,
+  firmarSesion,
+  generarCodigoRecuperacion,
+  leerSesion,
+  normalizarCodigo,
+  verificar,
+} from "../server/auth.mts";
+import { limpiarEvento } from "../server/eventos.mts";
 import { calcularTabla } from "../server/tabla.mts";
 import { descripcionDe, metaDeMercado } from "../server/compartir.mts";
 import { construirMercado } from "../server/mercados.mts";
@@ -147,9 +155,30 @@ describe("Servidor · liquidación que paga a la gente", () => {
     expect(saldoBeto).toBe(700);
   });
 
-  it("V52 correr el ciclo mil veces paga una sola vez", async () => {
+  it("V62 un mercado con un solo apostador se anula y se devuelve todo", async () => {
     const ana = alta("ana");
     store.apostar({ usuarioId: ana.id, marketId: seed.id, side: "si", stake: 300, precio: 0.5 });
+
+    await correrCiclo(store, [seed], [oraculoSi], AHORA);
+    const resumen = await correrCiclo(store, [seed], [oraculoSi], AHORA + 2 * 86_400_000);
+
+    // acertó, pero no le ganó a nadie: el pozo perdedor era nuestra semilla
+    expect(resumen.anulados).toBe(1);
+    expect(resumen.pagados).toBe(0);
+    expect(store.usuarioPorId(ana.id)!.puntos).toBe(1_000);
+    expect(store.liquidacion(seed.id)?.phase).toBe("devuelto");
+    expect(store.liquidacion(seed.id)?.stuckReason).toMatch(/hizo falta gente/);
+
+    const [posicion] = posicionesDe(store, ana.id, [seed]);
+    expect(posicion.payout).toBe(300);
+    expect(posicion.pnl).toBe(0);
+  });
+
+  it("V52 correr el ciclo mil veces paga una sola vez", async () => {
+    const ana = alta("ana");
+    const beto = alta("beto");
+    store.apostar({ usuarioId: ana.id, marketId: seed.id, side: "si", stake: 300, precio: 0.5 });
+    store.apostar({ usuarioId: beto.id, marketId: seed.id, side: "no", stake: 100, precio: 0.5 });
 
     await correrCiclo(store, [seed], [oraculoSi], AHORA);
     await correrCiclo(store, [seed], [oraculoSi], AHORA + 2 * 86_400_000);
@@ -163,7 +192,10 @@ describe("Servidor · liquidación que paga a la gente", () => {
 
   it("V53 el portafolio muestra el resultado con la lectura que lo justifica", async () => {
     const ana = alta("ana");
+    const beto = alta("beto");
     store.apostar({ usuarioId: ana.id, marketId: seed.id, side: "si", stake: 300, precio: 0.5 });
+    // hace falta más de uno: con un solo apostador el mercado se anula (R-059)
+    store.apostar({ usuarioId: beto.id, marketId: seed.id, side: "no", stake: 100, precio: 0.5 });
 
     await correrCiclo(store, [seed], [oraculoSi], AHORA);
     await correrCiclo(store, [seed], [oraculoSi], AHORA + 2 * 86_400_000);
@@ -241,5 +273,46 @@ describe("Servidor · tabla y compartir", () => {
     const salida = metaDeMercado("<head><title>x</title></head>", mercado, "https://marea.app");
     expect(salida).not.toContain("<script>");
     expect(salida).toContain("&lt;script&gt;");
+  });
+});
+
+describe("Servidor · recuperación y analítica", () => {
+  it("V63 el código de recuperación devuelve la cuenta, y sólo el correcto", () => {
+    const codigo = generarCodigoRecuperacion();
+    const guardado = hashear(codigo);
+
+    // se guarda el hash, nunca el código
+    expect(guardado.hash).not.toContain(codigo);
+    // y quien lo escribe en minúsculas o con espacios también entra
+    expect(hashear(normalizarCodigo(` ${codigo.toLowerCase()} `), guardado.salt).hash).toBe(
+      guardado.hash,
+    );
+    expect(hashear("XXXX-XXXX-XXXX", guardado.salt).hash).not.toBe(guardado.hash);
+  });
+
+  it("V64 el código no trae caracteres que se confundan al dictarlo", () => {
+    for (let i = 0; i < 40; i += 1) {
+      const codigo = generarCodigoRecuperacion();
+      expect(codigo).toMatch(/^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/);
+      // sin O ni 0, sin I ni 1: se dicta por teléfono
+      expect(codigo).not.toMatch(/[O0I1]/);
+    }
+  });
+
+  it("V65 la analítica descarta lo que no está en la lista blanca", () => {
+    const limpio = limpiarEvento(
+      {
+        event: "view_feed",
+        props: { count: 17, direccion: "0xSECRETO", texto: "no debe salir", anidado: {} },
+      },
+      "rasdg",
+    );
+    expect(limpio?.props).toEqual({ count: 17 });
+    expect(limpio?.usuario).toBe("rasdg");
+
+    // un evento inventado no entra
+    expect(limpiarEvento({ event: "robar_datos", props: {} })).toBeNull();
+    // y el usuario sale de la sesión del servidor, no de lo que mande el cliente
+    expect(limpiarEvento({ event: "view_feed", usuario: "otro" })?.usuario).toBeUndefined();
   });
 });

@@ -98,6 +98,29 @@ export function leerCookie(header: string | undefined, nombre: string): string |
 export const REGLAS_USUARIO =
   "De 3 a 20 caracteres: letras, números, guion bajo o punto.";
 
+/**
+ * Código de recuperación. Se genera al crear la cuenta, se muestra **una sola
+ * vez** y sólo guardamos su hash — igual que la contraseña.
+ *
+ * Por qué así y no por correo: mandar mail exige un proveedor contratado, y sin
+ * él la recuperación no existiría. Con esto funciona desde el día uno, sin
+ * depender de nadie y sin pedirle el correo a quien no quiere darlo. Cuando
+ * haya proveedor, el correo se suma como segunda vía; este código se queda.
+ */
+const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+export function generarCodigoRecuperacion(): string {
+  const bytes = randomBytes(12);
+  // sin O/0 ni I/1: el código se dicta por teléfono y se anota a mano
+  const cuerpo = [...bytes].map((b) => ALFABETO[b % ALFABETO.length]).join("");
+  return `${cuerpo.slice(0, 4)}-${cuerpo.slice(4, 8)}-${cuerpo.slice(8, 12)}`;
+}
+
+/** Se compara normalizado: quien lo escribe en minúsculas también entra. */
+export function normalizarCodigo(codigo: string): string {
+  return codigo.trim().toUpperCase().replace(/\s+/g, "");
+}
+
 export function problemasDeAlta(usuario: string, password: string): string[] {
   const problemas: string[] = [];
   if (!/^[a-zA-Z0-9_.]{3,20}$/.test(usuario.trim())) {

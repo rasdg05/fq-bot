@@ -193,6 +193,20 @@ export const S = {
     sesionDe: (usuario: string) => `Tu cuenta: ${usuario}`,
     sinCuenta: "Estás explorando sin cuenta.",
     sinCuentaCta: "Crear cuenta",
+    // el código se enseña una sola vez: si no lo guardas, la cuenta se pierde
+    codigoTitulo: "Guarda este código",
+    codigoCuerpo:
+      "Es lo único que te devuelve la cuenta si olvidas tu contraseña. No lo volvemos a mostrar y no lo tenemos guardado: si lo pierdes, no hay forma de recuperarte.",
+    codigoCopiar: "Copiar código",
+    codigoCopiado: "Copiado",
+    codigoListo: "Ya lo guardé",
+    olvide: "Olvidé mi contraseña",
+    recuperarTitulo: "Recupera tu cuenta",
+    recuperarCuerpo: "Con tu usuario y el código que guardaste al crear la cuenta.",
+    codigo: "Código de recuperación",
+    codigoPlaceholder: "XXXX-XXXX-XXXX",
+    passwordNueva: "Contraseña nueva",
+    recuperarCta: "Recuperar mi cuenta",
   },
 
   tabla: {
