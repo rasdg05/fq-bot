@@ -1,5 +1,5 @@
 import { assertPublishable } from "@/domain/resolution";
-import { SEED, type Pool } from "@/domain/parimutuel";
+import { SEED, binaryPool, type Pool } from "@/domain/parimutuel";
 import type { MatchRule, PriceRule } from "@/domain/oracleRule";
 import type { OwnMarketSeed } from "./catalog";
 
@@ -56,7 +56,7 @@ export function proximoCierreSemanal(now: number): number {
 }
 
 function seedPool(si: number, no: number): Pool {
-  return { si, no, feeBps: FEE_BPS };
+  return binaryPool(si, no, FEE_BPS);
 }
 
 interface Plantilla {

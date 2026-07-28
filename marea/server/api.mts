@@ -15,6 +15,7 @@ import {
   verificar,
   COOKIE,
 } from "./auth.mts";
+import { BINARY_OUTCOMES } from "../src/domain/parimutuel";
 import { cotizar, listarMercados, posicionesDe } from "./mercados.mts";
 import { calcularTabla } from "./tabla.mts";
 import type { Store } from "./store.mts";
@@ -255,13 +256,19 @@ export async function manejarApi(
     const side = texto(cuerpo.side);
     const size = Math.floor(Number(cuerpo.size));
 
-    if (side !== "si" && side !== "no") return error(res, 400, "Elige un lado."), true;
     if (!Number.isFinite(size) || size <= 0) {
       return error(res, 400, "El monto tiene que ser mayor a cero."), true;
     }
 
     const seed = ctx.seeds().find((s) => s.id === marketId);
     if (!seed) return error(res, 404, "Ese mercado ya no existe."), true;
+
+    // el lado válido es uno de los que declaró **este** mercado, no una lista
+    // fija de dos: con N resultados, "si"/"no" ya no dice nada
+    const posibles = (seed.outcomes ?? [...BINARY_OUTCOMES]).map((o) => o.id);
+    if (!posibles.includes(side)) {
+      return error(res, 400, "Elige una de las opciones del mercado."), true;
+    }
 
     const estado = ctx.store.liquidacion(marketId);
     if (estado && estado.phase !== "abierto") {

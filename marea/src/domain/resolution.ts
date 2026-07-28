@@ -25,11 +25,13 @@ export interface ResolutionSpec {
   disputeWindowHours: number;
 }
 
+import type { OutcomeId } from "./parimutuel";
+
 export type ResolutionState =
   | { status: "abierto" }
   | { status: "esperando_fuente"; since: string }
-  | { status: "en_disputa"; outcome: "si" | "no"; until: string }
-  | { status: "resuelto"; outcome: "si" | "no"; at: string };
+  | { status: "en_disputa"; outcome: OutcomeId; until: string }
+  | { status: "resuelto"; outcome: OutcomeId; at: string };
 
 export const MIN_DISPUTE_HOURS = 12;
 

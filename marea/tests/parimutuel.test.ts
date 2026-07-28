@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  binaryPool,
   addStake,
   formatMultiplier,
   impliedProbability,
@@ -33,7 +34,8 @@ import {
 } from "@/domain/points";
 import { OWN_MARKETS } from "@/adapters/ownMarkets/catalog";
 
-const pool = (si: number, no: number, feeBps = 300): Pool => ({ si, no, feeBps });
+const pool = (si: number, no: number, feeBps = 300): Pool =>
+  binaryPool(si, no, feeBps);
 
 describe("Motor parimutuel", () => {
   it("la probabilidad es la fracción del pozo, y 50 % cuando no hay pozo", () => {

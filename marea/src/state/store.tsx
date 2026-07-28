@@ -28,6 +28,7 @@ import {
   safeErrorReporter,
   type ErrorReporter,
 } from "@/adapters/errorReporter";
+import type { OutcomeId } from "@/domain/parimutuel";
 
 export type TabId = "markets" | "search" | "portfolio" | "wallet" | "tabla" | "profile";
 export type OnboardingStep = "p0" | "p1" | "p2" | "p3" | "done";
@@ -53,7 +54,13 @@ export interface AppState {
   depositBusy: boolean;
   tradeBusy: boolean;
   tradeError: AppError | null;
-  postTrade: { side: "si" | "no"; size: number; title: string } | null;
+  postTrade: {
+    side: OutcomeId;
+    /** El texto del resultado, para no decir "Sí" en un mercado de siete. */
+    sideLabel?: string;
+    size: number;
+    title: string;
+  } | null;
   /** País declarado o inferido: define elegibilidad para depositar y operar. */
   country?: CountryCode;
   /** De dónde salió el país. Inferido se puede corregir; declarado manda. */
@@ -570,7 +577,7 @@ function createActions(
         inFlight.deposit = false;
       }
     },
-    async submitTrade(market: Market, side: "si" | "no", size: number) {
+    async submitTrade(market: Market, side: OutcomeId, size: number) {
       if (inFlight.trade) return;
       inFlight.trade = true;
       adapters.analytics.track("click_trade_cta", {
@@ -615,7 +622,12 @@ function createActions(
         }
         dispatch({
           type: "post_trade",
-          value: { side, size, title: market.title },
+          value: {
+            side,
+            sideLabel: market.outcomes?.find((o) => o.id === side)?.label,
+            size,
+            title: market.title,
+          },
         });
         const balance = getState().wallet?.balance ?? 0;
         dispatch({ type: "balance", balance: Math.max(0, balance - size) });

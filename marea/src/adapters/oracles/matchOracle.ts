@@ -1,5 +1,5 @@
 import type { Oracle, OracleQuery, OracleReading } from "@/domain/settlement";
-import type { MatchRule } from "@/domain/oracleRule";
+import { idsDeTramos, type MatchOutcomeRule, type MatchRule } from "@/domain/oracleRule";
 
 /**
  * Oráculo de futbol contra el marcador público de ESPN, que sirve la Liga MX
@@ -35,7 +35,7 @@ export interface EspnEvento {
 export interface MatchOracleOptions {
   fetchImpl?: typeof fetch;
   /** Se inyecta en pruebas para no depender de la red. */
-  cargarPartidos?: (rule: MatchRule) => Promise<EspnEvento[]>;
+  cargarPartidos?: (rule: MatchRule | MatchOutcomeRule) => Promise<EspnEvento[]>;
 }
 
 const BASE = "https://site.api.espn.com/apis/site/v2/sports/soccer";
@@ -68,17 +68,20 @@ function esElEquipo(competidor: EspnCompetidor, equipo: string): boolean {
 export function createMatchOracle(options: MatchOracleOptions = {}): Oracle {
   const cargar =
     options.cargarPartidos ??
-    ((rule: MatchRule) => cargarEspn(options.fetchImpl ?? fetch, rule.liga, rule.fecha));
+    ((rule: MatchRule | MatchOutcomeRule) =>
+      cargarEspn(options.fetchImpl ?? fetch, rule.liga, rule.fecha));
 
   return {
     id: "espn-futbol",
 
     handles(query: OracleQuery): boolean {
-      return query.rule?.kind === "partido";
+      return (
+        query.rule?.kind === "partido" || query.rule?.kind === "partido_multiple"
+      );
     },
 
     async read(query: OracleQuery): Promise<OracleReading> {
-      const rule = query.rule as MatchRule;
+      const rule = query.rule as MatchRule | MatchOutcomeRule;
       const eventos = await cargar(rule);
 
       const evento = eventos.find((candidato) =>
@@ -122,12 +125,34 @@ export function createMatchOracle(options: MatchOracleOptions = {}): Oracle {
 
       const gano = nuestros > suyos;
       const empato = nuestros === suyos;
+      const evidencia = `Marcador final en ESPN del ${rule.fecha}: ${marcador}.`;
+
+      // el mismo marcador responde las tres formas de preguntar. Del 1X2 y de
+      // los goles totales sale un `outcomeId`, no un sí/no: plegar un empate
+      // dentro de "no" era una limitación nuestra, no de la pregunta
+      if (rule.kind === "partido_multiple") {
+        if (rule.mercado === "1x2") {
+          const outcome = gano ? "gana" : empato ? "empata" : "pierde";
+          return { status: "resuelto", outcome, evidence: evidencia };
+        }
+        const totales = nuestros + suyos;
+        const tramos = idsDeTramos(rule.cortes ?? []);
+        const cortes = rule.cortes ?? [];
+        let indice = cortes.findIndex((corte) => totales < corte);
+        if (indice === -1) indice = cortes.length;
+        return {
+          status: "resuelto",
+          outcome: tramos[indice].id,
+          evidence: `${evidencia} Goles totales: ${totales}.`,
+        };
+      }
+
       const cumple = rule.resultado === "gana" ? gano : gano || empato;
 
       return {
         status: "resuelto",
         outcome: cumple ? "si" : "no",
-        evidence: `Marcador final en ESPN del ${rule.fecha}: ${marcador}.`,
+        evidence: evidencia,
       };
     },
   };

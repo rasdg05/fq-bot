@@ -3,10 +3,14 @@ import { join } from "node:path";
 import type { Market, Position } from "../src/domain/types";
 import { withEdge } from "../src/domain/edge";
 import {
+  BINARY_OUTCOMES,
   impliedProbability,
+  isBinary,
+  rankedOutcomes,
   outlook,
   quote,
   totalPool,
+  type OutcomeId,
   type Pool,
 } from "../src/domain/parimutuel";
 import { resolutionSummary } from "../src/domain/resolution";
@@ -83,8 +87,7 @@ export function sembrarPozos(store: Store, seeds: OwnMarketSeed[]): void {
   for (const seed of seeds) {
     store.asegurarPozo({
       marketId: seed.id,
-      si: seed.pool.si,
-      no: seed.pool.no,
+      outcomes: { ...seed.pool.outcomes },
       feeBps: seed.pool.feeBps,
     });
   }
@@ -93,8 +96,8 @@ export function sembrarPozos(store: Store, seeds: OwnMarketSeed[]): void {
 function poolDe(store: Store, seed: OwnMarketSeed): Pool {
   const guardado = store.pozo(seed.id);
   return guardado
-    ? { si: guardado.si, no: guardado.no, feeBps: guardado.feeBps }
-    : { ...seed.pool };
+    ? { outcomes: guardado.outcomes, feeBps: guardado.feeBps }
+    : { outcomes: { ...seed.pool.outcomes }, feeBps: seed.pool.feeBps };
 }
 
 export function construirMercado(
@@ -109,10 +112,18 @@ export function construirMercado(
   const resuelto = estado !== undefined && estado.phase !== "abierto";
   const cerrado = resuelto || new Date(seed.closesAt).getTime() <= ahora;
 
+  const outcomes = seed.outcomes ?? [...BINARY_OUTCOMES];
+  const binario = isBinary(pool);
+  // en binario el nodo dominante es la probabilidad del Sí; con N respuestas
+  // es la de la favorita, y hay que decir de cuál se habla o el número no
+  // significa nada
+  const lider = rankedOutcomes(pool, outcomes)[0];
+
   return withEdge({
     id: seed.id,
     title: seed.title,
-    probability: impliedProbability(pool),
+    probability: binario ? impliedProbability(pool) : (lider?.probability ?? 0),
+    leadLabel: binario ? undefined : lider?.label,
     volume: totalPool(pool),
     status: cerrado ? "resolved" : "open",
     category: seed.category,
@@ -123,7 +134,8 @@ export function construirMercado(
     mareaBasis: cita ? `Precio de la misma pregunta en ${cita.venue}.` : undefined,
     edgeLabel: cita?.venue,
     priceLabel: "Aquí",
-    pool: { ...pool },
+    pool: { outcomes: { ...pool.outcomes }, feeBps: pool.feeBps },
+    outcomes,
     region: "latam",
     country: seed.country,
     hot: totalPool(pool) >= umbralHot,
@@ -148,7 +160,7 @@ export function listarMercados(
 }
 
 /** Cotiza sin mover nada: lo que se le muestra al usuario antes de decidir. */
-export function cotizar(store: Store, seed: OwnMarketSeed, side: "si" | "no", stake: number) {
+export function cotizar(store: Store, seed: OwnMarketSeed, side: OutcomeId, stake: number) {
   return quote(poolDe(store, seed), side, stake);
 }
 
@@ -169,10 +181,14 @@ export function posicionesDe(
     .map((apuesta) => {
       const seed = porId.get(apuesta.marketId);
       const estado = store.liquidacion(apuesta.marketId);
+      const etiqueta = (seed?.outcomes ?? BINARY_OUTCOMES).find(
+        (o) => o.id === apuesta.side,
+      )?.label;
       const base: Position = {
         id: apuesta.id,
         market_id: apuesta.marketId,
         side: apuesta.side,
+        sideLabel: etiqueta,
         size: apuesta.stake,
         entry_price: apuesta.precio,
         pnl: 0,

@@ -95,7 +95,7 @@ function Section({
                   {S.portfolio.side}
                 </p>
                 <p className="mt-0.5 text-[15px] font-bold text-text">
-                  {position.side === "si" ? S.market.yes : S.market.no}
+                  {position.sideLabel ?? (position.side === "si" ? S.market.yes : S.market.no)}
                   <span className="ml-2 font-mono text-[13px] font-medium text-text2 tabular-nums">
                     {formatStake(position.size)}
                   </span>

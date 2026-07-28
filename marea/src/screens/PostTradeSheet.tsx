@@ -24,7 +24,7 @@ export function PostTradeSheet() {
         {post ? (
           <p className="text-[15px] leading-relaxed text-text2">
             {S.postTrade.body(
-              post.side === "si" ? S.market.yes : S.market.no,
+              post.sideLabel ?? (post.side === "si" ? S.market.yes : S.market.no),
               formatStake(post.size),
               post.title,
             )}

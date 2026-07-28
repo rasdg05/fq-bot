@@ -17,6 +17,7 @@ import type { ResolutionSpec } from "@/domain/resolution";
 import { createPriceOracle, createInstitutionalOracle } from "@/adapters/oracles/priceOracle";
 import { ruleProblems, type PriceRule } from "@/domain/oracleRule";
 import {
+  binaryPool,
   addStake,
   payoutMultiplier,
   settle as settleParimutuel,
@@ -83,7 +84,7 @@ describe("liquidación automática", () => {
 
     // dentro de la ventana no se paga aunque el resultado ya se conozca
     expect(isPayable(state, AHORA)).toBe(false);
-    expect(() => pay(state, { si: 100, no: 100, feeBps: 300 }, [], AHORA)).toThrow();
+    expect(() => pay(state, binaryPool(100, 100, 300), [], AHORA)).toThrow();
 
     const despues = AHORA + 13 * 3_600_000;
     expect(isPayable(state, despues)).toBe(true);
@@ -93,7 +94,7 @@ describe("liquidación automática", () => {
   });
 
   it("V26 reparte el pozo entre los que acertaron", async () => {
-    const pool: Pool = { si: 600, no: 400, feeBps: 300 };
+    const pool: Pool = binaryPool(600, 400, 300);
     const bets: Bet[] = [
       { id: "a", side: "si", stake: 300 },
       { id: "b", side: "si", stake: 300 },
@@ -120,7 +121,7 @@ describe("liquidación automática", () => {
     // el defecto que esto cierra: `settle` repartía sólo entre las apuestas de
     // usuarios e ignoraba la semilla, así que pagaba 10× lo que la pantalla
     // había prometido antes de entrar (R-044)
-    const inicial: Pool = { si: 500, no: 500, feeBps: 300 };
+    const inicial: Pool = binaryPool(500, 500, 300);
     const stake = 100;
     const prometido = payoutMultiplier(inicial, "si", stake) * stake;
 

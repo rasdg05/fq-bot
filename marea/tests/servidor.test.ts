@@ -19,6 +19,7 @@ import { descripcionDe, metaDeMercado } from "../server/compartir.mts";
 import { construirMercado } from "../server/mercados.mts";
 import { validateSeed, type OwnMarketSeed } from "@/adapters/ownMarkets/catalog";
 import type { Oracle } from "@/domain/settlement";
+import { binaryPool } from "@/domain/parimutuel";
 
 /**
  * El servidor es lo que convierte a Marea en producto: sin él, la apuesta de
@@ -33,7 +34,7 @@ const seed: OwnMarketSeed = validateSeed({
   category: "cripto",
   country: "LATAM",
   closesAt: "2026-08-10T00:00:00Z",
-  pool: { si: 100, no: 100, feeBps: 300 },
+  pool: binaryPool(100, 100, 300),
   resolution: {
     sourceName: "Kraken (velas diarias públicas)",
     sourceUrl: "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=1440",
@@ -88,7 +89,7 @@ describe("Servidor · cuentas y persistencia", () => {
     const otro = new Store(dir);
     expect(otro.usuarioPorNombre("rasdg")?.puntos).toBe(700);
     expect(otro.apuestasDe(usuario.id)).toHaveLength(1);
-    expect(otro.pozo(seed.id)).toMatchObject({ si: 400, no: 100 });
+    expect(otro.pozo(seed.id)).toMatchObject({ outcomes: { si: 400, no: 100 } });
   });
 
   it("V48 el pozo es uno solo: lo que apuesta uno mueve el precio del otro", () => {
@@ -98,9 +99,11 @@ describe("Servidor · cuentas y persistencia", () => {
     store.apostar({ usuarioId: beto.id, marketId: seed.id, side: "si", stake: 100, precio: 0.75 });
 
     const pozo = store.pozo(seed.id)!;
-    expect(pozo.si).toBe(700);
+    expect(pozo.outcomes.si).toBe(700);
     // el segundo entra a un precio peor porque el primero ya movió el pozo
-    expect(pozo.si / (pozo.si + pozo.no)).toBeGreaterThan(0.5);
+    expect(
+      pozo.outcomes.si / (pozo.outcomes.si + pozo.outcomes.no),
+    ).toBeGreaterThan(0.5);
   });
 
   it("V49 nadie apuesta más de lo que tiene: no hay crédito", () => {
@@ -191,7 +194,9 @@ describe("Servidor · liquidación que paga a la gente", () => {
     const pagado = store.apuestasDeMercado(seed.id).reduce((s, a) => s + (a.pagado ?? 0), 0);
     const pozo = store.pozo(seed.id)!;
     // el resto es la parte de la semilla, que se queda con la casa
-    expect(pagado + store.tesoreria()).toBeLessThanOrEqual(pozo.si + pozo.no + 1e-6);
+    expect(pagado + store.tesoreria()).toBeLessThanOrEqual(
+      pozo.outcomes.si + pozo.outcomes.no + 1e-6,
+    );
 
     // correrlo otra vez no cobra dos veces
     await correrCiclo(store, [seed], [oraculoSi], AHORA + 3 * 86_400_000);

@@ -2,7 +2,13 @@ import type { MarketCategory } from "@/domain/types";
 import { assertPublishable, type ResolutionSpec } from "@/domain/resolution";
 import { ruleProblems, type OracleRule } from "@/domain/oracleRule";
 import type { Pool } from "@/domain/parimutuel";
-import { SEED } from "@/domain/parimutuel";
+import {
+  BINARY_OUTCOMES,
+  SEED,
+  binaryPool,
+  normalizePool,
+  type Outcome,
+} from "@/domain/parimutuel";
 
 /**
  * Catálogo de mercados propios de Latam. Esto es contenido de producto, no
@@ -26,6 +32,11 @@ export interface OwnMarketSeed {
   resolution: ResolutionSpec;
   /** Estado inicial del pozo, sembrado por nosotros para que se pueda entrar. */
   pool: Pool;
+  /**
+   * Los resultados posibles, con el texto que ve la gente. Si falta, el
+   * mercado es de sí/no: el binario es el caso particular, no un motor aparte.
+   */
+  outcomes?: Outcome[];
   referenceKey?: string;
   /**
    * El mismo criterio, escrito para que el oráculo lo ejecute sin interpretar
@@ -38,7 +49,12 @@ export interface OwnMarketSeed {
 const FEE_BPS = 300;
 
 function seedPool(si = SEED, no = SEED): Pool {
-  return { si, no, feeBps: FEE_BPS };
+  return binaryPool(si, no, FEE_BPS);
+}
+
+/** Semilla de un mercado de N resultados: cada id con lo suyo. */
+function seedOutcomes(outcomes: Record<string, number>): Pool {
+  return { outcomes: { ...outcomes }, feeBps: FEE_BPS };
 }
 
 const SEEDS: OwnMarketSeed[] = [
@@ -275,6 +291,75 @@ const SEEDS: OwnMarketSeed[] = [
       disputeWindowHours: 24,
     },
   },
+
+  /* ------------------------- mercados de N respuestas --------------------- */
+  /*
+   * La quiniela de toda la vida no es de sí/no: es "gana, empata o pierde".
+   * Plegar el empate dentro de "no" era una limitación de nuestro motor, no de
+   * la pregunta, y el empate en Liga MX pasa casi un tercio de las veces.
+   *
+   * Los dos se resuelven solos contra el marcador público de ESPN, así que no
+   * consumen ninguno de los tres cupos de confirmación humana (R-062).
+   */
+  {
+    id: "mx-america-santos-1x2",
+    title: "¿Cómo termina el América ante Santos?",
+    category: "deportes",
+    country: "MX",
+    closesAt: "2026-08-02T23:00:00Z",
+    pool: seedOutcomes({ gana: 520, empata: 260, pierde: 220 }),
+    outcomes: [
+      { id: "gana", label: "Gana el América" },
+      { id: "empata", label: "Empatan" },
+      { id: "pierde", label: "Gana Santos" },
+    ],
+    rule: {
+      kind: "partido_multiple",
+      liga: "mex.1",
+      fecha: "2026-08-02",
+      equipo: "América",
+      mercado: "1x2",
+    },
+    resolution: {
+      sourceName: "ESPN (marcador de la Liga MX)",
+      sourceUrl:
+        "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260802",
+      criterion:
+        "Se resuelve con el marcador final del América contra Santos del 2 de agosto de 2026, tal como lo publica ESPN: Gana el América si anota más goles, Empatan si terminan iguales, y Gana Santos si el América anota menos. Sólo cuenta el marcador al final del tiempo reglamentario que publica la fuente.",
+      settlesAt: "2026-08-03T04:00:00Z",
+      disputeWindowHours: 12,
+    },
+  },
+  {
+    id: "mx-toluca-necaxa-goles",
+    title: "¿Cuántos goles se anotan en Toluca-Necaxa?",
+    category: "deportes",
+    country: "MX",
+    closesAt: "2026-08-03T01:00:00Z",
+    pool: seedOutcomes({ goles_0_1: 240, goles_2_3: 480, goles_4_mas: 280 }),
+    outcomes: [
+      { id: "goles_0_1", label: "0-1 goles" },
+      { id: "goles_2_3", label: "2-3 goles" },
+      { id: "goles_4_mas", label: "4 o más goles" },
+    ],
+    rule: {
+      kind: "partido_multiple",
+      liga: "mex.1",
+      fecha: "2026-08-03",
+      equipo: "Toluca",
+      mercado: "goles",
+      cortes: [2, 4],
+    },
+    resolution: {
+      sourceName: "ESPN (marcador de la Liga MX)",
+      sourceUrl:
+        "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260803",
+      criterion:
+        "Se resuelve con los goles totales del Toluca contra Necaxa del 3 de agosto de 2026, sumando los de los dos equipos según el marcador final que publica ESPN: 0-1 goles, 2-3 goles, o 4 o más goles. Sólo cuenta el marcador al final del tiempo reglamentario que publica la fuente.",
+      settlesAt: "2026-08-03T06:00:00Z",
+      disputeWindowHours: 12,
+    },
+  },
 ];
 
 /**
@@ -284,6 +369,33 @@ const SEEDS: OwnMarketSeed[] = [
  */
 export function validateSeed(seed: OwnMarketSeed): OwnMarketSeed {
   const resolution = assertPublishable(seed.resolution);
+  const outcomes = seed.outcomes ?? [...BINARY_OUTCOMES];
+  // el catálogo generado que ya está publicado trae pozos en el formato viejo.
+  // Se leen igual que los del volumen: un mercado que se cae por la forma del
+  // pozo desaparece del feed sin que nadie se entere
+  const pool = normalizePool(seed.pool);
+
+  // el pozo y los resultados declarados tienen que hablar del mismo mercado:
+  // un resultado sin pozo no se puede elegir, y un pozo sin resultado es
+  // dinero apostado a algo que la interfaz no sabe nombrar
+  const idsPozo = Object.keys(pool.outcomes).sort();
+  const idsDeclarados = outcomes.map((o) => o.id).sort();
+  if (idsPozo.join("|") !== idsDeclarados.join("|")) {
+    throw new Error(
+      `Mercado ${seed.id}: el pozo tiene [${idsPozo}] y declara [${idsDeclarados}]`,
+    );
+  }
+  if (outcomes.length < 2) {
+    throw new Error(`Mercado ${seed.id}: un mercado necesita al menos dos resultados`);
+  }
+  if (new Set(idsDeclarados).size !== idsDeclarados.length) {
+    throw new Error(`Mercado ${seed.id}: hay ids de resultado repetidos`);
+  }
+  for (const outcome of outcomes) {
+    if (!outcome.label.trim()) {
+      throw new Error(`Mercado ${seed.id}: el resultado ${outcome.id} no tiene texto`);
+    }
+  }
   if (seed.rule) {
     // la regla de máquina y el criterio publicado tienen que decir lo mismo
     const problems = ruleProblems(seed.rule, resolution.criterion);
@@ -294,7 +406,7 @@ export function validateSeed(seed: OwnMarketSeed): OwnMarketSeed {
   if (new Date(seed.closesAt).getTime() > new Date(resolution.settlesAt).getTime()) {
     throw new Error(`Mercado ${seed.id}: las apuestas cierran después de resolver`);
   }
-  return { ...seed, resolution };
+  return { ...seed, resolution, outcomes, pool };
 }
 
 export const OWN_MARKETS: OwnMarketSeed[] = SEEDS.map(validateSeed);

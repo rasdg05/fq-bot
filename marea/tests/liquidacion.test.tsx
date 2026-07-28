@@ -8,6 +8,7 @@ import { createOwnMarketsAdapter } from "@/adapters/ownMarkets/ownMarketsAdapter
 import { validateSeed, type OwnMarketSeed } from "@/adapters/ownMarkets/catalog";
 import type { SettlementState } from "@/domain/settlement";
 import { WELCOME_GRANT } from "@/domain/points";
+import { binaryPool } from "@/domain/parimutuel";
 
 /**
  * El ciclo entero, de punta a punta: se apuesta, el mercado cierra, el
@@ -23,7 +24,7 @@ const seed: OwnMarketSeed = validateSeed({
   category: "cripto",
   country: "LATAM",
   closesAt: "2026-08-10T00:00:00Z",
-  pool: { si: 500, no: 500, feeBps: 300 },
+  pool: binaryPool(500, 500, 300),
   rule: {
     kind: "precio",
     par: "BTC/USD",

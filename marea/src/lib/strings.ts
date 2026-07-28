@@ -90,6 +90,12 @@ export const S = {
     poolTitle: "Cómo se reparte",
     poolBody: (si: string, no: string, fee: string) =>
       `Al Sí hay ${si} y al No ${no}. Quien acierta se reparte todo el pozo menos ${fee} de comisión. Marea no apuesta contra ti.`,
+    /** El mismo reparto cuando la pregunta tiene más de dos respuestas. */
+    poolBodyN: (reparto: string, fee: string) =>
+      `${reparto}. Quien acierta se reparte todo el pozo menos ${fee} de comisión. Marea no apuesta contra ti.`,
+    poolShare: (label: string, monto: string) => `A ${label} hay ${monto}`,
+    /** Con N respuestas ya no es "tu lado": es cuál de todas. */
+    chooseOutcome: "Elige tu respuesta",
     hereLabel: "Aquí",
     referenceLabel: (venue: string) => venue,
     edgeCardWith: (label: string, pp: string) => `${label} ${pp}%`,

@@ -8,7 +8,12 @@ import { cn } from "@/lib/cn";
 import { S } from "@/lib/strings";
 import { formatStake } from "@/lib/units";
 import { compactUsd, pct, closesIn } from "@/lib/format";
-import { formatMultiplier, payoutMultiplier } from "@/domain/parimutuel";
+import {
+  BINARY_OUTCOMES,
+  formatMultiplier,
+  payoutMultiplier,
+  rankedOutcomes,
+} from "@/domain/parimutuel";
 
 export type MarketCardVariant = "default" | "edge" | "live" | "compact";
 
@@ -38,6 +43,11 @@ export function MarketCard({ market, variant, onOpen }: MarketCardProps) {
   const closes = closesIn(market.closesAt);
   // en mercado propio lo que importa es cuánto paga, no cuánto se ha operado
   const pool = market.pool;
+  // los dos resultados con más pozo, sean "Sí/No" o dos de siete candidatos
+  const ranked = pool
+    ? rankedOutcomes(pool, market.outcomes ?? [...BINARY_OUTCOMES])
+    : [];
+  const [lider, rival] = ranked;
 
   const handleOpen = React.useCallback(() => onOpen(market), [onOpen, market]);
 
@@ -107,24 +117,27 @@ export function MarketCard({ market, variant, onOpen }: MarketCardProps) {
                 mercado: quien apuesta necesita ver contra qué apuesta (R-063) */}
             <div className="mt-0.5 text-[12px] font-medium text-muted">
               {pool
-                ? `${S.market.yes} · ${S.market.pays} ${formatMultiplier(
-                    payoutMultiplier(pool, "si"),
+                ? `${lider?.label ?? S.market.yes} · ${S.market.pays} ${formatMultiplier(
+                    lider ? lider.multiplier : payoutMultiplier(pool, "si"),
                   )}`
                 : S.market.probability}
             </div>
           </div>
 
-          {pool ? (
+          {/* el contrincante: en binario es el No, y con N respuestas la
+              segunda más probable. En los dos casos se ve contra qué se
+              apuesta, que es lo que pide R-063 */}
+          {pool && rival ? (
             <div className="text-right" data-testid="card-other-side">
               <div className="font-display text-[22px] font-semibold tabular-nums text-text2">
-                {pct(1 - market.probability)}
+                {pct(rival.probability)}
                 <span className="ml-0.5 align-top text-[0.42em] font-bold text-muted">
                   %
                 </span>
               </div>
               <div className="mt-0.5 text-[12px] font-medium text-muted">
-                {S.market.no} · {S.market.pays}{" "}
-                {formatMultiplier(payoutMultiplier(pool, "no"))}
+                {rival.label} · {S.market.pays}{" "}
+                {formatMultiplier(rival.multiplier)}
               </div>
             </div>
           ) : null}

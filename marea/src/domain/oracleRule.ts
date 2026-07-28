@@ -63,7 +63,52 @@ export interface MatchRule {
   resultado: "gana" | "no_pierde";
 }
 
-export type OracleRule = PriceRule | SeriesRule | MatchRule;
+/**
+ * Partido con más de dos respuestas. Es la forma natural de preguntar por un
+ * partido —gana, empata o pierde— y la que la gente usa en la quiniela; que
+ * hasta ahora se plegara a sí/no era una limitación nuestra, no de la pregunta.
+ *
+ * Se lee de la misma fuente que `MatchRule`: ESPN publica el marcador final, y
+ * de un marcador salen tanto el 1X2 como los goles totales.
+ */
+export interface MatchOutcomeRule {
+  kind: "partido_multiple";
+  liga: "mex.1";
+  /** Día del partido en UTC, `YYYY-MM-DD`. */
+  fecha: string;
+  /** Equipo desde cuya perspectiva se lee el resultado. */
+  equipo: string;
+  /**
+   * `1x2`: resuelve `gana` | `empata` | `pierde`.
+   * `goles`: resuelve por tramos de goles totales, según `cortes`.
+   */
+  mercado: "1x2" | "goles";
+  /**
+   * Cortes de los tramos de goles, ascendentes. `[2, 4]` produce tres tramos:
+   * `0-1`, `2-3` y `4+`, con los ids `goles_0_1`, `goles_2_3` y `goles_4_mas`.
+   */
+  cortes?: number[];
+}
+
+/** Los ids que produce una regla de tramos de goles, en orden. */
+export function idsDeTramos(cortes: number[]): { id: string; label: string }[] {
+  const tramos: { id: string; label: string }[] = [];
+  let desde = 0;
+  for (const corte of cortes) {
+    tramos.push({
+      id: `goles_${desde}_${corte - 1}`,
+      label: desde === corte - 1 ? `${desde} goles` : `${desde}-${corte - 1} goles`,
+    });
+    desde = corte;
+  }
+  tramos.push({ id: `goles_${desde}_mas`, label: `${desde} o más goles` });
+  return tramos;
+}
+
+/** Los tres ids del 1X2, desde la perspectiva del equipo de la pregunta. */
+export const IDS_1X2 = ["gana", "empata", "pierde"] as const;
+
+export type OracleRule = PriceRule | SeriesRule | MatchRule | MatchOutcomeRule;
 
 /** Cómo se escribe el umbral en el texto: `71000`, `71,000`, `71.000`, `5.00`. */
 function umbralEnTexto(umbral: number): RegExp {
@@ -79,6 +124,33 @@ function umbralEnTexto(umbral: number): RegExp {
  */
 export function ruleProblems(rule: OracleRule, criterion: string): string[] {
   const problems: string[] = [];
+
+  if (rule.kind === "partido_multiple") {
+    if (!new RegExp(rule.equipo.split(" ")[0], "i").test(criterion)) {
+      problems.push(`el criterio no menciona a ${rule.equipo}`);
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(rule.fecha)) {
+      problems.push("la fecha del partido tiene que ser YYYY-MM-DD");
+    }
+    if (rule.mercado === "goles") {
+      if (!rule.cortes || rule.cortes.length === 0) {
+        problems.push("una regla de goles necesita sus cortes");
+      } else {
+        const ordenados = [...rule.cortes].every(
+          (corte, i, todos) => i === 0 || todos[i - 1] < corte,
+        );
+        if (!ordenados) problems.push("los cortes de goles tienen que ir de menor a mayor");
+        // cada tramo publicado tiene que aparecer en el criterio, o el mercado
+        // pagaría por unos tramos y habría prometido otros (R-042)
+        for (const corte of rule.cortes) {
+          if (!umbralEnTexto(corte).test(criterion)) {
+            problems.push(`el corte de goles ${corte} no aparece en el criterio publicado`);
+          }
+        }
+      }
+    }
+    return problems;
+  }
 
   if (rule.kind === "partido") {
     // el equipo tiene que aparecer en la pregunta, o el criterio publicado y

@@ -2,6 +2,7 @@ import type { Market, Position } from "@/domain/types";
 import { appError } from "@/domain/errors";
 import { FLAGS } from "@/lib/flags";
 import { MOCK_MARKETS, findMockMarket } from "./mock/markets";
+import type { OutcomeId } from "@/domain/parimutuel";
 
 /**
  * Puerto de datos de mercado. La UI habla con esta interfaz y con ninguna otra;
@@ -24,7 +25,7 @@ export interface MarketDataAdapter {
    */
   prepareTrade(input: {
     marketId: string;
-    side: "si" | "no";
+    side: OutcomeId;
     size: number;
   }): Promise<{ positionId: string; venue: string; deepLink?: string }>;
 }

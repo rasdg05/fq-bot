@@ -104,7 +104,7 @@ export async function correrCiclo(
           const reparto = sinMercado
             ? { payouts: Object.fromEntries(apuestas.map((a) => [a.id, a.stake])) }
             : settle(
-                { si: pozo.si, no: pozo.no, feeBps: pozo.feeBps },
+                { outcomes: pozo.outcomes, feeBps: pozo.feeBps },
                 apuestas,
                 estado.outcome,
               );
@@ -120,7 +120,8 @@ export async function correrCiclo(
         }
 
         const nadieAcerto =
-          pozo !== undefined && (estado.outcome === "si" ? pozo.si : pozo.no) <= 0;
+          pozo !== undefined &&
+          (pozo.outcomes[estado.outcome as string] ?? 0) <= 0;
         estado = {
           ...authorizePayout(estado, ahora),
           phase: sinMercado || nadieAcerto ? "devuelto" : "pagado",

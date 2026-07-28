@@ -1,5 +1,12 @@
 import { canPayout, disputeDeadline, type ResolutionSpec } from "./resolution";
-import { settle, type Bet, type Pool, type Settlement, type Side } from "./parimutuel";
+import {
+  outcomeStake,
+  settle,
+  type Bet,
+  type OutcomeId,
+  type Pool,
+  type Settlement,
+} from "./parimutuel";
 import type { OracleRule } from "./oracleRule";
 
 /**
@@ -28,8 +35,11 @@ export type SettlementPhase =
 export interface SettlementState {
   marketId: string;
   phase: SettlementPhase;
-  /** Resultado leído de la fuente. */
-  outcome?: Side;
+  /**
+   * Resultado leído de la fuente: el id del resultado ganador. Con dos
+   * respuestas es `si` o `no`; con N, uno de los ids que declaró el mercado.
+   */
+  outcome?: OutcomeId;
   /** Cuándo se leyó la fuente. */
   readAt?: string;
   /** Qué se leyó exactamente, para poder auditarlo después. */
@@ -44,7 +54,7 @@ export interface SettlementState {
 
 /** Lo que devuelve un oráculo al consultar la fuente citada. */
 export type OracleReading =
-  | { status: "resuelto"; outcome: Side; evidence: string }
+  | { status: "resuelto"; outcome: OutcomeId; evidence: string }
   /** La fuente aún no publicó el dato. Se reintenta. */
   | { status: "sin_dato"; evidence: string }
   /** La fuente no se puede leer por programa: necesita a una persona. */
@@ -191,10 +201,10 @@ export function pay(
   if (!isPayable(state, now)) {
     throw new Error(`no se puede pagar ${state.marketId} en fase ${state.phase}`);
   }
-  const outcome = state.outcome as Side;
+  const outcome = state.outcome as OutcomeId;
   const settlement = settle(pool, bets, outcome);
   // "nadie acertó" es que el lado ganador esté vacío del todo, semilla incluida
-  const nadieAcerto = (outcome === "si" ? pool.si : pool.no) <= 0;
+  const nadieAcerto = outcomeStake(pool, outcome) <= 0;
 
   return {
     settlement,
@@ -218,7 +228,7 @@ export function dispute(state: SettlementState, motivo: string): SettlementState
 /** Resolución manual, para lo que el oráculo no puede leer. */
 export function resolveByHand(
   state: SettlementState,
-  outcome: Side,
+  outcome: OutcomeId,
   evidence: string,
   spec: ResolutionSpec,
   now: number,

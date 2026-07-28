@@ -3,7 +3,10 @@ import { withEdge } from "@/domain/edge";
 import { appError } from "@/domain/errors";
 import {
   addStake,
+  BINARY_OUTCOMES,
   impliedProbability,
+  isBinary,
+  rankedOutcomes,
   quote,
   outlook,
   totalPool,
@@ -207,11 +210,20 @@ export function createOwnMarketsAdapter(
     const resuelto = state !== undefined && state.phase !== "abierto";
     const closed = resuelto || new Date(seed.closesAt).getTime() <= now();
 
+    // en binario el nodo dominante es el Sí; con N respuestas es la favorita,
+    // y hay que decir de cuál se habla. Sin esto un mercado de tres opciones
+    // mostraría 0 %, porque no tiene ningún lado llamado "si"
+    const outcomes = seed.outcomes ?? [...BINARY_OUTCOMES];
+    const binario = isBinary(pool);
+    const lider = rankedOutcomes(pool, outcomes)[0];
+
     return withEdge({
       id: seed.id,
       title: seed.title,
       // la probabilidad es la del pozo: lo que la gente apostó
-      probability: impliedProbability(pool),
+      probability: binario ? impliedProbability(pool) : (lider?.probability ?? 0),
+      leadLabel: binario ? undefined : lider?.label,
+      outcomes,
       volume: totalPool(pool),
       status: closed ? "resolved" : "open",
       category: seed.category,
@@ -224,7 +236,7 @@ export function createOwnMarketsAdapter(
       mareaBasis: quote ? `Precio de la misma pregunta en ${quote.venue}.` : undefined,
       edgeLabel: quote?.venue,
       priceLabel: "Aquí",
-      pool: { ...pool },
+      pool: { outcomes: { ...pool.outcomes }, feeBps: pool.feeBps },
       region: "latam",
       country: seed.country,
       hot: totalPool(pool) >= threshold,

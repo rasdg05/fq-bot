@@ -1,6 +1,7 @@
 import type { Market, Position } from "@/domain/types";
 import { appError } from "@/domain/errors";
 import type { MarketDataAdapter } from "@/adapters/marketDataAdapter";
+import type { OutcomeId } from "@/domain/parimutuel";
 
 /**
  * Cliente del servidor de Marea. Aquí el pozo es compartido y el saldo vive en
@@ -95,7 +96,7 @@ export function createApiClient(options: ApiOptions = {}) {
       return pedir<Cuenta>("/cuenta/recarga", { method: "POST" });
     },
 
-    apostar(datos: { marketId: string; side: "si" | "no"; size: number }) {
+    apostar(datos: { marketId: string; side: OutcomeId; size: number }) {
       return pedir<Cuenta & { positionId: string }>("/apostar", {
         method: "POST",
         body: JSON.stringify(datos),

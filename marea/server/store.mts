@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Side } from "../src/domain/parimutuel";
+import { normalizePool, type OutcomeId, type Side } from "../src/domain/parimutuel";
 import type { SettlementState } from "../src/domain/settlement";
 
 /**
@@ -51,8 +51,8 @@ export interface Apuesta {
 
 export interface PozoGuardado {
   marketId: string;
-  si: number;
-  no: number;
+  /** Lo apostado a cada resultado, por id. El binario usa `si` y `no`. */
+  outcomes: Record<OutcomeId, number>;
   feeBps: number;
 }
 
@@ -71,8 +71,20 @@ export interface AsientoComision {
   at: string;
 }
 
+/**
+ * Versión del formato en disco.
+ *
+ *  - 1: el pozo era `{ marketId, si, no, feeBps }`, dos columnas fijas.
+ *  - 2: el pozo es `{ marketId, outcomes, feeBps }`, un mapa por resultado.
+ *
+ * Se lee cualquiera de las dos y se escribe siempre la nueva. Un pozo que no
+ * se sepa leer sería dinero de gente que desaparece, así que la migración
+ * corre al abrir el archivo y no depende de que nadie se acuerde.
+ */
+export const VERSION_DATOS = 2;
+
 interface Datos {
-  version: 1;
+  version: number;
   usuarios: Usuario[];
   apuestas: Apuesta[];
   pozos: PozoGuardado[];
@@ -81,13 +93,34 @@ interface Datos {
 }
 
 const VACIO: Datos = {
-  version: 1,
+  version: VERSION_DATOS,
   usuarios: [],
   apuestas: [],
   pozos: [],
   liquidaciones: [],
   comisiones: [],
 };
+
+/**
+ * Lleva los datos leídos al formato vigente. Es idempotente: correrla sobre
+ * datos ya migrados los deja igual, que es lo que permite arrancar el proceso
+ * dos veces sin miedo.
+ *
+ * Sólo toca la forma del pozo. Usuarios, apuestas, liquidaciones y comisiones
+ * no cambiaron de forma, y una migración que reescribe lo que no hace falta es
+ * una migración con más superficie para equivocarse.
+ */
+function migrar(datos: Datos): Datos {
+  if (datos.version === VERSION_DATOS && datos.pozos.every((p) => "outcomes" in p)) {
+    return datos;
+  }
+  const pozos = datos.pozos.map((guardado) => {
+    const { marketId } = guardado;
+    const pool = normalizePool(guardado);
+    return { marketId, outcomes: pool.outcomes, feeBps: pool.feeBps };
+  });
+  return { ...datos, version: VERSION_DATOS, pozos };
+}
 
 export class Store {
   private datos: Datos;
@@ -96,21 +129,30 @@ export class Store {
   constructor(readonly directorio: string) {
     mkdirSync(directorio, { recursive: true });
     this.archivo = join(directorio, "marea.json");
-    this.datos = this.leer();
+    const { datos, migrado } = this.leer();
+    this.datos = datos;
+    // si hubo migración se escribe ya, no en la primera mutación que llegue:
+    // un archivo que sigue en el formato viejo después de arrancar es una
+    // migración que depende de que alguien apueste para completarse
+    if (migrado && existsSync(this.archivo)) this.guardar();
   }
 
-  private leer(): Datos {
-    if (!existsSync(this.archivo)) return structuredClone(VACIO);
+  private leer(): { datos: Datos; migrado: boolean } {
+    if (!existsSync(this.archivo)) {
+      return { datos: structuredClone(VACIO), migrado: false };
+    }
     try {
       const leido = JSON.parse(readFileSync(this.archivo, "utf8")) as Datos;
-      return { ...structuredClone(VACIO), ...leido };
+      const completo = { ...structuredClone(VACIO), ...leido };
+      const datos = migrar(completo);
+      return { datos, migrado: datos !== completo };
     } catch (error) {
       // un archivo corrupto no se sobrescribe en silencio: se conserva para
       // poder mirarlo, y arrancamos vacíos declarándolo en el log
       const respaldo = `${this.archivo}.roto-${Date.now()}`;
       renameSync(this.archivo, respaldo);
       console.error(`store: archivo ilegible, respaldado en ${respaldo}`, error);
-      return structuredClone(VACIO);
+      return { datos: structuredClone(VACIO), migrado: false };
     }
   }
 
@@ -238,8 +280,14 @@ export class Store {
       const pozo = datos.pozos.find((p) => p.marketId === input.marketId);
       if (!pozo) throw new Error("mercado desconocido");
 
+      if (!(input.side in pozo.outcomes)) {
+        // un id que el mercado no declaró no crea un lado nuevo: sería dinero
+        // apostado a un resultado que nunca va a poder ganar
+        throw new Error("resultado desconocido");
+      }
+
       usuario.puntos -= input.stake;
-      pozo[input.side] += input.stake;
+      pozo.outcomes[input.side] += input.stake;
 
       const apuesta: Apuesta = {
         id: `${input.marketId}-${datos.apuestas.length + 1}`,
