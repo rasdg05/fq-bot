@@ -23,7 +23,12 @@ import {
   type Bet,
   type Pool,
 } from "@/domain/parimutuel";
-import { rollingSeeds, proximoCierreSemanal } from "@/adapters/ownMarkets/templates";
+import {
+  rollingSeeds,
+  proximoCierreSemanal,
+  partidosSeeds,
+} from "@/adapters/ownMarkets/templates";
+import { createMatchOracle, type EspnEvento } from "@/adapters/oracles/matchOracle";
 import { activeSeeds, openSeeds, OWN_MARKETS } from "@/adapters/ownMarkets/catalog";
 
 const DIA = 86_400_000;
@@ -278,5 +283,113 @@ describe("catálogo que se repone solo", () => {
       expect(cierre.getUTCDay()).toBe(0);
       expect(cierre.getTime()).toBeGreaterThan(AHORA + dia * DIA);
     }
+  });
+});
+
+describe("futbol, que es lo que sí se comparte", () => {
+  const partido: EspnEvento = {
+    date: "2026-08-02T23:00Z",
+    name: "Santos at América",
+    competitions: [
+      {
+        status: { type: { name: "STATUS_FULL_TIME", completed: true } },
+        competitors: [
+          { homeAway: "home", score: "2", team: { displayName: "América" } },
+          { homeAway: "away", score: "1", team: { displayName: "Santos" } },
+        ],
+      },
+    ],
+  };
+
+  const specPartido = {
+    sourceName: "ESPN (marcador oficial de la Liga MX)",
+    sourceUrl: "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard",
+    criterion:
+      "Se resuelve Sí si América le gana a Santos en el partido del 2026-08-02, según el marcador final que publica ESPN. Un empate resuelve No.",
+    settlesAt: "2026-08-03T02:00:00Z",
+    disputeWindowHours: 12,
+  };
+
+  const regla = {
+    kind: "partido" as const,
+    liga: "mex.1" as const,
+    fecha: "2026-08-02",
+    equipo: "América",
+    resultado: "gana" as const,
+  };
+
+  it("V58 un partido de Liga MX se resuelve solo con el marcador público", async () => {
+    const oracle = createMatchOracle({ cargarPartidos: async () => [partido] });
+    const { reading } = await readWithOracles([oracle], {
+      marketId: "mx-america",
+      spec: specPartido,
+      rule: regla,
+      now: Date.parse("2026-08-03T03:00:00Z"),
+    });
+    expect(reading.status).toBe("resuelto");
+    if (reading.status === "resuelto") expect(reading.outcome).toBe("si");
+    expect(reading.evidence).toContain("2 - 1");
+  });
+
+  it("V59 un partido en curso no resuelve: un marcador a medio tiempo no es resultado", async () => {
+    const enJuego: EspnEvento = {
+      ...partido,
+      competitions: [
+        {
+          status: { type: { name: "STATUS_IN_PROGRESS", completed: false } },
+          competitors: partido.competitions[0].competitors,
+        },
+      ],
+    };
+    const oracle = createMatchOracle({ cargarPartidos: async () => [enJuego] });
+    const { reading } = await readWithOracles([oracle], {
+      marketId: "mx-america",
+      spec: specPartido,
+      rule: regla,
+      now: Date.parse("2026-08-03T00:00:00Z"),
+    });
+    expect(reading.status).toBe("sin_dato");
+    expect(reading.evidence).toMatch(/no ha terminado/);
+  });
+
+  it("V60 el empate resuelve No cuando la pregunta es si gana", async () => {
+    const empate: EspnEvento = {
+      ...partido,
+      competitions: [
+        {
+          status: { type: { name: "STATUS_FULL_TIME", completed: true } },
+          competitors: [
+            { homeAway: "home", score: "1", team: { displayName: "América" } },
+            { homeAway: "away", score: "1", team: { displayName: "Santos" } },
+          ],
+        },
+      ],
+    };
+    const oracle = createMatchOracle({ cargarPartidos: async () => [empate] });
+    const { reading } = await readWithOracles([oracle], {
+      marketId: "mx-america",
+      spec: specPartido,
+      rule: regla,
+      now: Date.parse("2026-08-03T03:00:00Z"),
+    });
+    if (reading.status === "resuelto") expect(reading.outcome).toBe("no");
+  });
+
+  it("V61 los mercados de la jornada se generan solos y cierran al arrancar el partido", () => {
+    const ahora = Date.parse("2026-07-30T00:00:00Z");
+    const seeds = partidosSeeds(
+      [
+        { inicio: "2026-08-02T23:00:00Z", local: "América", visitante: "Santos" },
+        // uno que ya empezó no se publica: no se apuesta con el marcador a la vista
+        { inicio: "2026-07-29T23:00:00Z", local: "Toluca", visitante: "Necaxa" },
+      ],
+      ahora,
+    );
+    expect(seeds).toHaveLength(1);
+    expect(seeds[0].title).toBe("¿América le gana a Santos?");
+    expect(seeds[0].closesAt).toBe("2026-08-02T23:00:00Z");
+    expect(new Date(seeds[0].resolution.settlesAt).getTime()).toBeGreaterThan(
+      new Date(seeds[0].closesAt).getTime(),
+    );
   });
 });

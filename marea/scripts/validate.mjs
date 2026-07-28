@@ -428,9 +428,18 @@ check("O1", "lo automatizable no se deja en manos de una persona", () => {
   // decir "hace falta un humano" sin haber buscado la API es pereza con
   // disfraz de prudencia (AGENTE §2). Esto cuenta cuánto queda manual.
   const problems = [];
+  // se mide el feed real, no sólo el archivo escrito a mano: lo que importa
+  // es qué proporción de lo que ve el usuario se resuelve sin una persona
   const catalog = read(join(SRC, "adapters", "ownMarkets", "catalog.ts"));
-  const total = (catalog.match(/^\s{4}id:/gm) ?? []).length;
-  const conRegla = (catalog.match(/^\s{4}rule:/gm) ?? []).length;
+  let total = (catalog.match(/^\s{4}id:/gm) ?? []).length;
+  let conRegla = (catalog.match(/^\s{4}rule:/gm) ?? []).length;
+
+  const publicado = join(ROOT, "public", "mercados.json");
+  if (existsSync(publicado)) {
+    const { seeds = [] } = JSON.parse(readFileSync(publicado, "utf8"));
+    total += seeds.length;
+    conRegla += seeds.filter((seed) => seed.rule).length;
+  }
   if (total === 0) problems.push("el catálogo no tiene mercados");
   else if (conRegla / total < 0.5) {
     problems.push(

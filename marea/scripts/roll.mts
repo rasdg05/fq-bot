@@ -18,7 +18,13 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { rollingSeeds, type SpotPrices } from "../src/adapters/ownMarkets/templates";
+import {
+  partidosSeeds,
+  rollingSeeds,
+  type PartidoDeLaLiga,
+  type SpotPrices,
+} from "../src/adapters/ownMarkets/templates";
+import { cargarEspn } from "../src/adapters/oracles/matchOracle";
 import { activeSeeds, OWN_MARKETS, validateSeed, type OwnMarketSeed } from "../src/adapters/ownMarkets/catalog";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -49,6 +55,34 @@ async function spot(): Promise<SpotPrices> {
   return precios;
 }
 
+/**
+ * Los partidos de Liga MX de los próximos días. Es la categoría que la gente
+ * comparte de verdad, y ESPN la publica sin llave — así que se generan solos.
+ */
+async function partidosDeLaSemana(dias = 7): Promise<PartidoDeLaLiga[]> {
+  const partidos: PartidoDeLaLiga[] = [];
+  for (let i = 0; i < dias; i += 1) {
+    const dia = new Date(now + i * 86_400_000).toISOString().slice(0, 10);
+    try {
+      for (const evento of await cargarEspn(fetch, "mex.1", dia)) {
+        const competidores = evento.competitions[0]?.competitors ?? [];
+        const local = competidores.find((c) => c.homeAway === "home");
+        const visitante = competidores.find((c) => c.homeAway === "away");
+        if (!local || !visitante) continue;
+        partidos.push({
+          inicio: evento.date,
+          local: local.team.displayName,
+          visitante: visitante.team.displayName,
+        });
+      }
+    } catch (error) {
+      // un día que no responde no cancela la semana entera
+      console.warn(`ESPN falló para ${dia}: ${(error as Error).message}`);
+    }
+  }
+  return partidos;
+}
+
 function publicados(): OwnMarketSeed[] {
   if (!existsSync(DESTINO)) return [];
   try {
@@ -65,7 +99,13 @@ console.log(
   `Precio de referencia: BTC ${precios["BTC/USD"] ?? "—"} · ETH ${precios["ETH/USD"] ?? "—"}`,
 );
 
-const nuevos = rollingSeeds({ spot: precios, now });
+const partidos = await partidosDeLaSemana();
+console.log(`Liga MX: ${partidos.length} partidos en los próximos 7 días`);
+
+const nuevos = [
+  ...rollingSeeds({ spot: precios, now }),
+  ...partidosSeeds(partidos, now),
+];
 // los vigentes de antes se conservan; los vencidos se van solos
 const vigentes = activeSeeds(now, publicados());
 const porId = new Map(vigentes.map((seed) => [seed.id, seed]));

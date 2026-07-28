@@ -1,6 +1,6 @@
 import { assertPublishable } from "@/domain/resolution";
 import { SEED, type Pool } from "@/domain/parimutuel";
-import type { PriceRule } from "@/domain/oracleRule";
+import type { MatchRule, PriceRule } from "@/domain/oracleRule";
 import type { OwnMarketSeed } from "./catalog";
 
 /**
@@ -182,4 +182,73 @@ export function rollingSeeds(input: {
   }));
 }
 
-export { KRAKEN_DOC };
+/* ------------------------------- futbol ---------------------------------- */
+
+/**
+ * Mercados de Liga MX. Ésta es la categoría que de verdad se manda al grupo, y
+ * se resuelve sola contra el marcador público de ESPN — así que se genera sola
+ * cada semana, igual que los de precio.
+ *
+ * Las apuestas cierran al arrancar el partido, no antes ni después: nadie
+ * apuesta con el marcador a la vista (R-043).
+ */
+export interface PartidoDeLaLiga {
+  /** ISO del arranque del partido. */
+  inicio: string;
+  local: string;
+  visitante: string;
+}
+
+const ESPN_MX = "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard";
+
+/** Cuánto se espera al marcador final antes de leerlo. */
+const DURACION_PARTIDO_MS = 3 * 3_600_000;
+
+export function partidoSeed(partido: PartidoDeLaLiga): OwnMarketSeed {
+  const inicioMs = new Date(partido.inicio).getTime();
+  const dia = new Date(inicioMs).toISOString().slice(0, 10);
+  const settlesAt = new Date(inicioMs + DURACION_PARTIDO_MS).toISOString();
+  const clave = `${partido.local}-${partido.visitante}`
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-");
+
+  const rule: MatchRule = {
+    kind: "partido",
+    liga: "mex.1",
+    fecha: dia,
+    equipo: partido.local,
+    resultado: "gana",
+  };
+
+  return {
+    id: `mx-${clave}-${dia}`,
+    title: `¿${partido.local} le gana a ${partido.visitante}?`,
+    category: "deportes",
+    country: "MX",
+    // se cierra al arrancar el partido: con el marcador a la vista ya no es
+    // predicción
+    closesAt: partido.inicio,
+    pool: seedPool(SEED * 4, SEED * 4),
+    rule,
+    resolution: {
+      sourceName: "ESPN (marcador oficial de la Liga MX)",
+      sourceUrl: `${ESPN_MX}?dates=${dia.replace(/-/g, "")}`,
+      criterion: `Se resuelve Sí si ${partido.local} le gana a ${partido.visitante} en el partido del ${dia}, según el marcador final que publica ESPN. Un empate resuelve No.`,
+      settlesAt,
+      disputeWindowHours: 12,
+    },
+  };
+}
+
+/** Los partidos de los próximos días, listos para publicarse como mercados. */
+export function partidosSeeds(partidos: PartidoDeLaLiga[], now: number): OwnMarketSeed[] {
+  return partidos
+    // sólo lo que todavía no empieza: un partido en curso no se puede apostar
+    .filter((partido) => new Date(partido.inicio).getTime() > now)
+    .map(partidoSeed)
+    .map((seed) => ({ ...seed, resolution: assertPublishable(seed.resolution) }));
+}
+
+export { KRAKEN_DOC, ESPN_MX };

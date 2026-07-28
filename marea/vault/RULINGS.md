@@ -159,3 +159,13 @@ Se agrega una línea cuando un hallazgo de audit es recurrente o de producto.
 - **R-055** — El servidor comprime lo que sirve. Sin gzip mandaba 426 kB donde
   el preview mandaba 180 kB: 1.3 s de LCP regalados en red lenta. Medir contra
   el servidor real y no contra el preview es lo que lo destapó. (perf)
+- **R-056** — La categoría se elige por dos ejes: cuánto se comparte y si se
+  puede leer sola. El futbol da los dos, y por eso la Liga MX se genera y se
+  resuelve sin que nadie escriba nada. Lo que se comparte mucho pero no se lee
+  solo entra acotado y con su costo declarado. (producto)
+- **R-057** — La semilla del pozo corre la misma suerte que el usuario y la casa
+  nunca toma el lado contrario para "dar liquidez": el día que la casa gana
+  cuando el usuario pierde, dejamos de ser lo que prometimos. (liquidez)
+- **R-058** — Los datos que se publican o se venden son agregados: probabilidad,
+  volumen, resultado y calibración. Quién apostó qué no sale nunca. Un usuario
+  no es un producto. (datos)

@@ -1,6 +1,7 @@
 import type { Oracle, OracleQuery, OracleReading } from "@/domain/settlement";
 import type { PriceRule } from "@/domain/oracleRule";
 import { createSeriesOracle, type SeriesOracleOptions } from "./seriesOracle";
+import { createMatchOracle, type MatchOracleOptions } from "./matchOracle";
 
 /**
  * Oráculo de precio contra Kraken, que publica velas históricas sin llave y sin
@@ -174,7 +175,12 @@ export function createInstitutionalOracle(): Oracle {
 
 /** El orden importa: primero los que saben leer, y el humano como red de fondo. */
 export function defaultOracles(
-  options: PriceOracleOptions & SeriesOracleOptions = {},
+  options: PriceOracleOptions & SeriesOracleOptions & MatchOracleOptions = {},
 ): Oracle[] {
-  return [createPriceOracle(options), createSeriesOracle(options), createInstitutionalOracle()];
+  return [
+    createPriceOracle(options),
+    createSeriesOracle(options),
+    createMatchOracle(options),
+    createInstitutionalOracle(),
+  ];
 }

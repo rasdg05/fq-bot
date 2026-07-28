@@ -46,7 +46,24 @@ export interface SeriesRule {
   etiqueta: string;
 }
 
-export type OracleRule = PriceRule | SeriesRule;
+/**
+ * Partido de futbol. Es la categoría que de verdad se comparte en Latam, y
+ * resulta que **también se puede leer por programa**: ESPN publica el marcador
+ * de la Liga MX sin llave ni registro.
+ */
+export interface MatchRule {
+  kind: "partido";
+  /** Liga tal como la nombra la fuente. `mex.1` es la Liga MX. */
+  liga: "mex.1";
+  /** Día del partido en UTC, `YYYY-MM-DD`. */
+  fecha: string;
+  /** Equipo del que se pregunta, con el nombre que usa la fuente. */
+  equipo: string;
+  /** `gana` es victoria; `no_pierde` incluye el empate. */
+  resultado: "gana" | "no_pierde";
+}
+
+export type OracleRule = PriceRule | SeriesRule | MatchRule;
 
 /** Cómo se escribe el umbral en el texto: `71000`, `71,000`, `71.000`, `5.00`. */
 function umbralEnTexto(umbral: number): RegExp {
@@ -62,6 +79,18 @@ function umbralEnTexto(umbral: number): RegExp {
  */
 export function ruleProblems(rule: OracleRule, criterion: string): string[] {
   const problems: string[] = [];
+
+  if (rule.kind === "partido") {
+    // el equipo tiene que aparecer en la pregunta, o el criterio publicado y
+    // la regla estarían hablando de partidos distintos
+    if (!new RegExp(rule.equipo.split(" ")[0], "i").test(criterion)) {
+      problems.push(`el criterio no menciona a ${rule.equipo}`);
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(rule.fecha)) {
+      problems.push("la fecha del partido tiene que ser YYYY-MM-DD");
+    }
+    return problems;
+  }
 
   if (rule.kind === "serie") {
     const necesitaUmbral = rule.comparacion === "menor" || rule.comparacion === "mayor";

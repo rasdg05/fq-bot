@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-28T00:34:53.886Z",
+  "generatedAt": "2026-07-28T07:02:41.209Z",
   "seeds": [
     {
       "id": "btc-cierre-2026-08-02",
@@ -160,6 +160,240 @@
         "sourceUrl": "https://api.kraken.com/0/public/OHLC?pair=ETHUSD&interval=1440",
         "criterion": "Se resuelve Sí si el precio de ETH/USD en Kraken alcanza o supera 2,000 dólares en cualquier momento entre el 2026-07-28 y el 2026-08-27, medido sobre el máximo de las velas diarias públicas.",
         "settlesAt": "2026-08-27T00:34:53.886Z",
+        "disputeWindowHours": 12
+      }
+    },
+    {
+      "id": "mx-puebla-guadalajara-2026-08-01",
+      "title": "¿Puebla le gana a Guadalajara?",
+      "category": "deportes",
+      "country": "MX",
+      "closesAt": "2026-08-01T01:00Z",
+      "pool": {
+        "si": 400,
+        "no": 400,
+        "feeBps": 300
+      },
+      "rule": {
+        "kind": "partido",
+        "liga": "mex.1",
+        "fecha": "2026-08-01",
+        "equipo": "Puebla",
+        "resultado": "gana"
+      },
+      "resolution": {
+        "sourceName": "ESPN (marcador oficial de la Liga MX)",
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260801",
+        "criterion": "Se resuelve Sí si Puebla le gana a Guadalajara en el partido del 2026-08-01, según el marcador final que publica ESPN. Un empate resuelve No.",
+        "settlesAt": "2026-08-01T04:00:00.000Z",
+        "disputeWindowHours": 12
+      }
+    },
+    {
+      "id": "mx-atletico-de-san-luis-tijuana-2026-08-01",
+      "title": "¿Atlético de San Luis le gana a Tijuana?",
+      "category": "deportes",
+      "country": "MX",
+      "closesAt": "2026-08-01T03:00Z",
+      "pool": {
+        "si": 400,
+        "no": 400,
+        "feeBps": 300
+      },
+      "rule": {
+        "kind": "partido",
+        "liga": "mex.1",
+        "fecha": "2026-08-01",
+        "equipo": "Atlético de San Luis",
+        "resultado": "gana"
+      },
+      "resolution": {
+        "sourceName": "ESPN (marcador oficial de la Liga MX)",
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260801",
+        "criterion": "Se resuelve Sí si Atlético de San Luis le gana a Tijuana en el partido del 2026-08-01, según el marcador final que publica ESPN. Un empate resuelve No.",
+        "settlesAt": "2026-08-01T06:00:00.000Z",
+        "disputeWindowHours": 12
+      }
+    },
+    {
+      "id": "mx-fc-juarez-pumas-unam-2026-08-01",
+      "title": "¿FC Juarez le gana a Pumas UNAM?",
+      "category": "deportes",
+      "country": "MX",
+      "closesAt": "2026-08-01T03:00Z",
+      "pool": {
+        "si": 400,
+        "no": 400,
+        "feeBps": 300
+      },
+      "rule": {
+        "kind": "partido",
+        "liga": "mex.1",
+        "fecha": "2026-08-01",
+        "equipo": "FC Juarez",
+        "resultado": "gana"
+      },
+      "resolution": {
+        "sourceName": "ESPN (marcador oficial de la Liga MX)",
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260801",
+        "criterion": "Se resuelve Sí si FC Juarez le gana a Pumas UNAM en el partido del 2026-08-01, según el marcador final que publica ESPN. Un empate resuelve No.",
+        "settlesAt": "2026-08-01T06:00:00.000Z",
+        "disputeWindowHours": 12
+      }
+    },
+    {
+      "id": "mx-queretaro-tigres-uanl-2026-08-01",
+      "title": "¿Querétaro le gana a Tigres UANL?",
+      "category": "deportes",
+      "country": "MX",
+      "closesAt": "2026-08-01T23:00Z",
+      "pool": {
+        "si": 400,
+        "no": 400,
+        "feeBps": 300
+      },
+      "rule": {
+        "kind": "partido",
+        "liga": "mex.1",
+        "fecha": "2026-08-01",
+        "equipo": "Querétaro",
+        "resultado": "gana"
+      },
+      "resolution": {
+        "sourceName": "ESPN (marcador oficial de la Liga MX)",
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260801",
+        "criterion": "Se resuelve Sí si Querétaro le gana a Tigres UANL en el partido del 2026-08-01, según el marcador final que publica ESPN. Un empate resuelve No.",
+        "settlesAt": "2026-08-02T02:00:00.000Z",
+        "disputeWindowHours": 12
+      }
+    },
+    {
+      "id": "mx-atlas-monterrey-2026-08-02",
+      "title": "¿Atlas le gana a Monterrey?",
+      "category": "deportes",
+      "country": "MX",
+      "closesAt": "2026-08-02T01:00Z",
+      "pool": {
+        "si": 400,
+        "no": 400,
+        "feeBps": 300
+      },
+      "rule": {
+        "kind": "partido",
+        "liga": "mex.1",
+        "fecha": "2026-08-02",
+        "equipo": "Atlas",
+        "resultado": "gana"
+      },
+      "resolution": {
+        "sourceName": "ESPN (marcador oficial de la Liga MX)",
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260802",
+        "criterion": "Se resuelve Sí si Atlas le gana a Monterrey en el partido del 2026-08-02, según el marcador final que publica ESPN. Un empate resuelve No.",
+        "settlesAt": "2026-08-02T04:00:00.000Z",
+        "disputeWindowHours": 12
+      }
+    },
+    {
+      "id": "mx-leon-pachuca-2026-08-02",
+      "title": "¿León le gana a Pachuca?",
+      "category": "deportes",
+      "country": "MX",
+      "closesAt": "2026-08-02T01:00Z",
+      "pool": {
+        "si": 400,
+        "no": 400,
+        "feeBps": 300
+      },
+      "rule": {
+        "kind": "partido",
+        "liga": "mex.1",
+        "fecha": "2026-08-02",
+        "equipo": "León",
+        "resultado": "gana"
+      },
+      "resolution": {
+        "sourceName": "ESPN (marcador oficial de la Liga MX)",
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260802",
+        "criterion": "Se resuelve Sí si León le gana a Pachuca en el partido del 2026-08-02, según el marcador final que publica ESPN. Un empate resuelve No.",
+        "settlesAt": "2026-08-02T04:00:00.000Z",
+        "disputeWindowHours": 12
+      }
+    },
+    {
+      "id": "mx-cruz-azul-atlante-2026-08-02",
+      "title": "¿Cruz Azul le gana a Atlante?",
+      "category": "deportes",
+      "country": "MX",
+      "closesAt": "2026-08-02T03:00Z",
+      "pool": {
+        "si": 400,
+        "no": 400,
+        "feeBps": 300
+      },
+      "rule": {
+        "kind": "partido",
+        "liga": "mex.1",
+        "fecha": "2026-08-02",
+        "equipo": "Cruz Azul",
+        "resultado": "gana"
+      },
+      "resolution": {
+        "sourceName": "ESPN (marcador oficial de la Liga MX)",
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260802",
+        "criterion": "Se resuelve Sí si Cruz Azul le gana a Atlante en el partido del 2026-08-02, según el marcador final que publica ESPN. Un empate resuelve No.",
+        "settlesAt": "2026-08-02T06:00:00.000Z",
+        "disputeWindowHours": 12
+      }
+    },
+    {
+      "id": "mx-america-santos-2026-08-02",
+      "title": "¿América le gana a Santos?",
+      "category": "deportes",
+      "country": "MX",
+      "closesAt": "2026-08-02T23:00Z",
+      "pool": {
+        "si": 400,
+        "no": 400,
+        "feeBps": 300
+      },
+      "rule": {
+        "kind": "partido",
+        "liga": "mex.1",
+        "fecha": "2026-08-02",
+        "equipo": "América",
+        "resultado": "gana"
+      },
+      "resolution": {
+        "sourceName": "ESPN (marcador oficial de la Liga MX)",
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260802",
+        "criterion": "Se resuelve Sí si América le gana a Santos en el partido del 2026-08-02, según el marcador final que publica ESPN. Un empate resuelve No.",
+        "settlesAt": "2026-08-03T02:00:00.000Z",
+        "disputeWindowHours": 12
+      }
+    },
+    {
+      "id": "mx-toluca-necaxa-2026-08-03",
+      "title": "¿Toluca le gana a Necaxa?",
+      "category": "deportes",
+      "country": "MX",
+      "closesAt": "2026-08-03T01:00Z",
+      "pool": {
+        "si": 400,
+        "no": 400,
+        "feeBps": 300
+      },
+      "rule": {
+        "kind": "partido",
+        "liga": "mex.1",
+        "fecha": "2026-08-03",
+        "equipo": "Toluca",
+        "resultado": "gana"
+      },
+      "resolution": {
+        "sourceName": "ESPN (marcador oficial de la Liga MX)",
+        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260803",
+        "criterion": "Se resuelve Sí si Toluca le gana a Necaxa en el partido del 2026-08-03, según el marcador final que publica ESPN. Un empate resuelve No.",
+        "settlesAt": "2026-08-03T04:00:00.000Z",
         "disputeWindowHours": 12
       }
     }
