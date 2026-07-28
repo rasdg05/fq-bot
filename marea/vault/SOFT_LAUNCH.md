@@ -7,6 +7,11 @@
 >
 > Corre en un solo servicio de Railway: `marea/server/index.mts` sirve la app,
 > guarda las cuentas y corre el ciclo de vida cada cuarto de hora.
+>
+> **Además:** liquidación institucional automática (Brasil sin llave, México con
+> token gratis), tabla de posiciones por precisión y racha, y ligas compartibles
+> con vista previa. 203 pruebas · validación PASS · perf PASS contra el servidor
+> real (LCP 2104 ms nuevo, 1812 ms recurrente, 195 kB).
 
 Estado al 27 de julio de 2026, segunda revisión. `npm run ci` en verde: **192
 pruebas**, `VALIDATION_REPORT` en PASS con dos verificaciones nuevas (L1 y M1), y

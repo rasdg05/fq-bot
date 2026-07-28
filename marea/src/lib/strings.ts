@@ -93,6 +93,10 @@ export const S = {
     edgeCardWith: (label: string, pp: string) => `${label} ${pp}%`,
     edgeDetailWith: (here: string, label: string, there: string, edge: string) =>
       `Aquí ${here}% · ${label} ${there}% · Edge ${edge}%`,
+    compartir: "Compartir",
+    compartido: "Liga copiada",
+    compartirTexto: (titulo: string, probabilidad: string) =>
+      `${titulo}\n\nEl mercado dice ${probabilidad} que sí. ¿Tú qué dices?`,
     betCta: "Apostar",
     closedForBets: "Este mercado ya cerró.",
   },
@@ -189,6 +193,20 @@ export const S = {
     sesionDe: (usuario: string) => `Tu cuenta: ${usuario}`,
     sinCuenta: "Estás explorando sin cuenta.",
     sinCuentaCta: "Crear cuenta",
+  },
+
+  tabla: {
+    title: "Tabla",
+    subtitle: "Quién le atina más, no quién apuesta más.",
+    empty: "Todavía nadie tiene mercados resueltos.",
+    emptyBody: "En cuanto se liquide el primero, aquí aparece quién le atinó.",
+    usuario: "Jugador",
+    puntos: "Puntos",
+    precision: "Precisión",
+    racha: "Racha",
+    tuPosicion: (posicion: number) => `Vas en el lugar ${posicion}`,
+    fueraDeTabla: "Aún no tienes mercados resueltos.",
+    loading: "Cargando tabla",
   },
 
   postTrade: {

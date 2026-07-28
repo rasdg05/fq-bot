@@ -423,6 +423,46 @@ check("M1", "el feed no se queda sin mercados abiertos", () => {
   return problems;
 });
 
+/* ------------------------------- O1 -------------------------------------- */
+check("O1", "lo automatizable no se deja en manos de una persona", () => {
+  // decir "hace falta un humano" sin haber buscado la API es pereza con
+  // disfraz de prudencia (AGENTE §2). Esto cuenta cuánto queda manual.
+  const problems = [];
+  const catalog = read(join(SRC, "adapters", "ownMarkets", "catalog.ts"));
+  const total = (catalog.match(/^\s{4}id:/gm) ?? []).length;
+  const conRegla = (catalog.match(/^\s{4}rule:/gm) ?? []).length;
+  if (total === 0) problems.push("el catálogo no tiene mercados");
+  else if (conRegla / total < 0.5) {
+    problems.push(
+      `sólo ${conRegla} de ${total} mercados se resuelven solos: busca la API de los demás`,
+    );
+  }
+  // y el oráculo de series tiene que estar enchufado, o las reglas no sirven
+  const oracles = read(join(SRC, "adapters", "oracles", "priceOracle.ts"));
+  if (!/createSeriesOracle/.test(oracles)) {
+    problems.push("el oráculo de series no está en la lista de oráculos");
+  }
+  return problems;
+});
+
+/* ------------------------------- G1 -------------------------------------- */
+check("G1", "un mercado se puede compartir y la liga trae vista previa", () => {
+  const problems = [];
+  if (!existsSync(join(ROOT, "server", "compartir.mts"))) {
+    problems.push("no existe el módulo de vista previa: las ligas se verían pelonas");
+  } else {
+    const compartir = read(join(ROOT, "server", "compartir.mts"));
+    for (const etiqueta of ["og:title", "og:description", "og:url"]) {
+      if (!compartir.includes(etiqueta)) problems.push(`falta la etiqueta ${etiqueta}`);
+    }
+    // lo que venga del catálogo se escapa: el título entra al HTML
+    if (!/escapar/.test(compartir)) problems.push("el HTML de la vista previa no escapa el título");
+  }
+  const detalle = read(join(SRC, "screens", "MarketDetailScreen.tsx"));
+  if (!/market-share/.test(detalle)) problems.push("el detalle no tiene botón de compartir");
+  return problems;
+});
+
 /* --------------------------- pruebas de comportamiento -------------------- */
 const run = spawnSync(
   "npx",

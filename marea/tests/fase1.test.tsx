@@ -3,7 +3,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { renderApp, READY_NO_FUNDS, READY_WITH_FUNDS } from "./helpers";
 import { S } from "@/lib/strings";
-import { TAB_IDS } from "@/components/BottomTabs";
+import { tabIds } from "@/components/BottomTabs";
 import { MOCK_MARKETS } from "@/adapters/mock/markets";
 import { MarketCard, resolveVariant } from "@/components/MarketCard";
 import { render } from "@testing-library/react";
@@ -134,7 +134,9 @@ describe("Fase 1 — descubrimiento", () => {
     renderApp({ overrides: READY_NO_FUNDS });
     const tabs = within(screen.getByTestId("bottom-tabs")).getAllByRole("tab");
     expect(tabs).toHaveLength(5);
-    expect(TAB_IDS).toEqual(["markets", "search", "portfolio", "wallet", "profile"]);
+    // con dinero real la cartera existe; en modo puntos su lugar lo toma la tabla
+    expect(tabIds(false)).toEqual(["markets", "search", "portfolio", "wallet", "profile"]);
+    expect(tabIds(true)).toEqual(["markets", "search", "portfolio", "tabla", "profile"]);
     expect(tabs[0]).toHaveAttribute("aria-selected", "true");
     expect(tabs[0]).toHaveTextContent(S.tabs.markets);
     await feed();

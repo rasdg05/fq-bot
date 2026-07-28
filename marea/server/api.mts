@@ -14,6 +14,7 @@ import {
   COOKIE,
 } from "./auth.mts";
 import { cotizar, listarMercados, posicionesDe } from "./mercados.mts";
+import { calcularTabla } from "./tabla.mts";
 import type { Store } from "./store.mts";
 
 /**
@@ -153,6 +154,14 @@ export async function manejarApi(
     }
     ctx.store.marcarRecarga(sesion.id, new Date().toISOString().slice(0, 10), monto);
     json(res, 200, perfil(ctx.store, sesion.id, ctx.seeds()));
+    return true;
+  }
+
+  /* --------------------------------- tabla --------------------------------- */
+
+  // se ve sin cuenta: es la prueba social que hace que alguien quiera entrar
+  if (ruta === "/api/tabla" && metodo === "GET") {
+    json(res, 200, calcularTabla(ctx.store, sesion?.id));
     return true;
   }
 

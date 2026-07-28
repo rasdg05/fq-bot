@@ -6,6 +6,9 @@ import { Store } from "../server/store.mts";
 import { correrCiclo } from "../server/ciclo.mts";
 import { posicionesDe, sembrarPozos } from "../server/mercados.mts";
 import { hashear, firmarSesion, leerSesion, verificar } from "../server/auth.mts";
+import { calcularTabla } from "../server/tabla.mts";
+import { descripcionDe, metaDeMercado } from "../server/compartir.mts";
+import { construirMercado } from "../server/mercados.mts";
 import { validateSeed, type OwnMarketSeed } from "@/adapters/ownMarkets/catalog";
 import type { Oracle } from "@/domain/settlement";
 
@@ -169,5 +172,74 @@ describe("Servidor · liquidación que paga a la gente", () => {
     expect(posicion.status).toBe("won");
     expect(posicion.payout).toBeGreaterThan(posicion.size);
     expect(posicion.evidence).toContain("72,500");
+  });
+});
+
+describe("Servidor · tabla y compartir", () => {
+  async function conResultado() {
+    const ana = alta("ana");
+    const beto = alta("beto");
+    store.apostar({ usuarioId: ana.id, marketId: seed.id, side: "si", stake: 300, precio: 0.5 });
+    store.apostar({ usuarioId: beto.id, marketId: seed.id, side: "no", stake: 300, precio: 0.5 });
+    await correrCiclo(store, [seed], [oraculoSi], AHORA);
+    await correrCiclo(store, [seed], [oraculoSi], AHORA + 2 * 86_400_000);
+    return { ana, beto };
+  }
+
+  it("V54 la tabla mide precisión y racha, no cuánto apostaste", async () => {
+    const { ana } = await conResultado();
+    const tabla = calcularTabla(store, ana.id);
+
+    // sólo entra quien ya tiene un mercado resuelto
+    expect(tabla.filas).toHaveLength(2);
+    const fila = tabla.filas.find((f) => f.usuario === "ana")!;
+    expect(fila.aciertos).toBe(1);
+    expect(fila.resueltas).toBe(1);
+    expect(fila.precision).toBe(1);
+    expect(fila.racha).toBe(1);
+
+    const perdedor = tabla.filas.find((f) => f.usuario === "beto")!;
+    expect(perdedor.precision).toBe(0);
+    expect(perdedor.racha).toBe(0);
+
+    // quien pregunta ve su lugar aunque esté fuera del top
+    expect(tabla.tuya?.usuario).toBe("ana");
+  });
+
+  it("V55 quien no tiene nada resuelto no aparece en la tabla", () => {
+    alta("nuevo");
+    expect(calcularTabla(store).filas).toHaveLength(0);
+  });
+
+  it("V56 la liga compartida lleva la pregunta y la probabilidad en la vista previa", () => {
+    const mercado = construirMercado(store, seed, Infinity, AHORA);
+    const html = `<!doctype html><html><head>
+      <meta
+        name="description"
+        content="Marea"
+      />
+      <title>Marea</title>
+    </head><body></body></html>`;
+
+    const salida = metaDeMercado(html, mercado, "https://marea.app");
+    expect(salida).toContain('property="og:title"');
+    expect(salida).toContain(seed.title);
+    expect(salida).toContain("https://marea.app/m/btc-servidor");
+    // el título viejo no puede sobrevivir: sería el que se ve al compartir
+    expect(salida).not.toMatch(/<title>Marea<\/title>/);
+
+    // sin Edge no se promete Edge, justo en la superficie que más se comparte
+    expect(descripcionDe(mercado)).not.toMatch(/Edge/);
+    expect(descripcionDe(mercado)).toMatch(/%/);
+  });
+
+  it("V57 el HTML compartido escapa lo que venga del título", () => {
+    const mercado = {
+      ...construirMercado(store, seed, Infinity, AHORA),
+      title: 'Bitcoin "arriba" <script>alert(1)</script>',
+    };
+    const salida = metaDeMercado("<head><title>x</title></head>", mercado, "https://marea.app");
+    expect(salida).not.toContain("<script>");
+    expect(salida).toContain("&lt;script&gt;");
   });
 });

@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { gzipSync } from "node:zlib";
 import { readFile, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, extname, join, normalize } from "node:path";
@@ -12,6 +13,7 @@ import {
   todosLosSeeds,
 } from "./mercados.mts";
 import { correrCiclo, type ResumenCiclo } from "./ciclo.mts";
+import { metaDeMercado } from "./compartir.mts";
 import type { OwnMarketSeed } from "../src/adapters/ownMarkets/catalog";
 
 /**
@@ -40,6 +42,24 @@ const TIPOS: Record<string, string> = {
   ".ico": "image/x-icon",
   ".webmanifest": "application/manifest+json",
 };
+
+/**
+ * Caché de lo ya comprimido. Los assets llevan hash en el nombre y son
+ * inmutables, así que comprimir una vez y guardar es correcto y gratis.
+ *
+ * Sin esto el servidor mandaba 426 kB donde `vite preview` mandaba 180 kB, y
+ * eso costaba 1.3 s de LCP en una red lenta — medido, no supuesto (R-047).
+ */
+const comprimidos = new Map<string, Uint8Array>();
+
+/** Sólo comprime lo que comprime bien; una imagen ya viene comprimida. */
+function comprimible(tipo: string): boolean {
+  return /^(text\/|application\/(json|javascript|manifest))/.test(tipo);
+}
+
+function aceptaGzip(req: IncomingMessage): boolean {
+  return /\bgzip\b/.test(String(req.headers["accept-encoding"] ?? ""));
+}
 
 const store = new Store(DATOS);
 let seeds: OwnMarketSeed[] = todosLosSeeds(ROOT);
@@ -104,6 +124,26 @@ async function servir(req: IncomingMessage, res: ServerResponse) {
     return;
   }
 
+  /**
+   * Liga compartible de un mercado: `/m/<id>`. Se sirve la misma app, pero con
+   * las etiquetas de vista previa rellenas con la pregunta y la probabilidad —
+   * un enlace que en WhatsApp se ve como texto pelón no lo abre nadie.
+   */
+  if (ruta.startsWith("/m/")) {
+    const id = ruta.slice(3);
+    const mercado = listarMercados(store, seeds).find((m) => m.id === id);
+    const html = await readFile(join(DIST, "index.html"), "utf8");
+    const salida = mercado ? metaDeMercado(html, mercado, url.origin) : html;
+    const gzip = aceptaGzip(req);
+    res.writeHead(200, {
+      "content-type": TIPOS[".html"],
+      "cache-control": "no-cache",
+      ...(gzip ? { "content-encoding": "gzip", vary: "Accept-Encoding" } : {}),
+    });
+    res.end(gzip ? gzipSync(salida) : salida);
+    return;
+  }
+
   const destino = join(DIST, ruta);
   if (!destino.startsWith(DIST)) {
     res.writeHead(403).end("prohibido");
@@ -116,11 +156,23 @@ async function servir(req: IncomingMessage, res: ServerResponse) {
   if (!info || info.isDirectory()) archivo = join(DIST, "index.html");
 
   const cacheable = archivo.startsWith(join(DIST, "assets"));
-  res.writeHead(200, {
-    "content-type": TIPOS[extname(archivo)] ?? "application/octet-stream",
+  const tipo = TIPOS[extname(archivo)] ?? "application/octet-stream";
+  const cabeceras: Record<string, string> = {
+    "content-type": tipo,
     "cache-control": cacheable ? "public, max-age=31536000, immutable" : "no-cache",
-  });
-  res.end(await readFile(archivo));
+  };
+
+  let cuerpo: Uint8Array = await readFile(archivo);
+  if (comprimible(tipo) && aceptaGzip(req)) {
+    const enCache = comprimidos.get(archivo);
+    cuerpo = enCache ?? gzipSync(cuerpo);
+    if (!enCache && cacheable) comprimidos.set(archivo, cuerpo);
+    cabeceras["content-encoding"] = "gzip";
+    cabeceras.vary = "Accept-Encoding";
+  }
+
+  res.writeHead(200, cabeceras);
+  res.end(cuerpo);
 }
 
 if (!existsSync(join(DIST, "index.html"))) {

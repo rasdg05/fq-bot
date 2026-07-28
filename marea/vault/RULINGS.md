@@ -144,3 +144,18 @@ Se agrega una línea cuando un hallazgo de audit es recurrente o de producto.
 - **R-050** — La cuenta se pide cuando hay algo que guardar —al apostar—, nunca
   antes. Explorar el catálogo completo sigue sin pedir nada (R-002), y crear la
   cuenta son dos campos: sin correo obligatorio y sin esperar un mail. (producto)
+- **R-051** — Antes de declarar que algo necesita a una persona, se busca la
+  API pública. Brasil publica la Selic y el IPCA sin llave; Banxico da token
+  gratis. "Hace falta un humano" sin haber corrido un `curl` es pereza con
+  disfraz de prudencia. (liquidación)
+- **R-052** — Un dato viejo no resuelve un mercado nuevo. La observación leída
+  tiene que ser la de la fecha del mercado, o no hay lectura. (liquidación)
+- **R-053** — Toda liga compartible lleva vista previa rellena en el servidor:
+  los rastreadores de WhatsApp y Telegram no ejecutan JavaScript, y un enlace
+  sin vista previa no lo abre nadie. Lo que entra al HTML se escapa. (producto)
+- **R-054** — La tabla mide precisión y racha, no cuánto apostaste. En un
+  producto de predicción el marcador es cuántas veces le atinaste; ordenar por
+  volumen premiaría lo contrario de lo que vendemos. (producto)
+- **R-055** — El servidor comprime lo que sirve. Sin gzip mandaba 426 kB donde
+  el preview mandaba 180 kB: 1.3 s de LCP regalados en red lenta. Medir contra
+  el servidor real y no contra el preview es lo que lo destapó. (perf)

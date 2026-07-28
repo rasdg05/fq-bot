@@ -118,6 +118,11 @@ export class Store {
     return this.datos.usuarios.find((u) => u.usuario.toLowerCase() === clave);
   }
 
+  /** Todos, para la tabla de posiciones. Sin hashes: eso no sale de aquí. */
+  usuarios(): Usuario[] {
+    return this.datos.usuarios;
+  }
+
   usuarioPorId(id: string): Usuario | undefined {
     return this.datos.usuarios.find((u) => u.id === id);
   }

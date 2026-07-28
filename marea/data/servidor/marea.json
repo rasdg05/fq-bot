@@ -8,6 +8,14 @@
       "salt": "b6678883c73d1533546fc14ce9253421",
       "creado": "2026-07-28T01:41:08.758Z",
       "puntos": 900
+    },
+    {
+      "id": "7a7952e5-a9c6-4c98-a5bc-19f0f208a3ea",
+      "usuario": "ana_predice",
+      "hash": "7edcab9b957b8cdebe2bce71742e839494cf21f113129ba99ca3b4faf9e03f0c3117c64f9dfa333f96fb1922a8517bd67fc134abcbc3b867802c8628de4a1be4",
+      "salt": "84c87a6663a5c3bad988a2d64bd71885",
+      "creado": "2026-07-28T05:32:07.551Z",
+      "puntos": 900
     }
   ],
   "apuestas": [
@@ -19,6 +27,15 @@
       "stake": 100,
       "precio": 0.5642458100558659,
       "at": "2026-07-28T01:41:08.839Z"
+    },
+    {
+      "id": "btc-cierre-semanal-2",
+      "usuarioId": "7a7952e5-a9c6-4c98-a5bc-19f0f208a3ea",
+      "marketId": "btc-cierre-semanal",
+      "side": "si",
+      "stake": 100,
+      "precio": 0.5873015873015873,
+      "at": "2026-07-28T05:32:07.645Z"
     }
   ],
   "pozos": [
@@ -72,7 +89,7 @@
     },
     {
       "marketId": "btc-cierre-semanal",
-      "si": 1010,
+      "si": 1110,
       "no": 780,
       "feeBps": 300
     },
@@ -122,6 +139,12 @@
       "marketId": "eth-toca-2026-07-28",
       "si": 300,
       "no": 600,
+      "feeBps": 300
+    },
+    {
+      "marketId": "br-ipca-5",
+      "si": 430,
+      "no": 350,
       "feeBps": 300
     }
   ],

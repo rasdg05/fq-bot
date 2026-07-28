@@ -1,5 +1,6 @@
 import type { Oracle, OracleQuery, OracleReading } from "@/domain/settlement";
 import type { PriceRule } from "@/domain/oracleRule";
+import { createSeriesOracle, type SeriesOracleOptions } from "./seriesOracle";
 
 /**
  * Oráculo de precio contra Kraken, que publica velas históricas sin llave y sin
@@ -151,10 +152,12 @@ export function createPriceOracle(options: PriceOracleOptions = {}): Oracle {
 }
 
 /**
- * Para todo lo que publica una institución en un boletín — INEGI, Banxico,
- * BCRA, DANE — no hay endpoint estable que se pueda leer sin interpretar un PDF.
- * Este oráculo no adivina: marca el mercado para que una persona lo confirme
- * contra la fuente citada, con la liga a la mano.
+ * Última red: lo que ninguna otra fuente sabe leer. Hoy son las instituciones
+ * sin API estable (DANE, BCRP, Banco Central de Chile). No adivina: marca el
+ * mercado para que una persona lo confirme, con la liga a la mano.
+ *
+ * Cada vez que una de estas fuentes abra un endpoint, su mercado se mueve al
+ * oráculo de series y sale de aquí.
  */
 export function createInstitutionalOracle(): Oracle {
   return {
@@ -169,7 +172,9 @@ export function createInstitutionalOracle(): Oracle {
   };
 }
 
-/** El orden importa: primero el que sabe leer, y el humano como red de fondo. */
-export function defaultOracles(options: PriceOracleOptions = {}): Oracle[] {
-  return [createPriceOracle(options), createInstitutionalOracle()];
+/** El orden importa: primero los que saben leer, y el humano como red de fondo. */
+export function defaultOracles(
+  options: PriceOracleOptions & SeriesOracleOptions = {},
+): Oracle[] {
+  return [createPriceOracle(options), createSeriesOracle(options), createInstitutionalOracle()];
 }

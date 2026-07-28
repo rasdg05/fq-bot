@@ -1,16 +1,26 @@
-import { LayoutGrid, Search, PieChart, Wallet, User } from "lucide-react";
+import { LayoutGrid, Search, PieChart, Trophy, Wallet, User } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { S } from "@/lib/strings";
 import { useApp, type TabId } from "@/state/store";
+import { isPointsMode } from "@/lib/flags";
 
-const TABS: { id: TabId; label: string; Icon: LucideIcon }[] = [
-  { id: "markets", label: S.tabs.markets, Icon: LayoutGrid },
-  { id: "search", label: S.tabs.search, Icon: Search },
-  { id: "portfolio", label: S.tabs.portfolio, Icon: PieChart },
-  { id: "wallet", label: S.tabs.wallet, Icon: Wallet },
-  { id: "profile", label: S.tabs.profile, Icon: User },
-];
+/**
+ * En modo puntos la cartera no existe —no hay dinero que guardar— y su lugar lo
+ * toma la tabla, que es lo que hace que la gente vuelva mañana a defender su
+ * racha. Con dinero real vuelve la cartera.
+ */
+function tabsDe(puntos: boolean): { id: TabId; label: string; Icon: LucideIcon }[] {
+  return [
+    { id: "markets", label: S.tabs.markets, Icon: LayoutGrid },
+    { id: "search", label: S.tabs.search, Icon: Search },
+    { id: "portfolio", label: S.tabs.portfolio, Icon: PieChart },
+    puntos
+      ? { id: "tabla" as TabId, label: S.tabla.title, Icon: Trophy }
+      : { id: "wallet" as TabId, label: S.tabs.wallet, Icon: Wallet },
+    { id: "profile", label: S.tabs.profile, Icon: User },
+  ];
+}
 
 /**
  * Navegación inferior: 5 destinos, `Mercados` por defecto. Vive abajo porque
@@ -23,6 +33,7 @@ const TABS: { id: TabId; label: string; Icon: LucideIcon }[] = [
  */
 export function BottomTabs() {
   const { state, actions } = useApp();
+  const TABS = tabsDe(isPointsMode());
 
   return (
     <nav
@@ -71,4 +82,5 @@ export function BottomTabs() {
   );
 }
 
-export const TAB_IDS = TABS.map((tab) => tab.id);
+/** Los destinos vigentes según el motor. Lo usan las pruebas de navegación. */
+export const tabIds = (puntos: boolean): TabId[] => tabsDe(puntos).map((tab) => tab.id);

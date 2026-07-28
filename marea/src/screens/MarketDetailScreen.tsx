@@ -29,6 +29,7 @@ export function MarketDetailScreen({ market }: { market: Market }) {
   const points = isPointsMode();
   const balance = points ? state.points.balance : (state.wallet?.balance ?? 0);
   const needsFunds = balance < amount;
+  const [compartido, setCompartido] = React.useState(false);
   const closed = market.status === "resolved";
   const closes = closesIn(market.closesAt);
   const showEdge = hasEdge(market) && market.edge !== null;
@@ -162,6 +163,17 @@ export function MarketDetailScreen({ market }: { market: Market }) {
             </p>
           </section>
         ) : null}
+
+        {/* compartir es el canal de crecimiento más barato que tenemos: la
+            liga lleva vista previa con la pregunta y la probabilidad */}
+        <button
+          type="button"
+          data-testid="market-share"
+          onClick={() => void compartirMercado(market, setCompartido)}
+          className="mt-4 min-h-[44px] w-full rounded-card border border-line2 bg-panel text-[14px] font-semibold text-teal"
+        >
+          {compartido ? S.market.compartido : S.market.compartir}
+        </button>
 
         {/* el criterio de resolución va ANTES del CTA de operar (R-013) */}
         <section
@@ -314,4 +326,34 @@ export function MarketDetailScreen({ market }: { market: Market }) {
       </section>
     </div>
   );
+}
+
+/**
+ * Comparte el mercado. En móvil abre la hoja nativa (WhatsApp, Telegram); si el
+ * navegador no la trae, copia la liga y lo dice. Nunca deja al usuario sin
+ * saber qué pasó.
+ */
+async function compartirMercado(
+  market: import("@/domain/types").Market,
+  avisar: (valor: boolean) => void,
+) {
+  const enlace = `${globalThis.location?.origin ?? ""}/m/${encodeURIComponent(market.id)}`;
+  const texto = S.market.compartirTexto(
+    market.title,
+    `${Math.round(market.probability * 100)}%`,
+  );
+  try {
+    const nav = globalThis.navigator as Navigator & {
+      share?: (datos: { title: string; text: string; url: string }) => Promise<void>;
+    };
+    if (nav?.share) {
+      await nav.share({ title: market.title, text: texto, url: enlace });
+      return;
+    }
+    await nav.clipboard?.writeText(`${texto}\n${enlace}`);
+    avisar(true);
+    setTimeout(() => avisar(false), 2_000);
+  } catch {
+    /* si el usuario cancela la hoja nativa no pasa nada */
+  }
 }

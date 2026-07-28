@@ -29,7 +29,7 @@ import {
   type ErrorReporter,
 } from "@/adapters/errorReporter";
 
-export type TabId = "markets" | "search" | "portfolio" | "wallet" | "profile";
+export type TabId = "markets" | "search" | "portfolio" | "wallet" | "tabla" | "profile";
 export type OnboardingStep = "p0" | "p1" | "p2" | "p3" | "done";
 
 export type Async<T> =
@@ -115,16 +115,32 @@ function persistOnboarding() {
   }
 }
 
+/**
+ * Un enlace compartido (`/m/<id>`) abre ese mercado directo, saltandose la
+ * bienvenida. Quien llega por el mensaje de un amigo viene a ver **ese**
+ * mercado; hacerle pasar por el onboarding es perderlo (R-002).
+ */
+function mercadoCompartido(): string | null {
+  try {
+    const match = /^\/m\/(.+)$/.exec(globalThis.location?.pathname ?? "");
+    return match ? decodeURIComponent(match[1]) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function initialState(overrides: Partial<AppState> = {}): AppState {
+  const compartido = mercadoCompartido();
   const completed = overrides.onboardingCompleted ?? readOnboarding();
   // el país se infiere del dispositivo, sin red y sin dato personal: sirve para
   // hablarle a la gente de su mercado, no como control de cumplimiento
   const guess = detectCountry();
   const state: AppState = {
     tab: "markets",
-    openMarketId: null,
-    // reabrir con onboarding hecho entra directo al feed (RT/6)
-    onboardingStep: completed ? "done" : "p0",
+    openMarketId: compartido,
+    // reabrir con onboarding hecho entra directo al feed (RT/6); un enlace
+    // compartido entra directo al mercado que le mandaron
+    onboardingStep: completed || compartido ? "done" : "p0",
     onboardingCompleted: completed,
     wallet: null,
     walletBusy: null,

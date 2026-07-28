@@ -25,11 +25,32 @@ export interface PriceRule {
   desde?: string;
 }
 
-export type OracleRule = PriceRule;
+/**
+ * Serie estadística publicada por un banco central o un instituto. Es lo que
+ * permite resolver un mercado de inflación o de tasa **sin que nadie lea un
+ * PDF**: el dato existe en un endpoint, con fecha y con valor.
+ */
+export interface SeriesRule {
+  kind: "serie";
+  /** Quién publica. Cada fuente tiene su lector en `seriesOracle`. */
+  fuente: "bcb" | "banxico";
+  /** Identificador de la serie en esa fuente. */
+  serie: string;
+  /**
+   * `menor`/`mayor`: contra `umbral`.
+   * `baja`/`sube`: contra la observación anterior de la misma serie.
+   */
+  comparacion: "menor" | "mayor" | "baja" | "sube";
+  umbral?: number;
+  /** Cómo se llama el dato en el criterio, para la evidencia. */
+  etiqueta: string;
+}
 
-/** Cómo se escribe el umbral en el texto: `71000`, `71,000`, `71.000`. */
+export type OracleRule = PriceRule | SeriesRule;
+
+/** Cómo se escribe el umbral en el texto: `71000`, `71,000`, `71.000`, `5.00`. */
 function umbralEnTexto(umbral: number): RegExp {
-  const entero = Math.round(umbral).toString();
+  const entero = Math.trunc(umbral).toString();
   const conSeparador = entero.replace(/\B(?=(\d{3})+(?!\d))/g, "[.,]?");
   return new RegExp(`\\b${conSeparador}\\b`);
 }
@@ -41,6 +62,23 @@ function umbralEnTexto(umbral: number): RegExp {
  */
 export function ruleProblems(rule: OracleRule, criterion: string): string[] {
   const problems: string[] = [];
+
+  if (rule.kind === "serie") {
+    const necesitaUmbral = rule.comparacion === "menor" || rule.comparacion === "mayor";
+    if (necesitaUmbral && rule.umbral === undefined) {
+      problems.push("una comparación contra umbral necesita el umbral");
+    }
+    if (necesitaUmbral && rule.umbral !== undefined) {
+      if (!umbralEnTexto(rule.umbral).test(criterion)) {
+        problems.push(
+          `el umbral de la regla (${rule.umbral}) no aparece en el criterio publicado`,
+        );
+      }
+    }
+    if (!rule.serie.trim()) problems.push("falta el identificador de la serie");
+    return problems;
+  }
+
   if (!umbralEnTexto(rule.umbral).test(criterion)) {
     problems.push(
       `el umbral de la regla (${rule.umbral}) no aparece en el criterio publicado`,

@@ -295,7 +295,8 @@ describe("Mercados propios — interfaz", () => {
     await enter(user);
     const surfaces: string[] = [container.textContent ?? ""];
 
-    for (const tab of [S.tabs.portfolio, S.tabs.wallet, S.tabs.profile]) {
+    // en modo puntos la cartera no existe: su lugar lo toma la tabla
+    for (const tab of [S.tabs.portfolio, S.tabla.title, S.tabs.profile]) {
       await user.click(screen.getByRole("tab", { name: tab }));
       await waitFor(() => expect(container.textContent).toBeTruthy());
       surfaces.push(container.textContent ?? "");

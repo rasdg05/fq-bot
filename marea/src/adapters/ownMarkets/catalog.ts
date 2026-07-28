@@ -65,11 +65,19 @@ const SEEDS: OwnMarketSeed[] = [
     country: "MX",
     closesAt: "2026-08-13T19:00:00Z",
     pool: seedPool(560, 300),
+    // SF61745: tasa objetivo. La API de Banxico es gratis pero pide token
+    rule: {
+      kind: "serie",
+      fuente: "banxico",
+      serie: "SF61745",
+      comparacion: "baja",
+      etiqueta: "Tasa objetivo de Banxico",
+    },
     resolution: {
-      sourceName: "Banco de México",
-      sourceUrl: "https://www.banxico.org.mx/publicaciones-y-prensa/anuncios-de-las-decisiones-de-politica-monetaria/",
+      sourceName: "Banco de México (serie SF61745 del SIE)",
+      sourceUrl: "https://www.banxico.org.mx/SieAPIRest/service/v1/series/SF61745/datos/oportuno",
       criterion:
-        "Se resuelve Sí si el anuncio de política monetaria de Banxico fija una tasa objetivo menor a la vigente. Se lee del comunicado oficial publicado ese mismo día.",
+        "Se resuelve Sí si la tasa objetivo que publica Banxico en su serie SF61745 queda por debajo de la vigente antes del anuncio. Se lee del API público del Banco de México.",
       settlesAt: "2026-08-13T19:00:00Z",
       disputeWindowHours: 24,
     },
@@ -81,11 +89,19 @@ const SEEDS: OwnMarketSeed[] = [
     country: "MX",
     closesAt: "2026-07-31T21:00:00Z",
     pool: seedPool(300, 480),
+    rule: {
+      kind: "serie",
+      fuente: "banxico",
+      serie: "SF43718",
+      comparacion: "menor",
+      umbral: 19,
+      etiqueta: "Tipo de cambio FIX",
+    },
     resolution: {
-      sourceName: "Banco de México (tipo de cambio FIX)",
-      sourceUrl: "https://www.banxico.org.mx/tipcamb/tipCamMIAction.do",
+      sourceName: "Banco de México (serie SF43718 del SIE)",
+      sourceUrl: "https://www.banxico.org.mx/SieAPIRest/service/v1/series/SF43718/datos/oportuno",
       criterion:
-        "Se resuelve Sí si el tipo de cambio FIX que publica Banxico el último día hábil del mes es menor a 19.0000 pesos por dólar.",
+        "Se resuelve Sí si el tipo de cambio FIX que publica Banxico en su serie SF43718 el último día hábil del mes es menor a 19 pesos por dólar.",
       settlesAt: "2026-07-31T21:00:00Z",
       disputeWindowHours: 24,
     },
@@ -113,12 +129,39 @@ const SEEDS: OwnMarketSeed[] = [
     country: "BR",
     closesAt: "2026-09-16T21:00:00Z",
     pool: seedPool(510, 390),
+    // serie 432 del BCB: meta Selic, pública y sin llave
+    rule: { kind: "serie", fuente: "bcb", serie: "432", comparacion: "baja", etiqueta: "Meta Selic" },
     resolution: {
-      sourceName: "Banco Central do Brasil (Copom)",
-      sourceUrl: "https://www.bcb.gov.br/controleinflacao/historicotaxasjuros",
+      sourceName: "Banco Central do Brasil (serie 432 del SGS)",
+      sourceUrl: "https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados/ultimos/6?formato=json",
       criterion:
-        "Se resuelve Sí si la tasa Selic definida por el Copom en su próxima reunión queda por debajo de la vigente, según el histórico oficial del Banco Central.",
+        "Se resuelve Sí si la meta Selic que publica el Banco Central do Brasil en su serie 432 queda por debajo de la vigente antes de la reunión. Se lee del endpoint público, que cualquiera puede consultar.",
       settlesAt: "2026-09-16T21:00:00Z",
+      disputeWindowHours: 24,
+    },
+  },
+  {
+    id: "br-ipca-5",
+    title: "¿La inflación anual de Brasil sigue abajo de 5%?",
+    category: "economia",
+    country: "BR",
+    closesAt: "2026-09-09T12:00:00Z",
+    pool: seedPool(430, 350),
+    // serie 13522 del BCB: IPCA acumulado 12 meses, pública y sin llave
+    rule: {
+      kind: "serie",
+      fuente: "bcb",
+      serie: "13522",
+      comparacion: "menor",
+      umbral: 5,
+      etiqueta: "IPCA acumulado 12 meses",
+    },
+    resolution: {
+      sourceName: "Banco Central do Brasil (serie 13522 del SGS)",
+      sourceUrl: "https://api.bcb.gov.br/dados/serie/bcdata.sgs.13522/dados/ultimos/6?formato=json",
+      criterion:
+        "Se resuelve Sí si el IPCA acumulado de 12 meses que publica el Banco Central do Brasil en su serie 13522 es menor a 5 por ciento. Se lee del endpoint público.",
+      settlesAt: "2026-09-10T12:00:00Z",
       disputeWindowHours: 24,
     },
   },
