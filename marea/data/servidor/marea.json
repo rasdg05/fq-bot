@@ -1,0 +1,155 @@
+{
+  "version": 1,
+  "usuarios": [
+    {
+      "id": "04af6c42-4f21-4d5c-a468-e4c31b83572c",
+      "usuario": "rasdg05",
+      "hash": "bc853b5b3334f1ab6b310352e6bfec57e4920fa379912990ed6162fd29e54ab4f31b97c8561b14a7de7aab960aad9438380108849b9c71047cdbbf448ab0efad",
+      "salt": "b6678883c73d1533546fc14ce9253421",
+      "creado": "2026-07-28T01:41:08.758Z",
+      "puntos": 900
+    }
+  ],
+  "apuestas": [
+    {
+      "id": "btc-cierre-semanal-1",
+      "usuarioId": "04af6c42-4f21-4d5c-a468-e4c31b83572c",
+      "marketId": "btc-cierre-semanal",
+      "side": "si",
+      "stake": 100,
+      "precio": 0.5642458100558659,
+      "at": "2026-07-28T01:41:08.839Z"
+    }
+  ],
+  "pozos": [
+    {
+      "marketId": "mx-inpc-anual",
+      "si": 420,
+      "no": 260,
+      "feeBps": 300
+    },
+    {
+      "marketId": "mx-banxico-tasa",
+      "si": 560,
+      "no": 300,
+      "feeBps": 300
+    },
+    {
+      "marketId": "mx-dolar-19",
+      "si": 300,
+      "no": 480,
+      "feeBps": 300
+    },
+    {
+      "marketId": "ar-bcra-tasa",
+      "si": 640,
+      "no": 240,
+      "feeBps": 300
+    },
+    {
+      "marketId": "br-selic-corte",
+      "si": 510,
+      "no": 390,
+      "feeBps": 300
+    },
+    {
+      "marketId": "co-inflacion-dane",
+      "si": 380,
+      "no": 420,
+      "feeBps": 300
+    },
+    {
+      "marketId": "cl-imacec",
+      "si": 290,
+      "no": 310,
+      "feeBps": 300
+    },
+    {
+      "marketId": "latam-libertadores-br",
+      "si": 820,
+      "no": 440,
+      "feeBps": 300
+    },
+    {
+      "marketId": "btc-cierre-semanal",
+      "si": 1010,
+      "no": 780,
+      "feeBps": 300
+    },
+    {
+      "marketId": "eth-4500",
+      "si": 340,
+      "no": 690,
+      "feeBps": 300
+    },
+    {
+      "marketId": "pe-cobre-exportacion",
+      "si": 260,
+      "no": 240,
+      "feeBps": 300
+    },
+    {
+      "marketId": "btc-cierre-2026-08-02",
+      "si": 500,
+      "no": 500,
+      "feeBps": 300
+    },
+    {
+      "marketId": "btc-toca-2026-07-27",
+      "si": 300,
+      "no": 600,
+      "feeBps": 300
+    },
+    {
+      "marketId": "eth-cierre-2026-08-02",
+      "si": 500,
+      "no": 500,
+      "feeBps": 300
+    },
+    {
+      "marketId": "eth-toca-2026-07-27",
+      "si": 300,
+      "no": 600,
+      "feeBps": 300
+    },
+    {
+      "marketId": "btc-toca-2026-07-28",
+      "si": 300,
+      "no": 600,
+      "feeBps": 300
+    },
+    {
+      "marketId": "eth-toca-2026-07-28",
+      "si": 300,
+      "no": 600,
+      "feeBps": 300
+    }
+  ],
+  "liquidaciones": [
+    {
+      "marketId": "eth-4500",
+      "phase": "abierto",
+      "evidence": "Máximo de ETH/USD en Kraken entre 2026-07-01 y 2026-07-28: 1,978.99 USD frente al umbral de 4,500."
+    },
+    {
+      "marketId": "btc-toca-2026-07-27",
+      "phase": "abierto",
+      "evidence": "Máximo de BTC/USD en Kraken entre 2026-07-27 y 2026-07-28: 65,682.6 USD frente al umbral de 69,000."
+    },
+    {
+      "marketId": "eth-toca-2026-07-27",
+      "phase": "abierto",
+      "evidence": "Máximo de ETH/USD en Kraken entre 2026-07-27 y 2026-07-28: 1,978.99 USD frente al umbral de 2,000."
+    },
+    {
+      "marketId": "btc-toca-2026-07-28",
+      "phase": "abierto",
+      "evidence": "Máximo de BTC/USD en Kraken entre 2026-07-28 y 2026-07-28: 63,762.6 USD frente al umbral de 69,000."
+    },
+    {
+      "marketId": "eth-toca-2026-07-28",
+      "phase": "abierto",
+      "evidence": "Máximo de ETH/USD en Kraken entre 2026-07-28 y 2026-07-28: 1,892.83 USD frente al umbral de 2,000."
+    }
+  ]
+}

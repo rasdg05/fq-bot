@@ -2,6 +2,7 @@ import * as React from "react";
 import type { AppError, Market, Position, Wallet } from "@/domain/types";
 import type { CountryCode } from "@/domain/eligibility";
 import { detectCountry, type CountrySource } from "@/domain/geo";
+import type { ApiClient, Cuenta } from "@/adapters/http/apiAdapter";
 import {
   apply as applyPoints,
   dailyTopUp,
@@ -59,6 +60,15 @@ export interface AppState {
   countrySource: CountrySource;
   /** Ledger de puntos. Sólo vive en el motor de puntos. */
   points: PointsLedger;
+  /**
+   * Cuenta en el servidor. `null` significa que estás explorando sin entrar,
+   * que es un estado legítimo y completo: mirar nunca pide cuenta (R-002).
+   */
+  cuenta: Cuenta | null;
+  /** La hoja de cuenta está abierta. Se abre al querer apostar sin sesión. */
+  cuentaAbierta: boolean;
+  cuentaBusy: boolean;
+  cuentaError: string | null;
 }
 
 type Action =
@@ -81,7 +91,11 @@ type Action =
   | { type: "post_trade"; value: AppState["postTrade"] }
   | { type: "balance"; balance: number }
   | { type: "points"; ledger: PointsLedger }
-  | { type: "country"; country: CountryCode; source: CountrySource };
+  | { type: "country"; country: CountryCode; source: CountrySource }
+  | { type: "cuenta"; cuenta: Cuenta | null }
+  | { type: "cuenta_abierta"; abierta: boolean }
+  | { type: "cuenta_busy"; busy: boolean }
+  | { type: "cuenta_error"; error: string | null };
 
 const ONBOARDING_KEY = "marea.onboarding_completed";
 
@@ -126,6 +140,10 @@ export function initialState(overrides: Partial<AppState> = {}): AppState {
     postTrade: null,
     country: guess.country,
     countrySource: guess.source,
+    cuenta: null,
+    cuentaAbierta: false,
+    cuentaBusy: false,
+    cuentaError: null,
     // la bienvenida se entrega al arrancar: explorar y jugar no cuestan nada
     points: isPointsMode() ? grantWelcome(emptyLedger()) : emptyLedger(),
     ...overrides,
@@ -177,6 +195,23 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, points: action.ledger };
     case "country":
       return { ...state, country: action.country, countrySource: action.source };
+    case "cuenta":
+      return {
+        ...state,
+        cuenta: action.cuenta,
+        cuentaBusy: false,
+        cuentaError: null,
+        // el saldo que manda es el del servidor: el ledger local sólo lo espeja
+        points: action.cuenta
+          ? { balance: action.cuenta.puntos, entries: state.points.entries }
+          : state.points,
+      };
+    case "cuenta_abierta":
+      return { ...state, cuentaAbierta: action.abierta, cuentaError: null };
+    case "cuenta_busy":
+      return { ...state, cuentaBusy: action.busy, cuentaError: null };
+    case "cuenta_error":
+      return { ...state, cuentaError: action.error, cuentaBusy: false };
     case "balance":
       return {
         ...state,
@@ -189,6 +224,8 @@ function reducer(state: AppState, action: Action): AppState {
 
 export interface Adapters {
   marketData: MarketDataAdapter;
+  /** Presente sólo con servidor: es lo que habilita cuentas y saldo real. */
+  api?: ApiClient;
   wallet: WalletAdapter;
   analytics: AnalyticsAdapter;
   errors: ErrorReporter;
@@ -219,7 +256,7 @@ function createActions(
    * taps dentro del mismo tick leen el estado anterior y la acción se dispara
    * dos veces. Este ref se marca de forma síncrona (R-016, red-team RT/5).
    */
-  const inFlight = { wallet: false, trade: false, deposit: false };
+  const inFlight = { wallet: false, trade: false, deposit: false, cuenta: false };
 
   /**
    * Pagos ya acreditados, marcados de forma síncrona. El ledger es la guarda
@@ -271,8 +308,80 @@ function createActions(
     if (cambio) dispatch({ type: "points", ledger });
   };
 
+  /** Los errores del servidor ya vienen en español: se muestran tal cual. */
+  const fallaCuenta = (error: unknown): string => {
+    if (error && typeof error === "object" && "mensaje" in error) {
+      return String((error as { mensaje: unknown }).mensaje);
+    }
+    if (error && typeof error === "object" && "user_message_es" in error) {
+      return String((error as { user_message_es: unknown }).user_message_es);
+    }
+    return "No pudimos conectar. Revisa tu conexión e intenta de nuevo.";
+  };
+
   return {
     creditSettlements,
+
+    /** Al abrir la app: ¿hay sesión viva? Explorar no depende de la respuesta. */
+    async cargarCuenta() {
+      if (!adapters.api) return;
+      try {
+        dispatch({ type: "cuenta", cuenta: await adapters.api.yo() });
+      } catch {
+        /* sin servidor se sigue explorando: la cuenta no bloquea el feed */
+      }
+    },
+
+    abrirCuenta(abierta: boolean) {
+      dispatch({ type: "cuenta_abierta", abierta });
+    },
+
+    async registrar(datos: { usuario: string; password: string; correo?: string }) {
+      if (!adapters.api || inFlight.cuenta) return false;
+      inFlight.cuenta = true;
+      dispatch({ type: "cuenta_busy", busy: true });
+      try {
+        const cuenta = await adapters.api.registro(datos);
+        dispatch({ type: "cuenta", cuenta });
+        dispatch({ type: "cuenta_abierta", abierta: false });
+        adapters.analytics.track("cuenta_creada");
+        return true;
+      } catch (error) {
+        dispatch({ type: "cuenta_error", error: fallaCuenta(error) });
+        return false;
+      } finally {
+        inFlight.cuenta = false;
+      }
+    },
+
+    async entrar(datos: { usuario: string; password: string }) {
+      if (!adapters.api || inFlight.cuenta) return false;
+      inFlight.cuenta = true;
+      dispatch({ type: "cuenta_busy", busy: true });
+      try {
+        const cuenta = await adapters.api.entrar(datos);
+        dispatch({ type: "cuenta", cuenta });
+        dispatch({ type: "cuenta_abierta", abierta: false });
+        adapters.analytics.track("cuenta_entrada");
+        return true;
+      } catch (error) {
+        dispatch({ type: "cuenta_error", error: fallaCuenta(error) });
+        return false;
+      } finally {
+        inFlight.cuenta = false;
+      }
+    },
+
+    async salir() {
+      if (!adapters.api) return;
+      try {
+        await adapters.api.salir();
+      } finally {
+        // salir siempre limpia de este lado, aunque el servidor no conteste
+        dispatch({ type: "cuenta", cuenta: null });
+        dispatch({ type: "positions", value: { status: "data", data: [] } });
+      }
+    },
     setTab(tab: TabId) {
       dispatch({ type: "set_tab", tab });
       if (tab === "portfolio") adapters.analytics.track("view_portfolio");
@@ -420,10 +529,17 @@ function createActions(
         side,
         size,
       });
+      // con servidor, apostar exige cuenta: se ofrece crearla en contexto,
+      // nunca un muro previo ni un error seco (RT/4)
+      if (adapters.api && !getState().cuenta) {
+        inFlight.trade = false;
+        dispatch({ type: "cuenta_abierta", abierta: true });
+        return false;
+      }
       dispatch({ type: "trade_busy", busy: true });
       dispatch({ type: "trade_error", error: null });
       try {
-        if (isPointsMode() && !canStake(getState().points, size)) {
+        if (!adapters.api && isPointsMode() && !canStake(getState().points, size)) {
           throw appErrorFor("E_TRADE_INIT_FAILED", { market_id: market.id });
         }
         await adapters.marketData.prepareTrade({
@@ -432,7 +548,11 @@ function createActions(
           size,
         });
         adapters.analytics.track("trade_confirmed", { market_id: market.id, side });
-        if (isPointsMode()) {
+        if (adapters.api) {
+          // el saldo nuevo ya vino en la respuesta del servidor
+          const cuenta = await adapters.api.yo();
+          dispatch({ type: "cuenta", cuenta });
+        } else if (isPointsMode()) {
           dispatch({
             type: "points",
             ledger: applyPoints(getState().points, {
@@ -464,6 +584,18 @@ function createActions(
     setBalance(balance: number) {
       dispatch({ type: "balance", balance });
     },
+    /** Recarga diaria contra el servidor, cuando hay cuenta. */
+    async recargarEnServidor() {
+      if (!adapters.api) return false;
+      try {
+        dispatch({ type: "cuenta", cuenta: await adapters.api.recargar() });
+        return true;
+      } catch (error) {
+        dispatch({ type: "cuenta_error", error: fallaCuenta(error) });
+        return false;
+      }
+    },
+
     /** Recarga diaria: existe para el que se quedó en cero, no como ingreso. */
     topUpPoints() {
       const ledger = getState().points;

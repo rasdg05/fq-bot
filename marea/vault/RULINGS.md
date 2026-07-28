@@ -135,3 +135,12 @@ Se agrega una línea cuando un hallazgo de audit es recurrente o de producto.
 - **R-047** — El contenido principal nunca espera a un dato secundario. Los
   mercados se muestran sin la referencia externa y el Edge se enciende cuando
   llega: una casa lenta dejaba el feed 20 s en blanco, medido. (perf)
+- **R-048** — Lo que alguien apuesta tiene que sobrevivir a cerrar la app. Un
+  saldo que vive en la memoria del navegador no es un saldo: es una demo. Toda
+  mutación se persiste **antes** de responderle al usuario. (servidor)
+- **R-049** — El pozo es uno solo para todos. Una copia del parimutuel por
+  dispositivo no es un mercado, es un simulador de un jugador: nadie mueve el
+  precio de nadie y el Edge no significa nada. (servidor)
+- **R-050** — La cuenta se pide cuando hay algo que guardar —al apostar—, nunca
+  antes. Explorar el catálogo completo sigue sin pedir nada (R-002), y crear la
+  cuenta son dos campos: sin correo obligatorio y sin esperar un mail. (producto)

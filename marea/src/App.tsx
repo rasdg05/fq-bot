@@ -9,6 +9,7 @@ import { ProfileScreen } from "@/screens/ProfileScreen";
 import { MarketDetailScreen } from "@/screens/MarketDetailScreen";
 import { DepositSheet } from "@/screens/DepositSheet";
 import { PostTradeSheet } from "@/screens/PostTradeSheet";
+import { AccountSheet } from "@/screens/AccountSheet";
 import { OnboardingFlow } from "@/screens/OnboardingFlow";
 import { AppProvider, useApp, type Adapters, type AppState } from "@/state/store";
 
@@ -54,6 +55,7 @@ function Shell() {
       <BottomTabs />
       <DepositSheet />
       <PostTradeSheet />
+      <AccountSheet />
       {onboarding ? <OnboardingFlow /> : null}
     </div>
   );

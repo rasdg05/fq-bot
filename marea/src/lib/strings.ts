@@ -170,6 +170,27 @@ export const S = {
     evidence: "Cómo se resolvió",
   },
 
+  cuenta: {
+    crearTitulo: "Crea tu cuenta",
+    crearCuerpo:
+      "Para que tus apuestas y tus puntos sigan aquí cuando vuelvas. Dos campos, sin correo y sin esperar nada.",
+    entrarTitulo: "Entra a tu cuenta",
+    entrarCuerpo: "Con tu usuario y tu contraseña recuperas tu saldo y tus posiciones.",
+    usuario: "Usuario",
+    usuarioPlaceholder: "como te van a ver los demás",
+    password: "Contraseña",
+    passwordPlaceholder: "mínimo 8 caracteres",
+    crearCta: "Crear cuenta y apostar",
+    entrarCta: "Entrar",
+    enviando: "Un segundo…",
+    yaTengo: "Ya tengo cuenta",
+    noTengo: "Quiero crear una cuenta",
+    salir: "Cerrar sesión",
+    sesionDe: (usuario: string) => `Tu cuenta: ${usuario}`,
+    sinCuenta: "Estás explorando sin cuenta.",
+    sinCuentaCta: "Crear cuenta",
+  },
+
   postTrade: {
     title: "Listo, tu posición está abierta",
     body: (side: string, amount: string, title: string) =>

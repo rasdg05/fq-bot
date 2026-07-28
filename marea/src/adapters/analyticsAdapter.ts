@@ -19,7 +19,9 @@ export type AnalyticsEvent =
   | "web_vital"
   | "eligibility_blocked"
   | "market_settled"
-  | "country_detected";
+  | "country_detected"
+  | "cuenta_creada"
+  | "cuenta_entrada";
 
 export interface AnalyticsAdapter {
   track(event: AnalyticsEvent, props?: Record<string, unknown>): void;

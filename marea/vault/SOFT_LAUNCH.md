@@ -1,5 +1,13 @@
 # SOFT LAUNCH — qué falta, en orden
 
+> **28 de julio · el producto tiene servidor.** Cuentas con usuario y
+> contraseña, saldo que persiste, pozo compartido entre todos y liquidación que
+> paga a las cuentas de verdad. Antes de esto, apostar y recargar la página
+> borraba la apuesta: era una demo, no un producto (R-048, R-049).
+>
+> Corre en un solo servicio de Railway: `marea/server/index.mts` sirve la app,
+> guarda las cuentas y corre el ciclo de vida cada cuarto de hora.
+
 Estado al 27 de julio de 2026, segunda revisión. `npm run ci` en verde: **192
 pruebas**, `VALIDATION_REPORT` en PASS con dos verificaciones nuevas (L1 y M1), y
 `npm run perf` en PASS en los dos recorridos.
@@ -101,10 +109,6 @@ mano desde el navegador (R-046).
 - **Modelo propio de Edge.** Gated en 3.29 pp contra un máximo de 2 pp. El Edge
   sale sólo de referencia externa; el modelo sigue en investigación con la
   superficie de volatilidad acumulándose a diario.
-- **El pozo es local en esta build.** Cada dispositivo corre su propia copia del
-  parimutuel sobre la semilla publicada: no hay pozo compartido entre usuarios
-  porque no hay servidor. Con puntos es honesto y funciona; con dinero exige
-  backend, y está declarado aquí para que nadie lo descubra después.
 - **Segundo par de ojos sobre el copy.**
 
 ## Bloqueado sólo para dinero real (no aplica a puntos)
@@ -114,7 +118,6 @@ mano desde el navegador (R-046).
    zona horaria informa, no cumple (R-045).
 3. Wallet embebida (custodia delegada): alta propia con el proveedor MPC. La
    wallet **conectada** ya funciona y no depende de nadie.
-4. Pozo compartido en servidor.
 5. Encender `eligibility_enforced`, que la validación exige para builds con
    dinero.
 

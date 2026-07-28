@@ -21,6 +21,7 @@ import {
   loadPublishedSeeds,
   loadPublishedSettlements,
 } from "./ownMarkets/published";
+import { createApiClient, createApiMarketDataAdapter } from "./http/apiAdapter";
 import { FLAGS, isOwnMarketMode } from "@/lib/flags";
 import type { Adapters } from "@/state/store";
 
@@ -61,7 +62,16 @@ export function resolveAdapters(): Adapters {
     return referenceFromVenues(quotes);
   };
 
-  const marketData = isOwnMarketMode(FLAGS)
+  /**
+   * Con servidor configurado, todo pasa por él: cuentas, pozo compartido y
+   * liquidación. Es el único modo en el que lo que apuesta la gente sobrevive
+   * a cerrar la app, así que manda sobre cualquier otro camino.
+   */
+  const api = CONFIG.apiBase ? createApiClient({ base: CONFIG.apiBase }) : undefined;
+
+  const marketData = api
+    ? createApiMarketDataAdapter(api)
+    : isOwnMarketMode(FLAGS)
     ? // mercados propios de Latam: Marea crea la pregunta y corre el pozo
       createOwnMarketsAdapter({
         loadReference,
@@ -115,6 +125,7 @@ export function resolveAdapters(): Adapters {
 
   return {
     marketData,
+    api,
     wallet,
     analytics: safeAnalytics(analytics),
     errors: safeErrorReporter(errors),

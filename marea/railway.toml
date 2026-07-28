@@ -9,7 +9,9 @@
 
 [build]
 builder = "NIXPACKS"
-buildCommand = "npm ci && npm run build"
+# VITE_API_BASE es lo que enciende las cuentas y el pozo compartido: sin esto
+# la app corre sola en el dispositivo y lo que apuestas se pierde al recargar.
+buildCommand = "npm ci && VITE_API_BASE=/api npm run build"
 
 # Sólo redeploya cuando cambia la app. Los documentos del vault y los datos que
 # el propio ciclo escribe no tienen por qué reiniciar el servicio.
@@ -22,8 +24,14 @@ watchPatterns = [
   "!marea/public/resoluciones.json",
 ]
 
+# Variables que conviene poner en el servicio:
+#   MAREA_SECRETO   — firma las sesiones. Sin esto, cada redeploy saca a todos.
+#   MAREA_DATA_DIR  — /data si montas un volumen, para que las cuentas y las
+#                     apuestas sobrevivan a los redeploys. Es lo que hace que
+#                     esto sea un producto y no una demo.
+
 [deploy]
-startCommand = "node server.mjs"
+startCommand = "npx tsx server/index.mts"
 healthcheckPath = "/salud"
 restartPolicyType = "ALWAYS"
 restartPolicyMaxRetries = 10

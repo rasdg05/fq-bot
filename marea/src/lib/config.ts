@@ -28,6 +28,12 @@ function bool(key: string, fallback: boolean): boolean {
 export type DataSource = "mock" | "aggregated";
 
 export interface AppConfig {
+  /**
+   * Base del servidor de Marea. Con esto encendido hay cuentas, saldo que
+   * persiste y un pozo compartido entre todos; sin esto, la app corre sola en
+   * el dispositivo y lo que apuestas se pierde al recargar.
+   */
+  apiBase?: string;
   /** De dónde salen los mercados. */
   dataSource: DataSource;
   /** Series de Kalshi que curamos; vacío = listado general. */
@@ -54,6 +60,7 @@ export interface AppConfig {
 export function readConfig(): AppConfig {
   const source = str("VITE_DATA_SOURCE");
   return {
+    apiBase: str("VITE_API_BASE"),
     dataSource: source === "aggregated" ? "aggregated" : "mock",
     kalshiSeries: (str("VITE_KALSHI_SERIES") ?? "")
       .split(",")

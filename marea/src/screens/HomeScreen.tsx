@@ -31,6 +31,8 @@ export function HomeScreen() {
 
   React.useEffect(() => {
     if (markets.status === "loading") void actions.loadMarkets();
+    // ¿hay sesión viva? Si la hay, el saldo y las posiciones vuelven solos
+    void actions.cargarCuenta();
     // sólo al montar: el feed no se recarga solo al cambiar de filtro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
