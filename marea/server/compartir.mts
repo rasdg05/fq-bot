@@ -80,3 +80,49 @@ export function metaDeMercado(html: string, mercado: Market, origen: string): st
   // es el único ancla que siempre existe
   return conDescripcion.replace("</head>", `  ${etiquetas}\n  </head>`);
 }
+
+/**
+ * Etiquetas de vista previa de una tarjeta de logro. Usa la imagen generada,
+ * no la de marca: aquí la imagen **sí** es el contenido.
+ */
+export function metaDeLogro(
+  html: string,
+  logro: { usuario: string; resueltos: number; aciertos: number; racha: number },
+  origen: string,
+): string {
+  const titulo = `${logro.usuario} en Marea`;
+  const descripcion =
+    logro.resueltos === 0
+      ? "Todavía sin mercados resueltos. Entra y di tú qué va a pasar."
+      : `Le atinó a ${logro.aciertos} de ${logro.resueltos} mercados${
+          logro.racha >= 2 ? `, con racha de ${logro.racha}` : ""
+        }. Entra y di tú qué va a pasar.`;
+  const imagen = `${origen}/tarjeta/${encodeURIComponent(logro.usuario)}.png`;
+  const enlace = `${origen}/logro/${encodeURIComponent(logro.usuario)}`;
+
+  const etiquetas = [
+    `<meta property="og:title" content="${escapar(titulo)}">`,
+    `<meta property="og:description" content="${escapar(descripcion)}">`,
+    `<meta property="og:url" content="${escapar(enlace)}">`,
+    `<meta property="og:type" content="website">`,
+    `<meta property="og:site_name" content="Marea">`,
+    `<meta property="og:image" content="${escapar(imagen)}">`,
+    `<meta property="og:image:width" content="1200">`,
+    `<meta property="og:image:height" content="630">`,
+    `<meta property="og:locale" content="es_LA">`,
+    `<meta name="twitter:card" content="summary_large_image">`,
+    `<meta name="twitter:title" content="${escapar(titulo)}">`,
+    `<meta name="twitter:description" content="${escapar(descripcion)}">`,
+    `<meta name="twitter:image" content="${escapar(imagen)}">`,
+  ].join("\n    ");
+
+  const conTitulo = html.replace(
+    /<title>[\s\S]*?<\/title>/,
+    `<title>${escapar(titulo)}</title>`,
+  );
+  const conDescripcion = conTitulo.replace(
+    /<meta\s+name="description"[\s\S]*?\/?>/,
+    `<meta name="description" content="${escapar(descripcion)}" />`,
+  );
+  return conDescripcion.replace("</head>", `  ${etiquetas}\n  </head>`);
+}

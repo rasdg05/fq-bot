@@ -13,7 +13,8 @@ import {
   todosLosSeeds,
 } from "./mercados.mts";
 import { correrCiclo, type ResumenCiclo } from "./ciclo.mts";
-import { metaDeMercado } from "./compartir.mts";
+import { metaDeLogro, metaDeMercado } from "./compartir.mts";
+import { logroDe, tarjetaPng } from "./tarjeta.mts";
 import { createRegistroDeEventos } from "./eventos.mts";
 import type { OwnMarketSeed } from "../src/adapters/ownMarkets/catalog";
 
@@ -124,6 +125,57 @@ async function servir(req: IncomingMessage, res: ServerResponse) {
       if (!res.headersSent) res.writeHead(500, { "content-type": TIPOS[".json"] });
       res.end(JSON.stringify({ error: "Algo falló de nuestro lado. Vuelve a intentar." }));
     }
+    return;
+  }
+
+  /**
+   * Tarjeta de resultado: `/tarjeta/<usuario>.png`.
+   *
+   * Se genera en el servidor y se cachea una hora: la imagen cambia cuando
+   * liquida un mercado, no cuando alguien recarga. Sólo lleva datos propios y
+   * agregados — el nombre, cuántas le atinó y su racha (R-058).
+   */
+  if (ruta.startsWith("/tarjeta/") && ruta.endsWith(".png")) {
+    const usuario = decodeURIComponent(ruta.slice("/tarjeta/".length, -4));
+    const logro = logroDe(store, usuario);
+    if (!logro) {
+      res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+      res.end("No encontramos a esa persona.");
+      return;
+    }
+    try {
+      const png = await tarjetaPng(logro, ROOT);
+      res.writeHead(200, {
+        "content-type": "image/png",
+        "cache-control": "public, max-age=3600",
+      });
+      res.end(png);
+    } catch (error) {
+      // que falle una imagen no puede tumbar la ruta: se dice y se sigue
+      console.error("tarjeta:", error);
+      res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
+      res.end("No pudimos generar la tarjeta.");
+    }
+    return;
+  }
+
+  /**
+   * Página de la tarjeta: `/logro/<usuario>`. Es la que se comparte — lleva la
+   * imagen en sus etiquetas de vista previa, porque un PNG suelto en WhatsApp
+   * no trae ni título ni contexto.
+   */
+  if (ruta.startsWith("/logro/")) {
+    const usuario = decodeURIComponent(ruta.slice("/logro/".length));
+    const logro = logroDe(store, usuario);
+    const html = await readFile(join(DIST, "index.html"), "utf8");
+    const salida = logro ? metaDeLogro(html, logro, url.origin) : html;
+    const gzip = aceptaGzip(req);
+    res.writeHead(200, {
+      "content-type": TIPOS[".html"],
+      "cache-control": "no-cache",
+      ...(gzip ? { "content-encoding": "gzip", vary: "Accept-Encoding" } : {}),
+    });
+    res.end(gzip ? gzipSync(salida) : salida);
     return;
   }
 

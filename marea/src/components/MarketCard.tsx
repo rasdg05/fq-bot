@@ -87,6 +87,34 @@ export function MarketCard({ market, variant, onOpen }: MarketCardProps) {
           ) : null}
           {/* la categoría se reconoce de reojo por color y forma, y se lee en
               la palabra: el color nunca es el único portador (R-005) */}
+          {/* escudos: `width`/`height` explícitos y `lazy`. Una imagen sin
+              dimensiones reserva cero y empuja el layout cuando llega — es la
+              forma más común de subir el CLS sin darse cuenta */}
+          {/* a 320 px la fila de badges envolvía y la card pasaba de 159 a
+              193 px: menos mercados por pantalla justo en el teléfono más
+              chico. El escudo es adorno, así que es lo primero que se va */}
+          {market.equipos?.length ? (
+            <span
+              data-testid="card-escudos"
+              className="hidden shrink-0 items-center gap-0.5 angosto:flex"
+            >
+              {market.equipos.slice(0, 2).map((equipo) =>
+                equipo.escudo ? (
+                  <img
+                    key={equipo.nombre}
+                    src={equipo.escudo}
+                    alt=""
+                    aria-hidden
+                    width={22}
+                    height={22}
+                    loading="lazy"
+                    decoding="async"
+                    className="h-[22px] w-[22px] rounded-full bg-panel2 object-contain p-px ring-1 ring-line2"
+                  />
+                ) : null,
+              )}
+            </span>
+          ) : null}
           <span className="ml-auto flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-muted">
             <span
               aria-hidden
@@ -199,6 +227,8 @@ export function MarketCard({ market, variant, onOpen }: MarketCardProps) {
             dejar que este nodo envolviera */}
         <span className="block truncate text-[11px] leading-tight text-muted">
           {pool ? `${S.market.pot} ${formatStake(market.volume)}` : compactUsd(market.volume)}
+          {/* cuánta gente hay dentro: es lo que dice si el mercado está vivo */}
+          {market.participantes ? ` · ${S.market.participantes(market.participantes)}` : ""}
           {closes ? ` · ${S.market.closes} ${closes}` : ` · ${S.badges.closed}`}
         </span>
       </button>

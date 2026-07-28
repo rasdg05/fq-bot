@@ -8,7 +8,7 @@ import { ErrorState } from "@/components/StateViews";
 import { cn } from "@/lib/cn";
 import { S } from "@/lib/strings";
 import { FLAGS } from "@/lib/flags";
-import { compactUsd, pct, closesIn } from "@/lib/format";
+import { compactUsd, pct, closesIn, fechaCorta } from "@/lib/format";
 import { useApp } from "@/state/store";
 import { formatStake, stakePresets } from "@/lib/units";
 import { isPointsMode } from "@/lib/flags";
@@ -48,6 +48,7 @@ export function MarketDetailScreen({ market }: { market: Market }) {
   const [compartido, setCompartido] = React.useState(false);
   const closed = market.status === "resolved";
   const closes = closesIn(market.closesAt);
+  const fechaCierre = fechaCorta(market.closesAt);
   const showEdge = hasEdge(market) && market.edge !== null;
   const marketPct = pct(market.probability);
   // cotización real del pozo, incluyendo la apuesta que está por hacerse (R-023)
@@ -159,6 +160,16 @@ export function MarketDetailScreen({ market }: { market: Market }) {
             <dd className="mt-0.5 font-mono text-[15px] font-semibold text-text tabular-nums">
               {closes ?? S.badges.closed}
             </dd>
+            {/* la fecha exacta, no sólo "en 4 d": saber qué día cierra cambia
+                la decisión de entrar, y "en 4 d" obliga a hacer la cuenta */}
+            {fechaCierre ? (
+              <dd
+                data-testid="cierra-el"
+                className="mt-0.5 text-[11px] leading-tight text-muted"
+              >
+                {S.market.cierraEl(fechaCierre)}
+              </dd>
+            ) : null}
           </div>
         </dl>
 

@@ -360,6 +360,22 @@ export class Store {
     return this.datos.apuestas.filter((a) => a.usuarioId === usuarioId);
   }
 
+  /**
+   * Cuánta gente distinta hay en un mercado, no cuántas apuestas.
+   *
+   * Es la cifra que dice si el mercado está vivo: veinte apuestas de una
+   * persona son una persona hablando sola, y R-059 ya anula ese caso al
+   * liquidar. Mostrar el número de apuestas en vez del de personas sería
+   * inflar la sensación de actividad con el mismo truco.
+   */
+  participantesDe(marketId: string): number {
+    const gente = new Set<string>();
+    for (const apuesta of this.datos.apuestas) {
+      if (apuesta.marketId === marketId) gente.add(apuesta.usuarioId);
+    }
+    return gente.size;
+  }
+
   apuestasDeMercado(marketId: string): Apuesta[] {
     return this.datos.apuestas.filter((a) => a.marketId === marketId);
   }

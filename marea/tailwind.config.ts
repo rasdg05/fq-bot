@@ -9,6 +9,12 @@ const config: Config = {
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      screens: {
+        // teléfonos angostos de verdad: el iPhone SE va a 320 px, y ahí la
+        // fila de badges de la card envuelve. Por debajo de este ancho el
+        // adorno estorba, y el adorno es lo primero que se va
+        angosto: "360px",
+      },
       colors: {
         bg: "var(--bg)",
         panel: "var(--panel)",

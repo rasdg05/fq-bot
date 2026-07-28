@@ -99,6 +99,10 @@ export const S = {
     /** Con N respuestas ya no es "tu lado": es cuál de todas. */
     chooseOutcome: "Elige tu respuesta",
     hereLabel: "Aquí",
+    /** Personas dentro del mercado, no apuestas: veinte de una no son mercado. */
+    participantes: (n: number) => (n === 1 ? "1 jugando" : `${n} jugando`),
+    /** Cierre con fecha, no sólo "en 4 d": saber el día cambia la decisión. */
+    cierraEl: (fecha: string) => `Cierra el ${fecha}`,
     referenceLabel: (venue: string) => venue,
     edgeCardWith: (label: string, pp: string) => `${label} ${pp}%`,
     edgeDetailWith: (here: string, label: string, there: string, edge: string) =>
@@ -287,6 +291,14 @@ export const S = {
     p3Primary: "Depositar",
     p3Secondary: "Explorar mercados",
     skip: "Explorar primero",
+  },
+
+  logro: {
+    titulo: "Tu tarjeta",
+    cuerpo: "Tu precisión y tu racha, en una imagen para mandar al grupo.",
+    cta: "Compartir mi tarjeta",
+    copiada: "Liga copiada",
+    texto: "Así voy en Marea. ¿Le atinas más que yo?",
   },
 
   profile: {

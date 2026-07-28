@@ -59,6 +59,19 @@ export interface Market {
    * número que no dice nada.
    */
   leadLabel?: string;
+  /**
+   * Cuánta gente distinta apostó. Personas, no apuestas: veinte apuestas de
+   * una sola persona no son un mercado (R-059).
+   */
+  participantes?: number;
+  /**
+   * Los dos equipos, cuando el mercado es de futbol. El escudo lo sirve la
+   * misma fuente que resuelve el mercado, así que no se cita a nadie que no se
+   * lea (R-046).
+   */
+  equipos?: { nombre: string; escudo?: string }[];
+  /** Marcador, si el partido está en juego o ya terminó. */
+  marcador?: { local: number; visitante: number; estado: string };
   /** Dónde se completa la operación cuando la ejecución es agregada. */
   venue?: { id: string; label: string; url?: string };
   /** Resultado ya leído de la fuente, cuando el mercado resolvió. */

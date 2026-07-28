@@ -214,11 +214,57 @@ for (const ancho of ANCHOS) {
   await ctx.close();
 }
 
+/**
+ * Las imágenes del feed (escudos) no pueden empujar el layout ni la pintada.
+ * Una imagen sin `width`/`height` reserva cero espacio y desplaza todo lo que
+ * tiene debajo cuando llega — es la forma más común de subir el CLS sin verlo.
+ */
+{
+  const ctx = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 2,
+  });
+  const page = await ctx.newPage();
+  await page.goto(BASE, { waitUntil: "networkidle" });
+  await pasarOnboarding(page);
+
+  const imgs = await page.evaluate(() => {
+    const salida = [];
+    for (const img of document.querySelectorAll('[data-testid="market-card"] img')) {
+      salida.push({
+        src: img.getAttribute("src")?.slice(0, 60) ?? "",
+        ancho: img.getAttribute("width"),
+        alto: img.getAttribute("height"),
+        lazy: img.getAttribute("loading"),
+      });
+    }
+    return salida;
+  });
+  const sinMedidas = imgs.filter((i) => !i.ancho || !i.alto);
+  const sinLazy = imgs.filter((i) => i.lazy !== "lazy");
+  reporte.push({ imagenes: imgs.length, sinMedidas: sinMedidas.length, sinLazy: sinLazy.length });
+
+  if (sinMedidas.length > 0) {
+    fallos.push(
+      `${sinMedidas.length} imágenes del feed sin width/height: reservan cero y empujan el layout`,
+    );
+  }
+  if (sinLazy.length > 0) {
+    fallos.push(`${sinLazy.length} imágenes del feed sin loading="lazy"`);
+  }
+  await ctx.close();
+}
+
 await browser.close();
 
 console.log("DENSIDAD (navegador real, servidor real)");
 console.log("========================================");
 for (const r of reporte) {
+  if (r.imagenes !== undefined) {
+    console.log("\nimágenes del feed:");
+    console.log(`  total ${r.imagenes} · sin medidas ${r.sinMedidas} · sin lazy ${r.sinLazy}`);
+    continue;
+  }
   if (r.esqueleto !== undefined) {
     console.log("\nesqueleto vs card real:");
     console.log(

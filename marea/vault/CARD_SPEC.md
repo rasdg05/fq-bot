@@ -23,8 +23,17 @@ de decisión dejó de caber en 390 px. Medido antes del cambio:
 | Alto de card | 214 px | — | **159 px** |
 | Alto del documento (29 mercados) | 6 631 px | — | **4 688 px** |
 
-A 320 px y a 430 px las envolturas también quedan en cero; a 320 px caben 3
-cards enteras, que es lo que da la pantalla.
+A 320 px y a 430 px las envolturas de texto también quedan en cero.
+
+**A 320 px la card mide 193 px en vez de 159, y está bien.** La fila de
+decisión envuelve en dos líneas porque el contenido real —`61%` en 44 px, su
+etiqueta y su pago, dos veces— pide unos 310 px y el ancho interior es 292. La
+alternativa sería recortar un número, y el número no se toca (R-063). Siguen
+entrando 4 cards enteras, así que la densidad no se pierde: se paga con alto,
+no con información.
+
+Los escudos desaparecen por debajo de 360 px (`angosto:`). Son adorno, y el
+adorno es lo primero que se va cuando la fila de badges empieza a envolver.
 
 La envoltura no se detecta comparando `scrollWidth` con `clientWidth`: un texto
 que salta de línea **crece en alto, no en ancho**. Se mide comparando el alto
@@ -53,6 +62,12 @@ siempre, y por eso el defecto vivió tanto.
 
 ### Fila 1 — badges y categoría
 
+- Marca de categoría: punto de 6 px con **color y forma** propios por
+  categoría, con la palabra al lado. El color nunca es el único portador
+  (R-005), y la forma cubre a quien no distingue rojo de verde.
+- Escudos de los equipos, 22×22 px, sólo en mercados de futbol y sólo desde
+  360 px de ancho. `width`/`height` explícitos y `loading="lazy"`: una imagen
+  sin dimensiones reserva cero y empuja el layout cuando llega.
 - Alto de badge: 18 px. Texto 10 px, peso 700, mayúsculas, `tracking` 0.04em.
 - Como mucho **dos** badges antes de la categoría. El tercero se descarta:
   con HOT, LATAM y el país la fila se come el ancho y empuja la categoría.
@@ -90,7 +105,9 @@ para dos nada más.
 
 - 11 px, color `muted`, **una sola línea**, `white-space: nowrap` con
   `text-overflow: ellipsis`.
-- Orden: `Pozo <monto> · Cierra <cuándo>`. Si no cabe, se corta por el final —
+- Orden: `Pozo <monto> · <N> jugando · Cierra <cuándo>`. Se cuentan **personas
+  distintas**, no apuestas: veinte apuestas de una sola persona no son un
+  mercado, y R-059 ya anula ese caso al liquidar. Si no cabe, se corta por el final —
   el pozo importa más que el cierre.
 - La `d` huérfana de `Cierra en 4 d` salía de dejar que este nodo envolviera.
 

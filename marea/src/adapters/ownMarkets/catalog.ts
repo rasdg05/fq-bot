@@ -44,6 +44,16 @@ export interface OwnMarketSeed {
    * queda sin resolver, pero tarda lo que tarde una persona.
    */
   rule?: OracleRule;
+  /**
+   * Los dos equipos, para los mercados de futbol. El escudo es la URL que
+   * sirve la **misma** fuente que resuelve el mercado: citar a ESPN y pintar
+   * el escudo de otro sería citar una fuente distinta de la que se lee (R-046).
+   *
+   * Se guarda en la semilla y no se pide al vuelo: el contenido principal nunca
+   * espera a un dato secundario (R-047), y un escudo es lo más secundario que
+   * hay.
+   */
+  equipos?: { nombre: string; escudo?: string }[];
 }
 
 const FEE_BPS = 300;
@@ -360,6 +370,10 @@ const SEEDS: OwnMarketSeed[] = [
       equipo: "América",
       mercado: "1x2",
     },
+    equipos: [
+      { nombre: "América", escudo: "https://a.espncdn.com/i/teamlogos/soccer/500/227.png" },
+      { nombre: "Santos", escudo: "https://a.espncdn.com/i/teamlogos/soccer/500/225.png" },
+    ],
     resolution: {
       sourceName: "ESPN (marcador de la Liga MX)",
       sourceUrl:

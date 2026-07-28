@@ -136,6 +136,9 @@ export function construirMercado(
     priceLabel: "Aquí",
     pool: { outcomes: { ...pool.outcomes }, feeBps: pool.feeBps },
     outcomes,
+    // cuánta gente distinta hay dentro: es lo que dice si el mercado está vivo
+    participantes: store.participantesDe(seed.id),
+    equipos: seed.equipos,
     region: "latam",
     country: seed.country,
     hot: totalPool(pool) >= umbralHot,
