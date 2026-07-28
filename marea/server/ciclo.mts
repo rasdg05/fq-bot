@@ -27,6 +27,8 @@ export interface ResumenCiclo {
   pagados: number;
   /** Mercados anulados por falta de participación, con todo devuelto. */
   anulados: number;
+  /** Comisión cobrada en esta corrida, ya asentada en tesorería. */
+  comision: number;
   atorados: string[];
   acreditado: number;
   errores: string[];
@@ -53,6 +55,7 @@ export async function correrCiclo(
     leidos: 0,
     pagados: 0,
     anulados: 0,
+    comision: 0,
     atorados: [],
     acreditado: 0,
     errores: [],
@@ -108,6 +111,12 @@ export async function correrCiclo(
           // pagar primero, marcar después: si el proceso muere en medio, el
           // dinero ya está acreditado y el estado se recalcula solo
           resumen.acreditado += store.pagarMercado(seed.id, reparto.payouts);
+          // y la comisión va a la tesorería con su asiento: si se resta del
+          // reparto tiene que llegar a algún lado (R-064)
+          if (!sinMercado && "fee" in reparto && reparto.fee > 0) {
+            resumen.comision += reparto.fee;
+            store.acumularComision(seed.id, reparto.fee);
+          }
         }
 
         const nadieAcerto =

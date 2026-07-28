@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 import { S } from "@/lib/strings";
+import { formatStake } from "@/lib/units";
 import { compactUsd, pct, closesIn } from "@/lib/format";
 import { formatMultiplier, payoutMultiplier } from "@/domain/parimutuel";
 
@@ -102,10 +103,31 @@ export function MarketCard({ market, variant, onOpen }: MarketCardProps) {
                 %
               </span>
             </div>
-            <div className="mt-0.5 text-[12px] font-medium uppercase tracking-wide text-muted">
-              {S.market.probability}
+            {/* los dos lados, con su pago. Enseñar sólo uno es enseñar medio
+                mercado: quien apuesta necesita ver contra qué apuesta (R-063) */}
+            <div className="mt-0.5 text-[12px] font-medium text-muted">
+              {pool
+                ? `${S.market.yes} · ${S.market.pays} ${formatMultiplier(
+                    payoutMultiplier(pool, "si"),
+                  )}`
+                : S.market.probability}
             </div>
           </div>
+
+          {pool ? (
+            <div className="text-right" data-testid="card-other-side">
+              <div className="font-display text-[22px] font-semibold tabular-nums text-text2">
+                {pct(1 - market.probability)}
+                <span className="ml-0.5 align-top text-[0.42em] font-bold text-muted">
+                  %
+                </span>
+              </div>
+              <div className="mt-0.5 text-[12px] font-medium text-muted">
+                {S.market.no} · {S.market.pays}{" "}
+                {formatMultiplier(payoutMultiplier(pool, "no"))}
+              </div>
+            </div>
+          ) : null}
 
           <div className="flex flex-col items-end gap-1.5">
             {showEdge ? (
@@ -128,9 +150,7 @@ export function MarketCard({ market, variant, onOpen }: MarketCardProps) {
               </Badge>
             ) : null}
             <span className="text-[12px] text-muted">
-              {pool
-                ? `${S.market.payout} ${formatMultiplier(payoutMultiplier(pool, "si"))}`
-                : compactUsd(market.volume)}
+              {pool ? `${S.market.pot} ${formatStake(market.volume)}` : compactUsd(market.volume)}
               {closes
                 ? ` · ${S.market.closes} ${closes}`
                 : ` · ${S.badges.closed}`}

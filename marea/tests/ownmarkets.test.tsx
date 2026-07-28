@@ -172,7 +172,10 @@ describe("Mercados propios — interfaz", () => {
     await enter(user);
     const cards = await screen.findAllByTestId("market-card");
     expect(cards.length).toBeGreaterThan(5);
-    expect(cards[0]).toHaveTextContent(/Paga \d/);
+    // los dos lados, cada uno con su pago: enseñar sólo uno es medio mercado
+    expect(cards[0]).toHaveTextContent(/Sí · paga \d/);
+    expect(cards[0]).toHaveTextContent(/No · paga \d/);
+    expect(within(cards[0]).getByTestId("card-other-side")).toBeInTheDocument();
     expect(cards[0].textContent).not.toMatch(/\$/);
   });
 

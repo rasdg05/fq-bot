@@ -174,6 +174,41 @@ describe("Servidor · liquidación que paga a la gente", () => {
     expect(posicion.pnl).toBe(0);
   });
 
+  it("V66 la comisión llega a la tesorería y cuadra con el pozo", async () => {
+    const ana = alta("ana");
+    const beto = alta("beto");
+    store.apostar({ usuarioId: ana.id, marketId: seed.id, side: "si", stake: 300, precio: 0.5 });
+    store.apostar({ usuarioId: beto.id, marketId: seed.id, side: "no", stake: 300, precio: 0.5 });
+
+    await correrCiclo(store, [seed], [oraculoSi], AHORA);
+    const resumen = await correrCiclo(store, [seed], [oraculoSi], AHORA + 2 * 86_400_000);
+
+    // 3 % del pozo de 800: si se resta del reparto, tiene que llegar a algún lado
+    expect(resumen.comision).toBeCloseTo(800 * 0.03, 6);
+    expect(store.tesoreria()).toBeCloseTo(800 * 0.03, 6);
+
+    // y lo repartido más la comisión es el pozo entero: nada se evapora
+    const pagado = store.apuestasDeMercado(seed.id).reduce((s, a) => s + (a.pagado ?? 0), 0);
+    const pozo = store.pozo(seed.id)!;
+    // el resto es la parte de la semilla, que se queda con la casa
+    expect(pagado + store.tesoreria()).toBeLessThanOrEqual(pozo.si + pozo.no + 1e-6);
+
+    // correrlo otra vez no cobra dos veces
+    await correrCiclo(store, [seed], [oraculoSi], AHORA + 3 * 86_400_000);
+    expect(store.tesoreria()).toBeCloseTo(800 * 0.03, 6);
+  });
+
+  it("V67 un mercado anulado no deja comisión: se devuelve todo", async () => {
+    const ana = alta("ana");
+    store.apostar({ usuarioId: ana.id, marketId: seed.id, side: "si", stake: 300, precio: 0.5 });
+
+    await correrCiclo(store, [seed], [oraculoSi], AHORA);
+    await correrCiclo(store, [seed], [oraculoSi], AHORA + 2 * 86_400_000);
+
+    expect(store.tesoreria()).toBe(0);
+    expect(store.usuarioPorId(ana.id)!.puntos).toBe(1_000);
+  });
+
   it("V52 correr el ciclo mil veces paga una sola vez", async () => {
     const ana = alta("ana");
     const beto = alta("beto");

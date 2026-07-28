@@ -183,3 +183,9 @@ Se agrega una línea cuando un hallazgo de audit es recurrente o de producto.
 - **R-062** — Un mercado de confirmación humana sólo se publica si el evento
   justifica que una persona se siente a verlo: máximo tres a la vez. Lo demás
   espera a que su fuente abra un endpoint. (producto)
+- **R-063** — Un mercado se presenta con los dos lados visibles, cada uno con su
+  probabilidad y su pago. Mostrar un solo lado es mostrar medio mercado: quien
+  apuesta necesita ver contra qué apuesta. (interfaz)
+- **R-064** — Toda comisión que se resta del reparto tiene que llegar a algún
+  lado, con asiento, fecha y mercado. Una comisión que se calcula y desaparece
+  es la forma exacta de perderle la pista al dinero. (contabilidad)

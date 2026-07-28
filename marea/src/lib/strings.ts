@@ -83,6 +83,8 @@ export const S = {
     maxLoss: "Lo máximo que puedes perder es lo que pones.",
     openDetail: "Ver mercado",
     payout: "Paga",
+    /** En la card, con los dos lados a la vista: "Sí · paga 1.8×". */
+    pays: "paga",
     payoutHint: (multiplier: string, toWin: string) =>
       `Si aciertas, cobras ${toWin} (${multiplier}).`,
     poolTitle: "Cómo se reparte",

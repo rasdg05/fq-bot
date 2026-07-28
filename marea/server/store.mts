@@ -56,12 +56,28 @@ export interface PozoGuardado {
   feeBps: number;
 }
 
+/**
+ * Tesorería: la comisión que se lleva la casa, mercado por mercado.
+ *
+ * Antes de esto, `settle()` calculaba la comisión y **nadie la recibía**: se
+ * restaba del reparto y desaparecía. Con puntos no se nota; con dinero es la
+ * forma exacta de perderle la pista al dinero. Aquí queda con su asiento, con
+ * fecha y con el mercado que la generó, para poder cuadrarla contra el pozo
+ * (R-064).
+ */
+export interface AsientoComision {
+  marketId: string;
+  monto: number;
+  at: string;
+}
+
 interface Datos {
   version: 1;
   usuarios: Usuario[];
   apuestas: Apuesta[];
   pozos: PozoGuardado[];
   liquidaciones: SettlementState[];
+  comisiones: AsientoComision[];
 }
 
 const VACIO: Datos = {
@@ -70,6 +86,7 @@ const VACIO: Datos = {
   apuestas: [],
   pozos: [],
   liquidaciones: [],
+  comisiones: [],
 };
 
 export class Store {
@@ -283,8 +300,29 @@ export class Store {
     });
   }
 
+  /** Acredita la comisión de un mercado. Idempotente por mercado. */
+  acumularComision(marketId: string, monto: number): number {
+    if (monto <= 0) return this.tesoreria();
+    return this.mutar((datos) => {
+      // una comisión por mercado: correr el ciclo dos veces no cobra dos veces
+      if (!datos.comisiones.some((c) => c.marketId === marketId)) {
+        datos.comisiones.push({ marketId, monto, at: new Date().toISOString() });
+      }
+      return datos.comisiones.reduce((suma, c) => suma + c.monto, 0);
+    });
+  }
+
+  tesoreria(): number {
+    return this.datos.comisiones.reduce((suma, c) => suma + c.monto, 0);
+  }
+
+  comisiones(): AsientoComision[] {
+    return this.datos.comisiones;
+  }
+
   resumen() {
     return {
+      tesoreria: Math.round(this.tesoreria()),
       usuarios: this.datos.usuarios.length,
       apuestas: this.datos.apuestas.length,
       mercadosConPozo: this.datos.pozos.length,
