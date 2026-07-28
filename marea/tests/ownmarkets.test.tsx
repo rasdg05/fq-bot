@@ -67,11 +67,12 @@ describe("Mercados propios — adapter", () => {
     expect(despues.probability).toBeGreaterThan(antes);
   });
 
-  it("no acepta apuestas en un mercado cerrado", async () => {
+  it("no acepta apuestas en un mercado cerrado, y ése ya no sale en el feed", async () => {
     const adapter = createOwnMarketsAdapter({ now: () => Date.parse("2030-01-01") });
-    const [first] = await adapter.listMarkets();
+    // un mercado vencido promete algo que ya no existe: sale del feed (R-041)
+    expect(await adapter.listMarkets()).toHaveLength(0);
     await expect(
-      adapter.prepareTrade({ marketId: first.id, side: "si", size: 100 }),
+      adapter.prepareTrade({ marketId: OWN_MARKETS[0].id, side: "si", size: 100 }),
     ).rejects.toMatchObject({ code: "E_TRADE_INIT_FAILED" });
   });
 

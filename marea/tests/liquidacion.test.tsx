@@ -1,0 +1,163 @@
+import { describe, expect, it } from "vitest";
+import { screen, waitFor, within } from "@testing-library/react";
+import { userEvent } from "@testing-library/user-event";
+import { renderApp } from "./helpers";
+import { S } from "@/lib/strings";
+import { SPLASH_MAX_MS } from "@/screens/OnboardingFlow";
+import { createOwnMarketsAdapter } from "@/adapters/ownMarkets/ownMarketsAdapter";
+import { validateSeed, type OwnMarketSeed } from "@/adapters/ownMarkets/catalog";
+import type { SettlementState } from "@/domain/settlement";
+import { WELCOME_GRANT } from "@/domain/points";
+
+/**
+ * El ciclo entero, de punta a punta: se apuesta, el mercado cierra, el
+ * liquidador publica el resultado y el usuario cobra. Es la prueba que faltaba
+ * y la que sostiene el producto (R-040).
+ */
+
+const AHORA = Date.parse("2026-08-05T12:00:00Z");
+
+const seed: OwnMarketSeed = validateSeed({
+  id: "btc-prueba",
+  title: "¿Bitcoin cierra la semana arriba de 71,000 dólares?",
+  category: "cripto",
+  country: "LATAM",
+  closesAt: "2026-08-10T00:00:00Z",
+  pool: { si: 500, no: 500, feeBps: 300 },
+  rule: {
+    kind: "precio",
+    par: "BTC/USD",
+    umbral: 71_000,
+    comparacion: "arriba",
+    modo: "cierre",
+  },
+  resolution: {
+    sourceName: "Kraken (velas diarias públicas)",
+    sourceUrl: "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=1440",
+    criterion:
+      "Se resuelve Sí si la vela diaria de BTC/USD en Kraken del domingo cierra por encima de 71,000 dólares.",
+    settlesAt: "2026-08-10T23:59:00Z",
+    disputeWindowHours: 12,
+  },
+});
+
+const EVIDENCIA = "Vela diaria de BTC/USD en Kraken del 2026-08-10: cierre 72,500 USD.";
+
+function pagado(outcome: "si" | "no"): SettlementState {
+  return {
+    marketId: seed.id,
+    phase: "pagado",
+    outcome,
+    evidence: EVIDENCIA,
+    readAt: "2026-08-11T00:10:00Z",
+    disputeUntil: "2026-08-11T12:10:00Z",
+    paidAt: "2026-08-11T12:11:00Z",
+  };
+}
+
+function adapterConLiquidacion(estados: () => SettlementState[]) {
+  return createOwnMarketsAdapter({
+    seeds: [seed],
+    loadSettlements: async () => estados(),
+    now: () => AHORA,
+  });
+}
+
+describe("Liquidación de punta a punta", () => {
+  it("V40 una posición ganadora cobra el pozo y trae la lectura que lo justifica", async () => {
+    let estados: SettlementState[] = [];
+    const adapter = adapterConLiquidacion(() => estados);
+
+    await adapter.prepareTrade({ marketId: seed.id, side: "si", size: 100 });
+    const abiertas = await adapter.listPositions();
+    expect(abiertas[0].status).toBe("open");
+    expect(abiertas[0].payout).toBeUndefined();
+
+    estados = [pagado("si")];
+    const cerradas = await adapter.listPositions();
+    expect(cerradas[0].status).toBe("won");
+    // pozo de 1,100 menos 3 %, repartido entre los 600 del lado Sí
+    expect(cerradas[0].payout).toBeCloseTo((1_100 * 0.97 * 100) / 600, 6);
+    expect(cerradas[0].pnl).toBeGreaterThan(0);
+    expect(cerradas[0].evidence).toBe(EVIDENCIA);
+    // ya no se muestra pago potencial: el resultado dejó de ser hipotético
+    expect(cerradas[0].toWin).toBeUndefined();
+  });
+
+  it("V41 una posición perdedora se marca perdida y no paga", async () => {
+    let estados: SettlementState[] = [];
+    const adapter = adapterConLiquidacion(() => estados);
+    await adapter.prepareTrade({ marketId: seed.id, side: "si", size: 100 });
+
+    estados = [pagado("no")];
+    const posiciones = await adapter.listPositions();
+    expect(posiciones[0].status).toBe("lost");
+    expect(posiciones[0].payout).toBe(0);
+    expect(posiciones[0].pnl).toBe(-100);
+  });
+
+  it("V42 un mercado ya resuelto no acepta más apuestas", async () => {
+    const adapter = adapterConLiquidacion(() => [pagado("si")]);
+    // el estado se conoce al listar; después de eso, apostar es imposible
+    await adapter.listMarkets();
+    await expect(
+      adapter.prepareTrade({ marketId: seed.id, side: "si", size: 10 }),
+    ).rejects.toMatchObject({ code: "E_TRADE_INIT_FAILED" });
+  });
+
+  it("V43 el mercado resuelto muestra qué salió y con qué lectura", async () => {
+    const adapter = adapterConLiquidacion(() => [pagado("si")]);
+    const [market] = await adapter.listMarkets();
+    expect(market.status).toBe("resolved");
+    expect(market.outcome).toBe("si");
+    expect(market.settlementEvidence).toBe(EVIDENCIA);
+  });
+
+  it("V44 el pago se acredita al saldo una sola vez, aunque se recargue el portafolio", async () => {
+    const user = userEvent.setup();
+    let estados: SettlementState[] = [];
+    const adapter = adapterConLiquidacion(() => estados);
+
+    const app = renderApp({
+      engine: "parimutuel_points",
+      marketDataAdapter: adapter,
+    });
+
+    await user.click(
+      await screen.findByTestId("onboarding-start", {}, { timeout: SPLASH_MAX_MS + 2000 }),
+    );
+    await screen.findByTestId("home-screen");
+
+    await user.click(
+      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+    );
+    await user.click(await screen.findByTestId("detail-trade-cta"));
+    await screen.findByTestId("post-trade");
+    await waitFor(() =>
+      expect(screen.getByTestId("header-balance")).toHaveTextContent(
+        `${WELCOME_GRANT - 100} pts`,
+      ),
+    );
+
+    // el liquidador publica el resultado mientras la app está abierta
+    estados = [pagado("si")];
+    await user.click(screen.getByTestId("post-trade-portfolio"));
+
+    const fila = (await screen.findAllByTestId("position-row"))[0];
+    expect(within(fila).getByTestId("position-outcome")).toHaveTextContent(
+      S.portfolio.won,
+    );
+    expect(within(fila).getByTestId("position-evidence")).toHaveTextContent(EVIDENCIA);
+
+    const saldo = () => screen.getByTestId("header-balance").textContent;
+    await waitFor(() => expect(saldo()).not.toBe(`${WELCOME_GRANT - 100} pts`));
+    const acreditado = saldo();
+
+    // volver a entrar al portafolio no vuelve a pagar
+    await user.click(screen.getByRole("tab", { name: S.tabs.markets }));
+    await user.click(screen.getByRole("tab", { name: S.tabs.portfolio }));
+    await screen.findAllByTestId("position-row");
+    await waitFor(() => expect(saldo()).toBe(acreditado));
+    expect(app.eventNames().filter((name) => name === "market_settled")).toHaveLength(1);
+  });
+});

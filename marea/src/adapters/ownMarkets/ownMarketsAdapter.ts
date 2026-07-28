@@ -12,8 +12,10 @@ import {
   type Side,
 } from "@/domain/parimutuel";
 import { resolutionSummary } from "@/domain/resolution";
+import { settle } from "@/domain/parimutuel";
+import type { SettlementState } from "@/domain/settlement";
 import type { MarketDataAdapter } from "@/adapters/marketDataAdapter";
-import { OWN_MARKETS, findOwnMarket, type OwnMarketSeed } from "./catalog";
+import { OWN_MARKETS, activeSeeds, findOwnMarket, type OwnMarketSeed } from "./catalog";
 
 /**
  * Adapter de mercados propios. Cumple el mismo contrato que el mock y que la
@@ -46,6 +48,16 @@ export interface OwnMarketsOptions {
   onReferenceError?: (error: unknown) => void;
   /** Se llama cuando una apuesta se acepta, para descontar del ledger. */
   onStake?: (marketId: string, side: Side, stake: number) => void;
+  /**
+   * Mercados generados por el proceso de reposición. Se suman al catálogo
+   * escrito a mano para que el feed no se vacíe cuando ése caduca (R-041).
+   */
+  loadSeeds?: () => Promise<OwnMarketSeed[]>;
+  /**
+   * Estado de liquidación publicado por el runner. Es lo que convierte un
+   * mercado cerrado en un mercado pagado (R-040).
+   */
+  loadSettlements?: () => Promise<SettlementState[]>;
   now?: () => number;
 }
 
@@ -102,6 +114,47 @@ export function createOwnMarketsAdapter(
     ]),
   );
   const positions: Position[] = [];
+  const settlements = new Map<string, SettlementState>();
+  let seedsCargados = false;
+
+  /**
+   * Suma los mercados generados por el proceso de reposición. Los ya conocidos
+   * no se tocan: el pozo local de un mercado en curso no se reinicia porque el
+   * archivo se haya vuelto a publicar.
+   */
+  async function refreshSeeds(): Promise<void> {
+    if (!options.loadSeeds || seedsCargados) return;
+    seedsCargados = true;
+    try {
+      for (const seed of await options.loadSeeds()) {
+        if (!live.has(seed.id)) {
+          live.set(seed.id, { seed, pool: { ...seed.pool }, bets: [] });
+        }
+      }
+    } catch (error) {
+      // el feed sigue con el catálogo estático: menos mercados, no menos verdad
+      options.onReferenceError?.(error);
+    }
+  }
+
+  async function refreshSettlements(): Promise<void> {
+    if (!options.loadSettlements) return;
+    try {
+      for (const state of await options.loadSettlements()) {
+        settlements.set(state.marketId, state);
+      }
+    } catch (error) {
+      options.onReferenceError?.(error);
+    }
+  }
+
+  /** Lo que se le pagó a cada apuesta de este mercado, si ya se liquidó. */
+  function payoutsOf(entry: LiveMarket): Record<string, number> | undefined {
+    const state = settlements.get(entry.seed.id);
+    if (!state?.outcome) return undefined;
+    if (state.phase !== "pagado" && state.phase !== "devuelto") return undefined;
+    return settle(entry.pool, entry.bets, state.outcome).payouts;
+  }
 
   /** Umbral relativo: HOT es el pelotón de arriba, no un número absoluto. */
   function hotThreshold(): number {
@@ -114,7 +167,11 @@ export function createOwnMarketsAdapter(
   function toMarket(entry: LiveMarket, threshold = hotThreshold()): Market {
     const { seed, pool } = entry;
     const quote = seed.referenceKey ? reference?.get(seed.referenceKey) : undefined;
-    const closed = new Date(seed.closesAt).getTime() <= now();
+    const state = settlements.get(seed.id);
+    // un mercado resuelto deja de aceptar apuestas aunque su fecha no haya
+    // llegado: los de toque resuelven en cuanto el precio llega
+    const resuelto = state !== undefined && state.phase !== "abierto";
+    const closed = resuelto || new Date(seed.closesAt).getTime() <= now();
 
     return withEdge({
       id: seed.id,
@@ -126,6 +183,8 @@ export function createOwnMarketsAdapter(
       category: seed.category,
       // el criterio se arma desde la especificación validada, nunca a mano
       resolution_summary: resolutionSummary(seed.resolution),
+      outcome: state?.outcome,
+      settlementEvidence: state?.evidence,
       // la lectura independiente viene de afuera; si no hay, no hay Edge
       mareaProbability: quote?.probability,
       mareaBasis: quote ? `Precio de la misma pregunta en ${quote.venue}.` : undefined,
@@ -142,9 +201,17 @@ export function createOwnMarketsAdapter(
 
   return {
     async listMarkets() {
-      await refreshReference();
+      await Promise.all([refreshSeeds(), refreshSettlements(), refreshReference()]);
+      const vigentes = new Set(
+        activeSeeds(
+          now(),
+          [...live.values()].map((entry) => entry.seed),
+        ).map((seed) => seed.id),
+      );
       const threshold = hotThreshold();
       return [...live.values()]
+        // un mercado vencido en el feed promete algo que ya no existe
+        .filter((entry) => vigentes.has(entry.seed.id))
         .map((entry) => toMarket(entry, threshold))
         .sort((a, b) => b.volume - a.volume);
     },
@@ -157,6 +224,7 @@ export function createOwnMarketsAdapter(
     },
 
     async listPositions() {
+      await refreshSettlements();
       // el pago potencial se recalcula contra el pozo de ahora; el `pnl` queda
       // en cero porque en parimutuel no existe hasta que el mercado resuelve
       return positions.map((position) => {
@@ -164,6 +232,28 @@ export function createOwnMarketsAdapter(
         if (!entry) return position;
         const bet = entry.bets.find((candidate) => candidate.id === position.id);
         if (!bet) return position;
+
+        const payouts = payoutsOf(entry);
+        if (payouts) {
+          // ya se pagó: aquí sí hay resultado, y viene con su evidencia
+          const state = settlements.get(entry.seed.id)!;
+          const payout = payouts[bet.id] ?? 0;
+          return {
+            ...position,
+            status:
+              state.phase === "devuelto"
+                ? "settled"
+                : bet.side === state.outcome
+                  ? "won"
+                  : "lost",
+            payout,
+            pnl: payout - position.size,
+            evidence: state.evidence,
+            toWin: undefined,
+            multiplier: undefined,
+          };
+        }
+
         const view = outlook(entry.pool, bet);
         return { ...position, pnl: 0, toWin: view.toWin, multiplier: view.multiplier };
       });
@@ -173,6 +263,11 @@ export function createOwnMarketsAdapter(
       const entry = live.get(marketId);
       if (!entry) throw appError("E_TRADE_INIT_FAILED", { marketId });
       if (new Date(entry.seed.closesAt).getTime() <= now()) {
+        throw appError("E_TRADE_INIT_FAILED", { marketId });
+      }
+      // un mercado que ya se leyó no acepta apuestas: el resultado existe
+      const state = settlements.get(marketId);
+      if (state && state.phase !== "abierto") {
         throw appError("E_TRADE_INIT_FAILED", { marketId });
       }
       if (size <= 0) throw appError("E_TRADE_INIT_FAILED", { marketId });

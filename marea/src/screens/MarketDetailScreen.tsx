@@ -175,6 +175,26 @@ export function MarketDetailScreen({ market }: { market: Market }) {
           <p className="mt-1.5 text-[14px] leading-relaxed text-text2">
             {market.resolution_summary}
           </p>
+
+          {/* si ya resolvió, se dice qué salió y con qué lectura: el resultado
+              no aparece de la nada (R-040) */}
+          {market.outcome ? (
+            <div
+              data-testid="market-outcome"
+              className="mt-3 border-t border-line pt-3"
+            >
+              <p className="text-[13px] font-bold text-text">
+                {S.market.resolvedAs(
+                  market.outcome === "si" ? S.market.yes : S.market.no,
+                )}
+              </p>
+              {market.settlementEvidence ? (
+                <p className="mt-1 text-[13px] leading-snug text-text2">
+                  {market.settlementEvidence}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </section>
       </div>
 

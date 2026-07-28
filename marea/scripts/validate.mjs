@@ -362,6 +362,67 @@ check("D1", "el dataset de volatilidad llega de verdad al repo", () => {
   return problems;
 });
 
+/* ------------------------------- L1 -------------------------------------- */
+check("L1", "todo mercado publicado tiene camino de liquidación", () => {
+  // el agujero que encontramos revisando el estado real: los mercados cerraban
+  // y nadie los pagaba nunca. La puerta vive aquí para que no vuelva (R-040).
+  const problems = [];
+  const wiring = read(join(SRC, "adapters", "index.ts"));
+  if (!/loadSettlements/.test(wiring)) {
+    problems.push("la app no lee resoluciones: los mercados cerrarían sin pagar");
+  }
+  const store = read(join(SRC, "state", "store.tsx"));
+  if (!/creditSettlements/.test(store)) {
+    problems.push("nada acredita los pagos al ledger: apostar restaría y nada devolvería");
+  }
+  if (!existsSync(join(ROOT, "scripts", "settle.mts"))) {
+    problems.push("falta el liquidador automático (scripts/settle.mts)");
+  }
+
+  // un liquidador que dejó de correr es indistinguible de uno que corre bien
+  // si nadie mira la fecha del archivo que publica
+  const publicado = join(ROOT, "public", "resoluciones.json");
+  if (existsSync(publicado)) {
+    const { generatedAt } = JSON.parse(readFileSync(publicado, "utf8"));
+    const horas = (Date.now() - new Date(generatedAt).getTime()) / 3_600_000;
+    if (!Number.isFinite(horas)) problems.push("resoluciones.json no declara cuándo se generó");
+    else if (horas > 36) {
+      problems.push(
+        `el liquidador no corre desde hace ${Math.round(horas)} h: corre \`npm run settle\``,
+      );
+    }
+  }
+  return problems;
+});
+
+/* ------------------------------- M1 -------------------------------------- */
+check("M1", "el feed no se queda sin mercados abiertos", () => {
+  // un catálogo con fechas fijas caduca y el feed se vacía sin avisar (R-041)
+  const problems = [];
+  const MINIMO = 6;
+  const ahora = Date.now();
+  const fechas = [
+    ...read(join(SRC, "adapters", "ownMarkets", "catalog.ts")).matchAll(
+      /closesAt:\s*"([^"]+)"/g,
+    ),
+  ].map((m) => Date.parse(m[1]));
+
+  const catalogoPublicado = join(ROOT, "public", "mercados.json");
+  if (existsSync(catalogoPublicado)) {
+    const { seeds = [] } = JSON.parse(readFileSync(catalogoPublicado, "utf8"));
+    for (const seed of seeds) fechas.push(Date.parse(seed.closesAt));
+  }
+
+  const abiertos = fechas.filter((fecha) => fecha > ahora).length;
+  if (abiertos < MINIMO) {
+    problems.push(
+      `sólo ${abiertos} mercados abiertos (mínimo ${MINIMO}): corre \`npm run roll\` ` +
+        `o escribe mercados nuevos en el catálogo`,
+    );
+  }
+  return problems;
+});
+
 /* --------------------------- pruebas de comportamiento -------------------- */
 const run = spawnSync(
   "npx",

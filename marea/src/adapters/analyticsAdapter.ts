@@ -17,7 +17,9 @@ export type AnalyticsEvent =
   | "trade_confirmed"
   | "explore_without_funds"
   | "web_vital"
-  | "eligibility_blocked";
+  | "eligibility_blocked"
+  | "market_settled"
+  | "country_detected";
 
 export interface AnalyticsAdapter {
   track(event: AnalyticsEvent, props?: Record<string, unknown>): void;

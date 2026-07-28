@@ -118,13 +118,17 @@ export interface Settlement {
  * Liquidación. El pozo perdedor se reparte entre los ganadores en proporción a
  * lo que puso cada uno, menos la comisión.
  *
- * Caso borde que importa: si **nadie** le apostó al lado ganador, no hay a
- * quién repartir. Devolvemos todo, sin comisión — quedarnos con el pozo de un
- * mercado que nadie ganó sería exactamente lo que hace una casa (R-024).
+ * El denominador es **todo** el lado ganador, incluida la semilla que pusimos
+ * nosotros para que el mercado arrancara. Repartir sólo entre las apuestas de
+ * usuarios pagaría más de lo que dice el multiplicador que se mostró antes de
+ * entrar, y el número que se enseña tiene que ser el que se cobra (R-044).
+ *
+ * Caso borde que importa: si **nadie** —ni la semilla— está del lado ganador,
+ * no hay a quién repartir. Devolvemos todo, sin comisión: quedarnos con el pozo
+ * de un mercado que nadie ganó sería exactamente lo que hace una casa (R-024).
  */
 export function settle(pool: Pool, bets: Bet[], winner: Side): Settlement {
-  const winners = bets.filter((bet) => bet.side === winner);
-  const winnerStake = winners.reduce((sum, bet) => sum + bet.stake, 0);
+  const winnerStake = winner === "si" ? pool.si : pool.no;
   const total = totalPool(pool);
 
   if (winnerStake <= 0) {

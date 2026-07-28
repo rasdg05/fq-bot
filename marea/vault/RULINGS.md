@@ -116,3 +116,19 @@ Se agrega una línea cuando un hallazgo de audit es recurrente o de producto.
   producto, más que cualquier funcionalidad que falte. (producto)
 - **R-041** — Un catálogo con fechas fijas caduca. Antes de lanzar se define
   el ritmo de reposición y quién escribe los mercados nuevos. (producto)
+- **R-042** — Un mercado con regla automática publica el mismo umbral en el
+  criterio en español y en la regla que ejecuta el oráculo. Si se separan, se
+  paga distinto de lo prometido; se valida al cargar el catálogo. (liquidación)
+- **R-043** — Las apuestas cierran antes de que el resultado sea observable. Un
+  mercado que acepta dinero mientras el precio ya se ve deja de ser predicción.
+  (liquidación)
+- **R-044** — Lo que reparte la liquidación es exactamente lo que prometió el
+  multiplicador que se mostró antes de entrar, semilla incluida en el
+  denominador. El número que se enseña es el que se cobra. (parimutuel)
+- **R-045** — El país se infiere del dispositivo para hablarle a la gente de su
+  mercado, nunca como control de cumplimiento: no abre ningún permiso que la
+  tabla legal no dé, y el usuario puede corregirlo. Mover dinero exige
+  geolocalización con proveedor y verificación de identidad. (cumplimiento)
+- **R-046** — Ninguna fuente se cita si no es la que se lee. Citar una casa y
+  resolver con otra es resolver con una fuente distinta de la prometida.
+  (liquidación)

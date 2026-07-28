@@ -47,6 +47,10 @@ export interface Market {
   pool?: { si: number; no: number; feeBps: number };
   /** Dónde se completa la operación cuando la ejecución es agregada. */
   venue?: { id: string; label: string; url?: string };
+  /** Resultado ya leído de la fuente, cuando el mercado resolvió. */
+  outcome?: PositionSide;
+  /** Qué se leyó exactamente para resolver. Auditable por el usuario. */
+  settlementEvidence?: string;
   /** Marca de tracción para el badge HOT. */
   hot?: boolean;
   /** Región del mercado, para el badge LATAM. */
@@ -78,6 +82,10 @@ export interface Position {
   toWin?: number;
   /** Cuánto paga cada unidad, con el pozo de ahora. */
   multiplier?: number;
+  /** Lo efectivamente pagado al resolver. Sólo existe con el mercado liquidado. */
+  payout?: number;
+  /** Qué se leyó para resolver, para que el pago no sea un acto de fe. */
+  evidence?: string;
 }
 
 export interface Wallet {

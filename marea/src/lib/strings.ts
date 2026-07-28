@@ -70,6 +70,7 @@ export const S = {
     pot: "Pozo",
     closes: "Cierra",
     resolution: "Cómo se resuelve",
+    resolvedAs: (lado: string) => `Resolvió: ${lado}`,
     yes: "Sí",
     no: "No",
     chooseSide: "Elige tu lado",
@@ -161,6 +162,12 @@ export const S = {
     invested: "Invertido",
     side: "Lado",
     loading: "Cargando portafolio",
+    won: "Ganaste",
+    lost: "Perdiste",
+    refunded: "Devuelto",
+    paid: "Pagado",
+    // el pago va con la lectura que lo justifica: cobrar no es un acto de fe
+    evidence: "Cómo se resolvió",
   },
 
   postTrade: {

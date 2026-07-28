@@ -16,6 +16,8 @@
     "probe:supply": "tsx scripts/supply-probe.mts",
     "calibrate": "NODE_USE_ENV_PROXY=1 tsx scripts/calibrate.mts",
     "collect:iv": "NODE_USE_ENV_PROXY=1 tsx scripts/collect-iv.mts",
+    "settle": "NODE_USE_ENV_PROXY=1 tsx scripts/settle.mts",
+    "roll": "NODE_USE_ENV_PROXY=1 tsx scripts/roll.mts",
     "ci": "tsc -b --noEmit && node scripts/validate.mjs && npm run build",
     "daily": "node scripts/daily.mjs",
     "cron:install": "node scripts/install-cron.mjs",

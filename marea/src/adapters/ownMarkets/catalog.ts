@@ -1,5 +1,6 @@
 import type { MarketCategory } from "@/domain/types";
 import { assertPublishable, type ResolutionSpec } from "@/domain/resolution";
+import { ruleProblems, type OracleRule } from "@/domain/oracleRule";
 import type { Pool } from "@/domain/parimutuel";
 import { SEED } from "@/domain/parimutuel";
 
@@ -26,6 +27,12 @@ export interface OwnMarketSeed {
   /** Estado inicial del pozo, sembrado por nosotros para que se pueda entrar. */
   pool: Pool;
   referenceKey?: string;
+  /**
+   * El mismo criterio, escrito para que el oráculo lo ejecute sin interpretar
+   * español. Sin regla, el mercado se resuelve con confirmación humana — no se
+   * queda sin resolver, pero tarda lo que tarde una persona.
+   */
+  rule?: OracleRule;
 }
 
 const FEE_BPS = 300;
@@ -164,35 +171,22 @@ const SEEDS: OwnMarketSeed[] = [
     },
   },
   {
-    id: "mx-mundial-grupo",
-    title: "¿México pasa la fase de grupos del Mundial?",
-    category: "deportes",
-    country: "MX",
-    closesAt: "2026-06-27T22:00:00Z",
-    pool: seedPool(700, 520),
-    resolution: {
-      sourceName: "FIFA",
-      sourceUrl: "https://www.fifa.com/es/tournaments/mens/worldcup",
-      criterion:
-        "Se resuelve Sí si la selección de México aparece entre los clasificados a la siguiente ronda en la tabla oficial que publica FIFA al cerrar la fase de grupos.",
-      settlesAt: "2026-06-28T06:00:00Z",
-      disputeWindowHours: 24,
-    },
-  },
-  {
     id: "btc-cierre-semanal",
     title: "¿Bitcoin cierra la semana arriba de 71,000 dólares?",
     category: "cripto",
     country: "LATAM",
-    closesAt: "2026-08-02T23:59:00Z",
+    // las apuestas cierran un día antes del cierre que se lee (R-043)
+    closesAt: "2026-08-01T23:59:00Z",
     pool: seedPool(910, 780),
     // también cotiza afuera: por eso puede tener Edge contra una casa global
     referenceKey: "bitcoin close above 71000",
+    // se cita la fuente que el oráculo lee de verdad, no otra
+    rule: { kind: "precio", par: "BTC/USD", umbral: 71_000, comparacion: "arriba", modo: "cierre" },
     resolution: {
-      sourceName: "Binance (par BTC/USDT)",
-      sourceUrl: "https://www.binance.com/es/trade/BTC_USDT",
+      sourceName: "Kraken (velas diarias públicas)",
+      sourceUrl: "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=1440",
       criterion:
-        "Se resuelve Sí si la vela semanal de BTC/USDT en Binance cierra el domingo a las 23:59 UTC por encima de 71,000 dólares.",
+        "Se resuelve Sí si la vela diaria de BTC/USD en Kraken correspondiente al domingo 2026-08-02 cierra por encima de 71,000 dólares. Se lee del endpoint público de Kraken, que cualquiera puede consultar.",
       settlesAt: "2026-08-02T23:59:00Z",
       disputeWindowHours: 12,
     },
@@ -202,14 +196,22 @@ const SEEDS: OwnMarketSeed[] = [
     title: "¿Ethereum toca 4,500 dólares antes de octubre?",
     category: "cripto",
     country: "LATAM",
-    closesAt: "2026-10-01T00:00:00Z",
+    closesAt: "2026-09-30T00:00:00Z",
     pool: seedPool(340, 690),
     referenceKey: "ethereum above 4500",
+    rule: {
+      kind: "precio",
+      par: "ETH/USD",
+      umbral: 4_500,
+      comparacion: "arriba",
+      modo: "toca",
+      desde: "2026-07-01T00:00:00Z",
+    },
     resolution: {
-      sourceName: "Binance (par ETH/USDT)",
-      sourceUrl: "https://www.binance.com/es/trade/ETH_USDT",
+      sourceName: "Kraken (velas diarias públicas)",
+      sourceUrl: "https://api.kraken.com/0/public/OHLC?pair=ETHUSD&interval=1440",
       criterion:
-        "Se resuelve Sí si el precio de ETH/USDT en Binance alcanza o supera 4,500 dólares en cualquier momento antes del 1 de octubre a las 00:00 UTC.",
+        "Se resuelve Sí si el precio de ETH/USD en Kraken alcanza o supera 4,500 dólares en cualquier momento entre el 1 de julio y el 1 de octubre de 2026, medido sobre el máximo de las velas diarias públicas.",
       settlesAt: "2026-10-01T00:00:00Z",
       disputeWindowHours: 12,
     },
@@ -237,10 +239,47 @@ const SEEDS: OwnMarketSeed[] = [
  * criterio inequívoco y ventana de disputa, el módulo falla al importarse: es
  * el momento correcto para enterarse, no cuando ya hay gente apostando.
  */
-export const OWN_MARKETS: OwnMarketSeed[] = SEEDS.map((seed) => ({
-  ...seed,
-  resolution: assertPublishable(seed.resolution),
-}));
+export function validateSeed(seed: OwnMarketSeed): OwnMarketSeed {
+  const resolution = assertPublishable(seed.resolution);
+  if (seed.rule) {
+    // la regla de máquina y el criterio publicado tienen que decir lo mismo
+    const problems = ruleProblems(seed.rule, resolution.criterion);
+    if (problems.length > 0) {
+      throw new Error(`Mercado ${seed.id}: ${problems.join("; ")}`);
+    }
+  }
+  if (new Date(seed.closesAt).getTime() > new Date(resolution.settlesAt).getTime()) {
+    throw new Error(`Mercado ${seed.id}: las apuestas cierran después de resolver`);
+  }
+  return { ...seed, resolution };
+}
+
+export const OWN_MARKETS: OwnMarketSeed[] = SEEDS.map(validateSeed);
+
+/**
+ * Lo que se puede mostrar hoy. Un mercado vencido en el feed es peor que un
+ * feed corto: promete algo que ya no existe. Se deja visible un par de días
+ * después de resolver para que quien apostó vea el resultado, y luego se va.
+ */
+const VENTANA_POST_RESOLUCION_MS = 48 * 3_600_000;
+
+export function activeSeeds(
+  now: number,
+  seeds: OwnMarketSeed[] = OWN_MARKETS,
+): OwnMarketSeed[] {
+  return seeds.filter(
+    (seed) =>
+      new Date(seed.resolution.settlesAt).getTime() + VENTANA_POST_RESOLUCION_MS > now,
+  );
+}
+
+/** Cuántos siguen aceptando apuestas. Es la cifra que dice si el feed vive. */
+export function openSeeds(
+  now: number,
+  seeds: OwnMarketSeed[] = OWN_MARKETS,
+): OwnMarketSeed[] {
+  return seeds.filter((seed) => new Date(seed.closesAt).getTime() > now);
+}
 
 export function findOwnMarket(id: string): OwnMarketSeed | undefined {
   return OWN_MARKETS.find((seed) => seed.id === id);

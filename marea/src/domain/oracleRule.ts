@@ -1,0 +1,57 @@
+/**
+ * Regla legible por máquina para resolver un mercado.
+ *
+ * El criterio en español es lo que lee el usuario y manda sobre cualquier
+ * discusión. Esta regla es la misma frase escrita para que un programa la
+ * ejecute sin interpretar lenguaje natural — leer el criterio con expresiones
+ * regulares sería inventar un resultado con pasos extra.
+ *
+ * Las dos tienen que decir lo mismo, y eso se verifica: el umbral de la regla
+ * aparece en el texto del criterio o el mercado no se publica (R-042).
+ */
+
+export interface PriceRule {
+  kind: "precio";
+  /** Par tal como lo cotiza el exchange público. */
+  par: "BTC/USD" | "ETH/USD";
+  umbral: number;
+  comparacion: "arriba" | "abajo";
+  /**
+   * `cierre`: se lee la vela del día que resuelve.
+   * `toca`: basta con que el precio haya llegado en cualquier momento.
+   */
+  modo: "cierre" | "toca";
+  /** Desde cuándo cuenta, para `toca`. */
+  desde?: string;
+}
+
+export type OracleRule = PriceRule;
+
+/** Cómo se escribe el umbral en el texto: `71000`, `71,000`, `71.000`. */
+function umbralEnTexto(umbral: number): RegExp {
+  const entero = Math.round(umbral).toString();
+  const conSeparador = entero.replace(/\B(?=(\d{3})+(?!\d))/g, "[.,]?");
+  return new RegExp(`\\b${conSeparador}\\b`);
+}
+
+/**
+ * La regla y el criterio publicado tienen que coincidir. Si alguien cambia el
+ * umbral en un lado y no en el otro, el mercado paga distinto de lo que
+ * prometió — que es la forma más rápida de perder la confianza que vendemos.
+ */
+export function ruleProblems(rule: OracleRule, criterion: string): string[] {
+  const problems: string[] = [];
+  if (!umbralEnTexto(rule.umbral).test(criterion)) {
+    problems.push(
+      `el umbral de la regla (${rule.umbral}) no aparece en el criterio publicado`,
+    );
+  }
+  const activo = rule.par.split("/")[0];
+  if (!new RegExp(activo, "i").test(criterion)) {
+    problems.push(`el criterio no menciona el activo ${activo}`);
+  }
+  if (rule.modo === "toca" && !rule.desde) {
+    problems.push("una regla de tipo `toca` necesita fecha de inicio");
+  }
+  return problems;
+}

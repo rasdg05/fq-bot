@@ -1,13 +1,20 @@
 #!/usr/bin/env node
 /**
- * Tarea diaria, para correr desde tu máquina sin depender de CI.
+ * La tarea que mantiene vivo el producto, para correr desde tu máquina sin
+ * depender de CI. Hace tres cosas, en este orden:
  *
- * Toma la superficie de volatilidad del día y la guarda en el repo. Está hecha
- * para vivir en un cron: es idempotente (si el día ya está guardado no hace
- * nada), no rompe si no hay red, y deja rastro en `data/iv/daily.log`.
+ *   1. liquidar  — lee las fuentes y paga los mercados que ya resolvieron (B1)
+ *   2. reponer   — escribe los mercados de la semana para que el feed no se
+ *                  vacíe (B2)
+ *   3. guardar   — la superficie de volatilidad del día, que sólo se acumula
+ *                  si se toma todos los días (R-037)
  *
- *   npm run daily            # toma, commitea y sube
- *   npm run daily -- --no-push   # sólo commitea, sin subir
+ * Está hecha para vivir en un cron cada hora: es idempotente (lo que ya está
+ * hecho no se rehace), no rompe si no hay red, y deja rastro en `data/`.
+ *
+ *   npm run daily                # las tres cosas, commitea y sube
+ *   npm run daily -- --no-push   # sólo commitea
+ *   npm run daily -- --solo liquidar
  */
 import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync } from "node:fs";
@@ -15,12 +22,13 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const LOG = join(ROOT, "data", "iv", "daily.log");
+const LOG = join(ROOT, "data", "daily.log");
 const push = !process.argv.includes("--no-push");
+const soloIndex = process.argv.indexOf("--solo");
+const solo = soloIndex >= 0 ? process.argv[soloIndex + 1] : null;
 
 function log(line) {
-  const stamp = new Date().toISOString();
-  const text = `${stamp} ${line}`;
+  const text = `${new Date().toISOString()} ${line}`;
   console.log(text);
   try {
     mkdirSync(dirname(LOG), { recursive: true });
@@ -40,38 +48,58 @@ function run(command, args, options = {}) {
 }
 
 const fecha = new Date().toISOString().slice(0, 10);
-const archivo = join(ROOT, "data", "iv", `${fecha}.json`);
+const archivoIv = join(ROOT, "data", "iv", `${fecha}.json`);
 
-if (existsSync(archivo)) {
-  log(`el día ${fecha} ya estaba guardado, no hay nada que hacer`);
-  process.exit(0);
+/**
+ * Cada paso se intenta por separado. Que falle la volatilidad no puede impedir
+ * que se paguen los mercados: son problemas distintos y sólo uno mueve saldo.
+ */
+const pasos = [
+  {
+    nombre: "liquidar",
+    // lo más importante de la lista: sin esto, la gente apuesta y no cobra
+    correr: () => run("npx", ["tsx", "scripts/settle.mts"]),
+  },
+  {
+    nombre: "reponer",
+    correr: () => run("npx", ["tsx", "scripts/roll.mts"]),
+  },
+  {
+    nombre: "volatilidad",
+    saltar: () => existsSync(archivoIv),
+    correr: () => run("npx", ["tsx", "scripts/collect-iv.mts"]),
+  },
+];
+
+let fallos = 0;
+for (const paso of pasos) {
+  if (solo && solo !== paso.nombre) continue;
+  if (paso.saltar?.()) {
+    log(`${paso.nombre}: ya estaba hecho hoy`);
+    continue;
+  }
+  try {
+    log(`${paso.nombre}: empezando…`);
+    paso.correr();
+    log(`${paso.nombre}: listo`);
+  } catch (error) {
+    // sin red hoy: en la próxima corrida se retoma. No se inventa un archivo.
+    fallos += 1;
+    log(`${paso.nombre}: falló — ${error.message?.split("\n")[0] ?? error}`);
+  }
 }
+
+const rutas = ["data/iv", "data/settlements.json", "public/mercados.json", "public/resoluciones.json"];
 
 try {
-  log(`tomando la superficie del ${fecha}…`);
-  run("npx", ["tsx", "scripts/collect-iv.mts"]);
-} catch (error) {
-  // sin red hoy: mañana se retoma. No se inventa un archivo vacío.
-  log(`falló la toma: ${error.message?.split("\n")[0] ?? error}`);
-  process.exit(1);
-}
-
-if (!existsSync(archivo)) {
-  log("la toma terminó pero no dejó archivo: se aborta sin commitear");
-  process.exit(1);
-}
-
-try {
-  const pendiente = run("git", ["status", "--porcelain", "data/iv"], { quiet: true });
+  const pendiente = run("git", ["status", "--porcelain", ...rutas], { quiet: true });
   if (!pendiente.trim()) {
     log("no hay cambios que commitear");
-    process.exit(0);
+    process.exit(fallos > 0 ? 1 : 0);
   }
 
-  run("git", ["add", "data/iv"], { quiet: true });
-  run("git", ["commit", "-m", `datos: superficie de volatilidad del ${fecha}`], {
-    quiet: true,
-  });
+  run("git", ["add", ...rutas], { quiet: true });
+  run("git", ["commit", "-m", `datos: liquidación y catálogo del ${fecha}`], { quiet: true });
   log("commiteado");
 
   if (push) {
@@ -82,7 +110,9 @@ try {
     log(`subido a ${rama}`);
   }
 } catch (error) {
-  // el dato ya está en disco: un fallo de git no lo pierde
-  log(`git falló, pero el archivo del día quedó guardado: ${error.message?.split("\n")[0]}`);
+  // los datos ya están en disco: un fallo de git no los pierde
+  log(`git falló, pero lo del día quedó guardado: ${error.message?.split("\n")[0]}`);
   process.exit(1);
 }
+
+process.exit(fallos > 0 ? 1 : 0);

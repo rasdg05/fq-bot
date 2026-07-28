@@ -4,8 +4,8 @@ Mobile-first, español Latam. El diferenciador es el **Edge visible**: la
 probabilidad del mercado y la de Marea, lado a lado, cuando la diferencia
 supera 4 puntos porcentuales.
 
-**Antes de lanzar**, lee [`vault/SOFT_LAUNCH.md`](vault/SOFT_LAUNCH.md): la app
-está lista, el producto tiene dos bloqueantes de ciclo de vida.
+**Antes de lanzar**, lee [`vault/SOFT_LAUNCH.md`](vault/SOFT_LAUNCH.md): qué
+está listo, qué se automatizó y qué hace falta de tu parte.
 
 **Para publicar:** `npm run deploy`. Todo corre desde tu máquina, sin CI —
 el runbook completo está en [`vault/LANZAMIENTO.md`](vault/LANZAMIENTO.md).
@@ -15,8 +15,10 @@ npm install
 npm run dev          # desarrollo
 npm run ci           # tipos + validación + build (lo que haría un CI)
 npm run deploy       # verifica, construye y publica
-npm run daily        # guarda la superficie de volatilidad del día
-npm run cron:install # y que corra sola todos los días
+npm run settle       # liquida los mercados que ya resolvieron y autoriza el pago
+npm run roll         # repone el catálogo con los mercados de la semana
+npm run daily        # las tres tareas de mantenimiento, en orden
+npm run cron:install # y que corran solas cada hora
 npm run build        # build de producción
 npm run test         # pruebas
 npm run validate     # VALIDATION_REPORT (V1–V24 + red-team + S1/T1/C1)
@@ -30,9 +32,12 @@ npm run calibrate    # calibra el modelo de precio contra historia real
 
 ```
 src/
-  domain/      contratos y reglas: Edge, errores, probabilidad propia, elegibilidad
+  domain/      contratos y reglas: Edge, liquidación, probabilidad, elegibilidad, país
   adapters/    puertos + implementaciones: mock, agregación real, sinks HTTP
     venues/    Polymarket y Kalshi normalizados a un contrato común
+    oracles/   lectura de las fuentes que resuelven los mercados
+    ownMarkets/ catálogo propio, plantillas que se reponen y motor de pozo
+    wallet/    wallet conectada por el usuario (EIP-1193)
   state/       store único (reducer + acciones) con adapters inyectables
   components/  primitivas de UI y piezas compartidas
   screens/     una pantalla por destino + hojas (depósito, post-operación)
@@ -40,7 +45,7 @@ src/
   lib/         strings (todo el copy), flags, formato
 vault/         PRODUCT · VOICE · PLAYBOOKS · RULINGS · COMPLIANCE · ACELERACION
                DATA_SOURCES · MODEL · HANDOFF · locks de tokens y calibración
-scripts/       validate.mjs · perf.mjs · shots.mjs · sondas de red
+scripts/       validate.mjs · settle.mts · roll.mts · daily.mjs · perf.mjs · sondas
 ```
 
 Reglas estructurales: UI ≠ datos ≠ wallet ≠ analítica ≠ errores. Las pantallas
@@ -78,7 +83,7 @@ No hay order book propio, ni market maker, ni custodia propia en esta build.
 
 ## Validación
 
-`npm run validate` corre las 24 verificaciones de la suite más los 10
+`npm run validate` corre las verificaciones de la suite más los 10
 escenarios de red-team y emite un `VALIDATION_REPORT` con `passed[]`,
 `failed[]` y veredicto. Cuatro checks son estáticos (tokens, lenguaje
 prohibido, desbordes, drift del design system); el resto se ejerce contra la
@@ -94,6 +99,28 @@ camino completo, verificando que `scrollWidth === innerWidth` en cada pantalla.
 los dos recorridos que importan —usuario nuevo y recurrente—, y falla si algún
 presupuesto se rompe. Es medición de laboratorio: detecta regresiones, no
 sustituye datos de campo.
+
+## El ciclo de vida de un mercado
+
+Un mercado no es una pantalla: es un ciclo, y los pasos que la gente olvida son
+los que rompen la confianza (R-040).
+
+```
+se crea → se usa → se cierra → se resuelve → se paga → se repone
+  roll      app       app        settle       app       roll
+```
+
+`npm run settle` lee la fuente citada de cada mercado cerrado. Lo que se puede
+leer por programa —precios— se resuelve solo contra el endpoint público de
+Kraken. Lo que publica una institución en un boletín queda marcado como
+`atorado`, con la liga a la mano, para que una persona lo confirme: **nunca se
+inventa un resultado**. Después viene la ventana de disputa, y sólo cuando
+cierra se autoriza el pago.
+
+`npm run roll` escribe los mercados de la semana con el precio de hoy, para que
+el feed no se vacíe. La verificación `M1` falla si quedan menos de 6 mercados
+abiertos, y `L1` falla si el liquidador lleva más de 36 h sin correr — un
+proceso que depende de que alguien se acuerde no existe.
 
 ## El Edge y su modelo
 

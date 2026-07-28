@@ -1,9 +1,11 @@
 # HANDOFF — estado de soft launch
 
-> **Estado actual: BLOCKED.** Ver [`SOFT_LAUNCH.md`](SOFT_LAUNCH.md), que
-> manda sobre este documento. Dos agujeros de ciclo de vida —los mercados
-> cierran sin liquidarse, y el catálogo se vacía solo— aparecieron al revisar
-> el estado real. La app está terminada; el producto todavía no.
+> **Estado actual: SOFT_LAUNCH_READY en modalidad de puntos.** Ver
+> [`SOFT_LAUNCH.md`](SOFT_LAUNCH.md), que manda sobre este documento. Los dos
+> agujeros de ciclo de vida —los mercados cerraban sin liquidarse y el catálogo
+> se vaciaba solo— están cerrados y **automatizados**: `npm run settle` liquida
+> contra la fuente citada y `npm run roll` repone el catálogo, las dos cada hora
+> con `npm run cron:install`.
 
 ## Veredicto anterior (superficie construida)
 
@@ -95,6 +97,9 @@ depositar → feed → … → portafolio. `Explorar mercados` en P3 lo salta en
 | `onboarding_completed` podía marcarse sin llegar al feed | Importante | R-015 |
 | El portafolio mostraba un resultado no realizado que en parimutuel no existe y salía siempre en verde | Crítico | R-029 |
 | El mosaico de volumen filtraba un símbolo de dólar en modo puntos | Importante | R-026 |
+| La liquidación repartía sin contar la semilla y pagaba 6× lo que el multiplicador había prometido | Crítico | R-044 |
+| Dos cargas del portafolio en el mismo tick acreditaban el pago dos veces | Crítico | R-016 (extendida) |
+| Se citaba Binance en el criterio y se iba a leer Kraken | Importante | R-046 |
 | "Cierra cerrado" en mercados vencidos, y HOT en todas las cards | Menor | — (corregido) |
 
 ## Pendiente número uno de producto

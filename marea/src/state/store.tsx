@@ -1,6 +1,7 @@
 import * as React from "react";
 import type { AppError, Market, Position, Wallet } from "@/domain/types";
 import type { CountryCode } from "@/domain/eligibility";
+import { detectCountry, type CountrySource } from "@/domain/geo";
 import {
   apply as applyPoints,
   dailyTopUp,
@@ -54,6 +55,8 @@ export interface AppState {
   postTrade: { side: "si" | "no"; size: number; title: string } | null;
   /** País declarado o inferido: define elegibilidad para depositar y operar. */
   country?: CountryCode;
+  /** De dónde salió el país. Inferido se puede corregir; declarado manda. */
+  countrySource: CountrySource;
   /** Ledger de puntos. Sólo vive en el motor de puntos. */
   points: PointsLedger;
 }
@@ -77,7 +80,8 @@ type Action =
   | { type: "trade_error"; error: AppError | null }
   | { type: "post_trade"; value: AppState["postTrade"] }
   | { type: "balance"; balance: number }
-  | { type: "points"; ledger: PointsLedger };
+  | { type: "points"; ledger: PointsLedger }
+  | { type: "country"; country: CountryCode; source: CountrySource };
 
 const ONBOARDING_KEY = "marea.onboarding_completed";
 
@@ -99,7 +103,10 @@ function persistOnboarding() {
 
 export function initialState(overrides: Partial<AppState> = {}): AppState {
   const completed = overrides.onboardingCompleted ?? readOnboarding();
-  return {
+  // el país se infiere del dispositivo, sin red y sin dato personal: sirve para
+  // hablarle a la gente de su mercado, no como control de cumplimiento
+  const guess = detectCountry();
+  const state: AppState = {
     tab: "markets",
     openMarketId: null,
     // reabrir con onboarding hecho entra directo al feed (RT/6)
@@ -117,10 +124,16 @@ export function initialState(overrides: Partial<AppState> = {}): AppState {
     tradeBusy: false,
     tradeError: null,
     postTrade: null,
+    country: guess.country,
+    countrySource: guess.source,
     // la bienvenida se entrega al arrancar: explorar y jugar no cuestan nada
     points: isPointsMode() ? grantWelcome(emptyLedger()) : emptyLedger(),
     ...overrides,
   };
+
+  // un país puesto a mano manda sobre la inferencia, siempre
+  if (overrides.country && !overrides.countrySource) state.countrySource = "declarado";
+  return state;
 }
 
 function reducer(state: AppState, action: Action): AppState {
@@ -162,6 +175,8 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, postTrade: action.value, tradeBusy: false };
     case "points":
       return { ...state, points: action.ledger };
+    case "country":
+      return { ...state, country: action.country, countrySource: action.source };
     case "balance":
       return {
         ...state,
@@ -206,13 +221,57 @@ function createActions(
    */
   const inFlight = { wallet: false, trade: false, deposit: false };
 
+  /**
+   * Pagos ya acreditados, marcados de forma síncrona. El ledger es la guarda
+   * durable, pero dos cargas del portafolio en el mismo tick lo leen sin
+   * actualizar y pagarían dos veces — mismo defecto que el doble tap (R-016).
+   */
+  const acreditados = new Set<string>();
+
   const fail = (error: unknown, fallback: Parameters<typeof toAppError>[1]) => {
     const appErr = toAppError(error, fallback);
     adapters.errors.report(appErr);
     return appErr;
   };
 
+  /**
+   * Acredita lo que pagaron los mercados ya liquidados. Es la mitad que faltaba
+   * del ciclo: apostar descontaba puntos y nada los devolvía nunca (R-040).
+   *
+   * Idempotente por diseño: el id del asiento es el de la posición, así que
+   * recargar el portafolio veinte veces paga una sola vez.
+   */
+  const creditSettlements = (positions: Position[]) => {
+    if (!isPointsMode()) return;
+    let ledger = getState().points;
+    let cambio = false;
+
+    for (const position of positions) {
+      const payout = position.payout ?? 0;
+      if (payout <= 0) continue;
+      const id = `s-${position.id}`;
+      if (acreditados.has(id)) continue;
+      if (ledger.entries.some((entry) => entry.id === id)) continue;
+      acreditados.add(id);
+      ledger = applyPoints(ledger, {
+        id,
+        amount: Math.round(payout),
+        reason: position.status === "settled" ? "devolucion" : "liquidacion",
+        at: new Date().toISOString(),
+        marketId: position.market_id,
+      });
+      cambio = true;
+      adapters.analytics.track("market_settled", {
+        market_id: position.market_id,
+        won: position.status === "won",
+      });
+    }
+
+    if (cambio) dispatch({ type: "points", ledger });
+  };
+
   return {
+    creditSettlements,
     setTab(tab: TabId) {
       dispatch({ type: "set_tab", tab });
       if (tab === "portfolio") adapters.analytics.track("view_portfolio");
@@ -220,6 +279,11 @@ function createActions(
     },
     setCategory(category: AppState["category"]) {
       dispatch({ type: "set_category", category });
+    },
+    /** El usuario corrige el país inferido. Su palabra vence al dispositivo. */
+    setCountry(country: CountryCode) {
+      dispatch({ type: "country", country, source: "declarado" });
+      adapters.analytics.track("country_detected", { country, source: "declarado" });
     },
     openMarket(market: Market) {
       dispatch({ type: "open_market", id: market.id });
@@ -249,6 +313,7 @@ function createActions(
       try {
         const data = await adapters.marketData.listPositions();
         dispatch({ type: "positions", value: { status: "data", data } });
+        creditSettlements(data);
       } catch (error) {
         dispatch({
           type: "positions",
