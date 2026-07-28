@@ -23,7 +23,9 @@
     "cron:install": "node scripts/install-cron.mjs",
     "deploy": "node scripts/deploy.mjs",
     "start": "tsx server/index.mts",
-    "serve": "npm run build && tsx server/index.mts"
+    "serve": "npm run build && tsx server/index.mts",
+    "densidad": "node scripts/densidad.mjs",
+    "arranque": "node scripts/arranque.mjs"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.1",

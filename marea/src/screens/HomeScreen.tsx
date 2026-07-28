@@ -63,7 +63,7 @@ export function HomeScreen() {
 
   return (
     <div data-testid="home-screen" className="pb-6">
-      <ChipRow className="pt-3" aria-label={S.search.byCategory}>
+      <ChipRow className="pt-2" aria-label={S.search.byCategory}>
         <Chip
           active={category === "all"}
           onClick={() => actions.setCategory("all")}
@@ -94,14 +94,14 @@ export function HomeScreen() {
       ) : (
         <>
           {hot.length > 0 ? (
-            <section aria-labelledby="hot-heading" className="pt-5">
-              <h2
-                id="hot-heading"
-                className="px-4 pb-3 font-display text-[20px] font-semibold text-text"
-              >
+            <section aria-labelledby="hot-heading" className="pt-2">
+              {/* el encabezado se queda para el lector de pantalla y se va de
+                  la pantalla: el badge HOT de cada card ya dice lo mismo, y
+                  36 px de cromo son un quinto de un mercado */}
+              <h2 id="hot-heading" className="sr-only">
                 {S.feed.hotNow}
               </h2>
-              <div className="space-y-3 px-4">
+              <div className="space-y-2 px-4">
                 {hot.map((market) => (
                   <MarketCard
                     key={market.id}
@@ -114,14 +114,14 @@ export function HomeScreen() {
           ) : null}
 
           {rest.length > 0 ? (
-            <section aria-labelledby="all-heading" className="pt-7">
+            <section aria-labelledby="all-heading" className="pt-5">
               <h2
                 id="all-heading"
-                className="px-4 pb-3 font-display text-[20px] font-semibold text-text"
+                className="px-4 pb-1.5 text-[12px] font-bold uppercase tracking-wide text-muted"
               >
                 {S.feed.sectionAll}
               </h2>
-              <div className="space-y-3 px-4">
+              <div className="space-y-2 px-4">
                 {rest.map((market) => (
                   <MarketCard
                     key={market.id}

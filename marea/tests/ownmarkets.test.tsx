@@ -172,9 +172,12 @@ describe("Mercados propios — interfaz", () => {
     await enter(user);
     const cards = await screen.findAllByTestId("market-card");
     expect(cards.length).toBeGreaterThan(5);
-    // los dos lados, cada uno con su pago: enseñar sólo uno es medio mercado
-    expect(cards[0]).toHaveTextContent(/Sí · paga \d/);
-    expect(cards[0]).toHaveTextContent(/No · paga \d/);
+    // los dos lados, cada uno con su pago: enseñar sólo uno es medio mercado.
+    // En la card el pago va como `Sí 1.8×` — la palabra "paga" se quitó porque
+    // costaba cuatro caracteres en la línea más apretada y hacía envolver la
+    // fila de decisión a 390 px (vault/CARD_SPEC.md). En el detalle se queda.
+    expect(cards[0]).toHaveTextContent(/Sí\s*[\d.]+×/);
+    expect(cards[0]).toHaveTextContent(/No\s*[\d.]+×/);
     expect(within(cards[0]).getByTestId("card-other-side")).toBeInTheDocument();
     expect(cards[0].textContent).not.toMatch(/\$/);
   });

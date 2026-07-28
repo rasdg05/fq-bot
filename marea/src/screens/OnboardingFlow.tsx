@@ -4,6 +4,8 @@ import { ErrorState } from "@/components/StateViews";
 import { S } from "@/lib/strings";
 import { useApp } from "@/state/store";
 import { isPointsMode } from "@/lib/flags";
+import { MarketCard } from "@/components/MarketCard";
+import type { Market } from "@/domain/types";
 import { formatStake } from "@/lib/units";
 import { WELCOME_GRANT } from "@/domain/points";
 
@@ -96,21 +98,49 @@ function Splash() {
  * no por necesidad. En ese modo P1 lleva directo al feed (R-028).
  */
 function StepPromise() {
-  const { actions } = useApp();
+  const { state, actions } = useApp();
   const points = isPointsMode();
+  // el mercado más caliente que ya se cargó detrás del onboarding. Si todavía
+  // no llegó, la pantalla sigue siendo válida sin él: el contenido principal
+  // nunca espera a un dato secundario (R-047)
+  const muestra =
+    state.markets.status === "data" ? state.markets.data[0] : undefined;
+
+  // tocar el mercado de muestra abre ese mercado y cierra el onboarding de
+  // una vez: el primer toque lleva al producto, no a otra pantalla de texto
+  const entrar = (mercado: Market) => {
+    actions.openMarket(mercado);
+    actions.finishOnboarding("explore");
+  };
+
   return (
     <>
-      <div className="flex flex-1 flex-col justify-center">
-        <h1 className="font-display text-[34px] font-semibold leading-[1.1] tracking-tight text-text">
-          {S.onboarding.p1Title}
-        </h1>
-        <p className="mt-4 text-[16px] leading-relaxed text-text2">
-          {S.onboarding.p1Body}
-        </p>
+      <div className="flex flex-1 flex-col justify-center gap-5">
+        <div>
+          <h1 className="font-display text-[26px] font-semibold leading-[1.15] tracking-tight text-text">
+            {S.onboarding.p1Title}
+          </h1>
+          <p className="mt-2 text-[15px] leading-relaxed text-text2">
+            {S.onboarding.p1Body}
+          </p>
+        </div>
+
+        {/* un mercado de verdad, tocable. La promesa vive encima del producto,
+            no en lugar del producto: la primera pantalla útil tiene que tener
+            algo que dé ganas de tocar, no un párrafo que leer */}
+        {muestra ? (
+          <div data-testid="onboarding-muestra">
+            <p className="mb-1.5 text-[12px] font-bold uppercase tracking-wide text-muted">
+              {S.onboarding.p1Muestra}
+            </p>
+            <MarketCard market={muestra} onOpen={entrar} />
+          </div>
+        ) : null}
+
         {points ? (
           <p
             data-testid="onboarding-points-note"
-            className="mt-5 rounded-card border border-line bg-panel px-4 py-3 text-[14px] leading-relaxed text-text2"
+            className="rounded-card border border-line bg-panel px-4 py-2.5 text-[13px] leading-relaxed text-text2"
           >
             {S.points.welcome(formatStake(WELCOME_GRANT))} {S.points.disclaimer}
           </p>
@@ -124,7 +154,7 @@ function StepPromise() {
             points ? actions.finishOnboarding("explore") : actions.goToOnboardingStep("p2")
           }
         >
-          {S.onboarding.p1Cta}
+          {muestra ? S.onboarding.p1VerTodos : S.onboarding.p1Cta}
         </Button>
       </div>
     </>

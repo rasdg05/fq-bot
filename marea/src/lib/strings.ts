@@ -244,6 +244,9 @@ export const S = {
     p1Body:
       "Mercados de predicción en español. Te mostramos la probabilidad del mercado y la nuestra, lado a lado.",
     p1Cta: "Empezar",
+    /** Encima del mercado de muestra: dice qué se está mirando. */
+    p1Muestra: "Así se ve un mercado",
+    p1VerTodos: "Ver los mercados",
     p2Title: "Tu cartera, en un tap",
     p2Body:
       "Creamos una wallet para ti. Sin trámites, sin documentos, sin frases que memorizar.",
