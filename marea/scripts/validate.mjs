@@ -454,6 +454,27 @@ check("O1", "lo automatizable no se deja en manos de una persona", () => {
   return problems;
 });
 
+/* ------------------------------- H1 -------------------------------------- */
+check("H1", "el trabajo manual de resolución no pasa del tope", () => {
+  // R-062 topa en tres los mercados abiertos que dependen de que una persona
+  // se siente a mirarlos. La regla existía desde hace tiempo y **no tenía
+  // verificación**: por eso llegó a haber seis sin que nadie se enterara. Una
+  // regla escrita recuerda; una verificación impide (AGENTE §7).
+  const problems = [];
+  const catalog = read(join(SRC, "adapters", "ownMarkets", "catalog.ts"));
+  const total = (catalog.match(/^\s{4}id:/gm) ?? []).length;
+  const conRegla = (catalog.match(/^\s{4}rule:/gm) ?? []).length;
+  const aMano = total - conRegla;
+  const TOPE = 3;
+  if (aMano > TOPE) {
+    problems.push(
+      `${aMano} mercados escritos a mano dependen de una persona y el tope es ${TOPE}: ` +
+        `busca la API de los que faltan antes de publicar otro`,
+    );
+  }
+  return problems;
+});
+
 /* ------------------------------- G1 -------------------------------------- */
 check("G1", "un mercado se puede compartir y la liga trae vista previa", () => {
   const problems = [];

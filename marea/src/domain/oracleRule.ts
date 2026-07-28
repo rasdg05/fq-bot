@@ -32,8 +32,14 @@ export interface PriceRule {
  */
 export interface SeriesRule {
   kind: "serie";
-  /** Quién publica. Cada fuente tiene su lector en `seriesOracle`. */
-  fuente: "bcb" | "banxico";
+  /**
+   * Quién publica. Cada fuente tiene su lector en `seriesOracle`.
+   *
+   * `bcb`, `bcra` y `bcrp` son públicas y sin llave. `banxico` e `inegi` dan
+   * token gratis: sin él el mercado espera confirmación humana, y lo declara
+   * en vez de inventar un número (R-022).
+   */
+  fuente: "bcb" | "banxico" | "bcra" | "bcrp" | "inegi";
   /** Identificador de la serie en esa fuente. */
   serie: string;
   /**

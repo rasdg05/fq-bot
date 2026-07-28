@@ -65,11 +65,22 @@ const SEEDS: OwnMarketSeed[] = [
     country: "MX",
     closesAt: "2026-08-07T13:00:00Z",
     pool: seedPool(420, 260),
+    // 628194: INPC variación anual en el BIE. La API del INEGI es gratis pero
+    // pide token, igual que Banxico; sin él el mercado lo declara (R-022)
+    rule: {
+      kind: "serie",
+      fuente: "inegi",
+      serie: "628194",
+      comparacion: "menor",
+      umbral: 4,
+      etiqueta: "INPC anual del INEGI",
+    },
     resolution: {
-      sourceName: "INEGI",
-      sourceUrl: "https://www.inegi.org.mx/temas/inpc/",
+      sourceName: "INEGI (indicador 628194 del BIE)",
+      sourceUrl:
+        "https://www.inegi.org.mx/app/api/indicadores/desarrolladores/jsonxml/INDICATOR/628194/es/0700/false/BIE/2.0/",
       criterion:
-        "Se resuelve Sí si el INPC anual que publica el INEGI el 7 de agosto es menor a 4.00%. Se toma la cifra del comunicado oficial, sin redondeos nuestros.",
+        "Se resuelve Sí si la variación anual del INPC que publica el INEGI en su indicador 628194 del BIE es menor a 4.00%. Se lee del API pública del INEGI, sin redondeos nuestros.",
       settlesAt: "2026-08-07T13:00:00Z",
       disputeWindowHours: 24,
     },
@@ -123,17 +134,27 @@ const SEEDS: OwnMarketSeed[] = [
     },
   },
   {
-    id: "ar-bcra-tasa",
-    title: "¿El Banco Central de Argentina baja la tasa este mes?",
+    id: "ar-badlar-tasa",
+    title: "¿La tasa BADLAR de Argentina baja este mes?",
     category: "economia",
     country: "AR",
     closesAt: "2026-08-29T20:00:00Z",
     pool: seedPool(640, 240),
+    // variable 7 del BCRA: BADLAR de bancos privados, diaria y sin llave.
+    // La serie de "tasa de política monetaria" (160) lleva parada desde julio
+    // de 2025, y un dato viejo no resuelve un mercado nuevo (R-052)
+    rule: {
+      kind: "serie",
+      fuente: "bcra",
+      serie: "7",
+      comparacion: "baja",
+      etiqueta: "Tasa BADLAR de bancos privados",
+    },
     resolution: {
-      sourceName: "BCRA",
-      sourceUrl: "https://www.bcra.gob.ar/Noticias/Comunicados-de-prensa.asp",
+      sourceName: "BCRA (variable 7 de estadísticas monetarias)",
+      sourceUrl: "https://api.bcra.gob.ar/estadisticas/v4.0/monetarias/7",
       criterion:
-        "Se resuelve Sí si el BCRA comunica una tasa de política monetaria menor a la vigente al abrir el mercado. Se toma del comunicado de prensa oficial.",
+        "Se resuelve Sí si la tasa BADLAR de bancos privados que publica el BCRA en su variable 7 queda por debajo de la vigente al abrir el mes. Se lee del API pública del Banco Central, que cualquiera puede consultar.",
       settlesAt: "2026-08-31T20:00:00Z",
       disputeWindowHours: 24,
     },
@@ -276,18 +297,28 @@ const SEEDS: OwnMarketSeed[] = [
     },
   },
   {
-    id: "pe-cobre-exportacion",
-    title: "¿Perú exporta más cobre este trimestre que el anterior?",
+    id: "pe-inflacion-lima",
+    title: "¿La inflación anual de Perú se mantiene abajo de 3%?",
     category: "economia",
     country: "PE",
-    closesAt: "2026-10-15T12:00:00Z",
+    closesAt: "2026-09-30T12:00:00Z",
     pool: seedPool(260, 240),
+    // PN01279PM: variación anual del IPC de Lima. Pública y sin llave
+    rule: {
+      kind: "serie",
+      fuente: "bcrp",
+      serie: "PN01279PM",
+      comparacion: "menor",
+      umbral: 3,
+      etiqueta: "Inflación anual de Lima Metropolitana",
+    },
     resolution: {
-      sourceName: "Banco Central de Reserva del Perú",
-      sourceUrl: "https://estadisticas.bcrp.gob.pe/estadisticas/series/",
+      sourceName: "BCRP (serie PN01279PM)",
+      sourceUrl:
+        "https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PN01279PM/json",
       criterion:
-        "Se resuelve Sí si el volumen de exportación de cobre del trimestre supera al del trimestre anterior, según las series estadísticas del BCRP.",
-      settlesAt: "2026-10-15T12:00:00Z",
+        "Se resuelve Sí si la variación anual del índice de precios de Lima Metropolitana que publica el BCRP en su serie PN01279PM es menor a 3.00 por ciento. Se lee del API pública del Banco Central de Reserva.",
+      settlesAt: "2026-10-01T12:00:00Z",
       disputeWindowHours: 24,
     },
   },
