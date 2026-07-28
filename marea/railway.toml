@@ -1,0 +1,29 @@
+# Configuración del servicio de Marea en Railway.
+#
+# Es un servicio SEPARADO del bot de Python: el de la raíz corre
+# `python launcher.py` y no sirve nada por web. Para que Railway use este
+# archivo, el servicio tiene que apuntar a `marea` como Root Directory.
+#
+# Un solo servicio sirve la app y corre el ciclo de vida (liquidar y reponer)
+# cada hora dentro del mismo proceso — ver `server.mjs`.
+
+[build]
+builder = "NIXPACKS"
+buildCommand = "npm ci && npm run build"
+
+# Sólo redeploya cuando cambia la app. Los documentos del vault y los datos que
+# el propio ciclo escribe no tienen por qué reiniciar el servicio.
+watchPatterns = [
+  "marea/**",
+  "!marea/vault/**",
+  "!marea/**/*.md",
+  "!marea/data/**",
+  "!marea/public/mercados.json",
+  "!marea/public/resoluciones.json",
+]
+
+[deploy]
+startCommand = "node server.mjs"
+healthcheckPath = "/salud"
+restartPolicyType = "ALWAYS"
+restartPolicyMaxRetries = 10

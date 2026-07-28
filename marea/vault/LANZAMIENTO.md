@@ -8,6 +8,10 @@ Dos cosas que conviene saber antes de decidir: Actions es gratis e ilimitado en
 repos **públicos**, y GitHub Pages en repo **privado** sí requiere plan de pago.
 Si el repo es privado, ese camino estaba cerrado de todos modos.
 
+> **Si eliges Railway (Opción A del Paso 1), este paso 0 no hace falta**:
+> Railway construye desde GitHub y no necesita nada en tu computadora. El paso 0
+> es sólo para el camino de Cloudflare Pages o para correr la app en local.
+
 ## Paso 0 · Bajar el código a tu máquina
 
 Todo esto se escribe en la **Terminal** de tu computadora (en Mac: ⌘ + Espacio,
@@ -47,9 +51,55 @@ cd marea && npm install
 
 ## Paso 1 · Publicar
 
+Hay dos caminos. **Elige uno**, no los dos.
+
+### Opción A · Railway (si ya lo pagas, es el mejor)
+
+Railway ya corre tu bot de Python (`railway.toml` de la raíz → `python
+launcher.py`). Ese servicio es un *worker*: no sirve páginas y no sabe nada de
+Marea. Marea va como **un segundo servicio**, en el mismo repo, con su propia
+configuración en `marea/railway.toml`.
+
+La ventaja de este camino es grande: el ciclo de vida —liquidar y reponer— corre
+**dentro del contenedor cada hora**, así que no necesitas dejar tu computadora
+prendida ni instalar ningún cron. El Paso 2 de abajo te lo puedes saltar.
+
+En el panel de Railway, dentro del mismo proyecto:
+
+1. **New → GitHub Repo → `rasdg05/fq-bot`**.
+2. En el servicio nuevo, **Settings → Root Directory: `marea`**. Esto es lo que
+   hace que use `marea/railway.toml` y no el del bot.
+3. **Settings → Branch: `claude/marea-autonomous-build-96mklt`** (o `main`, si
+   ya lo mergeaste).
+4. **Settings → Networking → Generate Domain**. Te da la URL pública.
+5. Deploy. Tarda unos minutos: instala, construye y arranca.
+
+No hace falta configurar variables de entorno: la app funciona sin ninguna. Si
+más adelante quieres analítica, ahí van `VITE_ANALYTICS_ENDPOINT` y
+`VITE_ERROR_ENDPOINT` (son de build, así que hay que redeployar).
+
+Para saber si está vivo y si el ciclo está corriendo, abre `TU-URL/salud`:
+
+```json
+{ "arranque": "…", "ultimoCiclo": "…", "ultimoError": null, "corridas": 3 }
+```
+
+Si `ultimoCiclo` tiene más de una hora o `ultimoError` no es `null`, algo se
+rompió y hay que mirar los logs del servicio.
+
+Ojo con una cosa: el disco de Railway es efímero salvo que montes un volumen. Sin
+volumen, cada redeploy reinicia el estado del liquidador — y no pasa nada grave,
+porque vuelve a leer las fuentes y recalcula, que para eso es idempotente. Si
+quieres conservar la historia, monta un volumen y pon
+`MAREA_DATA_DIR=/data` en las variables del servicio.
+
+### Opción B · Cloudflare Pages (gratis, sin Railway)
+
 ```bash
 npm run deploy       # verifica, construye y publica
 ```
+
+Con este camino, el ciclo de vida **sí** depende del Paso 2 en tu máquina.
 
 `npm run deploy` corre los tipos, el `VALIDATION_REPORT` completo y la build
 antes de subir nada. Si algo falla, **no publica** — que es el punto.
@@ -89,6 +139,9 @@ cual. La build pesa unos 390 kB, 96 kB comprimidos.
 Para ver qué se publicaría sin publicar: `npm run deploy -- --dry`.
 
 ## Paso 2 · Que el producto se mantenga solo
+
+**Sáltate este paso si elegiste Railway**: allá el ciclo ya corre solo dentro
+del contenedor.
 
 Una sola línea, en la misma Terminal, dentro de `fq-bot/marea`:
 

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-27T23:58:29.408Z",
+  "generatedAt": "2026-07-28T00:34:53.886Z",
   "seeds": [
     {
       "id": "btc-cierre-2026-08-02",
@@ -106,6 +106,60 @@
         "sourceUrl": "https://api.kraken.com/0/public/OHLC?pair=ETHUSD&interval=1440",
         "criterion": "Se resuelve Sí si el precio de ETH/USD en Kraken alcanza o supera 2,000 dólares en cualquier momento entre el 2026-07-27 y el 2026-08-26, medido sobre el máximo de las velas diarias públicas.",
         "settlesAt": "2026-08-26T23:48:25.524Z",
+        "disputeWindowHours": 12
+      }
+    },
+    {
+      "id": "btc-toca-2026-07-28",
+      "title": "¿Bitcoin toca 69,000 dólares en 30 días?",
+      "category": "cripto",
+      "country": "LATAM",
+      "closesAt": "2026-08-26T00:34:53.886Z",
+      "pool": {
+        "si": 300,
+        "no": 600,
+        "feeBps": 300
+      },
+      "rule": {
+        "kind": "precio",
+        "par": "BTC/USD",
+        "umbral": 69000,
+        "comparacion": "arriba",
+        "modo": "toca",
+        "desde": "2026-07-28T00:34:53.886Z"
+      },
+      "resolution": {
+        "sourceName": "Kraken (velas diarias públicas)",
+        "sourceUrl": "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=1440",
+        "criterion": "Se resuelve Sí si el precio de BTC/USD en Kraken alcanza o supera 69,000 dólares en cualquier momento entre el 2026-07-28 y el 2026-08-27, medido sobre el máximo de las velas diarias públicas.",
+        "settlesAt": "2026-08-27T00:34:53.886Z",
+        "disputeWindowHours": 12
+      }
+    },
+    {
+      "id": "eth-toca-2026-07-28",
+      "title": "¿Ethereum toca 2,000 dólares en 30 días?",
+      "category": "cripto",
+      "country": "LATAM",
+      "closesAt": "2026-08-26T00:34:53.886Z",
+      "pool": {
+        "si": 300,
+        "no": 600,
+        "feeBps": 300
+      },
+      "rule": {
+        "kind": "precio",
+        "par": "ETH/USD",
+        "umbral": 2000,
+        "comparacion": "arriba",
+        "modo": "toca",
+        "desde": "2026-07-28T00:34:53.886Z"
+      },
+      "resolution": {
+        "sourceName": "Kraken (velas diarias públicas)",
+        "sourceUrl": "https://api.kraken.com/0/public/OHLC?pair=ETHUSD&interval=1440",
+        "criterion": "Se resuelve Sí si el precio de ETH/USD en Kraken alcanza o supera 2,000 dólares en cualquier momento entre el 2026-07-28 y el 2026-08-27, medido sobre el máximo de las velas diarias públicas.",
+        "settlesAt": "2026-08-27T00:34:53.886Z",
         "disputeWindowHours": 12
       }
     }

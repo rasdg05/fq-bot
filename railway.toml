@@ -19,6 +19,10 @@ watchPatterns = [
   # los .pdf/.html/.png de MEMORY churneaban el bot y reseteaban sus contadores.)
   "!MEMORY/**",
   "!presentaciones/**",
+  # marea/ es OTRO producto y OTRO servicio de Railway (ver marea/railway.toml,
+  # con Root Directory = marea). Un commit suyo no tiene por que reiniciar el
+  # worker del bot ni resetear sus contadores.
+  "!marea/**",
   "!**/*.pdf",
   "!**/*.html",
   "!**/*.png",

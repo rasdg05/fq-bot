@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-27T23:58:27.769Z",
+  "generatedAt": "2026-07-28T00:34:51.564Z",
   "states": [
     {
       "marketId": "mx-inpc-anual",
@@ -40,7 +40,7 @@
     {
       "marketId": "eth-4500",
       "phase": "abierto",
-      "evidence": "Máximo de ETH/USD en Kraken entre 2026-07-01 y 2026-07-27: 1,978.99 USD frente al umbral de 4,500."
+      "evidence": "Máximo de ETH/USD en Kraken entre 2026-07-01 y 2026-07-28: 1,978.99 USD frente al umbral de 4,500."
     },
     {
       "marketId": "pe-cobre-exportacion",
@@ -53,7 +53,7 @@
     {
       "marketId": "btc-toca-2026-07-27",
       "phase": "abierto",
-      "evidence": "Máximo de BTC/USD en Kraken entre 2026-07-27 y 2026-07-27: 65,682.6 USD frente al umbral de 69,000."
+      "evidence": "Máximo de BTC/USD en Kraken entre 2026-07-27 y 2026-07-28: 65,682.6 USD frente al umbral de 69,000."
     },
     {
       "marketId": "eth-cierre-2026-08-02",
@@ -62,7 +62,7 @@
     {
       "marketId": "eth-toca-2026-07-27",
       "phase": "abierto",
-      "evidence": "Máximo de ETH/USD en Kraken entre 2026-07-27 y 2026-07-27: 1,978.99 USD frente al umbral de 2,000."
+      "evidence": "Máximo de ETH/USD en Kraken entre 2026-07-27 y 2026-07-28: 1,978.99 USD frente al umbral de 2,000."
     }
   ]
 }
