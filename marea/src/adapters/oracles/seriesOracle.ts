@@ -205,6 +205,52 @@ async function leerInegi(
     .filter((o) => Number.isFinite(o.fecha) && Number.isFinite(o.valor));
 }
 
+/**
+ * mindicador.cl (Chile) — pública, sin llave y con serie histórica. Cubre el
+ * Imacec, la TPM, el dólar observado y la libra de cobre, que es justo lo que
+ * el Banco Central de Chile sólo entrega con credenciales.
+ */
+async function leerMindicador(
+  fetchImpl: typeof fetch,
+  rule: SeriesRule,
+): Promise<Observacion[]> {
+  const url = `https://mindicador.cl/api/${rule.serie}`;
+  const respuesta = await fetchImpl(url);
+  if (!respuesta.ok) throw new Error(`mindicador.cl respondió ${respuesta.status}`);
+  const cuerpo = JSON.parse(recortarJson(await respuesta.text())) as {
+    serie?: { fecha: string; valor: number }[];
+  };
+  return (cuerpo.serie ?? [])
+    .map((punto) => ({ fecha: Date.parse(punto.fecha), valor: Number(punto.valor) }))
+    .filter((o) => Number.isFinite(o.fecha) && Number.isFinite(o.valor));
+}
+
+/**
+ * datos.gov.co (Colombia) — el portal de datos abiertos, sobre Socrata. La TRM
+ * diaria vive en el conjunto `32sa-8pi3`, con fecha de vigencia y valor.
+ *
+ * Se prefiere a la serie intradía del Banco de la República porque ésa sólo
+ * sirve la sesión de hoy: un mercado que se resuelve el martes no se puede
+ * resolver el miércoles, y eso convierte una demora en un mercado atorado.
+ */
+async function leerDatosGov(
+  fetchImpl: typeof fetch,
+  rule: SeriesRule,
+): Promise<Observacion[]> {
+  const url =
+    `https://www.datos.gov.co/resource/${rule.serie}.json` +
+    `?$limit=60&$order=vigenciadesde%20DESC`;
+  const respuesta = await fetchImpl(url);
+  if (!respuesta.ok) throw new Error(`datos.gov.co respondió ${respuesta.status}`);
+  const filas = (await respuesta.json()) as { valor: string; vigenciadesde: string }[];
+  return filas
+    .map((fila) => ({
+      fecha: Date.parse(`${fila.vigenciadesde.slice(0, 10)}T00:00:00Z`),
+      valor: Number(fila.valor),
+    }))
+    .filter((o) => Number.isFinite(o.fecha) && Number.isFinite(o.valor));
+}
+
 export function createSeriesOracle(options: SeriesOracleOptions = {}): Oracle {
   const fetchImpl = options.fetchImpl ?? fetch;
   const token = options.banxicoToken ?? process.env?.BANXICO_TOKEN;
@@ -216,6 +262,8 @@ export function createSeriesOracle(options: SeriesOracleOptions = {}): Oracle {
       if (rule.fuente === "bcb") return leerBcb(fetchImpl, rule);
       if (rule.fuente === "bcra") return leerBcra(fetchImpl, rule);
       if (rule.fuente === "bcrp") return leerBcrp(fetchImpl, rule);
+      if (rule.fuente === "mindicador") return leerMindicador(fetchImpl, rule);
+      if (rule.fuente === "datosgov") return leerDatosGov(fetchImpl, rule);
       if (rule.fuente === "inegi") {
         if (!tokenInegi) throw new Error("sin token");
         return leerInegi(fetchImpl, rule, tokenInegi);
@@ -270,8 +318,11 @@ export function createSeriesOracle(options: SeriesOracleOptions = {}): Oracle {
       }
 
       const ultima = observaciones[observaciones.length - 1];
-      // el dato tiene que ser el de la fecha del mercado, no uno anterior
-      if (ultima.fecha < settlesAt - MARGEN_MS) {
+      // el dato tiene que ser el de la fecha del mercado, no uno anterior. El
+      // margen lo declara la regla cuando su serie no es diaria
+      const margen =
+        rule.frescuraDias !== undefined ? rule.frescuraDias * DIA_MS : MARGEN_MS;
+      if (ultima.fecha < settlesAt - margen) {
         return {
           status: "sin_dato",
           evidence:

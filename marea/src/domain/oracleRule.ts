@@ -35,11 +35,18 @@ export interface SeriesRule {
   /**
    * Quién publica. Cada fuente tiene su lector en `seriesOracle`.
    *
-   * `bcb`, `bcra` y `bcrp` son públicas y sin llave. `banxico` e `inegi` dan
-   * token gratis: sin él el mercado espera confirmación humana, y lo declara
-   * en vez de inventar un número (R-022).
+   * `bcb`, `bcra`, `bcrp`, `mindicador` (Chile) y `datosgov` (Colombia) son
+   * públicas y sin llave. `banxico` e `inegi` dan token gratis: sin él el
+   * mercado lo declara en vez de inventar un número (R-022).
    */
-  fuente: "bcb" | "banxico" | "bcra" | "bcrp" | "inegi";
+  fuente:
+    | "bcb"
+    | "banxico"
+    | "bcra"
+    | "bcrp"
+    | "inegi"
+    | "mindicador"
+    | "datosgov";
   /** Identificador de la serie en esa fuente. */
   serie: string;
   /**
@@ -50,6 +57,18 @@ export interface SeriesRule {
   umbral?: number;
   /** Cómo se llama el dato en el criterio, para la evidencia. */
   etiqueta: string;
+  /**
+   * Cuántos días puede tener el dato más reciente y seguir resolviendo el
+   * mercado. Por omisión día y medio, que es lo que tarda en publicarse una
+   * serie diaria.
+   *
+   * Una serie **mensual** necesita declarar el suyo: el Imacec de mayo se
+   * publica a principios de julio y viene fechado al 1 de mayo, así que con el
+   * margen de una serie diaria nunca resolvería. Se declara por mercado y a la
+   * vista — aflojar el margen global habría dejado que un dato viejo resolviera
+   * cualquier mercado (R-052).
+   */
+  frescuraDias?: number;
 }
 
 /**

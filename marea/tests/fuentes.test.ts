@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createSeriesOracle, type Observacion } from "@/adapters/oracles/seriesOracle";
 import { readWithOracles } from "@/domain/settlement";
 import type { SeriesRule } from "@/domain/oracleRule";
-import { OWN_MARKETS, activeSeeds } from "@/adapters/ownMarkets/catalog";
+import { OWN_MARKETS } from "@/adapters/ownMarkets/catalog";
 
 /**
  * Fuentes nuevas: BCRA (Argentina), BCRP (Perú) e INEGI (México).
@@ -145,24 +145,42 @@ describe("Fuentes que no necesitaban a una persona", () => {
   });
 });
 
-describe("R-062 · el tope de confirmación humana", () => {
-  it("como mucho tres mercados abiertos dependen de que alguien los mire", () => {
-    // un mercado sin regla de máquina necesita a una persona. El tope es tres,
-    // y hasta ahora nada lo verificaba: por eso llegaron a ser seis.
-    const ahora = Date.parse("2026-07-28T00:00:00Z");
-    const aMano = activeSeeds(ahora, OWN_MARKETS).filter((seed) => !seed.rule);
+describe("R-062 · cero confirmación humana", () => {
+  it("ningún mercado del catálogo depende de que alguien lo mire", () => {
+    // El tope dejó de ser tres y pasó a ser cero. Un mercado que hay que
+    // confirmar a mano no dice quién lo confirma, ni cuándo, ni cómo: sin nadie
+    // de guardia es una promesa que no se puede cumplir, y publicar mercados
+    // sin proceso de resolución rompe lo único que sostiene el producto (R-040).
+    const aMano = OWN_MARKETS.filter((seed) => !seed.rule);
     expect(
       aMano.length,
       `dependen de una persona: ${aMano.map((s) => s.id).join(", ") || "ninguno"}`,
-    ).toBeLessThanOrEqual(3);
+    ).toBe(0);
+  });
+
+  it("cada regla apunta a una fuente que el oráculo sabe leer", () => {
+    const conocidas = new Set([
+      "bcb", "banxico", "bcra", "bcrp", "inegi", "mindicador", "datosgov",
+    ]);
+    for (const seed of OWN_MARKETS) {
+      if (seed.rule?.kind === "serie") {
+        expect(conocidas.has(seed.rule.fuente), `${seed.id}: ${seed.rule.fuente}`).toBe(true);
+      }
+    }
   });
 
   it("cada mercado con fuente automatizable la usa, no espera a un humano", () => {
     // las tres fuentes que se enchufaron en esta unidad
     const automatizados = OWN_MARKETS.filter((seed) =>
-      ["ar-badlar-tasa", "pe-inflacion-lima", "mx-inpc-anual"].includes(seed.id),
+      [
+        "ar-badlar-tasa",
+        "pe-inflacion-lima",
+        "mx-inpc-anual",
+        "cl-imacec",
+        "co-dolar-trm",
+      ].includes(seed.id),
     );
-    expect(automatizados).toHaveLength(3);
+    expect(automatizados).toHaveLength(5);
     for (const seed of automatizados) {
       expect(seed.rule, `${seed.id} sigue sin regla`).toBeDefined();
       expect(seed.rule!.kind).toBe("serie");

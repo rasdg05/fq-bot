@@ -203,50 +203,59 @@ const SEEDS: OwnMarketSeed[] = [
     },
   },
   {
-    id: "co-inflacion-dane",
-    title: "¿La inflación anual de Colombia baja del 5%?",
+    id: "co-dolar-trm",
+    title: "¿El dólar en Colombia cierra el mes abajo de 3,300 pesos?",
     category: "economia",
     country: "CO",
-    closesAt: "2026-08-08T12:00:00Z",
+    closesAt: "2026-08-31T12:00:00Z",
     pool: seedPool(380, 420),
+    // 32sa-8pi3: la TRM diaria en el portal de datos abiertos de Colombia.
+    // El IPC del DANE sólo está publicado por ciudad y hasta 2016, así que no
+    // se puede resolver solo: se cambió la pregunta por una que sí se lee
+    rule: {
+      kind: "serie",
+      fuente: "datosgov",
+      serie: "32sa-8pi3",
+      comparacion: "menor",
+      umbral: 3300,
+      etiqueta: "Tasa de cambio representativa del mercado",
+    },
     resolution: {
-      sourceName: "DANE",
-      sourceUrl: "https://www.dane.gov.co/index.php/estadisticas-por-tema/precios-y-costos/indice-de-precios-al-consumidor-ipc",
+      sourceName: "datos.gov.co (conjunto 32sa-8pi3, TRM oficial)",
+      sourceUrl: "https://www.datos.gov.co/resource/32sa-8pi3.json",
       criterion:
-        "Se resuelve Sí si la variación anual del IPC que publica el DANE es menor a 5.00%. Se usa la cifra del boletín técnico oficial.",
-      settlesAt: "2026-08-08T12:00:00Z",
+        "Se resuelve Sí si la Tasa de Cambio Representativa del Mercado publicada en el portal de datos abiertos de Colombia el último día del mes es menor a 3,300 pesos por dólar.",
+      settlesAt: "2026-09-01T12:00:00Z",
       disputeWindowHours: 24,
     },
   },
   {
     id: "cl-imacec",
-    title: "¿El Imacec de Chile crece más de 2% interanual?",
+    title: "¿El Imacec de Chile vuelve a terreno positivo?",
     category: "economia",
     country: "CL",
-    closesAt: "2026-08-03T12:00:00Z",
+    closesAt: "2026-09-01T12:00:00Z",
     pool: seedPool(290, 310),
-    resolution: {
-      sourceName: "Banco Central de Chile",
-      sourceUrl: "https://www.bcentral.cl/areas/estadisticas/imacec",
-      criterion:
-        "Se resuelve Sí si la variación interanual del Imacec publicada por el Banco Central de Chile supera 2.0%. Se toma la primera publicación, no las revisiones.",
-      settlesAt: "2026-08-03T12:00:00Z",
-      disputeWindowHours: 24,
+    // mindicador.cl publica el Imacec sin llave. El Banco Central de Chile lo
+    // sirve sólo con credenciales, y una fuente que no se puede leer no puede
+    // resolver un mercado
+    rule: {
+      kind: "serie",
+      fuente: "mindicador",
+      serie: "imacec",
+      comparacion: "mayor",
+      umbral: 0,
+      etiqueta: "Imacec de Chile",
+      // el Imacec sale con casi dos meses de rezago y viene fechado al día 1
+      // del mes que mide: con el margen de una serie diaria no resolvería nunca
+      frescuraDias: 100,
     },
-  },
-  {
-    id: "latam-libertadores-br",
-    title: "¿Un equipo brasileño gana la Libertadores?",
-    category: "deportes",
-    country: "LATAM",
-    closesAt: "2026-11-28T22:00:00Z",
-    pool: seedPool(820, 440),
     resolution: {
-      sourceName: "CONMEBOL",
-      sourceUrl: "https://www.conmebol.com/libertadores/",
+      sourceName: "mindicador.cl (serie Imacec del Banco Central de Chile)",
+      sourceUrl: "https://mindicador.cl/api/imacec",
       criterion:
-        "Se resuelve Sí si el campeón oficial de la CONMEBOL Libertadores es un club afiliado a la confederación brasileña, según el resultado publicado por CONMEBOL.",
-      settlesAt: "2026-11-29T04:00:00Z",
+        "Se resuelve Sí si la variación del Imacec que publica mindicador.cl para el mes que resuelve es mayor a 0 por ciento. Se lee del API pública, que cualquiera puede consultar.",
+      settlesAt: "2026-09-02T12:00:00Z",
       disputeWindowHours: 24,
     },
   },

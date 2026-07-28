@@ -199,6 +199,25 @@ createServer((req, res) => {
 }).listen(PORT, () => {
   log(`Marea en :${PORT} · datos en ${DATOS} · ${seeds.length} mercados`);
   log(`estado inicial: ${JSON.stringify(store.resumen())}`);
+
+  // ningún mercado debe depender de que una persona lo confirme. Los que se
+  // leen con token sí dependen de que el token esté puesto: sin él degradan a
+  // confirmación humana en silencio, y "en silencio" es cómo se descubre tarde
+  const sinLlave = seeds.filter((seed) => {
+    if (seed.rule?.kind !== "serie") return false;
+    if (seed.rule.fuente === "banxico") return !process.env.BANXICO_TOKEN;
+    if (seed.rule.fuente === "inegi") return !process.env.INEGI_TOKEN;
+    return false;
+  });
+  if (sinLlave.length > 0) {
+    log(
+      `⚠ ${sinLlave.length} mercados no se pueden resolver solos por falta de token ` +
+        `(${sinLlave.map((s) => s.id).join(", ")}). ` +
+        `Configura BANXICO_TOKEN / INEGI_TOKEN en el servicio o esos mercados se atoran.`,
+    );
+  } else {
+    log("todos los mercados se resuelven solos: cero confirmación humana");
+  }
 });
 
 // el mercado abre con el ciclo ya corrido, y sigue cada cuarto de hora

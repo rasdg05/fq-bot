@@ -499,7 +499,7 @@ check("A1", "todo camino de dinero pasa por la puerta y por contabilidad", () =>
 });
 
 /* ------------------------------- H1 -------------------------------------- */
-check("H1", "el trabajo manual de resolución no pasa del tope", () => {
+check("H1", "ningún mercado depende de que una persona lo confirme", () => {
   // R-062 topa en tres los mercados abiertos que dependen de que una persona
   // se siente a mirarlos. La regla existía desde hace tiempo y **no tenía
   // verificación**: por eso llegó a haber seis sin que nadie se enterara. Una
@@ -509,11 +509,15 @@ check("H1", "el trabajo manual de resolución no pasa del tope", () => {
   const total = (catalog.match(/^\s{4}id:/gm) ?? []).length;
   const conRegla = (catalog.match(/^\s{4}rule:/gm) ?? []).length;
   const aMano = total - conRegla;
-  const TOPE = 3;
+  // el tope pasó de tres a CERO: un mercado de confirmación manual no dice
+  // quién lo confirma, ni cuándo, ni cómo. Sin nadie de guardia es una promesa
+  // que no se puede cumplir, y publicar mercados sin proceso de resolución
+  // rompe lo único que sostiene el producto (R-040)
+  const TOPE = 0;
   if (aMano > TOPE) {
     problems.push(
-      `${aMano} mercados escritos a mano dependen de una persona y el tope es ${TOPE}: ` +
-        `busca la API de los que faltan antes de publicar otro`,
+      `${aMano} de ${total} mercados dependen de que una persona los confirme, y el tope es ${TOPE}: ` +
+        `busca la API o no publiques la pregunta`,
     );
   }
   return problems;
