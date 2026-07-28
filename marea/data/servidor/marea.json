@@ -26,6 +26,16 @@
       "recuperacionSalt": "46f6ad02a4cae27fcb394f03f44d70c6",
       "creado": "2026-07-28T07:42:38.352Z",
       "puntos": 1000
+    },
+    {
+      "id": "f9472b26-b0e6-4562-84ff-5e6c463629ba",
+      "usuario": "nuevo_user",
+      "hash": "151fe502815dc6c0f75d7e9370d5cc63c362a6f17224ddcd23d98bddbcd81b98c130677da5fca591d3e2d8e6c1b842291adb33027f9c378313e9fd2cb5e12120",
+      "salt": "f9889fce36e60e23bb25863b4e4db754",
+      "recuperacionHash": "757fabd89919fc53aebff419d1a97a738d84e5937ee40b68a1402bdeb8971ee61d39ba30eeacb33caa9fbf32aab3f7df9d6c4f8237f1fc5334ccc828c63f195d",
+      "recuperacionSalt": "95c78127c7a00d8abbe85a2cd8c1f17d",
+      "creado": "2026-07-28T08:02:00.901Z",
+      "puntos": 900
     }
   ],
   "apuestas": [
@@ -46,6 +56,15 @@
       "stake": 100,
       "precio": 0.5873015873015873,
       "at": "2026-07-28T05:32:07.645Z"
+    },
+    {
+      "id": "btc-cierre-semanal-3",
+      "usuarioId": "f9472b26-b0e6-4562-84ff-5e6c463629ba",
+      "marketId": "btc-cierre-semanal",
+      "side": "si",
+      "stake": 100,
+      "precio": 0.6080402010050251,
+      "at": "2026-07-28T08:02:01.070Z"
     }
   ],
   "pozos": [
@@ -99,7 +118,7 @@
     },
     {
       "marketId": "btc-cierre-semanal",
-      "si": 1110,
+      "si": 1210,
       "no": 780,
       "feeBps": 300
     },
@@ -216,7 +235,7 @@
     {
       "marketId": "eth-4500",
       "phase": "abierto",
-      "evidence": "Máximo de ETH/USD en Kraken entre 2026-07-01 y 2026-07-28: 1,978.99 USD frente al umbral de 4,500."
+      "evidence": "No se pudo leer Kraken (velas diarias públicas): Kraken respondió 503"
     },
     {
       "marketId": "btc-toca-2026-07-27",
@@ -226,7 +245,7 @@
     {
       "marketId": "eth-toca-2026-07-27",
       "phase": "abierto",
-      "evidence": "Máximo de ETH/USD en Kraken entre 2026-07-27 y 2026-07-28: 1,978.99 USD frente al umbral de 2,000."
+      "evidence": "No se pudo leer Kraken (velas diarias públicas): Kraken respondió 503"
     },
     {
       "marketId": "btc-toca-2026-07-28",
@@ -236,7 +255,7 @@
     {
       "marketId": "eth-toca-2026-07-28",
       "phase": "abierto",
-      "evidence": "Máximo de ETH/USD en Kraken entre 2026-07-28 y 2026-07-28: 1,892.83 USD frente al umbral de 2,000."
+      "evidence": "No se pudo leer Kraken (velas diarias públicas): Kraken respondió 503"
     }
   ]
 }

@@ -9,9 +9,11 @@
 
 [build]
 builder = "NIXPACKS"
-# VITE_API_BASE es lo que enciende las cuentas y el pozo compartido: sin esto
-# la app corre sola en el dispositivo y lo que apuestas se pierde al recargar.
-buildCommand = "npm ci && VITE_API_BASE=/api npm run build"
+# Sólo construir. Nixpacks ya instala las dependencias en su propia fase, y
+# meter `npm ci` aquí truena: nixpacks monta un caché en
+# /app/node_modules/.cache y `npm ci` borra node_modules entero, así que no
+# puede quitar ese directorio montado y sale con EBUSY.
+buildCommand = "npm run build"
 
 # Sólo redeploya cuando cambia la app. Los documentos del vault y los datos que
 # el propio ciclo escribe no tienen por qué reiniciar el servicio.
