@@ -9,6 +9,7 @@ import { TablaScreen } from "@/screens/TablaScreen";
 import { ProfileScreen } from "@/screens/ProfileScreen";
 import { MarketDetailScreen } from "@/screens/MarketDetailScreen";
 import { DepositSheet } from "@/screens/DepositSheet";
+import { LiquidacionSheet } from "@/screens/LiquidacionSheet";
 import { PostTradeSheet } from "@/screens/PostTradeSheet";
 import { AccountSheet } from "@/screens/AccountSheet";
 import { OnboardingFlow } from "@/screens/OnboardingFlow";
@@ -41,9 +42,33 @@ function CurrentScreen() {
   }
 }
 
+/**
+ * La red que se va y vuelve.
+ *
+ * Sin esto, quedarse sin conexion no cambiaba nada en pantalla hasta que algo
+ * pidiera datos por su cuenta: el feed se veia igual de fresco estando muerto.
+ * Al irse se marca viejo; al volver se reintenta solo, sin pedirle al usuario
+ * que adivine que ya hay senal.
+ */
+function useRed() {
+  const { actions } = useApp();
+  React.useEffect(() => {
+    const fuera = () => actions.marcarDatosViejos(true);
+    const dentro = () => void actions.loadMarkets();
+    globalThis.addEventListener?.("offline", fuera);
+    globalThis.addEventListener?.("online", dentro);
+    if (globalThis.navigator && globalThis.navigator.onLine === false) fuera();
+    return () => {
+      globalThis.removeEventListener?.("offline", fuera);
+      globalThis.removeEventListener?.("online", dentro);
+    };
+  }, [actions]);
+}
+
 function Shell() {
   const { state } = useApp();
   const onboarding = !state.onboardingCompleted;
+  useRed();
 
   return (
     <div className="min-h-full bg-bg">
@@ -58,6 +83,7 @@ function Shell() {
       <BottomTabs />
       <DepositSheet />
       <PostTradeSheet />
+      <LiquidacionSheet />
       <AccountSheet />
       {onboarding ? <OnboardingFlow /> : null}
     </div>

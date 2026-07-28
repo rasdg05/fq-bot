@@ -26,7 +26,7 @@ interface Fila {
 }
 
 export function TablaScreen() {
-  const { state, adapters } = useApp();
+  const { state, adapters, actions } = useApp();
   const [datos, setDatos] = React.useState<{ filas: Fila[]; tuya?: Fila } | null>(null);
   const [error, setError] = React.useState(false);
 
@@ -68,6 +68,8 @@ export function TablaScreen() {
           <EmptyState
             title={S.tabla.empty}
             body={S.tabla.emptyBody}
+            ctaLabel={S.tabla.emptyCta}
+            onCta={() => actions.setTab("markets")}
             testId="tabla-empty"
           />
         </div>

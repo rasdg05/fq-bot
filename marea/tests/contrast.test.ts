@@ -52,6 +52,18 @@ describe("Accesibilidad de color", () => {
       ["text", "panel"],
       ["text2", "panel"],
       ["muted", "panel"],
+      // `panel2` faltaba entero, y es la superficie **más clara**: el texto que
+      // menos contrasta vivía justo ahí (la zona de decisión del detalle y los
+      // estados de error). Sin estos pares, la prueba daba verde sobre el caso
+      // peor sin llegar a mirarlo
+      ["text", "panel2"],
+      ["text2", "panel2"],
+      ["muted", "panel2"],
+      ["dn", "panel2"],
+      // y el bloque teal, donde viven las dos cifras protagonistas
+      ["text", "teal-soft"],
+      ["text2", "teal-soft"],
+      ["teal", "teal-soft"],
     ];
     for (const [fg, bg] of pairs) {
       const value = ratio(t[fg], t[bg]);

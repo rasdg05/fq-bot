@@ -5,6 +5,7 @@ import { formatEdgePp, hasEdge } from "@/domain/edge";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
+import { COLOR_CATEGORIA, FORMA_CATEGORIA } from "@/lib/categoria";
 import { S } from "@/lib/strings";
 import { formatStake } from "@/lib/units";
 import { compactUsd, pct, closesIn } from "@/lib/format";
@@ -84,7 +85,16 @@ export function MarketCard({ market, variant, onOpen }: MarketCardProps) {
           {market.country || market.region === "latam" ? (
             <Badge tone="latam">{market.country ?? S.badges.latam}</Badge>
           ) : null}
-          <span className="ml-auto shrink-0 text-[11px] font-medium text-muted">
+          {/* la categoría se reconoce de reojo por color y forma, y se lee en
+              la palabra: el color nunca es el único portador (R-005) */}
+          <span className="ml-auto flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-muted">
+            <span
+              aria-hidden
+              data-testid="categoria-marca"
+              data-categoria={market.category}
+              className={cn("h-1.5 w-1.5 shrink-0", FORMA_CATEGORIA[market.category])}
+              style={{ backgroundColor: COLOR_CATEGORIA[market.category] }}
+            />
             {S.categories[market.category]}
           </span>
         </div>
@@ -102,10 +112,17 @@ export function MarketCard({ market, variant, onOpen }: MarketCardProps) {
             UNA línea. Se corta la etiqueta con elipsis antes que envolver —
             comprimir no es amputar: el número y el lado nunca se tocan
             (R-063, vault/CARD_SPEC.md) */}
-        <div className="flex items-center gap-2.5">
+        {/* `flex-wrap` para el texto agrandado: a 200 % la elipsis se comía la
+            etiqueta entera ("Gana el A…" en 18 px de ancho), y una etiqueta que
+            no se lee es lo mismo que no mostrarla. A tamaño normal no envuelve
+            —cabe de sobra— así que la densidad no paga nada por esto.
+            El mínimo va en `rem`: a 200 % vale 272 px, los dos grupos dejan de
+            caber en una línea y la fila se parte sola. Es la misma regla
+            resolviendo los dos casos, no un caso especial */}
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
           <div
             data-dominant="probability"
-            className="flex min-w-0 flex-[1.25] items-baseline gap-1"
+            className="flex min-w-[8.5rem] flex-[1.25] items-baseline gap-1"
           >
             <span
               data-role="probability"
@@ -139,7 +156,7 @@ export function MarketCard({ market, variant, onOpen }: MarketCardProps) {
           {pool && rival ? (
             <div
               data-testid="card-other-side"
-              className="flex min-w-0 flex-1 items-baseline justify-end gap-1"
+              className="flex min-w-[8.5rem] flex-1 items-baseline justify-end gap-1"
             >
               <span className="shrink-0 font-display text-[20px] font-semibold tabular-nums text-text2">
                 {pct(rival.probability)}

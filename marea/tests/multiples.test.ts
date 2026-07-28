@@ -467,3 +467,28 @@ describe("Catálogo de N respuestas", () => {
     }
   });
 });
+
+describe("UX3 · el número que se promete es el que se cobra", () => {
+  it("la confirmación promete exactamente lo que dice el motor (I3)", () => {
+    // la hoja de confirmación toma su cifra de `quote()`, el mismo cálculo que
+    // pinta el detalle antes de entrar. Si algún día se recalculara aparte, la
+    // pantalla y el pago podrían separarse — y el número que se enseña tiene
+    // que ser el que se cobra
+    for (const [outcomes, id, stake] of [
+      [{ si: 500, no: 500 }, "si", 100],
+      [{ si: 1210, no: 780 }, "no", 250],
+      [{ gana: 520, empata: 260, pierde: 220 }, "empata", 100],
+      [{ a: 500, b: 250, c: 150, d: 100 }, "c", 200],
+    ] as const) {
+      const p: Pool = { outcomes: { ...outcomes }, feeBps: 300 };
+      const cotizado = quote(p, id, stake);
+      // lo que promete la confirmación
+      expect(cotizado.toWin).toBeCloseTo(stake * payoutMultiplier(p, id, stake), 10);
+
+      // y lo que reparte la liquidación con esa apuesta dentro
+      const conApuesta = addStake(p, id, stake);
+      const reparto = settle(conApuesta, [{ id: "mia", side: id, stake }], id);
+      expect(reparto.payouts.mia).toBeCloseTo(cotizado.toWin, 8);
+    }
+  });
+});

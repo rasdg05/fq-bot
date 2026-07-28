@@ -25,7 +25,8 @@
     "start": "tsx server/index.mts",
     "serve": "npm run build && tsx server/index.mts",
     "densidad": "node scripts/densidad.mjs",
-    "arranque": "node scripts/arranque.mjs"
+    "arranque": "node scripts/arranque.mjs",
+    "acceso": "node scripts/acceso.mjs"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.1",

@@ -172,6 +172,15 @@ describe("Liquidación de punta a punta", () => {
     estados = [pagado("si")];
     await user.click(screen.getByTestId("post-trade-portfolio"));
 
+    // al resolver a favor, la app avisa al volver con la lectura que lo
+    // justifica. Se cierra para seguir: el aviso es modal a propósito, porque
+    // cobrar es uno de los dos momentos que importan (UX3)
+    const aviso = await screen.findByTestId("liquidacion-aviso");
+    expect(within(aviso).getByTestId("liquidacion-evidencia")).toHaveTextContent(
+      EVIDENCIA,
+    );
+    await user.click(screen.getByTestId("liquidacion-cerrar"));
+
     const fila = (await screen.findAllByTestId("position-row"))[0];
     expect(within(fila).getByTestId("position-outcome")).toHaveTextContent(
       S.portfolio.won,

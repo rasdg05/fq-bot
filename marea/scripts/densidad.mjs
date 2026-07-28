@@ -139,11 +139,94 @@ for (const ancho of ANCHOS) {
   await page.close();
 }
 
+/**
+ * El esqueleto tiene que medir **exactamente** lo que va a reemplazar. Uno que
+ * no mide igual es un salto de layout disfrazado: se ve bien en una captura y
+ * empuja la página cuando llegan los datos.
+ */
+{
+  const ctx = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 2,
+  });
+  const page = await ctx.newPage();
+  const cdp = await ctx.newCDPSession(page);
+  await cdp.send("Network.enable");
+  // red muy lenta a propósito: sin esto el esqueleto no llega a verse
+  await cdp.send("Network.emulateNetworkConditions", {
+    offline: false,
+    latency: 400,
+    downloadThroughput: (400 * 1024) / 8,
+    uploadThroughput: (400 * 1024) / 8,
+  });
+  await page.goto(BASE, { waitUntil: "domcontentloaded" });
+
+  let esqueleto = null;
+  try {
+    await page.waitForSelector('[data-testid="list-skeleton"]', { timeout: 12000 });
+    esqueleto = await page.evaluate(() => {
+      const s = document.querySelector('[data-testid="list-skeleton"]');
+      const piezas = s ? [...s.children] : [];
+      if (piezas.length === 0) return null;
+      const a = piezas[0].getBoundingClientRect();
+      // el hueco real se mide entre dos vecinos: `space-y-*` usa margen, no
+      // `rowGap`, y leer `rowGap` daba 0 en los dos lados — la comprobación
+      // pasaba sin comparar nada
+      const b = piezas[1]?.getBoundingClientRect();
+      return {
+        alto: Math.round(a.height),
+        hueco: b ? Math.round(b.top - a.bottom) : 0,
+      };
+    });
+  } catch {
+    /* si no llegó a pintarse, no se inventa una medición */
+  }
+
+  await pasarOnboarding(page);
+  const real = await page.evaluate(() => {
+    const cards = [...document.querySelectorAll('[data-testid="market-card"]')];
+    if (cards.length === 0) return { alto: 0, hueco: 0 };
+    const a = cards[0].getBoundingClientRect();
+    const b = cards[1]?.getBoundingClientRect();
+    return {
+      alto: Math.round(a.height),
+      hueco: b ? Math.round(b.top - a.bottom) : 0,
+    };
+  });
+
+  reporte.push({ esqueleto, real });
+  if (!esqueleto) {
+    console.log("\n(el esqueleto no llegó a pintarse: no se mide lo que no se vio)");
+  } else {
+    const dAlto = Math.abs(esqueleto.alto - real.alto);
+    const dHueco = Math.abs(esqueleto.hueco - real.hueco);
+    if (dAlto > 2) {
+      fallos.push(
+        `el esqueleto mide ${esqueleto.alto}px y la card ${real.alto}px: ${dAlto}px de salto`,
+      );
+    }
+    if (dHueco > 2) {
+      fallos.push(
+        `el hueco del esqueleto es ${esqueleto.hueco}px y el del feed ${real.hueco}px`,
+      );
+    }
+  }
+  await ctx.close();
+}
+
 await browser.close();
 
 console.log("DENSIDAD (navegador real, servidor real)");
 console.log("========================================");
 for (const r of reporte) {
+  if (r.esqueleto !== undefined) {
+    console.log("\nesqueleto vs card real:");
+    console.log(
+      `  esqueleto  ${r.esqueleto ? `${r.esqueleto.alto} px · hueco ${r.esqueleto.hueco} px` : "no se pintó"}`,
+    );
+    console.log(`  card real  ${r.real.alto} px · hueco ${r.real.hueco} px`);
+    continue;
+  }
   console.log(`\n${r.ancho}×844:`);
   console.log(`  cards enteras       ${r.enteras}  (presupuesto ${PRESUPUESTO.cardsVisibles} a 390px)`);
   console.log(`  alto de card        ${r.altoCard} px`);

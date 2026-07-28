@@ -158,6 +158,50 @@ for (const lento of [false, true]) {
   await ctx.close();
 }
 
+// 4 · con la red cortada la app no se queda en blanco: lo último que cargó se
+//     sigue viendo, y lo declara como viejo (UX4)
+{
+  const { ctx, page } = await nuevaPagina(browser, { lento: false });
+  await page.goto(BASE, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-step="p1"]', { timeout: 15000 });
+  await page.locator('[data-testid="onboarding-start"]').click();
+  await page.waitForFunction(TOCABLES, null, { timeout: 20000 });
+
+  // se corta la red **después** de haber cargado, como se cae en el metro
+  await page.route("**/api/**", (ruta) => ruta.abort());
+  await ctx.setOffline(true);
+  await page.evaluate(() => globalThis.dispatchEvent(new Event("offline")));
+  await page.waitForTimeout(900);
+
+  const tocables = await page.evaluate(TOCABLES);
+  const aviso = await page.locator('[data-testid="datos-viejos"]').count();
+  const enBlanco = await page.evaluate(
+    () => document.body.innerText.trim().length < 40,
+  );
+  console.log(
+    `\nred cortada → cards visibles: ${tocables} · aviso de datos viejos: ${aviso > 0 ? "sí" : "no"} · pantalla en blanco: ${enBlanco ? "sí" : "no"}`,
+  );
+  if (enBlanco) fallos.push("con la red cortada la app se queda en blanco");
+  if (tocables === 0) fallos.push("con la red cortada no queda ningún mercado visible");
+  if (aviso === 0) {
+    fallos.push("con la red cortada no se declara que los datos están viejos");
+  }
+
+  // y al volver la red el aviso se va solo, sin pedirle nada al usuario
+  await page.unroute("**/api/**");
+  await ctx.setOffline(false);
+  await page.evaluate(() => globalThis.dispatchEvent(new Event("online")));
+  await page.waitForTimeout(1800);
+  const avisoDespues = await page.locator('[data-testid="datos-viejos"]').count();
+  console.log(
+    `red de vuelta   → aviso de datos viejos: ${avisoDespues > 0 ? "sigue" : "se fue"}`,
+  );
+  if (avisoDespues > 0) {
+    fallos.push("al volver la red el aviso de datos viejos no se va solo");
+  }
+  await ctx.close();
+}
+
 await browser.close();
 
 if (fallos.length > 0) {

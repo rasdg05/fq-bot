@@ -63,6 +63,28 @@ export function HomeScreen() {
 
   return (
     <div data-testid="home-screen" className="pb-6">
+      {/* lo último que se cargó se sigue viendo, dicho en voz alta. Mostrarlo
+          como fresco sería mentir; esconderlo sería dejar la pantalla vacía */}
+      {state.datosViejos ? (
+        <div
+          data-testid="datos-viejos"
+          role="status"
+          className="mx-4 mt-2 flex items-center justify-between gap-3 rounded-card border border-line2 bg-panel px-3 py-2"
+        >
+          <span className="text-[12px] leading-snug text-text2">
+            {S.frescura.viejo}
+          </span>
+          <button
+            type="button"
+            data-testid="datos-viejos-reintentar"
+            onClick={() => void actions.loadMarkets()}
+            className="min-h-touch shrink-0 px-2 text-[13px] font-semibold text-teal"
+          >
+            {S.frescura.reintentar}
+          </button>
+        </div>
+      ) : null}
+
       <ChipRow className="pt-2" aria-label={S.search.byCategory}>
         <Chip
           active={category === "all"}

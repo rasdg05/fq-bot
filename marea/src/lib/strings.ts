@@ -9,6 +9,8 @@ export const S = {
   },
 
   tabs: {
+    /** Cómo se anuncia la barra entera, no una de sus pestañas. */
+    navegacion: "Secciones de Marea",
     markets: "Mercados",
     search: "Buscar",
     portfolio: "Portafolio",
@@ -20,7 +22,7 @@ export const S = {
     balance: "Saldo",
     deposit: "Depositar",
     noFunds: "Sin saldo",
-    walletShort: "Wallet",
+    walletShort: "Cartera",
   },
 
   feed: {
@@ -125,13 +127,15 @@ export const S = {
     balanceZeroBody: "Recarga y sigue apostando. Explorar no cuesta nada.",
   },
 
+  // la misma cosa se llamaba "cartera" en la pestaña y "wallet" en los botones.
+  // Media traducción es peor que ninguna: obliga a deducir que son lo mismo
   wallet: {
     title: "Tu cartera",
-    create: "Crear wallet",
+    create: "Crear cartera",
     creating: "Creando…",
-    connect: "Conectar wallet",
+    connect: "Conectar cartera",
     connecting: "Conectando…",
-    ready: "Tu wallet está lista",
+    ready: "Tu cartera está lista",
     readyBody:
       "Ya puedes explorar todos los mercados. Deposita solo cuando quieras operar.",
     address: "Dirección",
@@ -228,13 +232,39 @@ export const S = {
     racha: "Racha",
     tuPosicion: (posicion: number) => `Vas en el lugar ${posicion}`,
     fueraDeTabla: "Aún no tienes mercados resueltos.",
+    emptyCta: "Apostar en un mercado",
     loading: "Cargando tabla",
+  },
+
+  /** Sin conexión: lo que hay se sigue viendo, y se dice que está viejo. */
+  frescura: {
+    viejo: "Sin conexión. Esto es lo último que cargamos.",
+    reintentar: "Reintentar",
+  },
+
+  /** El momento de cobrar: se entera al volver, no yendo a buscarlo. */
+  liquidado: {
+    title: "Cobraste",
+    unaSola: (titulo: string) => `Resolvió “${titulo}”.`,
+    varias: (n: number) => `Resolvieron ${n} de tus mercados.`,
+    total: "Se acreditó a tu saldo",
+    comoSeSupo: "Cómo se supo",
+    ver: "Ver portafolio",
+    cerrar: "Entendido",
   },
 
   postTrade: {
     title: "Listo, tu posición está abierta",
     body: (side: string, amount: string, title: string) =>
       `${side} · ${amount} en “${title}”.`,
+    /** Lo que cobra si acierta: es la cifra protagonista de la confirmación. */
+    cobras: "Cobras si aciertas",
+    entraste: (side: string, prob: string) => `${side} a ${prob}%`,
+    pusiste: (amount: string) => `Pusiste ${amount}`,
+    compartir: "Contarle a alguien",
+    compartido: "Liga copiada",
+    compartirTexto: (side: string, title: string) =>
+      `Aposté ${side} en “${title}”. ¿Tú qué dices?`,
     goPortfolio: "Ver portafolio",
     keepExploring: "Seguir explorando",
   },
@@ -249,10 +279,10 @@ export const S = {
     p1VerTodos: "Ver los mercados",
     p2Title: "Tu cartera, en un tap",
     p2Body:
-      "Creamos una wallet para ti. Sin trámites, sin documentos, sin frases que memorizar.",
-    p2Primary: "Crear wallet",
-    p2Secondary: "Conectar wallet",
-    p3Title: "Tu wallet está lista",
+      "Creamos una cartera para ti. Sin trámites, sin documentos, sin frases que memorizar.",
+    p2Primary: "Crear cartera",
+    p2Secondary: "Conectar cartera",
+    p3Title: "Tu cartera está lista",
     p3Body: "Puedes explorar todo sin depositar. Deposita cuando quieras operar.",
     p3Primary: "Depositar",
     p3Secondary: "Explorar mercados",

@@ -404,3 +404,41 @@ describe("Asiento de apertura", () => {
     }
   });
 });
+
+describe("UX7 · la apuesta optimista no deja un estado mentiroso", () => {
+  it("si el servidor rechaza, el saldo vuelve a como estaba", () => {
+    // la apuesta optimista descuenta antes de que el servidor conteste. Lo que
+    // no puede pasar es que un rechazo deje descontado un saldo por una
+    // apuesta que no existe: eso sería dinero perdido en la pantalla
+    const dir = mkdtempSync(join(tmpdir(), "marea-optimista-"));
+    try {
+      const store = new Store(dir);
+      store.asegurarPozo({ marketId: "m1", outcomes: { si: 100, no: 100 }, feeBps: 300 });
+      store.crearUsuario({
+        id: "u1", usuario: "u1", hash: "x", salt: "y",
+        creado: new Date().toISOString(), puntos: 100,
+      });
+
+      // el servidor rechaza por saldo: no se mueve nada
+      expect(() =>
+        store.apostar({
+          usuarioId: "u1", marketId: "m1", side: "si", stake: 500, precio: 0.5,
+        }),
+      ).toThrow(/insuficiente/i);
+      expect(store.usuarioPorId("u1")!.puntos).toBe(100);
+      expect(store.pozo("m1")!.outcomes).toEqual({ si: 100, no: 100 });
+      expect(store.cuadre()).toBe(0);
+
+      // y un resultado que el mercado no declaró tampoco mueve nada
+      expect(() =>
+        store.apostar({
+          usuarioId: "u1", marketId: "m1", side: "fantasma", stake: 10, precio: 0.5,
+        }),
+      ).toThrow(/desconocido/i);
+      expect(store.usuarioPorId("u1")!.puntos).toBe(100);
+      expect(store.cuadre()).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

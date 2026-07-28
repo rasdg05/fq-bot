@@ -28,7 +28,7 @@ import {
   safeErrorReporter,
   type ErrorReporter,
 } from "@/adapters/errorReporter";
-import type { OutcomeId } from "@/domain/parimutuel";
+import { addStake, quote, type OutcomeId } from "@/domain/parimutuel";
 
 export type TabId = "markets" | "search" | "portfolio" | "wallet" | "tabla" | "profile";
 export type OnboardingStep = "p0" | "p1" | "p2" | "p3" | "done";
@@ -54,12 +54,24 @@ export interface AppState {
   depositBusy: boolean;
   tradeBusy: boolean;
   tradeError: AppError | null;
+  /**
+   * Lo que se ve es lo último que se pudo cargar y la recarga falló. Se dice en
+   * voz alta en vez de mostrarlo como fresco: si la referencia se cae, se
+   * apaga; no se muestra vieja (AGENTE §10).
+   */
+  datosViejos: boolean;
   postTrade: {
     side: OutcomeId;
     /** El texto del resultado, para no decir "Sí" en un mercado de siete. */
     sideLabel?: string;
     size: number;
     title: string;
+    /** Lo que cobra si acierta. Es la promesa que el sistema tiene que cumplir. */
+    toWin: number;
+    multiplier: number;
+    /** A qué probabilidad entró, que es a qué precio compró. */
+    probability: number;
+    marketId: string;
   } | null;
   /** País declarado o inferido: define elegibilidad para depositar y operar. */
   country?: CountryCode;
@@ -102,6 +114,7 @@ type Action =
   | { type: "trade_busy"; busy: boolean }
   | { type: "trade_error"; error: AppError | null }
   | { type: "post_trade"; value: AppState["postTrade"] }
+  | { type: "frescura"; viejo: boolean }
   | { type: "balance"; balance: number }
   | { type: "points"; ledger: PointsLedger }
   | { type: "country"; country: CountryCode; source: CountrySource }
@@ -167,6 +180,7 @@ export function initialState(overrides: Partial<AppState> = {}): AppState {
     depositBusy: false,
     tradeBusy: false,
     tradeError: null,
+    datosViejos: false,
     postTrade: null,
     country: guess.country,
     countrySource: guess.source,
@@ -222,6 +236,9 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, tradeError: action.error, tradeBusy: false };
     case "post_trade":
       return { ...state, postTrade: action.value, tradeBusy: false };
+    case "frescura":
+      if (state.datosViejos === action.viejo) return state;
+      return { ...state, datosViejos: action.viejo };
     case "points":
       return { ...state, points: action.ledger };
     case "country":
@@ -462,7 +479,12 @@ function createActions(
       dispatch({ type: "close_market" });
     },
     async loadMarkets() {
-      dispatch({ type: "markets", value: { status: "loading" } });
+      // si ya hay mercados en pantalla no se vuelve a "cargando": vaciar el
+      // feed para volver a llenarlo es un parpadeo, y con la red caída sería
+      // cambiar contenido bueno por una pantalla en blanco
+      if (getState().markets.status !== "data") {
+        dispatch({ type: "markets", value: { status: "loading" } });
+      }
       // el dato que llega tarde (la referencia que enciende el Edge) repinta el
       // feed una vez; no se espera a él para mostrar los mercados
       if (!suscrito && adapters.marketData.subscribe) {
@@ -480,7 +502,15 @@ function createActions(
         const data = await adapters.marketData.listMarkets();
         dispatch({ type: "markets", value: { status: "data", data } });
         adapters.analytics.track("view_feed", { count: data.length });
+        dispatch({ type: "frescura", viejo: false });
       } catch (error) {
+        // lo último que se cargó se sigue viendo, marcado como viejo. Un feed
+        // en blanco es peor que un feed de hace un minuto, siempre que se diga
+        // que es de hace un minuto (R-047)
+        if (getState().markets.status === "data") {
+          dispatch({ type: "frescura", viejo: true });
+          return;
+        }
         dispatch({
           type: "markets",
           value: { status: "error", error: fail(error, "E_MARKETS_FETCH_FAILED") },
@@ -488,7 +518,12 @@ function createActions(
       }
     },
     async loadPositions() {
-      dispatch({ type: "positions", value: { status: "loading" } });
+      // volver al portafolio no vacía la lista para volver a llenarla: lo que
+      // ya se cargó sigue siendo válido mientras llega lo nuevo. Ese parpadeo
+      // era gratis y se notaba en cada cambio de pestaña
+      if (getState().positions.status !== "data") {
+        dispatch({ type: "positions", value: { status: "loading" } });
+      }
       try {
         const data = await adapters.marketData.listPositions();
         dispatch({ type: "positions", value: { status: "data", data } });
@@ -594,6 +629,36 @@ function createActions(
       }
       dispatch({ type: "trade_busy", busy: true });
       dispatch({ type: "trade_error", error: null });
+
+      // apuesta optimista: el saldo y el pozo se mueven al instante y el
+      // servidor manda después. Con la red lenta, esperar el viaje de ida y
+      // vuelta hacía que la app pareciera trabada justo en el momento que más
+      // importa. Se guarda la foto de antes para poder deshacerlo: nunca se
+      // deja un estado que el servidor no confirmó (I3, I5)
+      const antesCuenta = getState().cuenta;
+      const antesMercados = getState().markets;
+      const optimista = market.pool
+        ? {
+            ...market,
+            pool: addStake(market.pool, side, size),
+          }
+        : market;
+      if (antesCuenta) {
+        dispatch({
+          type: "cuenta",
+          cuenta: { ...antesCuenta, puntos: Math.max(0, antesCuenta.puntos - size) },
+        });
+      }
+      if (antesMercados.status === "data" && market.pool) {
+        dispatch({
+          type: "markets",
+          value: {
+            status: "data",
+            data: antesMercados.data.map((m) => (m.id === market.id ? optimista : m)),
+          },
+        });
+      }
+
       try {
         if (!adapters.api && isPointsMode() && !canStake(getState().points, size)) {
           throw appErrorFor("E_TRADE_INIT_FAILED", { market_id: market.id });
@@ -620,6 +685,13 @@ function createActions(
             }),
           });
         }
+        // la cotización que se le mostró antes de entrar es exactamente la que
+        // se le confirma después: el número que se enseña es el que se cobra
+        // (I3). Recalcularla con otra fórmula aquí sería abrir la puerta a que
+        // las dos se separen
+        const cotizado = market.pool
+          ? quote(market.pool, side, size)
+          : { toWin: size, multiplier: 1, probability: market.probability };
         dispatch({
           type: "post_trade",
           value: {
@@ -627,17 +699,39 @@ function createActions(
             sideLabel: market.outcomes?.find((o) => o.id === side)?.label,
             size,
             title: market.title,
+            marketId: market.id,
+            toWin: cotizado.toWin,
+            multiplier: cotizado.multiplier,
+            probability: cotizado.probability,
           },
         });
+        // un golpecito donde exista; donde no, no pasa nada
+        try {
+          (globalThis.navigator as Navigator & { vibrate?: (p: number) => boolean })
+            ?.vibrate?.(12);
+        } catch {
+          /* sin vibración no se rompe nada */
+        }
         const balance = getState().wallet?.balance ?? 0;
         dispatch({ type: "balance", balance: Math.max(0, balance - size) });
         return true;
       } catch (error) {
+        // el servidor no lo aceptó: se devuelve la pantalla a como estaba. Un
+        // saldo descontado por una apuesta que no existe es exactamente el
+        // estado mentiroso que la apuesta optimista no puede dejar
+        if (antesCuenta) dispatch({ type: "cuenta", cuenta: antesCuenta });
+        if (antesMercados.status === "data") {
+          dispatch({ type: "markets", value: antesMercados });
+        }
         dispatch({ type: "trade_error", error: fail(error, "E_TRADE_INIT_FAILED") });
         return false;
       } finally {
         inFlight.trade = false;
       }
+    },
+    /** Marca lo que hay en pantalla como lo ultimo que se pudo cargar. */
+    marcarDatosViejos(viejo: boolean) {
+      dispatch({ type: "frescura", viejo });
     },
     dismissPostTrade() {
       dispatch({ type: "post_trade", value: null });

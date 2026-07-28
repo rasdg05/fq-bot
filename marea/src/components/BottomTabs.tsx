@@ -37,16 +37,25 @@ export function BottomTabs() {
 
   return (
     <nav
-      aria-label={S.tabs.markets}
+      aria-label={S.tabs.navegacion}
       data-testid="bottom-tabs"
       className="fixed inset-x-0 bottom-0 z-30 border-t border-line2 bg-bg"
       style={{ paddingBottom: "var(--safe-b)" }}
     >
-      <ul className="mx-auto flex w-full max-w-[520px] items-stretch">
+      {/* un `role="tab"` sin `tablist` que lo contenga deja al lector de
+          pantalla sin saber cuántas pestañas hay ni en cuál está. Era el único
+          hallazgo crítico de axe, y salía en las cinco pantallas.
+          `role="presentation"` en los `li` porque una lista dentro de un
+          tablist tampoco es una estructura válida */}
+      <ul
+        role="tablist"
+        aria-label={S.tabs.navegacion}
+        className="mx-auto flex w-full max-w-[520px] items-stretch"
+      >
         {TABS.map(({ id, label, Icon }) => {
           const active = state.tab === id;
           return (
-            <li key={id} className="flex-1">
+            <li key={id} role="presentation" className="flex-1">
               <button
                 type="button"
                 role="tab"
