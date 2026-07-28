@@ -16,7 +16,7 @@ import {
   type Bet,
   type Pool,
 } from "@/domain/parimutuel";
-import { Store } from "../server/store.mts";
+import { Store, VERSION_DATOS } from "../server/store.mts";
 import { createMatchOracle, type EspnEvento } from "@/adapters/oracles/matchOracle";
 import { readWithOracles } from "@/domain/settlement";
 import { ruleProblems, type MatchOutcomeRule } from "@/domain/oracleRule";
@@ -223,7 +223,7 @@ describe("Migración del pozo viejo", () => {
 
       // y lo que escribe ya es formato nuevo
       const escrito = JSON.parse(readFileSync(join(dir, "marea.json"), "utf8"));
-      expect(escrito.version).toBe(2);
+      expect(escrito.version).toBe(VERSION_DATOS);
       expect(escrito.pozos[0]).toHaveProperty("outcomes");
       expect(escrito.pozos[0]).not.toHaveProperty("si");
     } finally {

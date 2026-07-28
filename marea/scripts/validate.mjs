@@ -454,6 +454,50 @@ check("O1", "lo automatizable no se deja en manos de una persona", () => {
   return problems;
 });
 
+/* ------------------------------- A1 -------------------------------------- */
+check("A1", "todo camino de dinero pasa por la puerta y por contabilidad", () => {
+  const problems = [];
+  const solicitudes = read(join(SRC, "domain", "solicitudes.ts"));
+  // una solicitud de dinero no puede nacer sin consultar la elegibilidad: si
+  // se crea primero y se valida después, el camino ya está abierto (R-045)
+  if (!/eligibilityFor/.test(solicitudes)) {
+    problems.push("las solicitudes de dinero no consultan la puerta de elegibilidad");
+  }
+  // y el retiro no puede saltarse la revisión humana
+  if (!/pendiente: \["en_revision"/.test(solicitudes)) {
+    problems.push("un retiro puede saltarse la revisión");
+  }
+
+  // el contrato de custodia declara que es simulado y no sabe firmar (R-022).
+  // Se mira el código sin comentarios: el módulo documenta a propósito lo que
+  // NO trae, y buscar el nombre en la prosa daría un falso positivo
+  const contrato = read(join(SRC, "adapters", "custodia", "contrato.ts"));
+  const codigo = contrato
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
+  if (!/esSimulado/.test(codigo)) {
+    problems.push("el contrato de custodia no declara que es simulado");
+  }
+  for (const prohibido of ["firmar", "privateKey", "signTransaction", "sendTransaction"]) {
+    if (codigo.includes(prohibido)) {
+      problems.push(`el contrato expone ${prohibido}: eso espera opinión legal`);
+    }
+  }
+
+  // ningún país puede mover dinero todavía
+  const elegibilidad = read(join(SRC, "domain", "eligibility.ts"));
+  if (/status: "permitido"/.test(elegibilidad)) {
+    problems.push("hay un país en `permitido` sin que conste la opinión legal");
+  }
+
+  // la comisión que se resta tiene que quedar asentada (R-064)
+  const store = read(join(ROOT, "server", "store.mts"));
+  if (!/CUENTAS_SISTEMA\.tesoreria/.test(store)) {
+    problems.push("la comisión no llega a la tesorería contable");
+  }
+  return problems;
+});
+
 /* ------------------------------- H1 -------------------------------------- */
 check("H1", "el trabajo manual de resolución no pasa del tope", () => {
   // R-062 topa en tres los mercados abiertos que dependen de que una persona

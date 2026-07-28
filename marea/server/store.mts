@@ -2,6 +2,16 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { join } from "node:path";
 import { normalizePool, type OutcomeId, type Side } from "../src/domain/parimutuel";
 import type { SettlementState } from "../src/domain/settlement";
+import {
+  CUENTAS_SISTEMA,
+  asiento,
+  conciliarTesoreria,
+  cuadre,
+  cuentaPozo,
+  cuentaUsuario,
+  saldos,
+  type Asiento,
+} from "../src/domain/contabilidad";
 
 /**
  * Persistencia. Sin esto el producto no existe: alguien apuesta, cierra la app,
@@ -76,12 +86,13 @@ export interface AsientoComision {
  *
  *  - 1: el pozo era `{ marketId, si, no, feeBps }`, dos columnas fijas.
  *  - 2: el pozo es `{ marketId, outcomes, feeBps }`, un mapa por resultado.
+ *  - 3: aparece el libro de partida doble, con su asiento de apertura.
  *
  * Se lee cualquiera de las dos y se escribe siempre la nueva. Un pozo que no
  * se sepa leer sería dinero de gente que desaparece, así que la migración
  * corre al abrir el archivo y no depende de que nadie se acuerde.
  */
-export const VERSION_DATOS = 2;
+export const VERSION_DATOS = 3;
 
 interface Datos {
   version: number;
@@ -90,6 +101,12 @@ interface Datos {
   pozos: PozoGuardado[];
   liquidaciones: SettlementState[];
   comisiones: AsientoComision[];
+  /**
+   * Libro de partida doble. Convive con `comisiones`, que es el resumen que ya
+   * usaba la tesorería: el libro es la fuente auditable y `conciliar()` grita
+   * si los dos dejan de coincidir.
+   */
+  libro: Asiento[];
 }
 
 const VACIO: Datos = {
@@ -99,6 +116,7 @@ const VACIO: Datos = {
   pozos: [],
   liquidaciones: [],
   comisiones: [],
+  libro: [],
 };
 
 /**
@@ -111,15 +129,57 @@ const VACIO: Datos = {
  * una migración con más superficie para equivocarse.
  */
 function migrar(datos: Datos): Datos {
-  if (datos.version === VERSION_DATOS && datos.pozos.every((p) => "outcomes" in p)) {
-    return datos;
-  }
+  const alDia =
+    datos.version === VERSION_DATOS &&
+    datos.pozos.every((p) => "outcomes" in p) &&
+    !necesitaApertura(datos);
+  if (alDia) return datos;
+
   const pozos = datos.pozos.map((guardado) => {
     const { marketId } = guardado;
     const pool = normalizePool(guardado);
     return { marketId, outcomes: pool.outcomes, feeBps: pool.feeBps };
   });
-  return { ...datos, version: VERSION_DATOS, pozos };
+  const migrado = { ...datos, version: VERSION_DATOS, pozos };
+  return necesitaApertura(migrado) ? conApertura(migrado) : migrado;
+}
+
+/** Hay saldos vivos pero el libro está vacío: falta el asiento de apertura. */
+function necesitaApertura(datos: Datos): boolean {
+  if (datos.libro.length > 0) return false;
+  return datos.usuarios.length > 0 || datos.pozos.length > 0;
+}
+
+/**
+ * Asiento de apertura.
+ *
+ * El libro nace después de que ya había gente con puntos y mercados con pozo.
+ * Sin registrar ese punto de partida, la primera apuesta de un usuario viejo
+ * dejaría su cuenta en negativo — parecería que le prestamos, y no hay crédito
+ * jamás. Es lo mismo que hace cualquier contabilidad que empieza a llevarse
+ * sobre un negocio que ya andaba: se abre con los saldos que había.
+ */
+function conApertura(datos: Datos): Datos {
+  const patas: { cuenta: string; monto: number }[] = [];
+  let total = 0;
+  for (const usuario of datos.usuarios) {
+    if (usuario.puntos === 0) continue;
+    patas.push({ cuenta: cuentaUsuario(usuario.id), monto: usuario.puntos });
+    total += usuario.puntos;
+  }
+  for (const pozo of datos.pozos) {
+    const suma = Object.values(pozo.outcomes).reduce((s, v) => s + v, 0);
+    if (suma === 0) continue;
+    patas.push({ cuenta: cuentaPozo(pozo.marketId), monto: suma });
+    total += suma;
+  }
+  if (patas.length === 0) return datos;
+  // la contrapartida de todo lo que ya existía entra por `entrada`
+  patas.push({ cuenta: CUENTAS_SISTEMA.entrada, monto: -total });
+  return {
+    ...datos,
+    libro: [asiento("deposito", patas, "apertura")],
+  };
 }
 
 export class Store {
@@ -192,6 +252,21 @@ export class Store {
   crearUsuario(usuario: Usuario): Usuario {
     return this.mutar((datos) => {
       datos.usuarios.push(usuario);
+      // los puntos de bienvenida entran por `entrada`, como entraría un
+      // depósito. Sin asentarlos, el saldo contable del usuario no cuadraría
+      // con sus puntos y la auditoría no serviría de nada
+      if (usuario.puntos > 0) {
+        datos.libro.push(
+          asiento(
+            "deposito",
+            [
+              { cuenta: CUENTAS_SISTEMA.entrada, monto: -usuario.puntos },
+              { cuenta: cuentaUsuario(usuario.id), monto: usuario.puntos },
+            ],
+            usuario.id,
+          ),
+        );
+      }
       return usuario;
     });
   }
@@ -227,6 +302,18 @@ export class Store {
       if (!usuario) throw new Error("usuario desconocido");
       usuario.ultimaRecarga = dia;
       usuario.puntos += monto;
+      if (monto > 0) {
+        datos.libro.push(
+          asiento(
+            "deposito",
+            [
+              { cuenta: CUENTAS_SISTEMA.entrada, monto: -monto },
+              { cuenta: cuentaUsuario(usuarioId), monto },
+            ],
+            usuarioId,
+          ),
+        );
+      }
       return usuario.puntos;
     });
   }
@@ -247,6 +334,22 @@ export class Store {
     if (existente) return existente;
     return this.mutar((datos) => {
       datos.pozos.push(pozo);
+      // la semilla es dinero de la casa que corre la misma suerte que el
+      // usuario (R-057). Entra al pozo con su asiento, o el pozo terminaría
+      // repartiendo más de lo que registró haber recibido
+      const semilla = Object.values(pozo.outcomes).reduce((s, v) => s + v, 0);
+      if (semilla > 0) {
+        datos.libro.push(
+          asiento(
+            "semilla",
+            [
+              { cuenta: CUENTAS_SISTEMA.entrada, monto: -semilla },
+              { cuenta: cuentaPozo(pozo.marketId), monto: semilla },
+            ],
+            pozo.marketId,
+          ),
+        );
+      }
       return pozo;
     });
   }
@@ -299,6 +402,18 @@ export class Store {
         at: new Date().toISOString(),
       };
       datos.apuestas.push(apuesta);
+      // el mismo movimiento, en el libro: sale del usuario y entra al pozo del
+      // mercado. La casa no toca nada aquí (R-057)
+      datos.libro.push(
+        asiento(
+          "apuesta",
+          [
+            { cuenta: cuentaUsuario(input.usuarioId), monto: -input.stake },
+            { cuenta: cuentaPozo(input.marketId), monto: input.stake },
+          ],
+          input.marketId,
+        ),
+      );
       return apuesta;
     });
   }
@@ -341,6 +456,16 @@ export class Store {
           if (usuario) {
             usuario.puntos += monto;
             acreditado += monto;
+            datos.libro.push(
+              asiento(
+                "liquidacion",
+                [
+                  { cuenta: cuentaPozo(marketId), monto: -monto },
+                  { cuenta: cuentaUsuario(usuario.id), monto },
+                ],
+                marketId,
+              ),
+            );
           }
         }
       }
@@ -355,6 +480,18 @@ export class Store {
       // una comisión por mercado: correr el ciclo dos veces no cobra dos veces
       if (!datos.comisiones.some((c) => c.marketId === marketId)) {
         datos.comisiones.push({ marketId, monto, at: new Date().toISOString() });
+        // y su asiento: la comisión sale del pozo y llega a tesorería. Una
+        // comisión que se calcula y desaparece es perderle la pista al dinero
+        datos.libro.push(
+          asiento(
+            "liquidacion",
+            [
+              { cuenta: cuentaPozo(marketId), monto: -monto },
+              { cuenta: CUENTAS_SISTEMA.tesoreria, monto },
+            ],
+            marketId,
+          ),
+        );
       }
       return datos.comisiones.reduce((suma, c) => suma + c.monto, 0);
     });
@@ -368,9 +505,36 @@ export class Store {
     return this.datos.comisiones;
   }
 
+  /* ---------------------------- contabilidad ----------------------------- */
+
+  libro(): Asiento[] {
+    return this.datos.libro;
+  }
+
+  /** Suma de todas las cuentas. Cero, o hay dinero perdido. */
+  cuadre(): number {
+    return cuadre(this.datos.libro);
+  }
+
+  saldosContables(): Record<string, number> {
+    return saldos(this.datos.libro);
+  }
+
+  /**
+   * La tesorería que reporta el resumen contra la que dice el libro. Si se
+   * separan, alguien cobró comisión por fuera de contabilidad.
+   */
+  conciliar() {
+    return conciliarTesoreria(this.datos.libro, this.tesoreria());
+  }
+
   resumen() {
+    const conciliacion = this.conciliar();
     return {
       tesoreria: Math.round(this.tesoreria()),
+      /** Cero, o hay dinero perdido. Se mira en cada arranque. */
+      cuadre: this.cuadre(),
+      conciliaTesoreria: conciliacion.cuadra,
       usuarios: this.datos.usuarios.length,
       apuestas: this.datos.apuestas.length,
       mercadosConPozo: this.datos.pozos.length,
