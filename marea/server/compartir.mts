@@ -28,8 +28,17 @@ export function descripcionDe(mercado: Market): string {
     mercado.edge !== null && mercado.edgeLabel
       ? ` · Edge de ${mercado.edge > 0 ? "+" : "−"}${Math.abs(mercado.edge)} pp contra ${mercado.edgeLabel}`
       : "";
+  // en un mercado de tres respuestas no existe "que sí": decirlo sería
+  // describir un mercado distinto del que se abre al tocar la liga, y la vista
+  // previa es lo único que ve quien todavía no entró
+  if (mercado.leadLabel) {
+    return `Va ganando “${mercado.leadLabel}” con ${probabilidad}${edge}. Entra y di tú qué va a pasar.`;
+  }
   return `El mercado dice ${probabilidad} que sí${edge}. Entra y di tú qué va a pasar.`;
 }
+
+/** La imagen de marca de la vista previa, servida desde `public/`. */
+export const IMAGEN_MARCA = "/marca/og.png";
 
 export function metaDeMercado(html: string, mercado: Market, origen: string): string {
   const titulo = `${mercado.title} · Marea`;
@@ -42,9 +51,22 @@ export function metaDeMercado(html: string, mercado: Market, origen: string): st
     `<meta property="og:url" content="${escapar(enlace)}">`,
     `<meta property="og:type" content="website">`,
     `<meta property="og:site_name" content="Marea">`,
-    `<meta name="twitter:card" content="summary">`,
+    // sin `og:image`, WhatsApp y Telegram pintan la liga sin imagen: es la
+    // única cara de Marea que ve quien todavía no la instaló, y estaba vacía.
+    // La imagen es de marca y no lleva datos del mercado a propósito — una
+    // imagen con la probabilidad dentro se quedaría vieja en cuanto alguien
+    // apueste, y la vista previa se cachea durante días
+    `<meta property="og:image" content="${escapar(`${origen}${IMAGEN_MARCA}`)}">`,
+    `<meta property="og:image:width" content="1200">`,
+    `<meta property="og:image:height" content="630">`,
+    `<meta property="og:image:alt" content="Marea · mercados de predicción de Latinoamérica">`,
+    `<meta property="og:locale" content="es_LA">`,
+    // `summary_large_image` es lo que hace que la imagen se vea grande en vez
+    // de como una miniatura al lado del texto
+    `<meta name="twitter:card" content="summary_large_image">`,
     `<meta name="twitter:title" content="${escapar(titulo)}">`,
     `<meta name="twitter:description" content="${escapar(descripcion)}">`,
+    `<meta name="twitter:image" content="${escapar(`${origen}${IMAGEN_MARCA}`)}">`,
   ].join("\n    ");
 
   // el HTML de la build conserva el formato del fuente, con atributos en

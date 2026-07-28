@@ -492,3 +492,22 @@ describe("UX3 · el número que se promete es el que se cobra", () => {
     }
   });
 });
+
+describe("La vista previa describe el mercado que de verdad se abre", () => {
+  it("un mercado de N respuestas no dice “que sí”: no tiene lado sí", async () => {
+    const { descripcionDe } = await import("../server/compartir.mts");
+    const multiple = {
+      id: "m", title: "¿Cómo termina?", probability: 0.47, volume: 1000,
+      status: "open" as const, category: "deportes" as const, edge: null,
+      resolution_summary: "x", leadLabel: "Gana el América",
+    };
+    const texto = descripcionDe(multiple);
+    expect(texto).toContain("Gana el América");
+    expect(texto).toContain("47%");
+    expect(texto).not.toMatch(/que sí/);
+
+    // y el binario sigue diciendo lo de siempre
+    const binario = { ...multiple, leadLabel: undefined };
+    expect(descripcionDe(binario)).toMatch(/que sí/);
+  });
+});

@@ -442,3 +442,64 @@ describe("UX7 · la apuesta optimista no deja un estado mentiroso", () => {
     }
   });
 });
+
+describe("Varias apuestas: todas se ven y todas cuadran", () => {
+  /**
+   * Reportado desde producción: al meter más de una apuesta, el portafolio
+   * sólo mostraba la primera — pero los puntos sí se descontaban. Eso es un
+   * agujero de ciclo de vida: alguien paga y no ve qué compró.
+   *
+   * No se reprodujo en esta rama (ni con apuestas seguidas, ni en el mismo
+   * mercado, ni con seis peticiones a la vez). Esta prueba fija el
+   * comportamiento para que, si el defecto existe todavía en algún camino, no
+   * pueda volver en silencio.
+   */
+  it("N apuestas dejan N posiciones, y los puntos cuadran con la suma", () => {
+    const dir = mkdtempSync(join(tmpdir(), "marea-varias-"));
+    try {
+      const store = new Store(dir);
+      for (const m of ["m1", "m2", "m3"]) {
+        store.asegurarPozo({ marketId: m, outcomes: { si: 100, no: 100 }, feeBps: 300 });
+      }
+      store.crearUsuario({
+        id: "u1", usuario: "u1", hash: "x", salt: "y",
+        creado: new Date().toISOString(), puntos: 1000,
+      });
+
+      const apuestas = [
+        { marketId: "m1", side: "si", stake: 50 },
+        { marketId: "m2", side: "no", stake: 70 },
+        { marketId: "m3", side: "si", stake: 30 },
+        // y dos más en un mercado donde ya apostó: el caso que más se repite
+        { marketId: "m1", side: "si", stake: 40 },
+        { marketId: "m1", side: "no", stake: 60 },
+      ];
+      for (const a of apuestas) {
+        store.apostar({ usuarioId: "u1", ...a, precio: 0.5 });
+      }
+
+      const mias = store.apuestasDe("u1");
+      expect(mias).toHaveLength(apuestas.length);
+
+      // ningún id repetido: dos posiciones con el mismo id se pisan en la
+      // lista y una de las dos desaparece de la pantalla
+      const ids = mias.map((a) => a.id);
+      expect(new Set(ids).size, `ids: ${ids.join(", ")}`).toBe(ids.length);
+
+      // los puntos descontados son exactamente lo apostado, ni más ni menos
+      const total = apuestas.reduce((s, a) => s + a.stake, 0);
+      expect(store.usuarioPorId("u1")!.puntos).toBe(1000 - total);
+
+      // y el libro sigue cuadrando
+      expect(store.cuadre()).toBe(0);
+      expect(saldoDe(store.libro(), cuentaUsuario("u1"))).toBe(1000 - total);
+
+      // sobreviven al reinicio, todas
+      const otro = new Store(dir);
+      expect(otro.apuestasDe("u1")).toHaveLength(apuestas.length);
+      expect(new Set(otro.apuestasDe("u1").map((a) => a.id)).size).toBe(ids.length);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
