@@ -1,7 +1,8 @@
 # SOFT LAUNCH — qué falta, en orden
 
-Estado al 27 de julio de 2026, segunda revisión. `npm run ci` en verde: **191
-pruebas**, `VALIDATION_REPORT` en PASS con dos verificaciones nuevas (L1 y M1).
+Estado al 27 de julio de 2026, segunda revisión. `npm run ci` en verde: **192
+pruebas**, `VALIDATION_REPORT` en PASS con dos verificaciones nuevas (L1 y M1), y
+`npm run perf` en PASS en los dos recorridos.
 
 **Veredicto: SOFT_LAUNCH_READY en modalidad de puntos.** Los dos bloqueantes de
 ciclo de vida están cerrados y automatizados. Lo que queda para publicar no es
@@ -62,6 +63,11 @@ apuesta ganadora de 100 puntos cobraba 1,067 cuando el multiplicador mostrado
 antes de entrar decía 178. Los dos números tienen que ser el mismo, y ahora lo
 son, con prueba que lo fija (R-044, V45).
 
+**El feed esperaba a la casa externa antes de pintar.** Con Polymarket
+inalcanzable eran 20 s de pantalla en blanco, medidos en el navegador. Los
+mercados no dependen de esa lectura —sólo el Edge— así que ahora salen sin ella
+y el Edge se enciende cuando llega: 20.4 s → 0.8 s (R-047).
+
 **Se citaba Binance y se iba a leer Kraken.** Los dos mercados de cripto del
 catálogo citaban un par de Binance que no tiene endpoint público estable. Ahora
 citan exactamente el endpoint de Kraken que el oráculo consulta, verificable a
@@ -73,7 +79,7 @@ mano desde el navegador (R-046).
 
 | | Estado |
 |---|---|
-| App móvil completa, español Latam | ✓ 191 pruebas |
+| App móvil completa, español Latam | ✓ 192 pruebas |
 | Motor parimutuel, con lo que reparte igual a lo que promete | ✓ |
 | Liquidación automática con oráculo y ventana de disputa | ✓ `npm run settle` |
 | Reposición automática del catálogo | ✓ `npm run roll` |
@@ -83,7 +89,7 @@ mano desde el navegador (R-046).
 | Edge sólo con referencia externa, se apaga si el venue cae | ✓ |
 | Detección de país en el dispositivo, sin red ni dato personal | ✓ |
 | Wallet conectada real por EIP-1193 | ✓ sin contrato con nadie |
-| Métricas móviles y rendimiento medido | ✓ LCP 1.75 s, INP 80 ms |
+| Métricas móviles y rendimiento medido | ✓ LCP 1.70 s, INP 56 ms, al feed 1.8 s |
 | Publicar y operar desde tu máquina, sin CI | ✓ `npm run deploy` |
 
 ## Pendientes que no bloquean el lanzamiento con puntos

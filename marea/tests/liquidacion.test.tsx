@@ -113,6 +113,34 @@ describe("Liquidación de punta a punta", () => {
     expect(market.settlementEvidence).toBe(EVIDENCIA);
   });
 
+  it("V46 una casa externa lenta no deja el feed en blanco: sale sin Edge y el Edge llega después", async () => {
+    let resolver: (() => void) | undefined;
+    const conReferencia = createOwnMarketsAdapter({
+      seeds: [{ ...seed, referenceKey: "btc" }],
+      now: () => AHORA,
+      referenceTimeoutMs: 20,
+      loadReference: () =>
+        new Promise((resolve) => {
+          resolver = () => resolve(new Map([["btc", { probability: 0.95, venue: "Polymarket" }]]));
+        }),
+    });
+
+    const avisos: number[] = [];
+    conReferencia.subscribe?.(() => avisos.push(1));
+
+    // el feed no espera a la casa externa: los mercados no dependen de ella
+    const inicio = Date.now();
+    const [sinEdge] = await conReferencia.listMarkets();
+    expect(Date.now() - inicio).toBeLessThan(1_000);
+    expect(sinEdge.edge).toBeNull();
+
+    // cuando la lectura llega, avisa para repintar y ahí sí aparece el Edge
+    resolver!();
+    await waitFor(() => expect(avisos).toHaveLength(1));
+    const [conEdge] = await conReferencia.listMarkets();
+    expect(conEdge.edge).not.toBeNull();
+  });
+
   it("V44 el pago se acredita al saldo una sola vez, aunque se recargue el portafolio", async () => {
     const user = userEvent.setup();
     let estados: SettlementState[] = [];

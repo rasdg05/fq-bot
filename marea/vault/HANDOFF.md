@@ -42,8 +42,8 @@ latencia. Reproducible con `npm run perf`.
 
 | Recorrido | LCP | INP | CLS | Al feed | Transferido |
 |---|---|---|---|---|---|
-| Usuario nuevo | 1752 ms | 80 ms | 0.001 | 1.8 s | 175 kB |
-| Usuario recurrente | 1356 ms | 104 ms | 0 | 1.5 s | 175 kB |
+| Usuario nuevo | 1704 ms | 56 ms | 0 | 1.8 s | 180 kB |
+| Usuario recurrente | 1676 ms | 56 ms | 0.001 | 1.7 s | 180 kB |
 | Presupuesto | 2500 ms | 200 ms | 0.1 | 75 s | — |
 
 El tiempo al feed bajó de 2.2 s a 1.8 s al quitar la wallet del camino: en modo
@@ -54,6 +54,12 @@ presupuesto**. La causa era nuestra: el splash de P0 esperaba 1400 ms fijos y
 retrasaba el primer pintado grande. Ahora P0 tiene techo en lugar de duración
 (R-021) y avanza en cuanto el shell pintó: LCP bajó 40 % y el tiempo al feed
 pasó de 3.3 s a 2.2 s.
+
+Al enchufar la liquidación, la medición volvió a atrapar un defecto: el feed
+esperaba a la casa externa antes de pintar, y con Polymarket inalcanzable eso
+eran **20 s de pantalla en blanco**. Los mercados no dependen de esa lectura —
+sólo el Edge — así que ahora salen sin ella y el Edge se enciende cuando llega
+(R-047). El tiempo al feed pasó de 20.4 s a 0.8 s en ese escenario.
 
 Dos salvedades honestas: es medición de laboratorio, no de campo — los números
 de usuarios reales sólo salen del sink en producción — y el TTFB de 5 ms no es

@@ -9,6 +9,13 @@ import { MOCK_MARKETS, findMockMarket } from "./mock/markets";
  */
 export interface MarketDataAdapter {
   listMarkets(): Promise<Market[]>;
+  /**
+   * Avisa cuando llegó tarde un dato que cambia lo ya mostrado — hoy, la
+   * referencia externa que enciende el Edge. Existe para que el feed no tenga
+   * que esperarla: se muestra lo que hay y el Edge aparece en cuanto se puede
+   * leer, sin bloquear la primera pintada.
+   */
+  subscribe?(listener: () => void): () => void;
   getMarket(id: string): Promise<Market>;
   listPositions(): Promise<Position[]>;
   /**

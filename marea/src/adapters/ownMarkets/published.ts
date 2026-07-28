@@ -25,8 +25,17 @@ export interface PublishedSettlements {
   states: SettlementState[];
 }
 
+/** Con la base de la app delante: publicar en un subdirectorio no la rompe. */
+function conBase(url: string): string {
+  if (/^https?:\/\//.test(url)) return url;
+  // igual que en `lib/config`: `import.meta.env` en la app, nada en pruebas
+  const base =
+    (import.meta as unknown as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? "/";
+  return `${base.replace(/\/$/, "")}/${url.replace(/^\//, "")}`;
+}
+
 async function loadJson<T>(url: string, fetchImpl: typeof fetch): Promise<T | null> {
-  const response = await fetchImpl(url, { cache: "no-store" });
+  const response = await fetchImpl(conBase(url), { cache: "no-store" });
   if (!response.ok) return null;
   return (await response.json()) as T;
 }

@@ -44,6 +44,12 @@ export interface OwnMarketsOptions {
   loadReference?: () => Promise<Map<string, ReferenceQuote>>;
   /** Cuánto vale una referencia antes de volver a pedirla. */
   referenceTtlMs?: number;
+  /**
+   * Cuánto se espera a la referencia antes de mostrar el feed sin ella. Los
+   * mercados no dependen de la referencia — sólo el Edge — así que una casa
+   * lenta no puede dejar la pantalla en blanco.
+   */
+  referenceTimeoutMs?: number;
   /** Se avisa cuando la referencia no se pudo cargar, para observabilidad. */
   onReferenceError?: (error: unknown) => void;
   /** Se llama cuando una apuesta se acepta, para descontar del ledger. */
@@ -78,9 +84,37 @@ export function createOwnMarketsAdapter(
 } {
   const now = options.now ?? (() => Date.now());
   const referenceTtl = options.referenceTtlMs ?? 60_000;
+  const referenceTimeout = options.referenceTimeoutMs ?? 300;
   let reference = options.reference;
   let referenceAt = options.reference ? now() : 0;
   let cargando: Promise<void> | null = null;
+  const listeners = new Set<() => void>();
+
+  function avisar() {
+    for (const listener of listeners) listener();
+  }
+
+  /**
+   * Espera a la referencia, pero no para siempre. Si la casa externa tarda, el
+   * feed sale sin Edge y el Edge se enciende cuando la lectura llega: esperar
+   * en blanco por un adorno sería fabricar espera (R-021).
+   */
+  async function waitForReference(): Promise<void> {
+    const carga = refreshReference();
+    if (referenceTimeout <= 0) return carga;
+    let tarde = false;
+    await Promise.race([
+      carga.then(() => {
+        if (tarde) avisar();
+      }),
+      new Promise<void>((resolve) =>
+        setTimeout(() => {
+          tarde = true;
+          resolve();
+        }, referenceTimeout),
+      ),
+    ]);
+  }
 
   /**
    * Refresca la referencia si venció. Una caída no rompe el feed: se descarta
@@ -200,8 +234,13 @@ export function createOwnMarketsAdapter(
   }
 
   return {
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+
     async listMarkets() {
-      await Promise.all([refreshSeeds(), refreshSettlements(), refreshReference()]);
+      await Promise.all([refreshSeeds(), refreshSettlements(), waitForReference()]);
       const vigentes = new Set(
         activeSeeds(
           now(),

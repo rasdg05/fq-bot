@@ -132,3 +132,6 @@ Se agrega una línea cuando un hallazgo de audit es recurrente o de producto.
 - **R-046** — Ninguna fuente se cita si no es la que se lee. Citar una casa y
   resolver con otra es resolver con una fuente distinta de la prometida.
   (liquidación)
+- **R-047** — El contenido principal nunca espera a un dato secundario. Los
+  mercados se muestran sin la referencia externa y el Edge se enciende cuando
+  llega: una casa lenta dejaba el feed 20 s en blanco, medido. (perf)

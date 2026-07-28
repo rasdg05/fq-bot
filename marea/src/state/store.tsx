@@ -227,6 +227,7 @@ function createActions(
    * actualizar y pagarían dos veces — mismo defecto que el doble tap (R-016).
    */
   const acreditados = new Set<string>();
+  let suscrito = false;
 
   const fail = (error: unknown, fallback: Parameters<typeof toAppError>[1]) => {
     const appErr = toAppError(error, fallback);
@@ -297,6 +298,19 @@ function createActions(
     },
     async loadMarkets() {
       dispatch({ type: "markets", value: { status: "loading" } });
+      // el dato que llega tarde (la referencia que enciende el Edge) repinta el
+      // feed una vez; no se espera a él para mostrar los mercados
+      if (!suscrito && adapters.marketData.subscribe) {
+        suscrito = true;
+        adapters.marketData.subscribe(() => {
+          void adapters.marketData
+            .listMarkets()
+            .then((data) => dispatch({ type: "markets", value: { status: "data", data } }))
+            .catch(() => {
+              /* el feed ya mostrado sigue siendo válido: no se rompe por esto */
+            });
+        });
+      }
       try {
         const data = await adapters.marketData.listMarkets();
         dispatch({ type: "markets", value: { status: "data", data } });
