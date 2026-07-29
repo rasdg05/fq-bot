@@ -49,14 +49,27 @@ export function ProfileScreen() {
               {S.cuenta.salir}
             </button>
           ) : (
-            <button
-              type="button"
-              data-testid="profile-login"
-              onClick={() => actions.abrirCuenta(true)}
-              className="min-h-[44px] text-[14px] text-teal"
-            >
-              {S.cuenta.sinCuentaCta}
-            </button>
+            /* dos puertas, las dos a la vista. Volver es tan normal como
+               empezar: con una sola entrada, quien ya tenía cuenta y perdió la
+               sesión no tenía cómo saber que "Crear cuenta" abre una hoja donde
+               además se puede entrar */
+            <div className="flex gap-2">
+              <Button
+                data-testid="profile-login"
+                onClick={() => actions.abrirCuenta(true, "registro")}
+                className="flex-1"
+              >
+                {S.cuenta.sinCuentaCta}
+              </Button>
+              <Button
+                variant="secondary"
+                data-testid="profile-entrar"
+                onClick={() => actions.abrirCuenta(true, "entrar")}
+                className="flex-1"
+              >
+                {S.cuenta.entrarCta}
+              </Button>
+            </div>
           )}
         </div>
       </Card>

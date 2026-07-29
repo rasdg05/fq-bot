@@ -32,6 +32,11 @@ import { addStake, quote, type OutcomeId } from "@/domain/parimutuel";
 
 export type TabId = "markets" | "search" | "portfolio" | "wallet" | "tabla" | "profile";
 export type OnboardingStep = "p0" | "p1" | "p2" | "p3" | "done";
+/**
+ * Con qué cara abre la hoja de cuenta. `recuperar` no está aquí a propósito:
+ * es un desvío que sólo se toma desde dentro de la hoja, nunca una entrada.
+ */
+export type ModoCuenta = "registro" | "entrar";
 
 export type Async<T> =
   | { status: "loading" }
@@ -86,6 +91,11 @@ export interface AppState {
   cuenta: Cuenta | null;
   /** La hoja de cuenta está abierta. Se abre al querer apostar sin sesión. */
   cuentaAbierta: boolean;
+  /**
+   * Con qué cara abre la hoja. Quien vuelve entra por "Entrar" y no tiene por
+   * qué pasar por un formulario de registro que no es el suyo.
+   */
+  cuentaModo: ModoCuenta;
   cuentaBusy: boolean;
   cuentaError: string | null;
   /**
@@ -119,7 +129,7 @@ type Action =
   | { type: "points"; ledger: PointsLedger }
   | { type: "country"; country: CountryCode; source: CountrySource }
   | { type: "cuenta"; cuenta: Cuenta | null }
-  | { type: "cuenta_abierta"; abierta: boolean }
+  | { type: "cuenta_abierta"; abierta: boolean; modo?: ModoCuenta }
   | { type: "cuenta_busy"; busy: boolean }
   | { type: "cuenta_error"; error: string | null }
   | { type: "codigo_recuperacion"; codigo: string | null };
@@ -186,6 +196,7 @@ export function initialState(overrides: Partial<AppState> = {}): AppState {
     countrySource: guess.source,
     cuenta: null,
     cuentaAbierta: false,
+    cuentaModo: "registro",
     cuentaBusy: false,
     cuentaError: null,
     codigoRecuperacion: null,
@@ -255,7 +266,14 @@ function reducer(state: AppState, action: Action): AppState {
           : state.points,
       };
     case "cuenta_abierta":
-      return { ...state, cuentaAbierta: action.abierta, cuentaError: null };
+      return {
+        ...state,
+        cuentaAbierta: action.abierta,
+        // al cerrar se conserva el modo: cambiarlo aquí haría parpadear el
+        // título mientras la hoja se va
+        cuentaModo: action.modo ?? state.cuentaModo,
+        cuentaError: null,
+      };
     case "cuenta_busy":
       return { ...state, cuentaBusy: action.busy, cuentaError: null };
     case "cuenta_error":
@@ -382,8 +400,8 @@ function createActions(
       }
     },
 
-    abrirCuenta(abierta: boolean) {
-      dispatch({ type: "cuenta_abierta", abierta });
+    abrirCuenta(abierta: boolean, modo?: ModoCuenta) {
+      dispatch({ type: "cuenta_abierta", abierta, modo });
     },
 
     async registrar(datos: { usuario: string; password: string; correo?: string }) {

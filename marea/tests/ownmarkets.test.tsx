@@ -334,3 +334,57 @@ describe("Mercados propios — interfaz", () => {
     );
   });
 });
+
+/**
+ * Volver es un caso tan normal como entrar la primera vez, y el perfil era la
+ * única puerta: quien ya tenía cuenta y perdió la sesión sólo veía "Crear
+ * cuenta". Nadie adivina que ahí dentro hay un botón para cambiar de modo.
+ */
+describe("Perfil sin sesión — las dos puertas", () => {
+  const irAPerfil = async (user: ReturnType<typeof userEvent.setup>) => {
+    await enter(user);
+    await user.click(screen.getByRole("tab", { name: S.tabs.profile }));
+    return screen.findByTestId("profile-account");
+  };
+
+  it("ofrece crear cuenta y entrar, las dos visibles sin abrir nada", async () => {
+    const user = userEvent.setup();
+    renderApp(points());
+    const tarjeta = await irAPerfil(user);
+
+    expect(within(tarjeta).getByTestId("profile-login")).toHaveTextContent(
+      S.cuenta.sinCuentaCta,
+    );
+    expect(within(tarjeta).getByTestId("profile-entrar")).toHaveTextContent(
+      S.cuenta.entrarCta,
+    );
+  });
+
+  it("«Entrar» abre la hoja ya en modo entrar, no en registro", async () => {
+    const user = userEvent.setup();
+    renderApp(points());
+    const tarjeta = await irAPerfil(user);
+    await user.click(within(tarjeta).getByTestId("profile-entrar"));
+
+    const hoja = await screen.findByTestId("account-sheet");
+    expect(within(hoja).getByTestId("account-submit")).toHaveTextContent(
+      S.cuenta.entrarCta,
+    );
+    // y desde ahí se puede cruzar al registro: la puerta no es de un solo sentido
+    expect(within(hoja).getByTestId("account-toggle")).toHaveTextContent(
+      S.cuenta.noTengo,
+    );
+  });
+
+  it("«Crear cuenta» sigue abriendo en registro", async () => {
+    const user = userEvent.setup();
+    renderApp(points());
+    const tarjeta = await irAPerfil(user);
+    await user.click(within(tarjeta).getByTestId("profile-login"));
+
+    const hoja = await screen.findByTestId("account-sheet");
+    expect(within(hoja).getByTestId("account-submit")).toHaveTextContent(
+      S.cuenta.crearCta,
+    );
+  });
+});

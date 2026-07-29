@@ -200,6 +200,10 @@ export const S = {
     usuarioPlaceholder: "como te van a ver los demás",
     password: "Contraseña",
     passwordPlaceholder: "mínimo 8 caracteres",
+    // al entrar no se está eligiendo nada: pedirle un mínimo a quien ya tiene
+    // su contraseña se lee como si la suya no sirviera
+    usuarioPlaceholderEntrar: "tu usuario",
+    passwordPlaceholderEntrar: "tu contraseña",
     crearCta: "Crear cuenta y apostar",
     entrarCta: "Entrar",
     enviando: "Un segundo…",

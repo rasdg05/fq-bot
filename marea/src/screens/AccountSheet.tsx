@@ -23,11 +23,18 @@ const campo =
 
 export function AccountSheet() {
   const { state, actions } = useApp();
-  const [modo, setModo] = React.useState<Modo>("registro");
+  const [modo, setModo] = React.useState<Modo>(state.cuentaModo);
   const [usuario, setUsuario] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [codigo, setCodigo] = React.useState("");
   const [copiado, setCopiado] = React.useState(false);
+
+  // quien abre por "Entrar" tiene que caer en Entrar. El modo se re-siembra en
+  // cada apertura y no en cada render: dentro de la hoja el toggle manda, y un
+  // valor controlado desde fuera lo dejaría clavado
+  React.useEffect(() => {
+    if (state.cuentaAbierta) setModo(state.cuentaModo);
+  }, [state.cuentaAbierta, state.cuentaModo]);
 
   const limpiar = () => {
     setUsuario("");
@@ -122,7 +129,11 @@ export function AccountSheet() {
                 autoCapitalize="none"
                 spellCheck={false}
                 className={campo}
-                placeholder={S.cuenta.usuarioPlaceholder}
+                placeholder={
+                  modo === "entrar"
+                    ? S.cuenta.usuarioPlaceholderEntrar
+                    : S.cuenta.usuarioPlaceholder
+                }
               />
             </label>
 
@@ -154,7 +165,11 @@ export function AccountSheet() {
                 onChange={(evento) => setPassword(evento.target.value)}
                 autoComplete={modo === "entrar" ? "current-password" : "new-password"}
                 className={campo}
-                placeholder={S.cuenta.passwordPlaceholder}
+                placeholder={
+                  modo === "entrar"
+                    ? S.cuenta.passwordPlaceholderEntrar
+                    : S.cuenta.passwordPlaceholder
+                }
               />
             </label>
 
