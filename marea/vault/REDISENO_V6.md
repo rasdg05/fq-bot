@@ -29,15 +29,15 @@ Regla de conflicto: **la decisión bloqueada gana**; la regla vieja del repo se 
 
 ## 1 · Sistema de diseño
 
-### 1.1 Color — sin tokens nuevos
+### 1.1 Color — un solo token nuevo
 
-Los catorce tokens de `src/styles/tokens.css` se quedan tal cual (`tokens.lock.json` no se mueve). v6 no inventa color: le da **trabajos nuevos** a los que ya pasaron contraste.
+Los catorce tokens de `src/styles/tokens.css` se quedan tal cual: v6 les da **trabajos nuevos** en vez de inventar color. La única alta es `--pill-ring`, que existe porque el anillo de la pill necesita alfas distintos por tema para llegar a 3:1 (§9). `tokens.lock.json` se mueve exactamente una línea.
 
 | Token | Trabajo en v6 |
 |---|---|
 | `--bg` | Fondo de app, header y barra inferior (sólido, nunca translúcido) |
 | `--panel` | Superficie de tarjeta |
-| `--panel2` | Avatar · estado presionado · badges neutros. **No** rellena la pill del rival (§F) |
+| `--panel2` | Avatar · estado presionado · badges neutros. **No** rellena la pill del rival (§9) |
 | `--pill-ring` | Anillo de 1 px de la pill líder: `--teal` al 55 % (oscuro) / 65 % (claro) → ≥ 3:1 contra la tarjeta |
 | `--line` | Borde de la tarjeta abierta con posición propia |
 | `--line2` | Borde por defecto, separadores, riel vacío de la barra |
@@ -51,7 +51,7 @@ Los catorce tokens de `src/styles/tokens.css` se quedan tal cual (`tokens.lock.j
 | `--hot` | Badge HOT |
 | `--live` | Punto y badge LIVE, minuto de partido |
 
-Contraste: todo par texto/superficie de arriba ya está verificado ≥ 4.5:1 por `tests/contrast.test.ts`. Las barras son gráfico, no texto: `--teal` y `--muted` sobre `--line2` cumplen ≥ 3:1 en ambos temas.
+Contraste: **§9 trae los ratios medidos, par por par y tema por tema**, incluidas las composiciones alfa de los badges. Resumen: texto principal y porcentajes ≥ 8,35:1, texto secundario ≥ 4,91:1, barras y anillos ≥ 3,01:1.
 
 ### 1.2 Tipografía
 
@@ -95,18 +95,22 @@ Escala de 4: `4 · 8 · 12 · 16 · 24`. Nada intermedio.
 | `--page-pad-x` | 16 px | Márgenes de pantalla |
 | `--touch` | 44 px | Mínimo de cualquier target |
 
-Radios: tarjeta **14 px** (baja de 18: con 110 px de alto, 18 px se comía la esquina del contenido), hoja 24 px, pill 999 px, barra 999 px.
+Radios: tarjeta **14 px** (baja de 18: con 114 px de alto, 18 px se comía la esquina del contenido), hoja 24 px, pill 999 px, barra 999 px.
 Sombra: `shadow-card` sin cambio.
 Ancho máximo de contenido: **520 px**, centrado.
 
 ### 1.4 Jerarquía visual de la tarjeta (orden de lectura, de mayor a menor)
 
-1. Pill de probabilidad del líder (24 px, fondo `--teal-soft`)
-2. Título del mercado (15 px display)
-3. Barra de probabilidad (3 px, `--teal`)
-4. Etiquetas de resultado + multiplicadores (12 px)
-5. Badges LIVE / HOT / país (10 px)
-6. Pie: pozo · gente · cierre (11 px `--muted`)
+1. Porcentaje del líder — **30 px / 700**, `--text`, sobre pill `--teal-soft`
+2. Porcentaje del rival — 20 px / 600, `--text2`, sin relleno
+3. Título del mercado — 15 px display
+4. Barra de probabilidad — 3 px, `--teal`
+5. Etiqueta de resultado — 13 px / 600
+6. Multiplicador — 12 px mono / 500, `--muted`
+7. Badges LIVE / HOT / país — 10 px
+8. Pie: pozo · gente · cierre — 11 px `--muted`
+
+Los dos primeros escalones son porcentajes y el tercero mide la mitad del primero: la tarjeta se lee como números primero y texto después, que es el orden en que se decide una apuesta.
 
 ---
 
@@ -209,7 +213,7 @@ Cómo se paga el recorte total, en orden de aporte: el título se limita a **una
 | Bloque del rival | Alineado a la derecha, **sin relleno**: número 20 / 22 (600, `--text2`) y debajo el mismo stack de dos líneas, alineado a la derecha |
 | Barra | 3 px, a 3 px del bloque, ancho completo del contenido |
 
-El rival **no lleva pill rellena** por dos razones que apuntan al mismo lado: en tema claro `--text2` sobre `--panel2` da 6,83:1 y no llega al objetivo de 7:1 (§F), y sin relleno la diferencia entre líder y rival se lee de reojo — un solo bloque pintado por tarjeta.
+El rival **no lleva pill rellena** por dos razones que apuntan al mismo lado: en tema claro `--text2` sobre `--panel2` da 6,83:1 y no llega al objetivo de 7:1 (§9), y sin relleno la diferencia entre líder y rival se lee de reojo — un solo bloque pintado por tarjeta.
 
 ### 3.2 Barras de probabilidad (nivel Kalshi)
 
@@ -577,7 +581,7 @@ Cinco agentes revisaron el borrador completo. Ronda 1 con dos fallos, corregidos
 
 | Agente | Ronda 1 | Ronda 2 |
 |---|---|---|
-| **1 · Design Critic** | PASS — densidad medida (110 px, −30,8 %), logo a 26 px y único elemento de marca a la izquierda, barras especificadas al píxel | PASS |
+| **1 · Design Critic** | PASS — densidad medida (114 px, −28,3 %), porcentaje de 30 px en peso 700 como nodo dominante, logo a 26 px, barras al píxel | PASS |
 | **2 · Market Architect** | **FAIL** — el borrador dejaba `BINARY_OUTCOMES` con `Sí`/`No` como valor por defecto mostrable, y las plantillas de cripto seguían sembrando esas etiquetas | PASS — §3.3 prohíbe la etiqueta, `assertPublishable()` es la puerta, §7.6 declara la migración de los mercados ya sembrados |
 | **3 · Consistency Guardian** | **FAIL** — el header perdía V12 (con saldo 0 la app no puede quedarse sin camino a recargar) al quitar el botón `Depositar` | PASS — §2.1 hace accionable el bloque de saldo; se conservan exactamente los dos elementos bloqueados |
 | **4 · Implementation Readiness** | PASS — los cuatro tipos traen ejemplo estructurado; la aritmética de altura suma; §7 mapea cada cambio a su archivo | PASS |
