@@ -39,6 +39,30 @@ export interface PriceRule {
 }
 
 /**
+ * Vela de 5 o 15 minutos. Es la regla de los mercados vivos de cripto: la
+ * pregunta es si el cierre de **esta** vela queda arriba o abajo del strike.
+ *
+ * Se separa de `PriceRule` porque no es la misma lectura: aquella busca la vela
+ * diaria del día que resuelve, y ésta busca una vela concreta identificada por
+ * el milisegundo en que abre. Meterlas en la misma regla habría obligado al
+ * oráculo a adivinar cuál de las dos cosas le están preguntando.
+ *
+ * `arriba` exige cierre **estrictamente mayor** que el strike. El empate exacto
+ * resuelve `abajo`, y así está escrito en el criterio publicado: un caso borde
+ * sin regla escrita es una discusión esperando a ocurrir.
+ */
+export interface VelaRule {
+  kind: "vela";
+  par: "BTC/USD" | "ETH/USD";
+  /** Minutos de la vela. Sólo los que Kraken publica nativamente. */
+  intervalo: 5 | 15;
+  /** Apertura de la vela, en ms UTC. Alineada al reloj por construcción. */
+  inicio: number;
+  /** Precio de referencia, ya redondeado a un número que se dice en voz alta. */
+  strike: number;
+}
+
+/**
  * Serie estadística publicada por un banco central o un instituto. Es lo que
  * permite resolver un mercado de inflación o de tasa **sin que nadie lea un
  * PDF**: el dato existe en un endpoint, con fecha y con valor.
@@ -146,7 +170,12 @@ export function idsDeTramos(cortes: number[]): { id: string; label: string }[] {
 /** Los tres ids del 1X2, desde la perspectiva del equipo de la pregunta. */
 export const IDS_1X2 = ["gana", "empata", "pierde"] as const;
 
-export type OracleRule = PriceRule | SeriesRule | MatchRule | MatchOutcomeRule;
+export type OracleRule =
+  | PriceRule
+  | VelaRule
+  | SeriesRule
+  | MatchRule
+  | MatchOutcomeRule;
 
 /** Cómo se escribe el umbral en el texto: `71000`, `71,000`, `71.000`, `5.00`. */
 function umbralEnTexto(umbral: number): RegExp {
@@ -199,6 +228,26 @@ export function ruleProblems(rule: OracleRule, criterion: string): string[] {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(rule.fecha)) {
       problems.push("la fecha del partido tiene que ser YYYY-MM-DD");
     }
+    return problems;
+  }
+
+  if (rule.kind === "vela") {
+    if (!umbralEnTexto(rule.strike).test(criterion)) {
+      problems.push(
+        `el strike de la regla (${rule.strike}) no aparece en el criterio publicado`,
+      );
+    }
+    const activo = rule.par.split("/")[0];
+    if (!new RegExp(activo, "i").test(criterion)) {
+      problems.push(`el criterio no menciona el activo ${activo}`);
+    }
+    // la vela tiene que caer en la rejilla del reloj, o Kraken no la publica y
+    // el mercado no se podría resolver con la fuente que promete
+    const paso = rule.intervalo * 60_000;
+    if (!Number.isFinite(rule.inicio) || rule.inicio % paso !== 0) {
+      problems.push(`la vela de ${rule.intervalo} min no está alineada al reloj`);
+    }
+    if (rule.strike <= 0) problems.push("el strike tiene que ser mayor a cero");
     return problems;
   }
 

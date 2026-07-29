@@ -17,3 +17,7 @@ data/okx/
 
 # Diario de lecturas del centinela (local; cada sesion lo regenera)
 lecturas/
+
+# Cache de herramientas de Node si alguna se corre desde la raíz. El proyecto
+# JS vive en marea/, que tiene el suyo: aquí sólo aparece por accidente.
+node_modules/

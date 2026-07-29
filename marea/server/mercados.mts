@@ -1,6 +1,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Market, Position } from "../src/domain/types";
+import type { LiveCandle, Market, Position } from "../src/domain/types";
+import type { VelaRule } from "../src/domain/oracleRule";
+import { deltaPp } from "../src/domain/vela";
+import { ACTIVOS_VIVOS, esVelaViva } from "../src/adapters/ownMarkets/cryptoLive";
 import { withEdge } from "../src/domain/edge";
 import {
   BINARY_OUTCOMES,
@@ -101,11 +104,47 @@ function poolDe(store: Store, seed: OwnMarketSeed): Pool {
     : { outcomes: { ...seed.pool.outcomes }, feeBps: seed.pool.feeBps };
 }
 
+/**
+ * Lo que hace falta para pintar una vela viva: de dónde sale el precio de
+ * ahora. Es opcional porque el catálogo normal no lo necesita, y un mercado que
+ * cierra el domingo no debe empezar a depender de un ticker de tres segundos.
+ */
+export interface ContextoVivo {
+  precio(par: string): { precio: number; at: number; fuente: string } | undefined;
+}
+
+/** El bloque vivo de un mercado de vela, o nada si no es uno. */
+function bloqueVivo(
+  seed: OwnMarketSeed,
+  contexto: ContextoVivo | undefined,
+): LiveCandle | undefined {
+  if (!esVelaViva(seed)) return undefined;
+  const rule: VelaRule = seed.rule;
+  const activo = ACTIVOS_VIVOS.find((candidato) => candidato.par === rule.par);
+  const tick = contexto?.precio(rule.par);
+
+  return {
+    par: rule.par,
+    activo: activo?.nombre ?? rule.par,
+    intervalo: rule.intervalo,
+    abreAt: new Date(rule.inicio).toISOString(),
+    cierraAt: seed.resolution.settlesAt,
+    bloqueaAt: seed.closesAt,
+    strike: rule.strike,
+    // sin lectura fresca la card enseña ausencia, no un precio de hace un rato
+    spot: tick?.precio,
+    deltaPp: tick ? deltaPp(tick.precio, rule.strike) : undefined,
+    fuente: tick?.fuente,
+    spotAt: tick ? new Date(tick.at).toISOString() : undefined,
+  };
+}
+
 export function construirMercado(
   store: Store,
   seed: OwnMarketSeed,
   umbralHot: number,
   ahora = Date.now(),
+  contexto?: ContextoVivo,
 ): Market {
   const pool = poolDe(store, seed);
   const estado = store.liquidacion(seed.id);
@@ -119,6 +158,7 @@ export function construirMercado(
   // es la de la favorita, y hay que decir de cuál se habla o el número no
   // significa nada
   const lider = rankedOutcomes(pool, outcomes)[0];
+  const vivo = bloqueVivo(seed, contexto);
 
   return withEdge({
     id: seed.id,
@@ -127,9 +167,20 @@ export function construirMercado(
     probability: binario ? impliedProbability(pool) : (lider?.probability ?? 0),
     leadLabel: binario ? undefined : lider?.label,
     volume: totalPool(pool),
-    // el marcador sembrado sólo existe en builds simuladas: con el oráculo
-    // conectado, `live` sale de que el partido esté en juego de verdad
-    status: cerrado ? "resolved" : seed.vivoDemo && FLAGS.mock_data ? "live" : "open",
+    /**
+     * Dos maneras de estar vivo, y ninguna se inventa:
+     *
+     *  - una **vela abierta** (`vivo`), que es dato real del ticker;
+     *  - un **partido con marcador**, que hoy viaja sembrado en la semilla y
+     *    sólo en builds simuladas, hasta que el oráculo de partidos esté en
+     *    línea (R-022).
+     */
+    status: cerrado
+      ? "resolved"
+      : vivo || (seed.vivoDemo && FLAGS.mock_data)
+        ? "live"
+        : "open",
+    live: vivo,
     marcadorVivo: FLAGS.mock_data ? seed.vivoDemo?.marcador : undefined,
     eventoReciente: FLAGS.mock_data ? seed.vivoDemo?.evento : undefined,
     category: seed.category,
@@ -157,15 +208,49 @@ export function listarMercados(
   store: Store,
   seeds: OwnMarketSeed[],
   ahora = Date.now(),
+  contexto?: ContextoVivo,
 ): Market[] {
-  const vigentes = activeSeeds(ahora, seeds);
+  const vigentes = activeSeeds(ahora, seeds).filter((seed) => {
+    /**
+     * Una vela que ya bloqueó y en la que nadie apostó se va del feed en el
+     * acto. Nacen cada cinco minutos: dejar las muertas los mismos dos días que
+     * a un mercado normal llenaría la pantalla de preguntas que ya no se pueden
+     * contestar ni le importan a nadie.
+     *
+     * La que sí tiene gente adentro se queda hasta que se paga: quien apostó
+     * tiene derecho a ver en qué terminó, y el pozo guardado es exactamente la
+     * señal de que hay alguien esperando ese resultado.
+     */
+    if (!esVelaViva(seed)) return true;
+    if (new Date(seed.closesAt).getTime() > ahora) return true;
+    return store.pozo(seed.id) !== undefined;
+  });
   const totales = vigentes
     .map((seed) => totalPool(poolDe(store, seed)))
     .sort((a, b) => b - a);
   const umbral = totales[Math.min(HOT_TOP_N, totales.length) - 1] ?? Infinity;
-  return vigentes
-    .map((seed) => construirMercado(store, seed, umbral, ahora))
-    .sort((a, b) => b.volume - a.volume);
+  return (
+    vigentes
+      .map((seed) => construirMercado(store, seed, umbral, ahora, contexto))
+      /**
+       * Lo vivo primero, y entre lo vivo el que cierra antes.
+       *
+       * Ordenar por pozo dejaba las velas al final del feed: nacen cada cinco
+       * minutos y nunca acumulan lo que lleva un mercado de una semana, así que
+       * lo único que pasa ahora mismo quedaba enterrado bajo lo que pasa en
+       * septiembre. Éste es el orden mínimo para que se vean; el score completo
+       * de `nivel_live` —con deportes y eventos recientes— es el bloque
+       * siguiente.
+       */
+      .sort((a, b) => {
+        // lo que manda es que esté **corriendo**, no que sea de tipo vela: una
+        // vela que ya cerró no puede seguir encabezando el feed
+        const viva = (m: Market) => m.status === "live" && m.live !== undefined;
+        if (viva(a) !== viva(b)) return viva(a) ? -1 : 1;
+        if (viva(a) && viva(b)) return a.live!.cierraAt.localeCompare(b.live!.cierraAt);
+        return b.volume - a.volume;
+      })
+  );
 }
 
 /** Cotiza sin mover nada: lo que se le muestra al usuario antes de decidir. */

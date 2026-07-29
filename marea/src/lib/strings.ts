@@ -45,6 +45,23 @@ export const S = {
     otros: "Otros",
   },
 
+  /**
+   * Cripto en vivo. Tuteado y sin jerga de trading: "paga 1.9×" se entiende en
+   * cualquier mesa de Latam; "odds" y "payout" no.
+   */
+  vivo: {
+    /** "vela de 5 min" — cuál es la ventana de la que se habla. */
+    ventana: (minutos: number) => `vela de ${minutos} min`,
+    /** Lo que queda para poder entrar. */
+    restante: (reloj: string) => `cierra en ${reloj}`,
+    cerrando: "cerrando",
+    /** El ticker no tiene lectura fresca. Se dice; no se repite la última. */
+    sinPrecio: "sin precio",
+    paga: (multiplicador: string) => `paga ${multiplicador}`,
+    /** Contra qué se compara el cierre de la vela. */
+    strike: (precio: string) => `desde ${precio}`,
+  },
+
   badges: {
     live: "LIVE",
     hot: "HOT",

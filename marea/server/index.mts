@@ -13,6 +13,8 @@ import {
   todosLosSeeds,
 } from "./mercados.mts";
 import { correrCiclo, type ResumenCiclo } from "./ciclo.mts";
+import { crearTicker } from "./precios.mts";
+import { MercadosVivos } from "./vivos.mts";
 import { metaDeLogro, metaDeMercado } from "./compartir.mts";
 import { logroDe, tarjetaPng } from "./tarjeta.mts";
 import { createRegistroDeEventos } from "./eventos.mts";
@@ -32,6 +34,16 @@ const DIST = join(ROOT, "dist");
 const DATOS = process.env.MAREA_DATA_DIR ?? join(ROOT, "data", "servidor");
 const PORT = Number(process.env.PORT ?? 8080);
 const CICLO_MS = Number(process.env.MAREA_CICLO_MS ?? 900_000);
+/**
+ * Los mercados vivos corren en su propio reloj. Un cuarto de hora es una
+ * cadencia sana para un mercado que cierra el domingo y absurda para uno que
+ * dura cinco minutos: con el ciclo lento, una vela se pagaría diez minutos
+ * después de haberse resuelto.
+ */
+const CICLO_VIVO_MS = Number(process.env.MAREA_CICLO_VIVO_MS ?? 10_000);
+/** Cada cuánto se planifica la siguiente vela. Barato: es aritmética de reloj. */
+const PLAN_VIVO_MS = Number(process.env.MAREA_PLAN_VIVO_MS ?? 1_000);
+const PRECIO_MS = Number(process.env.MAREA_PRECIO_MS ?? 3_000);
 
 const TIPOS: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -68,10 +80,31 @@ const registrarEventos = createRegistroDeEventos(join(DATOS, "eventos"));
 let seeds: OwnMarketSeed[] = todosLosSeeds(ROOT);
 sembrarPozos(store, seeds);
 
+/**
+ * Cripto en vivo. El ticker lee el precio una vez para todos —el motor FQ si
+ * está configurado, Kraken si no— y el planificador mantiene siempre abierta
+ * una vela de 5 min y una de 15 por activo.
+ *
+ * Los mercados vivos **no** se siembran en disco al nacer: el pozo se crea con
+ * la primera apuesta. Por eso no pasan por `sembrarPozos`.
+ */
+const ticker = crearTicker({
+  urlFq: process.env.MAREA_FQ_PRECIOS_URL,
+  intervaloMs: PRECIO_MS,
+  onError: (mensaje) => log(`precios: ${mensaje}`),
+});
+const vivos = new MercadosVivos(store, ticker);
+
+/** El catálogo completo de este instante: lo publicado más lo que está vivo. */
+function catalogo(): OwnMarketSeed[] {
+  return [...seeds, ...vivos.seeds()];
+}
+
 const bitacora = {
   arranque: new Date().toISOString(),
   ultimoCiclo: null as ResumenCiclo | null,
   corridas: 0,
+  vivos: { abiertos: 0, conApuestas: 0, pagados: 0, errores: 0 },
 };
 
 function log(linea: string) {
@@ -96,13 +129,64 @@ async function ciclo() {
   }
 }
 
+/**
+ * El ciclo de las velas. Corre cada pocos segundos y **sólo** sobre los
+ * mercados vivos que tienen apuestas: los demás no tienen nada que liquidar, y
+ * escribirles un estado de liquidación sería llenar el archivo de mercados que
+ * nadie tocó.
+ *
+ * Es el mismo `correrCiclo` del catálogo normal, con los mismos oráculos y la
+ * misma matemática. Lo único distinto es cada cuánto se llama.
+ */
+let cicloVivoEnVuelo = false;
+async function cicloVivo() {
+  if (cicloVivoEnVuelo) return;
+  cicloVivoEnVuelo = true;
+  try {
+    vivos.tick();
+    const pendientes = vivos.seedsConApuestas();
+    bitacora.vivos.abiertos = vivos.seeds().length;
+    bitacora.vivos.conApuestas = pendientes.length;
+    if (pendientes.length === 0) return;
+
+    const resumen = await correrCiclo(store, pendientes);
+    bitacora.vivos.pagados += resumen.pagados + resumen.anulados;
+    bitacora.vivos.errores += resumen.errores.length;
+    if (resumen.pagados + resumen.anulados > 0) {
+      log(
+        `vela: ${resumen.pagados} pagadas · ${resumen.anulados} anuladas · ` +
+          `${Math.round(resumen.acreditado)} puntos acreditados`,
+      );
+    }
+    for (const error of resumen.errores) log(`  ⚠ vela ${error}`);
+  } catch (error) {
+    log(`ciclo vivo falló: ${String(error)}`);
+  } finally {
+    cicloVivoEnVuelo = false;
+  }
+}
+
 async function servir(req: IncomingMessage, res: ServerResponse) {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
   const ruta = normalize(decodeURIComponent(url.pathname));
 
   if (ruta === "/salud") {
     res.writeHead(200, { "content-type": TIPOS[".json"], "cache-control": "no-store" });
-    res.end(JSON.stringify({ ...bitacora, datos: store.resumen(), mercados: seeds.length }, null, 2));
+    res.end(
+      JSON.stringify(
+        {
+          ...bitacora,
+          datos: store.resumen(),
+          mercados: seeds.length,
+          // de dónde sale el precio que se está enseñando, y si el motor está
+          // degradado. Es lo primero que se mira cuando una card se queda sin
+          // número
+          precios: ticker.estado(),
+        },
+        null,
+        2,
+      ),
+    );
     return;
   }
 
@@ -112,9 +196,11 @@ async function servir(req: IncomingMessage, res: ServerResponse) {
     try {
       const atendido = await manejarApi(req, res, ruta, {
         store,
-        seeds: () => seeds,
+        seeds: catalogo,
         seguro: (req.headers["x-forwarded-proto"] ?? "http") === "https",
         registrarEventos,
+        vivos,
+        precios: ticker,
       });
       if (!atendido) {
         res.writeHead(404, { "content-type": TIPOS[".json"] });
@@ -186,7 +272,9 @@ async function servir(req: IncomingMessage, res: ServerResponse) {
    */
   if (ruta.startsWith("/m/")) {
     const id = ruta.slice(3);
-    const mercado = listarMercados(store, seeds).find((m) => m.id === id);
+    const mercado = listarMercados(store, catalogo(), Date.now(), ticker).find(
+      (m) => m.id === id,
+    );
     const html = await readFile(join(DIST, "index.html"), "utf8");
     const salida = mercado ? metaDeMercado(html, mercado, url.origin) : html;
     const gzip = aceptaGzip(req);
@@ -276,3 +364,19 @@ createServer((req, res) => {
 void ciclo();
 setInterval(() => void ciclo(), CICLO_MS);
 void listarMercados(store, seeds);
+
+/**
+ * Cripto en vivo, en tres relojes distintos porque son tres trabajos distintos:
+ * leer el precio, planificar la vela siguiente y liquidar la que cerró.
+ */
+ticker.arrancar();
+// la primera vela se planifica en cuanto haya precio; sin él no se inventa un
+// strike y el planificador simplemente no crea nada esta vuelta
+setTimeout(() => vivos.tick(), 500).unref?.();
+setInterval(() => vivos.tick(), PLAN_VIVO_MS).unref?.();
+setInterval(() => void cicloVivo(), CICLO_VIVO_MS).unref?.();
+log(
+  `cripto en vivo: precio cada ${PRECIO_MS} ms desde ` +
+    `${process.env.MAREA_FQ_PRECIOS_URL ? "el motor FQ (respaldo Kraken)" : "Kraken"} · ` +
+    `liquidación cada ${CICLO_VIVO_MS} ms`,
+);

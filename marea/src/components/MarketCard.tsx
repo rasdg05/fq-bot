@@ -1,7 +1,8 @@
 import * as React from "react";
-import type { Market, MarcadorVivo } from "@/domain/types";
+import type { Market, MarcadorVivo, PulsoVivo } from "@/domain/types";
 import { hasEdge } from "@/domain/edge";
 import { Card } from "@/components/ui/card";
+import { CryptoLiveCard } from "@/components/CryptoLiveCard";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 import { COLOR_CATEGORIA, FORMA_CATEGORIA } from "@/lib/categoria";
@@ -28,6 +29,8 @@ export function resolveVariant(market: Market): MarketCardVariant {
 export interface MarketCardProps {
   market: Market;
   variant?: MarketCardVariant;
+  /** El latido de la vela, cuando el mercado es de cripto en vivo. */
+  pulso?: PulsoVivo;
   /**
    * El segundo argumento es el resultado que se tocó. Tocar la tarjeta abre el
    * detalle; tocar una pill abre el mismo detalle con ese lado ya elegido.
@@ -322,7 +325,23 @@ function badgeEstado(marcador?: MarcadorVivo): string | null {
  * La tarjeta entera abre el detalle a través de un enlace estirado; las pills
  * son botones reales por encima y abren el mismo detalle con su lado elegido.
  */
-export function MarketCard({ market, variant, onOpen }: MarketCardProps) {
+export function MarketCard({ market, variant, pulso, onOpen }: MarketCardProps) {
+  /**
+   * Una vela viva se pinta con su propia card. No es una variante más de ésta:
+   * lo que necesita —reloj, precio que se mueve, congelado al tocar— no cabía
+   * aquí sin reabrir una card que ya está cerrada. La decisión de cuál pintar
+   * la toma el dato (`market.live`), nunca la vista.
+   */
+  if (market.live && market.status === "live" && !variant) {
+    return (
+      <CryptoLiveCard
+        market={market as Market & { live: NonNullable<Market["live"]> }}
+        pulso={pulso}
+        onOpen={onOpen}
+      />
+    );
+  }
+
   const resolved = variant ?? resolveVariant(market);
   const compact = resolved === "compact";
 

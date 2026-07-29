@@ -1,136 +1,237 @@
-import { existsSync, readFileSync } from "node:fs";
-import type { PriceRule } from "../src/domain/oracleRule";
-
 /**
- * El precio spot de BTC y ETH, para los mercados intradía.
+ * Ticker de spot. Una sola lectura para todos, en el servidor, cada pocos
+ * segundos — no una por dispositivo: con mil personas mirando la misma vela, un
+ * ticker por navegador es mil veces la misma pregunta al mismo endpoint.
  *
- * Dos fuentes, en este orden:
+ * Dos fuentes, con precedencia declarada:
  *
- *  1. **El motor FQ**, que ya sigue las monedas grandes tick a tick. Deja el
- *     último precio en un archivo JSON; aquí sólo se lee. No se le pide nada
- *     por red: si el motor está parado, el archivo se queda viejo y se nota.
- *  2. **Kraken público**, cuando el archivo del motor tiene más de 5 s. Es la
- *     misma casa que resuelve los mercados, así que el precio que se enseña y
- *     el que liquida vienen del mismo sitio.
+ *  1. **El motor FQ**, que ya analiza las monedas grandes. Es la fuente
+ *     primaria cuando `MAREA_FQ_PRECIOS_URL` está configurada.
+ *  2. **Kraken público**, como respaldo. Se usa si el motor tarda más de 5 s,
+ *     falla, o simplemente no está configurado.
  *
- * Lo que **no** se hace: inventar un precio, ni seguir mostrando uno viejo como
- * si fuera de ahora. Cada lectura viaja con su edad y con el nombre de quién la
- * dio, y la interfaz lo declara cuando se atrasa (R-022).
+ * Lo que **nunca** cambia de fuente es la liquidación: el strike y el cierre se
+ * leen de las velas públicas de Kraken, que es lo que cita el criterio. El
+ * ticker sólo mueve el número que se ve mientras la vela corre. Cuando las dos
+ * fuentes no coinciden al milímetro, la que manda para pagar es la citada, y por
+ * eso la card declara de dónde viene el precio que enseña (R-022).
+ *
+ * Nunca se sirve una lectura vieja como si fuera de ahora: pasada la ventana de
+ * frescura, el ticker responde "no sé", y la card enseña ausencia en vez de un
+ * número que dejó de ser cierto.
  */
 
-export type Par = PriceRule["par"];
+export type FuentePrecio = "fq" | "kraken";
 
-export type FuenteSpot = "motor" | "kraken" | "ninguna";
-
-export interface Spot {
-  par: Par;
+export interface Tick {
   precio: number;
-  /** Cuándo lo dio la fuente, en ms. */
+  /** Cuándo se leyó, ms. */
   at: number;
-  fuente: FuenteSpot;
+  fuente: FuentePrecio;
 }
 
-export interface LecturaSpot {
-  pares: Partial<Record<Par, Spot>>;
-  at: number;
+export interface TickerOptions {
+  /** Endpoint del motor FQ. Sin él, el respaldo es la fuente primaria. */
+  urlFq?: string;
+  fetchImpl?: typeof fetch;
+  /** Cada cuánto se pide el precio. */
+  intervaloMs?: number;
+  /** Arriba de esto el motor se considera lento y se usa el respaldo. */
+  latenciaMaximaMs?: number;
+  /** Cuánto vale una lectura antes de dejar de mostrarse. */
+  frescuraMs?: number;
+  /** Cuánto se castiga al motor tras una lectura lenta o fallida. */
+  castigoMs?: number;
+  now?: () => number;
+  onError?: (mensaje: string) => void;
 }
 
-/** Más viejo que esto, el motor no cuenta como fuente viva. */
-const MOTOR_MAX_EDAD_MS = 5_000;
-/** Cada cuánto se le puede volver a preguntar a Kraken. */
-const KRAKEN_CACHE_MS = 2_000;
+/** Los pares que seguimos. Es el mismo conjunto que genera mercados vivos. */
+export const PARES_VIVOS = ["BTC/USD", "ETH/USD"] as const;
+export type ParVivo = (typeof PARES_VIVOS)[number];
 
 const KRAKEN_TICKER = "https://api.kraken.com/0/public/Ticker?pair=XBTUSD,ETHUSD";
 
-const DE_KRAKEN: Record<string, Par> = {
-  XXBTZUSD: "BTC/USD",
-  XETHZUSD: "ETH/USD",
-  XBTUSD: "BTC/USD",
-  ETHUSD: "ETH/USD",
-};
+/** Lo que devuelve cualquiera de las dos fuentes: par → precio. */
+type Lectura = Partial<Record<ParVivo, number>>;
 
-interface Cache {
-  at: number;
-  pares: Partial<Record<Par, Spot>>;
+function normalizarClave(clave: string): ParVivo | undefined {
+  const limpia = clave.toUpperCase();
+  if (/^(BTC|XBT|XXBT)/.test(limpia)) return "BTC/USD";
+  if (/^(ETH|XETH)/.test(limpia)) return "ETH/USD";
+  return undefined;
 }
-
-let cacheKraken: Cache = { at: 0, pares: {} };
 
 /**
- * Lo que el motor FQ deja escrito. Formato mínimo a propósito: un precio y
- * cuándo se tomó. Cualquier cosa más rica se puede añadir sin romper esto.
+ * Lee el motor FQ. Acepta las dos formas razonables de responder —el mapa
+ * pelón o envuelto en `precios`— porque el motor es nuestro y la frontera no
+ * merece un contrato ceremonioso.
  */
-interface ArchivoMotor {
-  [par: string]: { precio: number; at: string } | undefined;
-}
-
-function leerMotor(ruta: string, ahora: number): Partial<Record<Par, Spot>> {
-  if (!existsSync(ruta)) return {};
-  try {
-    const crudo = JSON.parse(readFileSync(ruta, "utf8")) as ArchivoMotor;
-    const pares: Partial<Record<Par, Spot>> = {};
-    for (const par of ["BTC/USD", "ETH/USD"] as Par[]) {
-      const dato = crudo[par];
-      if (!dato || !Number.isFinite(dato.precio) || dato.precio <= 0) continue;
-      const at = new Date(dato.at).getTime();
-      if (!Number.isFinite(at)) continue;
-      // un precio viejo no es un precio: se descarta y entra el respaldo
-      if (ahora - at > MOTOR_MAX_EDAD_MS) continue;
-      pares[par] = { par, precio: dato.precio, at, fuente: "motor" };
-    }
-    return pares;
-  } catch {
-    // un archivo a medio escribir no tumba el feed: se cae al respaldo
-    return {};
-  }
-}
-
-async function leerKraken(
+export async function leerFq(
   fetchImpl: typeof fetch,
-  ahora: number,
-): Promise<Partial<Record<Par, Spot>>> {
-  if (ahora - cacheKraken.at < KRAKEN_CACHE_MS) return cacheKraken.pares;
-  const respuesta = await fetchImpl(KRAKEN_TICKER);
+  url: string,
+  timeoutMs: number,
+): Promise<Lectura> {
+  const corte = AbortSignal.timeout(timeoutMs);
+  const respuesta = await fetchImpl(url, { signal: corte });
+  if (!respuesta.ok) throw new Error(`el motor FQ respondió ${respuesta.status}`);
+  const cuerpo = (await respuesta.json()) as Record<string, unknown>;
+  const crudo = (cuerpo.precios ?? cuerpo) as Record<string, unknown>;
+  const lectura: Lectura = {};
+  for (const [clave, valor] of Object.entries(crudo)) {
+    const par = normalizarClave(clave);
+    const precio = Number(
+      typeof valor === "object" && valor !== null
+        ? (valor as { precio?: unknown; price?: unknown }).precio ??
+            (valor as { price?: unknown }).price
+        : valor,
+    );
+    if (par && Number.isFinite(precio) && precio > 0) lectura[par] = precio;
+  }
+  if (Object.keys(lectura).length === 0) {
+    throw new Error("el motor FQ no devolvió ningún par conocido");
+  }
+  return lectura;
+}
+
+export async function leerKraken(
+  fetchImpl: typeof fetch,
+  timeoutMs: number,
+): Promise<Lectura> {
+  const respuesta = await fetchImpl(KRAKEN_TICKER, {
+    signal: AbortSignal.timeout(timeoutMs),
+  });
   if (!respuesta.ok) throw new Error(`Kraken respondió ${respuesta.status}`);
   const cuerpo = (await respuesta.json()) as {
     error?: string[];
     result?: Record<string, { c?: string[] }>;
   };
   if (cuerpo.error?.length) throw new Error(cuerpo.error.join("; "));
-  const pares: Partial<Record<Par, Spot>> = {};
-  for (const [clave, valor] of Object.entries(cuerpo.result ?? {})) {
-    const par = DE_KRAKEN[clave];
-    const precio = Number(valor?.c?.[0]);
-    if (!par || !Number.isFinite(precio) || precio <= 0) continue;
-    pares[par] = { par, precio, at: ahora, fuente: "kraken" };
+  const lectura: Lectura = {};
+  for (const [clave, dato] of Object.entries(cuerpo.result ?? {})) {
+    const par = normalizarClave(clave);
+    const ultimo = Number(dato.c?.[0]);
+    if (par && Number.isFinite(ultimo) && ultimo > 0) lectura[par] = ultimo;
   }
-  cacheKraken = { at: ahora, pares };
-  return pares;
+  return lectura;
 }
 
-export interface PreciosOptions {
-  /** Archivo que escribe el motor FQ. */
-  rutaMotor?: string;
-  fetchImpl?: typeof fetch;
+export interface Ticker {
+  /** El último precio del par, o `undefined` si no hay lectura fresca. */
+  precio(par: string): Tick | undefined;
+  /** Una vuelta de lectura. Se llama sola con `arrancar`. */
+  refrescar(): Promise<void>;
+  arrancar(): void;
+  detener(): void;
+  estado(): {
+    fuente: FuentePrecio | null;
+    motorDegradado: boolean;
+    ultimaLatenciaMs: number | null;
+    pares: Record<string, { precio: number; at: string; fuente: FuentePrecio }>;
+  };
 }
 
-/**
- * El spot de ahora, con el motor primero y Kraken de respaldo. Nunca lanza: sin
- * ninguna fuente devuelve el mapa vacío, y sin precio no se genera mercado.
- */
-export async function leerSpot(
-  options: PreciosOptions = {},
-  ahora = Date.now(),
-): Promise<LecturaSpot> {
-  const ruta = options.rutaMotor ?? process.env.MAREA_SPOT_FILE ?? "";
-  const delMotor = ruta ? leerMotor(ruta, ahora) : {};
-  const faltan = (["BTC/USD", "ETH/USD"] as Par[]).filter((par) => !delMotor[par]);
-  if (faltan.length === 0) return { pares: delMotor, at: ahora };
+export function crearTicker(options: TickerOptions = {}): Ticker {
+  const ahora = options.now ?? (() => Date.now());
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const intervaloMs = options.intervaloMs ?? 3_000;
+  const latenciaMaxima = options.latenciaMaximaMs ?? 5_000;
+  // tres vueltas de ticker: una lectura de hace diez segundos ya no es "ahora"
+  const frescuraMs = options.frescuraMs ?? Math.max(10_000, intervaloMs * 3);
+  const castigoMs = options.castigoMs ?? 60_000;
 
-  try {
-    const deKraken = await leerKraken(options.fetchImpl ?? fetch, ahora);
-    return { pares: { ...deKraken, ...delMotor }, at: ahora };
-  } catch {
-    return { pares: delMotor, at: ahora };
+  const ticks = new Map<ParVivo, Tick>();
+  let temporizador: ReturnType<typeof setInterval> | null = null;
+  let corriendo = false;
+  let motorCastigadoHasta = 0;
+  let ultimaLatencia: number | null = null;
+  let ultimaFuente: FuentePrecio | null = null;
+
+  function guardar(lectura: Lectura, fuente: FuentePrecio, at: number) {
+    for (const par of PARES_VIVOS) {
+      const precio = lectura[par];
+      if (precio !== undefined) ticks.set(par, { precio, at, fuente });
+    }
+    ultimaFuente = fuente;
   }
+
+  async function refrescar(): Promise<void> {
+    // una vuelta a la vez: si el motor tarda, no se apilan lecturas encima
+    if (corriendo) return;
+    corriendo = true;
+    try {
+      const t0 = ahora();
+      if (options.urlFq && t0 >= motorCastigadoHasta) {
+        try {
+          const lectura = await leerFq(fetchImpl, options.urlFq, latenciaMaxima);
+          const latencia = ahora() - t0;
+          ultimaLatencia = latencia;
+          if (latencia <= latenciaMaxima) {
+            guardar(lectura, "fq", ahora());
+            return;
+          }
+          // llegó, pero tarde: el dato sirve y el motor se castiga un rato
+          guardar(lectura, "fq", ahora());
+          motorCastigadoHasta = ahora() + castigoMs;
+          options.onError?.(`motor FQ lento (${latencia} ms): se usa el respaldo`);
+          return;
+        } catch (error) {
+          motorCastigadoHasta = ahora() + castigoMs;
+          options.onError?.(`motor FQ no respondió: ${String(error)}`);
+        }
+      }
+
+      try {
+        const lectura = await leerKraken(fetchImpl, latenciaMaxima);
+        guardar(lectura, "kraken", ahora());
+      } catch (error) {
+        // sin lectura nueva no se pisa la vieja: envejece sola y deja de
+        // servirse cuando pasa la ventana de frescura
+        options.onError?.(`ticker sin fuente: ${String(error)}`);
+      }
+    } finally {
+      corriendo = false;
+    }
+  }
+
+  return {
+    precio(par: string): Tick | undefined {
+      const tick = ticks.get(par as ParVivo);
+      if (!tick) return undefined;
+      // una lectura vieja no se sirve como si fuera de ahora
+      return ahora() - tick.at <= frescuraMs ? tick : undefined;
+    },
+
+    refrescar,
+
+    arrancar() {
+      if (temporizador) return;
+      void refrescar();
+      temporizador = setInterval(() => void refrescar(), intervaloMs);
+      // el ticker no puede ser la razón por la que el proceso no termina
+      temporizador.unref?.();
+    },
+
+    detener() {
+      if (temporizador) clearInterval(temporizador);
+      temporizador = null;
+    },
+
+    estado() {
+      const pares: Record<string, { precio: number; at: string; fuente: FuentePrecio }> = {};
+      for (const [par, tick] of ticks) {
+        pares[par] = {
+          precio: tick.precio,
+          at: new Date(tick.at).toISOString(),
+          fuente: tick.fuente,
+        };
+      }
+      return {
+        fuente: ultimaFuente,
+        motorDegradado: ahora() < motorCastigadoHasta,
+        ultimaLatenciaMs: ultimaLatencia,
+        pares,
+      };
+    },
+  };
 }
