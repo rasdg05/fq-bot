@@ -23,6 +23,19 @@ export interface PriceRule {
   modo: "cierre" | "toca";
   /** Desde cuándo cuenta, para `toca`. */
   desde?: string;
+  /**
+   * Qué vela se lee, en minutos. Sin esto se lee la diaria (1440), que es lo
+   * que resolvía todo el catálogo antes de que existieran los mercados de 5 y
+   * 15 minutos. Kraken publica 1, 5, 15, 30, 60, 240, 1440 — y el número entra
+   * tal cual en la URL que se cita.
+   */
+  intervaloMin?: number;
+  /**
+   * Apertura exacta de la vela que resuelve, en ISO. Es lo que ata el mercado a
+   * **una** vela y no a "la última": en intradía hay una nueva cada cinco
+   * minutos, y "la última" sería una pregunta distinta cada vez que se lee.
+   */
+  ventanaInicio?: string;
 }
 
 /**

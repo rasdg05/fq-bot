@@ -29,15 +29,20 @@ type Candle = { inicio: number; alto: number; bajo: number; cierre: number };
 export interface PriceOracleOptions {
   fetchImpl?: typeof fetch;
   /** Se inyecta en pruebas para no depender de la red. */
-  loadCandles?: (par: PriceRule["par"], desde: number) => Promise<Candle[]>;
+  loadCandles?: (
+    par: PriceRule["par"],
+    desde: number,
+    intervaloMin?: number,
+  ) => Promise<Candle[]>;
 }
 
 async function fetchCandles(
   fetchImpl: typeof fetch,
   par: PriceRule["par"],
   desde: number,
+  intervaloMin = 1440,
 ): Promise<Candle[]> {
-  const url = `https://api.kraken.com/0/public/OHLC?pair=${PARES[par]}&interval=1440&since=${Math.floor(
+  const url = `https://api.kraken.com/0/public/OHLC?pair=${PARES[par]}&interval=${intervaloMin}&since=${Math.floor(
     desde / 1000,
   )}`;
   const response = await fetchImpl(url);
@@ -68,8 +73,8 @@ function monto(valor: number): string {
 export function createPriceOracle(options: PriceOracleOptions = {}): Oracle {
   const load =
     options.loadCandles ??
-    ((par: PriceRule["par"], desde: number) =>
-      fetchCandles(options.fetchImpl ?? fetch, par, desde));
+    ((par: PriceRule["par"], desde: number, intervaloMin?: number) =>
+      fetchCandles(options.fetchImpl ?? fetch, par, desde, intervaloMin));
 
   return {
     id: "kraken-ohlc",
@@ -90,6 +95,39 @@ export function createPriceOracle(options: PriceOracleOptions = {}): Oracle {
         return {
           status: "sin_dato",
           evidence: `El mercado resuelve el ${fecha(settlesAt)}; todavía no hay dato.`,
+        };
+      }
+
+      // --- intradía: una vela concreta, no "la última" ---------------------
+      // La regla dice qué vela resuelve (`ventanaInicio`) y de qué serie
+      // (`intervaloMin`). Se lee esa y sólo esa: en cinco minutos hay una vela
+      // nueva, y "la última" sería una pregunta distinta en cada lectura.
+      if (rule.intervaloMin && rule.ventanaInicio) {
+        const paso = rule.intervaloMin * 60_000;
+        const inicioVela = new Date(rule.ventanaInicio).getTime();
+        const hora = new Date(inicioVela).toISOString().slice(11, 16);
+        if (query.now < inicioVela + paso) {
+          return {
+            status: "sin_dato",
+            evidence: `La vela de ${rule.intervaloMin} min de ${rule.par} de las ${hora} UTC todavía no cierra en Kraken.`,
+          };
+        }
+        // se pide desde una vela antes para que la buscada venga completa
+        const velas = await load(rule.par, inicioVela - paso, rule.intervaloMin);
+        const vela = velas.find((candle) => candle.inicio === inicioVela);
+        if (!vela) {
+          return {
+            status: "sin_dato",
+            evidence: `Kraken todavía no publica la vela de ${rule.intervaloMin} min de ${rule.par} de las ${hora} UTC.`,
+          };
+        }
+        const gana = arriba ? vela.cierre > rule.umbral : vela.cierre < rule.umbral;
+        return {
+          status: "resuelto",
+          outcome: gana ? "si" : "no",
+          evidence: `Vela de ${rule.intervaloMin} min de ${rule.par} en Kraken abierta a las ${hora} UTC: cierre ${monto(
+            vela.cierre,
+          )} USD frente al umbral de ${monto(rule.umbral)}.`,
         };
       }
 

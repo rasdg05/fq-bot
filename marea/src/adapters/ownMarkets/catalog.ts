@@ -72,6 +72,12 @@ export interface OwnMarketSeed {
    * (R-022).
    */
   vivoDemo?: { marcador: MarcadorVivo; evento?: EventoReciente };
+  /**
+   * Precio con el que abrió la vela, en los mercados intradía. La tarjeta
+   * enseña cuánto se ha movido el spot **desde aquí**, no desde el strike
+   * redondeado: el strike es la pregunta, la apertura es el punto de partida.
+   */
+  aperturaSpot?: number;
 }
 
 const FEE_BPS = 300;
