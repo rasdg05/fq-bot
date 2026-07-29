@@ -2,6 +2,7 @@ import type { Market, Position } from "@/domain/types";
 import { appError } from "@/domain/errors";
 import { FLAGS } from "@/lib/flags";
 import { MOCK_MARKETS, findMockMarket } from "./mock/markets";
+import type { OutcomeId } from "@/domain/parimutuel";
 
 /**
  * Puerto de datos de mercado. La UI habla con esta interfaz y con ninguna otra;
@@ -9,6 +10,13 @@ import { MOCK_MARKETS, findMockMarket } from "./mock/markets";
  */
 export interface MarketDataAdapter {
   listMarkets(): Promise<Market[]>;
+  /**
+   * Avisa cuando llegó tarde un dato que cambia lo ya mostrado — hoy, la
+   * referencia externa que enciende el Edge. Existe para que el feed no tenga
+   * que esperarla: se muestra lo que hay y el Edge aparece en cuanto se puede
+   * leer, sin bloquear la primera pintada.
+   */
+  subscribe?(listener: () => void): () => void;
   getMarket(id: string): Promise<Market>;
   listPositions(): Promise<Position[]>;
   /**
@@ -17,7 +25,7 @@ export interface MarketDataAdapter {
    */
   prepareTrade(input: {
     marketId: string;
-    side: "si" | "no";
+    side: OutcomeId;
     size: number;
   }): Promise<{ positionId: string; venue: string; deepLink?: string }>;
 }

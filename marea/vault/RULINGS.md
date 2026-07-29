@@ -116,3 +116,76 @@ Se agrega una línea cuando un hallazgo de audit es recurrente o de producto.
   producto, más que cualquier funcionalidad que falte. (producto)
 - **R-041** — Un catálogo con fechas fijas caduca. Antes de lanzar se define
   el ritmo de reposición y quién escribe los mercados nuevos. (producto)
+- **R-042** — Un mercado con regla automática publica el mismo umbral en el
+  criterio en español y en la regla que ejecuta el oráculo. Si se separan, se
+  paga distinto de lo prometido; se valida al cargar el catálogo. (liquidación)
+- **R-043** — Las apuestas cierran antes de que el resultado sea observable. Un
+  mercado que acepta dinero mientras el precio ya se ve deja de ser predicción.
+  (liquidación)
+- **R-044** — Lo que reparte la liquidación es exactamente lo que prometió el
+  multiplicador que se mostró antes de entrar, semilla incluida en el
+  denominador. El número que se enseña es el que se cobra. (parimutuel)
+- **R-045** — El país se infiere del dispositivo para hablarle a la gente de su
+  mercado, nunca como control de cumplimiento: no abre ningún permiso que la
+  tabla legal no dé, y el usuario puede corregirlo. Mover dinero exige
+  geolocalización con proveedor y verificación de identidad. (cumplimiento)
+- **R-046** — Ninguna fuente se cita si no es la que se lee. Citar una casa y
+  resolver con otra es resolver con una fuente distinta de la prometida.
+  (liquidación)
+- **R-047** — El contenido principal nunca espera a un dato secundario. Los
+  mercados se muestran sin la referencia externa y el Edge se enciende cuando
+  llega: una casa lenta dejaba el feed 20 s en blanco, medido. (perf)
+- **R-048** — Lo que alguien apuesta tiene que sobrevivir a cerrar la app. Un
+  saldo que vive en la memoria del navegador no es un saldo: es una demo. Toda
+  mutación se persiste **antes** de responderle al usuario. (servidor)
+- **R-049** — El pozo es uno solo para todos. Una copia del parimutuel por
+  dispositivo no es un mercado, es un simulador de un jugador: nadie mueve el
+  precio de nadie y el Edge no significa nada. (servidor)
+- **R-050** — La cuenta se pide cuando hay algo que guardar —al apostar—, nunca
+  antes. Explorar el catálogo completo sigue sin pedir nada (R-002), y crear la
+  cuenta son dos campos: sin correo obligatorio y sin esperar un mail. (producto)
+- **R-051** — Antes de declarar que algo necesita a una persona, se busca la
+  API pública. Brasil publica la Selic y el IPCA sin llave; Banxico da token
+  gratis. "Hace falta un humano" sin haber corrido un `curl` es pereza con
+  disfraz de prudencia. (liquidación)
+- **R-052** — Un dato viejo no resuelve un mercado nuevo. La observación leída
+  tiene que ser la de la fecha del mercado, o no hay lectura. (liquidación)
+- **R-053** — Toda liga compartible lleva vista previa rellena en el servidor:
+  los rastreadores de WhatsApp y Telegram no ejecutan JavaScript, y un enlace
+  sin vista previa no lo abre nadie. Lo que entra al HTML se escapa. (producto)
+- **R-054** — La tabla mide precisión y racha, no cuánto apostaste. En un
+  producto de predicción el marcador es cuántas veces le atinaste; ordenar por
+  volumen premiaría lo contrario de lo que vendemos. (producto)
+- **R-055** — El servidor comprime lo que sirve. Sin gzip mandaba 426 kB donde
+  el preview mandaba 180 kB: 1.3 s de LCP regalados en red lenta. Medir contra
+  el servidor real y no contra el preview es lo que lo destapó. (perf)
+- **R-056** — La categoría se elige por dos ejes: cuánto se comparte y si se
+  puede leer sola. El futbol da los dos, y por eso la Liga MX se genera y se
+  resuelve sin que nadie escriba nada. Lo que se comparte mucho pero no se lee
+  solo entra acotado y con su costo declarado. (producto)
+- **R-057** — La semilla del pozo corre la misma suerte que el usuario y la casa
+  nunca toma el lado contrario para "dar liquidez": el día que la casa gana
+  cuando el usuario pierde, dejamos de ser lo que prometimos. (liquidez)
+- **R-058** — Los datos que se publican o se venden son agregados: probabilidad,
+  volumen, resultado y calibración. Quién apostó qué no sale nunca. Un usuario
+  no es un producto. (datos)
+- **R-059** — Un mercado con un solo apostador se anula y se devuelve todo. Con
+  uno solo, el pozo perdedor es la semilla de la casa: esa persona no le ganó a
+  nadie, y cobrarle a la casa no es un mercado. (liquidez)
+- **R-060** — El código de recuperación se muestra una sola vez, se guarda
+  hasheado y la app no cierra la hoja hasta que el usuario dice que lo guardó.
+  Sin correo obligatorio no hay otra vía, y una cuenta perdida es un usuario
+  perdido para siempre. (producto)
+- **R-061** — La analítica se guarda en casa y se filtra dos veces: lista blanca
+  en el cliente (R-020) y otra vez en el servidor. Nunca se confía en lo que
+  manda un navegador, y el comportamiento de nuestros usuarios no se le regala
+  a un tercero. (datos)
+- **R-062** — Un mercado de confirmación humana sólo se publica si el evento
+  justifica que una persona se siente a verlo: máximo tres a la vez. Lo demás
+  espera a que su fuente abra un endpoint. (producto)
+- **R-063** — Un mercado se presenta con los dos lados visibles, cada uno con su
+  probabilidad y su pago. Mostrar un solo lado es mostrar medio mercado: quien
+  apuesta necesita ver contra qué apuesta. (interfaz)
+- **R-064** — Toda comisión que se resta del reparto tiene que llegar a algún
+  lado, con asiento, fecha y mercado. Una comisión que se calcula y desaparece
+  es la forma exacta de perderle la pista al dinero. (contabilidad)

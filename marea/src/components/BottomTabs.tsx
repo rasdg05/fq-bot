@@ -1,16 +1,26 @@
-import { LayoutGrid, Search, PieChart, Wallet, User } from "lucide-react";
+import { LayoutGrid, Search, PieChart, Trophy, Wallet, User } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { S } from "@/lib/strings";
 import { useApp, type TabId } from "@/state/store";
+import { isPointsMode } from "@/lib/flags";
 
-const TABS: { id: TabId; label: string; Icon: LucideIcon }[] = [
-  { id: "markets", label: S.tabs.markets, Icon: LayoutGrid },
-  { id: "search", label: S.tabs.search, Icon: Search },
-  { id: "portfolio", label: S.tabs.portfolio, Icon: PieChart },
-  { id: "wallet", label: S.tabs.wallet, Icon: Wallet },
-  { id: "profile", label: S.tabs.profile, Icon: User },
-];
+/**
+ * En modo puntos la cartera no existe —no hay dinero que guardar— y su lugar lo
+ * toma la tabla, que es lo que hace que la gente vuelva mañana a defender su
+ * racha. Con dinero real vuelve la cartera.
+ */
+function tabsDe(puntos: boolean): { id: TabId; label: string; Icon: LucideIcon }[] {
+  return [
+    { id: "markets", label: S.tabs.markets, Icon: LayoutGrid },
+    { id: "search", label: S.tabs.search, Icon: Search },
+    { id: "portfolio", label: S.tabs.portfolio, Icon: PieChart },
+    puntos
+      ? { id: "tabla" as TabId, label: S.tabla.title, Icon: Trophy }
+      : { id: "wallet" as TabId, label: S.tabs.wallet, Icon: Wallet },
+    { id: "profile", label: S.tabs.profile, Icon: User },
+  ];
+}
 
 /**
  * Navegación inferior: 5 destinos, `Mercados` por defecto. Vive abajo porque
@@ -23,19 +33,29 @@ const TABS: { id: TabId; label: string; Icon: LucideIcon }[] = [
  */
 export function BottomTabs() {
   const { state, actions } = useApp();
+  const TABS = tabsDe(isPointsMode());
 
   return (
     <nav
-      aria-label={S.tabs.markets}
+      aria-label={S.tabs.navegacion}
       data-testid="bottom-tabs"
       className="fixed inset-x-0 bottom-0 z-30 border-t border-line2 bg-bg"
       style={{ paddingBottom: "var(--safe-b)" }}
     >
-      <ul className="mx-auto flex w-full max-w-[520px] items-stretch">
+      {/* un `role="tab"` sin `tablist` que lo contenga deja al lector de
+          pantalla sin saber cuántas pestañas hay ni en cuál está. Era el único
+          hallazgo crítico de axe, y salía en las cinco pantallas.
+          `role="presentation"` en los `li` porque una lista dentro de un
+          tablist tampoco es una estructura válida */}
+      <ul
+        role="tablist"
+        aria-label={S.tabs.navegacion}
+        className="mx-auto flex w-full max-w-[520px] items-stretch"
+      >
         {TABS.map(({ id, label, Icon }) => {
           const active = state.tab === id;
           return (
-            <li key={id} className="flex-1">
+            <li key={id} role="presentation" className="flex-1">
               <button
                 type="button"
                 role="tab"
@@ -71,4 +91,5 @@ export function BottomTabs() {
   );
 }
 
-export const TAB_IDS = TABS.map((tab) => tab.id);
+/** Los destinos vigentes según el motor. Lo usan las pruebas de navegación. */
+export const tabIds = (puntos: boolean): TabId[] => tabsDe(puntos).map((tab) => tab.id);

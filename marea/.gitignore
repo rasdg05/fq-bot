@@ -15,3 +15,8 @@ calibration-report.json
 !/data/iv/*.md
 # las bitácoras del cron son ruido local, no dataset
 /data/iv/*.log
+/data/*.log
+
+# el estado del liquidador sí se versiona: es la historia de cómo se resolvió
+# cada mercado, y sin ella un pago no se puede auditar (R-040)
+!/data/settlements.json

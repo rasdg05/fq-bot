@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 /**
- * Instala la tarea diaria en tu máquina, sin CI de por medio.
+ * Instala la tarea de mantenimiento en tu máquina, sin CI de por medio.
+ *
+ * Liquida los mercados que resolvieron, repone el catálogo y guarda la
+ * superficie de volatilidad del día.
  *
  * macOS usa launchd (sobrevive reinicios y recupera la corrida si la máquina
  * estaba apagada). Linux usa crontab. En los dos casos queda un solo trabajo,
@@ -8,7 +11,10 @@
  *
  *   npm run cron:install
  *   npm run cron:install -- --uninstall
- *   npm run cron:install -- --hora 21
+ *   npm run cron:install -- --minuto 20
+ *
+ * Corre cada hora, no una vez al día: la liquidación tiene que enterarse de
+ * que un mercado resolvió el mismo día, no el siguiente (R-040).
  */
 import { execFileSync } from "node:child_process";
 import { writeFileSync, mkdirSync, existsSync, unlinkSync } from "node:fs";
@@ -17,15 +23,14 @@ import { fileURLToPath } from "node:url";
 import { homedir, platform } from "node:os";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const LABEL = "com.marea.superficie-iv";
+const LABEL = "com.marea.tarea";
 const args = process.argv.slice(2);
 const uninstall = args.includes("--uninstall");
-const horaArg = args.indexOf("--hora");
-const HORA = horaArg >= 0 ? Number(args[horaArg + 1]) : 20;
-const MINUTO = 5;
+const minutoArg = args.indexOf("--minuto");
+const MINUTO = minutoArg >= 0 ? Number(args[minutoArg + 1]) : 5;
 
-if (!Number.isInteger(HORA) || HORA < 0 || HORA > 23) {
-  console.error("La hora tiene que ser un entero de 0 a 23.");
+if (!Number.isInteger(MINUTO) || MINUTO < 0 || MINUTO > 59) {
+  console.error("El minuto tiene que ser un entero de 0 a 59.");
   process.exit(1);
 }
 
@@ -63,15 +68,15 @@ function macos() {
     <string>${script}</string>
   </array>
   <key>WorkingDirectory</key><string>${ROOT}</string>
+  <!-- cada hora, al minuto elegido -->
   <key>StartCalendarInterval</key>
   <dict>
-    <key>Hour</key><integer>${HORA}</integer>
     <key>Minute</key><integer>${MINUTO}</integer>
   </dict>
   <!-- si la máquina estaba apagada a esa hora, corre en cuanto despierta -->
   <key>RunAtLoad</key><false/>
-  <key>StandardOutPath</key><string>${join(ROOT, "data", "iv", "cron.out.log")}</string>
-  <key>StandardErrorPath</key><string>${join(ROOT, "data", "iv", "cron.err.log")}</string>
+  <key>StandardOutPath</key><string>${join(ROOT, "data", "cron.out.log")}</string>
+  <key>StandardErrorPath</key><string>${join(ROOT, "data", "cron.err.log")}</string>
 </dict>
 </plist>
 `,
@@ -87,12 +92,12 @@ function macos() {
   execFileSync("launchctl", ["bootstrap", `gui/${process.getuid?.()}`, plist], {
     stdio: "inherit",
   });
-  console.log(`Instalada: corre todos los días a las ${HORA}:${String(MINUTO).padStart(2, "0")}.`);
+  console.log(`Instalada: corre cada hora, al minuto ${MINUTO}.`);
   console.log(`  plist: ${plist}`);
 }
 
 function linux() {
-  const line = `${MINUTO} ${HORA} * * * cd ${ROOT} && ${node} ${script} >> ${join(ROOT, "data", "iv", "cron.out.log")} 2>&1 # ${LABEL}`;
+  const line = `${MINUTO} * * * * cd ${ROOT} && ${node} ${script} >> ${join(ROOT, "data", "cron.out.log")} 2>&1 # ${LABEL}`;
 
   let actual = "";
   try {
@@ -112,7 +117,7 @@ function linux() {
   console.log(
     uninstall
       ? `Quitada la tarea ${LABEL}.`
-      : `Instalada: corre todos los días a las ${HORA}:${String(MINUTO).padStart(2, "0")}.`,
+      : `Instalada: corre cada hora, al minuto ${MINUTO}.`,
   );
 }
 

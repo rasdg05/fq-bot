@@ -28,6 +28,12 @@ function bool(key: string, fallback: boolean): boolean {
 export type DataSource = "mock" | "aggregated";
 
 export interface AppConfig {
+  /**
+   * Base del servidor de Marea. Con esto encendido hay cuentas, saldo que
+   * persiste y un pozo compartido entre todos; sin esto, la app corre sola en
+   * el dispositivo y lo que apuestas se pierde al recargar.
+   */
+  apiBase?: string;
   /** De dónde salen los mercados. */
   dataSource: DataSource;
   /** Series de Kalshi que curamos; vacío = listado general. */
@@ -54,12 +60,18 @@ export interface AppConfig {
 export function readConfig(): AppConfig {
   const source = str("VITE_DATA_SOURCE");
   return {
+    // por defecto la app habla con su propio servidor: no depende de que
+    // alguien recuerde poner una variable en el panel de un hosting. Para una
+    // build estática sin servidor se pone `off` explícitamente.
+    apiBase: (str("VITE_API_BASE") ?? "/api") === "off" ? undefined : str("VITE_API_BASE") ?? "/api",
     dataSource: source === "aggregated" ? "aggregated" : "mock",
     kalshiSeries: (str("VITE_KALSHI_SERIES") ?? "")
       .split(",")
       .map((ticker) => ticker.trim())
       .filter(Boolean),
-    analyticsEndpoint: str("VITE_ANALYTICS_ENDPOINT"),
+    // el sink propio también es el default: lanzar a ciegas no puede ser lo
+    // que pasa cuando nadie configura nada
+    analyticsEndpoint: str("VITE_ANALYTICS_ENDPOINT") ?? "/api/eventos",
     analyticsKey: str("VITE_ANALYTICS_KEY"),
     analyticsSampleRate: Number(str("VITE_ANALYTICS_SAMPLE_RATE") ?? "1") || 1,
     errorEndpoint: str("VITE_ERROR_ENDPOINT"),

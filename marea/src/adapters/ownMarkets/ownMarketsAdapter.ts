@@ -3,7 +3,10 @@ import { withEdge } from "@/domain/edge";
 import { appError } from "@/domain/errors";
 import {
   addStake,
+  BINARY_OUTCOMES,
   impliedProbability,
+  isBinary,
+  rankedOutcomes,
   quote,
   outlook,
   totalPool,
@@ -12,8 +15,10 @@ import {
   type Side,
 } from "@/domain/parimutuel";
 import { resolutionSummary } from "@/domain/resolution";
+import { settle } from "@/domain/parimutuel";
+import type { SettlementState } from "@/domain/settlement";
 import type { MarketDataAdapter } from "@/adapters/marketDataAdapter";
-import { OWN_MARKETS, findOwnMarket, type OwnMarketSeed } from "./catalog";
+import { OWN_MARKETS, activeSeeds, findOwnMarket, type OwnMarketSeed } from "./catalog";
 
 /**
  * Adapter de mercados propios. Cumple el mismo contrato que el mock y que la
@@ -42,10 +47,26 @@ export interface OwnMarketsOptions {
   loadReference?: () => Promise<Map<string, ReferenceQuote>>;
   /** Cuánto vale una referencia antes de volver a pedirla. */
   referenceTtlMs?: number;
+  /**
+   * Cuánto se espera a la referencia antes de mostrar el feed sin ella. Los
+   * mercados no dependen de la referencia — sólo el Edge — así que una casa
+   * lenta no puede dejar la pantalla en blanco.
+   */
+  referenceTimeoutMs?: number;
   /** Se avisa cuando la referencia no se pudo cargar, para observabilidad. */
   onReferenceError?: (error: unknown) => void;
   /** Se llama cuando una apuesta se acepta, para descontar del ledger. */
   onStake?: (marketId: string, side: Side, stake: number) => void;
+  /**
+   * Mercados generados por el proceso de reposición. Se suman al catálogo
+   * escrito a mano para que el feed no se vacíe cuando ése caduca (R-041).
+   */
+  loadSeeds?: () => Promise<OwnMarketSeed[]>;
+  /**
+   * Estado de liquidación publicado por el runner. Es lo que convierte un
+   * mercado cerrado en un mercado pagado (R-040).
+   */
+  loadSettlements?: () => Promise<SettlementState[]>;
   now?: () => number;
 }
 
@@ -66,9 +87,37 @@ export function createOwnMarketsAdapter(
 } {
   const now = options.now ?? (() => Date.now());
   const referenceTtl = options.referenceTtlMs ?? 60_000;
+  const referenceTimeout = options.referenceTimeoutMs ?? 300;
   let reference = options.reference;
   let referenceAt = options.reference ? now() : 0;
   let cargando: Promise<void> | null = null;
+  const listeners = new Set<() => void>();
+
+  function avisar() {
+    for (const listener of listeners) listener();
+  }
+
+  /**
+   * Espera a la referencia, pero no para siempre. Si la casa externa tarda, el
+   * feed sale sin Edge y el Edge se enciende cuando la lectura llega: esperar
+   * en blanco por un adorno sería fabricar espera (R-021).
+   */
+  async function waitForReference(): Promise<void> {
+    const carga = refreshReference();
+    if (referenceTimeout <= 0) return carga;
+    let tarde = false;
+    await Promise.race([
+      carga.then(() => {
+        if (tarde) avisar();
+      }),
+      new Promise<void>((resolve) =>
+        setTimeout(() => {
+          tarde = true;
+          resolve();
+        }, referenceTimeout),
+      ),
+    ]);
+  }
 
   /**
    * Refresca la referencia si venció. Una caída no rompe el feed: se descarta
@@ -102,6 +151,47 @@ export function createOwnMarketsAdapter(
     ]),
   );
   const positions: Position[] = [];
+  const settlements = new Map<string, SettlementState>();
+  let seedsCargados = false;
+
+  /**
+   * Suma los mercados generados por el proceso de reposición. Los ya conocidos
+   * no se tocan: el pozo local de un mercado en curso no se reinicia porque el
+   * archivo se haya vuelto a publicar.
+   */
+  async function refreshSeeds(): Promise<void> {
+    if (!options.loadSeeds || seedsCargados) return;
+    seedsCargados = true;
+    try {
+      for (const seed of await options.loadSeeds()) {
+        if (!live.has(seed.id)) {
+          live.set(seed.id, { seed, pool: { ...seed.pool }, bets: [] });
+        }
+      }
+    } catch (error) {
+      // el feed sigue con el catálogo estático: menos mercados, no menos verdad
+      options.onReferenceError?.(error);
+    }
+  }
+
+  async function refreshSettlements(): Promise<void> {
+    if (!options.loadSettlements) return;
+    try {
+      for (const state of await options.loadSettlements()) {
+        settlements.set(state.marketId, state);
+      }
+    } catch (error) {
+      options.onReferenceError?.(error);
+    }
+  }
+
+  /** Lo que se le pagó a cada apuesta de este mercado, si ya se liquidó. */
+  function payoutsOf(entry: LiveMarket): Record<string, number> | undefined {
+    const state = settlements.get(entry.seed.id);
+    if (!state?.outcome) return undefined;
+    if (state.phase !== "pagado" && state.phase !== "devuelto") return undefined;
+    return settle(entry.pool, entry.bets, state.outcome).payouts;
+  }
 
   /** Umbral relativo: HOT es el pelotón de arriba, no un número absoluto. */
   function hotThreshold(): number {
@@ -114,24 +204,39 @@ export function createOwnMarketsAdapter(
   function toMarket(entry: LiveMarket, threshold = hotThreshold()): Market {
     const { seed, pool } = entry;
     const quote = seed.referenceKey ? reference?.get(seed.referenceKey) : undefined;
-    const closed = new Date(seed.closesAt).getTime() <= now();
+    const state = settlements.get(seed.id);
+    // un mercado resuelto deja de aceptar apuestas aunque su fecha no haya
+    // llegado: los de toque resuelven en cuanto el precio llega
+    const resuelto = state !== undefined && state.phase !== "abierto";
+    const closed = resuelto || new Date(seed.closesAt).getTime() <= now();
+
+    // en binario el nodo dominante es el Sí; con N respuestas es la favorita,
+    // y hay que decir de cuál se habla. Sin esto un mercado de tres opciones
+    // mostraría 0 %, porque no tiene ningún lado llamado "si"
+    const outcomes = seed.outcomes ?? [...BINARY_OUTCOMES];
+    const binario = isBinary(pool);
+    const lider = rankedOutcomes(pool, outcomes)[0];
 
     return withEdge({
       id: seed.id,
       title: seed.title,
       // la probabilidad es la del pozo: lo que la gente apostó
-      probability: impliedProbability(pool),
+      probability: binario ? impliedProbability(pool) : (lider?.probability ?? 0),
+      leadLabel: binario ? undefined : lider?.label,
+      outcomes,
       volume: totalPool(pool),
       status: closed ? "resolved" : "open",
       category: seed.category,
       // el criterio se arma desde la especificación validada, nunca a mano
       resolution_summary: resolutionSummary(seed.resolution),
+      outcome: state?.outcome,
+      settlementEvidence: state?.evidence,
       // la lectura independiente viene de afuera; si no hay, no hay Edge
       mareaProbability: quote?.probability,
       mareaBasis: quote ? `Precio de la misma pregunta en ${quote.venue}.` : undefined,
       edgeLabel: quote?.venue,
       priceLabel: "Aquí",
-      pool: { ...pool },
+      pool: { outcomes: { ...pool.outcomes }, feeBps: pool.feeBps },
       region: "latam",
       country: seed.country,
       hot: totalPool(pool) >= threshold,
@@ -141,10 +246,23 @@ export function createOwnMarketsAdapter(
   }
 
   return {
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+
     async listMarkets() {
-      await refreshReference();
+      await Promise.all([refreshSeeds(), refreshSettlements(), waitForReference()]);
+      const vigentes = new Set(
+        activeSeeds(
+          now(),
+          [...live.values()].map((entry) => entry.seed),
+        ).map((seed) => seed.id),
+      );
       const threshold = hotThreshold();
       return [...live.values()]
+        // un mercado vencido en el feed promete algo que ya no existe
+        .filter((entry) => vigentes.has(entry.seed.id))
         .map((entry) => toMarket(entry, threshold))
         .sort((a, b) => b.volume - a.volume);
     },
@@ -157,6 +275,7 @@ export function createOwnMarketsAdapter(
     },
 
     async listPositions() {
+      await refreshSettlements();
       // el pago potencial se recalcula contra el pozo de ahora; el `pnl` queda
       // en cero porque en parimutuel no existe hasta que el mercado resuelve
       return positions.map((position) => {
@@ -164,6 +283,28 @@ export function createOwnMarketsAdapter(
         if (!entry) return position;
         const bet = entry.bets.find((candidate) => candidate.id === position.id);
         if (!bet) return position;
+
+        const payouts = payoutsOf(entry);
+        if (payouts) {
+          // ya se pagó: aquí sí hay resultado, y viene con su evidencia
+          const state = settlements.get(entry.seed.id)!;
+          const payout = payouts[bet.id] ?? 0;
+          return {
+            ...position,
+            status:
+              state.phase === "devuelto"
+                ? "settled"
+                : bet.side === state.outcome
+                  ? "won"
+                  : "lost",
+            payout,
+            pnl: payout - position.size,
+            evidence: state.evidence,
+            toWin: undefined,
+            multiplier: undefined,
+          };
+        }
+
         const view = outlook(entry.pool, bet);
         return { ...position, pnl: 0, toWin: view.toWin, multiplier: view.multiplier };
       });
@@ -173,6 +314,11 @@ export function createOwnMarketsAdapter(
       const entry = live.get(marketId);
       if (!entry) throw appError("E_TRADE_INIT_FAILED", { marketId });
       if (new Date(entry.seed.closesAt).getTime() <= now()) {
+        throw appError("E_TRADE_INIT_FAILED", { marketId });
+      }
+      // un mercado que ya se leyó no acepta apuestas: el resultado existe
+      const state = settlements.get(marketId);
+      if (state && state.phase !== "abierto") {
         throw appError("E_TRADE_INIT_FAILED", { marketId });
       }
       if (size <= 0) throw appError("E_TRADE_INIT_FAILED", { marketId });

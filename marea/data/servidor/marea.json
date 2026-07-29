@@ -1,0 +1,261 @@
+{
+  "version": 1,
+  "usuarios": [
+    {
+      "id": "04af6c42-4f21-4d5c-a468-e4c31b83572c",
+      "usuario": "rasdg05",
+      "hash": "bc853b5b3334f1ab6b310352e6bfec57e4920fa379912990ed6162fd29e54ab4f31b97c8561b14a7de7aab960aad9438380108849b9c71047cdbbf448ab0efad",
+      "salt": "b6678883c73d1533546fc14ce9253421",
+      "creado": "2026-07-28T01:41:08.758Z",
+      "puntos": 900
+    },
+    {
+      "id": "7a7952e5-a9c6-4c98-a5bc-19f0f208a3ea",
+      "usuario": "ana_predice",
+      "hash": "7edcab9b957b8cdebe2bce71742e839494cf21f113129ba99ca3b4faf9e03f0c3117c64f9dfa333f96fb1922a8517bd67fc134abcbc3b867802c8628de4a1be4",
+      "salt": "84c87a6663a5c3bad988a2d64bd71885",
+      "creado": "2026-07-28T05:32:07.551Z",
+      "puntos": 900
+    },
+    {
+      "id": "ab131af6-4468-4fee-844c-3190eae5dc84",
+      "usuario": "rasdg",
+      "hash": "0806a34e85054282833c28a1c47cc597d3ffbdf49d32fb77edd0385ec985323803534004dfd2a7fd3c29782ec8f64dde64ae6af0f48c0483742e6475b0ea5829",
+      "salt": "d729a4cc5e636378bc1ce43f6c065ec7",
+      "recuperacionHash": "5260dbb4da8104733ac86a510b07a48e22ec092619a4113c49f784473060d9461060d74be7ae65befcd95e6c746cb76cbeeb6b9aec75824d42f063b16d7851a4",
+      "recuperacionSalt": "46f6ad02a4cae27fcb394f03f44d70c6",
+      "creado": "2026-07-28T07:42:38.352Z",
+      "puntos": 1000
+    },
+    {
+      "id": "f9472b26-b0e6-4562-84ff-5e6c463629ba",
+      "usuario": "nuevo_user",
+      "hash": "151fe502815dc6c0f75d7e9370d5cc63c362a6f17224ddcd23d98bddbcd81b98c130677da5fca591d3e2d8e6c1b842291adb33027f9c378313e9fd2cb5e12120",
+      "salt": "f9889fce36e60e23bb25863b4e4db754",
+      "recuperacionHash": "757fabd89919fc53aebff419d1a97a738d84e5937ee40b68a1402bdeb8971ee61d39ba30eeacb33caa9fbf32aab3f7df9d6c4f8237f1fc5334ccc828c63f195d",
+      "recuperacionSalt": "95c78127c7a00d8abbe85a2cd8c1f17d",
+      "creado": "2026-07-28T08:02:00.901Z",
+      "puntos": 900
+    }
+  ],
+  "apuestas": [
+    {
+      "id": "btc-cierre-semanal-1",
+      "usuarioId": "04af6c42-4f21-4d5c-a468-e4c31b83572c",
+      "marketId": "btc-cierre-semanal",
+      "side": "si",
+      "stake": 100,
+      "precio": 0.5642458100558659,
+      "at": "2026-07-28T01:41:08.839Z"
+    },
+    {
+      "id": "btc-cierre-semanal-2",
+      "usuarioId": "7a7952e5-a9c6-4c98-a5bc-19f0f208a3ea",
+      "marketId": "btc-cierre-semanal",
+      "side": "si",
+      "stake": 100,
+      "precio": 0.5873015873015873,
+      "at": "2026-07-28T05:32:07.645Z"
+    },
+    {
+      "id": "btc-cierre-semanal-3",
+      "usuarioId": "f9472b26-b0e6-4562-84ff-5e6c463629ba",
+      "marketId": "btc-cierre-semanal",
+      "side": "si",
+      "stake": 100,
+      "precio": 0.6080402010050251,
+      "at": "2026-07-28T08:02:01.070Z"
+    }
+  ],
+  "pozos": [
+    {
+      "marketId": "mx-inpc-anual",
+      "si": 420,
+      "no": 260,
+      "feeBps": 300
+    },
+    {
+      "marketId": "mx-banxico-tasa",
+      "si": 560,
+      "no": 300,
+      "feeBps": 300
+    },
+    {
+      "marketId": "mx-dolar-19",
+      "si": 300,
+      "no": 480,
+      "feeBps": 300
+    },
+    {
+      "marketId": "ar-bcra-tasa",
+      "si": 640,
+      "no": 240,
+      "feeBps": 300
+    },
+    {
+      "marketId": "br-selic-corte",
+      "si": 510,
+      "no": 390,
+      "feeBps": 300
+    },
+    {
+      "marketId": "co-inflacion-dane",
+      "si": 380,
+      "no": 420,
+      "feeBps": 300
+    },
+    {
+      "marketId": "cl-imacec",
+      "si": 290,
+      "no": 310,
+      "feeBps": 300
+    },
+    {
+      "marketId": "latam-libertadores-br",
+      "si": 820,
+      "no": 440,
+      "feeBps": 300
+    },
+    {
+      "marketId": "btc-cierre-semanal",
+      "si": 1210,
+      "no": 780,
+      "feeBps": 300
+    },
+    {
+      "marketId": "eth-4500",
+      "si": 340,
+      "no": 690,
+      "feeBps": 300
+    },
+    {
+      "marketId": "pe-cobre-exportacion",
+      "si": 260,
+      "no": 240,
+      "feeBps": 300
+    },
+    {
+      "marketId": "btc-cierre-2026-08-02",
+      "si": 500,
+      "no": 500,
+      "feeBps": 300
+    },
+    {
+      "marketId": "btc-toca-2026-07-27",
+      "si": 300,
+      "no": 600,
+      "feeBps": 300
+    },
+    {
+      "marketId": "eth-cierre-2026-08-02",
+      "si": 500,
+      "no": 500,
+      "feeBps": 300
+    },
+    {
+      "marketId": "eth-toca-2026-07-27",
+      "si": 300,
+      "no": 600,
+      "feeBps": 300
+    },
+    {
+      "marketId": "btc-toca-2026-07-28",
+      "si": 300,
+      "no": 600,
+      "feeBps": 300
+    },
+    {
+      "marketId": "eth-toca-2026-07-28",
+      "si": 300,
+      "no": 600,
+      "feeBps": 300
+    },
+    {
+      "marketId": "br-ipca-5",
+      "si": 430,
+      "no": 350,
+      "feeBps": 300
+    },
+    {
+      "marketId": "mx-puebla-guadalajara-2026-08-01",
+      "si": 400,
+      "no": 400,
+      "feeBps": 300
+    },
+    {
+      "marketId": "mx-atletico-de-san-luis-tijuana-2026-08-01",
+      "si": 400,
+      "no": 400,
+      "feeBps": 300
+    },
+    {
+      "marketId": "mx-fc-juarez-pumas-unam-2026-08-01",
+      "si": 400,
+      "no": 400,
+      "feeBps": 300
+    },
+    {
+      "marketId": "mx-queretaro-tigres-uanl-2026-08-01",
+      "si": 400,
+      "no": 400,
+      "feeBps": 300
+    },
+    {
+      "marketId": "mx-atlas-monterrey-2026-08-02",
+      "si": 400,
+      "no": 400,
+      "feeBps": 300
+    },
+    {
+      "marketId": "mx-leon-pachuca-2026-08-02",
+      "si": 400,
+      "no": 400,
+      "feeBps": 300
+    },
+    {
+      "marketId": "mx-cruz-azul-atlante-2026-08-02",
+      "si": 400,
+      "no": 400,
+      "feeBps": 300
+    },
+    {
+      "marketId": "mx-america-santos-2026-08-02",
+      "si": 400,
+      "no": 400,
+      "feeBps": 300
+    },
+    {
+      "marketId": "mx-toluca-necaxa-2026-08-03",
+      "si": 400,
+      "no": 400,
+      "feeBps": 300
+    }
+  ],
+  "liquidaciones": [
+    {
+      "marketId": "eth-4500",
+      "phase": "abierto",
+      "evidence": "No se pudo leer Kraken (velas diarias públicas): Kraken respondió 503"
+    },
+    {
+      "marketId": "btc-toca-2026-07-27",
+      "phase": "abierto",
+      "evidence": "Máximo de BTC/USD en Kraken entre 2026-07-27 y 2026-07-28: 65,682.6 USD frente al umbral de 69,000."
+    },
+    {
+      "marketId": "eth-toca-2026-07-27",
+      "phase": "abierto",
+      "evidence": "No se pudo leer Kraken (velas diarias públicas): Kraken respondió 503"
+    },
+    {
+      "marketId": "btc-toca-2026-07-28",
+      "phase": "abierto",
+      "evidence": "Máximo de BTC/USD en Kraken entre 2026-07-28 y 2026-07-28: 63,762.6 USD frente al umbral de 69,000."
+    },
+    {
+      "marketId": "eth-toca-2026-07-28",
+      "phase": "abierto",
+      "evidence": "No se pudo leer Kraken (velas diarias públicas): Kraken respondió 503"
+    }
+  ]
+}

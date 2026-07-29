@@ -1,3 +1,5 @@
+import type { Outcome, OutcomeId, Pool } from "./parimutuel";
+
 /**
  * Contratos de dominio. Cerrados por ARCH: los adapters se adaptan a estos
  * tipos, nunca al revés. La UI no conoce ninguna otra forma de dato.
@@ -44,9 +46,38 @@ export interface Market {
   /** Etiqueta del precio propio en el detalle: "Mercado" o "Aquí". */
   priceLabel?: string;
   /** Estado del pozo, cuando el mercado es parimutuel propio. */
-  pool?: { si: number; no: number; feeBps: number };
+  pool?: Pool;
+  /**
+   * Los resultados posibles, en el orden en que los declaró el mercado. El
+   * binario los trae también (`si`/`no`): así la UI no tiene dos caminos, sólo
+   * dos formas de pintar la misma lista (R-063).
+   */
+  outcomes?: Outcome[];
+  /**
+   * De qué resultado habla `probability` cuando hay más de dos. En binario
+   * sobra —siempre es el Sí—; con N respuestas, un porcentaje sin nombre es un
+   * número que no dice nada.
+   */
+  leadLabel?: string;
+  /**
+   * Cuánta gente distinta apostó. Personas, no apuestas: veinte apuestas de
+   * una sola persona no son un mercado (R-059).
+   */
+  participantes?: number;
+  /**
+   * Los dos equipos, cuando el mercado es de futbol. El escudo lo sirve la
+   * misma fuente que resuelve el mercado, así que no se cita a nadie que no se
+   * lea (R-046).
+   */
+  equipos?: { nombre: string; escudo?: string }[];
+  /** Marcador, si el partido está en juego o ya terminó. */
+  marcador?: { local: number; visitante: number; estado: string };
   /** Dónde se completa la operación cuando la ejecución es agregada. */
   venue?: { id: string; label: string; url?: string };
+  /** Resultado ya leído de la fuente, cuando el mercado resolvió. */
+  outcome?: PositionSide;
+  /** Qué se leyó exactamente para resolver. Auditable por el usuario. */
+  settlementEvidence?: string;
   /** Marca de tracción para el badge HOT. */
   hot?: boolean;
   /** Región del mercado, para el badge LATAM. */
@@ -56,13 +87,22 @@ export interface Market {
   closesAt?: string;
 }
 
-export type PositionSide = "si" | "no";
+/**
+ * El lado de una posición es el id del resultado elegido. Con dos resultados
+ * son `si` y `no`; con siete, los siete ids del mercado.
+ */
+export type PositionSide = OutcomeId;
 export type PositionStatus = "open" | "won" | "lost" | "settled";
 
 export interface Position {
   id: string;
   market_id: string;
   side: PositionSide;
+  /**
+   * El texto del resultado elegido. Sin esto, una posición en un mercado de
+   * siete candidatos diría "Sí", que no es lo que apostó nadie.
+   */
+  sideLabel?: string;
   /** Tamaño en USD. */
   size: number;
   /** Precio de entrada, 0..1. */
@@ -78,6 +118,10 @@ export interface Position {
   toWin?: number;
   /** Cuánto paga cada unidad, con el pozo de ahora. */
   multiplier?: number;
+  /** Lo efectivamente pagado al resolver. Sólo existe con el mercado liquidado. */
+  payout?: number;
+  /** Qué se leyó para resolver, para que el pago no sea un acto de fe. */
+  evidence?: string;
 }
 
 export interface Wallet {

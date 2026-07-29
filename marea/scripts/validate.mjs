@@ -362,6 +362,185 @@ check("D1", "el dataset de volatilidad llega de verdad al repo", () => {
   return problems;
 });
 
+/* ------------------------------- L1 -------------------------------------- */
+check("L1", "todo mercado publicado tiene camino de liquidación", () => {
+  // el agujero que encontramos revisando el estado real: los mercados cerraban
+  // y nadie los pagaba nunca. La puerta vive aquí para que no vuelva (R-040).
+  const problems = [];
+  const wiring = read(join(SRC, "adapters", "index.ts"));
+  if (!/loadSettlements/.test(wiring)) {
+    problems.push("la app no lee resoluciones: los mercados cerrarían sin pagar");
+  }
+  const store = read(join(SRC, "state", "store.tsx"));
+  if (!/creditSettlements/.test(store)) {
+    problems.push("nada acredita los pagos al ledger: apostar restaría y nada devolvería");
+  }
+  if (!existsSync(join(ROOT, "scripts", "settle.mts"))) {
+    problems.push("falta el liquidador automático (scripts/settle.mts)");
+  }
+
+  // un liquidador que dejó de correr es indistinguible de uno que corre bien
+  // si nadie mira la fecha del archivo que publica
+  const publicado = join(ROOT, "public", "resoluciones.json");
+  if (existsSync(publicado)) {
+    const { generatedAt } = JSON.parse(readFileSync(publicado, "utf8"));
+    const horas = (Date.now() - new Date(generatedAt).getTime()) / 3_600_000;
+    if (!Number.isFinite(horas)) problems.push("resoluciones.json no declara cuándo se generó");
+    else if (horas > 36) {
+      problems.push(
+        `el liquidador no corre desde hace ${Math.round(horas)} h: corre \`npm run settle\``,
+      );
+    }
+  }
+  return problems;
+});
+
+/* ------------------------------- M1 -------------------------------------- */
+check("M1", "el feed no se queda sin mercados abiertos", () => {
+  // un catálogo con fechas fijas caduca y el feed se vacía sin avisar (R-041)
+  const problems = [];
+  const MINIMO = 6;
+  const ahora = Date.now();
+  const fechas = [
+    ...read(join(SRC, "adapters", "ownMarkets", "catalog.ts")).matchAll(
+      /closesAt:\s*"([^"]+)"/g,
+    ),
+  ].map((m) => Date.parse(m[1]));
+
+  const catalogoPublicado = join(ROOT, "public", "mercados.json");
+  if (existsSync(catalogoPublicado)) {
+    const { seeds = [] } = JSON.parse(readFileSync(catalogoPublicado, "utf8"));
+    for (const seed of seeds) fechas.push(Date.parse(seed.closesAt));
+  }
+
+  const abiertos = fechas.filter((fecha) => fecha > ahora).length;
+  if (abiertos < MINIMO) {
+    problems.push(
+      `sólo ${abiertos} mercados abiertos (mínimo ${MINIMO}): corre \`npm run roll\` ` +
+        `o escribe mercados nuevos en el catálogo`,
+    );
+  }
+  return problems;
+});
+
+/* ------------------------------- O1 -------------------------------------- */
+check("O1", "lo automatizable no se deja en manos de una persona", () => {
+  // decir "hace falta un humano" sin haber buscado la API es pereza con
+  // disfraz de prudencia (AGENTE §2). Esto cuenta cuánto queda manual.
+  const problems = [];
+  // se mide el feed real, no sólo el archivo escrito a mano: lo que importa
+  // es qué proporción de lo que ve el usuario se resuelve sin una persona
+  const catalog = read(join(SRC, "adapters", "ownMarkets", "catalog.ts"));
+  let total = (catalog.match(/^\s{4}id:/gm) ?? []).length;
+  let conRegla = (catalog.match(/^\s{4}rule:/gm) ?? []).length;
+
+  const publicado = join(ROOT, "public", "mercados.json");
+  if (existsSync(publicado)) {
+    const { seeds = [] } = JSON.parse(readFileSync(publicado, "utf8"));
+    total += seeds.length;
+    conRegla += seeds.filter((seed) => seed.rule).length;
+  }
+  if (total === 0) problems.push("el catálogo no tiene mercados");
+  else if (conRegla / total < 0.5) {
+    problems.push(
+      `sólo ${conRegla} de ${total} mercados se resuelven solos: busca la API de los demás`,
+    );
+  }
+  // y el oráculo de series tiene que estar enchufado, o las reglas no sirven
+  const oracles = read(join(SRC, "adapters", "oracles", "priceOracle.ts"));
+  if (!/createSeriesOracle/.test(oracles)) {
+    problems.push("el oráculo de series no está en la lista de oráculos");
+  }
+  return problems;
+});
+
+/* ------------------------------- A1 -------------------------------------- */
+check("A1", "todo camino de dinero pasa por la puerta y por contabilidad", () => {
+  const problems = [];
+  const solicitudes = read(join(SRC, "domain", "solicitudes.ts"));
+  // una solicitud de dinero no puede nacer sin consultar la elegibilidad: si
+  // se crea primero y se valida después, el camino ya está abierto (R-045)
+  if (!/eligibilityFor/.test(solicitudes)) {
+    problems.push("las solicitudes de dinero no consultan la puerta de elegibilidad");
+  }
+  // y el retiro no puede saltarse la revisión humana
+  if (!/pendiente: \["en_revision"/.test(solicitudes)) {
+    problems.push("un retiro puede saltarse la revisión");
+  }
+
+  // el contrato de custodia declara que es simulado y no sabe firmar (R-022).
+  // Se mira el código sin comentarios: el módulo documenta a propósito lo que
+  // NO trae, y buscar el nombre en la prosa daría un falso positivo
+  const contrato = read(join(SRC, "adapters", "custodia", "contrato.ts"));
+  const codigo = contrato
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
+  if (!/esSimulado/.test(codigo)) {
+    problems.push("el contrato de custodia no declara que es simulado");
+  }
+  for (const prohibido of ["firmar", "privateKey", "signTransaction", "sendTransaction"]) {
+    if (codigo.includes(prohibido)) {
+      problems.push(`el contrato expone ${prohibido}: eso espera opinión legal`);
+    }
+  }
+
+  // ningún país puede mover dinero todavía
+  const elegibilidad = read(join(SRC, "domain", "eligibility.ts"));
+  if (/status: "permitido"/.test(elegibilidad)) {
+    problems.push("hay un país en `permitido` sin que conste la opinión legal");
+  }
+
+  // la comisión que se resta tiene que quedar asentada (R-064)
+  const store = read(join(ROOT, "server", "store.mts"));
+  if (!/CUENTAS_SISTEMA\.tesoreria/.test(store)) {
+    problems.push("la comisión no llega a la tesorería contable");
+  }
+  return problems;
+});
+
+/* ------------------------------- H1 -------------------------------------- */
+check("H1", "ningún mercado depende de que una persona lo confirme", () => {
+  // R-062 topa en tres los mercados abiertos que dependen de que una persona
+  // se siente a mirarlos. La regla existía desde hace tiempo y **no tenía
+  // verificación**: por eso llegó a haber seis sin que nadie se enterara. Una
+  // regla escrita recuerda; una verificación impide (AGENTE §7).
+  const problems = [];
+  const catalog = read(join(SRC, "adapters", "ownMarkets", "catalog.ts"));
+  const total = (catalog.match(/^\s{4}id:/gm) ?? []).length;
+  const conRegla = (catalog.match(/^\s{4}rule:/gm) ?? []).length;
+  const aMano = total - conRegla;
+  // el tope pasó de tres a CERO: un mercado de confirmación manual no dice
+  // quién lo confirma, ni cuándo, ni cómo. Sin nadie de guardia es una promesa
+  // que no se puede cumplir, y publicar mercados sin proceso de resolución
+  // rompe lo único que sostiene el producto (R-040)
+  const TOPE = 0;
+  if (aMano > TOPE) {
+    problems.push(
+      `${aMano} de ${total} mercados dependen de que una persona los confirme, y el tope es ${TOPE}: ` +
+        `busca la API o no publiques la pregunta`,
+    );
+  }
+  return problems;
+});
+
+/* ------------------------------- G1 -------------------------------------- */
+check("G1", "un mercado se puede compartir y la liga trae vista previa", () => {
+  const problems = [];
+  if (!existsSync(join(ROOT, "server", "compartir.mts"))) {
+    problems.push("no existe el módulo de vista previa: las ligas se verían pelonas");
+  } else {
+    const compartir = read(join(ROOT, "server", "compartir.mts"));
+    for (const etiqueta of ["og:title", "og:description", "og:url"]) {
+      if (!compartir.includes(etiqueta)) problems.push(`falta la etiqueta ${etiqueta}`);
+    }
+    // lo que venga del catálogo se escapa: el título entra al HTML
+    if (!/escapar/.test(compartir)) problems.push("el HTML de la vista previa no escapa el título");
+  }
+  const detalle = read(join(SRC, "screens", "MarketDetailScreen.tsx"));
+  if (!/market-share/.test(detalle)) problems.push("el detalle no tiene botón de compartir");
+  return problems;
+});
+
 /* --------------------------- pruebas de comportamiento -------------------- */
 const run = spawnSync(
   "npx",

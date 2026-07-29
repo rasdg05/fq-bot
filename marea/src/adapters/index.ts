@@ -1,6 +1,10 @@
 import { CONFIG } from "@/lib/config";
 import { createMockMarketDataAdapter } from "./marketDataAdapter";
 import { createMockWalletAdapter } from "./walletAdapter";
+import {
+  createInjectedWalletAdapter,
+  hasInjectedWallet,
+} from "./wallet/injectedWallet";
 import { createMemoryAnalytics, safeAnalytics } from "./analyticsAdapter";
 import { createMemoryErrorReporter, safeErrorReporter } from "./errorReporter";
 import { createHttpAnalytics } from "./analytics/httpAnalytics";
@@ -13,6 +17,11 @@ import {
   createOwnMarketsAdapter,
   referenceFromVenues,
 } from "./ownMarkets/ownMarketsAdapter";
+import {
+  loadPublishedSeeds,
+  loadPublishedSettlements,
+} from "./ownMarkets/published";
+import { createApiClient, createApiMarketDataAdapter } from "./http/apiAdapter";
 import { FLAGS, isOwnMarketMode } from "@/lib/flags";
 import type { Adapters } from "@/state/store";
 
@@ -53,10 +62,32 @@ export function resolveAdapters(): Adapters {
     return referenceFromVenues(quotes);
   };
 
-  const marketData = isOwnMarketMode(FLAGS)
+  /**
+   * Con servidor configurado, todo pasa por él: cuentas, pozo compartido y
+   * liquidación. Es el único modo en el que lo que apuesta la gente sobrevive
+   * a cerrar la app, así que manda sobre cualquier otro camino.
+   */
+  const api = CONFIG.apiBase ? createApiClient({ base: CONFIG.apiBase }) : undefined;
+
+  const marketData = api
+    ? createApiMarketDataAdapter(api)
+    : isOwnMarketMode(FLAGS)
     ? // mercados propios de Latam: Marea crea la pregunta y corre el pozo
       createOwnMarketsAdapter({
         loadReference,
+        // los mercados que se reponen solos y las resoluciones del liquidador:
+        // los dos son archivos publicados por el proceso que corre a diario
+        loadSeeds: () =>
+          loadPublishedSeeds({
+            onRejected: (id, reason) =>
+              errors.report({
+                code: "E_MARKETS_FETCH_FAILED",
+                user_message_es: "No pudimos cargar los mercados. Revisa tu conexión.",
+                retryable: true,
+                context: { kind: "catalogo", id, reason },
+              }),
+          }),
+        loadSettlements: () => loadPublishedSettlements({}),
         onReferenceError: (error) =>
           errors.report({
             code: "E_MARKETS_FETCH_FAILED",
@@ -82,11 +113,20 @@ export function resolveAdapters(): Adapters {
         })
       : createMockMarketDataAdapter();
 
+  /**
+   * Wallet: si el dispositivo trae una (MetaMask y compañía), se conecta de
+   * verdad — ese camino no necesita contrato con nadie porque la custodia es
+   * del usuario. La wallet embebida sí lo necesita, y mientras no exista, el
+   * camino simulado es el único honesto (R-022).
+   */
+  const wallet = hasInjectedWallet()
+    ? createInjectedWalletAdapter()
+    : createMockWalletAdapter();
+
   return {
     marketData,
-    // la wallet embebida real necesita credenciales de proveedor: sin ellas,
-    // el camino simulado es el único honesto
-    wallet: createMockWalletAdapter(),
+    api,
+    wallet,
     analytics: safeAnalytics(analytics),
     errors: safeErrorReporter(errors),
   };

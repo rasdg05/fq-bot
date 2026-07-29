@@ -5,9 +5,16 @@ import { formatEdgePp, hasEdge } from "@/domain/edge";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
+import { COLOR_CATEGORIA, FORMA_CATEGORIA } from "@/lib/categoria";
 import { S } from "@/lib/strings";
+import { formatStake } from "@/lib/units";
 import { compactUsd, pct, closesIn } from "@/lib/format";
-import { formatMultiplier, payoutMultiplier } from "@/domain/parimutuel";
+import {
+  BINARY_OUTCOMES,
+  formatMultiplier,
+  payoutMultiplier,
+  rankedOutcomes,
+} from "@/domain/parimutuel";
 
 export type MarketCardVariant = "default" | "edge" | "live" | "compact";
 
@@ -37,6 +44,11 @@ export function MarketCard({ market, variant, onOpen }: MarketCardProps) {
   const closes = closesIn(market.closesAt);
   // en mercado propio lo que importa es cuánto paga, no cuánto se ha operado
   const pool = market.pool;
+  // los dos resultados con más pozo, sean "Sí/No" o dos de siete candidatos
+  const ranked = pool
+    ? rankedOutcomes(pool, market.outcomes ?? [...BINARY_OUTCOMES])
+    : [];
+  const [lider, rival] = ranked;
 
   const handleOpen = React.useCallback(() => onOpen(market), [onOpen, market]);
 
@@ -58,11 +70,11 @@ export function MarketCard({ market, variant, onOpen }: MarketCardProps) {
         onClick={handleOpen}
         aria-label={`${S.market.openDetail}: ${market.title}`}
         className={cn(
-          "flex w-full flex-col gap-3 text-left",
-          compact ? "min-h-touch p-3" : "p-4",
+          "flex w-full flex-col gap-1 text-left",
+          compact ? "min-h-touch px-3.5 py-2" : "px-3.5 py-2.5",
         )}
       >
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {market.status === "live" ? (
             <Badge tone="live" dot>
               {S.badges.live}
@@ -73,70 +85,152 @@ export function MarketCard({ market, variant, onOpen }: MarketCardProps) {
           {market.country || market.region === "latam" ? (
             <Badge tone="latam">{market.country ?? S.badges.latam}</Badge>
           ) : null}
-          <span className="ml-auto text-[12px] font-medium text-muted">
+          {/* la categoría se reconoce de reojo por color y forma, y se lee en
+              la palabra: el color nunca es el único portador (R-005) */}
+          {/* escudos: `width`/`height` explícitos y `lazy`. Una imagen sin
+              dimensiones reserva cero y empuja el layout cuando llega — es la
+              forma más común de subir el CLS sin darse cuenta */}
+          {/* a 320 px la fila de badges envolvía y la card pasaba de 159 a
+              193 px: menos mercados por pantalla justo en el teléfono más
+              chico. El escudo es adorno, así que es lo primero que se va */}
+          {market.equipos?.length ? (
+            <span
+              data-testid="card-escudos"
+              className="hidden shrink-0 items-center gap-0.5 angosto:flex"
+            >
+              {market.equipos.slice(0, 2).map((equipo) =>
+                equipo.escudo ? (
+                  <img
+                    key={equipo.nombre}
+                    src={equipo.escudo}
+                    alt=""
+                    aria-hidden
+                    width={22}
+                    height={22}
+                    loading="lazy"
+                    decoding="async"
+                    className="h-[22px] w-[22px] rounded-full bg-panel2 object-contain p-px ring-1 ring-line2"
+                  />
+                ) : null,
+              )}
+            </span>
+          ) : null}
+          <span className="ml-auto flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-muted">
+            <span
+              aria-hidden
+              data-testid="categoria-marca"
+              data-categoria={market.category}
+              className={cn("h-1.5 w-1.5 shrink-0", FORMA_CATEGORIA[market.category])}
+              style={{ backgroundColor: COLOR_CATEGORIA[market.category] }}
+            />
             {S.categories[market.category]}
           </span>
         </div>
 
         <h3
           className={cn(
-            "font-display font-semibold leading-snug text-text",
-            compact ? "line-clamp-1 text-[15px]" : "line-clamp-2 text-[17px]",
+            "font-display font-semibold leading-tight text-text",
+            compact ? "line-clamp-1 text-[14px]" : "line-clamp-2 text-[15px]",
           )}
         >
           {market.title}
         </h3>
 
-        <div className="flex items-end justify-between gap-3">
-          {/* nodo dominante: la probabilidad (R-004) */}
-          <div data-dominant="probability">
-            <div
+        {/* fila de decisión: los dos resultados más probables, cada uno en
+            UNA línea. Se corta la etiqueta con elipsis antes que envolver —
+            comprimir no es amputar: el número y el lado nunca se tocan
+            (R-063, vault/CARD_SPEC.md) */}
+        {/* `flex-wrap` para el texto agrandado: a 200 % la elipsis se comía la
+            etiqueta entera ("Gana el A…" en 18 px de ancho), y una etiqueta que
+            no se lee es lo mismo que no mostrarla. A tamaño normal no envuelve
+            —cabe de sobra— así que la densidad no paga nada por esto.
+            El mínimo va en `rem`: a 200 % vale 272 px, los dos grupos dejan de
+            caber en una línea y la fila se parte sola. Es la misma regla
+            resolviendo los dos casos, no un caso especial */}
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+          <div
+            data-dominant="probability"
+            className="flex min-w-[8.5rem] flex-[1.25] items-baseline gap-1"
+          >
+            <span
               data-role="probability"
               className={cn(
-                "font-display font-semibold tabular-nums text-text",
+                "shrink-0 font-display font-semibold tabular-nums text-text",
                 compact ? "text-prob-sm" : "text-prob",
               )}
             >
-              {pct(market.probability)}
-              <span className="ml-0.5 align-top text-[0.42em] font-bold text-text2">
+              {/* el porcentaje es el del resultado que se nombra al lado, no el
+                  del Sí. Pintar P(sí) junto a la etiqueta "No" enseñaba 33 %
+                  donde el pago era de lado gordo: el número que se muestra
+                  tiene que ser del lado que dice ser (I3) */}
+              {pct(lider ? lider.probability : market.probability)}
+              <span className="ml-0.5 align-top text-[0.4em] font-bold text-text2">
                 %
               </span>
-            </div>
-            <div className="mt-0.5 text-[12px] font-medium uppercase tracking-wide text-muted">
-              {S.market.probability}
-            </div>
+            </span>
+            <span className="min-w-0 truncate text-[12px] font-semibold text-text2">
+              {pool ? (lider?.label ?? S.market.yes) : S.market.probability}
+            </span>
+            {pool ? (
+              <span className="shrink-0 font-mono text-[12px] font-semibold tabular-nums text-muted">
+                {formatMultiplier(
+                  lider ? lider.multiplier : payoutMultiplier(pool, "si"),
+                )}
+              </span>
+            ) : null}
           </div>
 
-          <div className="flex flex-col items-end gap-1.5">
-            {showEdge ? (
-              <Badge
-                tone="edge"
-                data-testid="edge-badge"
-                data-edge-pp={market.edge as number}
-              >
-                {/* el icono sigue el signo: un Edge negativo no apunta hacia arriba */}
-                {(market.edge as number) > 0 ? (
-                  <TrendingUp aria-hidden className="h-3 w-3" />
-                ) : (
-                  <TrendingDown aria-hidden className="h-3 w-3" />
-                )}
-                {/* la lectura puede no ser nuestra: se nombra quien la da (R-027) */}
-                {S.market.edgeCardWith(
-                  market.edgeLabel ?? S.market.mareaProbability,
-                  formatEdgePp(market.edge as number),
-                )}
-              </Badge>
-            ) : null}
-            <span className="text-[12px] text-muted">
-              {pool
-                ? `${S.market.payout} ${formatMultiplier(payoutMultiplier(pool, "si"))}`
-                : compactUsd(market.volume)}
-              {closes
-                ? ` · ${S.market.closes} ${closes}`
-                : ` · ${S.badges.closed}`}
-            </span>
-          </div>
+          {/* el contrincante: en binario el No, con N respuestas la segunda */}
+          {pool && rival ? (
+            <div
+              data-testid="card-other-side"
+              className="flex min-w-[8.5rem] flex-1 items-baseline justify-end gap-1"
+            >
+              <span className="shrink-0 font-display text-[20px] font-semibold tabular-nums text-text2">
+                {pct(rival.probability)}
+                <span className="ml-0.5 align-top text-[0.4em] font-bold text-muted">
+                  %
+                </span>
+              </span>
+              <span className="min-w-0 truncate text-[12px] font-semibold text-text2">
+                {rival.label}
+              </span>
+              <span className="shrink-0 font-mono text-[12px] font-semibold tabular-nums text-muted">
+                {formatMultiplier(rival.multiplier)}
+              </span>
+            </div>
+          ) : null}
+
+          {showEdge ? (
+            <Badge
+              tone="edge"
+              className="shrink-0"
+              data-testid="edge-badge"
+              data-edge-pp={market.edge as number}
+            >
+              {/* el icono sigue el signo: un Edge negativo no apunta hacia arriba */}
+              {(market.edge as number) > 0 ? (
+                <TrendingUp aria-hidden className="h-3 w-3" />
+              ) : (
+                <TrendingDown aria-hidden className="h-3 w-3" />
+              )}
+              {/* la lectura puede no ser nuestra: se nombra quien la da (R-027) */}
+              {S.market.edgeCardWith(
+                market.edgeLabel ?? S.market.mareaProbability,
+                formatEdgePp(market.edge as number),
+              )}
+            </Badge>
+          ) : null}
         </div>
+
+        {/* meta en una sola línea: la `d` huérfana de "Cierra en 4 d" salía de
+            dejar que este nodo envolviera */}
+        <span className="block truncate text-[11px] leading-tight text-muted">
+          {pool ? `${S.market.pot} ${formatStake(market.volume)}` : compactUsd(market.volume)}
+          {/* cuánta gente hay dentro: es lo que dice si el mercado está vivo */}
+          {market.participantes ? ` · ${S.market.participantes(market.participantes)}` : ""}
+          {closes ? ` · ${S.market.closes} ${closes}` : ` · ${S.badges.closed}`}
+        </span>
       </button>
     </Card>
   );

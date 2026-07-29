@@ -67,11 +67,12 @@ describe("Mercados propios — adapter", () => {
     expect(despues.probability).toBeGreaterThan(antes);
   });
 
-  it("no acepta apuestas en un mercado cerrado", async () => {
+  it("no acepta apuestas en un mercado cerrado, y ése ya no sale en el feed", async () => {
     const adapter = createOwnMarketsAdapter({ now: () => Date.parse("2030-01-01") });
-    const [first] = await adapter.listMarkets();
+    // un mercado vencido promete algo que ya no existe: sale del feed (R-041)
+    expect(await adapter.listMarkets()).toHaveLength(0);
     await expect(
-      adapter.prepareTrade({ marketId: first.id, side: "si", size: 100 }),
+      adapter.prepareTrade({ marketId: OWN_MARKETS[0].id, side: "si", size: 100 }),
     ).rejects.toMatchObject({ code: "E_TRADE_INIT_FAILED" });
   });
 
@@ -171,7 +172,13 @@ describe("Mercados propios — interfaz", () => {
     await enter(user);
     const cards = await screen.findAllByTestId("market-card");
     expect(cards.length).toBeGreaterThan(5);
-    expect(cards[0]).toHaveTextContent(/Paga \d/);
+    // los dos lados, cada uno con su pago: enseñar sólo uno es medio mercado.
+    // En la card el pago va como `Sí 1.8×` — la palabra "paga" se quitó porque
+    // costaba cuatro caracteres en la línea más apretada y hacía envolver la
+    // fila de decisión a 390 px (vault/CARD_SPEC.md). En el detalle se queda.
+    expect(cards[0]).toHaveTextContent(/Sí\s*[\d.]+×/);
+    expect(cards[0]).toHaveTextContent(/No\s*[\d.]+×/);
+    expect(within(cards[0]).getByTestId("card-other-side")).toBeInTheDocument();
     expect(cards[0].textContent).not.toMatch(/\$/);
   });
 
@@ -294,7 +301,8 @@ describe("Mercados propios — interfaz", () => {
     await enter(user);
     const surfaces: string[] = [container.textContent ?? ""];
 
-    for (const tab of [S.tabs.portfolio, S.tabs.wallet, S.tabs.profile]) {
+    // en modo puntos la cartera no existe: su lugar lo toma la tabla
+    for (const tab of [S.tabs.portfolio, S.tabla.title, S.tabs.profile]) {
       await user.click(screen.getByRole("tab", { name: tab }));
       await waitFor(() => expect(container.textContent).toBeTruthy());
       surfaces.push(container.textContent ?? "");
@@ -323,6 +331,60 @@ describe("Mercados propios — interfaz", () => {
     await enter(user);
     expect(screen.getByTestId("header-balance")).toHaveTextContent(
       new Intl.NumberFormat("es-MX").format(WELCOME_GRANT),
+    );
+  });
+});
+
+/**
+ * Volver es un caso tan normal como entrar la primera vez, y el perfil era la
+ * única puerta: quien ya tenía cuenta y perdió la sesión sólo veía "Crear
+ * cuenta". Nadie adivina que ahí dentro hay un botón para cambiar de modo.
+ */
+describe("Perfil sin sesión — las dos puertas", () => {
+  const irAPerfil = async (user: ReturnType<typeof userEvent.setup>) => {
+    await enter(user);
+    await user.click(screen.getByRole("tab", { name: S.tabs.profile }));
+    return screen.findByTestId("profile-account");
+  };
+
+  it("ofrece crear cuenta y entrar, las dos visibles sin abrir nada", async () => {
+    const user = userEvent.setup();
+    renderApp(points());
+    const tarjeta = await irAPerfil(user);
+
+    expect(within(tarjeta).getByTestId("profile-login")).toHaveTextContent(
+      S.cuenta.sinCuentaCta,
+    );
+    expect(within(tarjeta).getByTestId("profile-entrar")).toHaveTextContent(
+      S.cuenta.entrarCta,
+    );
+  });
+
+  it("«Entrar» abre la hoja ya en modo entrar, no en registro", async () => {
+    const user = userEvent.setup();
+    renderApp(points());
+    const tarjeta = await irAPerfil(user);
+    await user.click(within(tarjeta).getByTestId("profile-entrar"));
+
+    const hoja = await screen.findByTestId("account-sheet");
+    expect(within(hoja).getByTestId("account-submit")).toHaveTextContent(
+      S.cuenta.entrarCta,
+    );
+    // y desde ahí se puede cruzar al registro: la puerta no es de un solo sentido
+    expect(within(hoja).getByTestId("account-toggle")).toHaveTextContent(
+      S.cuenta.noTengo,
+    );
+  });
+
+  it("«Crear cuenta» sigue abriendo en registro", async () => {
+    const user = userEvent.setup();
+    renderApp(points());
+    const tarjeta = await irAPerfil(user);
+    await user.click(within(tarjeta).getByTestId("profile-login"));
+
+    const hoja = await screen.findByTestId("account-sheet");
+    expect(within(hoja).getByTestId("account-submit")).toHaveTextContent(
+      S.cuenta.crearCta,
     );
   });
 });

@@ -95,7 +95,7 @@ function Section({
                   {S.portfolio.side}
                 </p>
                 <p className="mt-0.5 text-[15px] font-bold text-text">
-                  {position.side === "si" ? S.market.yes : S.market.no}
+                  {position.sideLabel ?? (position.side === "si" ? S.market.yes : S.market.no)}
                   <span className="ml-2 font-mono text-[13px] font-medium text-text2 tabular-nums">
                     {formatStake(position.size)}
                   </span>
@@ -137,6 +137,34 @@ function Section({
                 )}
               </div>
             </div>
+
+            {position.evidence ? (
+              <div className="mt-3 border-t border-line pt-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[12px] uppercase tracking-wide text-muted">
+                    {S.portfolio.evidence}
+                  </p>
+                  <span
+                    data-testid="position-outcome"
+                    className="text-[12px] font-bold uppercase tracking-wide text-text2"
+                  >
+                    {position.status === "won"
+                      ? S.portfolio.won
+                      : position.status === "lost"
+                        ? S.portfolio.lost
+                        : S.portfolio.refunded}
+                  </span>
+                </div>
+                {/* la evidencia se muestra completa: es lo que hace auditable
+                    el pago, y esconderla sería pedir fe (R-040) */}
+                <p
+                  data-testid="position-evidence"
+                  className="mt-1 text-[13px] leading-snug text-text2"
+                >
+                  {position.evidence}
+                </p>
+              </div>
+            ) : null}
           </Card>
         ))}
       </div>

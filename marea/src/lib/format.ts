@@ -38,3 +38,21 @@ export function closesIn(iso?: string, now: number = Date.now()): string | null 
   if (hours < 24) return `en ${hours} h`;
   return `en ${Math.floor(hours / 24)} d`;
 }
+
+/**
+ * `12 de agosto`. La fecha de cierre en palabras, sin año cuando es este año:
+ * el año sobra en un mercado que cierra en semanas y ocupa sitio en una línea
+ * que ya va apretada.
+ */
+export function fechaCorta(iso?: string, ahora = new Date()): string | null {
+  if (!iso) return null;
+  const fecha = new Date(iso);
+  if (Number.isNaN(fecha.getTime())) return null;
+  const mismoAnio = fecha.getUTCFullYear() === ahora.getUTCFullYear();
+  return new Intl.DateTimeFormat("es-MX", {
+    day: "numeric",
+    month: "long",
+    ...(mismoAnio ? {} : { year: "numeric" }),
+    timeZone: "UTC",
+  }).format(fecha);
+}
