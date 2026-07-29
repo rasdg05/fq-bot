@@ -6,6 +6,7 @@ import { S } from "@/lib/strings";
 import { tabIds } from "@/components/BottomTabs";
 import { MOCK_MARKETS } from "@/adapters/mock/markets";
 import { contarVivos } from "@/domain/live";
+import { MAX_DESTACADOS } from "@/components/FeaturedCarousel";
 import { MarketCard, resolveVariant } from "@/components/MarketCard";
 import { render } from "@testing-library/react";
 
@@ -72,16 +73,47 @@ describe("Fase 1 — descubrimiento", () => {
     }
   });
 
-  it("V5 — Home muestra Hot ahora, chips de categoría y cards", async () => {
+  it("V5 — Home abre con destacados, agrupa por categoría y los chips filtran", async () => {
     const user = userEvent.setup();
     renderApp({ overrides: READY_NO_FUNDS });
     await feed();
 
-    expect(screen.getByText(S.feed.hotNow)).toBeInTheDocument();
+    // el carrusel de destacados y sus puntos
+    const carrusel = screen.getByTestId("featured-carousel");
+    const piezas = within(carrusel).getAllByTestId("featured-card");
+    expect(piezas.length).toBeGreaterThan(1);
+    expect(piezas.length).toBeLessThanOrEqual(MAX_DESTACADOS);
+    expect(within(screen.getByTestId("featured-dots")).queryAllByRole("generic")).toBeDefined();
+
+    // el feed va en bloques por categoría, cada uno con su encabezado
+    const encabezados = screen.getAllByTestId("section-header");
+    expect(encabezados.length).toBeGreaterThan(1);
+    const categoriasVistas = encabezados.map((h) => h.textContent ?? "");
+    expect(categoriasVistas.some((t) => t.includes(S.categories.cripto))).toBe(true);
+
     expect(screen.getByRole("tab", { name: S.categories.cripto })).toBeInTheDocument();
     expect((await screen.findAllByTestId("market-card")).length).toBeGreaterThan(3);
 
     await user.click(screen.getByRole("tab", { name: S.categories.deportes }));
+    const cards = await screen.findAllByTestId("market-card");
+    for (const card of cards) {
+      const id = card.getAttribute("data-market-id");
+      expect(MOCK_MARKETS.find((m) => m.id === id)!.category).toBe("deportes");
+    }
+    // con un filtro puesto no se repite el carrusel ni la agrupación
+    expect(screen.queryByTestId("featured-carousel")).toBeNull();
+  });
+
+  it("V5 — el chevron de un encabezado filtra por esa categoría", async () => {
+    const user = userEvent.setup();
+    renderApp({ overrides: READY_NO_FUNDS });
+    await feed();
+
+    const encabezado = screen
+      .getAllByTestId("section-header")
+      .find((h) => h.textContent?.includes(S.categories.deportes))!;
+    await user.click(encabezado);
+
     const cards = await screen.findAllByTestId("market-card");
     for (const card of cards) {
       const id = card.getAttribute("data-market-id");

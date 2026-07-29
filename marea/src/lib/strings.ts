@@ -46,9 +46,10 @@ export const S = {
   },
 
   feed: {
-    hotNow: "Hot ahora",
+    // `Hot ahora` y `Todos los mercados` se fueron con la lista continua: el
+    // feed se agrupa por categoría y cada bloque se nombra con la suya
+    destacados: "Destacados",
     allCategories: "Todos",
-    sectionAll: "Todos los mercados",
     empty: "No hay mercados calientes en este momento. Vuelve en un rato.",
     emptyCta: "Ver todos los mercados",
     emptyFiltered: "No hay mercados en esta categoría por ahora.",

@@ -21,10 +21,11 @@ export function ListSkeleton({ rows = 4 }: { rows?: number }) {
       className="space-y-2 px-4"
     >
       {Array.from({ length: rows }).map((_, index) => (
-        // altura idéntica a la card real (vault/CARD_SPEC.md). Estaba en 148 px
-        // cuando la card medía 159: un esqueleto que no mide igual es un salto
-        // de layout disfrazado. `npm run densidad` lo verifica en el navegador
-        <Skeleton key={index} className="h-[159px] w-full rounded-card" />
+        // altura idéntica a la card real (vault/CARD_SPEC.md). Un esqueleto que
+        // no mide igual es un salto de layout disfrazado, así que este número
+        // baja cada vez que la card adelgaza: 148 → 159 → 143.
+        // `npm run densidad` lo verifica en el navegador y falla si se olvida
+        <Skeleton key={index} className="h-[143px] w-full rounded-card" />
       ))}
       <span className="sr-only">{S.feed.loading}</span>
     </div>

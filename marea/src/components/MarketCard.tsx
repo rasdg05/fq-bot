@@ -5,7 +5,8 @@ import { formatEdgePp, hasEdge } from "@/domain/edge";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
-import { COLOR_CATEGORIA, FORMA_CATEGORIA } from "@/lib/categoria";
+import { CategoryBadge } from "@/components/ui/CategoryBadge";
+import { EscudoOutcome } from "@/components/ui/EscudoOutcome";
 import { S } from "@/lib/strings";
 import { formatStake } from "@/lib/units";
 import { compactUsd, pct, closesIn } from "@/lib/format";
@@ -70,67 +71,44 @@ export function MarketCard({ market, variant, onOpen }: MarketCardProps) {
         onClick={handleOpen}
         aria-label={`${S.market.openDetail}: ${market.title}`}
         className={cn(
-          "flex w-full flex-col gap-1 text-left",
-          compact ? "min-h-touch px-3.5 py-2" : "px-3.5 py-2.5",
+          // el hueco entre filas baja de 4 a 2 px y el padding vertical de 10
+          // a 8: la barra de reparto entra sin que la card crezca. Medido en
+          // navegador real, no estimado (vault/CARD_SPEC.md)
+          "flex w-full flex-col gap-[2px] text-left",
+          compact ? "min-h-touch px-3.5 py-2" : "px-3.5 py-2",
         )}
       >
+        {/* Fila 1. La categoría abrió la fila y dejó de ser un punto de 6 px
+            en `muted` a la derecha: es lo que da color al feed. LIVE va junto
+            a ella porque las dos responden "¿qué es esto y corre prisa?".
+            Como mucho tres piezas: la cuarta hace envolver la fila a 320 px */}
         <div className="flex items-center gap-1.5">
+          <CategoryBadge category={market.category} />
           {market.status === "live" ? (
             <Badge tone="live" dot>
               {S.badges.live}
             </Badge>
           ) : null}
           {market.hot ? <Badge tone="hot">{S.badges.hot}</Badge> : null}
-          {/* el país dice más que "LATAM" cuando todo el catálogo es de Latam */}
+          {/* el país dice más que "LATAM" cuando todo el catálogo es de Latam.
+              Va al final y se va primero: es la pieza que menos decide */}
           {market.country || market.region === "latam" ? (
-            <Badge tone="latam">{market.country ?? S.badges.latam}</Badge>
+            <Badge tone="latam" className="ml-auto hidden angosto:inline-flex">
+              {market.country ?? S.badges.latam}
+            </Badge>
           ) : null}
-          {/* la categoría se reconoce de reojo por color y forma, y se lee en
-              la palabra: el color nunca es el único portador (R-005) */}
-          {/* escudos: `width`/`height` explícitos y `lazy`. Una imagen sin
-              dimensiones reserva cero y empuja el layout cuando llega — es la
-              forma más común de subir el CLS sin darse cuenta */}
-          {/* a 320 px la fila de badges envolvía y la card pasaba de 159 a
-              193 px: menos mercados por pantalla justo en el teléfono más
-              chico. El escudo es adorno, así que es lo primero que se va */}
-          {market.equipos?.length ? (
-            <span
-              data-testid="card-escudos"
-              className="hidden shrink-0 items-center gap-0.5 angosto:flex"
-            >
-              {market.equipos.slice(0, 2).map((equipo) =>
-                equipo.escudo ? (
-                  <img
-                    key={equipo.nombre}
-                    src={equipo.escudo}
-                    alt=""
-                    aria-hidden
-                    width={22}
-                    height={22}
-                    loading="lazy"
-                    decoding="async"
-                    className="h-[22px] w-[22px] rounded-full bg-panel2 object-contain p-px ring-1 ring-line2"
-                  />
-                ) : null,
-              )}
-            </span>
-          ) : null}
-          <span className="ml-auto flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-muted">
-            <span
-              aria-hidden
-              data-testid="categoria-marca"
-              data-categoria={market.category}
-              className={cn("h-1.5 w-1.5 shrink-0", FORMA_CATEGORIA[market.category])}
-              style={{ backgroundColor: COLOR_CATEGORIA[market.category] }}
-            />
-            {S.categories[market.category]}
-          </span>
         </div>
 
+        {/* `leading-tight` daba 22.5 px por línea medidos, no los 18.75 que
+            promete el 1.25: dentro de un `-webkit-box` el interlineado se
+            resuelve contra las métricas de la serif, no contra el múltiplo.
+            Se declara en píxeles y se acabó la sorpresa: 19 px por línea */}
         <h3
           className={cn(
-            "font-display font-semibold leading-tight text-text",
-            compact ? "line-clamp-1 text-[14px]" : "line-clamp-2 text-[15px]",
+            "font-display font-semibold text-text",
+            compact
+              ? "line-clamp-1 text-[14px] leading-[18px]"
+              : "line-clamp-2 text-[15px] leading-[19px]",
           )}
         >
           {market.title}
@@ -168,6 +146,7 @@ export function MarketCard({ market, variant, onOpen }: MarketCardProps) {
                 %
               </span>
             </span>
+            <EscudoOutcome market={market} label={lider?.label} />
             <span className="min-w-0 truncate text-[12px] font-semibold text-text2">
               {pool ? (lider?.label ?? S.market.yes) : S.market.probability}
             </span>
@@ -192,6 +171,7 @@ export function MarketCard({ market, variant, onOpen }: MarketCardProps) {
                   %
                 </span>
               </span>
+              <EscudoOutcome market={market} label={rival.label} />
               <span className="min-w-0 truncate text-[12px] font-semibold text-text2">
                 {rival.label}
               </span>
@@ -222,6 +202,37 @@ export function MarketCard({ market, variant, onOpen }: MarketCardProps) {
             </Badge>
           ) : null}
         </div>
+
+        {/* La barra de reparto. Una sola barra, no una por resultado: lo que
+            se lee de un vistazo es la proporción entre los dos lados, y dos
+            barras apiladas cuestan el doble de alto para decir lo mismo.
+            3 px de alto — es refuerzo del número, no su sustituto: los
+            porcentajes ya están arriba, así que la barra no carga información
+            que no esté escrita (R-005) */}
+        {pool && lider ? (
+          <div
+            aria-hidden
+            data-testid="card-reparto"
+            className="flex h-[3px] w-full gap-px overflow-hidden rounded-pill bg-panel2"
+          >
+            <span
+              className="h-full rounded-pill"
+              style={{
+                width: `${Math.round(lider.probability * 100)}%`,
+                backgroundColor: "var(--teal)",
+              }}
+            />
+            {rival ? (
+              <span
+                className="h-full rounded-pill"
+                style={{
+                  width: `${Math.round(rival.probability * 100)}%`,
+                  backgroundColor: "var(--muted)",
+                }}
+              />
+            ) : null}
+          </div>
+        ) : null}
 
         {/* meta en una sola línea: la `d` huérfana de "Cierra en 4 d" salía de
             dejar que este nodo envolviera */}

@@ -19,9 +19,12 @@ export const Chip = React.forwardRef<HTMLButtonElement, ChipProps>(
       data-active={active || undefined}
       className={cn(
         "min-h-touch shrink-0 whitespace-nowrap rounded-pill border px-4 text-[14px] transition-colors",
+        // el activo va con relleno sólido, no con un tinte: una fila de chips
+        // donde el elegido apenas se distingue obliga a leerlos todos para
+        // saber qué filtro está puesto. El peso cambia además del color (R-005)
         active
-          ? "border-teal bg-teal-soft font-bold text-teal"
-          : "border-line2 font-medium text-text2 hover:border-line",
+          ? "border-teal bg-teal font-bold text-teal-ink"
+          : "border-line2 bg-panel font-medium text-text2 hover:border-line",
         className,
       )}
       {...props}

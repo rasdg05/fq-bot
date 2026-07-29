@@ -1,11 +1,12 @@
 import * as React from "react";
 import type { Market, MarketCategory } from "@/domain/types";
 import { MarketCard } from "@/components/MarketCard";
+import { FeaturedCarousel, destacados } from "@/components/FeaturedCarousel";
 import { Chip, ChipRow } from "@/components/ui/chip";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import { EmptyState, ErrorState, ListSkeleton } from "@/components/StateViews";
 import { S } from "@/lib/strings";
 import { useApp } from "@/state/store";
-import { hasEdge } from "@/domain/edge";
 
 const CATEGORIES: MarketCategory[] = [
   "cripto",
@@ -16,14 +17,19 @@ const CATEGORIES: MarketCategory[] = [
   "otros",
 ];
 
-function isHot(market: Market): boolean {
-  return Boolean(market.hot) || market.status === "live" || hasEdge(market);
-}
-
 /**
- * Home. Un solo trabajo: descubrir. `Hot ahora` primero, chips de categoría
- * como filtro, y la lista completa debajo. Los cuatro estados del listado son
- * excluyentes: nunca se montan dos a la vez (R-014).
+ * Home. Un solo trabajo: descubrir.
+ *
+ * Arriba, los destacados en carrusel: es lo que cambia al abrir la app, y sin
+ * eso la primera pantalla era una lista honesta y fría. Debajo, el feed
+ * agrupado por categoría con encabezados que filtran — la lista continua
+ * obligaba a leer la marca de cada card para saber de qué iba el bloque.
+ *
+ * Con un filtro puesto no hay ni carrusel ni agrupación: quien ya eligió
+ * `Cripto` no necesita que se lo repitan seis veces.
+ *
+ * Los cuatro estados del listado son excluyentes: nunca se montan dos a la
+ * vez (R-014).
  */
 export function HomeScreen() {
   const { state, actions } = useApp();
@@ -42,8 +48,18 @@ export function HomeScreen() {
     () => (category === "all" ? all : all.filter((m) => m.category === category)),
     [all, category],
   );
-  const hot = React.useMemo(() => filtered.filter(isHot), [filtered]);
-  const rest = React.useMemo(() => filtered.filter((m) => !isHot(m)), [filtered]);
+  const featured = React.useMemo(
+    () => (category === "all" ? destacados(all) : []),
+    [all, category],
+  );
+  /** Los bloques del feed, en el orden en que están declaradas las categorías. */
+  const grupos = React.useMemo(() => {
+    if (category !== "all") return [];
+    return CATEGORIES.map((id) => ({
+      id,
+      mercados: filtered.filter((m) => m.category === id),
+    })).filter((grupo) => grupo.mercados.length > 0);
+  }, [filtered, category]);
 
   if (markets.status === "loading") {
     return (
@@ -103,6 +119,10 @@ export function HomeScreen() {
         ))}
       </ChipRow>
 
+      {featured.length > 0 ? (
+        <FeaturedCarousel markets={featured} onOpen={actions.openMarket} />
+      ) : null}
+
       {filtered.length === 0 ? (
         <div className="pt-6">
           <EmptyState
@@ -113,49 +133,40 @@ export function HomeScreen() {
             testId="feed-empty"
           />
         </div>
+      ) : category === "all" ? (
+        grupos.map((grupo) => (
+          <Bloque
+            key={grupo.id}
+            titulo={S.categories[grupo.id]}
+            mercados={grupo.mercados}
+            onOpen={() => actions.setCategory(grupo.id)}
+          />
+        ))
       ) : (
-        <>
-          {hot.length > 0 ? (
-            <section aria-labelledby="hot-heading" className="pt-2">
-              {/* el encabezado se queda para el lector de pantalla y se va de
-                  la pantalla: el badge HOT de cada card ya dice lo mismo, y
-                  36 px de cromo son un quinto de un mercado */}
-              <h2 id="hot-heading" className="sr-only">
-                {S.feed.hotNow}
-              </h2>
-              <div className="space-y-2 px-4">
-                {hot.map((market) => (
-                  <MarketCard
-                    key={market.id}
-                    market={market}
-                    onOpen={actions.openMarket}
-                  />
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          {rest.length > 0 ? (
-            <section aria-labelledby="all-heading" className="pt-5">
-              <h2
-                id="all-heading"
-                className="px-4 pb-1.5 text-[12px] font-bold uppercase tracking-wide text-muted"
-              >
-                {S.feed.sectionAll}
-              </h2>
-              <div className="space-y-2 px-4">
-                {rest.map((market) => (
-                  <MarketCard
-                    key={market.id}
-                    market={market}
-                    onOpen={actions.openMarket}
-                  />
-                ))}
-              </div>
-            </section>
-          ) : null}
-        </>
+        <Bloque titulo={S.categories[category]} mercados={filtered} />
       )}
     </div>
+  );
+}
+
+function Bloque({
+  titulo,
+  mercados,
+  onOpen,
+}: {
+  titulo: string;
+  mercados: Market[];
+  onOpen?: () => void;
+}) {
+  const { actions } = useApp();
+  return (
+    <section className="pt-3">
+      <SectionHeader titulo={titulo} cuenta={mercados.length} onOpen={onOpen} />
+      <div className="space-y-2 px-4">
+        {mercados.map((market) => (
+          <MarketCard key={market.id} market={market} onOpen={actions.openMarket} />
+        ))}
+      </div>
+    </section>
   );
 }

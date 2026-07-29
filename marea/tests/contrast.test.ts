@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+import { TINTE_RELLENO } from "@/lib/categoria";
+
 const css = readFileSync(resolve(process.cwd(), "src/styles/tokens.css"), "utf8");
 
 /** Extrae el bloque de tokens de un selector concreto de tokens.css. */
@@ -33,6 +35,26 @@ function luminance(hex: string): number {
 function ratio(fg: string, bg: string): number {
   const [a, b] = [luminance(fg), luminance(bg)].sort((x, y) => y - x);
   return (a + 0.05) / (b + 0.05);
+}
+
+/**
+ * `color-mix(in srgb, a p%, b)` sobre dos colores opacos es la interpolación
+ * lineal de sus canales sRGB. Se replica aquí para poder medir el contraste de
+ * un relleno que el navegador calcula en tiempo de pintado.
+ */
+function mix(a: string, b: string, percent: number): string {
+  const canales = (hex: string) => {
+    const clean = hex.replace("#", "");
+    return [0, 2, 4].map((i) => parseInt(clean.slice(i, i + 2), 16));
+  };
+  const [ra, ga, ba] = canales(a);
+  const [rb, gb, bb] = canales(b);
+  const p = percent / 100;
+  const round = (x: number, y: number) =>
+    Math.round(x * p + y * (1 - p))
+      .toString(16)
+      .padStart(2, "0");
+  return `#${round(ra, rb)}${round(ga, gb)}${round(ba, bb)}`;
 }
 
 const THEMES = ['data-theme="dark"', 'data-theme="light"'];
@@ -77,6 +99,31 @@ describe("Accesibilidad de color", () => {
   it.each(THEMES)("el texto sobre el relleno teal también pasa en %s", (selector) => {
     const t = tokensOf(`:root[${selector}]`);
     expect(ratio(t["teal-ink"], t.teal)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  /**
+   * Los badges de acento (categoría, LIVE, HOT) se pintan con un relleno hecho
+   * de su propio color: `color-mix(in srgb, --acento 14%, --panel)`. El texto
+   * va en el acento puro encima de ese relleno, que es el caso más apretado
+   * del sistema — mezclar el acento dentro del fondo acerca los dos.
+   *
+   * Sin esta prueba, el tinte era un número elegido a ojo: se podía subir al
+   * 25 % en un rediseño y nadie se enteraba hasta que alguien no pudiera leer
+   * la palabra "Deportes".
+   */
+  it.each(THEMES)("el texto de acento pasa sobre su propio relleno en %s", (selector) => {
+    const t = tokensOf(`:root[${selector}]`);
+    // `muted` no entra: no es un acento sino la ausencia de uno, y la única
+    // categoría que lo usa (`otros`) se pinta neutra justo por esto. Medido,
+    // da 4.02:1 sobre su propio relleno — ver `tieneAcento()`
+    for (const acento of ["teal", "hot", "live", "up", "dn"]) {
+      const relleno = mix(t[acento], t.panel, TINTE_RELLENO);
+      const value = ratio(t[acento], relleno);
+      expect(
+        value,
+        `--${acento} sobre su relleno al ${TINTE_RELLENO}% en ${selector} = ${value.toFixed(2)}:1`,
+      ).toBeGreaterThanOrEqual(4.5);
+    }
   });
 
   it("los dos temas declaran exactamente los mismos tokens (cero drift, R-012)", () => {
