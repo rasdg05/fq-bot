@@ -38,7 +38,9 @@ Los catorce tokens de `src/styles/tokens.css` se quedan tal cual: v6 les da **tr
 | `--bg` | Fondo de app, header y barra inferior (sólido, nunca translúcido) |
 | `--panel` | Superficie de tarjeta |
 | `--panel2` | Avatar · estado presionado · badges neutros. **No** rellena la pill del rival (§9) |
-| `--pill-ring` | Anillo de 1 px de la pill líder: `--teal` al 55 % (oscuro) / 65 % (claro) → ≥ 3:1 contra la tarjeta |
+| `--pill-ring` | Anillo de la pill líder **y anillo de foco** de las dos pills: `--teal` al **80 %** en los dos temas → 4,87:1 (oscuro) / 4,08:1 (claro) contra la tarjeta (§10.B) |
+| `--pill-line` | Contorno de 1 px de la pill del rival: `--text2` al 60 % (oscuro) / 70 % (claro) → 4,08:1 / 3,80:1 (§10.A) |
+| `--pill-wash` | Lavado del rival: `--text` al 4 % sobre la tarjeta. No es relleno sólido: mantiene el número en 7,95:1 / 7,73:1 |
 | `--line` | Borde de la tarjeta abierta con posición propia |
 | `--line2` | Borde por defecto, separadores, riel vacío de la barra |
 | `--text` | Título de mercado y número de la pill líder |
@@ -493,7 +495,7 @@ Cuatro animaciones en todo el sistema. Ninguna dura más de 240 ms y ninguna se 
 | **Pulso LIVE** | Sólo el punto de 6 px `--live`: `opacity 1 → 0.4 → 1`, **2 s** `ease-in-out`, infinito. La palabra `LIVE` **no** parpadea y la barra tampoco: un solo elemento en movimiento por tarjeta, y es el más chico. Se detiene con `prefers-reduced-motion`. |
 | **Actualización de probabilidad** | El número cruza con `fade` de 120 ms; la barra transiciona 240 ms `cubic-bezier(.22,1,.36,1)`. Sube → destello `--up` 200 ms sobre el número; baja → `--dn`. Umbral mínimo para animar: 0,5 pp — por debajo, el valor cambia sin animación. |
 | **Marcador deportivo** | Al cambiar, destella `--up` 200 ms. El minuto, la entrada y el game (`40-30`) se refrescan sin animación: cambian demasiado seguido como para llamar la atención cada vez. |
-| **Presionado — pill de porcentaje** | La pill es un `<button>` propio. `:active` → `scale(0.96)`, fondo a `color-mix(in srgb, var(--teal) 26%, var(--panel))`, anillo 1 px `--teal`, **90 ms** `ease-out`. En el rival, que no tiene relleno, el `:active` pinta ese mismo fondo desde transparente. Vibración de 8 ms si `navigator.vibrate` existe. |
+| **Presionado — pill de porcentaje** | La pill es un `<button>` propio. `:active` → `scale(0.96)`, fondo a `color-mix(in srgb, var(--teal) 26%, var(--panel))`, anillo 1 px `--teal`, **90 ms** `ease-out`. En el rival, el número sube a `--text` (§10.A). Vibración de 8 ms si `navigator.vibrate` existe. Hover, foco y contrastes de cada estado en §10.B y §10.D. |
 | **Selección de una opción** | Al soltar, la pill **queda armada** —anillo `--teal` de 1 px y fondo al 26 %— durante los 180 ms que tarda en abrir la hoja de detalle, y la hoja abre con **ese resultado preseleccionado**. El estado armado no sobrevive al cierre de la hoja: no es una selección persistente, es continuidad visual entre el toque y el destino. |
 | **Presionado — resto de la tarjeta** | Tocar fuera de las pills abre el detalle sin preselección: fondo `--panel2`, `scale(0.985)`, 120 ms `ease-out`. Sin elevación. |
 | **Cargando (feed)** | 5 esqueletos de **exactamente 114 px** con `animate-shimmer` (1,4 s). La altura clavada es lo que mantiene el CLS en 0. |
@@ -504,6 +506,7 @@ Cuatro animaciones en todo el sistema. Ninguna dura más de 240 ms y ninguna se 
 | **Error** | `ErrorState` con mensaje en español y `Reintentar`. Nunca un stack trace (R-008). |
 | **Datos viejos** | Franja existente sobre el feed: `Esto es lo último que cargamos` + `Reintentar`. Se sigue mostrando el contenido. |
 | **Cerrado** | El pie dice `Cerrado`; las pills bajan a `--muted` y la barra a 40 % de opacidad; la tarjeta sigue abriendo el detalle. |
+| **Resolviendo** | Entre el cierre y la liquidación: badge `Resolviendo` (`--panel2` / `--text2`), pills sin hover ni active, barra al 40 %, pie en `Esperando la fuente` (§10.F). |
 | **Resuelto** | Badge `Resuelto` en `--up`; el resultado ganador conserva pill `--teal-soft`, los demás caen a `--panel2`. |
 
 **Mobile-first, restricciones no negociables:**
@@ -628,7 +631,10 @@ Calculado sobre los hex reales de `src/styles/tokens.css` con la fórmula de lum
 | Badge HOT vs su tinte al 14 % | ≥ 4,5 | **5,74** | **4,86** |
 | Variación ▲ vs tarjeta | ≥ 4,5 | **7,56** | **6,10** |
 | Variación ▼ vs tarjeta | ≥ 4,5 | **5,49** | **6,08** |
-| Anillo `--pill-ring` vs tarjeta | ≥ 3 | **3,05** (teal @55 %) | **3,01** (teal @65 %) |
+| Anillo `--pill-ring` vs tarjeta | ≥ 3 | **4,87** (teal @80 %) | **4,08** (teal @80 %) |
+| Anillo `--pill-ring` vs relleno de la pill | ≥ 3 | **4,40** | **3,64** |
+| Contorno `--pill-line` del rival vs tarjeta | ≥ 3 | **4,08** | **3,80** |
+| % rival sobre su lavado al 4 % | ≥ 7 | **7,95** | **7,73** |
 
 **El único fallo encontrado y cómo se corrigió.** El % del rival sobre una pill de `--panel2` daba **6,83:1 en tema claro** (`#3c5250` sobre `#ede8dc`), por debajo del objetivo de 7:1 para números grandes. Corrección: **el rival pierde el relleno** y su número se pinta sobre la tarjeta → 8,35:1. La corrección mejora además la jerarquía, porque deja un solo bloque pintado por tarjeta.
 
@@ -638,3 +644,136 @@ Calculado sobre los hex reales de `src/styles/tokens.css` con la fórmula de lum
 - El multiplicador en `--muted` pasa por 0,41 puntos en oscuro. Es el margen más chico del sistema: **`--muted` no puede oscurecerse más** sin romper el pie, la categoría y el multiplicador a la vez. Queda anotado como restricción, no como sugerencia.
 
 **El significado nunca depende del color.** Cada resultado lleva su nombre escrito al lado del número (§3.3); la variación de precio lleva flecha **y** signo además de color; el estado activo de la nav cambia de peso además de color; la categoría lleva forma además de color (R-005); LIVE lleva la palabra además del punto. Quitando todo el color, la tarjeta se sigue leyendo entera.
+
+---
+
+## 10 · Pulido vFinal — pills, foco, estados y movimiento
+
+Última pasada. No reabre densidad (114 px), resultados con nombre, jerarquía del porcentaje, marcador de Deportes Live ni los ratios de §9: los completa.
+
+### 10.A · Equilibrio del % rival
+
+El rival no recupera relleno sólido —fue lo que falló contraste en tema claro (§9)— pero deja de ser un número suelto en el aire. Tres cambios chicos, ninguno cuesta altura:
+
+| Ajuste | Valor | Efecto |
+|---|---|---|
+| **Contorno** | 1 px `--pill-line`, radio 999, mismo alto de 36 px que la pill del líder | Le da forma y masa: dos objetos comparables, uno lleno y otro vacío |
+| **Lavado** | `--pill-wash` = `--text` al 4 % sobre la tarjeta | Lo separa del fondo sin acercarse a un relleno: 1,11:1 contra la tarjeta |
+| **Peso del número** | 600 → **650**, tamaño intacto en 20 px | Gana densidad óptica sin tocar el presupuesto de 114 px ni la proporción 30 : 20 |
+
+Contraste del número (`--text2`) sobre el lavado: **7,95:1** oscuro · **7,73:1** claro. Sigue por encima de 7:1.
+
+**Regla de color del número del rival, en todos sus estados:** `--text2` en reposo y hover; **`--text` en cuanto haya fondo teñido transitorio** (pressed, armado, destello de actualización). Con el fondo del `active` (teal al 26 %) el `--text2` caía a 5,27:1; con `--text` sube a 7,92:1 (oscuro) y 10,60:1 (claro). El número se enciende al tocarlo, que es además el feedback que se quiere.
+
+### 10.B · Anillo de foco
+
+```css
+:root       { --pill-ring: color-mix(in srgb, var(--teal) 80%, transparent); }
+/* mismo 80 % en los dos temas: el token resuelve contra el --teal de cada uno */
+
+.pill {
+  outline: 2px solid transparent;   /* siempre presente, nunca anima el ancho */
+  outline-offset: 2px;
+  border-radius: 999px;             /* el outline hereda el radio de la pill */
+  transition: outline-color 90ms ease-out, background-color 120ms ease-out,
+              transform 90ms ease-out;
+}
+.pill:focus-visible { outline-color: var(--pill-ring); }
+```
+
+- **Sólo `:focus-visible`**, nunca `:focus`: el dedo no deja anillo.
+- **El ancho no se anima.** El `outline` vive siempre a 2 px en `transparent` y sólo transiciona el color, 90 ms. Animar el grosor produce un salto de pintado en cada tabulación.
+- **`outline`, no `box-shadow`:** no participa del layout, así que no empuja nada dentro de una tarjeta de 114 px, y respeta el radio de la pill sin declararlo dos veces.
+- **Convive con `pressed`:** el `outline` se transforma junto con la caja, así que con `scale(0.96)` el anillo encoge con la pill y el offset se mantiene proporcional. Foco y presión son visibles a la vez y no se pisan.
+- **Se aplica igual a líder y rival**, con el mismo token: es el mismo control.
+
+| Medida | Oscuro | Claro |
+|---|---|---|
+| Color resuelto | `#409c96` (teal @80 % sobre la tarjeta) | `#3c898b` |
+| **Anillo vs fondo de tarjeta** | **4,87:1** | **4,08:1** |
+| Anillo vs relleno de la pill líder | 4,40:1 | 3,64:1 |
+
+Los dos superan el 3:1 de WCAG 1.4.11 con margen, en el fondo de la tarjeta (que es lo que rodea el anillo por el offset de 2 px) y también contra el relleno de la pill, que es lo que toca por dentro. El valor anterior de la propuesta (55 % / 65 %) daba 3,05 y 2,47:1 — el de tema claro **fallaba**, y por eso el token sube a 80 %.
+
+### 10.C · Longitud del evento reciente
+
+El texto no se trunca: **se construye acotado.** Gramática única, `<sustantivo> hace <n> min`, con vocabulario cerrado:
+
+| Deporte | Sustantivos admitidos (≤ 9 caracteres) |
+|---|---|
+| Tenis | `Quiebre` · `Set` |
+| Béisbol | `Carrera` · `Jonrón` · `Ponche` |
+| Fútbol | `Gol` · `Roja` · `Penal` |
+| Excepción sin tiempo | `Cambio de pitcher` (17 caracteres, dura 30 s) |
+
+- `n` va de 1 a 9: a los 10 minutos el evento deja de ser reciente y el segmento desaparece. Con eso el máximo es **20 caracteres** (`Carrera hace 9 min`) y la excepción llega a 17. **Tope duro: 22 caracteres**, verificado en `assertPublishable()`; si un evento nuevo no cabe en la gramática, no se muestra.
+- Nada de elipsis en este segmento: un `Quiebre hace…` no informa de nada.
+
+**Prioridad del pie cuando no cabe** (320 px, o texto al 200 %): se elimina el segmento entero de menor prioridad, nunca se corta a media palabra.
+
+1. Evento reciente / estado del evento — explica por qué se movió el precio
+2. Pozo — es el tamaño de la apuesta
+3. Cierre o estado del mercado
+4. `N jugando` — el primero en irse
+
+### 10.D · Hover y active de las pills
+
+Hover sólo bajo `@media (hover: hover) and (pointer: fine)`. Sin ese guard, en móvil el estado se queda pegado después del toque y la pill parece seleccionada cuando no lo está.
+
+| Estado | Pill del líder | Pill del rival |
+|---|---|---|
+| **Reposo** | Fondo `--teal-soft`, anillo 1 px `--pill-ring`, número `--text` | Lavado `--pill-wash`, contorno 1 px `--pill-line`, número `--text2` |
+| **Hover** | Fondo → `color-mix(--teal 18%, --panel)`, anillo → `--teal` sólido, 120 ms `ease-out`. Sin desplazamiento ni sombra | Lavado → `color-mix(--teal 10%, --panel)`, contorno → `--pill-ring`, 120 ms |
+| **Active** | Fondo → `color-mix(--teal 26%, --panel)`, `scale(0.96)`, **90 ms** `ease-out`, `navigator.vibrate?.(8)` | Igual, y el número **sube a `--text`** |
+| **Armado** (180 ms, hasta que abre la hoja) | Mantiene el fondo del active y el anillo `--teal`, vuelve a `scale(1)` sin rebote | Igual |
+
+Contraste del número en cada estado — ninguno baja de 7:1:
+
+| Estado | Oscuro | Claro |
+|---|---|---|
+| Líder hover / active | 9,39 / 7,92 | 11,97 / 10,60 |
+| Rival hover (`--text2`) / active (`--text`) | 7,34 / 7,92 | 7,21 / 10,60 |
+
+Premium aquí significa **sobrio**: cambia el relleno y el anillo, y nada más. Sin sombras que crezcan, sin elevación, sin rebote. La pill se hunde 4 % y se enciende; eso es todo.
+
+### 10.E · Movimiento — tabla completa
+
+Filosofía Betfair: el dato se actualiza rápido, limpio y sin adorno; el movimiento que inicia el usuario puede tener carácter, el que inicia el servidor **jamás**. Por eso hay dos curvas y una sola regla que las separa.
+
+| Qué | Duración | Curva | Detalle |
+|---|---|---|---|
+| **Cambio de %** | fade 120 ms + destello 200 ms | `ease-out` (sin overshoot) | El número cruza con opacidad; el fondo de la pill destella `--up` o `--dn` al 16 % (9,64:1 y 10,65:1 con `--text` encima). Umbral 0,5 pp: por debajo cambia sin animar |
+| **Barra** | 240 ms | `cubic-bezier(.22,1,.36,1)` | Sólo `width`; nunca `transform: scaleX`, que deforma los extremos redondeados. Sin transición en el primer pintado |
+| **Card → detalle** | 180 ms | `ease-out` | La tarjeta no se anima a sí misma: se queda quieta mientras la hoja sube. Animar las dos cosas a la vez es lo que hace sentir lento a un producto rápido |
+| **Hoja de detalle** | **220 ms** (baja de 280) | `cubic-bezier(.22,1,.36,1)` | `translateY(100%) → 0`. Fondo oscurecido en 140 ms. Único movimiento del sistema con carácter, porque lo pidió el usuario |
+| **Opción preseleccionada** | 140 ms | `ease-out` | La opción que se tocó ya entra elegida en la hoja: sólo aparece su anillo con fade. No repite el `scale` — ese gesto ya ocurrió en la tarjeta |
+| **pressed → armado** | 90 ms + 180 ms de sostén | `ease-out` | Al soltar vuelve a `scale(1)` sin rebote y mantiene fondo y anillo hasta que la hoja toma la pantalla |
+| **Pulso LIVE** | 2 s, infinito | `ease-in-out` | Sólo el punto de 6 px |
+| **Esqueletos** | 1,4 s, infinito | `linear` | `shimmer` sobre cajas de altura exacta |
+
+Nada supera 240 ms. `prefers-reduced-motion` apaga todo, incluidos destello y pulso: el número cambia, la barra salta a su ancho, y la información sigue completa.
+
+### 10.F · Patrones que faltaban
+
+Cinco, y sólo porque cada uno tapa un hueco real:
+
+1. **El precio se congela mientras lo tocas.** Desde el `pointerdown` sobre una pill y hasta que la hoja termina de abrir, esa tarjeta **no aplica actualizaciones de %**: se encolan y entran al cerrar la hoja. Apostar a un número que cambió en el milisegundo del toque es el defecto clásico del live, y se arregla aquí, no con un diálogo de confirmación.
+2. **Los porcentajes se alinean entre tarjetas.** La pill del líder tiene `min-width: 72px` y el número va en `tabular-nums`: los porcentajes de tarjetas consecutivas caen en la misma columna vertical. Es lo que permite barrer un feed de cinco mercados con un solo movimiento de ojo, y no cuesta un píxel de alto.
+3. **Estado `Resolviendo`, que faltaba.** Entre el cierre y la liquidación había un hueco donde la tarjeta decía `Cerrado` como si ya hubiera terminado. Se agrega a `MarketStatus`: badge `Resolviendo` (10 px, fondo `--panel2`, texto `--text2`), pills sin hover ni active, barra congelada al 40 % de opacidad y pie en `Esperando la fuente`. Vivo, cerrado y resolviendo se distinguen de un vistazo, cada uno con palabra propia.
+4. **La liquidez se nota sin cromo nuevo.** `N jugando` se pinta en `--text2` en vez de `--muted` cuando el mercado supera el p75 de participantes de su categoría. Un solo salto de color en un texto que ya estaba: se ve el mercado con gente sin agregar medidores ni iconos.
+5. **La lista no se mueve bajo el dedo.** Ya está la histéresis de reordenamiento (§4.6); se agrega su consecuencia dura: **una actualización nunca cambia el alto de una tarjeta**. Si un dato nuevo no cabe en su segmento, se aplica la prioridad de pie de §10.C — jamás se envuelve una línea, porque envolver rehace el layout de la lista entera mientras alguien está apostando.
+
+### 10.G · Deltas de esta pasada
+
+| # | Cambio | Archivos | Riesgo |
+|---|---|---|---|
+| 7.20 | `--pill-ring` sube a `--teal` @80 % (el 55/65 % fallaba 1.4.11 en claro); altas de `--pill-line` y `--pill-wash` | `styles/tokens.css`, `vault/tokens.lock.json` | Bajo |
+| 7.21 | Pill del rival: contorno + lavado + número en 650; regla de color por estado (`--text2` → `--text` con fondo teñido) | `MarketCard.tsx` | Bajo |
+| 7.22 | Anillo de foco por `outline` con color transicionado, en líder y rival | `MarketCard.tsx`, `styles/tokens.css` | Bajo |
+| 7.23 | Gramática cerrada del evento reciente (≤ 22 caracteres) y prioridad de segmentos del pie | `lib/strings.ts`, `domain/resolution.ts`, `MarketCard.tsx` | Bajo |
+| 7.24 | `sheet-in` de 280 → **220 ms**; `--pill-ring` en el foco de las pills | `tailwind.config.ts` | Bajo |
+| 7.25 | Congelado de actualizaciones por tarjeta mientras está presionada o con la hoja abierta | `state/store.ts`, `MarketCard.tsx` | **Medio** — hay que encolar por mercado, no globalmente |
+| 7.26 | `MarketStatus` suma `settling`; badge, pie y bloqueo de interacción | `domain/types.ts`, `lib/strings.ts`, `MarketCard.tsx`, `scripts/settle.mts` | Medio |
+| 7.27 | `min-width: 72px` en la pill del líder para alinear porcentajes entre tarjetas | `MarketCard.tsx`, `scripts/densidad.mjs` (verificar la columna) | Bajo |
+| 7.28 | `N jugando` en `--text2` sobre el p75 de su categoría | `domain/feed.ts`, `MarketCard.tsx` | Bajo |
+| 7.29 | Pruebas de contraste de los estados: hover, active, armado y destello, en los dos temas | `tests/contrast.test.ts` | Bajo |
