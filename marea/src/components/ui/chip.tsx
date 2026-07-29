@@ -6,8 +6,15 @@ export interface ChipProps extends React.ButtonHTMLAttributes<HTMLButtonElement>
 }
 
 /**
- * Chip de categoría. 44 px de alto y 8 px de separación en la fila (R-010);
- * el estado activo no depende solo del color: cambia peso y borde.
+ * Pestaña de categoría.
+ *
+ * Dejó de ser una burbuja. Ocho cápsulas con borde en fila son ocho marcos
+ * compitiendo por atención antes de que se lea una sola palabra, y el feed
+ * empieza con la vista ya cansada. Ahora es texto: la que manda va en blanco y
+ * peso fuerte con una raya de 2 px debajo, las demás en gris.
+ *
+ * El estado activo no depende sólo del color —cambia peso **y** lleva la raya
+ * (R-005)— y el target sigue midiendo 44 px de alto.
  */
 export const Chip = React.forwardRef<HTMLButtonElement, ChipProps>(
   ({ className, active, children, ...props }, ref) => (
@@ -18,10 +25,11 @@ export const Chip = React.forwardRef<HTMLButtonElement, ChipProps>(
       aria-selected={active}
       data-active={active || undefined}
       className={cn(
-        "min-h-touch shrink-0 whitespace-nowrap rounded-pill border px-4 text-[14px] transition-colors",
+        "relative min-h-touch shrink-0 whitespace-nowrap px-1 text-[17px] transition-colors",
+        "after:absolute after:inset-x-1 after:bottom-1.5 after:h-[2px] after:rounded-pill",
         active
-          ? "border-teal bg-teal-soft font-bold text-teal"
-          : "border-line2 font-medium text-text2 hover:border-line",
+          ? "font-bold text-text after:bg-teal"
+          : "font-semibold text-muted after:bg-transparent",
         className,
       )}
       {...props}
@@ -74,7 +82,7 @@ export function ChipRow({
         onScroll={revisar}
         className={cn(
           // scroll horizontal contenido: la fila desborda, la página nunca (V11)
-          "flex gap-2 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          "flex gap-5 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         )}
         {...props}
       >

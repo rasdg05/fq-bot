@@ -3,7 +3,7 @@ import type { LiveCandle, Market, PulsoVivo } from "@/domain/types";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
-import { COLOR_CATEGORIA, FORMA_CATEGORIA } from "@/lib/categoria";
+import { CategoriaIcono } from "@/components/ui/categoria-icono";
 import { S } from "@/lib/strings";
 import { formatStake } from "@/lib/units";
 import { pct } from "@/lib/format";
@@ -241,36 +241,30 @@ export function CryptoLiveCard({ market, pulso, onOpen }: CryptoLiveCardProps) {
         {/* reloj. El countdown vive dentro del badge: es la misma información
             —esto está pasando y le queda esto— y separarla en dos nodos costaba
             una fila entera */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex h-4 items-center gap-1.5">
+          <CategoriaIcono categoria={market.category} />
+          <span className="mr-auto shrink-0 text-[10px] font-bold uppercase tracking-[0.06em] text-muted">
+            {S.categories[market.category]}
+          </span>
           <Badge tone="live" dot data-testid="live-countdown">
             {S.badges.live}
             <span className="font-mono tabular-nums" aria-hidden>
               {cerrada ? S.vivo.cerrando : reloj}
             </span>
           </Badge>
-          <span className="ml-auto flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-muted">
-            <span
-              aria-hidden
-              data-testid="categoria-marca"
-              data-categoria={market.category}
-              className={cn("h-1.5 w-1.5 shrink-0", FORMA_CATEGORIA[market.category])}
-              style={{ backgroundColor: COLOR_CATEGORIA[market.category] }}
-            />
-            {S.categories[market.category]}
-          </span>
         </div>
 
         {/* qué se está mirando y a cuánto va. El precio es mono y tabular: con
             proporcional, cada tick de dos segundos movía los dígitos de sitio */}
-        <div className="flex min-h-[32px] flex-col justify-center">
-          <span className="truncate text-[12px] font-semibold text-text2">
+        <div className="flex h-5 items-center gap-2">
+          <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-text2">
             {vela.activo} · {S.vivo.ventana(vela.intervalo)}
           </span>
-          <span className="flex items-baseline gap-1.5">
+          <span className="flex shrink-0 items-baseline gap-1.5">
             {spot !== undefined ? (
               <span
                 data-testid="live-spot"
-                className="font-mono text-[17px] font-semibold tabular-nums leading-none text-text"
+                className="font-mono text-[15px] font-semibold tabular-nums leading-none text-text"
               >
                 {precioLegible(spot)}
               </span>
@@ -296,9 +290,6 @@ export function CryptoLiveCard({ market, pulso, onOpen }: CryptoLiveCardProps) {
                 {deltaLegible(delta)}
               </span>
             ) : null}
-            <span className="truncate text-[11px] text-muted">
-              {S.vivo.strike(precioLegible(vela.strike))}
-            </span>
           </span>
         </div>
 
@@ -323,7 +314,10 @@ export function CryptoLiveCard({ market, pulso, onOpen }: CryptoLiveCardProps) {
                 // lado que va ganando, contorno para el otro, y el número
                 // dentro. Dos maneras de pintar el mismo dato en un mismo feed
                 // eran dos productos (§3.1 del rediseño)
-                "group flex min-h-touch min-w-0 flex-1 items-center gap-2 text-left",
+                "group relative flex min-w-0 flex-1 items-center gap-2 text-left",
+                // 36 px de pill, 44 de zona tocable: el aire de arriba y abajo
+                // es parte del botón sin ocupar una fila (R-010)
+                "after:absolute after:inset-x-0 after:-inset-y-1 after:content-['']",
               )}
             >
               <span

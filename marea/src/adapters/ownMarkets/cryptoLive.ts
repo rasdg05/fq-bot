@@ -95,6 +95,21 @@ export interface VelaViva {
  * Construye el mercado de una vela. El strike se calcula aquí y una sola vez:
  * es lo único que hace falta congelar para que la pregunta no se mueva.
  */
+/**
+ * El strike como cabe en la etiqueta de un resultado: `64.2k`. En la card hay
+ * unos trece caracteres por lado, y "Arriba de 64,200" se recortaba justo en el
+ * número — que es lo único que no se puede recortar. El criterio publicado
+ * conserva la cifra entera: ahí no hay ancho que respetar y sí una fuente que
+ * citar al milímetro.
+ */
+function strikeCorto(strike: number): string {
+  if (strike >= 1000) {
+    const miles = strike / 1000;
+    return `${Number.isInteger(miles) ? miles : miles.toFixed(1)}k`;
+  }
+  return String(Math.round(strike));
+}
+
 export function velaSeed(vela: VelaViva): OwnMarketSeed {
   const { activo, intervalo, inicio } = vela;
   const strike = redondearStrike(vela.spot, pasoDeStrike(activo.par));
@@ -117,8 +132,11 @@ export function velaSeed(vela: VelaViva): OwnMarketSeed {
     closesAt: new Date(cierra).toISOString(),
     pool: pozoSimetrico(),
     outcomes: [
-      { id: ARRIBA, label: `Arriba de ${strikeTexto}` },
-      { id: ABAJO, label: `Abajo de ${strikeTexto}` },
+      // sin "de": con decimales, `Arriba de 63.9k` no cabe en la columna y se
+      // recortaba en el número. El título de la card dice de qué activo se
+      // habla, así que la preposición era lo único prescindible
+      { id: ARRIBA, label: `Arriba ${strikeCorto(strike)}` },
+      { id: ABAJO, label: `Abajo ${strikeCorto(strike)}` },
     ],
     rule,
     resolution: {

@@ -22,6 +22,12 @@ const PRESUPUESTO = {
   cardsVisibles: 5,
   /** Alto de la card de una pregunta, borde incluido. Medido, no estimado. */
   altoCardMaxPx: 116,
+  /**
+   * La card viva lleva una fila que la normal no tiene: el precio de ahora con
+   * su variación. Es la razón de ser del formato, así que se le presupuestan
+   * esos píxeles y se le exige no pasarse ni uno más.
+   */
+  altoCardVivaMaxPx: 124,
   /** Nodos de texto de la card que caen en más de una línea. */
   envolturas: 0,
   /** El nodo de probabilidad no puede encoger para ganar densidad (R-004). */
@@ -80,11 +86,17 @@ async function medir(page) {
 
     const prob = document.querySelector('[data-role="probability"]');
     const primera = cards[0]?.getBoundingClientRect();
+    // cada tipo de card se mide contra su propio presupuesto: mezclarlos deja
+    // pasar una card normal gorda escondida detrás de una viva
+    const norm = cards.find((c) => c.getAttribute("data-variant") !== "live");
+    const viva = cards.find((c) => c.getAttribute("data-variant") === "live");
 
     return {
       enteras,
       envueltos,
       totalCards: cards.length,
+      altoNormal: norm ? Math.round(norm.getBoundingClientRect().height) : 0,
+      altoViva: viva ? Math.round(viva.getBoundingClientRect().height) : 0,
       altoCard: primera ? Math.round(primera.height) : 0,
       topePrimeraCard: primera ? Math.round(primera.top) : 0,
       probabilidadPx: prob ? Math.round(parseFloat(getComputedStyle(prob).fontSize)) : 0,
@@ -121,9 +133,14 @@ for (const ancho of ANCHOS) {
     }
     // el alto de la card es el presupuesto que multiplica: se ve 29 veces en
     // una pantalla, así que un píxel de más se paga 29 veces
-    if (m.altoCard > PRESUPUESTO.altoCardMaxPx) {
+    if (m.altoNormal > PRESUPUESTO.altoCardMaxPx) {
       fallos.push(
-        `${ancho}px: la card mide ${m.altoCard}px y el tope es ${PRESUPUESTO.altoCardMaxPx}px`,
+        `${ancho}px: la card normal mide ${m.altoNormal}px y el tope es ${PRESUPUESTO.altoCardMaxPx}px`,
+      );
+    }
+    if (m.altoViva > PRESUPUESTO.altoCardVivaMaxPx) {
+      fallos.push(
+        `${ancho}px: la card viva mide ${m.altoViva}px y el tope es ${PRESUPUESTO.altoCardVivaMaxPx}px`,
       );
     }
     if (m.topePrimeraCard > PRESUPUESTO.topePrimeraCardPx) {
@@ -195,8 +212,11 @@ for (const ancho of ANCHOS) {
   const real = await page.evaluate(() => {
     const cards = [...document.querySelectorAll('[data-testid="market-card"]')];
     if (cards.length === 0) return { alto: 0, hueco: 0 };
-    const a = cards[0].getBoundingClientRect();
-    const b = cards[1]?.getBoundingClientRect();
+    // el esqueleto reemplaza a la card normal: la viva no existe hasta que el
+    // ticker responde, y compararlo con ella medía dos cosas distintas
+    const normales = cards.filter((c) => c.getAttribute("data-variant") !== "live");
+    const a = (normales[0] ?? cards[0]).getBoundingClientRect();
+    const b = (normales[1] ?? cards[1])?.getBoundingClientRect();
     return {
       alto: Math.round(a.height),
       hueco: b ? Math.round(b.top - a.bottom) : 0,
@@ -284,7 +304,9 @@ for (const r of reporte) {
   }
   console.log(`\n${r.ancho}×844:`);
   console.log(`  cards enteras       ${r.enteras}  (presupuesto ${PRESUPUESTO.cardsVisibles} a 390px)`);
-  console.log(`  alto de card        ${r.altoCard} px`);
+  console.log(
+    `  alto de card        normal ${r.altoNormal || "—"} px · viva ${r.altoViva || "—"} px`,
+  );
   console.log(`  cromo previo        ${r.topePrimeraCard} px  (tope ${PRESUPUESTO.topePrimeraCardPx})`);
   console.log(`  nodos envueltos     ${r.envueltos.length}  (presupuesto ${PRESUPUESTO.envolturas})`);
   for (const e of r.envueltos.slice(0, 4)) console.log(`      · "${e.texto}" → ${e.lineas} líneas`);

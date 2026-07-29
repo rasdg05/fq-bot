@@ -1,3 +1,5 @@
+import { Bitcoin, Circle, Film, Landmark, Trophy, Vote } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { MarketCategory } from "@/domain/types";
 
 /**
@@ -38,4 +40,21 @@ export const FORMA_CATEGORIA: Record<MarketCategory, string> = {
   politica: "rounded-[2px] rotate-45",
   cultura: "rounded-full",
   otros: "rounded-[2px]",
+};
+
+/**
+ * El glifo de cada categoría, para el azulejo de la card.
+ *
+ * Es la tercera pista, después del color y la forma: a 16 px un icono no se
+ * lee en detalle, pero su silueta sí se reconoce, y eso basta para saber de qué
+ * va la card antes de leer una palabra. La palabra sigue al lado — el icono
+ * nunca es el único portador (R-005).
+ */
+export const ICONO_CATEGORIA: Record<MarketCategory, LucideIcon> = {
+  cripto: Bitcoin,
+  economia: Landmark,
+  deportes: Trophy,
+  politica: Vote,
+  cultura: Film,
+  otros: Circle,
 };

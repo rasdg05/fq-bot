@@ -163,8 +163,8 @@ describe("El mercado de una vela — publicable antes de existir", () => {
 
   it("nombra los dos resultados con el strike, sin Sí ni No", () => {
     expect(seed.outcomes?.map((o) => o.id)).toEqual([ARRIBA, ABAJO]);
-    expect(seed.outcomes?.[0].label).toBe("Arriba de 71,200");
-    expect(seed.outcomes?.[1].label).toBe("Abajo de 71,200");
+    expect(seed.outcomes?.[0].label).toBe("Arriba 71.2k");
+    expect(seed.outcomes?.[1].label).toBe("Abajo 71.2k");
   });
 
   it("el criterio publicado dice el strike, la ventana y qué pasa con el empate", () => {
@@ -651,8 +651,8 @@ function mercadoVivo(overrides: Partial<Market> = {}): Market {
     resolution_summary: "Se resuelve con la vela de 5 minutos de Kraken.",
     pool: { outcomes: { arriba: 200, abajo: 200 }, feeBps: 300 },
     outcomes: [
-      { id: ARRIBA, label: "Arriba de 71,200" },
-      { id: ABAJO, label: "Abajo de 71,200" },
+      { id: ARRIBA, label: "Arriba 71.2k" },
+      { id: ABAJO, label: "Abajo 71.2k" },
     ],
     participantes: 8,
     live: {
@@ -702,8 +702,8 @@ describe("Card viva — el congelado es sagrado", () => {
     render(<MarketCard market={mercadoVivo()} onOpen={() => {}} />);
     const pills = screen.getAllByTestId("live-pill");
     expect(pills).toHaveLength(2);
-    expect(pills[0].textContent).toContain("Arriba de 71,200");
-    expect(pills[1].textContent).toContain("Abajo de 71,200");
+    expect(pills[0].textContent).toContain("Arriba 71.2k");
+    expect(pills[1].textContent).toContain("Abajo 71.2k");
     expect(pills[0].textContent).toMatch(/×/);
     // una sola barra con los dos segmentos, como en la card normal: dos barras
     // separadas eran dos maneras de pintar el mismo dato en el mismo feed
@@ -774,7 +774,9 @@ describe("Card viva — el congelado es sagrado", () => {
   it("cada pill es un target táctil de 44 px (R-010)", () => {
     render(<MarketCard market={mercadoVivo()} onOpen={() => {}} />);
     for (const pill of screen.getAllByTestId("live-pill")) {
-      expect(pill.className).toContain("min-h-touch");
+      // la pill mide 36 px y su zona tocable 44, expandida con un
+      // pseudo-elemento que no ocupa fila
+      expect(pill.className).toContain("after:-inset-y-1");
     }
   });
 });

@@ -35,13 +35,14 @@ describe("Métricas móviles", () => {
     );
   });
 
-  it("los chips de categoría cumplen 44 px y separación de 8 px", async () => {
+  it("las pestañas de categoría cumplen 44 px y se separan de sobra", async () => {
     renderApp({ overrides: READY_NO_FUNDS });
     await screen.findByTestId("home-screen");
     const row = screen.getByRole("tablist", { name: S.search.byCategory });
     assertTouchTargets(row, "chips");
-    // gap-2 = 8 px entre chips (R-010)
-    expect(row.className).toMatch(/gap-2/);
+    // dejaron de ser burbujas: sin borde, la separación tiene que hacer el
+    // trabajo que hacía el marco, así que sube de 8 a 20 px (R-010)
+    expect(row.className).toMatch(/gap-5/);
     expect(row.className).toMatch(/overflow-x-auto/);
   });
 

@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { CryptoLiveCard } from "@/components/CryptoLiveCard";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
-import { COLOR_CATEGORIA, FORMA_CATEGORIA } from "@/lib/categoria";
+import { CategoriaIcono } from "@/components/ui/categoria-icono";
 import { S } from "@/lib/strings";
 import { formatStake } from "@/lib/units";
 import { compactUsd, pct, closesIn, eventoTexto } from "@/lib/format";
@@ -53,6 +53,9 @@ const DESTELLO_MS = 200;
  */
 const PILL_BASE = cn(
   "relative z-10 flex h-9 min-w-[64px] shrink-0 items-center justify-center rounded-pill px-2.5",
+  // 36 px de pill, 44 de zona tocable: el aire de arriba y abajo es parte del
+  // botón y no cuesta una fila de card (R-010)
+  "after:absolute after:inset-x-0 after:-inset-y-1 after:content-['']",
   "outline outline-2 outline-offset-2 outline-transparent focus-visible:outline-pill-ring",
   "transition-[background-color,outline-color,transform,color] duration-[120ms] ease-out",
   "active:scale-[.96] active:duration-90",
@@ -418,7 +421,14 @@ export function MarketCard({ market, variant, pulso, onOpen }: MarketCardProps) 
           compact ? "min-h-touch py-2" : "py-[9px]",
         )}
       >
+        {/* la categoría manda a la izquierda, con su azulejo: es lo primero que
+            dice de qué va la card, igual que en las casas que se leen bien.
+            Los badges de estado se van a la derecha, donde no compiten */}
         <div className="flex h-4 items-center gap-1.5">
+          <CategoriaIcono categoria={vista.category} />
+          <span className="mr-auto shrink-0 text-[10px] font-bold uppercase tracking-[0.06em] text-muted">
+            {S.categories[vista.category]}
+          </span>
           {vivo ? (
             <Badge tone="live" dot>
               {S.badges.live}
@@ -438,16 +448,6 @@ export function MarketCard({ market, variant, pulso, onOpen }: MarketCardProps) 
           {vista.country || vista.region === "latam" ? (
             <Badge tone="latam">{vista.country ?? S.badges.latam}</Badge>
           ) : null}
-          <span className="ml-auto flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-muted">
-            <span
-              aria-hidden
-              data-testid="categoria-marca"
-              data-categoria={vista.category}
-              className={cn("h-1.5 w-1.5 shrink-0", FORMA_CATEGORIA[vista.category])}
-              style={{ backgroundColor: COLOR_CATEGORIA[vista.category] }}
-            />
-            {S.categories[vista.category]}
-          </span>
         </div>
 
         {vivo && vista.marcadorVivo ? (

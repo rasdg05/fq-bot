@@ -30,6 +30,13 @@ const TABS: { id: TabId; label: string; Icon: LucideIcon }[] = [
  */
 export function BottomTabs() {
   const { state, actions } = useApp();
+  // cuántos mercados están corriendo ahora mismo. Va sobre Mercados y no como
+  // quinto destino: la barra son cuatro y eso no se toca — lo que hace falta
+  // saber es que hay algo pasando, no un sitio nuevo al que ir
+  const vivos =
+    state.markets.status === "data"
+      ? state.markets.data.filter((m) => m.status === "live").length
+      : 0;
 
   return (
     <nav
@@ -64,11 +71,25 @@ export function BottomTabs() {
                   active ? "text-teal" : "text-muted",
                 )}
               >
-                <Icon
-                  aria-hidden
-                  className="h-[22px] w-[22px]"
-                  strokeWidth={active ? 2.4 : 1.8}
-                />
+                <span className="relative">
+                  <Icon
+                    aria-hidden
+                    className="h-[22px] w-[22px]"
+                    strokeWidth={active ? 2.4 : 1.8}
+                  />
+                  {id === "markets" && vivos > 0 ? (
+                    <span
+                      // el número no entra en el nombre accesible de la pestaña:
+                      // "4 Mercados" no es un destino. Quien no ve la insignia se
+                      // entera igual — cada card viva se anuncia con su badge LIVE
+                      aria-hidden
+                      data-testid="tab-vivos"
+                      className="absolute -right-2.5 -top-1 rounded-pill bg-live px-1 font-mono text-[10px] font-bold leading-[14px] text-bg"
+                    >
+                      {vivos}
+                    </span>
+                  ) : null}
+                </span>
                 {/* el estado activo también cambia el peso: no depende del color (R-005) */}
                 <span
                   className={cn(

@@ -15,7 +15,10 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(
     <Tag
       ref={ref as React.Ref<HTMLDivElement>}
       className={cn(
-        "rounded-card border border-line2 bg-panel shadow-card",
+        // sin sombra: con el borde de 1 px la card ya está despegada del fondo, y
+        // treinta sombras de 30 px en una pantalla es lo que hace que un feed
+        // denso se sienta pesado. La profundidad la da la superficie, no el humo
+        "rounded-card border border-line2 bg-panel",
         className,
       )}
       {...props}
