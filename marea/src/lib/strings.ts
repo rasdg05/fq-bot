@@ -12,10 +12,14 @@ export const S = {
     /** Cómo se anuncia la barra entera, no una de sus pestañas. */
     navegacion: "Secciones de Marea",
     markets: "Mercados",
+    live: "Live",
     search: "Buscar",
     portfolio: "Portafolio",
     wallet: "Cartera",
     profile: "Perfil",
+    /** El contador rojo se lee, no sólo se ve. */
+    liveCount: (n: number) =>
+      n === 1 ? "1 mercado se define ahora" : `${n} mercados se definen ahora`,
   },
 
   header: {
@@ -23,6 +27,22 @@ export const S = {
     deposit: "Depositar",
     noFunds: "Sin saldo",
     walletShort: "Cartera",
+    /** El perfil subió al header: abajo sólo viven los cuatro destinos. */
+    profile: "Tu perfil",
+  },
+
+  /**
+   * Live. Dos grupos con nombres distintos porque son cosas distintas: uno ya
+   * está en juego y el otro sólo está por cerrar (ver domain/live.ts).
+   */
+  live: {
+    title: "Ahora",
+    subtitle: "Lo que se decide en las próximas horas.",
+    enJuego: "En juego",
+    porCerrar: "Se define pronto",
+    empty: "No hay nada definiéndose en este momento.",
+    emptyBody: "Vuelve cuando arranque el próximo partido o cierre un mercado.",
+    emptyCta: "Ver todos los mercados",
   },
 
   feed: {
@@ -318,6 +338,8 @@ export const S = {
     honestyBody:
       "Cobramos una comisión por operación. No somos tu contraparte: no ganamos cuando pierdes.",
     version: "Versión",
+    /** Lo que dejó la barra inferior sigue estando a un tap, no desaparecido. */
+    destinos: "Tu cuenta",
   },
 
   search: {

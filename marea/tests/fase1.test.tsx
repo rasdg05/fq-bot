@@ -5,6 +5,7 @@ import { renderApp, READY_NO_FUNDS, READY_WITH_FUNDS } from "./helpers";
 import { S } from "@/lib/strings";
 import { tabIds } from "@/components/BottomTabs";
 import { MOCK_MARKETS } from "@/adapters/mock/markets";
+import { contarVivos } from "@/domain/live";
 import { MarketCard, resolveVariant } from "@/components/MarketCard";
 import { render } from "@testing-library/react";
 
@@ -130,16 +131,40 @@ describe("Fase 1 — descubrimiento", () => {
     expect(_).toBeDefined();
   });
 
-  it("V8 — hay 5 tabs y Mercados es la de entrada", async () => {
+  it("V8 — hay 4 tabs, Mercados es la de entrada y el perfil vive en el header", async () => {
     renderApp({ overrides: READY_NO_FUNDS });
     const tabs = within(screen.getByTestId("bottom-tabs")).getAllByRole("tab");
-    expect(tabs).toHaveLength(5);
-    // con dinero real la cartera existe; en modo puntos su lugar lo toma la tabla
-    expect(tabIds(false)).toEqual(["markets", "search", "portfolio", "wallet", "profile"]);
-    expect(tabIds(true)).toEqual(["markets", "search", "portfolio", "tabla", "profile"]);
+    expect(tabs).toHaveLength(4);
+    expect(tabIds()).toEqual(["markets", "live", "search", "portfolio"]);
     expect(tabs[0]).toHaveAttribute("aria-selected", "true");
     expect(tabs[0]).toHaveTextContent(S.tabs.markets);
+    // el perfil salió de la zona del pulgar, pero no desapareció
+    expect(screen.getByTestId("header-profile")).toBeInTheDocument();
     await feed();
+  });
+
+  it("V8 — el contador de Live cuenta mercados de verdad, y la pestaña los muestra", async () => {
+    const user = userEvent.setup();
+    renderApp({ overrides: READY_NO_FUNDS });
+    await feed();
+
+    const vivos = contarVivos(MOCK_MARKETS);
+    const contador = screen.queryByTestId("live-contador");
+    if (vivos === 0) {
+      expect(contador).toBeNull();
+    } else {
+      expect(contador).toHaveTextContent(vivos > 9 ? "9+" : String(vivos));
+    }
+
+    await user.click(within(screen.getByTestId("bottom-tabs")).getByText(S.tabs.live));
+    const pantalla = await screen.findByTestId("live-screen");
+    // o hay mercados vivos listados, o se dice que no hay: nunca las dos
+    const cards = within(pantalla).queryAllByTestId("market-card");
+    if (vivos === 0) {
+      expect(within(pantalla).getByTestId("live-empty")).toBeInTheDocument();
+    } else {
+      expect(cards).toHaveLength(vivos);
+    }
   });
 
   it("V9 — el feed emite view_feed, open_market_detail y los CTA de operar y depositar", async () => {

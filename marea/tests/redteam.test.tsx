@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
-import { renderApp, READY_NO_FUNDS, READY_WITH_FUNDS } from "./helpers";
+import {
+  renderApp,
+  irAlPerfil,
+  irADestinoDePerfil,
+  READY_NO_FUNDS,
+  READY_WITH_FUNDS,
+} from "./helpers";
 import { S } from "@/lib/strings";
 import { SPLASH_MAX_MS } from "@/screens/OnboardingFlow";
 import { MOCK_MARKETS } from "@/adapters/mock/markets";
@@ -232,13 +238,20 @@ describe("Red-team UX", () => {
     await screen.findByTestId("home-screen");
     surfaces.push(container.textContent ?? "");
 
-    for (const tab of [S.tabs.search, S.tabs.portfolio, S.tabs.wallet, S.tabs.profile]) {
-      await user.click(screen.getByRole("tab", { name: tab }));
+    for (const tab of [S.tabs.live, S.tabs.search, S.tabs.portfolio]) {
+      await user.click(screen.getByRole("tab", { name: new RegExp(`^${tab}`) }));
       await waitFor(() => expect(container.textContent).toBeTruthy());
       surfaces.push(container.textContent ?? "");
     }
+    // el perfil y la cartera salieron de la barra; el barrido las sigue
+    // visitando por donde se llega a ellas ahora
+    await irAlPerfil(user);
+    surfaces.push(container.textContent ?? "");
+    await irADestinoDePerfil(user, "wallet");
+    await waitFor(() => expect(container.textContent).toBeTruthy());
+    surfaces.push(container.textContent ?? "");
 
-    await user.click(screen.getByRole("tab", { name: S.tabs.markets }));
+    await user.click(screen.getByRole("tab", { name: new RegExp(`^${S.tabs.markets}`) }));
     await user.click(
       within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
     );

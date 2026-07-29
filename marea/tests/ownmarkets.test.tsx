@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
-import { renderApp } from "./helpers";
+import { renderApp, irAlPerfil, irADestinoDePerfil } from "./helpers";
 import { S } from "@/lib/strings";
 import { SPLASH_MAX_MS } from "@/screens/OnboardingFlow";
 import { createOwnMarketsAdapter } from "@/adapters/ownMarkets/ownMarketsAdapter";
@@ -301,12 +301,17 @@ describe("Mercados propios — interfaz", () => {
     await enter(user);
     const surfaces: string[] = [container.textContent ?? ""];
 
-    // en modo puntos la cartera no existe: su lugar lo toma la tabla
-    for (const tab of [S.tabs.portfolio, S.tabla.title, S.tabs.profile]) {
-      await user.click(screen.getByRole("tab", { name: tab }));
+    for (const tab of [S.tabs.live, S.tabs.portfolio]) {
+      await user.click(screen.getByRole("tab", { name: new RegExp(`^${tab}`) }));
       await waitFor(() => expect(container.textContent).toBeTruthy());
       surfaces.push(container.textContent ?? "");
     }
+    // el perfil vive en el header y, en modo puntos, la tabla cuelga de él
+    await irAlPerfil(user);
+    surfaces.push(container.textContent ?? "");
+    await irADestinoDePerfil(user, "tabla");
+    await waitFor(() => expect(container.textContent).toBeTruthy());
+    surfaces.push(container.textContent ?? "");
     for (const text of surfaces) {
       // los títulos del catálogo sí mencionan dólares: se excluyen del barrido
       const chrome = text.replace(/¿[^?]*\?/g, "");
@@ -343,7 +348,7 @@ describe("Mercados propios — interfaz", () => {
 describe("Perfil sin sesión — las dos puertas", () => {
   const irAPerfil = async (user: ReturnType<typeof userEvent.setup>) => {
     await enter(user);
-    await user.click(screen.getByRole("tab", { name: S.tabs.profile }));
+    await irAlPerfil(user);
     return screen.findByTestId("profile-account");
   };
 

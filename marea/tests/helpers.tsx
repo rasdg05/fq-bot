@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { App } from "@/App";
 import {
   createMockMarketDataAdapter,
@@ -76,3 +76,22 @@ export const READY_WITH_FUNDS: Partial<AppState> = {
   ...READY_NO_FUNDS,
   wallet: { ...READY_NO_FUNDS.wallet!, balance: 120 },
 };
+
+/**
+ * Cómo se llega al perfil desde que la barra inferior bajó a cuatro destinos:
+ * por el avatar del header, no por una pestaña. Las pruebas navegan como el
+ * usuario, así que el cambio de topología se refleja aquí una sola vez.
+ */
+export async function irAlPerfil(user: { click: (el: Element) => Promise<void> }) {
+  await user.click(screen.getByTestId("header-profile"));
+  return screen.findByTestId("profile-screen");
+}
+
+/** Cartera y Tabla se alcanzan desde el perfil, que es donde viven ahora. */
+export async function irADestinoDePerfil(
+  user: { click: (el: Element) => Promise<void> },
+  destino: "wallet" | "tabla" | "portfolio",
+) {
+  await irAlPerfil(user);
+  await user.click(screen.getByTestId(`profile-ir-${destino}`));
+}

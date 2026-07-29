@@ -192,8 +192,8 @@ describe("Liquidación de punta a punta", () => {
     const acreditado = saldo();
 
     // volver a entrar al portafolio no vuelve a pagar
-    await user.click(screen.getByRole("tab", { name: S.tabs.markets }));
-    await user.click(screen.getByRole("tab", { name: S.tabs.portfolio }));
+    await user.click(screen.getByRole("tab", { name: new RegExp(`^${S.tabs.markets}`) }));
+    await user.click(screen.getByRole("tab", { name: new RegExp(`^${S.tabs.portfolio}`) }));
     await screen.findAllByTestId("position-row");
     await waitFor(() => expect(saldo()).toBe(acreditado));
     expect(app.eventNames().filter((name) => name === "market_settled")).toHaveLength(1);

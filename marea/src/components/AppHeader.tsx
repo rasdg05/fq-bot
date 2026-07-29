@@ -1,4 +1,4 @@
-import { Wallet as WalletIcon } from "lucide-react";
+import { User, Wallet as WalletIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/state/store";
 import { S } from "@/lib/strings";
@@ -22,8 +22,28 @@ function Brandmark() {
 }
 
 /**
- * Header. Es la única superficie superior con acción, y su acción no es
- * crítica: los CTA que deciden viven abajo, en la zona del pulgar (R-010).
+ * El avatar del perfil. Con cuenta muestra la inicial elegida por el usuario;
+ * sin cuenta, la silueta genérica. No se genera ninguna cara: una foto que el
+ * usuario no puso es una identidad que no es suya.
+ */
+function AvatarPerfil({ usuario }: { usuario?: string }) {
+  const inicial = usuario?.trim().charAt(0).toUpperCase();
+  return (
+    <span
+      aria-hidden
+      data-testid="header-avatar"
+      className="flex h-8 w-8 items-center justify-center rounded-full border border-line bg-teal-soft font-display text-[14px] font-semibold text-teal"
+    >
+      {inicial || <User className="h-4 w-4" strokeWidth={2.2} />}
+    </span>
+  );
+}
+
+/**
+ * Header. Marca a la izquierda; saldo, depósito y perfil a la derecha. El
+ * perfil vive aquí desde que la barra inferior bajó a cuatro destinos: es
+ * ajuste, no navegación, y la zona del pulgar es para lo que se usa a diario
+ * (R-010). Los CTA que deciden siguen abajo.
  * Con saldo 0 el header muestra `Depositar`, nunca un muro (V12).
  */
 export function AppHeader() {
@@ -68,6 +88,18 @@ export function AppHeader() {
               {points ? S.points.topUp : S.header.deposit}
             </Button>
           ) : null}
+          {/* 44 px de target aunque el avatar mida 32: el área táctil no se
+              encoge con el adorno (R-010) */}
+          <button
+            type="button"
+            data-testid="header-profile"
+            aria-label={S.header.profile}
+            aria-current={state.tab === "profile" ? "page" : undefined}
+            onClick={() => actions.setTab("profile")}
+            className="-mr-2 flex min-h-touch min-w-touch items-center justify-center"
+          >
+            <AvatarPerfil usuario={state.cuenta?.usuario} />
+          </button>
         </div>
       </div>
     </header>

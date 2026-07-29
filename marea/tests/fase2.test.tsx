@@ -96,7 +96,7 @@ describe("Fase 2 — activación", () => {
     const user = userEvent.setup();
     renderApp({ overrides: READY_NO_FUNDS });
     await screen.findByTestId("home-screen");
-    await user.click(screen.getByRole("tab", { name: S.tabs.portfolio }));
+    await user.click(screen.getByRole("tab", { name: new RegExp(`^${S.tabs.portfolio}`) }));
 
     const empty = await screen.findByTestId("portfolio-empty");
     expect(empty).toHaveTextContent(S.portfolio.empty);
@@ -163,7 +163,7 @@ describe("Fase 2 — activación", () => {
       }),
     );
     await waitFor(() => expect(screen.queryByTestId("deposit-sheet")).toBeNull());
-    await user.click(screen.getByRole("tab", { name: S.tabs.portfolio }));
+    await user.click(screen.getByRole("tab", { name: new RegExp(`^${S.tabs.portfolio}`) }));
 
     const names = app.eventNames();
     for (const event of [

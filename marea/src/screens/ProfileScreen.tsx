@@ -1,8 +1,10 @@
 import * as React from "react";
+import { ChevronRight, PieChart, Trophy, Wallet } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { S } from "@/lib/strings";
 import { cn } from "@/lib/cn";
+import { isPointsMode } from "@/lib/flags";
 import { useApp } from "@/state/store";
 
 type Theme = "dark" | "light";
@@ -20,6 +22,7 @@ export function ProfileScreen() {
   const [copiada, setCopiada] = React.useState(false);
   const { state, actions } = useApp();
   const [theme, setTheme] = React.useState<Theme>(currentTheme);
+  const puntos = isPointsMode();
 
   const apply = React.useCallback((next: Theme) => {
     document.documentElement.setAttribute("data-theme", next);
@@ -72,6 +75,35 @@ export function ProfileScreen() {
             </div>
           )}
         </div>
+      </Card>
+
+      {/* Cartera y Tabla salieron de la barra inferior al bajar a cuatro
+          destinos. Salir de la barra no puede significar desaparecer: viven
+          aquí, que es donde se busca lo que se usa de vez en cuando */}
+      <Card className="p-2" data-testid="profile-destinos">
+        <p className="px-3 pb-1 pt-2 text-[12px] font-bold uppercase tracking-wide text-muted">
+          {S.profile.destinos}
+        </p>
+        {(
+          [
+            puntos
+              ? { id: "tabla" as const, label: S.tabla.title, Icon: Trophy }
+              : { id: "wallet" as const, label: S.wallet.title, Icon: Wallet },
+            { id: "portfolio" as const, label: S.portfolio.title, Icon: PieChart },
+          ] as const
+        ).map(({ id, label, Icon }) => (
+          <button
+            key={id}
+            type="button"
+            data-testid={`profile-ir-${id}`}
+            onClick={() => actions.setTab(id)}
+            className="flex min-h-touch w-full items-center gap-3 rounded-[12px] px-3 text-left text-[15px] font-medium text-text hover:bg-panel2"
+          >
+            <Icon aria-hidden className="h-[18px] w-[18px] text-teal" strokeWidth={2.2} />
+            {label}
+            <ChevronRight aria-hidden className="ml-auto h-4 w-4 text-muted" />
+          </button>
+        ))}
       </Card>
 
       {/* la tarjeta: una racha contada con palabras no se comparte, una imagen

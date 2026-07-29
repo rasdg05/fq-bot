@@ -30,7 +30,14 @@ import {
 } from "@/adapters/errorReporter";
 import { addStake, quote, type OutcomeId } from "@/domain/parimutuel";
 
-export type TabId = "markets" | "search" | "portfolio" | "wallet" | "tabla" | "profile";
+export type TabId =
+  | "markets"
+  | "live"
+  | "search"
+  | "portfolio"
+  | "wallet"
+  | "tabla"
+  | "profile";
 export type OnboardingStep = "p0" | "p1" | "p2" | "p3" | "done";
 /**
  * Con qué cara abre la hoja de cuenta. `recuperar` no está aquí a propósito:
