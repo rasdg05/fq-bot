@@ -193,9 +193,10 @@ Semántica: `<nav>` → `<ul role="tablist">` → `<li role="presentation">` →
 | Fila 3 · bloque de opciones (pill 36 + 3 + barra 3) | 42 |
 | Fila 4 · pie | 11 |
 | Separaciones (3 + 3 + 2) | 8 |
-| **Total** | **114** |
+| Borde de la tarjeta (1 arriba + 1 abajo) | 2 |
+| **Total** | **116** |
 
-**114 px contra los 159 px medidos hoy = −28,3 %**, dentro del techo de 116 px. Los 4 px que sube respecto del borrador anterior compran los 6 px de porcentaje (24 → 30 px) que hacían falta para que el número mande de verdad; se pagan apretando el pie (12 → 11 px, §5) y la separación barra–pie (3 → 2 px).
+**116 px medidos en Chromium contra los 159 px de antes = −27,0 %**, justo en el techo declarado. El presupuesto de papel decía 114 porque no contaba el borde de 1 px por lado; el borde existe y se cuenta. `npm run densidad` lo verifica a 320, 390 y 430 px y ahora falla si la card pasa de 116. Los 4 px que sube respecto del borrador anterior compran los 6 px de porcentaje (24 → 30 px) que hacían falta para que el número mande de verdad; se pagan apretando el pie (12 → 11 px, §5) y la separación barra–pie (3 → 2 px).
 
 Cómo se paga el recorte total, en orden de aporte: el título se limita a **una** línea vía `shortTitle` (−19), el número baja de 44 a 30 px (−14), el padding baja de 12 a 9 y las separaciones de 6 a 3 (−13), el pie se aprieta (−2), el Edge sale de la card (−5, era una badge en la fila de decisión). Suma −53; la barra nueva devuelve +6 y la pill más alta +2.
 
@@ -204,7 +205,7 @@ Cómo se paga el recorte total, en orden de aporte: el título se limita a **una
 - `title`: `¿Bitcoin cierra la semana arriba de 71,000 dólares?` → detalle
 - `shortTitle`: `Bitcoin cierra la semana arriba de 71k` → tarjeta
 
-**Densidad resultante.** A 390 × 844: 844 − 56 (header) − 56 (nav) − 40 (chips) = 692 px de contenido; 114 + 8 = 122 px por mercado → **5 tarjetas enteras** (hoy 4). Presupuesto para `npm run densidad`: ≤ **116 px** en Cripto Live, Deportes Live y binario con nombre; ≥ 5 tarjetas enteras; 0 nodos de texto envueltos a 320 / 360 / 390 / 430 px.
+**Densidad resultante, medida.** A 390 × 844 entran **6 tarjetas enteras** (antes 4) y el documento de 29 mercados bajó de 6 631 a 3 715 px: 44 % menos de scroll para el mismo catálogo. 116 + 8 = 124 px por mercado. Presupuesto para `npm run densidad`: ≤ **116 px** en Cripto Live, Deportes Live y binario con nombre; ≥ 5 tarjetas enteras; 0 nodos de texto envueltos a 320 / 360 / 390 / 430 px.
 
 **Bloque de opciones — geometría fija (la misma en Cripto Live, Deportes Live y binario):**
 

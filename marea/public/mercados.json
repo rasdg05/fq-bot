@@ -1,401 +1,416 @@
 {
-  "generatedAt": "2026-07-28T07:02:41.209Z",
-  "seeds": [
-    {
-      "id": "btc-cierre-2026-08-02",
-      "title": "¿Bitcoin cierra la semana arriba de 64,000 dólares?",
-      "category": "cripto",
-      "country": "LATAM",
-      "closesAt": "2026-08-01T23:59:00.000Z",
-      "pool": {
-        "si": 500,
-        "no": 500,
-        "feeBps": 300
-      },
-      "referenceKey": "bitcoin above 64000",
-      "rule": {
-        "kind": "precio",
-        "par": "BTC/USD",
-        "umbral": 64000,
-        "comparacion": "arriba",
-        "modo": "cierre"
-      },
-      "resolution": {
-        "sourceName": "Kraken (velas diarias públicas)",
-        "sourceUrl": "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=1440",
-        "criterion": "Se resuelve Sí si la vela diaria de BTC/USD en Kraken correspondiente al domingo 2026-08-02 cierra por encima de 64,000 dólares. Se lee del endpoint público de Kraken, que cualquiera puede consultar.",
-        "settlesAt": "2026-08-02T23:59:00.000Z",
-        "disputeWindowHours": 12
-      }
-    },
-    {
-      "id": "btc-toca-2026-07-27",
-      "title": "¿Bitcoin toca 69,000 dólares en 30 días?",
-      "category": "cripto",
-      "country": "LATAM",
-      "closesAt": "2026-08-25T23:48:25.524Z",
-      "pool": {
-        "si": 300,
-        "no": 600,
-        "feeBps": 300
-      },
-      "rule": {
-        "kind": "precio",
-        "par": "BTC/USD",
-        "umbral": 69000,
-        "comparacion": "arriba",
-        "modo": "toca",
-        "desde": "2026-07-27T23:48:25.524Z"
-      },
-      "resolution": {
-        "sourceName": "Kraken (velas diarias públicas)",
-        "sourceUrl": "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=1440",
-        "criterion": "Se resuelve Sí si el precio de BTC/USD en Kraken alcanza o supera 69,000 dólares en cualquier momento entre el 2026-07-27 y el 2026-08-26, medido sobre el máximo de las velas diarias públicas.",
-        "settlesAt": "2026-08-26T23:48:25.524Z",
-        "disputeWindowHours": 12
-      }
-    },
-    {
-      "id": "eth-cierre-2026-08-02",
-      "title": "¿Ethereum cierra la semana arriba de 1,900 dólares?",
-      "category": "cripto",
-      "country": "LATAM",
-      "closesAt": "2026-08-01T23:59:00.000Z",
-      "pool": {
-        "si": 500,
-        "no": 500,
-        "feeBps": 300
-      },
-      "referenceKey": "ethereum above 1900",
-      "rule": {
-        "kind": "precio",
-        "par": "ETH/USD",
-        "umbral": 1900,
-        "comparacion": "arriba",
-        "modo": "cierre"
-      },
-      "resolution": {
-        "sourceName": "Kraken (velas diarias públicas)",
-        "sourceUrl": "https://api.kraken.com/0/public/OHLC?pair=ETHUSD&interval=1440",
-        "criterion": "Se resuelve Sí si la vela diaria de ETH/USD en Kraken correspondiente al domingo 2026-08-02 cierra por encima de 1,900 dólares. Se lee del endpoint público de Kraken, que cualquiera puede consultar.",
-        "settlesAt": "2026-08-02T23:59:00.000Z",
-        "disputeWindowHours": 12
-      }
-    },
-    {
-      "id": "eth-toca-2026-07-27",
-      "title": "¿Ethereum toca 2,000 dólares en 30 días?",
-      "category": "cripto",
-      "country": "LATAM",
-      "closesAt": "2026-08-25T23:48:25.524Z",
-      "pool": {
-        "si": 300,
-        "no": 600,
-        "feeBps": 300
-      },
-      "rule": {
-        "kind": "precio",
-        "par": "ETH/USD",
-        "umbral": 2000,
-        "comparacion": "arriba",
-        "modo": "toca",
-        "desde": "2026-07-27T23:48:25.524Z"
-      },
-      "resolution": {
-        "sourceName": "Kraken (velas diarias públicas)",
-        "sourceUrl": "https://api.kraken.com/0/public/OHLC?pair=ETHUSD&interval=1440",
-        "criterion": "Se resuelve Sí si el precio de ETH/USD en Kraken alcanza o supera 2,000 dólares en cualquier momento entre el 2026-07-27 y el 2026-08-26, medido sobre el máximo de las velas diarias públicas.",
-        "settlesAt": "2026-08-26T23:48:25.524Z",
-        "disputeWindowHours": 12
-      }
-    },
-    {
-      "id": "btc-toca-2026-07-28",
-      "title": "¿Bitcoin toca 69,000 dólares en 30 días?",
-      "category": "cripto",
-      "country": "LATAM",
-      "closesAt": "2026-08-26T00:34:53.886Z",
-      "pool": {
-        "si": 300,
-        "no": 600,
-        "feeBps": 300
-      },
-      "rule": {
-        "kind": "precio",
-        "par": "BTC/USD",
-        "umbral": 69000,
-        "comparacion": "arriba",
-        "modo": "toca",
-        "desde": "2026-07-28T00:34:53.886Z"
-      },
-      "resolution": {
-        "sourceName": "Kraken (velas diarias públicas)",
-        "sourceUrl": "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=1440",
-        "criterion": "Se resuelve Sí si el precio de BTC/USD en Kraken alcanza o supera 69,000 dólares en cualquier momento entre el 2026-07-28 y el 2026-08-27, medido sobre el máximo de las velas diarias públicas.",
-        "settlesAt": "2026-08-27T00:34:53.886Z",
-        "disputeWindowHours": 12
-      }
-    },
-    {
-      "id": "eth-toca-2026-07-28",
-      "title": "¿Ethereum toca 2,000 dólares en 30 días?",
-      "category": "cripto",
-      "country": "LATAM",
-      "closesAt": "2026-08-26T00:34:53.886Z",
-      "pool": {
-        "si": 300,
-        "no": 600,
-        "feeBps": 300
-      },
-      "rule": {
-        "kind": "precio",
-        "par": "ETH/USD",
-        "umbral": 2000,
-        "comparacion": "arriba",
-        "modo": "toca",
-        "desde": "2026-07-28T00:34:53.886Z"
-      },
-      "resolution": {
-        "sourceName": "Kraken (velas diarias públicas)",
-        "sourceUrl": "https://api.kraken.com/0/public/OHLC?pair=ETHUSD&interval=1440",
-        "criterion": "Se resuelve Sí si el precio de ETH/USD en Kraken alcanza o supera 2,000 dólares en cualquier momento entre el 2026-07-28 y el 2026-08-27, medido sobre el máximo de las velas diarias públicas.",
-        "settlesAt": "2026-08-27T00:34:53.886Z",
-        "disputeWindowHours": 12
-      }
-    },
-    {
-      "id": "mx-puebla-guadalajara-2026-08-01",
-      "title": "¿Puebla le gana a Guadalajara?",
-      "category": "deportes",
-      "country": "MX",
-      "closesAt": "2026-08-01T01:00Z",
-      "pool": {
-        "si": 400,
-        "no": 400,
-        "feeBps": 300
-      },
-      "rule": {
-        "kind": "partido",
-        "liga": "mex.1",
-        "fecha": "2026-08-01",
-        "equipo": "Puebla",
-        "resultado": "gana"
-      },
-      "resolution": {
-        "sourceName": "ESPN (marcador oficial de la Liga MX)",
-        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260801",
-        "criterion": "Se resuelve Sí si Puebla le gana a Guadalajara en el partido del 2026-08-01, según el marcador final que publica ESPN. Un empate resuelve No.",
-        "settlesAt": "2026-08-01T04:00:00.000Z",
-        "disputeWindowHours": 12
-      }
-    },
-    {
-      "id": "mx-atletico-de-san-luis-tijuana-2026-08-01",
-      "title": "¿Atlético de San Luis le gana a Tijuana?",
-      "category": "deportes",
-      "country": "MX",
-      "closesAt": "2026-08-01T03:00Z",
-      "pool": {
-        "si": 400,
-        "no": 400,
-        "feeBps": 300
-      },
-      "rule": {
-        "kind": "partido",
-        "liga": "mex.1",
-        "fecha": "2026-08-01",
-        "equipo": "Atlético de San Luis",
-        "resultado": "gana"
-      },
-      "resolution": {
-        "sourceName": "ESPN (marcador oficial de la Liga MX)",
-        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260801",
-        "criterion": "Se resuelve Sí si Atlético de San Luis le gana a Tijuana en el partido del 2026-08-01, según el marcador final que publica ESPN. Un empate resuelve No.",
-        "settlesAt": "2026-08-01T06:00:00.000Z",
-        "disputeWindowHours": 12
-      }
-    },
-    {
-      "id": "mx-fc-juarez-pumas-unam-2026-08-01",
-      "title": "¿FC Juarez le gana a Pumas UNAM?",
-      "category": "deportes",
-      "country": "MX",
-      "closesAt": "2026-08-01T03:00Z",
-      "pool": {
-        "si": 400,
-        "no": 400,
-        "feeBps": 300
-      },
-      "rule": {
-        "kind": "partido",
-        "liga": "mex.1",
-        "fecha": "2026-08-01",
-        "equipo": "FC Juarez",
-        "resultado": "gana"
-      },
-      "resolution": {
-        "sourceName": "ESPN (marcador oficial de la Liga MX)",
-        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260801",
-        "criterion": "Se resuelve Sí si FC Juarez le gana a Pumas UNAM en el partido del 2026-08-01, según el marcador final que publica ESPN. Un empate resuelve No.",
-        "settlesAt": "2026-08-01T06:00:00.000Z",
-        "disputeWindowHours": 12
-      }
-    },
-    {
-      "id": "mx-queretaro-tigres-uanl-2026-08-01",
-      "title": "¿Querétaro le gana a Tigres UANL?",
-      "category": "deportes",
-      "country": "MX",
-      "closesAt": "2026-08-01T23:00Z",
-      "pool": {
-        "si": 400,
-        "no": 400,
-        "feeBps": 300
-      },
-      "rule": {
-        "kind": "partido",
-        "liga": "mex.1",
-        "fecha": "2026-08-01",
-        "equipo": "Querétaro",
-        "resultado": "gana"
-      },
-      "resolution": {
-        "sourceName": "ESPN (marcador oficial de la Liga MX)",
-        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260801",
-        "criterion": "Se resuelve Sí si Querétaro le gana a Tigres UANL en el partido del 2026-08-01, según el marcador final que publica ESPN. Un empate resuelve No.",
-        "settlesAt": "2026-08-02T02:00:00.000Z",
-        "disputeWindowHours": 12
-      }
-    },
-    {
-      "id": "mx-atlas-monterrey-2026-08-02",
-      "title": "¿Atlas le gana a Monterrey?",
-      "category": "deportes",
-      "country": "MX",
-      "closesAt": "2026-08-02T01:00Z",
-      "pool": {
-        "si": 400,
-        "no": 400,
-        "feeBps": 300
-      },
-      "rule": {
-        "kind": "partido",
-        "liga": "mex.1",
-        "fecha": "2026-08-02",
-        "equipo": "Atlas",
-        "resultado": "gana"
-      },
-      "resolution": {
-        "sourceName": "ESPN (marcador oficial de la Liga MX)",
-        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260802",
-        "criterion": "Se resuelve Sí si Atlas le gana a Monterrey en el partido del 2026-08-02, según el marcador final que publica ESPN. Un empate resuelve No.",
-        "settlesAt": "2026-08-02T04:00:00.000Z",
-        "disputeWindowHours": 12
-      }
-    },
-    {
-      "id": "mx-leon-pachuca-2026-08-02",
-      "title": "¿León le gana a Pachuca?",
-      "category": "deportes",
-      "country": "MX",
-      "closesAt": "2026-08-02T01:00Z",
-      "pool": {
-        "si": 400,
-        "no": 400,
-        "feeBps": 300
-      },
-      "rule": {
-        "kind": "partido",
-        "liga": "mex.1",
-        "fecha": "2026-08-02",
-        "equipo": "León",
-        "resultado": "gana"
-      },
-      "resolution": {
-        "sourceName": "ESPN (marcador oficial de la Liga MX)",
-        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260802",
-        "criterion": "Se resuelve Sí si León le gana a Pachuca en el partido del 2026-08-02, según el marcador final que publica ESPN. Un empate resuelve No.",
-        "settlesAt": "2026-08-02T04:00:00.000Z",
-        "disputeWindowHours": 12
-      }
-    },
-    {
-      "id": "mx-cruz-azul-atlante-2026-08-02",
-      "title": "¿Cruz Azul le gana a Atlante?",
-      "category": "deportes",
-      "country": "MX",
-      "closesAt": "2026-08-02T03:00Z",
-      "pool": {
-        "si": 400,
-        "no": 400,
-        "feeBps": 300
-      },
-      "rule": {
-        "kind": "partido",
-        "liga": "mex.1",
-        "fecha": "2026-08-02",
-        "equipo": "Cruz Azul",
-        "resultado": "gana"
-      },
-      "resolution": {
-        "sourceName": "ESPN (marcador oficial de la Liga MX)",
-        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260802",
-        "criterion": "Se resuelve Sí si Cruz Azul le gana a Atlante en el partido del 2026-08-02, según el marcador final que publica ESPN. Un empate resuelve No.",
-        "settlesAt": "2026-08-02T06:00:00.000Z",
-        "disputeWindowHours": 12
-      }
-    },
-    {
-      "id": "mx-america-santos-2026-08-02",
-      "title": "¿América le gana a Santos?",
-      "category": "deportes",
-      "country": "MX",
-      "closesAt": "2026-08-02T23:00Z",
-      "pool": {
-        "si": 400,
-        "no": 400,
-        "feeBps": 300
-      },
-      "rule": {
-        "kind": "partido",
-        "liga": "mex.1",
-        "fecha": "2026-08-02",
-        "equipo": "América",
-        "resultado": "gana"
-      },
-      "resolution": {
-        "sourceName": "ESPN (marcador oficial de la Liga MX)",
-        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260802",
-        "criterion": "Se resuelve Sí si América le gana a Santos en el partido del 2026-08-02, según el marcador final que publica ESPN. Un empate resuelve No.",
-        "settlesAt": "2026-08-03T02:00:00.000Z",
-        "disputeWindowHours": 12
-      }
-    },
-    {
-      "id": "mx-toluca-necaxa-2026-08-03",
-      "title": "¿Toluca le gana a Necaxa?",
-      "category": "deportes",
-      "country": "MX",
-      "closesAt": "2026-08-03T01:00Z",
-      "pool": {
-        "si": 400,
-        "no": 400,
-        "feeBps": 300
-      },
-      "rule": {
-        "kind": "partido",
-        "liga": "mex.1",
-        "fecha": "2026-08-03",
-        "equipo": "Toluca",
-        "resultado": "gana"
-      },
-      "resolution": {
-        "sourceName": "ESPN (marcador oficial de la Liga MX)",
-        "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260803",
-        "criterion": "Se resuelve Sí si Toluca le gana a Necaxa en el partido del 2026-08-03, según el marcador final que publica ESPN. Un empate resuelve No.",
-        "settlesAt": "2026-08-03T04:00:00.000Z",
-        "disputeWindowHours": 12
-      }
-    }
-  ]
+ "generatedAt": "2026-07-28T07:02:41.209Z",
+ "seeds": [
+  {
+   "id": "btc-cierre-2026-08-02",
+   "title": "¿Bitcoin cierra la semana arriba de 64,000 dólares?",
+   "category": "cripto",
+   "country": "LATAM",
+   "closesAt": "2026-08-01T23:59:00.000Z",
+   "pool": {
+    "si": 500,
+    "no": 500,
+    "feeBps": 300
+   },
+   "referenceKey": "bitcoin above 64000",
+   "rule": {
+    "kind": "precio",
+    "par": "BTC/USD",
+    "umbral": 64000,
+    "comparacion": "arriba",
+    "modo": "cierre"
+   },
+   "resolution": {
+    "sourceName": "Kraken (velas diarias públicas)",
+    "sourceUrl": "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=1440",
+    "criterion": "Se resuelve Sí si la vela diaria de BTC/USD en Kraken correspondiente al domingo 2026-08-02 cierra por encima de 64,000 dólares. Se lee del endpoint público de Kraken, que cualquiera puede consultar.",
+    "settlesAt": "2026-08-02T23:59:00.000Z",
+    "disputeWindowHours": 12
+   },
+   "shortTitle": "Bitcoin arriba de 64,000 el domingo"
+  },
+  {
+   "id": "btc-toca-2026-07-27",
+   "title": "¿Bitcoin toca 69,000 dólares en 30 días?",
+   "category": "cripto",
+   "country": "LATAM",
+   "closesAt": "2026-08-25T23:48:25.524Z",
+   "pool": {
+    "si": 300,
+    "no": 600,
+    "feeBps": 300
+   },
+   "rule": {
+    "kind": "precio",
+    "par": "BTC/USD",
+    "umbral": 69000,
+    "comparacion": "arriba",
+    "modo": "toca",
+    "desde": "2026-07-27T23:48:25.524Z"
+   },
+   "resolution": {
+    "sourceName": "Kraken (velas diarias públicas)",
+    "sourceUrl": "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=1440",
+    "criterion": "Se resuelve Sí si el precio de BTC/USD en Kraken alcanza o supera 69,000 dólares en cualquier momento entre el 2026-07-27 y el 2026-08-26, medido sobre el máximo de las velas diarias públicas.",
+    "settlesAt": "2026-08-26T23:48:25.524Z",
+    "disputeWindowHours": 12
+   },
+   "shortTitle": "Bitcoin toca 69,000 en 30 días"
+  },
+  {
+   "id": "eth-cierre-2026-08-02",
+   "title": "¿Ethereum cierra la semana arriba de 1,900 dólares?",
+   "category": "cripto",
+   "country": "LATAM",
+   "closesAt": "2026-08-01T23:59:00.000Z",
+   "pool": {
+    "si": 500,
+    "no": 500,
+    "feeBps": 300
+   },
+   "referenceKey": "ethereum above 1900",
+   "rule": {
+    "kind": "precio",
+    "par": "ETH/USD",
+    "umbral": 1900,
+    "comparacion": "arriba",
+    "modo": "cierre"
+   },
+   "resolution": {
+    "sourceName": "Kraken (velas diarias públicas)",
+    "sourceUrl": "https://api.kraken.com/0/public/OHLC?pair=ETHUSD&interval=1440",
+    "criterion": "Se resuelve Sí si la vela diaria de ETH/USD en Kraken correspondiente al domingo 2026-08-02 cierra por encima de 1,900 dólares. Se lee del endpoint público de Kraken, que cualquiera puede consultar.",
+    "settlesAt": "2026-08-02T23:59:00.000Z",
+    "disputeWindowHours": 12
+   },
+   "shortTitle": "Ethereum arriba de 1,900 el domingo"
+  },
+  {
+   "id": "eth-toca-2026-07-27",
+   "title": "¿Ethereum toca 2,000 dólares en 30 días?",
+   "category": "cripto",
+   "country": "LATAM",
+   "closesAt": "2026-08-25T23:48:25.524Z",
+   "pool": {
+    "si": 300,
+    "no": 600,
+    "feeBps": 300
+   },
+   "rule": {
+    "kind": "precio",
+    "par": "ETH/USD",
+    "umbral": 2000,
+    "comparacion": "arriba",
+    "modo": "toca",
+    "desde": "2026-07-27T23:48:25.524Z"
+   },
+   "resolution": {
+    "sourceName": "Kraken (velas diarias públicas)",
+    "sourceUrl": "https://api.kraken.com/0/public/OHLC?pair=ETHUSD&interval=1440",
+    "criterion": "Se resuelve Sí si el precio de ETH/USD en Kraken alcanza o supera 2,000 dólares en cualquier momento entre el 2026-07-27 y el 2026-08-26, medido sobre el máximo de las velas diarias públicas.",
+    "settlesAt": "2026-08-26T23:48:25.524Z",
+    "disputeWindowHours": 12
+   },
+   "shortTitle": "Ethereum toca 2,000 en 30 días"
+  },
+  {
+   "id": "btc-toca-2026-07-28",
+   "title": "¿Bitcoin toca 69,000 dólares en 30 días?",
+   "category": "cripto",
+   "country": "LATAM",
+   "closesAt": "2026-08-26T00:34:53.886Z",
+   "pool": {
+    "si": 300,
+    "no": 600,
+    "feeBps": 300
+   },
+   "rule": {
+    "kind": "precio",
+    "par": "BTC/USD",
+    "umbral": 69000,
+    "comparacion": "arriba",
+    "modo": "toca",
+    "desde": "2026-07-28T00:34:53.886Z"
+   },
+   "resolution": {
+    "sourceName": "Kraken (velas diarias públicas)",
+    "sourceUrl": "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=1440",
+    "criterion": "Se resuelve Sí si el precio de BTC/USD en Kraken alcanza o supera 69,000 dólares en cualquier momento entre el 2026-07-28 y el 2026-08-27, medido sobre el máximo de las velas diarias públicas.",
+    "settlesAt": "2026-08-27T00:34:53.886Z",
+    "disputeWindowHours": 12
+   },
+   "shortTitle": "Bitcoin toca 69,000 en 30 días"
+  },
+  {
+   "id": "eth-toca-2026-07-28",
+   "title": "¿Ethereum toca 2,000 dólares en 30 días?",
+   "category": "cripto",
+   "country": "LATAM",
+   "closesAt": "2026-08-26T00:34:53.886Z",
+   "pool": {
+    "si": 300,
+    "no": 600,
+    "feeBps": 300
+   },
+   "rule": {
+    "kind": "precio",
+    "par": "ETH/USD",
+    "umbral": 2000,
+    "comparacion": "arriba",
+    "modo": "toca",
+    "desde": "2026-07-28T00:34:53.886Z"
+   },
+   "resolution": {
+    "sourceName": "Kraken (velas diarias públicas)",
+    "sourceUrl": "https://api.kraken.com/0/public/OHLC?pair=ETHUSD&interval=1440",
+    "criterion": "Se resuelve Sí si el precio de ETH/USD en Kraken alcanza o supera 2,000 dólares en cualquier momento entre el 2026-07-28 y el 2026-08-27, medido sobre el máximo de las velas diarias públicas.",
+    "settlesAt": "2026-08-27T00:34:53.886Z",
+    "disputeWindowHours": 12
+   },
+   "shortTitle": "Ethereum toca 2,000 en 30 días"
+  },
+  {
+   "id": "mx-puebla-guadalajara-2026-08-01",
+   "title": "¿Puebla le gana a Guadalajara?",
+   "category": "deportes",
+   "country": "MX",
+   "closesAt": "2026-08-01T01:00Z",
+   "pool": {
+    "si": 400,
+    "no": 400,
+    "feeBps": 300
+   },
+   "rule": {
+    "kind": "partido",
+    "liga": "mex.1",
+    "fecha": "2026-08-01",
+    "equipo": "Puebla",
+    "resultado": "gana"
+   },
+   "resolution": {
+    "sourceName": "ESPN (marcador oficial de la Liga MX)",
+    "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260801",
+    "criterion": "Se resuelve Sí si Puebla le gana a Guadalajara en el partido del 2026-08-01, según el marcador final que publica ESPN. Un empate resuelve No.",
+    "settlesAt": "2026-08-01T04:00:00.000Z",
+    "disputeWindowHours": 12
+   },
+   "shortTitle": "Puebla le gana a Guadalajara"
+  },
+  {
+   "id": "mx-atletico-de-san-luis-tijuana-2026-08-01",
+   "title": "¿Atlético de San Luis le gana a Tijuana?",
+   "category": "deportes",
+   "country": "MX",
+   "closesAt": "2026-08-01T03:00Z",
+   "pool": {
+    "si": 400,
+    "no": 400,
+    "feeBps": 300
+   },
+   "rule": {
+    "kind": "partido",
+    "liga": "mex.1",
+    "fecha": "2026-08-01",
+    "equipo": "Atlético de San Luis",
+    "resultado": "gana"
+   },
+   "resolution": {
+    "sourceName": "ESPN (marcador oficial de la Liga MX)",
+    "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260801",
+    "criterion": "Se resuelve Sí si Atlético de San Luis le gana a Tijuana en el partido del 2026-08-01, según el marcador final que publica ESPN. Un empate resuelve No.",
+    "settlesAt": "2026-08-01T06:00:00.000Z",
+    "disputeWindowHours": 12
+   },
+   "shortTitle": "Atlético de San Luis le gana a Tijuana"
+  },
+  {
+   "id": "mx-fc-juarez-pumas-unam-2026-08-01",
+   "title": "¿FC Juarez le gana a Pumas UNAM?",
+   "category": "deportes",
+   "country": "MX",
+   "closesAt": "2026-08-01T03:00Z",
+   "pool": {
+    "si": 400,
+    "no": 400,
+    "feeBps": 300
+   },
+   "rule": {
+    "kind": "partido",
+    "liga": "mex.1",
+    "fecha": "2026-08-01",
+    "equipo": "FC Juarez",
+    "resultado": "gana"
+   },
+   "resolution": {
+    "sourceName": "ESPN (marcador oficial de la Liga MX)",
+    "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260801",
+    "criterion": "Se resuelve Sí si FC Juarez le gana a Pumas UNAM en el partido del 2026-08-01, según el marcador final que publica ESPN. Un empate resuelve No.",
+    "settlesAt": "2026-08-01T06:00:00.000Z",
+    "disputeWindowHours": 12
+   },
+   "shortTitle": "FC Juarez le gana a Pumas UNAM"
+  },
+  {
+   "id": "mx-queretaro-tigres-uanl-2026-08-01",
+   "title": "¿Querétaro le gana a Tigres UANL?",
+   "category": "deportes",
+   "country": "MX",
+   "closesAt": "2026-08-01T23:00Z",
+   "pool": {
+    "si": 400,
+    "no": 400,
+    "feeBps": 300
+   },
+   "rule": {
+    "kind": "partido",
+    "liga": "mex.1",
+    "fecha": "2026-08-01",
+    "equipo": "Querétaro",
+    "resultado": "gana"
+   },
+   "resolution": {
+    "sourceName": "ESPN (marcador oficial de la Liga MX)",
+    "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260801",
+    "criterion": "Se resuelve Sí si Querétaro le gana a Tigres UANL en el partido del 2026-08-01, según el marcador final que publica ESPN. Un empate resuelve No.",
+    "settlesAt": "2026-08-02T02:00:00.000Z",
+    "disputeWindowHours": 12
+   },
+   "shortTitle": "Querétaro le gana a Tigres UANL"
+  },
+  {
+   "id": "mx-atlas-monterrey-2026-08-02",
+   "title": "¿Atlas le gana a Monterrey?",
+   "category": "deportes",
+   "country": "MX",
+   "closesAt": "2026-08-02T01:00Z",
+   "pool": {
+    "si": 400,
+    "no": 400,
+    "feeBps": 300
+   },
+   "rule": {
+    "kind": "partido",
+    "liga": "mex.1",
+    "fecha": "2026-08-02",
+    "equipo": "Atlas",
+    "resultado": "gana"
+   },
+   "resolution": {
+    "sourceName": "ESPN (marcador oficial de la Liga MX)",
+    "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260802",
+    "criterion": "Se resuelve Sí si Atlas le gana a Monterrey en el partido del 2026-08-02, según el marcador final que publica ESPN. Un empate resuelve No.",
+    "settlesAt": "2026-08-02T04:00:00.000Z",
+    "disputeWindowHours": 12
+   },
+   "shortTitle": "Atlas le gana a Monterrey"
+  },
+  {
+   "id": "mx-leon-pachuca-2026-08-02",
+   "title": "¿León le gana a Pachuca?",
+   "category": "deportes",
+   "country": "MX",
+   "closesAt": "2026-08-02T01:00Z",
+   "pool": {
+    "si": 400,
+    "no": 400,
+    "feeBps": 300
+   },
+   "rule": {
+    "kind": "partido",
+    "liga": "mex.1",
+    "fecha": "2026-08-02",
+    "equipo": "León",
+    "resultado": "gana"
+   },
+   "resolution": {
+    "sourceName": "ESPN (marcador oficial de la Liga MX)",
+    "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260802",
+    "criterion": "Se resuelve Sí si León le gana a Pachuca en el partido del 2026-08-02, según el marcador final que publica ESPN. Un empate resuelve No.",
+    "settlesAt": "2026-08-02T04:00:00.000Z",
+    "disputeWindowHours": 12
+   },
+   "shortTitle": "León le gana a Pachuca"
+  },
+  {
+   "id": "mx-cruz-azul-atlante-2026-08-02",
+   "title": "¿Cruz Azul le gana a Atlante?",
+   "category": "deportes",
+   "country": "MX",
+   "closesAt": "2026-08-02T03:00Z",
+   "pool": {
+    "si": 400,
+    "no": 400,
+    "feeBps": 300
+   },
+   "rule": {
+    "kind": "partido",
+    "liga": "mex.1",
+    "fecha": "2026-08-02",
+    "equipo": "Cruz Azul",
+    "resultado": "gana"
+   },
+   "resolution": {
+    "sourceName": "ESPN (marcador oficial de la Liga MX)",
+    "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260802",
+    "criterion": "Se resuelve Sí si Cruz Azul le gana a Atlante en el partido del 2026-08-02, según el marcador final que publica ESPN. Un empate resuelve No.",
+    "settlesAt": "2026-08-02T06:00:00.000Z",
+    "disputeWindowHours": 12
+   },
+   "shortTitle": "Cruz Azul le gana a Atlante"
+  },
+  {
+   "id": "mx-america-santos-2026-08-02",
+   "title": "¿América le gana a Santos?",
+   "category": "deportes",
+   "country": "MX",
+   "closesAt": "2026-08-02T23:00Z",
+   "pool": {
+    "si": 400,
+    "no": 400,
+    "feeBps": 300
+   },
+   "rule": {
+    "kind": "partido",
+    "liga": "mex.1",
+    "fecha": "2026-08-02",
+    "equipo": "América",
+    "resultado": "gana"
+   },
+   "resolution": {
+    "sourceName": "ESPN (marcador oficial de la Liga MX)",
+    "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260802",
+    "criterion": "Se resuelve Sí si América le gana a Santos en el partido del 2026-08-02, según el marcador final que publica ESPN. Un empate resuelve No.",
+    "settlesAt": "2026-08-03T02:00:00.000Z",
+    "disputeWindowHours": 12
+   },
+   "shortTitle": "América le gana a Santos"
+  },
+  {
+   "id": "mx-toluca-necaxa-2026-08-03",
+   "title": "¿Toluca le gana a Necaxa?",
+   "category": "deportes",
+   "country": "MX",
+   "closesAt": "2026-08-03T01:00Z",
+   "pool": {
+    "si": 400,
+    "no": 400,
+    "feeBps": 300
+   },
+   "rule": {
+    "kind": "partido",
+    "liga": "mex.1",
+    "fecha": "2026-08-03",
+    "equipo": "Toluca",
+    "resultado": "gana"
+   },
+   "resolution": {
+    "sourceName": "ESPN (marcador oficial de la Liga MX)",
+    "sourceUrl": "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard?dates=20260803",
+    "criterion": "Se resuelve Sí si Toluca le gana a Necaxa en el partido del 2026-08-03, según el marcador final que publica ESPN. Un empate resuelve No.",
+    "settlesAt": "2026-08-03T04:00:00.000Z",
+    "disputeWindowHours": 12
+   },
+   "shortTitle": "Toluca le gana a Necaxa"
+  }
+ ]
 }

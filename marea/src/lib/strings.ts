@@ -52,6 +52,8 @@ export const S = {
     resolved: "Resuelto",
     closingSoon: "Cierra pronto",
     closed: "Cerrado",
+    /** Entre el cierre y el pago: ni vivo ni terminado. */
+    settling: "Resolviendo",
   },
 
   market: {
@@ -113,6 +115,17 @@ export const S = {
       `${titulo}\n\nEl mercado dice ${probabilidad} que sí. ¿Tú qué dices?`,
     betCta: "Apostar",
     closedForBets: "Este mercado ya cerró.",
+    /** Card: el pago de cada lado, debajo de su nombre. */
+    pays2: (multiplier: string) => `paga ${multiplier}`,
+    /** Card en resolución: qué se está esperando, sin prometer cuándo. */
+    esperandoFuente: "Esperando la fuente",
+    /** Marcador de béisbol: la mitad de la entrada se dice con palabra. */
+    entrada: (n: number, mitad: "alta" | "baja") =>
+      `${mitad === "alta" ? "ALTA" : "BAJA"} ${n}ª`,
+    outs: (n: number) => (n === 1 ? "1 out" : `${n} out`),
+    /** Etiqueta accesible de cada pill: nombre, probabilidad y pago. */
+    pillLabel: (label: string, probabilidad: string, multiplier: string) =>
+      `${label}, ${probabilidad} %, paga ${multiplier}`,
   },
 
   points: {

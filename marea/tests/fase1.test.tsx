@@ -41,34 +41,43 @@ describe("Fase 1 — descubrimiento", () => {
     await feed();
     const cards = await screen.findAllByTestId("market-card");
     for (const card of cards.slice(0, 4)) {
-      const dominant = within(card).getByText(S.market.probability)
-        .previousElementSibling as HTMLElement;
-      expect(dominant.getAttribute("data-role")).toBe("probability");
-      // única escala `text-prob*` de la card: nada compite con ella (R-004)
-      expect(dominant.className).toMatch(/text-prob/);
-      const others = [...card.querySelectorAll("*")].filter(
-        (el) => el !== dominant && /text-prob/.test(el.className.toString()),
+      const dominant = card.querySelector('[data-role="probability"]') as HTMLElement;
+      expect(dominant).not.toBeNull();
+      // en la card el nodo dominante es la pill de 30 px en peso 700: el de
+      // 44 px (`text-prob`) se fue al detalle. El rival existe y es más chico
+      // —`text-prob-riv`, 20 px—, así que la comprobación es que **nadie más**
+      // usa la escala del líder, no que no haya otro número (R-004)
+      expect(dominant.className).toMatch(/text-prob-pill/);
+      expect(dominant.className).toMatch(/font-bold/);
+      const compiten = [...card.querySelectorAll("*")].filter(
+        (el) =>
+          el !== dominant &&
+          /text-prob-pill|text-prob-lg|text-prob\b/.test(el.className.toString()),
       );
-      expect(others).toHaveLength(0);
+      expect(compiten).toHaveLength(0);
     }
   });
 
-  it("V4 — el Edge aparece sólo en las cards que superan el umbral", async () => {
+  it("V4 — el Edge no vive en el feed: se lee en el detalle, que es donde se decide", async () => {
+    const user = userEvent.setup();
     renderApp({ overrides: READY_NO_FUNDS });
     await feed();
     const cards = await screen.findAllByTestId("market-card");
+    // ninguna card, tenga o no Edge, lo enseña: ni badge, ni borde, ni orden
     for (const card of cards) {
-      const id = card.getAttribute("data-market-id");
-      const market = MOCK_MARKETS.find((m) => m.id === id)!;
-      const badge = within(card).queryByTestId("edge-badge");
-      if (market.edge === null) {
-        expect(badge, `${id} no debe mostrar Edge`).toBeNull();
-      } else {
-        expect(badge).not.toBeNull();
-        expect(badge!.textContent).toContain("Marea");
-        expect(Math.abs(Number(badge!.getAttribute("data-edge-pp")))).toBeGreaterThanOrEqual(4);
-      }
+      expect(
+        within(card).queryByTestId("edge-badge"),
+        `${card.getAttribute("data-market-id")} no debe enseñar Edge en el feed`,
+      ).toBeNull();
     }
+    // y sigue existiendo donde importa: el detalle de un mercado con Edge
+    const conEdge = MOCK_MARKETS.find((m) => m.edge !== null)!;
+    const card = cards.find((c) => c.getAttribute("data-market-id") === conEdge.id)!;
+    await user.click(within(card).getByTestId("card-open"));
+    const detalle = await screen.findByTestId("market-detail");
+    const badge = within(detalle).getByTestId("edge-badge-detail");
+    expect(Math.abs(conEdge.edge as number)).toBeGreaterThanOrEqual(4);
+    expect(badge.textContent).toContain(conEdge.edgeLabel ?? "Marea");
   });
 
   it("V5 — Home muestra Hot ahora, chips de categoría y cards", async () => {
@@ -93,7 +102,7 @@ describe("Fase 1 — descubrimiento", () => {
     renderApp({ overrides: READY_NO_FUNDS });
     await feed();
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
 
     const detail = await screen.findByTestId("market-detail");
@@ -149,7 +158,7 @@ describe("Fase 1 — descubrimiento", () => {
     expect(app.eventNames()).toContain("view_feed");
 
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
     expect(app.eventNames()).toContain("open_market_detail");
 
@@ -163,7 +172,7 @@ describe("Fase 1 — descubrimiento", () => {
     const app = renderApp({ overrides: READY_WITH_FUNDS });
     await feed();
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
     await user.click(await screen.findByTestId("detail-trade-cta"));
     expect(app.eventNames()).toContain("click_trade_cta");

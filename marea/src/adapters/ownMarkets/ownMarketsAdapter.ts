@@ -220,6 +220,7 @@ export function createOwnMarketsAdapter(
     return withEdge({
       id: seed.id,
       title: seed.title,
+      shortTitle: seed.shortTitle,
       // la probabilidad es la del pozo: lo que la gente apostó
       probability: binario ? impliedProbability(pool) : (lider?.probability ?? 0),
       leadLabel: binario ? undefined : lider?.label,

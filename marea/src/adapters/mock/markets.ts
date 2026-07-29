@@ -13,6 +13,7 @@ const RAW: RawMarket[] = [
   {
     id: "mx-inflacion-jul",
     title: "¿La inflación de México cierra julio abajo de 4.0%?",
+    shortTitle: "Inflación de México abajo de 4 % en julio",
     probability: 0.62,
     mareaProbability: 0.69,
     volume: 184_300,
@@ -27,6 +28,7 @@ const RAW: RawMarket[] = [
   {
     id: "btc-cierre-semana",
     title: "¿Bitcoin cierra la semana arriba de $71,000?",
+    shortTitle: "Bitcoin cierra la semana arriba de 71 mil",
     probability: 0.48,
     mareaProbability: 0.585,
     volume: 921_400,
@@ -41,6 +43,7 @@ const RAW: RawMarket[] = [
   {
     id: "arg-tasa-agosto",
     title: "¿El Banco Central de Argentina baja la tasa en agosto?",
+    shortTitle: "Argentina baja la tasa en agosto",
     probability: 0.71,
     mareaProbability: 0.74,
     volume: 96_800,
@@ -54,6 +57,7 @@ const RAW: RawMarket[] = [
   {
     id: "libertadores-final",
     title: "¿Un equipo brasileño gana la Libertadores?",
+    shortTitle: "Un equipo brasileño gana la Libertadores",
     probability: 0.66,
     mareaProbability: 0.58,
     volume: 412_500,
@@ -68,6 +72,7 @@ const RAW: RawMarket[] = [
   {
     id: "eth-flippening",
     title: "¿ETH supera los $4,500 antes de octubre?",
+    shortTitle: "ETH supera los 4,500 antes de octubre",
     probability: 0.34,
     mareaProbability: 0.355,
     volume: 288_100,
@@ -81,6 +86,7 @@ const RAW: RawMarket[] = [
   {
     id: "col-elecciones-2t",
     title: "¿Habrá segunda vuelta en las presidenciales de Colombia?",
+    shortTitle: "Hay segunda vuelta en Colombia",
     probability: 0.78,
     mareaProbability: 0.84,
     volume: 156_900,
@@ -94,6 +100,7 @@ const RAW: RawMarket[] = [
   {
     id: "peso-mxn-19",
     title: "¿El dólar cierra el mes abajo de 19 pesos?",
+    shortTitle: "El dólar cierra el mes abajo de 19 pesos",
     probability: 0.41,
     mareaProbability: 0.33,
     volume: 233_400,
@@ -107,6 +114,7 @@ const RAW: RawMarket[] = [
   {
     id: "premios-latam",
     title: "¿Una película latinoamericana gana Mejor Película Internacional?",
+    shortTitle: "Una latina gana Mejor Internacional",
     probability: 0.29,
     volume: 61_200,
     status: "open",
@@ -119,6 +127,7 @@ const RAW: RawMarket[] = [
   {
     id: "sol-ath",
     title: "¿Solana hace nuevo máximo histórico este trimestre?",
+    shortTitle: "Solana hace nuevo máximo este trimestre",
     probability: 0.22,
     mareaProbability: 0.31,
     volume: 174_600,
@@ -133,6 +142,7 @@ const RAW: RawMarket[] = [
   {
     id: "chile-crecimiento",
     title: "¿Chile crece más de 2.5% este año?",
+    shortTitle: "Chile crece más de 2.5 % este año",
     probability: 0.55,
     mareaProbability: 0.52,
     volume: 88_700,
@@ -146,6 +156,7 @@ const RAW: RawMarket[] = [
   {
     id: "mundial-sede",
     title: "¿México gana su grupo en el próximo Mundial?",
+    shortTitle: "México gana su grupo en el Mundial",
     probability: 0.37,
     mareaProbability: 0.45,
     volume: 507_300,
@@ -160,6 +171,7 @@ const RAW: RawMarket[] = [
   {
     id: "brl-estabilidad",
     title: "¿El real brasileño termina el mes abajo de 5.20 por dólar?",
+    shortTitle: "El real cierra el mes abajo de 5.20",
     probability: 0.44,
     mareaProbability: 0.46,
     volume: 119_500,

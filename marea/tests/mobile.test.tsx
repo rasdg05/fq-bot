@@ -50,7 +50,7 @@ describe("Métricas móviles", () => {
     renderApp({ overrides: READY_NO_FUNDS });
     await screen.findByTestId("home-screen");
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
 
     const detail = await screen.findByTestId("market-detail");

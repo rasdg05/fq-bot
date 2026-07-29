@@ -46,15 +46,30 @@ describe("Red-team UX", () => {
     }
   });
 
-  it("RT/3 — un Edge de 4 pp o más siempre se ve", async () => {
+  it("RT/3 — un Edge de 4 pp o más siempre se ve, y se ve en el detalle", async () => {
+    const user = userEvent.setup();
     renderApp({ overrides: READY_NO_FUNDS });
     await screen.findByTestId("home-screen");
-    const cards = await screen.findAllByTestId("market-card");
-    const withEdgeInData = MOCK_MARKETS.filter((m) => m.edge !== null).map((m) => m.id);
-    const shown = cards
-      .filter((card) => within(card).queryByTestId("edge-badge"))
-      .map((card) => card.getAttribute("data-market-id"));
-    expect(shown.sort()).toEqual(withEdgeInData.sort());
+    await screen.findAllByTestId("market-card");
+    // el feed no lo enseña por decisión de producto (§4.7 del rediseño v6):
+    // hojear no es decidir. Lo que la prueba defiende es que no se pierda
+    const conEdge = MOCK_MARKETS.filter((m) => m.edge !== null);
+    expect(conEdge.length).toBeGreaterThan(0);
+    for (const market of conEdge) {
+      // se re-consulta el feed en cada vuelta: volver del detalle re-monta la
+      // lista y el nodo de la vuelta anterior ya no está en el documento
+      const vivas = await screen.findAllByTestId("market-card");
+      const card = vivas.find((c) => c.getAttribute("data-market-id") === market.id)!;
+      expect(within(card).queryByTestId("edge-badge")).toBeNull();
+      await user.click(within(card).getByTestId("card-open"));
+      const detalle = await screen.findByTestId("market-detail");
+      expect(
+        within(detalle).getByTestId("edge-badge-detail"),
+        `${market.id} debe enseñar su Edge en el detalle`,
+      ).toBeInTheDocument();
+      await user.click(within(detalle).getByRole("button", { name: S.common.back }));
+      await screen.findByTestId("home-screen");
+    }
   });
 
   it("RT/4 — intentar operar sin saldo abre el depósito en contexto, nunca un muro previo", async () => {
@@ -62,7 +77,7 @@ describe("Red-team UX", () => {
     renderApp({ overrides: READY_NO_FUNDS });
     await screen.findByTestId("home-screen");
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
     const detail = await screen.findByTestId("market-detail");
     // el detalle se ve completo ANTES de pedir dinero
@@ -136,7 +151,7 @@ describe("Red-team UX", () => {
     });
     await screen.findByTestId("home-screen");
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
     await user.dblClick(await screen.findByTestId("detail-trade-cta"));
     await screen.findByTestId("post-trade");
@@ -240,7 +255,7 @@ describe("Red-team UX", () => {
 
     await user.click(screen.getByRole("tab", { name: S.tabs.markets }));
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
     surfaces.push((await screen.findByTestId("market-detail")).textContent ?? "");
 
@@ -256,7 +271,7 @@ describe("Red-team UX", () => {
     renderApp({ overrides: READY_WITH_FUNDS });
     await screen.findByTestId("home-screen");
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
     const notice = await screen.findByTestId("aggregation-notice");
     expect(notice).toHaveTextContent(/Marea no es tu contraparte/i);

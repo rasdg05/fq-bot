@@ -21,6 +21,7 @@ const AHORA = Date.parse("2026-08-05T12:00:00Z");
 const seed: OwnMarketSeed = validateSeed({
   id: "btc-prueba",
   title: "¿Bitcoin cierra la semana arriba de 71,000 dólares?",
+  shortTitle: "Bitcoin cierra la semana arriba de 71 mil",
   category: "cripto",
   country: "LATAM",
   closesAt: "2026-08-10T00:00:00Z",
@@ -158,7 +159,7 @@ describe("Liquidación de punta a punta", () => {
     await screen.findByTestId("home-screen");
 
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
     await user.click(await screen.findByTestId("detail-trade-cta"));
     await screen.findByTestId("post-trade");

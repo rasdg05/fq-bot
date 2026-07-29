@@ -173,11 +173,10 @@ describe("Mercados propios — interfaz", () => {
     const cards = await screen.findAllByTestId("market-card");
     expect(cards.length).toBeGreaterThan(5);
     // los dos lados, cada uno con su pago: enseñar sólo uno es medio mercado.
-    // En la card el pago va como `Sí 1.8×` — la palabra "paga" se quitó porque
-    // costaba cuatro caracteres en la línea más apretada y hacía envolver la
-    // fila de decisión a 390 px (vault/CARD_SPEC.md). En el detalle se queda.
-    expect(cards[0]).toHaveTextContent(/Sí\s*[\d.]+×/);
-    expect(cards[0]).toHaveTextContent(/No\s*[\d.]+×/);
+    // El pago volvió a decir "paga" porque dejó de competir por la línea: vive
+    // debajo del nombre del resultado, no al lado (§A del rediseño v6)
+    expect(cards[0]).toHaveTextContent(/Sí\s*paga\s*[\d.]+×/);
+    expect(cards[0]).toHaveTextContent(/No\s*paga\s*[\d.]+×/);
     expect(within(cards[0]).getByTestId("card-other-side")).toBeInTheDocument();
     expect(cards[0].textContent).not.toMatch(/\$/);
   });
@@ -187,7 +186,7 @@ describe("Mercados propios — interfaz", () => {
     renderApp(points());
     await enter(user);
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
 
     const pool = await screen.findByTestId("pool-breakdown");
@@ -203,7 +202,7 @@ describe("Mercados propios — interfaz", () => {
     renderApp(points());
     await enter(user);
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
     const hint = await screen.findByTestId("payout-hint");
     expect(hint).toHaveTextContent(/Si aciertas, cobras .*pts.*×/);
@@ -217,7 +216,7 @@ describe("Mercados propios — interfaz", () => {
     renderApp(points());
     await enter(user);
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
     const before = (await screen.findByTestId("payout-hint")).textContent;
     await user.click(screen.getByTestId("side-no"));
@@ -231,7 +230,7 @@ describe("Mercados propios — interfaz", () => {
     renderApp(points());
     await enter(user);
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
     await user.click(await screen.findByTestId("detail-trade-cta"));
     await screen.findByTestId("post-trade");
@@ -250,7 +249,7 @@ describe("Mercados propios — interfaz", () => {
     renderApp({ ...points(), overrides: { points: { balance: 0, entries: [] } } });
     await enter(user);
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
 
     // mismo patrón que el depósito contextual: nunca un muro, nunca un error
@@ -271,7 +270,7 @@ describe("Mercados propios — interfaz", () => {
     });
     await enter(user);
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
     // con 60 puntos el preajuste de 100 no alcanza: se ofrece recargar
     expect(await screen.findByTestId("detail-deposit-cta")).toBeInTheDocument();
@@ -320,7 +319,7 @@ describe("Mercados propios — interfaz", () => {
     await enter(user);
     const cards = await screen.findAllByTestId("market-card");
     expect(cards.length).toBeGreaterThan(5);
-    await user.click(within(cards[0]).getByRole("button"));
+    await user.click(within(cards[0]).getByTestId("card-open"));
     expect(await screen.findByTestId("resolution-summary")).toBeInTheDocument();
     expect(screen.getByTestId("pool-breakdown")).toBeInTheDocument();
   });

@@ -101,6 +101,7 @@ function cierreSemanal(
   return {
     id: `${plantilla.id}-cierre-${semana}`,
     title: `¿${plantilla.nombre} cierra la semana arriba de ${conSeparador(umbral)} dólares?`,
+    shortTitle: `${plantilla.nombre} arriba de ${conSeparador(umbral)} el domingo`,
     category: "cripto",
     country: "LATAM",
     closesAt: new Date(settlesAtMs - CIERRE_ANTES_MS).toISOString(),
@@ -138,6 +139,7 @@ function tocaEnElMes(plantilla: Plantilla, spot: number, now: number): OwnMarket
   return {
     id: `${plantilla.id}-toca-${desde.slice(0, 10)}`,
     title: `¿${plantilla.nombre} toca ${conSeparador(umbral)} dólares en 30 días?`,
+    shortTitle: `${plantilla.nombre} toca ${conSeparador(umbral)} en 30 días`,
     category: "cripto",
     country: "LATAM",
     // el mercado deja de aceptar apuestas cuando resuelve, y puede resolver antes
@@ -225,6 +227,7 @@ export function partidoSeed(partido: PartidoDeLaLiga): OwnMarketSeed {
   return {
     id: `mx-${clave}-${dia}`,
     title: `¿${partido.local} le gana a ${partido.visitante}?`,
+    shortTitle: `${partido.local} le gana a ${partido.visitante}`,
     category: "deportes",
     country: "MX",
     // se cierra al arrancar el partido: con el marcador a la vista ya no es

@@ -26,6 +26,13 @@ import {
 export interface OwnMarketSeed {
   id: string;
   title: string;
+  /**
+   * El título como se pinta en la tarjeta: afirmativo y de 42 caracteres para
+   * arriba se corta. Es obligatorio en el catálogo propio — sin él el título
+   * cae en dos líneas y la tarjeta pasa de 114 a 133 px, que es un tercio de
+   * mercado menos por pantalla.
+   */
+  shortTitle: string;
   category: MarketCategory;
   country: "MX" | "AR" | "BR" | "CL" | "CO" | "PE" | "LATAM";
   closesAt: string;
@@ -71,6 +78,7 @@ const SEEDS: OwnMarketSeed[] = [
   {
     id: "mx-inpc-anual",
     title: "¿La inflación anual de México sale abajo de 4.0%?",
+    shortTitle: "Inflación de México abajo de 4.0 % anual",
     category: "economia",
     country: "MX",
     closesAt: "2026-08-07T13:00:00Z",
@@ -98,6 +106,7 @@ const SEEDS: OwnMarketSeed[] = [
   {
     id: "mx-banxico-tasa",
     title: "¿Banxico recorta la tasa en su próxima reunión?",
+    shortTitle: "Banxico recorta la tasa",
     category: "economia",
     country: "MX",
     closesAt: "2026-08-13T19:00:00Z",
@@ -122,6 +131,7 @@ const SEEDS: OwnMarketSeed[] = [
   {
     id: "mx-dolar-19",
     title: "¿El dólar cierra el mes abajo de 19 pesos?",
+    shortTitle: "El dólar cierra el mes abajo de 19 pesos",
     category: "economia",
     country: "MX",
     closesAt: "2026-07-31T21:00:00Z",
@@ -146,6 +156,7 @@ const SEEDS: OwnMarketSeed[] = [
   {
     id: "ar-badlar-tasa",
     title: "¿La tasa BADLAR de Argentina baja este mes?",
+    shortTitle: "La BADLAR de Argentina baja este mes",
     category: "economia",
     country: "AR",
     closesAt: "2026-08-29T20:00:00Z",
@@ -172,6 +183,7 @@ const SEEDS: OwnMarketSeed[] = [
   {
     id: "br-selic-corte",
     title: "¿El Copom baja la Selic en la próxima reunión?",
+    shortTitle: "El Copom baja la Selic",
     category: "economia",
     country: "BR",
     closesAt: "2026-09-16T21:00:00Z",
@@ -190,6 +202,7 @@ const SEEDS: OwnMarketSeed[] = [
   {
     id: "br-ipca-5",
     title: "¿La inflación anual de Brasil sigue abajo de 5%?",
+    shortTitle: "Inflación de Brasil abajo de 5 % anual",
     category: "economia",
     country: "BR",
     closesAt: "2026-09-09T12:00:00Z",
@@ -215,6 +228,7 @@ const SEEDS: OwnMarketSeed[] = [
   {
     id: "co-dolar-trm",
     title: "¿El dólar en Colombia cierra el mes abajo de 3,300 pesos?",
+    shortTitle: "El dólar en Colombia abajo de 3,300",
     category: "economia",
     country: "CO",
     closesAt: "2026-08-31T12:00:00Z",
@@ -242,6 +256,7 @@ const SEEDS: OwnMarketSeed[] = [
   {
     id: "cl-imacec",
     title: "¿El Imacec de Chile vuelve a terreno positivo?",
+    shortTitle: "El Imacec de Chile vuelve a positivo",
     category: "economia",
     country: "CL",
     closesAt: "2026-09-01T12:00:00Z",
@@ -272,6 +287,7 @@ const SEEDS: OwnMarketSeed[] = [
   {
     id: "btc-cierre-semanal",
     title: "¿Bitcoin cierra la semana arriba de 71,000 dólares?",
+    shortTitle: "Bitcoin cierra la semana arriba de 71 mil",
     category: "cripto",
     country: "LATAM",
     // las apuestas cierran un día antes del cierre que se lee (R-043)
@@ -293,6 +309,7 @@ const SEEDS: OwnMarketSeed[] = [
   {
     id: "eth-4500",
     title: "¿Ethereum toca 4,500 dólares antes de octubre?",
+    shortTitle: "Ethereum toca 4,500 antes de octubre",
     category: "cripto",
     country: "LATAM",
     closesAt: "2026-09-30T00:00:00Z",
@@ -318,6 +335,7 @@ const SEEDS: OwnMarketSeed[] = [
   {
     id: "pe-inflacion-lima",
     title: "¿La inflación anual de Perú se mantiene abajo de 3%?",
+    shortTitle: "Inflación de Perú abajo de 3 % anual",
     category: "economia",
     country: "PE",
     closesAt: "2026-09-30T12:00:00Z",
@@ -354,6 +372,7 @@ const SEEDS: OwnMarketSeed[] = [
   {
     id: "mx-america-santos-1x2",
     title: "¿Cómo termina el América ante Santos?",
+    shortTitle: "Cómo termina el América ante Santos",
     category: "deportes",
     country: "MX",
     closesAt: "2026-08-02T23:00:00Z",
@@ -387,6 +406,7 @@ const SEEDS: OwnMarketSeed[] = [
   {
     id: "mx-toluca-necaxa-goles",
     title: "¿Cuántos goles se anotan en Toluca-Necaxa?",
+    shortTitle: "Cuántos goles en Toluca-Necaxa",
     category: "deportes",
     country: "MX",
     closesAt: "2026-08-03T01:00:00Z",
@@ -421,8 +441,22 @@ const SEEDS: OwnMarketSeed[] = [
  * criterio inequívoco y ventana de disputa, el módulo falla al importarse: es
  * el momento correcto para enterarse, no cuando ya hay gente apostando.
  */
+/** Lo que cabe en una línea de la tarjeta a 390 px. Medido, no estimado. */
+export const SHORT_TITLE_MAX = 42;
+
 export function validateSeed(seed: OwnMarketSeed): OwnMarketSeed {
   const resolution = assertPublishable(seed.resolution);
+  // el título corto es parte del contrato, no un adorno: sin él la tarjeta
+  // crece 19 px y entra un mercado menos por pantalla. Un archivo publicado
+  // por una versión vieja no trae el campo, así que se deriva del largo en vez
+  // de tirar el mercado — degradar es correcto, quedarse sin feed no
+  const corto = (seed.shortTitle ?? "").trim();
+  const shortTitle = corto || seed.title.replace(/^¿|\?$/g, "").trim();
+  if (shortTitle.length > SHORT_TITLE_MAX) {
+    throw new Error(
+      `Mercado ${seed.id}: el título corto mide ${shortTitle.length} caracteres y el máximo es ${SHORT_TITLE_MAX}`,
+    );
+  }
   const outcomes = seed.outcomes ?? [...BINARY_OUTCOMES];
   // el catálogo generado que ya está publicado trae pozos en el formato viejo.
   // Se leen igual que los del volumen: un mercado que se cae por la forma del
@@ -460,7 +494,7 @@ export function validateSeed(seed: OwnMarketSeed): OwnMarketSeed {
   if (new Date(seed.closesAt).getTime() > new Date(resolution.settlesAt).getTime()) {
     throw new Error(`Mercado ${seed.id}: las apuestas cierran después de resolver`);
   }
-  return { ...seed, resolution, outcomes, pool };
+  return { ...seed, shortTitle, resolution, outcomes, pool };
 }
 
 export const OWN_MARKETS: OwnMarketSeed[] = SEEDS.map(validateSeed);

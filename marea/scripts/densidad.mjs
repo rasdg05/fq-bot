@@ -19,7 +19,9 @@ const BASE = process.env.DENSIDAD_BASE ?? "http://127.0.0.1:8100";
 /** Presupuestos. Se abren bajando el error, nunca bajando el umbral. */
 const PRESUPUESTO = {
   /** Cards visibles enteras dentro de la ventana, sobre la barra de pestañas. */
-  cardsVisibles: 4,
+  cardsVisibles: 5,
+  /** Alto de la card de una pregunta, borde incluido. Medido, no estimado. */
+  altoCardMaxPx: 116,
   /** Nodos de texto de la card que caen en más de una línea. */
   envolturas: 0,
   /** El nodo de probabilidad no puede encoger para ganar densidad (R-004). */
@@ -115,6 +117,13 @@ for (const ancho of ANCHOS) {
     if (m.enteras < PRESUPUESTO.cardsVisibles) {
       fallos.push(
         `${ancho}px: ${m.enteras} cards enteras, se piden ${PRESUPUESTO.cardsVisibles}`,
+      );
+    }
+    // el alto de la card es el presupuesto que multiplica: se ve 29 veces en
+    // una pantalla, así que un píxel de más se paga 29 veces
+    if (m.altoCard > PRESUPUESTO.altoCardMaxPx) {
+      fallos.push(
+        `${ancho}px: la card mide ${m.altoCard}px y el tope es ${PRESUPUESTO.altoCardMaxPx}px`,
       );
     }
     if (m.topePrimeraCard > PRESUPUESTO.topePrimeraCardPx) {

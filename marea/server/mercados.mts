@@ -122,6 +122,7 @@ export function construirMercado(
   return withEdge({
     id: seed.id,
     title: seed.title,
+    shortTitle: seed.shortTitle,
     probability: binario ? impliedProbability(pool) : (lider?.probability ?? 0),
     leadLabel: binario ? undefined : lider?.label,
     volume: totalPool(pool),

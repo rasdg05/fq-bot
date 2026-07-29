@@ -1,5 +1,10 @@
 # CARD_SPEC — medidas de la tarjeta de mercado
 
+> **Actualizado por el rediseño v6 (29 jul 2026).** La card mide ahora **116 px**
+> con el borde incluido, entran **6** enteras a 390×844 y el documento de 29
+> mercados pasó de 4 688 a 3 715 px. Lo de abajo es la línea base de 159 px
+> contra la que se comparó. El rediseño está en `REDISENO_V6.md`.
+
 Medido el 28 de julio de 2026 en Chromium real a 390×844 con DPR 2, contra el
 `dist` construido y el servidor propio. La puerta que verifica esto es
 `npm run densidad`.

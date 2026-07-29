@@ -70,7 +70,7 @@ describe("Fase 2 — activación", () => {
     const app = renderApp();
     await walkOnboarding(user);
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
     const detail = await screen.findByTestId("market-detail");
     expect(within(detail).getByTestId("resolution-summary")).toBeInTheDocument();
@@ -109,7 +109,7 @@ describe("Fase 2 — activación", () => {
     renderApp({ overrides: READY_WITH_FUNDS });
     await screen.findByTestId("home-screen");
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
     await user.click(await screen.findByTestId("detail-trade-cta"));
 
@@ -140,7 +140,7 @@ describe("Fase 2 — activación", () => {
     await screen.findByTestId("home-screen");
     expect(screen.getByTestId("header-balance")).toHaveTextContent("120");
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
     await user.click(await screen.findByTestId("detail-trade-cta"));
     await screen.findByTestId("post-trade");

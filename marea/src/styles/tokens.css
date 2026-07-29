@@ -61,6 +61,11 @@
   --dn: #e5795e;
   --hot: #e8a33d;
   --live: #ff6b5a;
+  --pill-ring: color-mix(in srgb, var(--teal) 80%, transparent);
+  --pill-line: color-mix(in srgb, var(--text2) 60%, transparent);
+  --pill-wash: color-mix(in srgb, var(--text) 4%, transparent);
+  --flash-up: color-mix(in srgb, var(--up) 16%, transparent);
+  --flash-dn: color-mix(in srgb, var(--dn) 16%, transparent);
   --shadow-1: rgba(0, 0, 0, 0.4);
   --shadow-2: rgba(0, 0, 0, 0.35);
   color-scheme: dark;
@@ -85,6 +90,11 @@
     --dn: #a8412b;
     --hot: #8a5a0b;
     --live: #b03a22;
+    --pill-ring: color-mix(in srgb, var(--teal) 80%, transparent);
+    --pill-line: color-mix(in srgb, var(--text2) 70%, transparent);
+    --pill-wash: color-mix(in srgb, var(--text) 4%, transparent);
+    --flash-up: color-mix(in srgb, var(--up) 16%, transparent);
+    --flash-dn: color-mix(in srgb, var(--dn) 16%, transparent);
     --shadow-1: rgba(18, 38, 42, 0.06);
     --shadow-2: rgba(18, 38, 42, 0.08);
     color-scheme: light;
@@ -108,6 +118,11 @@
   --dn: #a8412b;
   --hot: #8a5a0b;
   --live: #b03a22;
+  --pill-ring: color-mix(in srgb, var(--teal) 80%, transparent);
+  --pill-line: color-mix(in srgb, var(--text2) 70%, transparent);
+  --pill-wash: color-mix(in srgb, var(--text) 4%, transparent);
+  --flash-up: color-mix(in srgb, var(--up) 16%, transparent);
+  --flash-dn: color-mix(in srgb, var(--dn) 16%, transparent);
   --shadow-1: rgba(18, 38, 42, 0.06);
   --shadow-2: rgba(18, 38, 42, 0.08);
   color-scheme: light;
@@ -130,6 +145,11 @@
   --dn: #e5795e;
   --hot: #e8a33d;
   --live: #ff6b5a;
+  --pill-ring: color-mix(in srgb, var(--teal) 80%, transparent);
+  --pill-line: color-mix(in srgb, var(--text2) 60%, transparent);
+  --pill-wash: color-mix(in srgb, var(--text) 4%, transparent);
+  --flash-up: color-mix(in srgb, var(--up) 16%, transparent);
+  --flash-dn: color-mix(in srgb, var(--dn) 16%, transparent);
   --shadow-1: rgba(0, 0, 0, 0.4);
   --shadow-2: rgba(0, 0, 0, 0.35);
   color-scheme: dark;
@@ -160,12 +180,28 @@ body {
   border-radius: 6px;
 }
 
+/* Movimiento reducido: se apaga todo el movimiento —pulso LIVE, destellos,
+   fades, `scale` de las pills, la transición de la barra y la subida de la
+   hoja— y nada se pierde por el camino. El dato nuevo aparece de golpe, la
+   barra salta a su ancho y el estado presionado se ve por color, no por
+   movimiento: la tarjeta sigue siendo legible y operable entera.
+
+   `animation` se anula con `none`, no con duración cero: una animación de
+   0.01 ms igual pinta su primer fotograma, y en el destello ese fotograma es
+   un fondo de color que aparece y desaparece. Con `none` el elemento se queda
+   en su estado de reposo, que es lo que se pidió. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
+    animation: none !important;
     transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* el estado presionado deja de encoger y se anuncia sólo con el relleno */
+  [data-role="pill"]:active {
+    transform: none !important;
   }
 }

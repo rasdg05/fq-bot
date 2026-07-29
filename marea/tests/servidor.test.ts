@@ -31,6 +31,7 @@ const AHORA = Date.parse("2026-08-12T00:00:00Z");
 const seed: OwnMarketSeed = validateSeed({
   id: "btc-servidor",
   title: "¿Bitcoin cierra la semana arriba de 71,000 dólares?",
+  shortTitle: "Bitcoin cierra la semana arriba de 71 mil",
   category: "cripto",
   country: "LATAM",
   closesAt: "2026-08-10T00:00:00Z",
