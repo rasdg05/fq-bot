@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { join } from "node:path";
 import { normalizePool, type OutcomeId, type Side } from "../src/domain/parimutuel";
 import type { SettlementState } from "../src/domain/settlement";
+import type { OwnMarketSeed } from "../src/adapters/ownMarkets/catalog";
 import {
   CUENTAS_SISTEMA,
   asiento,
@@ -87,12 +88,14 @@ export interface AsientoComision {
  *  - 1: el pozo era `{ marketId, si, no, feeBps }`, dos columnas fijas.
  *  - 2: el pozo es `{ marketId, outcomes, feeBps }`, un mapa por resultado.
  *  - 3: aparece el libro de partida doble, con su asiento de apertura.
+ *  - 4: se guardan los mercados vivos que tienen apuestas, para que un reinicio
+ *       a mitad de una vela no deje esa apuesta sin mercado que la resuelva.
  *
  * Se lee cualquiera de las dos y se escribe siempre la nueva. Un pozo que no
  * se sepa leer sería dinero de gente que desaparece, así que la migración
  * corre al abrir el archivo y no depende de que nadie se acuerde.
  */
-export const VERSION_DATOS = 3;
+export const VERSION_DATOS = 4;
 
 interface Datos {
   version: number;
@@ -107,6 +110,15 @@ interface Datos {
    * si los dos dejan de coincidir.
    */
   libro: Asiento[];
+  /**
+   * Mercados vivos con dinero adentro. Los de cripto de 5 y 15 minutos nacen y
+   * mueren en memoria —son cientos al día y guardarlos todos engordaría el
+   * archivo sin que nadie los mire—, pero en cuanto alguien apuesta en uno hay
+   * que poder resolverlo aunque el proceso se reinicie a mitad de la vela.
+   *
+   * Se guardan sólo ésos, y se olvidan en cuanto se pagan.
+   */
+  vivos: OwnMarketSeed[];
 }
 
 const VACIO: Datos = {
@@ -117,6 +129,7 @@ const VACIO: Datos = {
   liquidaciones: [],
   comisiones: [],
   libro: [],
+  vivos: [],
 };
 
 /**
@@ -431,6 +444,34 @@ export class Store {
         ),
       );
       return apuesta;
+    });
+  }
+
+  /* ------------------------- mercados vivos ------------------------------ */
+
+  /**
+   * Los mercados vivos que sobrevivieron a un reinicio. Se vuelven a meter en
+   * el planificador al arrancar: una apuesta cuyo mercado desapareció del
+   * catálogo no se resolvería nunca, y eso es dinero atorado sin aviso.
+   */
+  seedsVivas(): OwnMarketSeed[] {
+    return this.datos.vivos;
+  }
+
+  /** Guarda un mercado vivo. Se llama al aceptar la primera apuesta, no antes. */
+  guardarSeedViva(seed: OwnMarketSeed): void {
+    if (this.datos.vivos.some((v) => v.id === seed.id)) return;
+    this.mutar((datos) => {
+      datos.vivos.push(seed);
+    });
+  }
+
+  /** Lo olvida cuando ya no hay nada que resolver. */
+  olvidarSeedViva(id: string): void {
+    const indice = this.datos.vivos.findIndex((v) => v.id === id);
+    if (indice < 0) return;
+    this.mutar((datos) => {
+      datos.vivos.splice(indice, 1);
     });
   }
 

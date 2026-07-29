@@ -1,0 +1,336 @@
+import * as React from "react";
+import type { LiveCandle, Market, PulsoVivo } from "@/domain/types";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/cn";
+import { COLOR_CATEGORIA, FORMA_CATEGORIA } from "@/lib/categoria";
+import { S } from "@/lib/strings";
+import { formatStake } from "@/lib/units";
+import { pct } from "@/lib/format";
+import { cuentaRegresiva, UMBRAL_ANIMACION_PP } from "@/domain/vela";
+import {
+  BINARY_OUTCOMES,
+  formatMultiplier,
+  payoutMultiplier,
+  probabilities,
+  type Outcome,
+} from "@/domain/parimutuel";
+
+/**
+ * Card de cripto en vivo.
+ *
+ * Es una card aparte y no una variante más de `MarketCard` a propósito: la card
+ * normal está cerrada (densidad, tipografía del %, resultados nombrados) y lo
+ * que necesita una vela de cinco minutos —reloj, precio que se mueve, congelado
+ * al tocar— no cabía sin reabrirla. Aquí abajo no hay ninguna regla nueva de
+ * marca: los mismos tokens, el mismo mínimo táctil y **el mismo alto que la
+ * card normal**, que es lo que mide `npm run densidad` contra el esqueleto del
+ * feed. Desde que lo vivo va arriba, la primera card del feed es ésta.
+ *
+ * Tres cosas que sostienen el resto:
+ *
+ *  1. **El reloj es local.** La cuenta regresiva corre en el dispositivo contra
+ *     la hora de cierre que vino con el mercado. Si la red se cae, el reloj
+ *     sigue siendo cierto; esperar al servidor para descontar un segundo sería
+ *     fabricar un parpadeo cada tres segundos.
+ *  2. **El congelado es sagrado.** Con el dedo sobre una pill, los números
+ *     dejan de moverse. Es la diferencia entre elegir un lado y que el lado se
+ *     te mueva mientras lo tocas.
+ *  3. **Sin precio fresco se enseña ausencia.** El ticker declara su frescura;
+ *     cuando no hay lectura, la card dice que no hay, no repite la última
+ *     (R-022).
+ */
+
+/** Cuánto se queda congelada la card después de soltar. */
+const CONGELADO_MS = 4_000;
+
+/** Un reloj local, que late una vez por segundo y no depende de la red. */
+function useReloj(activo: boolean): number {
+  const [ahora, setAhora] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    if (!activo) return;
+    const id = setInterval(() => setAhora(Date.now()), 1_000);
+    return () => clearInterval(id);
+  }, [activo]);
+  return ahora;
+}
+
+/**
+ * Congela lo que llega mientras el dedo está encima, y un rato después de
+ * soltar. Devuelve el último valor que se dejó pasar.
+ */
+function useCongelado<T>(valor: T, congelado: boolean): T {
+  const guardado = React.useRef(valor);
+  if (!congelado) guardado.current = valor;
+  return guardado.current;
+}
+
+function precioLegible(valor: number): string {
+  return valor.toLocaleString("es-MX", {
+    minimumFractionDigits: valor >= 1_000 ? 0 : 2,
+    maximumFractionDigits: valor >= 1_000 ? 0 : 2,
+  });
+}
+
+function deltaLegible(pp: number): string {
+  const signo = pp > 0 ? "+" : pp < 0 ? "−" : "";
+  return `${signo}${Math.abs(pp).toFixed(2)}%`;
+}
+
+interface Lado extends Outcome {
+  probability: number;
+  multiplier: number;
+}
+
+/**
+ * Los dos lados, **en el orden en que los declaró el mercado**. No se ordenan
+ * por probabilidad: en una vela los lados se cruzan cada pocos segundos, y unas
+ * pills que se intercambian de sitio bajo el dedo son la forma más directa de
+ * que alguien apueste a lo que no quería (R-063).
+ */
+function ladosDe(market: Market, pulso?: PulsoVivo): Lado[] {
+  const outcomes = market.outcomes ?? [...BINARY_OUTCOMES];
+  if (pulso) {
+    return outcomes.map((outcome) => ({
+      ...outcome,
+      probability: pulso.probabilidades[outcome.id] ?? 0,
+      multiplier: pulso.multiplicadores[outcome.id] ?? 0,
+    }));
+  }
+  const pool = market.pool;
+  if (!pool) return outcomes.map((o) => ({ ...o, probability: 0, multiplier: 0 }));
+  const probs = probabilities(pool);
+  return outcomes.map((outcome) => ({
+    ...outcome,
+    probability: probs[outcome.id] ?? 0,
+    multiplier: payoutMultiplier(pool, outcome.id),
+  }));
+}
+
+/**
+ * El porcentaje de un lado. Sólo transiciona cuando el salto vale la pena: por
+ * debajo de medio punto el número cambia seco. Una card que se anima cada dos
+ * segundos por dos décimas es ruido con forma de información.
+ *
+ * Con `prefers-reduced-motion` el bloque global de tokens.css apaga la
+ * transición entera, así que esto ni se nota.
+ */
+function Porcentaje({ probability }: { probability: number }) {
+  const anterior = React.useRef(probability);
+  const salto = Math.abs(probability - anterior.current) * 100;
+  const anima = salto >= UMBRAL_ANIMACION_PP;
+  React.useEffect(() => {
+    anterior.current = probability;
+  }, [probability]);
+
+  return (
+    <span
+      data-role="probability"
+      data-anima={anima ? "true" : "false"}
+      className={cn(
+        // el tamaño va **después** del color: `twMerge` mete `text-prob-sm` y
+        // `text-text` en el mismo grupo `text-*` y se queda con el último. Con
+        // el orden al revés, el porcentaje salía en 16 px y la puerta de
+        // densidad lo cazaba como jerarquía degradada (R-004)
+        "font-display font-semibold tabular-nums text-text",
+        // el porcentaje sigue siendo el nodo dominante también aquí: la
+        // densidad no se compra encogiéndolo. `npm run densidad` lo mide
+        "text-prob-sm",
+        anima && "transition-opacity duration-200",
+      )}
+    >
+      {pct(probability)}
+      <span className="ml-0.5 align-top text-[0.45em] font-bold text-text2">%</span>
+    </span>
+  );
+}
+
+export interface CryptoLiveCardProps {
+  market: Market & { live: LiveCandle };
+  /** El último latido del servidor. Ausente = todavía no llegó ninguno. */
+  pulso?: PulsoVivo;
+  onOpen: (market: Market) => void;
+}
+
+export function CryptoLiveCard({ market, pulso, onOpen }: CryptoLiveCardProps) {
+  const [congelado, setCongelado] = React.useState(false);
+  const soltarRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  React.useEffect(
+    () => () => {
+      if (soltarRef.current) clearTimeout(soltarRef.current);
+    },
+    [],
+  );
+
+  const tocar = React.useCallback(() => {
+    if (soltarRef.current) clearTimeout(soltarRef.current);
+    setCongelado(true);
+  }, []);
+
+  const soltar = React.useCallback(() => {
+    if (soltarRef.current) clearTimeout(soltarRef.current);
+    soltarRef.current = setTimeout(() => setCongelado(false), CONGELADO_MS);
+  }, []);
+
+  // el precio, el pozo y los porcentajes se congelan juntos: congelar sólo el
+  // número grande dejaría el multiplicador moviéndose debajo del dedo
+  const vivo = useCongelado(pulso, congelado);
+  const lados = useCongelado(ladosDe(market, pulso), congelado);
+  const vela = market.live;
+
+  const ahora = useReloj(true);
+  const restante = new Date(vela.bloqueaAt).getTime() - ahora;
+  const cerrada = restante <= 0;
+  const reloj = cuentaRegresiva(restante);
+
+  const spot = vivo?.spot ?? vela.spot;
+  const delta = vivo?.deltaPp ?? vela.deltaPp;
+  const pozo = vivo?.pozo ?? market.volume;
+  const jugando = vivo?.jugando ?? market.participantes ?? 0;
+
+  const handleOpen = React.useCallback(() => onOpen(market), [onOpen, market]);
+
+  return (
+    <Card
+      /**
+       * Sin borde propio. El badge LIVE ya dice que esto está pasando, y un
+       * borde de color entero le robaría jerarquía al único elemento que se
+       * gana un borde en este producto, que es el Edge (R-004). Un token de
+       * color tampoco admite modificador de opacidad: la declaración se
+       * descarta y no se pinta nada (R-017).
+       */
+      className="overflow-hidden"
+      data-testid="market-card"
+      data-variant="live"
+      data-market-id={market.id}
+      data-has-edge="false"
+      data-congelado={congelado ? "true" : "false"}
+    >
+      {/* la misma caja que la card normal: `npm run densidad` mide la primera
+          card del feed contra el esqueleto, y desde que lo vivo va arriba, la
+          primera card es ésta. Una card viva más baja que las demás sería un
+          salto de layout cada vez que nace una vela */}
+      <div className="flex flex-col gap-1 px-3.5 py-2">
+        {/* reloj. El countdown vive dentro del badge: es la misma información
+            —esto está pasando y le queda esto— y separarla en dos nodos costaba
+            una fila entera */}
+        <div className="flex items-center gap-1.5">
+          <Badge tone="live" dot data-testid="live-countdown">
+            {S.badges.live}
+            <span className="font-mono tabular-nums" aria-hidden>
+              {cerrada ? S.vivo.cerrando : reloj}
+            </span>
+          </Badge>
+          <span className="ml-auto flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-muted">
+            <span
+              aria-hidden
+              data-testid="categoria-marca"
+              data-categoria={market.category}
+              className={cn("h-1.5 w-1.5 shrink-0", FORMA_CATEGORIA[market.category])}
+              style={{ backgroundColor: COLOR_CATEGORIA[market.category] }}
+            />
+            {S.categories[market.category]}
+          </span>
+        </div>
+
+        {/* qué se está mirando y a cuánto va. El precio es mono y tabular: con
+            proporcional, cada tick de dos segundos movía los dígitos de sitio */}
+        <div className="flex min-h-[32px] flex-col justify-center">
+          <span className="truncate text-[12px] font-semibold text-text2">
+            {vela.activo} · {S.vivo.ventana(vela.intervalo)}
+          </span>
+          <span className="flex items-baseline gap-1.5">
+            {spot !== undefined ? (
+              <span
+                data-testid="live-spot"
+                className="font-mono text-[17px] font-semibold tabular-nums leading-none text-text"
+              >
+                {precioLegible(spot)}
+              </span>
+            ) : (
+              /* sin lectura fresca se dice que no hay, en vez de repetir la
+                 última: un precio viejo enseñado como de ahora es mentira con
+                 forma de dato (R-022) */
+              <span
+                data-testid="live-sin-precio"
+                className="text-[13px] font-semibold text-muted"
+              >
+                {S.vivo.sinPrecio}
+              </span>
+            )}
+            {delta !== undefined ? (
+              <span
+                data-testid="live-delta"
+                className={cn(
+                  "font-mono text-[12px] font-semibold tabular-nums",
+                  delta > 0 ? "text-up" : delta < 0 ? "text-dn" : "text-muted",
+                )}
+              >
+                {deltaLegible(delta)}
+              </span>
+            ) : null}
+            <span className="truncate text-[11px] text-muted">
+              {S.vivo.strike(precioLegible(vela.strike))}
+            </span>
+          </span>
+        </div>
+
+        {/* la decisión: los dos lados nombrados, con su pago y su barra */}
+        <div className="flex items-stretch gap-2" data-testid="live-pills">
+          {lados.map((lado) => (
+            <button
+              key={lado.id}
+              type="button"
+              data-testid="live-pill"
+              data-outcome-id={lado.id}
+              onClick={handleOpen}
+              onPointerDown={tocar}
+              onPointerUp={soltar}
+              onPointerCancel={soltar}
+              onPointerLeave={soltar}
+              aria-label={`${S.market.openDetail}: ${lado.label}, ${pct(
+                lado.probability,
+              )} %, ${S.vivo.paga(formatMultiplier(lado.multiplier))}`}
+              className={cn(
+                "flex min-h-touch min-w-0 flex-1 flex-col justify-center",
+                "overflow-hidden rounded-card border border-line2 bg-panel2",
+                "px-2.5 pb-0 pt-1 text-left transition-colors active:bg-panel",
+              )}
+            >
+              <span className="min-w-0 truncate text-[11px] font-semibold text-text2">
+                {lado.label}
+              </span>
+              <span className="flex items-baseline gap-1">
+                <Porcentaje probability={lado.probability} />
+                <span className="shrink-0 font-mono text-[11px] font-semibold tabular-nums text-muted">
+                  {formatMultiplier(lado.multiplier)}
+                </span>
+              </span>
+              {/* barra de 3 px: el mismo dato que el porcentaje, leído de
+                  reojo. Nunca es el único portador — el número está encima */}
+              <span
+                aria-hidden
+                data-testid="live-barra"
+                className="-mx-2.5 mt-0 block h-[3px] bg-line2"
+              >
+                <span
+                  className="block h-full bg-teal transition-[width] duration-300"
+                  style={{ width: `${Math.round(lado.probability * 100)}%` }}
+                />
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* pozo, gente y cuánto falta. La misma línea que la card normal, con
+            el reloj en vez de la fecha: en una vela, "cierra en 4 d" no existe */}
+        <span className="block truncate text-[11px] leading-tight text-muted">
+          {`${S.market.pot} ${formatStake(pozo)}`}
+          {jugando > 0 ? ` · ${S.market.participantes(jugando)}` : ""}
+          {` · ${cerrada ? S.vivo.cerrando : S.vivo.restante(reloj)}`}
+        </span>
+      </div>
+    </Card>
+  );
+}

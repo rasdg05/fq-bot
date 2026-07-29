@@ -16,6 +16,59 @@ export type MarketCategory =
   /** Sin señal clara para clasificar. Preferimos decirlo a inventar categoría. */
   | "otros";
 
+/**
+ * Una vela viva, tal como la ve la interfaz. Todo lo que hace falta para pintar
+ * la card sin que la UI calcule nada de dominio: el reloj, el strike, el precio
+ * de ahora y de dónde salió.
+ */
+export interface LiveCandle {
+  /** Par tal como lo cotiza la fuente: `BTC/USD`. */
+  par: string;
+  /** Cómo se le dice a la gente: `Bitcoin`. */
+  activo: string;
+  /** Minutos de la vela: 5 o 15. */
+  intervalo: number;
+  /** Apertura de la vela, ISO. */
+  abreAt: string;
+  /** Cierre de la vela — el momento que se liquida, ISO. */
+  cierraAt: string;
+  /** Cuándo dejan de aceptarse apuestas, ISO. Siempre antes de `cierraAt`. */
+  bloqueaAt: string;
+  /** Precio de referencia. `Arriba` exige cierre estrictamente mayor. */
+  strike: number;
+  /** Último precio leído. Ausente = el ticker no tiene lectura fresca. */
+  spot?: number;
+  /** Variación del spot contra el strike, en puntos porcentuales. */
+  deltaPp?: number;
+  /** Quién dio ese precio: el motor propio o el feed público (R-022). */
+  fuente?: string;
+  /** Cuándo se leyó ese precio, ISO. Es lo que dice si está fresco. */
+  spotAt?: string;
+}
+
+/**
+ * El pulso de una vela: lo único que cambia mientras corre. Viaja aparte del
+ * mercado y varias veces por minuto, así que lleva lo mínimo — repetir el
+ * título y el criterio de resolución en cada latido sería gastar la red de la
+ * gente en algo que no se movió (R-047).
+ */
+export interface PulsoVivo {
+  id: string;
+  strike: number;
+  spot?: number;
+  deltaPp?: number;
+  fuente?: string;
+  spotAt?: string;
+  bloqueaAt: string;
+  cierraAt: string;
+  /** Probabilidad de cada resultado, por id. Suman 1. */
+  probabilidades: Record<string, number>;
+  /** Cuánto paga cada resultado por unidad apostada, por id. */
+  multiplicadores: Record<string, number>;
+  pozo: number;
+  jugando: number;
+}
+
 export interface Market {
   id: string;
   title: string;
@@ -78,6 +131,12 @@ export interface Market {
   outcome?: PositionSide;
   /** Qué se leyó exactamente para resolver. Auditable por el usuario. */
   settlementEvidence?: string;
+  /**
+   * Estado de la vela, cuando el mercado es de cripto en vivo. Su presencia es
+   * lo que convierte la card en una card viva: la UI no adivina el modo por la
+   * categoría ni por el título.
+   */
+  live?: LiveCandle;
   /** Marca de tracción para el badge HOT. */
   hot?: boolean;
   /** Región del mercado, para el badge LATAM. */

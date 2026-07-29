@@ -31,6 +31,15 @@ watchPatterns = [
 #   MAREA_DATA_DIR  — /data si montas un volumen, para que las cuentas y las
 #                     apuestas sobrevivan a los redeploys. Es lo que hace que
 #                     esto sea un producto y no una demo.
+#
+# Cripto en vivo (velas de 5 y 15 min). Todas tienen default sano: sin ninguna,
+# el precio sale de Kraken y las velas corren igual. Ver vault/CRYPTO_LIVE.md.
+#   MAREA_FQ_PRECIOS_URL — endpoint del motor propio de precios. Es la fuente
+#                     primaria del spot; sin ella el respaldo público es la
+#                     única fuente. La liquidación siempre lee Kraken.
+#   MAREA_PRECIO_MS      — cada cuánto se lee el spot (default 3000).
+#   MAREA_PLAN_VIVO_MS   — cada cuánto se planifica la vela siguiente (1000).
+#   MAREA_CICLO_VIVO_MS  — cada cuánto se leen los cierres y se paga (10000).
 
 [deploy]
 startCommand = "npx tsx server/index.mts"

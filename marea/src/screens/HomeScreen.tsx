@@ -45,6 +45,18 @@ export function HomeScreen() {
   const hot = React.useMemo(() => filtered.filter(isHot), [filtered]);
   const rest = React.useMemo(() => filtered.filter((m) => !isHot(m)), [filtered]);
 
+  /**
+   * El pulso de las velas sólo corre si hay velas en pantalla, y se apaga al
+   * salir. Un reloj de tres segundos que sigue latiendo en una pantalla sin
+   * nada vivo es batería de alguien gastada en nada.
+   */
+  const hayVelas = all.some((market) => market.live);
+  React.useEffect(() => {
+    if (!hayVelas) return;
+    return actions.seguirVivos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hayVelas]);
+
   if (markets.status === "loading") {
     return (
       <div className="pt-4">
@@ -128,6 +140,7 @@ export function HomeScreen() {
                   <MarketCard
                     key={market.id}
                     market={market}
+                    pulso={state.vivos[market.id]}
                     onOpen={actions.openMarket}
                   />
                 ))}
@@ -148,6 +161,7 @@ export function HomeScreen() {
                   <MarketCard
                     key={market.id}
                     market={market}
+                    pulso={state.vivos[market.id]}
                     onOpen={actions.openMarket}
                   />
                 ))}
