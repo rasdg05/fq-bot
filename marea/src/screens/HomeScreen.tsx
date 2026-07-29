@@ -22,8 +22,14 @@ const CATEGORIES: MarketCategory[] = [
  *
  * Arriba, los destacados en carrusel: es lo que cambia al abrir la app, y sin
  * eso la primera pantalla era una lista honesta y fría. Debajo, el feed
- * agrupado por categoría con encabezados que filtran — la lista continua
- * obligaba a leer la marca de cada card para saber de qué iba el bloque.
+ * agrupado por categoría con encabezados que filtran.
+ *
+ * La agrupación sustituye al par `Hot ahora` / `Todos los mercados`. Aquel
+ * corte separaba lo caliente de lo demás, que es una sola pregunta contestada;
+ * agrupar por tema contesta la que de verdad se hace al abrir el feed —"¿de
+ * qué hay?"— sin obligar a leer la marca de cada card para saber de qué va el
+ * bloque. Lo caliente no se pierde: sube al carrusel, que es donde se mira
+ * primero.
  *
  * Con un filtro puesto no hay ni carrusel ni agrupación: quien ya eligió
  * `Cripto` no necesita que se lo repitan seis veces.
@@ -60,6 +66,18 @@ export function HomeScreen() {
       mercados: filtered.filter((m) => m.category === id),
     })).filter((grupo) => grupo.mercados.length > 0);
   }, [filtered, category]);
+
+  /**
+   * El pulso de las velas sólo corre si hay velas en pantalla, y se apaga al
+   * salir. Un reloj de tres segundos que sigue latiendo en una pantalla sin
+   * nada vivo es batería de alguien gastada en nada.
+   */
+  const hayVelas = all.some((market) => market.live);
+  React.useEffect(() => {
+    if (!hayVelas) return;
+    return actions.seguirVivos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hayVelas]);
 
   if (markets.status === "loading") {
     return (
@@ -158,13 +176,20 @@ function Bloque({
   mercados: Market[];
   onOpen?: () => void;
 }) {
-  const { actions } = useApp();
+  const { state, actions } = useApp();
   return (
     <section className="pt-3">
       <SectionHeader titulo={titulo} cuenta={mercados.length} onOpen={onOpen} />
       <div className="space-y-2 px-4">
         {mercados.map((market) => (
-          <MarketCard key={market.id} market={market} onOpen={actions.openMarket} />
+          <MarketCard
+            key={market.id}
+            market={market}
+            // el latido de la vela viaja hasta la card: sin esto una card de
+            // cripto en vivo se queda congelada en el precio de su primer render
+            pulso={state.vivos[market.id]}
+            onOpen={actions.openMarket}
+          />
         ))}
       </div>
     </section>

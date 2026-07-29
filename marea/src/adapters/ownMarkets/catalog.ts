@@ -1,4 +1,4 @@
-import type { MarketCategory } from "@/domain/types";
+import type { EventoReciente, MarcadorVivo, MarketCategory } from "@/domain/types";
 import { assertPublishable, type ResolutionSpec } from "@/domain/resolution";
 import { ruleProblems, type OracleRule } from "@/domain/oracleRule";
 import type { Pool } from "@/domain/parimutuel";
@@ -26,6 +26,13 @@ import {
 export interface OwnMarketSeed {
   id: string;
   title: string;
+  /**
+   * El título como se pinta en la tarjeta: afirmativo y de 42 caracteres para
+   * arriba se corta. Es obligatorio en el catálogo propio — sin él el título
+   * cae en dos líneas y la tarjeta pasa de 114 a 133 px, que es un tercio de
+   * mercado menos por pantalla.
+   */
+  shortTitle: string;
   category: MarketCategory;
   country: "MX" | "AR" | "BR" | "CL" | "CO" | "PE" | "LATAM";
   closesAt: string;
@@ -54,6 +61,23 @@ export interface OwnMarketSeed {
    * hay.
    */
   equipos?: { nombre: string; escudo?: string }[];
+  /**
+   * Estado del evento en curso, para las tarjetas de deportes en vivo.
+   *
+   * Hoy viaja en la semilla y **sólo** en builds simuladas (`mock_data`): es un
+   * marcador sembrado para poder ver y probar la tarjeta en vivo antes de que
+   * el oráculo de partidos esté conectado. Con `matchOracle` en línea, este
+   * campo se ignora y el marcador llega de la fuente que resuelve el mercado.
+   * Nunca se sirve con dinero real: sería fingir que hablamos con una fuente
+   * (R-022).
+   */
+  vivoDemo?: { marcador: MarcadorVivo; evento?: EventoReciente };
+  /**
+   * Precio con el que abrió la vela, en los mercados intradía. La tarjeta
+   * enseña cuánto se ha movido el spot **desde aquí**, no desde el strike
+   * redondeado: el strike es la pregunta, la apertura es el punto de partida.
+   */
+  aperturaSpot?: number;
 }
 
 const FEE_BPS = 300;
@@ -71,10 +95,15 @@ const SEEDS: OwnMarketSeed[] = [
   {
     id: "mx-inpc-anual",
     title: "¿La inflación anual de México sale abajo de 4.0%?",
+    shortTitle: "Inflación de México abajo de 4.0 % anual",
     category: "economia",
     country: "MX",
     closesAt: "2026-08-07T13:00:00Z",
     pool: seedPool(420, 260),
+    outcomes: [
+      { id: "si", label: "Abajo de 4.0 %" },
+      { id: "no", label: "4.0 % o más" },
+    ],
     // 628194: INPC variación anual en el BIE. La API del INEGI es gratis pero
     // pide token, igual que Banxico; sin él el mercado lo declara (R-022)
     rule: {
@@ -98,10 +127,15 @@ const SEEDS: OwnMarketSeed[] = [
   {
     id: "mx-banxico-tasa",
     title: "¿Banxico recorta la tasa en su próxima reunión?",
+    shortTitle: "Banxico recorta la tasa",
     category: "economia",
     country: "MX",
     closesAt: "2026-08-13T19:00:00Z",
     pool: seedPool(560, 300),
+    outcomes: [
+      { id: "si", label: "Recorta" },
+      { id: "no", label: "Mantiene" },
+    ],
     // SF61745: tasa objetivo. La API de Banxico es gratis pero pide token
     rule: {
       kind: "serie",
@@ -122,10 +156,15 @@ const SEEDS: OwnMarketSeed[] = [
   {
     id: "mx-dolar-19",
     title: "¿El dólar cierra el mes abajo de 19 pesos?",
+    shortTitle: "El dólar cierra el mes abajo de 19 pesos",
     category: "economia",
     country: "MX",
     closesAt: "2026-07-31T21:00:00Z",
     pool: seedPool(300, 480),
+    outcomes: [
+      { id: "si", label: "Abajo de 19" },
+      { id: "no", label: "19 o más" },
+    ],
     rule: {
       kind: "serie",
       fuente: "banxico",
@@ -146,10 +185,15 @@ const SEEDS: OwnMarketSeed[] = [
   {
     id: "ar-badlar-tasa",
     title: "¿La tasa BADLAR de Argentina baja este mes?",
+    shortTitle: "La BADLAR de Argentina baja este mes",
     category: "economia",
     country: "AR",
     closesAt: "2026-08-29T20:00:00Z",
     pool: seedPool(640, 240),
+    outcomes: [
+      { id: "si", label: "Baja" },
+      { id: "no", label: "Se mantiene" },
+    ],
     // variable 7 del BCRA: BADLAR de bancos privados, diaria y sin llave.
     // La serie de "tasa de política monetaria" (160) lleva parada desde julio
     // de 2025, y un dato viejo no resuelve un mercado nuevo (R-052)
@@ -172,10 +216,15 @@ const SEEDS: OwnMarketSeed[] = [
   {
     id: "br-selic-corte",
     title: "¿El Copom baja la Selic en la próxima reunión?",
+    shortTitle: "El Copom baja la Selic",
     category: "economia",
     country: "BR",
     closesAt: "2026-09-16T21:00:00Z",
     pool: seedPool(510, 390),
+    outcomes: [
+      { id: "si", label: "Baja la Selic" },
+      { id: "no", label: "La mantiene" },
+    ],
     // serie 432 del BCB: meta Selic, pública y sin llave
     rule: { kind: "serie", fuente: "bcb", serie: "432", comparacion: "baja", etiqueta: "Meta Selic" },
     resolution: {
@@ -190,10 +239,15 @@ const SEEDS: OwnMarketSeed[] = [
   {
     id: "br-ipca-5",
     title: "¿La inflación anual de Brasil sigue abajo de 5%?",
+    shortTitle: "Inflación de Brasil abajo de 5 % anual",
     category: "economia",
     country: "BR",
     closesAt: "2026-09-09T12:00:00Z",
     pool: seedPool(430, 350),
+    outcomes: [
+      { id: "si", label: "Abajo de 5 %" },
+      { id: "no", label: "5 % o más" },
+    ],
     // serie 13522 del BCB: IPCA acumulado 12 meses, pública y sin llave
     rule: {
       kind: "serie",
@@ -215,10 +269,15 @@ const SEEDS: OwnMarketSeed[] = [
   {
     id: "co-dolar-trm",
     title: "¿El dólar en Colombia cierra el mes abajo de 3,300 pesos?",
+    shortTitle: "El dólar en Colombia abajo de 3,300",
     category: "economia",
     country: "CO",
     closesAt: "2026-08-31T12:00:00Z",
     pool: seedPool(380, 420),
+    outcomes: [
+      { id: "si", label: "Abajo de 3.3k" },
+      { id: "no", label: "3.3k o más" },
+    ],
     // 32sa-8pi3: la TRM diaria en el portal de datos abiertos de Colombia.
     // El IPC del DANE sólo está publicado por ciudad y hasta 2016, así que no
     // se puede resolver solo: se cambió la pregunta por una que sí se lee
@@ -242,10 +301,15 @@ const SEEDS: OwnMarketSeed[] = [
   {
     id: "cl-imacec",
     title: "¿El Imacec de Chile vuelve a terreno positivo?",
+    shortTitle: "El Imacec de Chile vuelve a positivo",
     category: "economia",
     country: "CL",
     closesAt: "2026-09-01T12:00:00Z",
     pool: seedPool(290, 310),
+    outcomes: [
+      { id: "si", label: "Vuelve a positivo" },
+      { id: "no", label: "Sigue en rojo" },
+    ],
     // mindicador.cl publica el Imacec sin llave. El Banco Central de Chile lo
     // sirve sólo con credenciales, y una fuente que no se puede leer no puede
     // resolver un mercado
@@ -272,11 +336,16 @@ const SEEDS: OwnMarketSeed[] = [
   {
     id: "btc-cierre-semanal",
     title: "¿Bitcoin cierra la semana arriba de 71,000 dólares?",
+    shortTitle: "Bitcoin cierra la semana arriba de 71 mil",
     category: "cripto",
     country: "LATAM",
     // las apuestas cierran un día antes del cierre que se lee (R-043)
     closesAt: "2026-08-01T23:59:00Z",
     pool: seedPool(910, 780),
+    outcomes: [
+      { id: "si", label: "Arriba de 71k" },
+      { id: "no", label: "Abajo de 71k" },
+    ],
     // también cotiza afuera: por eso puede tener Edge contra una casa global
     referenceKey: "bitcoin close above 71000",
     // se cita la fuente que el oráculo lee de verdad, no otra
@@ -293,10 +362,15 @@ const SEEDS: OwnMarketSeed[] = [
   {
     id: "eth-4500",
     title: "¿Ethereum toca 4,500 dólares antes de octubre?",
+    shortTitle: "Ethereum toca 4,500 antes de octubre",
     category: "cripto",
     country: "LATAM",
     closesAt: "2026-09-30T00:00:00Z",
     pool: seedPool(340, 690),
+    outcomes: [
+      { id: "si", label: "Toca 4,500" },
+      { id: "no", label: "No lo toca" },
+    ],
     referenceKey: "ethereum above 4500",
     rule: {
       kind: "precio",
@@ -318,10 +392,15 @@ const SEEDS: OwnMarketSeed[] = [
   {
     id: "pe-inflacion-lima",
     title: "¿La inflación anual de Perú se mantiene abajo de 3%?",
+    shortTitle: "Inflación de Perú abajo de 3 % anual",
     category: "economia",
     country: "PE",
     closesAt: "2026-09-30T12:00:00Z",
     pool: seedPool(260, 240),
+    outcomes: [
+      { id: "si", label: "Abajo de 3 %" },
+      { id: "no", label: "3 % o más" },
+    ],
     // PN01279PM: variación anual del IPC de Lima. Pública y sin llave
     rule: {
       kind: "serie",
@@ -354,6 +433,7 @@ const SEEDS: OwnMarketSeed[] = [
   {
     id: "mx-america-santos-1x2",
     title: "¿Cómo termina el América ante Santos?",
+    shortTitle: "Cómo termina el América ante Santos",
     category: "deportes",
     country: "MX",
     closesAt: "2026-08-02T23:00:00Z",
@@ -374,6 +454,15 @@ const SEEDS: OwnMarketSeed[] = [
       { nombre: "América", escudo: "https://a.espncdn.com/i/teamlogos/soccer/500/227.png" },
       { nombre: "Santos", escudo: "https://a.espncdn.com/i/teamlogos/soccer/500/225.png" },
     ],
+    vivoDemo: {
+      marcador: {
+        deporte: "futbol",
+        equipos: ["América", "Santos"],
+        goles: [2, 1],
+        minuto: "72'",
+      },
+      evento: { tipo: "gol", hace: 3 },
+    },
     resolution: {
       sourceName: "ESPN (marcador de la Liga MX)",
       sourceUrl:
@@ -387,6 +476,7 @@ const SEEDS: OwnMarketSeed[] = [
   {
     id: "mx-toluca-necaxa-goles",
     title: "¿Cuántos goles se anotan en Toluca-Necaxa?",
+    shortTitle: "Cuántos goles en Toluca-Necaxa",
     category: "deportes",
     country: "MX",
     closesAt: "2026-08-03T01:00:00Z",
@@ -421,8 +511,28 @@ const SEEDS: OwnMarketSeed[] = [
  * criterio inequívoco y ventana de disputa, el módulo falla al importarse: es
  * el momento correcto para enterarse, no cuando ya hay gente apostando.
  */
+/** Lo que cabe en una línea de la tarjeta a 390 px. Medido, no estimado. */
+export const SHORT_TITLE_MAX = 42;
+
+/** Lo que la etiqueta de un resultado puede medir sin recortarse siempre. */
+export const OUTCOME_LABEL_MAX = 26;
+
+/** Las dos palabras que un resultado no puede llamarse. */
+const SIN_NOMBRE = new Set(["sí", "si", "no"]);
+
 export function validateSeed(seed: OwnMarketSeed): OwnMarketSeed {
   const resolution = assertPublishable(seed.resolution);
+  // el título corto es parte del contrato, no un adorno: sin él la tarjeta
+  // crece 19 px y entra un mercado menos por pantalla. Un archivo publicado
+  // por una versión vieja no trae el campo, así que se deriva del largo en vez
+  // de tirar el mercado — degradar es correcto, quedarse sin feed no
+  const corto = (seed.shortTitle ?? "").trim();
+  const shortTitle = corto || seed.title.replace(/^¿|\?$/g, "").trim();
+  if (shortTitle.length > SHORT_TITLE_MAX) {
+    throw new Error(
+      `Mercado ${seed.id}: el título corto mide ${shortTitle.length} caracteres y el máximo es ${SHORT_TITLE_MAX}`,
+    );
+  }
   const outcomes = seed.outcomes ?? [...BINARY_OUTCOMES];
   // el catálogo generado que ya está publicado trae pozos en el formato viejo.
   // Se leen igual que los del volumen: un mercado que se cae por la forma del
@@ -449,6 +559,20 @@ export function validateSeed(seed: OwnMarketSeed): OwnMarketSeed {
     if (!outcome.label.trim()) {
       throw new Error(`Mercado ${seed.id}: el resultado ${outcome.id} no tiene texto`);
     }
+    // "Sí" y "No" no son nombres: no dicen de qué lado está uno cuando la
+    // pregunta ya no está a la vista, que es exactamente lo que pasa en la
+    // tarjeta. Un resultado se llama por lo que es — "Recorta", "Arriba de
+    // 71,000", "Gana el América" (§3.3 del rediseño)
+    if (SIN_NOMBRE.has(outcome.label.trim().toLowerCase())) {
+      throw new Error(
+        `Mercado ${seed.id}: el resultado ${outcome.id} se llama "${outcome.label}" y eso no es un nombre`,
+      );
+    }
+    if (outcome.label.length > OUTCOME_LABEL_MAX) {
+      throw new Error(
+        `Mercado ${seed.id}: el resultado ${outcome.id} mide ${outcome.label.length} caracteres y el máximo es ${OUTCOME_LABEL_MAX}`,
+      );
+    }
   }
   if (seed.rule) {
     // la regla de máquina y el criterio publicado tienen que decir lo mismo
@@ -460,7 +584,7 @@ export function validateSeed(seed: OwnMarketSeed): OwnMarketSeed {
   if (new Date(seed.closesAt).getTime() > new Date(resolution.settlesAt).getTime()) {
     throw new Error(`Mercado ${seed.id}: las apuestas cierran después de resolver`);
   }
-  return { ...seed, resolution, outcomes, pool };
+  return { ...seed, shortTitle, resolution, outcomes, pool };
 }
 
 export const OWN_MARKETS: OwnMarketSeed[] = SEEDS.map(validateSeed);

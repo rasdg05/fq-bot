@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
-import { renderApp, irAlPerfil, irADestinoDePerfil } from "./helpers";
+import { renderApp } from "./helpers";
 import { S } from "@/lib/strings";
 import { SPLASH_MAX_MS } from "@/screens/OnboardingFlow";
 import { createOwnMarketsAdapter } from "@/adapters/ownMarkets/ownMarketsAdapter";
@@ -173,11 +173,12 @@ describe("Mercados propios — interfaz", () => {
     const cards = await screen.findAllByTestId("market-card");
     expect(cards.length).toBeGreaterThan(5);
     // los dos lados, cada uno con su pago: enseñar sólo uno es medio mercado.
-    // En la card el pago va como `Sí 1.8×` — la palabra "paga" se quitó porque
-    // costaba cuatro caracteres en la línea más apretada y hacía envolver la
-    // fila de decisión a 390 px (vault/CARD_SPEC.md). En el detalle se queda.
-    expect(cards[0]).toHaveTextContent(/Sí\s*[\d.]+×/);
-    expect(cards[0]).toHaveTextContent(/No\s*[\d.]+×/);
+    // El pago volvió a decir "paga" porque dejó de competir por la línea: vive
+    // debajo del nombre del resultado, no al lado (§A del rediseño v6)
+    // cada lado se llama por lo que es: ni "Sí" ni "No" viven ya en la card
+    expect(cards[0].textContent).not.toMatch(/(^|\W)(Sí|No)(\W|$)/);
+    expect(cards[0]).toHaveTextContent(/paga\s*[\d.]+×/);
+    expect(within(cards[0]).getAllByText(/paga/).length).toBeGreaterThan(1);
     expect(within(cards[0]).getByTestId("card-other-side")).toBeInTheDocument();
     expect(cards[0].textContent).not.toMatch(/\$/);
   });
@@ -187,7 +188,7 @@ describe("Mercados propios — interfaz", () => {
     renderApp(points());
     await enter(user);
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
 
     const pool = await screen.findByTestId("pool-breakdown");
@@ -203,7 +204,7 @@ describe("Mercados propios — interfaz", () => {
     renderApp(points());
     await enter(user);
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
     const hint = await screen.findByTestId("payout-hint");
     expect(hint).toHaveTextContent(/Si aciertas, cobras .*pts.*×/);
@@ -217,7 +218,7 @@ describe("Mercados propios — interfaz", () => {
     renderApp(points());
     await enter(user);
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
     const before = (await screen.findByTestId("payout-hint")).textContent;
     await user.click(screen.getByTestId("side-no"));
@@ -231,7 +232,7 @@ describe("Mercados propios — interfaz", () => {
     renderApp(points());
     await enter(user);
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
     await user.click(await screen.findByTestId("detail-trade-cta"));
     await screen.findByTestId("post-trade");
@@ -250,7 +251,7 @@ describe("Mercados propios — interfaz", () => {
     renderApp({ ...points(), overrides: { points: { balance: 0, entries: [] } } });
     await enter(user);
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
 
     // mismo patrón que el depósito contextual: nunca un muro, nunca un error
@@ -271,7 +272,7 @@ describe("Mercados propios — interfaz", () => {
     });
     await enter(user);
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
     // con 60 puntos el preajuste de 100 no alcanza: se ofrece recargar
     expect(await screen.findByTestId("detail-deposit-cta")).toBeInTheDocument();
@@ -301,17 +302,13 @@ describe("Mercados propios — interfaz", () => {
     await enter(user);
     const surfaces: string[] = [container.textContent ?? ""];
 
-    for (const tab of [S.tabs.live, S.tabs.portfolio]) {
-      await user.click(screen.getByRole("tab", { name: new RegExp(`^${tab}`) }));
+    // en modo puntos la cartera no existe: su lugar lo toma la tabla
+    // la tabla ya no es pestaña: se entra por Perfil
+    for (const tab of [S.tabs.portfolio, S.tabs.profile]) {
+      await user.click(screen.getByRole("tab", { name: tab }));
       await waitFor(() => expect(container.textContent).toBeTruthy());
       surfaces.push(container.textContent ?? "");
     }
-    // el perfil vive en el header y, en modo puntos, la tabla cuelga de él
-    await irAlPerfil(user);
-    surfaces.push(container.textContent ?? "");
-    await irADestinoDePerfil(user, "tabla");
-    await waitFor(() => expect(container.textContent).toBeTruthy());
-    surfaces.push(container.textContent ?? "");
     for (const text of surfaces) {
       // los títulos del catálogo sí mencionan dólares: se excluyen del barrido
       const chrome = text.replace(/¿[^?]*\?/g, "");
@@ -325,7 +322,7 @@ describe("Mercados propios — interfaz", () => {
     await enter(user);
     const cards = await screen.findAllByTestId("market-card");
     expect(cards.length).toBeGreaterThan(5);
-    await user.click(within(cards[0]).getByRole("button"));
+    await user.click(within(cards[0]).getByTestId("card-open"));
     expect(await screen.findByTestId("resolution-summary")).toBeInTheDocument();
     expect(screen.getByTestId("pool-breakdown")).toBeInTheDocument();
   });
@@ -348,7 +345,7 @@ describe("Mercados propios — interfaz", () => {
 describe("Perfil sin sesión — las dos puertas", () => {
   const irAPerfil = async (user: ReturnType<typeof userEvent.setup>) => {
     await enter(user);
-    await irAlPerfil(user);
+    await user.click(screen.getByRole("tab", { name: S.tabs.profile }));
     return screen.findByTestId("profile-account");
   };
 

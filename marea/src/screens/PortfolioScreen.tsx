@@ -5,6 +5,7 @@ import { S } from "@/lib/strings";
 import { formatStake } from "@/lib/units";
 import { useApp } from "@/state/store";
 import { cn } from "@/lib/cn";
+import { isPointsMode } from "@/lib/flags";
 
 /**
  * Portafolio. Vacío no es un callejón: siempre ofrece volver al feed (R-006).
@@ -38,6 +39,7 @@ export function PortfolioScreen() {
     );
   }
 
+  const saldo = isPointsMode() ? state.points.balance : (state.wallet?.balance ?? 0);
   const open = positions.data.filter((p) => p.status === "open");
   const settled = positions.data.filter((p) => p.status !== "open");
 
@@ -46,6 +48,28 @@ export function PortfolioScreen() {
       <h1 className="px-4 pb-1 pt-5 font-display text-[24px] font-semibold text-text">
         {S.portfolio.title}
       </h1>
+
+      {/* el saldo vive con las posiciones: es lo tuyo, junto a lo que hiciste
+          con ello. Salió del header cuando el header pasó a llevar identidad
+          (Entrar / Crear cuenta sin sesión, saldo + avatar con sesión) */}
+      <Card className="mx-4 mt-3 flex items-center justify-between p-4" data-testid="portfolio-saldo">
+        <div className="leading-tight">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-muted">
+            {S.header.balance}
+          </p>
+          <p className="mt-0.5 font-mono text-[22px] font-semibold tabular-nums text-text">
+            {formatStake(saldo)}
+          </p>
+        </div>
+        <button
+          type="button"
+          data-testid="portfolio-recargar"
+          onClick={() => actions.openDeposit("portfolio")}
+          className="min-h-touch px-2 text-[14px] font-semibold text-teal"
+        >
+          {isPointsMode() ? S.points.topUp : S.header.deposit}
+        </button>
+      </Card>
 
       {positions.data.length === 0 ? (
         <div className="pt-5">

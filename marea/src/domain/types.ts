@@ -5,7 +5,76 @@ import type { Outcome, OutcomeId, Pool } from "./parimutuel";
  * tipos, nunca al revés. La UI no conoce ninguna otra forma de dato.
  */
 
-export type MarketStatus = "open" | "closing_soon" | "live" | "resolved";
+/**
+ * `settling` es el hueco que faltaba: entre que el mercado cierra y que la
+ * fuente entrega el dato, la tarjeta decía "Cerrado" como si ya hubiera
+ * terminado. Vivo, cerrado y resolviendo son tres cosas distintas y cada una
+ * tiene su palabra.
+ */
+export type MarketStatus =
+  | "open"
+  | "closing_soon"
+  | "live"
+  | "settling"
+  | "resolved";
+
+/**
+ * Marcador en vivo, estructurado por deporte. Es un tipo aparte de `marcador`
+ * —que sigue siendo el resultado final de fútbol— porque un set de tenis y una
+ * entrada de béisbol no caben en `{ local, visitante }`, y forzarlos ahí era
+ * lo que dejaba a las tarjetas en vivo sin decir nada del evento.
+ *
+ * `equipos` viaja como par para que la tarjeta no tenga que adivinar el orden:
+ * el primero es el local, o quien saca, según el deporte.
+ */
+export type MarcadorVivo =
+  | {
+      deporte: "futbol";
+      equipos: [string, string];
+      goles: [number, number];
+      /** `72'`, tal como se muestra. */
+      minuto?: string;
+    }
+  | {
+      deporte: "tenis";
+      jugadores: [string, string];
+      /** Un par por set jugado, en orden. El último es el set en curso. */
+      sets: [number, number][];
+      /** Índice de quien saca, para el punto de la fila de marcador. */
+      saque?: 0 | 1;
+      /** El game en curso, `40-30`. Vive en un badge, no en la fila. */
+      game?: string;
+    }
+  | {
+      deporte: "beisbol";
+      equipos: [string, string];
+      carreras: [number, number];
+      entrada: number;
+      mitad: "alta" | "baja";
+      outs: number;
+      /** Estado de bases en palabras: `1ª y 3ª`, `Bases limpias`. */
+      bases?: string;
+    };
+
+/**
+ * Lo último que pasó en el partido. Gramática cerrada —`<sustantivo> hace
+ * <n> min`— porque es el segmento del pie que más se mueve y el que primero
+ * rompe la línea. El vocabulario está acotado en `lib/format.ts`.
+ */
+export interface EventoReciente {
+  tipo:
+    | "quiebre"
+    | "set"
+    | "gol"
+    | "roja"
+    | "penal"
+    | "carrera"
+    | "jonron"
+    | "ponche"
+    | "cambio_pitcher";
+  /** Minutos desde que ocurrió. A los 10 deja de ser reciente. */
+  hace: number;
+}
 
 export type MarketCategory =
   | "cripto"
@@ -16,9 +85,69 @@ export type MarketCategory =
   /** Sin señal clara para clasificar. Preferimos decirlo a inventar categoría. */
   | "otros";
 
+/**
+ * Una vela viva, tal como la ve la interfaz. Todo lo que hace falta para pintar
+ * la card sin que la UI calcule nada de dominio: el reloj, el strike, el precio
+ * de ahora y de dónde salió.
+ */
+export interface LiveCandle {
+  /** Par tal como lo cotiza la fuente: `BTC/USD`. */
+  par: string;
+  /** Cómo se le dice a la gente: `Bitcoin`. */
+  activo: string;
+  /** Minutos de la vela: 5 o 15. */
+  intervalo: number;
+  /** Apertura de la vela, ISO. */
+  abreAt: string;
+  /** Cierre de la vela — el momento que se liquida, ISO. */
+  cierraAt: string;
+  /** Cuándo dejan de aceptarse apuestas, ISO. Siempre antes de `cierraAt`. */
+  bloqueaAt: string;
+  /** Precio de referencia. `Arriba` exige cierre estrictamente mayor. */
+  strike: number;
+  /** Último precio leído. Ausente = el ticker no tiene lectura fresca. */
+  spot?: number;
+  /** Variación del spot contra el strike, en puntos porcentuales. */
+  deltaPp?: number;
+  /** Quién dio ese precio: el motor propio o el feed público (R-022). */
+  fuente?: string;
+  /** Cuándo se leyó ese precio, ISO. Es lo que dice si está fresco. */
+  spotAt?: string;
+}
+
+/**
+ * El pulso de una vela: lo único que cambia mientras corre. Viaja aparte del
+ * mercado y varias veces por minuto, así que lleva lo mínimo — repetir el
+ * título y el criterio de resolución en cada latido sería gastar la red de la
+ * gente en algo que no se movió (R-047).
+ */
+export interface PulsoVivo {
+  id: string;
+  strike: number;
+  spot?: number;
+  deltaPp?: number;
+  fuente?: string;
+  spotAt?: string;
+  bloqueaAt: string;
+  cierraAt: string;
+  /** Probabilidad de cada resultado, por id. Suman 1. */
+  probabilidades: Record<string, number>;
+  /** Cuánto paga cada resultado por unidad apostada, por id. */
+  multiplicadores: Record<string, number>;
+  pozo: number;
+  jugando: number;
+}
+
 export interface Market {
   id: string;
   title: string;
+  /**
+   * El título como se pinta en la tarjeta: afirmativo, sin signo de
+   * interrogación y de 42 caracteres para arriba se corta. Existe porque el
+   * título completo cae en dos líneas y esas dos líneas eran 19 px de tarjeta
+   * — el recorte más caro del rediseño. Sin él, la tarjeta usa `title`.
+   */
+  shortTitle?: string;
   /** Probabilidad del mercado, 0..1. Nodo tipográfico dominante (R-004). */
   probability: number;
   /** Volumen operado, en USD. */
@@ -72,12 +201,22 @@ export interface Market {
   equipos?: { nombre: string; escudo?: string }[];
   /** Marcador, si el partido está en juego o ya terminó. */
   marcador?: { local: number; visitante: number; estado: string };
+  /** Marcador estructurado del evento en curso. Sin esto no hay badge LIVE. */
+  marcadorVivo?: MarcadorVivo;
+  /** Lo último que pasó, para el pie de la tarjeta en vivo. */
+  eventoReciente?: EventoReciente;
   /** Dónde se completa la operación cuando la ejecución es agregada. */
   venue?: { id: string; label: string; url?: string };
   /** Resultado ya leído de la fuente, cuando el mercado resolvió. */
   outcome?: PositionSide;
   /** Qué se leyó exactamente para resolver. Auditable por el usuario. */
   settlementEvidence?: string;
+  /**
+   * Estado de la vela, cuando el mercado es de cripto en vivo. Su presencia es
+   * lo que convierte la card en una card viva: la UI no adivina el modo por la
+   * categoría ni por el título.
+   */
+  live?: LiveCandle;
   /** Marca de tracción para el badge HOT. */
   hot?: boolean;
   /** Región del mercado, para el badge LATAM. */

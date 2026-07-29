@@ -16,8 +16,9 @@ import {
   COOKIE,
 } from "./auth.mts";
 import { BINARY_OUTCOMES } from "../src/domain/parimutuel";
-import { cotizar, listarMercados, posicionesDe } from "./mercados.mts";
+import { cotizar, listarMercados, posicionesDe, type ContextoVivo } from "./mercados.mts";
 import { calcularTabla } from "./tabla.mts";
+import type { MercadosVivos } from "./vivos.mts";
 import type { Store } from "./store.mts";
 
 /**
@@ -36,6 +37,10 @@ export interface Contexto {
   seguro: boolean;
   /** Recibe los eventos de analítica ya validados. */
   registrarEventos: (eventos: Record<string, unknown>[], usuario?: string) => void;
+  /** Los mercados vivos de cripto. Ausente = la app corre sin velas. */
+  vivos?: MercadosVivos;
+  /** El ticker de spot, para pintar el precio de la vela en curso. */
+  precios?: ContextoVivo;
 }
 
 function json(res: ServerResponse, code: number, cuerpo: unknown, cookie?: string) {
@@ -235,13 +240,32 @@ export async function manejarApi(
 
   // sin sesión: explorar el catálogo entero nunca cuesta ni pide nada (R-002)
   if (ruta === "/api/mercados" && metodo === "GET") {
-    json(res, 200, { mercados: listarMercados(ctx.store, ctx.seeds()) });
+    json(res, 200, { mercados: listarMercados(ctx.store, ctx.seeds(), Date.now(), ctx.precios) });
+    return true;
+  }
+
+  /**
+   * El pulso de las velas vivas. Es lo que refresca la card cada pocos
+   * segundos: precio, reloj y pozo, y nada más.
+   *
+   * Va aparte de `/api/mercados` a propósito. Repetir el catálogo entero —con
+   * su título, su criterio de resolución y su fuente— tres veces por minuto
+   * sería mandar dos órdenes de magnitud más de lo que cambió, en el teléfono
+   * de alguien que quizá está en datos móviles (R-047).
+   */
+  if (ruta === "/api/vivos" && metodo === "GET") {
+    json(res, 200, {
+      at: new Date().toISOString(),
+      mercados: ctx.vivos?.vista() ?? [],
+    });
     return true;
   }
 
   if (ruta.startsWith("/api/mercados/") && metodo === "GET") {
     const id = decodeURIComponent(ruta.slice("/api/mercados/".length));
-    const mercado = listarMercados(ctx.store, ctx.seeds()).find((m) => m.id === id);
+    const mercado = listarMercados(ctx.store, ctx.seeds(), Date.now(), ctx.precios).find(
+      (m) => m.id === id,
+    );
     if (!mercado) return error(res, 404, "Ese mercado ya no existe."), true;
     json(res, 200, mercado);
     return true;
@@ -282,6 +306,23 @@ export async function manejarApi(
     }
 
     const precio = cotizar(ctx.store, seed, side, size).probability;
+
+    /**
+     * El pozo se crea aquí, no al nacer el mercado.
+     *
+     * Los mercados vivos son cientos al día y casi todos mueren sin que nadie
+     * los toque; sembrarles pozo en disco al nacer engordaría el archivo con
+     * mercados que nadie miró. `asegurarPozo` es idempotente, así que para el
+     * catálogo normal —que sí se siembra al arrancar— esto no hace nada.
+     */
+    ctx.store.asegurarPozo({
+      marketId,
+      outcomes: { ...seed.pool.outcomes },
+      feeBps: seed.pool.feeBps,
+    });
+    // desde que hay dinero adentro, el mercado sobrevive a un reinicio
+    ctx.vivos?.persistir(marketId);
+
     const apuesta = ctx.store.apostar({
       usuarioId: sesion.id,
       marketId,

@@ -5,7 +5,6 @@ import { renderApp, READY_NO_FUNDS, READY_WITH_FUNDS } from "./helpers";
 import { S } from "@/lib/strings";
 import { tabIds } from "@/components/BottomTabs";
 import { MOCK_MARKETS } from "@/adapters/mock/markets";
-import { contarVivos } from "@/domain/live";
 import { MAX_DESTACADOS } from "@/components/FeaturedCarousel";
 import { MarketCard, resolveVariant } from "@/components/MarketCard";
 import { render } from "@testing-library/react";
@@ -43,34 +42,43 @@ describe("Fase 1 — descubrimiento", () => {
     await feed();
     const cards = await screen.findAllByTestId("market-card");
     for (const card of cards.slice(0, 4)) {
-      const dominant = within(card).getByText(S.market.probability)
-        .previousElementSibling as HTMLElement;
-      expect(dominant.getAttribute("data-role")).toBe("probability");
-      // única escala `text-prob*` de la card: nada compite con ella (R-004)
-      expect(dominant.className).toMatch(/text-prob/);
-      const others = [...card.querySelectorAll("*")].filter(
-        (el) => el !== dominant && /text-prob/.test(el.className.toString()),
+      const dominant = card.querySelector('[data-role="probability"]') as HTMLElement;
+      expect(dominant).not.toBeNull();
+      // en la card el nodo dominante es la pill de 30 px en peso 700: el de
+      // 44 px (`text-prob`) se fue al detalle. El rival existe y es más chico
+      // —`text-prob-riv`, 20 px—, así que la comprobación es que **nadie más**
+      // usa la escala del líder, no que no haya otro número (R-004)
+      expect(dominant.className).toMatch(/text-prob-pill/);
+      expect(dominant.className).toMatch(/font-bold/);
+      const compiten = [...card.querySelectorAll("*")].filter(
+        (el) =>
+          el !== dominant &&
+          /text-prob-pill|text-prob-lg|text-prob\b/.test(el.className.toString()),
       );
-      expect(others).toHaveLength(0);
+      expect(compiten).toHaveLength(0);
     }
   });
 
-  it("V4 — el Edge aparece sólo en las cards que superan el umbral", async () => {
+  it("V4 — el Edge no vive en el feed: se lee en el detalle, que es donde se decide", async () => {
+    const user = userEvent.setup();
     renderApp({ overrides: READY_NO_FUNDS });
     await feed();
     const cards = await screen.findAllByTestId("market-card");
+    // ninguna card, tenga o no Edge, lo enseña: ni badge, ni borde, ni orden
     for (const card of cards) {
-      const id = card.getAttribute("data-market-id");
-      const market = MOCK_MARKETS.find((m) => m.id === id)!;
-      const badge = within(card).queryByTestId("edge-badge");
-      if (market.edge === null) {
-        expect(badge, `${id} no debe mostrar Edge`).toBeNull();
-      } else {
-        expect(badge).not.toBeNull();
-        expect(badge!.textContent).toContain("Marea");
-        expect(Math.abs(Number(badge!.getAttribute("data-edge-pp")))).toBeGreaterThanOrEqual(4);
-      }
+      expect(
+        within(card).queryByTestId("edge-badge"),
+        `${card.getAttribute("data-market-id")} no debe enseñar Edge en el feed`,
+      ).toBeNull();
     }
+    // y sigue existiendo donde importa: el detalle de un mercado con Edge
+    const conEdge = MOCK_MARKETS.find((m) => m.edge !== null)!;
+    const card = cards.find((c) => c.getAttribute("data-market-id") === conEdge.id)!;
+    await user.click(within(card).getByTestId("card-open"));
+    const detalle = await screen.findByTestId("market-detail");
+    const badge = within(detalle).getByTestId("edge-badge-detail");
+    expect(Math.abs(conEdge.edge as number)).toBeGreaterThanOrEqual(4);
+    expect(badge.textContent).toContain(conEdge.edgeLabel ?? "Marea");
   });
 
   it("V5 — Home abre con destacados, agrupa por categoría y los chips filtran", async () => {
@@ -78,18 +86,17 @@ describe("Fase 1 — descubrimiento", () => {
     renderApp({ overrides: READY_NO_FUNDS });
     await feed();
 
-    // el carrusel de destacados y sus puntos
+    // el carrusel de destacados, con su tope y sus puntos
     const carrusel = screen.getByTestId("featured-carousel");
     const piezas = within(carrusel).getAllByTestId("featured-card");
     expect(piezas.length).toBeGreaterThan(1);
     expect(piezas.length).toBeLessThanOrEqual(MAX_DESTACADOS);
-    expect(within(screen.getByTestId("featured-dots")).queryAllByRole("generic")).toBeDefined();
+    expect(screen.getByTestId("featured-dots").childElementCount).toBe(piezas.length);
 
     // el feed va en bloques por categoría, cada uno con su encabezado
     const encabezados = screen.getAllByTestId("section-header");
     expect(encabezados.length).toBeGreaterThan(1);
-    const categoriasVistas = encabezados.map((h) => h.textContent ?? "");
-    expect(categoriasVistas.some((t) => t.includes(S.categories.cripto))).toBe(true);
+    expect(encabezados.some((h) => h.textContent?.includes(S.categories.cripto))).toBe(true);
 
     expect(screen.getByRole("tab", { name: S.categories.cripto })).toBeInTheDocument();
     expect((await screen.findAllByTestId("market-card")).length).toBeGreaterThan(3);
@@ -100,7 +107,7 @@ describe("Fase 1 — descubrimiento", () => {
       const id = card.getAttribute("data-market-id");
       expect(MOCK_MARKETS.find((m) => m.id === id)!.category).toBe("deportes");
     }
-    // con un filtro puesto no se repite el carrusel ni la agrupación
+    // con un filtro puesto no se repite ni el carrusel ni la agrupación
     expect(screen.queryByTestId("featured-carousel")).toBeNull();
   });
 
@@ -126,7 +133,7 @@ describe("Fase 1 — descubrimiento", () => {
     renderApp({ overrides: READY_NO_FUNDS });
     await feed();
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
 
     const detail = await screen.findByTestId("market-detail");
@@ -163,40 +170,16 @@ describe("Fase 1 — descubrimiento", () => {
     expect(_).toBeDefined();
   });
 
-  it("V8 — hay 4 tabs, Mercados es la de entrada y el perfil vive en el header", async () => {
+  it("V8 — hay exactamente 4 tabs y Mercados es la de entrada", async () => {
     renderApp({ overrides: READY_NO_FUNDS });
     const tabs = within(screen.getByTestId("bottom-tabs")).getAllByRole("tab");
     expect(tabs).toHaveLength(4);
-    expect(tabIds()).toEqual(["markets", "live", "search", "portfolio"]);
+    // la tabla y la cartera no son destinos de navegación: se consultan desde
+    // Perfil. Cuatro pestañas, siempre las mismas, con o sin dinero real
+    expect(tabIds()).toEqual(["markets", "search", "portfolio", "profile"]);
     expect(tabs[0]).toHaveAttribute("aria-selected", "true");
     expect(tabs[0]).toHaveTextContent(S.tabs.markets);
-    // el perfil salió de la zona del pulgar, pero no desapareció
-    expect(screen.getByTestId("header-profile")).toBeInTheDocument();
     await feed();
-  });
-
-  it("V8 — el contador de Live cuenta mercados de verdad, y la pestaña los muestra", async () => {
-    const user = userEvent.setup();
-    renderApp({ overrides: READY_NO_FUNDS });
-    await feed();
-
-    const vivos = contarVivos(MOCK_MARKETS);
-    const contador = screen.queryByTestId("live-contador");
-    if (vivos === 0) {
-      expect(contador).toBeNull();
-    } else {
-      expect(contador).toHaveTextContent(vivos > 9 ? "9+" : String(vivos));
-    }
-
-    await user.click(within(screen.getByTestId("bottom-tabs")).getByText(S.tabs.live));
-    const pantalla = await screen.findByTestId("live-screen");
-    // o hay mercados vivos listados, o se dice que no hay: nunca las dos
-    const cards = within(pantalla).queryAllByTestId("market-card");
-    if (vivos === 0) {
-      expect(within(pantalla).getByTestId("live-empty")).toBeInTheDocument();
-    } else {
-      expect(cards).toHaveLength(vivos);
-    }
   });
 
   it("V9 — el feed emite view_feed, open_market_detail y los CTA de operar y depositar", async () => {
@@ -206,7 +189,7 @@ describe("Fase 1 — descubrimiento", () => {
     expect(app.eventNames()).toContain("view_feed");
 
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
     expect(app.eventNames()).toContain("open_market_detail");
 
@@ -220,30 +203,37 @@ describe("Fase 1 — descubrimiento", () => {
     const app = renderApp({ overrides: READY_WITH_FUNDS });
     await feed();
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
     await user.click(await screen.findByTestId("detail-trade-cta"));
     expect(app.eventNames()).toContain("click_trade_cta");
     expect(app.eventNames()).toContain("trade_confirmed");
   });
 
-  it("V12 — con saldo 0 el header ofrece Depositar", async () => {
-    renderApp({ overrides: READY_NO_FUNDS });
-    const deposit = screen.getByTestId("header-deposit");
-    expect(deposit).toHaveTextContent(S.header.deposit);
+  it("V12 — sin sesión el header ofrece Entrar y Crear cuenta, nunca un muro", async () => {
+    renderApp({ overrides: { ...READY_NO_FUNDS, wallet: null } });
+    // el header lleva identidad: dos puertas y las dos a la vista
+    expect(screen.getByTestId("header-entrar")).toHaveTextContent(S.cuenta.entrarCta);
+    expect(screen.getByTestId("header-crear-cuenta")).toHaveTextContent(
+      S.cuenta.sinCuentaCta,
+    );
+    // y el saldo no se pierde: vive con las posiciones, que es lo tuyo
     await feed();
   });
 
-  it("V12 — con saldo el header ya no empuja a depositar", async () => {
+  it("V12 — el saldo y el camino para recargar viven en el portafolio", async () => {
+    const user = userEvent.setup();
     renderApp({
       overrides: {
         ...READY_NO_FUNDS,
         wallet: { ...READY_NO_FUNDS.wallet!, balance: 50 },
       },
     });
-    expect(screen.queryByTestId("header-deposit")).toBeNull();
-    expect(screen.getByTestId("header-balance")).toHaveTextContent("50");
     await feed();
+    await user.click(within(screen.getByTestId("bottom-tabs")).getAllByRole("tab")[2]);
+    const saldo = await screen.findByTestId("portfolio-saldo");
+    expect(saldo).toHaveTextContent("50");
+    expect(within(saldo).getByTestId("portfolio-recargar")).toBeInTheDocument();
   });
 
   it("V23 — un fallo del feed muestra mensaje en español y Reintentar", async () => {

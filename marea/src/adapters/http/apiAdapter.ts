@@ -1,4 +1,4 @@
-import type { Market, Position } from "@/domain/types";
+import type { Market, Position, PulsoVivo } from "@/domain/types";
 import { appError } from "@/domain/errors";
 import type { MarketDataAdapter } from "@/adapters/marketDataAdapter";
 import type { OutcomeId } from "@/domain/parimutuel";
@@ -109,6 +109,15 @@ export function createApiClient(options: ApiOptions = {}) {
 
     mercado(id: string) {
       return pedir<Market>(`/mercados/${encodeURIComponent(id)}`);
+    },
+
+    /**
+     * El pulso de las velas vivas. Se pide cada pocos segundos y devuelve sólo
+     * lo que se mueve; el catálogo completo sigue viniendo de `/mercados`, a su
+     * propio ritmo.
+     */
+    vivos() {
+      return pedir<{ at: string; mercados: PulsoVivo[] }>("/vivos");
     },
   };
 }

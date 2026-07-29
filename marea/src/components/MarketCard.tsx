@@ -1,20 +1,20 @@
 import * as React from "react";
-import { TrendingDown, TrendingUp } from "lucide-react";
-import type { Market } from "@/domain/types";
-import { formatEdgePp, hasEdge } from "@/domain/edge";
+import type { Market, MarcadorVivo, PulsoVivo } from "@/domain/types";
+import { hasEdge } from "@/domain/edge";
 import { Card } from "@/components/ui/card";
+import { CryptoLiveCard } from "@/components/CryptoLiveCard";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
-import { CategoryBadge } from "@/components/ui/CategoryBadge";
-import { EscudoOutcome } from "@/components/ui/EscudoOutcome";
+import { CategoriaIcono } from "@/components/ui/categoria-icono";
 import { S } from "@/lib/strings";
 import { formatStake } from "@/lib/units";
-import { compactUsd, pct, closesIn } from "@/lib/format";
+import { compactUsd, pct, closesIn, eventoTexto } from "@/lib/format";
 import {
   BINARY_OUTCOMES,
   formatMultiplier,
   payoutMultiplier,
   rankedOutcomes,
+  type OutcomeId,
 } from "@/domain/parimutuel";
 
 export type MarketCardVariant = "default" | "edge" | "live" | "compact";
@@ -29,220 +29,535 @@ export function resolveVariant(market: Market): MarketCardVariant {
 export interface MarketCardProps {
   market: Market;
   variant?: MarketCardVariant;
-  onOpen: (market: Market) => void;
+  /** El latido de la vela, cuando el mercado es de cripto en vivo. */
+  pulso?: PulsoVivo;
+  /**
+   * El segundo argumento es el resultado que se tocó. Tocar la tarjeta abre el
+   * detalle; tocar una pill abre el mismo detalle con ese lado ya elegido.
+   */
+  onOpen: (market: Market, outcomeId?: OutcomeId) => void;
+}
+
+/** Cuánto dura el congelado después de soltar: lo que tarda en subir la hoja. */
+const DESHIELO_MS = 220;
+/** El destello de actualización. Coincide con `animate-flash-*`. */
+const DESTELLO_MS = 200;
+
+/**
+ * Estado presionado y foco de una pill, en un solo lugar.
+ *
+ * El anillo vive siempre a 2 px en `transparent` y sólo transiciona el color:
+ * animar el grosor produce un salto de pintado en cada tabulación. Va en
+ * `outline` y no en `box-shadow` para que no participe del layout — dentro de
+ * una tarjeta de 114 px, un anillo que empuja es un anillo que rompe.
+ */
+const PILL_BASE = cn(
+  "relative z-10 flex h-9 min-w-[64px] shrink-0 items-center justify-center rounded-pill px-2.5",
+  // 36 px de pill, 44 de zona tocable: el aire de arriba y abajo es parte del
+  // botón y no cuesta una fila de card (R-010)
+  "after:absolute after:inset-x-0 after:-inset-y-1 after:content-['']",
+  "outline outline-2 outline-offset-2 outline-transparent focus-visible:outline-pill-ring",
+  "transition-[background-color,outline-color,transform,color] duration-[120ms] ease-out",
+  "active:scale-[.96] active:duration-90",
+);
+
+interface OpcionProps {
+  lado: "lider" | "rival";
+  label: string;
+  probability: number;
+  multiplier?: string;
+  destello: "up" | "dn" | null;
+  onPick?: () => void;
+  onCongelar?: (congelar: boolean) => void;
 }
 
 /**
- * Card híbrida: descubrimiento tipo Polymarket con la probabilidad como número
- * rey tipo Kalshi. La probabilidad es el único nodo en escala `text-prob`
- * (R-004); el Edge es el segundo ancla y sólo aparece si el dominio lo permite
- * (R-001). Toda la card es un solo target táctil.
+ * Un resultado: la pill con el porcentaje y, al lado, su nombre y su pago.
+ *
+ * El número es lo accionable; el texto de al lado es contexto y cae en el
+ * enlace estirado de la tarjeta. Así el anillo de foco hereda el radio de la
+ * pill sin dibujar un rectángulo alrededor de media fila.
  */
-export function MarketCard({ market, variant, onOpen }: MarketCardProps) {
-  const resolved = variant ?? resolveVariant(market);
-  const compact = resolved === "compact";
-  const showEdge = hasEdge(market) && market.edge !== null;
-  const closes = closesIn(market.closesAt);
-  // en mercado propio lo que importa es cuánto paga, no cuánto se ha operado
-  const pool = market.pool;
-  // los dos resultados con más pozo, sean "Sí/No" o dos de siete candidatos
-  const ranked = pool
-    ? rankedOutcomes(pool, market.outcomes ?? [...BINARY_OUTCOMES])
-    : [];
-  const [lider, rival] = ranked;
-
-  const handleOpen = React.useCallback(() => onOpen(market), [onOpen, market]);
-
+function Opcion({
+  lado,
+  label,
+  probability,
+  multiplier,
+  destello,
+  onPick,
+  onCongelar,
+}: OpcionProps) {
+  const lider = lado === "lider";
+  const porcentaje = pct(probability);
   return (
-    <Card
-      className={cn(
-        "overflow-hidden transition-colors",
-        // sólo el Edge se gana un borde: es el diferenciador. LIVE ya se lee en
-        // su badge y un borde rojo entero le robaba jerarquía (R-004)
-        resolved === "edge" && "border-teal",
-      )}
-      data-testid="market-card"
-      data-variant={resolved}
-      data-market-id={market.id}
-      data-has-edge={showEdge ? "true" : "false"}
+    <div
+      data-testid={lider ? "card-lider" : "card-other-side"}
+      className="flex min-w-0 flex-1 items-center gap-2"
     >
       <button
         type="button"
-        onClick={handleOpen}
-        aria-label={`${S.market.openDetail}: ${market.title}`}
+        data-role="pill"
+        data-lado={lado}
+        aria-label={
+          multiplier
+            ? S.market.pillLabel(label, porcentaje, multiplier)
+            : `${label}, ${porcentaje} %`
+        }
+        onClick={onPick}
+        onPointerDown={() => onCongelar?.(true)}
+        onPointerUp={() => onCongelar?.(false)}
+        onPointerCancel={() => onCongelar?.(false)}
+        onPointerLeave={() => onCongelar?.(false)}
         className={cn(
-          // el hueco entre filas baja de 4 a 2 px y el padding vertical de 10
-          // a 8: la barra de reparto entra sin que la card crezca. Medido en
-          // navegador real, no estimado (vault/CARD_SPEC.md)
-          "flex w-full flex-col gap-[2px] text-left",
-          compact ? "min-h-touch px-3.5 py-2" : "px-3.5 py-2",
+          PILL_BASE,
+          lider
+            ? "bg-teal-soft ring-1 ring-pill-ring [@media(hover:hover)and(pointer:fine)]:hover:ring-teal"
+            : "bg-pill-wash ring-1 ring-pill-line [@media(hover:hover)and(pointer:fine)]:hover:ring-pill-ring",
+          destello === "up" ? "animate-flash-up" : "",
+          destello === "dn" ? "animate-flash-dn" : "",
         )}
       >
-        {/* Fila 1. La categoría abrió la fila y dejó de ser un punto de 6 px
-            en `muted` a la derecha: es lo que da color al feed. LIVE va junto
-            a ella porque las dos responden "¿qué es esto y corre prisa?".
-            Como mucho tres piezas: la cuarta hace envolver la fila a 320 px */}
-        <div className="flex items-center gap-1.5">
-          <CategoryBadge category={market.category} />
-          {market.status === "live" ? (
+        <span
+          {...(lider ? { "data-dominant": "probability", "data-role": "probability" } : {})}
+          className={cn(
+            "font-display tabular-nums",
+            // el rival sube a `--text` con fondo teñido: sobre el relleno del
+            // `active` el `--text2` caía a 5,27:1 y el número es el dato
+            lider
+              ? "text-prob-pill font-bold text-text"
+              : "text-prob-riv font-semibold text-text2 group-active:text-text",
+          )}
+        >
+          {porcentaje}
+          <span
+            className={cn(
+              "ml-0.5 align-top text-[12px] font-bold opacity-70",
+              lider ? "text-text" : "text-text2",
+            )}
+          >
+            %
+          </span>
+        </span>
+      </button>
+
+      {/* el pago nunca se corta: es un número, y "2.4…" no es un número. La
+          columna mide al menos lo que mide el pago (`min-w-fit`) y quien cede
+          es la etiqueta, que sí se entiende recortada */}
+      {/* la columna de texto sí puede encogerse: si no, la etiqueta del líder
+          se monta encima de la pill del rival. Quien cede es la etiqueta, que
+          se entiende recortada; el pago cabe entero en el ancho que queda */}
+      <span className="flex min-w-0 flex-col whitespace-nowrap leading-none">
+        <span className="truncate text-[13px] font-semibold leading-[15px] text-text2">
+          {label}
+        </span>
+        {multiplier ? (
+          <span className="mt-0.5 truncate font-mono text-mult font-medium tabular-nums text-muted">
+            {S.market.pays2(multiplier)}
+          </span>
+        ) : null}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Barra de probabilidad. Dos segmentos con 2 px de separación, nunca de 0 px
+ * de ancho: por debajo del 2 % se dibuja un tope, porque "casi nada" y "nada"
+ * no son lo mismo cuando se está apostando. Decorativa para el lector de
+ * pantalla — el porcentaje ya está en texto al lado.
+ */
+function ProbBar({ lider, rival }: { lider: number; rival: number }) {
+  const ancho = (p: number) => `${Math.max(p * 100, p > 0 ? 2 : 0)}%`;
+  return (
+    <span aria-hidden className="flex h-[3px] w-full gap-0.5 overflow-hidden rounded-pill">
+      <span
+        data-testid="prob-bar-lider"
+        className="h-full rounded-pill bg-teal transition-[width] duration-[240ms] ease-[cubic-bezier(.22,1,.36,1)]"
+        style={{ width: ancho(lider) }}
+      />
+      <span
+        className="h-full rounded-pill bg-muted transition-[width] duration-[240ms] ease-[cubic-bezier(.22,1,.36,1)]"
+        style={{ width: ancho(rival) }}
+      />
+      <span className="h-full flex-1 rounded-pill bg-line2" />
+    </span>
+  );
+}
+
+/**
+ * Una fila de un mercado de más de dos resultados.
+ *
+ * Vertical y no en dos columnas: con tres candidatos, dos columnas obligan a
+ * elegir cuáles dos se enseñan, y el tercero desaparece sin decirlo. En lista
+ * los tres se leen de arriba abajo y el número queda en la misma columna, que
+ * es lo que permite compararlos de un vistazo.
+ */
+function FilaResultado({
+  outcome,
+  primera,
+  destello,
+  onPick,
+  onCongelar,
+}: {
+  outcome: { id: OutcomeId; label: string; probability: number; multiplier: number };
+  primera: boolean;
+  destello: "up" | "dn" | null;
+  onPick?: () => void;
+  onCongelar?: (congelar: boolean) => void;
+}) {
+  const porcentaje = pct(outcome.probability);
+  const pago = formatMultiplier(outcome.multiplier);
+  return (
+    <div className="flex flex-col gap-[3px]">
+      <div className="flex items-center gap-2.5">
+        <button
+          type="button"
+          data-role="pill"
+          data-lado={primera ? "lider" : "rival"}
+          aria-label={S.market.pillLabel(outcome.label, porcentaje, pago)}
+          onClick={onPick}
+          onPointerDown={() => onCongelar?.(true)}
+          onPointerUp={() => onCongelar?.(false)}
+          onPointerCancel={() => onCongelar?.(false)}
+          onPointerLeave={() => onCongelar?.(false)}
+          className={cn(
+            "relative z-10 flex h-[26px] min-w-[62px] shrink-0 items-center justify-center rounded-pill px-2.5",
+            "outline outline-2 outline-offset-2 outline-transparent focus-visible:outline-pill-ring",
+            "transition-[background-color,outline-color,transform,color] duration-[120ms] ease-out",
+            "active:scale-[.96] active:duration-90",
+            primera
+              ? "bg-teal-soft ring-1 ring-pill-ring"
+              : "bg-pill-wash ring-1 ring-pill-line",
+            destello === "up" ? "animate-flash-up" : "",
+            destello === "dn" ? "animate-flash-dn" : "",
+          )}
+        >
+          <span
+            {...(primera
+              ? { "data-dominant": "probability", "data-role": "probability" }
+              : {})}
+            className={cn(
+              "font-display tabular-nums",
+              primera
+                ? "text-prob-pill font-bold text-text"
+                : "text-prob-row font-semibold text-text2",
+            )}
+          >
+            {porcentaje}
+            <span className="ml-0.5 align-top text-[11px] font-bold opacity-70">%</span>
+          </span>
+        </button>
+        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-text2">
+          {outcome.label}
+        </span>
+        <span className="shrink-0 font-mono text-mult font-medium tabular-nums text-muted">
+          {S.market.pays2(pago)}
+        </span>
+      </div>
+      <span aria-hidden className="flex h-[3px] w-full overflow-hidden rounded-pill bg-line2">
+        <span
+          className={cn(
+            "h-full rounded-pill transition-[width] duration-[240ms] ease-[cubic-bezier(.22,1,.36,1)]",
+            primera ? "bg-teal" : "bg-muted",
+          )}
+          style={{ width: `${Math.max(outcome.probability * 100, 2)}%` }}
+        />
+      </span>
+    </div>
+  );
+}
+
+/** El marcador del evento en curso, en una fila de 20 px. */
+function FilaMarcador({ marcador }: { marcador: MarcadorVivo }) {
+  const numero = "font-display text-[16px] font-bold leading-5 tabular-nums text-text";
+  const nombre = "min-w-0 truncate text-[13px] font-semibold text-text2";
+  return (
+    <div
+      data-testid="card-marcador"
+      className="flex h-5 items-center gap-4 overflow-hidden"
+    >
+      {marcador.deporte === "tenis" ? (
+        marcador.jugadores.map((jugador, i) => (
+          <span key={jugador} className="flex min-w-0 items-center gap-1.5">
+            {marcador.saque === i ? (
+              <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-teal" />
+            ) : null}
+            <span className={nombre}>{jugador}</span>
+            <span className={cn(numero, "flex shrink-0 gap-1.5")}>
+              {marcador.sets.map((set, s) => (
+                <span key={s} className={s === marcador.sets.length - 1 ? "opacity-70" : ""}>
+                  {set[i]}
+                </span>
+              ))}
+            </span>
+          </span>
+        ))
+      ) : marcador.deporte === "beisbol" ? (
+        marcador.equipos.map((equipo, i) => (
+          <span key={equipo} className="flex min-w-0 items-center gap-1.5">
+            <span className={nombre}>{equipo}</span>
+            <span className={cn(numero, "shrink-0")}>{marcador.carreras[i]}</span>
+          </span>
+        ))
+      ) : (
+        marcador.equipos.map((equipo, i) => (
+          <span key={equipo} className="flex min-w-0 items-center gap-1.5">
+            <span className={nombre}>{equipo}</span>
+            <span className={cn(numero, "shrink-0")}>{marcador.goles[i]}</span>
+          </span>
+        ))
+      )}
+    </div>
+  );
+}
+
+/** El badge de estado del evento: game de tenis, entrada de béisbol, minuto. */
+function badgeEstado(marcador?: MarcadorVivo): string | null {
+  if (!marcador) return null;
+  if (marcador.deporte === "tenis") return marcador.game ?? null;
+  if (marcador.deporte === "beisbol") return S.market.entrada(marcador.entrada, marcador.mitad);
+  return marcador.minuto ?? null;
+}
+
+/**
+ * Tarjeta de mercado. Descubrimiento denso: el porcentaje manda por tamaño y
+ * peso, los dos lados se nombran, y la barra dice de un vistazo cómo está
+ * repartido el pozo. El Edge **no vive aquí** — se lee en el detalle, que es
+ * donde se decide (R-001, §4.7 del rediseño).
+ *
+ * La tarjeta entera abre el detalle a través de un enlace estirado; las pills
+ * son botones reales por encima y abren el mismo detalle con su lado elegido.
+ */
+export function MarketCard({ market, variant, pulso, onOpen }: MarketCardProps) {
+  /**
+   * Una vela viva se pinta con su propia card. No es una variante más de ésta:
+   * lo que necesita —reloj, precio que se mueve, congelado al tocar— no cabía
+   * aquí sin reabrir una card que ya está cerrada. La decisión de cuál pintar
+   * la toma el dato (`market.live`), nunca la vista.
+   */
+  if (market.live && market.status === "live" && !variant) {
+    return (
+      <CryptoLiveCard
+        market={market as Market & { live: NonNullable<Market["live"]> }}
+        pulso={pulso}
+        onOpen={onOpen}
+      />
+    );
+  }
+
+  const resolved = variant ?? resolveVariant(market);
+  const compact = resolved === "compact";
+
+  // mientras el dedo está sobre una pill, esta tarjeta deja de aplicar
+  // actualizaciones: apostar a un número que cambió en el milisegundo del
+  // toque es el defecto clásico del live, y se arregla aquí
+  const [congelado, setCongelado] = React.useState(false);
+  const [vista, setVista] = React.useState(market);
+  const deshielo = React.useRef<ReturnType<typeof setTimeout>>();
+
+  React.useEffect(() => {
+    if (!congelado) setVista(market);
+  }, [market, congelado]);
+
+  const congelar = React.useCallback((activo: boolean) => {
+    clearTimeout(deshielo.current);
+    if (activo) {
+      setCongelado(true);
+      return;
+    }
+    // se descongela cuando la hoja ya tomó la pantalla, no al soltar
+    deshielo.current = setTimeout(() => setCongelado(false), DESHIELO_MS);
+  }, []);
+
+  React.useEffect(() => () => clearTimeout(deshielo.current), []);
+
+  const pool = vista.pool;
+  const ranked = pool
+    ? rankedOutcomes(pool, vista.outcomes ?? [...BINARY_OUTCOMES])
+    : [];
+  const [lider, rival] = ranked;
+  const probLider = lider ? lider.probability : vista.probability;
+
+  // destello de actualización: sólo con cambios que se notan (0,5 pp)
+  const [destello, setDestello] = React.useState<"up" | "dn" | null>(null);
+  const anterior = React.useRef(probLider);
+  React.useEffect(() => {
+    const delta = probLider - anterior.current;
+    anterior.current = probLider;
+    if (Math.abs(delta) < 0.005) return;
+    setDestello(delta > 0 ? "up" : "dn");
+    const id = setTimeout(() => setDestello(null), DESTELLO_MS);
+    return () => clearTimeout(id);
+  }, [probLider]);
+
+  // con más de dos respuestas la card cambia de disposición: lista vertical
+  const multi = ranked.length > 2;
+  const restantes = ranked.length - 3;
+  const vivo = vista.status === "live" && Boolean(vista.marcadorVivo);
+  const resolviendo = vista.status === "settling";
+  const cerrado = vista.status === "resolved" || resolviendo;
+  const closes = closesIn(vista.closesAt);
+  const estado = badgeEstado(vista.marcadorVivo);
+  const evento = eventoTexto(vista.eventoReciente);
+  const titulo = vista.shortTitle ?? vista.title;
+
+  const abrir = React.useCallback(
+    (outcomeId?: OutcomeId) => onOpen(vista, outcomeId),
+    [onOpen, vista],
+  );
+
+  return (
+    <Card
+      as="article"
+      className={cn("relative overflow-hidden", cerrado && "opacity-90")}
+      data-testid="market-card"
+      data-variant={resolved}
+      data-market-id={vista.id}
+      data-congelado={congelado ? "true" : "false"}
+    >
+      <div
+        className={cn(
+          "flex flex-col gap-[3px] px-3.5",
+          compact ? "min-h-touch py-2" : "py-[9px]",
+        )}
+      >
+        {/* la categoría manda a la izquierda, con su azulejo: es lo primero que
+            dice de qué va la card, igual que en las casas que se leen bien.
+            Los badges de estado se van a la derecha, donde no compiten */}
+        <div className="flex h-4 items-center gap-1.5">
+          <CategoriaIcono categoria={vista.category} />
+          <span className="mr-auto shrink-0 text-[10px] font-bold uppercase tracking-[0.06em] text-muted">
+            {S.categories[vista.category]}
+          </span>
+          {vivo ? (
             <Badge tone="live" dot>
               {S.badges.live}
             </Badge>
           ) : null}
-          {market.hot ? <Badge tone="hot">{S.badges.hot}</Badge> : null}
-          {/* el país dice más que "LATAM" cuando todo el catálogo es de Latam.
-              Va al final y se va primero: es la pieza que menos decide */}
-          {market.country || market.region === "latam" ? (
-            <Badge tone="latam" className="ml-auto hidden angosto:inline-flex">
-              {market.country ?? S.badges.latam}
+          {estado && vivo ? (
+            <Badge tone="live" data-testid="card-estado" className="font-mono">
+              {estado}
             </Badge>
+          ) : null}
+          {resolviendo ? (
+            <Badge tone="neutral" data-testid="card-resolviendo">
+              {S.badges.settling}
+            </Badge>
+          ) : null}
+          {vista.hot && !resolviendo ? <Badge tone="hot">{S.badges.hot}</Badge> : null}
+          {vista.country || vista.region === "latam" ? (
+            <Badge tone="latam">{vista.country ?? S.badges.latam}</Badge>
           ) : null}
         </div>
 
-        {/* `leading-tight` daba 22.5 px por línea medidos, no los 18.75 que
-            promete el 1.25: dentro de un `-webkit-box` el interlineado se
-            resuelve contra las métricas de la serif, no contra el múltiplo.
-            Se declara en píxeles y se acabó la sorpresa: 19 px por línea */}
-        <h3
-          className={cn(
-            "font-display font-semibold text-text",
-            compact
-              ? "line-clamp-1 text-[14px] leading-[18px]"
-              : "line-clamp-2 text-[15px] leading-[19px]",
-          )}
-        >
-          {market.title}
-        </h3>
-
-        {/* fila de decisión: los dos resultados más probables, cada uno en
-            UNA línea. Se corta la etiqueta con elipsis antes que envolver —
-            comprimir no es amputar: el número y el lado nunca se tocan
-            (R-063, vault/CARD_SPEC.md) */}
-        {/* `flex-wrap` para el texto agrandado: a 200 % la elipsis se comía la
-            etiqueta entera ("Gana el A…" en 18 px de ancho), y una etiqueta que
-            no se lee es lo mismo que no mostrarla. A tamaño normal no envuelve
-            —cabe de sobra— así que la densidad no paga nada por esto.
-            El mínimo va en `rem`: a 200 % vale 272 px, los dos grupos dejan de
-            caber en una línea y la fila se parte sola. Es la misma regla
-            resolviendo los dos casos, no un caso especial */}
-        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-          <div
-            data-dominant="probability"
-            className="flex min-w-[8.5rem] flex-[1.25] items-baseline gap-1"
+        {vivo && vista.marcadorVivo ? (
+          <FilaMarcador marcador={vista.marcadorVivo} />
+        ) : (
+          <h3
+            className={cn(
+              "font-display font-semibold text-text",
+              vista.shortTitle ? "line-clamp-1" : "line-clamp-2",
+              compact ? "text-[14px]" : "text-[15px]",
+              // el interlineado va DESPUÉS del recorte: `line-clamp` y
+              // `leading` son grupos que chocan en tailwind-merge, y el que
+              // llega primero se descarta. Con el orden al revés el título se
+              // iba a 22.5 px de línea y la card crecía 7 px por línea
+              "leading-[19px]",
+            )}
           >
-            <span
-              data-role="probability"
-              className={cn(
-                "shrink-0 font-display font-semibold tabular-nums text-text",
-                compact ? "text-prob-sm" : "text-prob",
-              )}
-            >
-              {/* el porcentaje es el del resultado que se nombra al lado, no el
-                  del Sí. Pintar P(sí) junto a la etiqueta "No" enseñaba 33 %
-                  donde el pago era de lado gordo: el número que se muestra
-                  tiene que ser del lado que dice ser (I3) */}
-              {pct(lider ? lider.probability : market.probability)}
-              <span className="ml-0.5 align-top text-[0.4em] font-bold text-text2">
-                %
-              </span>
-            </span>
-            <EscudoOutcome market={market} label={lider?.label} />
-            <span className="min-w-0 truncate text-[12px] font-semibold text-text2">
-              {pool ? (lider?.label ?? S.market.yes) : S.market.probability}
-            </span>
-            {pool ? (
-              <span className="shrink-0 font-mono text-[12px] font-semibold tabular-nums text-muted">
-                {formatMultiplier(
-                  lider ? lider.multiplier : payoutMultiplier(pool, "si"),
-                )}
-              </span>
-            ) : null}
-          </div>
+            {titulo}
+          </h3>
+        )}
 
-          {/* el contrincante: en binario el No, con N respuestas la segunda */}
-          {pool && rival ? (
-            <div
-              data-testid="card-other-side"
-              className="flex min-w-[8.5rem] flex-1 items-baseline justify-end gap-1"
-            >
-              <span className="shrink-0 font-display text-[20px] font-semibold tabular-nums text-text2">
-                {pct(rival.probability)}
-                <span className="ml-0.5 align-top text-[0.4em] font-bold text-muted">
-                  %
-                </span>
-              </span>
-              <EscudoOutcome market={market} label={rival.label} />
-              <span className="min-w-0 truncate text-[12px] font-semibold text-text2">
-                {rival.label}
-              </span>
-              <span className="shrink-0 font-mono text-[12px] font-semibold tabular-nums text-muted">
-                {formatMultiplier(rival.multiplier)}
-              </span>
-            </div>
-          ) : null}
-
-          {showEdge ? (
-            <Badge
-              tone="edge"
-              className="shrink-0"
-              data-testid="edge-badge"
-              data-edge-pp={market.edge as number}
-            >
-              {/* el icono sigue el signo: un Edge negativo no apunta hacia arriba */}
-              {(market.edge as number) > 0 ? (
-                <TrendingUp aria-hidden className="h-3 w-3" />
-              ) : (
-                <TrendingDown aria-hidden className="h-3 w-3" />
-              )}
-              {/* la lectura puede no ser nuestra: se nombra quien la da (R-027) */}
-              {S.market.edgeCardWith(
-                market.edgeLabel ?? S.market.mareaProbability,
-                formatEdgePp(market.edge as number),
-              )}
-            </Badge>
-          ) : null}
-        </div>
-
-        {/* La barra de reparto. Una sola barra, no una por resultado: lo que
-            se lee de un vistazo es la proporción entre los dos lados, y dos
-            barras apiladas cuestan el doble de alto para decir lo mismo.
-            3 px de alto — es refuerzo del número, no su sustituto: los
-            porcentajes ya están arriba, así que la barra no carga información
-            que no esté escrita (R-005) */}
-        {pool && lider ? (
-          <div
-            aria-hidden
-            data-testid="card-reparto"
-            className="flex h-[3px] w-full gap-px overflow-hidden rounded-pill bg-panel2"
-          >
-            <span
-              className="h-full rounded-pill"
-              style={{
-                width: `${Math.round(lider.probability * 100)}%`,
-                backgroundColor: "var(--teal)",
-              }}
-            />
-            {rival ? (
-              <span
-                className="h-full rounded-pill"
-                style={{
-                  width: `${Math.round(rival.probability * 100)}%`,
-                  backgroundColor: "var(--muted)",
-                }}
+        {multi ? (
+          /* lista vertical: las tres respuestas con más pozo, cada una con su
+             barra. La cuarta y siguientes se cuentan en el pie */
+          <div className="flex flex-col gap-[3px]" data-testid="card-multi">
+            {ranked.slice(0, 3).map((outcome, i) => (
+              <FilaResultado
+                key={outcome.id}
+                outcome={outcome}
+                primera={i === 0}
+                destello={i === 0 ? destello : null}
+                onPick={cerrado ? undefined : () => abrir(outcome.id)}
+                onCongelar={congelar}
               />
-            ) : null}
+            ))}
           </div>
-        ) : null}
+        ) : (
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+          <Opcion
+            lado="lider"
+            label={pool ? (lider?.label ?? S.market.yes) : S.market.probability}
+            probability={probLider}
+            multiplier={
+              pool
+                ? formatMultiplier(
+                    lider ? lider.multiplier : payoutMultiplier(pool, "si"),
+                  )
+                : undefined
+            }
+            destello={destello}
+            onPick={cerrado ? undefined : () => abrir(lider?.id)}
+            onCongelar={congelar}
+          />
+          {pool && rival ? (
+            <Opcion
+              lado="rival"
+              label={rival.label}
+              probability={rival.probability}
+              multiplier={formatMultiplier(rival.multiplier)}
+              destello={destello}
+              onPick={cerrado ? undefined : () => abrir(rival.id)}
+              onCongelar={congelar}
+            />
+          ) : null}
+        </div>
+        )}
 
-        {/* meta en una sola línea: la `d` huérfana de "Cierra en 4 d" salía de
-            dejar que este nodo envolviera */}
-        <span className="block truncate text-[11px] leading-tight text-muted">
-          {pool ? `${S.market.pot} ${formatStake(market.volume)}` : compactUsd(market.volume)}
-          {/* cuánta gente hay dentro: es lo que dice si el mercado está vivo */}
-          {market.participantes ? ` · ${S.market.participantes(market.participantes)}` : ""}
-          {closes ? ` · ${S.market.closes} ${closes}` : ` · ${S.badges.closed}`}
+        {multi ? null : (
+          <ProbBar
+            lider={probLider}
+            rival={rival ? rival.probability : Math.max(0, 1 - probLider)}
+          />
+        )}
+
+        {/* pie en una sola línea. El orden es la prioridad: primero lo que
+            explica el movimiento del precio, y lo primero que se va cuando no
+            cabe es cuánta gente hay dentro */}
+        <span className="-mt-px flex h-[11px] items-center gap-1 overflow-hidden whitespace-nowrap text-[11px] leading-[11px] tracking-[0.005em] text-muted">
+          {multi && restantes > 0 ? (
+            <span className="shrink-0 text-text2">{S.market.respuestasMas(restantes)} ·</span>
+          ) : null}
+          {evento ? <span className="shrink-0 text-text2">{evento} ·</span> : null}
+          <span className="shrink-0">
+            {pool ? `${S.market.pot} ${formatStake(vista.volume)}` : compactUsd(vista.volume)}
+          </span>
+          {vista.participantes ? (
+            <span className="hidden shrink-0 angosto:inline">
+              · {S.market.participantes(vista.participantes)}
+            </span>
+          ) : null}
+          <span className="shrink-0">
+            {resolviendo
+              ? `· ${S.market.esperandoFuente}`
+              : closes
+                ? ` · ${S.market.closes} ${closes}`
+                : ` · ${S.badges.closed}`}
+          </span>
         </span>
-      </button>
+      </div>
+
+      {/* enlace estirado: cubre la tarjeta entera y queda por debajo de las
+          pills, que llevan `z-10`. Va al final del DOM para que el contenido
+          se lea antes que la acción */}
+      <button
+        type="button"
+        data-testid="card-open"
+        onClick={() => abrir()}
+        aria-label={`${S.market.openDetail}: ${vista.title}`}
+        className="absolute inset-0 rounded-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-pill-ring"
+      />
     </Card>
   );
 }

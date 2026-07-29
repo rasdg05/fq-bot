@@ -12,14 +12,10 @@ export const S = {
     /** Cómo se anuncia la barra entera, no una de sus pestañas. */
     navegacion: "Secciones de Marea",
     markets: "Mercados",
-    live: "Live",
     search: "Buscar",
     portfolio: "Portafolio",
     wallet: "Cartera",
     profile: "Perfil",
-    /** El contador rojo se lee, no sólo se ve. */
-    liveCount: (n: number) =>
-      n === 1 ? "1 mercado se define ahora" : `${n} mercados se definen ahora`,
   },
 
   header: {
@@ -27,22 +23,6 @@ export const S = {
     deposit: "Depositar",
     noFunds: "Sin saldo",
     walletShort: "Cartera",
-    /** El perfil subió al header: abajo sólo viven los cuatro destinos. */
-    profile: "Tu perfil",
-  },
-
-  /**
-   * Live. Dos grupos con nombres distintos porque son cosas distintas: uno ya
-   * está en juego y el otro sólo está por cerrar (ver domain/live.ts).
-   */
-  live: {
-    title: "Ahora",
-    subtitle: "Lo que se decide en las próximas horas.",
-    enJuego: "En juego",
-    porCerrar: "Se define pronto",
-    empty: "No hay nada definiéndose en este momento.",
-    emptyBody: "Vuelve cuando arranque el próximo partido o cierre un mercado.",
-    emptyCta: "Ver todos los mercados",
   },
 
   feed: {
@@ -66,6 +46,23 @@ export const S = {
     otros: "Otros",
   },
 
+  /**
+   * Cripto en vivo. Tuteado y sin jerga de trading: "paga 1.9×" se entiende en
+   * cualquier mesa de Latam; "odds" y "payout" no.
+   */
+  vivo: {
+    /** "vela de 5 min" — cuál es la ventana de la que se habla. */
+    ventana: (minutos: number) => `vela de ${minutos} min`,
+    /** Lo que queda para poder entrar. */
+    restante: (reloj: string) => `cierra en ${reloj}`,
+    cerrando: "cerrando",
+    /** El ticker no tiene lectura fresca. Se dice; no se repite la última. */
+    sinPrecio: "sin precio",
+    paga: (multiplicador: string) => `paga ${multiplicador}`,
+    /** Contra qué se compara el cierre de la vela. */
+    strike: (precio: string) => `desde ${precio}`,
+  },
+
   badges: {
     live: "LIVE",
     hot: "HOT",
@@ -73,6 +70,8 @@ export const S = {
     resolved: "Resuelto",
     closingSoon: "Cierra pronto",
     closed: "Cerrado",
+    /** Entre el cierre y el pago: ni vivo ni terminado. */
+    settling: "Resolviendo",
   },
 
   market: {
@@ -134,6 +133,19 @@ export const S = {
       `${titulo}\n\nEl mercado dice ${probabilidad} que sí. ¿Tú qué dices?`,
     betCta: "Apostar",
     closedForBets: "Este mercado ya cerró.",
+    /** Card: el pago de cada lado, debajo de su nombre. */
+    pays2: (multiplier: string) => `paga ${multiplier}`,
+    /** Card multi-resultado: lo que hay debajo de las tres que se enseñan. */
+    respuestasMas: (n: number) => (n === 1 ? "+1 respuesta" : `+${n} respuestas`),
+    /** Card en resolución: qué se está esperando, sin prometer cuándo. */
+    esperandoFuente: "Esperando la fuente",
+    /** Marcador de béisbol: la mitad de la entrada se dice con palabra. */
+    entrada: (n: number, mitad: "alta" | "baja") =>
+      `${mitad === "alta" ? "ALTA" : "BAJA"} ${n}ª`,
+    outs: (n: number) => (n === 1 ? "1 out" : `${n} out`),
+    /** Etiqueta accesible de cada pill: nombre, probabilidad y pago. */
+    pillLabel: (label: string, probabilidad: string, multiplier: string) =>
+      `${label}, ${probabilidad} %, paga ${multiplier}`,
   },
 
   points: {
@@ -339,8 +351,6 @@ export const S = {
     honestyBody:
       "Cobramos una comisión por operación. No somos tu contraparte: no ganamos cuando pierdes.",
     version: "Versión",
-    /** Lo que dejó la barra inferior sigue estando a un tap, no desaparecido. */
-    destinos: "Tu cuenta",
   },
 
   search: {

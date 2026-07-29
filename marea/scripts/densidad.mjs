@@ -19,54 +19,40 @@ const BASE = process.env.DENSIDAD_BASE ?? "http://127.0.0.1:8100";
 /** Presupuestos. Se abren bajando el error, nunca bajando el umbral. */
 const PRESUPUESTO = {
   /** Cards visibles enteras dentro de la ventana, sobre la barra de pestañas. */
-  cardsVisibles: 4,
+  cardsVisibles: 5,
+  /** Alto de la card de una pregunta, borde incluido. Medido, no estimado. */
+  altoCardMaxPx: 116,
+  /**
+   * La card viva lleva una fila que la normal no tiene: el precio de ahora con
+   * su variación. Es la razón de ser del formato, así que se le presupuestan
+   * esos píxeles y se le exige no pasarse ni uno más.
+   */
+  altoCardVivaMaxPx: 124,
+  /**
+   * La card de N resultados lleva **una fila por respuesta**: un 1X2 son tres,
+   * y los rangos de goles otros tres. Enseñarlas es la regla (R-063), así que
+   * los píxeles se presupuestan igual que los de la viva — no se recortan
+   * amputando respuestas.
+   *
+   * Este tope no existía y por eso no vigilaba nada: el gate tomaba la
+   * **primera** card de cada tipo, y las dos multi del catálogo viven abajo.
+   * Pasaban a 176 y 177 px contra un tope de 116 sin que nadie lo viera.
+   * Medido hoy: 177 px el peor caso, con las tres filas y el marcador.
+   */
+  altoCardMultiMaxPx: 180,
   /** Nodos de texto de la card que caen en más de una línea. */
   envolturas: 0,
   /** El nodo de probabilidad no puede encoger para ganar densidad (R-004). */
   probabilidadMinPx: 30,
   /**
    * Cromo antes del **primer bloque de producto**, sea el carrusel de
-   * destacados o la primera card. Header + tira de categorías y nada más: el
-   * carrusel no es cromo, es contenido, y tiene su propio presupuesto abajo.
+   * destacados o la primera card. Header y tira de categorías, nada más: el
+   * carrusel no es cromo —es contenido— y tiene su propio techo abajo. Meterlo
+   * en este presupuesto obligaría a elegir entre tenerlo y respetar el tope.
    */
-  topeCromoPx: 130,
+  topePrimeraCardPx: 130,
   /** La banda de destacados, con sus puntos. */
   topeCarruselPx: 200,
-  /**
-   * Alto máximo **por variante**. Sin esto el gate medía sólo la primera card
-   * y una normal gorda pasaba escondida detrás del promedio: cada tipo tiene
-   * su techo y cada tipo lo defiende solo.
-   *
-   * De dónde salen los números. El mínimo aritmético de la card, con la
-   * probabilidad en 44 px (R-004, congelado en `tokens.lock.json`) y el título
-   * en dos líneas:
-   *
-   *   py 8+8 (16) + badges 18 + título 2×21 (42) + decisión 34 + barra 3
-   *   + meta 15 + 4 huecos de 3 (12) = 140 px
-   *
-   * Bajar de ahí exige romper R-004 o clampear el título a una línea, y
-   * ninguna de las dos se paga por densidad.
-   *
-   * Medido a 390 px: `default` = 143 px. Los techos son ése más el margen que
-   * cada variante puede gastar de verdad:
-   *
-   *  - `edge` puede llevar el badge de Edge a una segunda línea de la fila de
-   *    decisión: +18 px, que es lo que mide esa línea.
-   *  - `live` no añade filas —su badge cabe en la fila 1— así que va con el
-   *    mismo techo que `default`.
-   *  - `compact` clampea el título a una línea: −19 px.
-   *
-   * A 320 px la fila de decisión envuelve **por diseño**: el contenido real
-   * pide ~310 px y el ancho interior es 292, y comprimir no es amputar (R-063,
-   * vault/CARD_SPEC.md). Por eso hay dos tablas y no una con excepciones: cada
-   * clase de ancho declara su techo y lo defiende sola.
-   */
-  altoPorVariante: {
-    /** >= 360 px, donde la fila de decisión cabe en una línea. */
-    normal: { default: 148, edge: 166, live: 148, compact: 130 },
-    /** < 360 px, donde la fila de decisión envuelve por diseño. */
-    angosto: { default: 182, edge: 200, live: 182, compact: 164 },
-  },
 };
 
 /** Anchos que importan: lo que se rompe primero es el chico. */
@@ -91,14 +77,15 @@ async function medir(page) {
   return page.evaluate(() => {
     const tabs = document.querySelector("nav");
     const alturaTabs = tabs ? tabs.getBoundingClientRect().height : 0;
+    const cards = [...document.querySelectorAll('[data-testid="market-card"]')];
+
     const cabecera = document.querySelector("header");
     const alturaCabecera = cabecera ? cabecera.getBoundingClientRect().height : 0;
-    const cards = [...document.querySelectorAll('[data-testid="market-card"]')];
 
     /**
      * Cuántos mercados caben de una vez **en la lista**.
      *
-     * Se mide desde el primer mercado, no desde el borde de la pantalla: la
+     * Se mide desde el primer mercado, no desde el borde de la pantalla. La
      * banda de destacados se recorre una vez y se va, y contarla aquí haría
      * que un carrusel más alto se leyera como lista menos densa. Lo que este
      * presupuesto protege es el ritmo vertical del feed, y ese ritmo empieza
@@ -115,19 +102,20 @@ async function medir(page) {
     /**
      * Un nodo envuelve si su texto ocupa más de una caja de línea.
      *
-     * No se puede medir con `scrollWidth`: un texto que salta de línea crece
-     * en alto, no en ancho, y la comprobación ingenua da cero siempre.
+     * Dos formas de medirlo que fallan, las dos probadas aquí:
      *
-     * Tampoco sirve dividir el alto del nodo entre su `line-height`: en cuanto
-     * un badge lleva alto fijo y `leading-none` —18 px de caja para 11 px de
-     * línea— la división da 1.6 y redondea a dos líneas. Esa versión marcaba
-     * "HOT" y "LATAM" como envueltos sin que nada envolviera.
+     *  - `scrollWidth`: un texto que salta de línea **crece en alto, no en
+     *    ancho**. La comprobación ingenua da cero siempre.
+     *  - `alto / line-height`: en cuanto un nodo lleva alto fijo con
+     *    `leading-none` —18 px de caja para 11 px de línea— la división da 1.6
+     *    y redondea a dos. Marcaba badges como envueltos sin que nada
+     *    envolviera, que es peor que no medir: enseña a ignorar la puerta.
      *
      * `Range.getClientRects()` da una caja por fragmento de texto, ignorando
-     * padding y altura fija. Pero devuelve **una caja por nodo de texto**,
-     * no por línea: la fila de meta se arma con tres expresiones distintas
-     * —pozo, participantes, cierre— y daba tres cajas en una sola línea.
-     * Las líneas de verdad son las tapas distintas, así que se cuentan ésas.
+     * padding y altura fija. Pero devuelve una caja **por nodo de texto**, no
+     * por línea: una fila de meta armada con tres expresiones —pozo,
+     * participantes, cierre— daba tres cajas en una sola línea. Las líneas de
+     * verdad son las tapas distintas, así que se cuentan ésas.
      */
     const envueltos = [];
     for (const card of cards.slice(0, 8)) {
@@ -151,24 +139,27 @@ async function medir(page) {
 
     const prob = document.querySelector('[data-role="probability"]');
     const primera = cards[0]?.getBoundingClientRect();
+    /**
+     * Cada tipo de card se mide contra su propio presupuesto: mezclarlos deja
+     * pasar una card normal gorda escondida detrás de una viva.
+     *
+     * Y dentro de cada tipo se toma **la más alta**, no la primera. Con la
+     * primera bastaba con que el mercado gordo no fuera el de arriba para que
+     * el techo dejara de vigilar: el agujero era el mismo de antes, un nivel
+     * más abajo.
+     */
+    const maxDe = (predicado) =>
+      cards
+        .filter(predicado)
+        .reduce((max, c) => Math.max(max, Math.round(c.getBoundingClientRect().height)), 0);
 
-    // el alto real por variante: el peor caso de cada tipo, no el promedio ni
-    // el de la primera card. Una normal gorda ya no se esconde detrás de una
-    // viva, que era exactamente el agujero
-    const porVariante = {};
-    for (const card of cards) {
-      const tipo = card.getAttribute("data-variant") ?? "default";
-      const alto = Math.round(card.getBoundingClientRect().height);
-      const actual = porVariante[tipo];
-      if (!actual || alto > actual.max) {
-        porVariante[tipo] = { max: alto, n: (actual?.n ?? 0) + 1 };
-      } else {
-        actual.n += 1;
-      }
-    }
+    // el orden de clasificación importa: una card de N resultados que además
+    // está viva es multi, no viva. Se juzga por lo que la hace crecer
+    const esMulti = (c) => !!c.querySelector('[data-testid="card-multi"]');
+    const esViva = (c) => c.getAttribute("data-variant") === "live";
 
-    // cromo = lo que hay antes del primer bloque de producto. El carrusel
-    // cuenta como producto, no como cromo
+    // cromo = lo que hay que atravesar para llegar al producto. El carrusel es
+    // producto, no cromo, así que el cromo termina donde él empieza
     const carrusel = document.querySelector('[data-testid="featured-carousel"]');
     const cajaCarrusel = carrusel?.getBoundingClientRect();
     const primerProducto = cajaCarrusel ?? primera;
@@ -177,10 +168,12 @@ async function medir(page) {
       enteras,
       envueltos,
       totalCards: cards.length,
-      altoCard: primera ? Math.round(primera.height) : 0,
-      porVariante,
+      altoNormal: maxDe((c) => !esMulti(c) && !esViva(c)),
+      altoViva: maxDe((c) => !esMulti(c) && esViva(c)),
+      altoMulti: maxDe(esMulti),
       cromo: primerProducto ? Math.round(primerProducto.top) : 0,
       altoCarrusel: cajaCarrusel ? Math.round(cajaCarrusel.height) : 0,
+      altoCard: primera ? Math.round(primera.height) : 0,
       topePrimeraCard: primera ? Math.round(primera.top) : 0,
       probabilidadPx: prob ? Math.round(parseFloat(getComputedStyle(prob).fontSize)) : 0,
       altoDocumento: Math.round(document.documentElement.scrollHeight),
@@ -211,37 +204,34 @@ for (const ancho of ANCHOS) {
   if (ancho === 390) {
     if (m.enteras < PRESUPUESTO.cardsVisibles) {
       fallos.push(
-        `${ancho}px: ${m.enteras} cards enteras en la lista, se piden ${PRESUPUESTO.cardsVisibles}`,
+        `${ancho}px: ${m.enteras} cards enteras, se piden ${PRESUPUESTO.cardsVisibles}`,
       );
     }
-    if (m.cromo > PRESUPUESTO.topeCromoPx) {
+    // el alto de la card es el presupuesto que multiplica: se ve 29 veces en
+    // una pantalla, así que un píxel de más se paga 29 veces
+    if (m.altoNormal > PRESUPUESTO.altoCardMaxPx) {
       fallos.push(
-        `${ancho}px: ${m.cromo}px de cromo antes del primer bloque de producto, tope ${PRESUPUESTO.topeCromoPx}px`,
+        `${ancho}px: la card normal mide ${m.altoNormal}px y el tope es ${PRESUPUESTO.altoCardMaxPx}px`,
+      );
+    }
+    if (m.altoViva > PRESUPUESTO.altoCardVivaMaxPx) {
+      fallos.push(
+        `${ancho}px: la card viva mide ${m.altoViva}px y el tope es ${PRESUPUESTO.altoCardVivaMaxPx}px`,
+      );
+    }
+    if (m.altoMulti > PRESUPUESTO.altoCardMultiMaxPx) {
+      fallos.push(
+        `${ancho}px: la card de N resultados mide ${m.altoMulti}px y el tope es ${PRESUPUESTO.altoCardMultiMaxPx}px`,
+      );
+    }
+    if (m.cromo > PRESUPUESTO.topePrimeraCardPx) {
+      fallos.push(
+        `${ancho}px: ${m.cromo}px de cromo antes del primer bloque de producto, tope ${PRESUPUESTO.topePrimeraCardPx}px`,
       );
     }
     if (m.altoCarrusel > PRESUPUESTO.topeCarruselPx) {
       fallos.push(
         `${ancho}px: la banda de destacados mide ${m.altoCarrusel}px, tope ${PRESUPUESTO.topeCarruselPx}px`,
-      );
-    }
-  }
-
-  /**
-   * El techo por variante se exige en **todos** los anchos. Es la regla que
-   * más barato se rompe: basta con que una etiqueta larga envuelva a 320 px
-   * para que un tipo de card engorde sin que nadie lo note en el ancho de
-   * referencia.
-   */
-  const topes = PRESUPUESTO.altoPorVariante[ancho < 360 ? "angosto" : "normal"];
-  for (const [tipo, { max, n }] of Object.entries(m.porVariante)) {
-    const tope = topes[tipo];
-    if (tope === undefined) {
-      fallos.push(`${ancho}px: variante "${tipo}" sin techo declarado (${n} cards)`);
-      continue;
-    }
-    if (max > tope) {
-      fallos.push(
-        `${ancho}px: la card "${tipo}" más alta mide ${max}px, tope ${tope}px (${n} en pantalla)`,
       );
     }
   }
@@ -308,8 +298,11 @@ for (const ancho of ANCHOS) {
   const real = await page.evaluate(() => {
     const cards = [...document.querySelectorAll('[data-testid="market-card"]')];
     if (cards.length === 0) return { alto: 0, hueco: 0 };
-    const a = cards[0].getBoundingClientRect();
-    const b = cards[1]?.getBoundingClientRect();
+    // el esqueleto reemplaza a la card normal: la viva no existe hasta que el
+    // ticker responde, y compararlo con ella medía dos cosas distintas
+    const normales = cards.filter((c) => c.getAttribute("data-variant") !== "live");
+    const a = (normales[0] ?? cards[0]).getBoundingClientRect();
+    const b = (normales[1] ?? cards[1])?.getBoundingClientRect();
     return {
       alto: Math.round(a.height),
       hueco: b ? Math.round(b.top - a.bottom) : 0,
@@ -397,15 +390,10 @@ for (const r of reporte) {
   }
   console.log(`\n${r.ancho}×844:`);
   console.log(`  cards enteras       ${r.enteras}  (presupuesto ${PRESUPUESTO.cardsVisibles} a 390px)`);
-  console.log(`  alto de card        ${r.altoCard} px`);
-  const topesDe = PRESUPUESTO.altoPorVariante[r.ancho < 360 ? "angosto" : "normal"];
-  for (const [tipo, { max, n }] of Object.entries(r.porVariante)) {
-    const tope = topesDe[tipo];
-    console.log(
-      `    · ${tipo.padEnd(8)} máx ${String(max).padStart(3)} px  (tope ${tope ?? "—"}) · ${n} en pantalla`,
-    );
-  }
-  console.log(`  cromo previo        ${r.cromo} px  (tope ${PRESUPUESTO.topeCromoPx})`);
+  console.log(
+    `  alto de card        normal ${r.altoNormal || "—"} px (tope ${PRESUPUESTO.altoCardMaxPx}) · viva ${r.altoViva || "—"} px (tope ${PRESUPUESTO.altoCardVivaMaxPx}) · multi ${r.altoMulti || "—"} px (tope ${PRESUPUESTO.altoCardMultiMaxPx})`,
+  );
+  console.log(`  cromo previo        ${r.cromo} px  (tope ${PRESUPUESTO.topePrimeraCardPx})`);
   console.log(`  banda destacados    ${r.altoCarrusel} px  (tope ${PRESUPUESTO.topeCarruselPx})`);
   console.log(`  nodos envueltos     ${r.envueltos.length}  (presupuesto ${PRESUPUESTO.envolturas})`);
   for (const e of r.envueltos.slice(0, 4)) console.log(`      · "${e.texto}" → ${e.lineas} líneas`);

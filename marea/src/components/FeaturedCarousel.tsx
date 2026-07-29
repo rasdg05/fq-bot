@@ -1,13 +1,11 @@
 import * as React from "react";
 import type { Market } from "@/domain/types";
-import { CategoryBadge } from "@/components/ui/CategoryBadge";
+import { CategoriaIcono } from "@/components/ui/categoria-icono";
 import { Badge } from "@/components/ui/badge";
-import { EscudoOutcome } from "@/components/ui/EscudoOutcome";
 import { cn } from "@/lib/cn";
 import { S } from "@/lib/strings";
 import { pct } from "@/lib/format";
 import { formatStake } from "@/lib/units";
-import { esVivo } from "@/domain/live";
 import { hasEdge } from "@/domain/edge";
 import { BINARY_OUTCOMES, rankedOutcomes } from "@/domain/parimutuel";
 
@@ -18,15 +16,12 @@ export const MAX_DESTACADOS = 5;
  * Los destacados, por orden de por qué destacan.
  *
  * No es "los de más pozo": un feed que abre con los cinco mercados más grandes
- * abre igual todos los días. El orden mezcla urgencia (lo que se define hoy),
- * tracción (HOT) y desacuerdo con otra casa (Edge), y desempata por pozo.
+ * abre igual todos los días. El orden mezcla lo que está corriendo ahora, la
+ * tracción y el desacuerdo con otra casa, y desempata por pozo.
  */
-export function destacados(markets: Market[], ahora: number = Date.now()): Market[] {
+export function destacados(markets: Market[]): Market[] {
   const puntua = (m: Market) =>
-    (m.status === "live" ? 8 : 0) +
-    (esVivo(m, ahora) ? 4 : 0) +
-    (m.hot ? 2 : 0) +
-    (hasEdge(m) ? 1 : 0);
+    (m.status === "live" ? 8 : 0) + (m.live ? 4 : 0) + (m.hot ? 2 : 0) + (hasEdge(m) ? 1 : 0);
 
   const candidatos = markets
     .filter((m) => puntua(m) > 0)
@@ -35,13 +30,13 @@ export function destacados(markets: Market[], ahora: number = Date.now()): Marke
   /**
    * Como mucho dos por categoría.
    *
-   * Sin este tope, una jornada de Liga MX llenaba los cinco huecos con cinco
-   * partidos: el carrusel decía "hay futbol" cinco veces y no decía que
-   * también hay cripto y economía. La urgencia manda en el orden, pero cinco
-   * urgencias del mismo tema son una sola noticia repetida.
+   * Sin este tope, una tanda de velas de cripto llenaba los cinco huecos: el
+   * carrusel decía "hay cripto" cinco veces y no decía que también hay futbol
+   * y economía. La urgencia manda en el orden, pero cinco urgencias del mismo
+   * tema son una sola noticia repetida.
    */
-  const porCategoria = new Map();
-  const elegidos = [];
+  const porCategoria = new Map<string, number>();
+  const elegidos: Market[] = [];
   for (const market of candidatos) {
     const usados = porCategoria.get(market.category) ?? 0;
     if (usados >= 2) continue;
@@ -70,6 +65,10 @@ export function destacados(markets: Market[], ahora: number = Date.now()): Marke
  * arrastre y con el gesto que el teléfono ya sabe hacer. Los puntos se leen
  * del `scrollLeft`, así que nunca se desincronizan del contenido — no hay dos
  * fuentes de verdad para "en cuál voy".
+ *
+ * Las piezas no muestran precio en vivo aunque el mercado sea una vela: el
+ * reloj y el precio que se mueve viven en la card de la lista, que es donde se
+ * apuesta. Aquí sólo se promete que hay algo, y se lleva allá.
  */
 export function FeaturedCarousel({
   markets,
@@ -141,9 +140,7 @@ function FeaturedCard({
   onOpen: (market: Market) => void;
 }) {
   const pool = market.pool;
-  const [lider] = pool
-    ? rankedOutcomes(pool, market.outcomes ?? [...BINARY_OUTCOMES])
-    : [];
+  const [lider] = pool ? rankedOutcomes(pool, market.outcomes ?? [...BINARY_OUTCOMES]) : [];
 
   return (
     <button
@@ -157,8 +154,11 @@ function FeaturedCard({
       data-market-id={market.id}
       className="flex w-[78%] shrink-0 snap-start flex-col gap-1.5 rounded-card border border-line2 bg-panel px-3.5 py-3 text-left shadow-card"
     >
-      <span className="flex items-center gap-1.5">
-        <CategoryBadge category={market.category} />
+      <span className="flex h-4 items-center gap-1.5">
+        <CategoriaIcono categoria={market.category} />
+        <span className="mr-auto shrink-0 text-[10px] font-bold uppercase tracking-[0.06em] text-muted">
+          {S.categories[market.category]}
+        </span>
         {market.status === "live" ? (
           <Badge tone="live" dot>
             {S.badges.live}
@@ -168,12 +168,13 @@ function FeaturedCard({
         ) : null}
       </span>
 
-      {/* alto fijo de dos líneas: con `mt-auto` las piezas de título corto
-          abrían un hueco de 20 px antes del número y la banda entera crecía
-          para acomodar la más alta. Dos líneas reservadas siempre y todas las
-          piezas miden igual */}
+      {/* alto fijo de dos líneas: sin él las piezas de título corto abrían un
+          hueco antes del número y la banda entera crecía para acomodar a la
+          más alta. Dos líneas reservadas siempre y todas las piezas miden
+          igual. El interlineado va después del recorte — `line-clamp` y
+          `leading` chocan en tailwind-merge y gana el último */}
       <span className="line-clamp-2 h-[38px] font-display text-[15px] font-semibold leading-[19px] text-text">
-        {market.title}
+        {market.shortTitle ?? market.title}
       </span>
 
       <span className="flex items-baseline gap-1.5">
@@ -181,7 +182,6 @@ function FeaturedCard({
           {pct(lider ? lider.probability : market.probability)}
           <span className="ml-0.5 align-top text-[0.4em] font-bold text-text2">%</span>
         </span>
-        <EscudoOutcome market={market} label={lider?.label} className="self-center" />
         <span className="min-w-0 truncate text-[12px] font-semibold text-text2">
           {lider?.label ?? S.market.yes}
         </span>

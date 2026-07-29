@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/StateViews";
+import { Brandmark } from "@/components/ui/brandmark";
 import { S } from "@/lib/strings";
 import { useApp } from "@/state/store";
 import { isPointsMode } from "@/lib/flags";
@@ -74,17 +75,8 @@ export function OnboardingFlow() {
 function Splash() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-4">
-      <svg
-        viewBox="0 0 24 24"
-        aria-hidden
-        className="h-12 w-12 fill-none stroke-teal"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-      >
-        <path d="M2 14c2.6 0 2.6-3 5.2-3s2.6 3 5.2 3 2.6-3 5.2-3 2.6 3 4.4 3" />
-        <path d="M12 3.5c3.9 0 6.2 2.4 6.2 5.1 0 2.2-1.8 3.8-3.9 3.8-1.7 0-3-1.2-3-2.7 0-1.2.9-2.1 2-2.1" />
-      </svg>
-      <p className="font-display text-[22px] font-semibold tracking-tight text-text">
+      <Brandmark className="h-[72px] w-[72px]" />
+      <p className="font-display text-[40px] font-bold leading-none tracking-[-0.025em] text-text">
         {S.brand.name}
       </p>
     </div>

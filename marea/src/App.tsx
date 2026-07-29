@@ -2,7 +2,6 @@ import * as React from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { BottomTabs } from "@/components/BottomTabs";
 import { HomeScreen } from "@/screens/HomeScreen";
-import { LiveScreen } from "@/screens/LiveScreen";
 import { SearchScreen } from "@/screens/SearchScreen";
 import { PortfolioScreen } from "@/screens/PortfolioScreen";
 import { WalletScreen } from "@/screens/WalletScreen";
@@ -27,8 +26,6 @@ function CurrentScreen() {
   if (openMarket) return <MarketDetailScreen market={openMarket} />;
 
   switch (state.tab) {
-    case "live":
-      return <LiveScreen />;
     case "search":
       return <SearchScreen />;
     case "portfolio":

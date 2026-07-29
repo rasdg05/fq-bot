@@ -1,28 +1,23 @@
-import { LayoutGrid, Search, PieChart, Radio } from "lucide-react";
+import { LayoutGrid, Search, PieChart, User } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { S } from "@/lib/strings";
 import { useApp, type TabId } from "@/state/store";
-import { contarVivos } from "@/domain/live";
 
 /**
- * Cuatro destinos, no cinco.
+ * Exactamente cuatro destinos, siempre los mismos.
  *
- * `Perfil` subió al header: es ajuste, no navegación, y ocupaba un quinto de la
- * zona del pulgar para algo que se visita una vez por semana. `Cartera` y
- * `Tabla` se alcanzan desde ahí por la misma razón.
- *
- * Lo que ganó el hueco es `Live`, que es lo único de la app con urgencia real:
- * si algo se define hoy, hoy es cuando importa.
+ * La tabla y la cartera salieron de la barra: no son destinos de navegación,
+ * son cosas que se consultan. Viven dentro de Perfil, que es donde uno va a
+ * ver lo suyo. Cuatro pestañas dejan cada target en 97 px de ancho a 390 px,
+ * y sobre todo dejan de convertir la barra en un menú.
  */
-function tabsDe(): { id: TabId; label: string; Icon: LucideIcon }[] {
-  return [
-    { id: "markets", label: S.tabs.markets, Icon: LayoutGrid },
-    { id: "live", label: S.tabs.live, Icon: Radio },
-    { id: "search", label: S.tabs.search, Icon: Search },
-    { id: "portfolio", label: S.tabs.portfolio, Icon: PieChart },
-  ];
-}
+const TABS: { id: TabId; label: string; Icon: LucideIcon }[] = [
+  { id: "markets", label: S.tabs.markets, Icon: LayoutGrid },
+  { id: "search", label: S.tabs.search, Icon: Search },
+  { id: "portfolio", label: S.tabs.portfolio, Icon: PieChart },
+  { id: "profile", label: S.tabs.profile, Icon: User },
+];
 
 /**
  * Navegación inferior: 4 destinos, `Mercados` por defecto. Vive abajo porque
@@ -35,9 +30,13 @@ function tabsDe(): { id: TabId; label: string; Icon: LucideIcon }[] {
  */
 export function BottomTabs() {
   const { state, actions } = useApp();
-  const TABS = tabsDe();
-  // el contador sale del feed que ya está cargado: no se pide nada extra por él
-  const vivos = state.markets.status === "data" ? contarVivos(state.markets.data) : 0;
+  // cuántos mercados están corriendo ahora mismo. Va sobre Mercados y no como
+  // quinto destino: la barra son cuatro y eso no se toca — lo que hace falta
+  // saber es que hay algo pasando, no un sitio nuevo al que ir
+  const vivos =
+    state.markets.status === "data"
+      ? state.markets.data.filter((m) => m.status === "live").length
+      : 0;
 
   return (
     <nav
@@ -58,7 +57,6 @@ export function BottomTabs() {
       >
         {TABS.map(({ id, label, Icon }) => {
           const active = state.tab === id;
-          const contador = id === "live" && vivos > 0 ? vivos : 0;
           return (
             <li key={id} role="presentation" className="flex-1">
               <button
@@ -66,37 +64,29 @@ export function BottomTabs() {
                 role="tab"
                 aria-selected={active}
                 aria-current={active ? "page" : undefined}
-                // el contador es información, no adorno: entra en el nombre
-                // accesible en vez de quedarse como un número suelto que el
-                // lector de pantalla anuncia sin contexto
-                aria-label={contador > 0 ? `${label}: ${S.tabs.liveCount(contador)}` : undefined}
                 data-tab={id}
                 onClick={() => actions.setTab(id)}
                 className={cn(
                   "flex min-h-touch w-full flex-col items-center justify-center gap-0.5 py-2",
-                  // inactivo en `text2`, no en `muted`: un icono de navegación
-                  // es un control, y el color más apagado del sistema es para
-                  // texto secundario, no para algo que se toca
-                  active ? "text-teal" : "text-text2",
+                  active ? "text-teal" : "text-muted",
                 )}
               >
                 <span className="relative">
                   <Icon
                     aria-hidden
                     className="h-[22px] w-[22px]"
-                    strokeWidth={active ? 2.5 : 2}
+                    strokeWidth={active ? 2.4 : 1.8}
                   />
-                  {contador > 0 ? (
+                  {id === "markets" && vivos > 0 ? (
                     <span
+                      // el número no entra en el nombre accesible de la pestaña:
+                      // "4 Mercados" no es un destino. Quien no ve la insignia se
+                      // entera igual — cada card viva se anuncia con su badge LIVE
                       aria-hidden
-                      data-testid="live-contador"
-                      className="absolute -right-2.5 -top-1.5 min-w-[17px] rounded-pill px-1 text-center font-sans text-[10px] font-bold leading-[17px] text-[color:var(--teal-ink)]"
-                      // relleno sólido con el token vivo: es la única insignia
-                      // de la barra y tiene que leerse de reojo. Sin alfa de
-                      // Tailwind sobre `var()` (R-017)
-                      style={{ backgroundColor: "var(--live)" }}
+                      data-testid="tab-vivos"
+                      className="absolute -right-2.5 -top-1 rounded-pill bg-live px-1 font-mono text-[10px] font-bold leading-[14px] text-bg"
                     >
-                      {contador > 9 ? "9+" : contador}
+                      {vivos}
                     </span>
                   ) : null}
                 </span>
@@ -118,5 +108,5 @@ export function BottomTabs() {
   );
 }
 
-/** Los destinos vigentes de la barra. Lo usan las pruebas de navegación. */
-export const tabIds = (): TabId[] => tabsDe().map((tab) => tab.id);
+/** Los destinos de la barra. Lo usan las pruebas de navegación. */
+export const tabIds = (): TabId[] => TABS.map((tab) => tab.id);

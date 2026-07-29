@@ -2,8 +2,6 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { TINTE_RELLENO } from "@/lib/categoria";
-
 const css = readFileSync(resolve(process.cwd(), "src/styles/tokens.css"), "utf8");
 
 /** Extrae el bloque de tokens de un selector concreto de tokens.css. */
@@ -57,6 +55,9 @@ function mix(a: string, b: string, percent: number): string {
   return `#${round(ra, rb)}${round(ga, gb)}${round(ba, bb)}`;
 }
 
+/** El tinte del azulejo de categoría (ver `ui/categoria-icono.tsx`). */
+const TINTE_AZULEJO = 20;
+
 const THEMES = ['data-theme="dark"', 'data-theme="light"'];
 
 describe("Accesibilidad de color", () => {
@@ -102,27 +103,25 @@ describe("Accesibilidad de color", () => {
   });
 
   /**
-   * Los badges de acento (categoría, LIVE, HOT) se pintan con un relleno hecho
-   * de su propio color: `color-mix(in srgb, --acento 14%, --panel)`. El texto
-   * va en el acento puro encima de ese relleno, que es el caso más apretado
-   * del sistema — mezclar el acento dentro del fondo acerca los dos.
+   * El azulejo de categoría se pinta con un relleno hecho de su propio color
+   * —`color-mix(in srgb, --acento 20%, transparent)` sobre `--panel`— y lleva
+   * el glifo en el acento puro encima. Es el caso más apretado del sistema:
+   * mezclar el acento dentro del fondo acerca los dos.
    *
-   * Sin esta prueba, el tinte era un número elegido a ojo: se podía subir al
-   * 25 % en un rediseño y nadie se enteraba hasta que alguien no pudiera leer
-   * la palabra "Deportes".
+   * Sin esta prueba el tinte es un número elegido a ojo, y se puede subir al
+   * 40 % en un rediseño sin que nadie se entere hasta que el glifo de
+   * `Deportes` deje de verse. El umbral es 3:1 y no 4.5:1 a propósito: es un
+   * glifo, no texto, y WCAG pide 3:1 para componentes gráficos (1.4.11).
    */
-  it.each(THEMES)("el texto de acento pasa sobre su propio relleno en %s", (selector) => {
+  it.each(THEMES)("el glifo de acento pasa sobre su propio azulejo en %s", (selector) => {
     const t = tokensOf(`:root[${selector}]`);
-    // `muted` no entra: no es un acento sino la ausencia de uno, y la única
-    // categoría que lo usa (`otros`) se pinta neutra justo por esto. Medido,
-    // da 4.02:1 sobre su propio relleno — ver `tieneAcento()`
-    for (const acento of ["teal", "hot", "live", "up", "dn"]) {
-      const relleno = mix(t[acento], t.panel, TINTE_RELLENO);
+    for (const acento of ["teal", "hot", "live", "up", "dn", "muted"]) {
+      const relleno = mix(t[acento], t.panel, TINTE_AZULEJO);
       const value = ratio(t[acento], relleno);
       expect(
         value,
-        `--${acento} sobre su relleno al ${TINTE_RELLENO}% en ${selector} = ${value.toFixed(2)}:1`,
-      ).toBeGreaterThanOrEqual(4.5);
+        `--${acento} sobre su azulejo al ${TINTE_AZULEJO}% en ${selector} = ${value.toFixed(2)}:1`,
+      ).toBeGreaterThanOrEqual(3);
     }
   });
 

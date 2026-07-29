@@ -16,6 +16,11 @@
     "dn": "#e5795e",
     "hot": "#e8a33d",
     "live": "#ff6b5a",
+    "pill-ring": "color-mix(in srgb, var(--teal) 80%, transparent)",
+    "pill-line": "color-mix(in srgb, var(--text2) 60%, transparent)",
+    "pill-wash": "color-mix(in srgb, var(--text) 4%, transparent)",
+    "flash-up": "color-mix(in srgb, var(--up) 16%, transparent)",
+    "flash-dn": "color-mix(in srgb, var(--dn) 16%, transparent)",
     "shadow-1": "rgba(0, 0, 0, 0.4)",
     "shadow-2": "rgba(0, 0, 0, 0.35)"
   },
@@ -36,6 +41,11 @@
     "dn": "#a8412b",
     "hot": "#8a5a0b",
     "live": "#b03a22",
+    "pill-ring": "color-mix(in srgb, var(--teal) 80%, transparent)",
+    "pill-line": "color-mix(in srgb, var(--text2) 70%, transparent)",
+    "pill-wash": "color-mix(in srgb, var(--text) 4%, transparent)",
+    "flash-up": "color-mix(in srgb, var(--up) 16%, transparent)",
+    "flash-dn": "color-mix(in srgb, var(--dn) 16%, transparent)",
     "shadow-1": "rgba(18, 38, 42, 0.06)",
     "shadow-2": "rgba(18, 38, 42, 0.08)"
   }

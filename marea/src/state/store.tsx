@@ -1,5 +1,5 @@
 import * as React from "react";
-import type { AppError, Market, Position, Wallet } from "@/domain/types";
+import type { AppError, Market, Position, PulsoVivo, Wallet } from "@/domain/types";
 import type { CountryCode } from "@/domain/eligibility";
 import { detectCountry, type CountrySource } from "@/domain/geo";
 import type { ApiClient, Cuenta } from "@/adapters/http/apiAdapter";
@@ -30,14 +30,7 @@ import {
 } from "@/adapters/errorReporter";
 import { addStake, quote, type OutcomeId } from "@/domain/parimutuel";
 
-export type TabId =
-  | "markets"
-  | "live"
-  | "search"
-  | "portfolio"
-  | "wallet"
-  | "tabla"
-  | "profile";
+export type TabId = "markets" | "search" | "portfolio" | "wallet" | "tabla" | "profile";
 export type OnboardingStep = "p0" | "p1" | "p2" | "p3" | "done";
 /**
  * Con qué cara abre la hoja de cuenta. `recuperar` no está aquí a propósito:
@@ -85,6 +78,12 @@ export interface AppState {
     probability: number;
     marketId: string;
   } | null;
+  /**
+   * El pulso de las velas vivas, por id de mercado. Se refresca cada pocos
+   * segundos y sólo mientras haya velas en pantalla: un mercado que resuelve en
+   * septiembre no tiene por qué pagar el costo de un reloj de tres segundos.
+   */
+  vivos: Record<string, PulsoVivo>;
   /** País declarado o inferido: define elegibilidad para depositar y operar. */
   country?: CountryCode;
   /** De dónde salió el país. Inferido se puede corregir; declarado manda. */
@@ -132,6 +131,7 @@ type Action =
   | { type: "trade_error"; error: AppError | null }
   | { type: "post_trade"; value: AppState["postTrade"] }
   | { type: "frescura"; viejo: boolean }
+  | { type: "vivos"; pulsos: PulsoVivo[] }
   | { type: "balance"; balance: number }
   | { type: "points"; ledger: PointsLedger }
   | { type: "country"; country: CountryCode; source: CountrySource }
@@ -199,6 +199,7 @@ export function initialState(overrides: Partial<AppState> = {}): AppState {
     tradeError: null,
     datosViejos: false,
     postTrade: null,
+    vivos: {},
     country: guess.country,
     countrySource: guess.source,
     cuenta: null,
@@ -257,6 +258,13 @@ function reducer(state: AppState, action: Action): AppState {
     case "frescura":
       if (state.datosViejos === action.viejo) return state;
       return { ...state, datosViejos: action.viejo };
+    case "vivos": {
+      // se reemplaza entero: una vela que ya no viene es una vela que ya cerró,
+      // y dejar su último latido en el mapa la pintaría viva para siempre
+      const vivos: Record<string, PulsoVivo> = {};
+      for (const pulso of action.pulsos) vivos[pulso.id] = pulso;
+      return { ...state, vivos };
+    }
     case "points":
       return { ...state, points: action.ledger };
     case "country":
@@ -493,6 +501,41 @@ function createActions(
       dispatch({ type: "country", country, source: "declarado" });
       adapters.analytics.track("country_detected", { country, source: "declarado" });
     },
+    /**
+     * Sigue el pulso de las velas vivas mientras haya alguna en pantalla.
+     *
+     * Es un reloj propio y no una recarga del feed: pedir el catálogo entero
+     * cada tres segundos mandaría el título, el criterio de resolución y la
+     * fuente de cada mercado veinte veces por minuto para enterarse de que el
+     * precio se movió dos dólares (R-047).
+     *
+     * Devuelve la función que lo apaga. Sin llamarla, el reloj sigue corriendo
+     * con la pestaña en segundo plano gastando la batería de alguien.
+     */
+    seguirVivos(cadaMs = 3_000): () => void {
+      if (!adapters.api) return () => {};
+      let vivo = true;
+      let temporizador: ReturnType<typeof setTimeout> | null = null;
+
+      const latir = async () => {
+        if (!vivo) return;
+        try {
+          const { mercados } = await adapters.api!.vivos();
+          if (vivo) dispatch({ type: "vivos", pulsos: mercados });
+        } catch {
+          // un latido perdido no rompe nada: la card sigue con el último que
+          // recibió y su reloj local, que corre solo
+        }
+        if (vivo) temporizador = setTimeout(() => void latir(), cadaMs);
+      };
+
+      void latir();
+      return () => {
+        vivo = false;
+        if (temporizador) clearTimeout(temporizador);
+      };
+    },
+
     openMarket(market: Market) {
       dispatch({ type: "open_market", id: market.id });
       adapters.analytics.track("open_market_detail", {
