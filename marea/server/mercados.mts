@@ -14,6 +14,7 @@ import {
   type Pool,
 } from "../src/domain/parimutuel";
 import { resolutionSummary } from "../src/domain/resolution";
+import { FLAGS } from "../src/lib/flags";
 import {
   OWN_MARKETS,
   activeSeeds,
@@ -126,7 +127,11 @@ export function construirMercado(
     probability: binario ? impliedProbability(pool) : (lider?.probability ?? 0),
     leadLabel: binario ? undefined : lider?.label,
     volume: totalPool(pool),
-    status: cerrado ? "resolved" : "open",
+    // el marcador sembrado sólo existe en builds simuladas: con el oráculo
+    // conectado, `live` sale de que el partido esté en juego de verdad
+    status: cerrado ? "resolved" : seed.vivoDemo && FLAGS.mock_data ? "live" : "open",
+    marcadorVivo: FLAGS.mock_data ? seed.vivoDemo?.marcador : undefined,
+    eventoReciente: FLAGS.mock_data ? seed.vivoDemo?.evento : undefined,
     category: seed.category,
     resolution_summary: resolutionSummary(seed.resolution),
     outcome: estado?.outcome,

@@ -247,7 +247,7 @@ describe("Red-team UX", () => {
     await screen.findByTestId("home-screen");
     surfaces.push(container.textContent ?? "");
 
-    for (const tab of [S.tabs.search, S.tabs.portfolio, S.tabs.wallet, S.tabs.profile]) {
+    for (const tab of [S.tabs.search, S.tabs.portfolio, S.tabs.profile]) {
       await user.click(screen.getByRole("tab", { name: tab }));
       await waitFor(() => expect(container.textContent).toBeTruthy());
       surfaces.push(container.textContent ?? "");

@@ -27,7 +27,17 @@
     "settlesAt": "2026-08-02T23:59:00.000Z",
     "disputeWindowHours": 12
    },
-   "shortTitle": "Bitcoin arriba de 64,000 el domingo"
+   "shortTitle": "Bitcoin arriba de 64,000 el domingo",
+   "outcomes": [
+    {
+     "id": "si",
+     "label": "Arriba de 64k"
+    },
+    {
+     "id": "no",
+     "label": "Abajo de 64k"
+    }
+   ]
   },
   {
    "id": "btc-toca-2026-07-27",
@@ -55,7 +65,17 @@
     "settlesAt": "2026-08-26T23:48:25.524Z",
     "disputeWindowHours": 12
    },
-   "shortTitle": "Bitcoin toca 69,000 en 30 días"
+   "shortTitle": "Bitcoin toca 69,000 en 30 días",
+   "outcomes": [
+    {
+     "id": "si",
+     "label": "Toca 69k"
+    },
+    {
+     "id": "no",
+     "label": "No lo toca"
+    }
+   ]
   },
   {
    "id": "eth-cierre-2026-08-02",
@@ -83,7 +103,17 @@
     "settlesAt": "2026-08-02T23:59:00.000Z",
     "disputeWindowHours": 12
    },
-   "shortTitle": "Ethereum arriba de 1,900 el domingo"
+   "shortTitle": "Ethereum arriba de 1,900 el domingo",
+   "outcomes": [
+    {
+     "id": "si",
+     "label": "Arriba de 1.9k"
+    },
+    {
+     "id": "no",
+     "label": "Abajo de 1.9k"
+    }
+   ]
   },
   {
    "id": "eth-toca-2026-07-27",
@@ -111,7 +141,17 @@
     "settlesAt": "2026-08-26T23:48:25.524Z",
     "disputeWindowHours": 12
    },
-   "shortTitle": "Ethereum toca 2,000 en 30 días"
+   "shortTitle": "Ethereum toca 2,000 en 30 días",
+   "outcomes": [
+    {
+     "id": "si",
+     "label": "Toca 2k"
+    },
+    {
+     "id": "no",
+     "label": "No lo toca"
+    }
+   ]
   },
   {
    "id": "btc-toca-2026-07-28",
@@ -139,7 +179,17 @@
     "settlesAt": "2026-08-27T00:34:53.886Z",
     "disputeWindowHours": 12
    },
-   "shortTitle": "Bitcoin toca 69,000 en 30 días"
+   "shortTitle": "Bitcoin toca 69,000 en 30 días",
+   "outcomes": [
+    {
+     "id": "si",
+     "label": "Toca 69k"
+    },
+    {
+     "id": "no",
+     "label": "No lo toca"
+    }
+   ]
   },
   {
    "id": "eth-toca-2026-07-28",
@@ -167,7 +217,17 @@
     "settlesAt": "2026-08-27T00:34:53.886Z",
     "disputeWindowHours": 12
    },
-   "shortTitle": "Ethereum toca 2,000 en 30 días"
+   "shortTitle": "Ethereum toca 2,000 en 30 días",
+   "outcomes": [
+    {
+     "id": "si",
+     "label": "Toca 2k"
+    },
+    {
+     "id": "no",
+     "label": "No lo toca"
+    }
+   ]
   },
   {
    "id": "mx-puebla-guadalajara-2026-08-01",
@@ -194,7 +254,17 @@
     "settlesAt": "2026-08-01T04:00:00.000Z",
     "disputeWindowHours": 12
    },
-   "shortTitle": "Puebla le gana a Guadalajara"
+   "shortTitle": "Puebla le gana a Guadalajara",
+   "outcomes": [
+    {
+     "id": "si",
+     "label": "Gana Puebla"
+    },
+    {
+     "id": "no",
+     "label": "Empata o pierde"
+    }
+   ]
   },
   {
    "id": "mx-atletico-de-san-luis-tijuana-2026-08-01",
@@ -221,7 +291,17 @@
     "settlesAt": "2026-08-01T06:00:00.000Z",
     "disputeWindowHours": 12
    },
-   "shortTitle": "Atlético de San Luis le gana a Tijuana"
+   "shortTitle": "Atlético de San Luis le gana a Tijuana",
+   "outcomes": [
+    {
+     "id": "si",
+     "label": "Gana Atlético de San Luis"
+    },
+    {
+     "id": "no",
+     "label": "Empata o pierde"
+    }
+   ]
   },
   {
    "id": "mx-fc-juarez-pumas-unam-2026-08-01",
@@ -248,7 +328,17 @@
     "settlesAt": "2026-08-01T06:00:00.000Z",
     "disputeWindowHours": 12
    },
-   "shortTitle": "FC Juarez le gana a Pumas UNAM"
+   "shortTitle": "FC Juarez le gana a Pumas UNAM",
+   "outcomes": [
+    {
+     "id": "si",
+     "label": "Gana FC Juarez"
+    },
+    {
+     "id": "no",
+     "label": "Empata o pierde"
+    }
+   ]
   },
   {
    "id": "mx-queretaro-tigres-uanl-2026-08-01",
@@ -275,7 +365,17 @@
     "settlesAt": "2026-08-02T02:00:00.000Z",
     "disputeWindowHours": 12
    },
-   "shortTitle": "Querétaro le gana a Tigres UANL"
+   "shortTitle": "Querétaro le gana a Tigres UANL",
+   "outcomes": [
+    {
+     "id": "si",
+     "label": "Gana Querétaro"
+    },
+    {
+     "id": "no",
+     "label": "Empata o pierde"
+    }
+   ]
   },
   {
    "id": "mx-atlas-monterrey-2026-08-02",
@@ -302,7 +402,17 @@
     "settlesAt": "2026-08-02T04:00:00.000Z",
     "disputeWindowHours": 12
    },
-   "shortTitle": "Atlas le gana a Monterrey"
+   "shortTitle": "Atlas le gana a Monterrey",
+   "outcomes": [
+    {
+     "id": "si",
+     "label": "Gana Atlas"
+    },
+    {
+     "id": "no",
+     "label": "Empata o pierde"
+    }
+   ]
   },
   {
    "id": "mx-leon-pachuca-2026-08-02",
@@ -329,7 +439,17 @@
     "settlesAt": "2026-08-02T04:00:00.000Z",
     "disputeWindowHours": 12
    },
-   "shortTitle": "León le gana a Pachuca"
+   "shortTitle": "León le gana a Pachuca",
+   "outcomes": [
+    {
+     "id": "si",
+     "label": "Gana León"
+    },
+    {
+     "id": "no",
+     "label": "Empata o pierde"
+    }
+   ]
   },
   {
    "id": "mx-cruz-azul-atlante-2026-08-02",
@@ -356,7 +476,17 @@
     "settlesAt": "2026-08-02T06:00:00.000Z",
     "disputeWindowHours": 12
    },
-   "shortTitle": "Cruz Azul le gana a Atlante"
+   "shortTitle": "Cruz Azul le gana a Atlante",
+   "outcomes": [
+    {
+     "id": "si",
+     "label": "Gana Cruz Azul"
+    },
+    {
+     "id": "no",
+     "label": "Empata o pierde"
+    }
+   ]
   },
   {
    "id": "mx-america-santos-2026-08-02",
@@ -383,7 +513,17 @@
     "settlesAt": "2026-08-03T02:00:00.000Z",
     "disputeWindowHours": 12
    },
-   "shortTitle": "América le gana a Santos"
+   "shortTitle": "América le gana a Santos",
+   "outcomes": [
+    {
+     "id": "si",
+     "label": "Gana América"
+    },
+    {
+     "id": "no",
+     "label": "Empata o pierde"
+    }
+   ]
   },
   {
    "id": "mx-toluca-necaxa-2026-08-03",
@@ -410,7 +550,17 @@
     "settlesAt": "2026-08-03T04:00:00.000Z",
     "disputeWindowHours": 12
    },
-   "shortTitle": "Toluca le gana a Necaxa"
+   "shortTitle": "Toluca le gana a Necaxa",
+   "outcomes": [
+    {
+     "id": "si",
+     "label": "Gana Toluca"
+    },
+    {
+     "id": "no",
+     "label": "Empata o pierde"
+    }
+   ]
   }
  ]
 }

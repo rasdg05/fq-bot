@@ -117,6 +117,8 @@ export const S = {
     closedForBets: "Este mercado ya cerró.",
     /** Card: el pago de cada lado, debajo de su nombre. */
     pays2: (multiplier: string) => `paga ${multiplier}`,
+    /** Card multi-resultado: lo que hay debajo de las tres que se enseñan. */
+    respuestasMas: (n: number) => (n === 1 ? "+1 respuesta" : `+${n} respuestas`),
     /** Card en resolución: qué se está esperando, sin prometer cuándo. */
     esperandoFuente: "Esperando la fuente",
     /** Marcador de béisbol: la mitad de la entrada se dice con palabra. */

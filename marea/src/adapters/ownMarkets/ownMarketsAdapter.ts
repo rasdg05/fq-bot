@@ -1,6 +1,7 @@
 import type { Market, Position } from "@/domain/types";
 import { withEdge } from "@/domain/edge";
 import { appError } from "@/domain/errors";
+import { FLAGS } from "@/lib/flags";
 import {
   addStake,
   BINARY_OUTCOMES,
@@ -226,7 +227,11 @@ export function createOwnMarketsAdapter(
       leadLabel: binario ? undefined : lider?.label,
       outcomes,
       volume: totalPool(pool),
-      status: closed ? "resolved" : "open",
+      // igual que en el servidor: el marcador sembrado sólo vive en builds
+      // simuladas, y con el oráculo conectado `live` sale del partido real
+      status: closed ? "resolved" : seed.vivoDemo && FLAGS.mock_data ? "live" : "open",
+      marcadorVivo: FLAGS.mock_data ? seed.vivoDemo?.marcador : undefined,
+      eventoReciente: FLAGS.mock_data ? seed.vivoDemo?.evento : undefined,
       category: seed.category,
       // el criterio se arma desde la especificación validada, nunca a mano
       resolution_summary: resolutionSummary(seed.resolution),

@@ -1,4 +1,4 @@
-import type { MarketCategory } from "@/domain/types";
+import type { EventoReciente, MarcadorVivo, MarketCategory } from "@/domain/types";
 import { assertPublishable, type ResolutionSpec } from "@/domain/resolution";
 import { ruleProblems, type OracleRule } from "@/domain/oracleRule";
 import type { Pool } from "@/domain/parimutuel";
@@ -61,6 +61,17 @@ export interface OwnMarketSeed {
    * hay.
    */
   equipos?: { nombre: string; escudo?: string }[];
+  /**
+   * Estado del evento en curso, para las tarjetas de deportes en vivo.
+   *
+   * Hoy viaja en la semilla y **sólo** en builds simuladas (`mock_data`): es un
+   * marcador sembrado para poder ver y probar la tarjeta en vivo antes de que
+   * el oráculo de partidos esté conectado. Con `matchOracle` en línea, este
+   * campo se ignora y el marcador llega de la fuente que resuelve el mercado.
+   * Nunca se sirve con dinero real: sería fingir que hablamos con una fuente
+   * (R-022).
+   */
+  vivoDemo?: { marcador: MarcadorVivo; evento?: EventoReciente };
 }
 
 const FEE_BPS = 300;
@@ -83,6 +94,10 @@ const SEEDS: OwnMarketSeed[] = [
     country: "MX",
     closesAt: "2026-08-07T13:00:00Z",
     pool: seedPool(420, 260),
+    outcomes: [
+      { id: "si", label: "Abajo de 4.0 %" },
+      { id: "no", label: "4.0 % o más" },
+    ],
     // 628194: INPC variación anual en el BIE. La API del INEGI es gratis pero
     // pide token, igual que Banxico; sin él el mercado lo declara (R-022)
     rule: {
@@ -111,6 +126,10 @@ const SEEDS: OwnMarketSeed[] = [
     country: "MX",
     closesAt: "2026-08-13T19:00:00Z",
     pool: seedPool(560, 300),
+    outcomes: [
+      { id: "si", label: "Recorta" },
+      { id: "no", label: "Mantiene" },
+    ],
     // SF61745: tasa objetivo. La API de Banxico es gratis pero pide token
     rule: {
       kind: "serie",
@@ -136,6 +155,10 @@ const SEEDS: OwnMarketSeed[] = [
     country: "MX",
     closesAt: "2026-07-31T21:00:00Z",
     pool: seedPool(300, 480),
+    outcomes: [
+      { id: "si", label: "Abajo de 19" },
+      { id: "no", label: "19 o más" },
+    ],
     rule: {
       kind: "serie",
       fuente: "banxico",
@@ -161,6 +184,10 @@ const SEEDS: OwnMarketSeed[] = [
     country: "AR",
     closesAt: "2026-08-29T20:00:00Z",
     pool: seedPool(640, 240),
+    outcomes: [
+      { id: "si", label: "Baja" },
+      { id: "no", label: "Se mantiene" },
+    ],
     // variable 7 del BCRA: BADLAR de bancos privados, diaria y sin llave.
     // La serie de "tasa de política monetaria" (160) lleva parada desde julio
     // de 2025, y un dato viejo no resuelve un mercado nuevo (R-052)
@@ -188,6 +215,10 @@ const SEEDS: OwnMarketSeed[] = [
     country: "BR",
     closesAt: "2026-09-16T21:00:00Z",
     pool: seedPool(510, 390),
+    outcomes: [
+      { id: "si", label: "Baja la Selic" },
+      { id: "no", label: "La mantiene" },
+    ],
     // serie 432 del BCB: meta Selic, pública y sin llave
     rule: { kind: "serie", fuente: "bcb", serie: "432", comparacion: "baja", etiqueta: "Meta Selic" },
     resolution: {
@@ -207,6 +238,10 @@ const SEEDS: OwnMarketSeed[] = [
     country: "BR",
     closesAt: "2026-09-09T12:00:00Z",
     pool: seedPool(430, 350),
+    outcomes: [
+      { id: "si", label: "Abajo de 5 %" },
+      { id: "no", label: "5 % o más" },
+    ],
     // serie 13522 del BCB: IPCA acumulado 12 meses, pública y sin llave
     rule: {
       kind: "serie",
@@ -233,6 +268,10 @@ const SEEDS: OwnMarketSeed[] = [
     country: "CO",
     closesAt: "2026-08-31T12:00:00Z",
     pool: seedPool(380, 420),
+    outcomes: [
+      { id: "si", label: "Abajo de 3.3k" },
+      { id: "no", label: "3.3k o más" },
+    ],
     // 32sa-8pi3: la TRM diaria en el portal de datos abiertos de Colombia.
     // El IPC del DANE sólo está publicado por ciudad y hasta 2016, así que no
     // se puede resolver solo: se cambió la pregunta por una que sí se lee
@@ -261,6 +300,10 @@ const SEEDS: OwnMarketSeed[] = [
     country: "CL",
     closesAt: "2026-09-01T12:00:00Z",
     pool: seedPool(290, 310),
+    outcomes: [
+      { id: "si", label: "Vuelve a positivo" },
+      { id: "no", label: "Sigue en rojo" },
+    ],
     // mindicador.cl publica el Imacec sin llave. El Banco Central de Chile lo
     // sirve sólo con credenciales, y una fuente que no se puede leer no puede
     // resolver un mercado
@@ -293,6 +336,10 @@ const SEEDS: OwnMarketSeed[] = [
     // las apuestas cierran un día antes del cierre que se lee (R-043)
     closesAt: "2026-08-01T23:59:00Z",
     pool: seedPool(910, 780),
+    outcomes: [
+      { id: "si", label: "Arriba de 71k" },
+      { id: "no", label: "Abajo de 71k" },
+    ],
     // también cotiza afuera: por eso puede tener Edge contra una casa global
     referenceKey: "bitcoin close above 71000",
     // se cita la fuente que el oráculo lee de verdad, no otra
@@ -314,6 +361,10 @@ const SEEDS: OwnMarketSeed[] = [
     country: "LATAM",
     closesAt: "2026-09-30T00:00:00Z",
     pool: seedPool(340, 690),
+    outcomes: [
+      { id: "si", label: "Toca 4,500" },
+      { id: "no", label: "No lo toca" },
+    ],
     referenceKey: "ethereum above 4500",
     rule: {
       kind: "precio",
@@ -340,6 +391,10 @@ const SEEDS: OwnMarketSeed[] = [
     country: "PE",
     closesAt: "2026-09-30T12:00:00Z",
     pool: seedPool(260, 240),
+    outcomes: [
+      { id: "si", label: "Abajo de 3 %" },
+      { id: "no", label: "3 % o más" },
+    ],
     // PN01279PM: variación anual del IPC de Lima. Pública y sin llave
     rule: {
       kind: "serie",
@@ -393,6 +448,15 @@ const SEEDS: OwnMarketSeed[] = [
       { nombre: "América", escudo: "https://a.espncdn.com/i/teamlogos/soccer/500/227.png" },
       { nombre: "Santos", escudo: "https://a.espncdn.com/i/teamlogos/soccer/500/225.png" },
     ],
+    vivoDemo: {
+      marcador: {
+        deporte: "futbol",
+        equipos: ["América", "Santos"],
+        goles: [2, 1],
+        minuto: "72'",
+      },
+      evento: { tipo: "gol", hace: 3 },
+    },
     resolution: {
       sourceName: "ESPN (marcador de la Liga MX)",
       sourceUrl:
@@ -444,6 +508,12 @@ const SEEDS: OwnMarketSeed[] = [
 /** Lo que cabe en una línea de la tarjeta a 390 px. Medido, no estimado. */
 export const SHORT_TITLE_MAX = 42;
 
+/** Lo que la etiqueta de un resultado puede medir sin recortarse siempre. */
+export const OUTCOME_LABEL_MAX = 26;
+
+/** Las dos palabras que un resultado no puede llamarse. */
+const SIN_NOMBRE = new Set(["sí", "si", "no"]);
+
 export function validateSeed(seed: OwnMarketSeed): OwnMarketSeed {
   const resolution = assertPublishable(seed.resolution);
   // el título corto es parte del contrato, no un adorno: sin él la tarjeta
@@ -482,6 +552,20 @@ export function validateSeed(seed: OwnMarketSeed): OwnMarketSeed {
   for (const outcome of outcomes) {
     if (!outcome.label.trim()) {
       throw new Error(`Mercado ${seed.id}: el resultado ${outcome.id} no tiene texto`);
+    }
+    // "Sí" y "No" no son nombres: no dicen de qué lado está uno cuando la
+    // pregunta ya no está a la vista, que es exactamente lo que pasa en la
+    // tarjeta. Un resultado se llama por lo que es — "Recorta", "Arriba de
+    // 71,000", "Gana el América" (§3.3 del rediseño)
+    if (SIN_NOMBRE.has(outcome.label.trim().toLowerCase())) {
+      throw new Error(
+        `Mercado ${seed.id}: el resultado ${outcome.id} se llama "${outcome.label}" y eso no es un nombre`,
+      );
+    }
+    if (outcome.label.length > OUTCOME_LABEL_MAX) {
+      throw new Error(
+        `Mercado ${seed.id}: el resultado ${outcome.id} mide ${outcome.label.length} caracteres y el máximo es ${OUTCOME_LABEL_MAX}`,
+      );
     }
   }
   if (seed.rule) {

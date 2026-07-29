@@ -38,6 +38,20 @@ function conSeparador(valor: number): string {
   return valor.toLocaleString("en-US");
 }
 
+/**
+ * El umbral como se dice en voz alta y como cabe en la etiqueta de un
+ * resultado: `71k`, no `71,000`. La tarjeta le da unos 13 caracteres a cada
+ * lado, y "Arriba de 71,000" no entra — se recortaba justo en el número, que
+ * es lo único que no se puede recortar.
+ */
+function nivelCorto(valor: number): string {
+  if (valor >= 1000) {
+    const miles = valor / 1000;
+    return `${Number.isInteger(miles) ? miles : miles.toFixed(1)}k`;
+  }
+  return conSeparador(valor);
+}
+
 /** Próximo domingo a las 23:59 UTC, en cuya vela diaria se lee el cierre. */
 export function proximoCierreSemanal(now: number): number {
   const fecha = new Date(now);
@@ -102,6 +116,12 @@ function cierreSemanal(
     id: `${plantilla.id}-cierre-${semana}`,
     title: `¿${plantilla.nombre} cierra la semana arriba de ${conSeparador(umbral)} dólares?`,
     shortTitle: `${plantilla.nombre} arriba de ${conSeparador(umbral)} el domingo`,
+    // los dos lados se llaman por lo que son. "Sí" y "No" no dicen de qué lado
+    // está uno cuando la pregunta ya no está a la vista (§3.3 del rediseño)
+    outcomes: [
+      { id: "si", label: `Arriba de ${nivelCorto(umbral)}` },
+      { id: "no", label: `Abajo de ${nivelCorto(umbral)}` },
+    ],
     category: "cripto",
     country: "LATAM",
     closesAt: new Date(settlesAtMs - CIERRE_ANTES_MS).toISOString(),
@@ -140,6 +160,10 @@ function tocaEnElMes(plantilla: Plantilla, spot: number, now: number): OwnMarket
     id: `${plantilla.id}-toca-${desde.slice(0, 10)}`,
     title: `¿${plantilla.nombre} toca ${conSeparador(umbral)} dólares en 30 días?`,
     shortTitle: `${plantilla.nombre} toca ${conSeparador(umbral)} en 30 días`,
+    outcomes: [
+      { id: "si", label: `Toca ${nivelCorto(umbral)}` },
+      { id: "no", label: "No lo toca" },
+    ],
     category: "cripto",
     country: "LATAM",
     // el mercado deja de aceptar apuestas cuando resuelve, y puede resolver antes
@@ -228,6 +252,10 @@ export function partidoSeed(partido: PartidoDeLaLiga): OwnMarketSeed {
     id: `mx-${clave}-${dia}`,
     title: `¿${partido.local} le gana a ${partido.visitante}?`,
     shortTitle: `${partido.local} le gana a ${partido.visitante}`,
+    outcomes: [
+      { id: "si", label: `Gana ${partido.local}` },
+      { id: "no", label: "Empata o pierde" },
+    ],
     category: "deportes",
     country: "MX",
     // se cierra al arrancar el partido: con el marcador a la vista ya no es

@@ -49,7 +49,7 @@ const DESTELLO_MS = 200;
  * una tarjeta de 114 px, un anillo que empuja es un anillo que rompe.
  */
 const PILL_BASE = cn(
-  "relative z-10 flex h-9 min-w-[72px] shrink-0 items-center justify-center rounded-pill px-3",
+  "relative z-10 flex h-9 min-w-[64px] shrink-0 items-center justify-center rounded-pill px-2.5",
   "outline outline-2 outline-offset-2 outline-transparent focus-visible:outline-pill-ring",
   "transition-[background-color,outline-color,transform,color] duration-[120ms] ease-out",
   "active:scale-[.96] active:duration-90",
@@ -86,7 +86,7 @@ function Opcion({
   return (
     <div
       data-testid={lider ? "card-lider" : "card-other-side"}
-      className="flex min-w-0 flex-1 items-center gap-2.5 last:flex-none"
+      className="flex min-w-0 flex-1 items-center gap-2"
     >
       <button
         type="button"
@@ -137,12 +137,15 @@ function Opcion({
       {/* el pago nunca se corta: es un número, y "2.4…" no es un número. La
           columna mide al menos lo que mide el pago (`min-w-fit`) y quien cede
           es la etiqueta, que sí se entiende recortada */}
-      <span className="flex min-w-fit flex-col whitespace-nowrap leading-none">
-        <span className="max-w-full truncate text-[13px] font-semibold leading-[15px] text-text2">
+      {/* la columna de texto sí puede encogerse: si no, la etiqueta del líder
+          se monta encima de la pill del rival. Quien cede es la etiqueta, que
+          se entiende recortada; el pago cabe entero en el ancho que queda */}
+      <span className="flex min-w-0 flex-col whitespace-nowrap leading-none">
+        <span className="truncate text-[13px] font-semibold leading-[15px] text-text2">
           {label}
         </span>
         {multiplier ? (
-          <span className="mt-0.5 font-mono text-mult font-medium tabular-nums text-muted">
+          <span className="mt-0.5 truncate font-mono text-mult font-medium tabular-nums text-muted">
             {S.market.pays2(multiplier)}
           </span>
         ) : null}
@@ -172,6 +175,89 @@ function ProbBar({ lider, rival }: { lider: number; rival: number }) {
       />
       <span className="h-full flex-1 rounded-pill bg-line2" />
     </span>
+  );
+}
+
+/**
+ * Una fila de un mercado de más de dos resultados.
+ *
+ * Vertical y no en dos columnas: con tres candidatos, dos columnas obligan a
+ * elegir cuáles dos se enseñan, y el tercero desaparece sin decirlo. En lista
+ * los tres se leen de arriba abajo y el número queda en la misma columna, que
+ * es lo que permite compararlos de un vistazo.
+ */
+function FilaResultado({
+  outcome,
+  primera,
+  destello,
+  onPick,
+  onCongelar,
+}: {
+  outcome: { id: OutcomeId; label: string; probability: number; multiplier: number };
+  primera: boolean;
+  destello: "up" | "dn" | null;
+  onPick?: () => void;
+  onCongelar?: (congelar: boolean) => void;
+}) {
+  const porcentaje = pct(outcome.probability);
+  const pago = formatMultiplier(outcome.multiplier);
+  return (
+    <div className="flex flex-col gap-[3px]">
+      <div className="flex items-center gap-2.5">
+        <button
+          type="button"
+          data-role="pill"
+          data-lado={primera ? "lider" : "rival"}
+          aria-label={S.market.pillLabel(outcome.label, porcentaje, pago)}
+          onClick={onPick}
+          onPointerDown={() => onCongelar?.(true)}
+          onPointerUp={() => onCongelar?.(false)}
+          onPointerCancel={() => onCongelar?.(false)}
+          onPointerLeave={() => onCongelar?.(false)}
+          className={cn(
+            "relative z-10 flex h-[26px] min-w-[62px] shrink-0 items-center justify-center rounded-pill px-2.5",
+            "outline outline-2 outline-offset-2 outline-transparent focus-visible:outline-pill-ring",
+            "transition-[background-color,outline-color,transform,color] duration-[120ms] ease-out",
+            "active:scale-[.96] active:duration-90",
+            primera
+              ? "bg-teal-soft ring-1 ring-pill-ring"
+              : "bg-pill-wash ring-1 ring-pill-line",
+            destello === "up" ? "animate-flash-up" : "",
+            destello === "dn" ? "animate-flash-dn" : "",
+          )}
+        >
+          <span
+            {...(primera
+              ? { "data-dominant": "probability", "data-role": "probability" }
+              : {})}
+            className={cn(
+              "font-display tabular-nums",
+              primera
+                ? "text-prob-pill font-bold text-text"
+                : "text-prob-row font-semibold text-text2",
+            )}
+          >
+            {porcentaje}
+            <span className="ml-0.5 align-top text-[11px] font-bold opacity-70">%</span>
+          </span>
+        </button>
+        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-text2">
+          {outcome.label}
+        </span>
+        <span className="shrink-0 font-mono text-mult font-medium tabular-nums text-muted">
+          {S.market.pays2(pago)}
+        </span>
+      </div>
+      <span aria-hidden className="flex h-[3px] w-full overflow-hidden rounded-pill bg-line2">
+        <span
+          className={cn(
+            "h-full rounded-pill transition-[width] duration-[240ms] ease-[cubic-bezier(.22,1,.36,1)]",
+            primera ? "bg-teal" : "bg-muted",
+          )}
+          style={{ width: `${Math.max(outcome.probability * 100, 2)}%` }}
+        />
+      </span>
+    </div>
   );
 }
 
@@ -282,6 +368,9 @@ export function MarketCard({ market, variant, onOpen }: MarketCardProps) {
     return () => clearTimeout(id);
   }, [probLider]);
 
+  // con más de dos respuestas la card cambia de disposición: lista vertical
+  const multi = ranked.length > 2;
+  const restantes = ranked.length - 3;
   const vivo = vista.status === "live" && Boolean(vista.marcadorVivo);
   const resolviendo = vista.status === "settling";
   const cerrado = vista.status === "resolved" || resolviendo;
@@ -361,6 +450,22 @@ export function MarketCard({ market, variant, onOpen }: MarketCardProps) {
           </h3>
         )}
 
+        {multi ? (
+          /* lista vertical: las tres respuestas con más pozo, cada una con su
+             barra. La cuarta y siguientes se cuentan en el pie */
+          <div className="flex flex-col gap-[3px]" data-testid="card-multi">
+            {ranked.slice(0, 3).map((outcome, i) => (
+              <FilaResultado
+                key={outcome.id}
+                outcome={outcome}
+                primera={i === 0}
+                destello={i === 0 ? destello : null}
+                onPick={cerrado ? undefined : () => abrir(outcome.id)}
+                onCongelar={congelar}
+              />
+            ))}
+          </div>
+        ) : (
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
           <Opcion
             lado="lider"
@@ -389,16 +494,22 @@ export function MarketCard({ market, variant, onOpen }: MarketCardProps) {
             />
           ) : null}
         </div>
+        )}
 
-        <ProbBar
-          lider={probLider}
-          rival={rival ? rival.probability : Math.max(0, 1 - probLider)}
-        />
+        {multi ? null : (
+          <ProbBar
+            lider={probLider}
+            rival={rival ? rival.probability : Math.max(0, 1 - probLider)}
+          />
+        )}
 
         {/* pie en una sola línea. El orden es la prioridad: primero lo que
             explica el movimiento del precio, y lo primero que se va cuando no
             cabe es cuánta gente hay dentro */}
         <span className="-mt-px flex h-[11px] items-center gap-1 overflow-hidden whitespace-nowrap text-[11px] leading-[11px] tracking-[0.005em] text-muted">
+          {multi && restantes > 0 ? (
+            <span className="shrink-0 text-text2">{S.market.respuestasMas(restantes)} ·</span>
+          ) : null}
           {evento ? <span className="shrink-0 text-text2">{evento} ·</span> : null}
           <span className="shrink-0">
             {pool ? `${S.market.pot} ${formatStake(vista.volume)}` : compactUsd(vista.volume)}

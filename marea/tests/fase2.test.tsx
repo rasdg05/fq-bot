@@ -125,8 +125,10 @@ describe("Fase 2 — activación", () => {
   it("V20 — el header sigue el estado de la wallet", async () => {
     const user = userEvent.setup();
     renderApp();
-    // sin wallet: no hay saldo que mostrar
-    expect(screen.getByTestId("header-balance")).toHaveTextContent("—");
+    // sin wallet no hay saldo: el header lleva identidad, las dos puertas
+    expect(screen.queryByTestId("header-balance")).toBeNull();
+    expect(screen.getByTestId("header-entrar")).toBeInTheDocument();
+    expect(screen.getByTestId("header-crear-cuenta")).toBeInTheDocument();
     await walkOnboarding(user);
     await waitFor(() =>
       expect(screen.getByTestId("header-balance")).toHaveTextContent("$0"),

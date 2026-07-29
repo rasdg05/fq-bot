@@ -1,29 +1,26 @@
-import { LayoutGrid, Search, PieChart, Trophy, Wallet, User } from "lucide-react";
+import { LayoutGrid, Search, PieChart, User } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { S } from "@/lib/strings";
 import { useApp, type TabId } from "@/state/store";
-import { isPointsMode } from "@/lib/flags";
 
 /**
- * En modo puntos la cartera no existe —no hay dinero que guardar— y su lugar lo
- * toma la tabla, que es lo que hace que la gente vuelva mañana a defender su
- * racha. Con dinero real vuelve la cartera.
+ * Exactamente cuatro destinos, siempre los mismos.
+ *
+ * La tabla y la cartera salieron de la barra: no son destinos de navegación,
+ * son cosas que se consultan. Viven dentro de Perfil, que es donde uno va a
+ * ver lo suyo. Cuatro pestañas dejan cada target en 97 px de ancho a 390 px,
+ * y sobre todo dejan de convertir la barra en un menú.
  */
-function tabsDe(puntos: boolean): { id: TabId; label: string; Icon: LucideIcon }[] {
-  return [
-    { id: "markets", label: S.tabs.markets, Icon: LayoutGrid },
-    { id: "search", label: S.tabs.search, Icon: Search },
-    { id: "portfolio", label: S.tabs.portfolio, Icon: PieChart },
-    puntos
-      ? { id: "tabla" as TabId, label: S.tabla.title, Icon: Trophy }
-      : { id: "wallet" as TabId, label: S.tabs.wallet, Icon: Wallet },
-    { id: "profile", label: S.tabs.profile, Icon: User },
-  ];
-}
+const TABS: { id: TabId; label: string; Icon: LucideIcon }[] = [
+  { id: "markets", label: S.tabs.markets, Icon: LayoutGrid },
+  { id: "search", label: S.tabs.search, Icon: Search },
+  { id: "portfolio", label: S.tabs.portfolio, Icon: PieChart },
+  { id: "profile", label: S.tabs.profile, Icon: User },
+];
 
 /**
- * Navegación inferior: 5 destinos, `Mercados` por defecto. Vive abajo porque
+ * Navegación inferior: 4 destinos, `Mercados` por defecto. Vive abajo porque
  * es donde llega el pulgar; ninguna acción crítica queda en una esquina
  * superior (R-010). Cada target mide 44 px de alto como mínimo.
  *
@@ -33,7 +30,6 @@ function tabsDe(puntos: boolean): { id: TabId; label: string; Icon: LucideIcon }
  */
 export function BottomTabs() {
   const { state, actions } = useApp();
-  const TABS = tabsDe(isPointsMode());
 
   return (
     <nav
@@ -91,5 +87,5 @@ export function BottomTabs() {
   );
 }
 
-/** Los destinos vigentes según el motor. Lo usan las pruebas de navegación. */
-export const tabIds = (puntos: boolean): TabId[] => tabsDe(puntos).map((tab) => tab.id);
+/** Los destinos de la barra. Lo usan las pruebas de navegación. */
+export const tabIds = (): TabId[] => TABS.map((tab) => tab.id);

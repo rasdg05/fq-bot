@@ -32,6 +32,10 @@ const seed: OwnMarketSeed = validateSeed({
   id: "btc-servidor",
   title: "¿Bitcoin cierra la semana arriba de 71,000 dólares?",
   shortTitle: "Bitcoin cierra la semana arriba de 71 mil",
+  outcomes: [
+    { id: "si", label: "Arriba de 71,000" },
+    { id: "no", label: "Abajo de 71,000" },
+  ],
   category: "cripto",
   country: "LATAM",
   closesAt: "2026-08-10T00:00:00Z",

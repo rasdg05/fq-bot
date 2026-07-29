@@ -184,7 +184,67 @@ const RAW: RawMarket[] = [
   },
 ];
 
-export const MOCK_MARKETS: Market[] = RAW.map(withEdge);
+/**
+ * Los dos partidos en vivo de la build simulada. Van aparte de `RAW` porque
+ * traen marcador estructurado y ya nacen con `edge: null`: aquí no hay lectura
+ * externa contra la que comparar, y no se inventa una.
+ */
+const VIVOS: Market[] = [
+  {
+    id: "atp-alcaraz-zverev",
+    title: "¿Alcaraz le gana a Zverev?",
+    shortTitle: "Alcaraz le gana a Zverev",
+    probability: 0.71,
+    volume: 5900,
+    status: "live",
+    category: "deportes",
+    edge: null,
+    region: "latam",
+    hot: true,
+    participantes: 142,
+    marcadorVivo: {
+      deporte: "tenis",
+      jugadores: ["Alcaraz", "Zverev"],
+      sets: [
+        [6, 3],
+        [4, 6],
+        [2, 1],
+      ],
+      saque: 0,
+      game: "40-30",
+    },
+    eventoReciente: { tipo: "quiebre", hace: 2 },
+    resolution_summary:
+      "Se resuelve con el ganador que publique la ATP en el marcador oficial del cuadro.",
+  },
+  {
+    id: "lmp-naranjeros-tomateros",
+    title: "¿Los Naranjeros le ganan a los Tomateros?",
+    shortTitle: "Naranjeros le ganan a Tomateros",
+    probability: 0.64,
+    volume: 2860,
+    status: "live",
+    category: "deportes",
+    edge: null,
+    region: "latam",
+    country: "MX",
+    participantes: 71,
+    marcadorVivo: {
+      deporte: "beisbol",
+      equipos: ["Naranjeros", "Tomateros"],
+      carreras: [4, 3],
+      entrada: 7,
+      mitad: "alta",
+      outs: 2,
+      bases: "1ª y 3ª",
+    },
+    eventoReciente: { tipo: "carrera", hace: 3 },
+    resolution_summary:
+      "Se resuelve con el marcador final que publica la Liga Mexicana del Pacífico.",
+  },
+];
+
+export const MOCK_MARKETS: Market[] = [...VIVOS, ...RAW.map(withEdge)];
 
 export function findMockMarket(id: string): Market | undefined {
   return MOCK_MARKETS.find((market) => market.id === id);

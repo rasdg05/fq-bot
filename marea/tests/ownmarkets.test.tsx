@@ -175,8 +175,10 @@ describe("Mercados propios — interfaz", () => {
     // los dos lados, cada uno con su pago: enseñar sólo uno es medio mercado.
     // El pago volvió a decir "paga" porque dejó de competir por la línea: vive
     // debajo del nombre del resultado, no al lado (§A del rediseño v6)
-    expect(cards[0]).toHaveTextContent(/Sí\s*paga\s*[\d.]+×/);
-    expect(cards[0]).toHaveTextContent(/No\s*paga\s*[\d.]+×/);
+    // cada lado se llama por lo que es: ni "Sí" ni "No" viven ya en la card
+    expect(cards[0].textContent).not.toMatch(/(^|\W)(Sí|No)(\W|$)/);
+    expect(cards[0]).toHaveTextContent(/paga\s*[\d.]+×/);
+    expect(within(cards[0]).getAllByText(/paga/).length).toBeGreaterThan(1);
     expect(within(cards[0]).getByTestId("card-other-side")).toBeInTheDocument();
     expect(cards[0].textContent).not.toMatch(/\$/);
   });
@@ -301,7 +303,8 @@ describe("Mercados propios — interfaz", () => {
     const surfaces: string[] = [container.textContent ?? ""];
 
     // en modo puntos la cartera no existe: su lugar lo toma la tabla
-    for (const tab of [S.tabs.portfolio, S.tabla.title, S.tabs.profile]) {
+    // la tabla ya no es pestaña: se entra por Perfil
+    for (const tab of [S.tabs.portfolio, S.tabs.profile]) {
       await user.click(screen.getByRole("tab", { name: tab }));
       await waitFor(() => expect(container.textContent).toBeTruthy());
       surfaces.push(container.textContent ?? "");

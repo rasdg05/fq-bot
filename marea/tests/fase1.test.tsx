@@ -139,13 +139,13 @@ describe("Fase 1 — descubrimiento", () => {
     expect(_).toBeDefined();
   });
 
-  it("V8 — hay 5 tabs y Mercados es la de entrada", async () => {
+  it("V8 — hay exactamente 4 tabs y Mercados es la de entrada", async () => {
     renderApp({ overrides: READY_NO_FUNDS });
     const tabs = within(screen.getByTestId("bottom-tabs")).getAllByRole("tab");
-    expect(tabs).toHaveLength(5);
-    // con dinero real la cartera existe; en modo puntos su lugar lo toma la tabla
-    expect(tabIds(false)).toEqual(["markets", "search", "portfolio", "wallet", "profile"]);
-    expect(tabIds(true)).toEqual(["markets", "search", "portfolio", "tabla", "profile"]);
+    expect(tabs).toHaveLength(4);
+    // la tabla y la cartera no son destinos de navegación: se consultan desde
+    // Perfil. Cuatro pestañas, siempre las mismas, con o sin dinero real
+    expect(tabIds()).toEqual(["markets", "search", "portfolio", "profile"]);
     expect(tabs[0]).toHaveAttribute("aria-selected", "true");
     expect(tabs[0]).toHaveTextContent(S.tabs.markets);
     await feed();
@@ -179,23 +179,30 @@ describe("Fase 1 — descubrimiento", () => {
     expect(app.eventNames()).toContain("trade_confirmed");
   });
 
-  it("V12 — con saldo 0 el header ofrece Depositar", async () => {
-    renderApp({ overrides: READY_NO_FUNDS });
-    const deposit = screen.getByTestId("header-deposit");
-    expect(deposit).toHaveTextContent(S.header.deposit);
+  it("V12 — sin sesión el header ofrece Entrar y Crear cuenta, nunca un muro", async () => {
+    renderApp({ overrides: { ...READY_NO_FUNDS, wallet: null } });
+    // el header lleva identidad: dos puertas y las dos a la vista
+    expect(screen.getByTestId("header-entrar")).toHaveTextContent(S.cuenta.entrarCta);
+    expect(screen.getByTestId("header-crear-cuenta")).toHaveTextContent(
+      S.cuenta.sinCuentaCta,
+    );
+    // y el saldo no se pierde: vive con las posiciones, que es lo tuyo
     await feed();
   });
 
-  it("V12 — con saldo el header ya no empuja a depositar", async () => {
+  it("V12 — el saldo y el camino para recargar viven en el portafolio", async () => {
+    const user = userEvent.setup();
     renderApp({
       overrides: {
         ...READY_NO_FUNDS,
         wallet: { ...READY_NO_FUNDS.wallet!, balance: 50 },
       },
     });
-    expect(screen.queryByTestId("header-deposit")).toBeNull();
-    expect(screen.getByTestId("header-balance")).toHaveTextContent("50");
     await feed();
+    await user.click(within(screen.getByTestId("bottom-tabs")).getAllByRole("tab")[2]);
+    const saldo = await screen.findByTestId("portfolio-saldo");
+    expect(saldo).toHaveTextContent("50");
+    expect(within(saldo).getByTestId("portfolio-recargar")).toBeInTheDocument();
   });
 
   it("V23 — un fallo del feed muestra mensaje en español y Reintentar", async () => {
