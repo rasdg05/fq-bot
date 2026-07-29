@@ -37,7 +37,8 @@ Los catorce tokens de `src/styles/tokens.css` se quedan tal cual (`tokens.lock.j
 |---|---|
 | `--bg` | Fondo de app, header y barra inferior (sólido, nunca translúcido) |
 | `--panel` | Superficie de tarjeta |
-| `--panel2` | Pill del resultado no líder · avatar · estado presionado |
+| `--panel2` | Avatar · estado presionado · badges neutros. **No** rellena la pill del rival (§F) |
+| `--pill-ring` | Anillo de 1 px de la pill líder: `--teal` al 55 % (oscuro) / 65 % (claro) → ≥ 3:1 contra la tarjeta |
 | `--line` | Borde de la tarjeta abierta con posición propia |
 | `--line2` | Borde por defecto, separadores, riel vacío de la barra |
 | `--text` | Título de mercado y número de la pill líder |
@@ -58,24 +59,26 @@ Contraste: todo par texto/superficie de arriba ya está verificado ≥ 4.5:1 por
 |---|---|---|---|
 | Marca en el header | Fraunces (`--font-display`) | 19 / 22, `tracking-[-0.01em]` | 600 |
 | Título de tarjeta | Fraunces | 15 / 19 | 600 |
-| Número de la pill (%) | Fraunces, `tabular-nums` | **24 / 26**, `tracking-[-0.02em]` | 600 |
-| Signo `%` de la pill | Hanken | 10, alineado arriba | 700 |
-| Número del rival | Fraunces, `tabular-nums` | 17 / 20 | 600 |
-| Etiqueta de resultado | Hanken | 12 / 14 | 600 |
-| Multiplicador | Mono, `tabular-nums` | 12 / 14 | 600 |
+| Número de la pill (%) | Fraunces, `tabular-nums` | **30 / 32**, `tracking-[-0.025em]` | **700** |
+| Signo `%` de la pill | Hanken | 12 / 12, alineado arriba, `opacity .72` | 700 |
+| Número del rival | Fraunces, `tabular-nums` | **20 / 22**, `tracking-[-0.015em]` | 600 |
+| Etiqueta de resultado | Hanken | 13 / 15 | 600 |
+| Multiplicador | Mono, `tabular-nums` | 12 / 13, `tracking-[0.01em]` | **500** |
 | Marcador deportivo | Fraunces, `tabular-nums` | 16 / 20 | 600 |
 | Badges (LIVE/HOT/país) | Hanken | 10 / 12, `tracking-[0.04em]`, versalitas | 700 |
-| Pie de tarjeta | Hanken | 11 / 12 | 400 |
+| Pie de tarjeta | Hanken | 11 / 11, `tracking-[0.005em]` | 450 |
 | Categoría | Hanken | 11 / 12 | 500 |
 | Probabilidad en **detalle** | Fraunces | 44 / 44 (`text-prob`) | 600 |
 
-**Enmienda a R-004.** El nodo de 44 px sale de la tarjeta y se queda en el detalle. En la tarjeta el nodo dominante sigue siendo la probabilidad —la pill de 24 px es el único elemento en escala display con `tabular-nums`, el doble que cualquier otro texto de la card—, y esa jerarquía es la que R-004 protege. Los 20 px que devuelve son la mitad del recorte de altura.
+**Enmienda a R-004.** El nodo de 44 px sale de la tarjeta y se queda en el detalle. En la tarjeta el porcentaje del líder mide **30 px en peso 700**: 2,3 veces su etiqueta (13 px), 2,5 veces su multiplicador (12 px), el doble del título (15 px), y el único elemento de la tarjeta en peso 700 con `tabular-nums` y color `--text`. Domina por tamaño, por peso y por contraste a la vez. La jerarquía que R-004 protege se conserva con un nodo más chico que 44 px pero más fuerte que antes.
 
 Escala nueva de Tailwind (`tailwind.config.ts` → `fontSize`):
 ```ts
-prob:      ["44px", { lineHeight: "1",     letterSpacing: "-0.02em" }], // sólo detalle
-"prob-pill": ["24px", { lineHeight: "26px", letterSpacing: "-0.02em" }], // tarjeta, líder
-"prob-riv":  ["17px", { lineHeight: "20px", letterSpacing: "-0.01em" }], // tarjeta, rival
+prob:        ["44px", { lineHeight: "1",    letterSpacing: "-0.02em" }],  // sólo detalle
+"prob-pill": ["30px", { lineHeight: "32px", letterSpacing: "-0.025em" }], // tarjeta, líder
+"prob-riv":  ["20px", { lineHeight: "22px", letterSpacing: "-0.015em" }], // tarjeta, rival
+"prob-row":  ["20px", { lineHeight: "22px", letterSpacing: "-0.015em" }], // multi, filas 2+
+mult:        ["12px", { lineHeight: "13px", letterSpacing: "0.01em" }],   // multiplicador
 ```
 
 ### 1.3 Espaciado y forma
@@ -162,15 +165,15 @@ Semántica: `<nav>` → `<ul role="tablist">` → `<li role="presentation">` →
 ### 3.1 Anatomía común
 
 ```
-┌────────────────────────────────────────────────┐  ← radio 14, borde 1px --line2
-│ [LIVE] [HOT] [MX]                  ● Cripto    │  fila 1 · 16 px
-│ Bitcoin cierra la semana arriba de 71k         │  fila 2 · 19 px  (1 línea)
-│ ┌──────┐                                       │
-│ │ 62 % │ Arriba de 71,000  1.61×   38 % Abajo  │  fila 3a · 30 px
-│ └──────┘                          2.63×        │
-│ ██████████████████████░░░░░░░░░░░░░░░░░        │  fila 3b · 3 px
-│ Pozo 2,240 pts · 38 jugando · Cierra dom 23:59 │  fila 4 · 12 px
-└────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────┐  ← radio 14, borde 1px --line2
+│ [LIVE] [HOT] [MX]                    ● Cripto    │  fila 1 · 16 px
+│ Bitcoin cierra la semana arriba de 71k           │  fila 2 · 19 px  (1 línea)
+│ ╭────────╮ Arriba de 71,000      Abajo de 71,000 │
+│ │  62 %  │ paga 1.61×        38 %    paga 2.63×  │  fila 3a · 36 px
+│ ╰────────╯                                       │
+│ ████████████████████████░░░░░░░░░░░░░░░░░░░      │  fila 3b · 3 px
+│ Pozo 2,240 pts · 38 jugando · Cierra dom 23:59   │  fila 4 · 11 px
+└──────────────────────────────────────────────────┘
 ```
 
 **Presupuesto de altura (390 × 844, DPR 2):**
@@ -180,21 +183,33 @@ Semántica: `<nav>` → `<ul role="tablist">` → `<li role="presentation">` →
 | Padding vertical (9 + 9) | 18 |
 | Fila 1 · badges + categoría | 16 |
 | Fila 2 · título (1 línea) | 19 |
-| Fila 3 · bloque de opciones (pill 30 + 3 + barra 3) | 36 |
-| Fila 4 · pie | 12 |
-| Separaciones entre filas (3 × 3) | 9 |
-| **Total** | **110** |
+| Fila 3 · bloque de opciones (pill 36 + 3 + barra 3) | 42 |
+| Fila 4 · pie | 11 |
+| Separaciones (3 + 3 + 2) | 8 |
+| **Total** | **114** |
 
-**110 px contra los 159 px medidos hoy = −30,8 %.** Se cumple el "~30 % más bajas" con número, no con adjetivo.
+**114 px contra los 159 px medidos hoy = −28,3 %**, dentro del techo de 116 px. Los 4 px que sube respecto del borrador anterior compran los 6 px de porcentaje (24 → 30 px) que hacían falta para que el número mande de verdad; se pagan apretando el pie (12 → 11 px, §5) y la separación barra–pie (3 → 2 px).
 
-Cómo se paga ese recorte, en orden de aporte: el número baja de 44 a 24 px (−20), el título se limita a **una** línea vía `shortTitle` (−19), el padding baja de 12 a 9 y las separaciones de 6 a 3 (−15), el Edge sale de la card (−5, era una badge en la fila de decisión). Suma −59; la barra nueva devuelve +6 y el radio menor +4 de aire visual sin costo de alto.
+Cómo se paga el recorte total, en orden de aporte: el título se limita a **una** línea vía `shortTitle` (−19), el número baja de 44 a 30 px (−14), el padding baja de 12 a 9 y las separaciones de 6 a 3 (−13), el pie se aprieta (−2), el Edge sale de la card (−5, era una badge en la fila de decisión). Suma −53; la barra nueva devuelve +6 y la pill más alta +2.
 
 **`shortTitle` es obligatorio.** Campo nuevo en `Market`: `shortTitle?: string`, ≤ 42 caracteres, sin signo de interrogación, afirmativo. El catálogo propio y las plantillas lo generan siempre; los mercados agregados que no lo traigan caen a `title` con `line-clamp-2` (tarjeta de 129 px, excepción declarada y medida).
 
 - `title`: `¿Bitcoin cierra la semana arriba de 71,000 dólares?` → detalle
 - `shortTitle`: `Bitcoin cierra la semana arriba de 71k` → tarjeta
 
-**Densidad resultante.** A 390 × 844: 844 − 56 (header) − 56 (nav) − 40 (chips) = 692 px de contenido; 110 + 8 = 118 px por mercado → **5 tarjetas enteras** (hoy 4), y 5,8 con la altura media del feed. Presupuesto para `npm run densidad`: alto de tarjeta ≤ 116 px en los tres tipos de una pregunta, ≥ 5 tarjetas enteras, 0 nodos de texto envueltos a 320 / 360 / 390 / 430 px.
+**Densidad resultante.** A 390 × 844: 844 − 56 (header) − 56 (nav) − 40 (chips) = 692 px de contenido; 114 + 8 = 122 px por mercado → **5 tarjetas enteras** (hoy 4). Presupuesto para `npm run densidad`: ≤ **116 px** en Cripto Live, Deportes Live y binario con nombre; ≥ 5 tarjetas enteras; 0 nodos de texto envueltos a 320 / 360 / 390 / 430 px.
+
+**Bloque de opciones — geometría fija (la misma en Cripto Live, Deportes Live y binario):**
+
+| Elemento | Medida |
+|---|---|
+| Pill del líder | Alto **36 px**, radio 999, `px-12`, fondo `--teal-soft`, anillo 1 px `--pill-ring` |
+| Número del líder | 30 / 32, peso 700, `--text`, `tabular-nums`; `%` en 12 px pegado arriba con `opacity .72` |
+| Stack derecho del líder | A 10 px de la pill, dos líneas de 15 + 13 = 28 px, centradas contra la pill: línea 1 = etiqueta (13 / 15, 600, `--text2`, `truncate`), línea 2 = `paga 1.61×` (mono 12 / 13, 500, `--muted`) |
+| Bloque del rival | Alineado a la derecha, **sin relleno**: número 20 / 22 (600, `--text2`) y debajo el mismo stack de dos líneas, alineado a la derecha |
+| Barra | 3 px, a 3 px del bloque, ancho completo del contenido |
+
+El rival **no lleva pill rellena** por dos razones que apuntan al mismo lado: en tema claro `--text2` sobre `--panel2` da 6,83:1 y no llega al objetivo de 7:1 (§F), y sin relleno la diferencia entre líder y rival se lee de reojo — un solo bloque pintado por tarjeta.
 
 ### 3.2 Barras de probabilidad (nivel Kalshi)
 
@@ -228,44 +243,106 @@ La puerta es `assertPublishable()` en `src/domain/resolution.ts`: un mercado con
 
 #### 3.4.1 Cripto Live
 
-- **Header row:** badge `LIVE` (punto 6 px `--live` pulsando + palabra) · badge `HOT` si aplica · a la derecha, marca de categoría (círculo 6 px `--teal`) + palabra `Cripto`, 11 px `--muted`. Alto 16 px.
-- **Main content:** `shortTitle` en una línea — `Bitcoin cierra la semana arriba de 71k`. Fraunces 600, 15 / 19, `--text`, `line-clamp-1`.
-- **Options block:** dos grupos en una fila, `justify-between`.
-  - Líder: pill de 30 px de alto, fondo `--teal-soft`, radio 999, `px-10`; dentro, `62` en 24 px Fraunces `tabular-nums` `--text` + `%` en 10 px alineado arriba. Fuera de la pill, a 8 px: etiqueta `Arriba de 71,000` (12 px / 600 `--text2`, `truncate`) y multiplicador `1.61×` (mono 12 px `--muted`).
-  - Rival, alineado a la derecha: `38 %` en 17 px `--text2` + etiqueta `Abajo de 71,000` + `2.63×`.
-  - Debajo, a 3 px: la barra binaria de §3.2.
-- **Footer:** una línea, 11 px `--muted`, `truncate`: `BTC 71,204 · +1.4 % hoy · Pozo 2,240 pts · Cierra dom 23:59`. La variación va en `--up` o `--dn` según signo, con el signo siempre escrito.
-- **Visual notes:** alto total **110 px**. El precio spot del pie se actualiza cada 10 s y la barra sólo se remueve cuando la probabilidad cambia ≥ 0,5 pp. El badge LIVE pulsa 1,8 s. Si el oráculo se atrasa > 5 min, el badge LIVE se sustituye por `Precio con retraso` en `--muted` y el spot deja de pintarse en color de variación.
+```
+┌──────────────────────────────────────────────────┐
+│ ●LIVE  1:47  [HOT]                   ● Cripto    │  16 px
+│ Bitcoin arriba de 71,200 al cierre de 5 min      │  19 px
+│ ╭────────╮ Arriba de 71,200      Abajo de 71,200 │
+│ │  62 %  │ paga 1.61×        38 %    paga 2.63×  │  36 px
+│ ╰────────╯                                       │
+│ ████████████████████████░░░░░░░░░░░░░░░░░░░      │   3 px
+│ BTC 71,204 ▲ +1.4 % · Pozo 2,240 pts · 38 jugando│  11 px
+└──────────────────────────────────────────────────┘   = 114 px
+```
+
+- **Header row:** badge `LIVE` (punto 6 px `--live` pulsando + palabra, 10 px 700 sobre tinte `--live` al 14 %) · **badge de cuenta regresiva** `1:47` (mono 10 px, tinte `--live` al 14 %, se actualiza cada segundo bajo el minuto y cada 5 s por encima) · `HOT` si aplica · a la derecha, círculo 6 px `--teal` + `Cripto`, 11 px `--muted`. Alto 16 px.
+- **Main content:** `shortTitle` en una línea — `Bitcoin arriba de 71,200 al cierre de 5 min`. Fraunces 600, 15 / 19, `--text`, `line-clamp-1`.
+- **Options block:** geometría fija de §3.1.
+  - Líder: pill 36 px con `62` en **30 px / 700** `--text` + `%` en 12 px arriba; a 10 px, stack de dos líneas — `Arriba de 71,200` (13 px 600 `--text2`) sobre `paga 1.61×` (mono 12 px 500 `--muted`).
+  - Rival, a la derecha y sin relleno: `38 %` en 20 px `--text2`, y debajo `Abajo de 71,200` sobre `paga 2.63×`.
+  - Barra binaria de §3.2 a 3 px del bloque.
+- **Footer:** 11 px, una línea: `BTC 71,204 ▲ +1.4 % · Pozo 2,240 pts · 38 jugando`. El precio y su variación van primero y en `--up` / `--dn` con flecha **y** signo — el color nunca va solo (R-005). El cierre no se repite aquí: ya está en el badge de cuenta regresiva.
+- **Visual notes:** **114 px**. Ventanas de 5 y 15 min siempre disponibles para BTC y ETH (§4.1): el riel nunca está vacío. El spot se refresca cada 5 s con transición de opacidad de 120 ms sobre el número —nunca un salto seco— y la barra se remueve sólo con cambios ≥ 0,5 pp. La cuenta regresiva pasa a `--live` en 700 cuando baja de 30 s. Oráculo atrasado > 5 min: el badge `LIVE` se sustituye por `Precio con retraso` en `--muted`, la cuenta regresiva se mantiene y el spot deja de pintarse en color de variación.
 
 #### 3.4.2 Deportes Live
 
-- **Header row:** badge `LIVE` · badge de minuto `72'` (mono 10 px, fondo `--live` al 14 %, texto `--live`) · escudos de los dos equipos (22 px, `rounded-full`, sólo ≥ 360 px de ancho) · a la derecha, marca de categoría + `Deportes`. Alto 16 px.
-- **Main content:** el marcador **es** el título — `América 2 – 1 Santos`, Fraunces 600, 16 / 20, `tabular-nums`; los goles en `--text`, el guion y los nombres en `--text2`. Una línea, `truncate` por nombre de equipo, nunca por el marcador.
-- **Options block:** tres grupos si el mercado es 1X2, dos si es binario. Cuando son tres, se usa el patrón multi-resultado (§3.4.4) con las filas ordenadas por pozo:
-  - `Gana el América` — pill 30 px `61 %` + `1.63×` + barra `--teal`
-  - `Empatan` — `24 %` + `4.10×` + barra `--muted`
-  - `Gana Santos` — `15 %` + `6.50×` + barra `--muted`
-- **Footer:** `Resultado final · Pozo 4,120 pts · 96 jugando`. La pregunta larga (`¿Cómo termina el América ante Santos?`) vive en el detalle.
-- **Visual notes:** alto **111 px** en su forma binaria (dos grupos en una fila), **149 px** en 1X2. El marcador destella `--up` 200 ms cuando cambia y el minuto se refresca cada 30 s. Sin oráculo de marcador vivo no hay badge LIVE: un partido "en vivo" sin marcador es una promesa que la tarjeta no puede cumplir.
+El marcador ocupa **su propia fila de 20 px** y sustituye al título: la pregunta larga vive en el detalle. Esa fila es la única concesión de altura del tipo (115 px contra 114), y a cambio la tarjeta nunca queda muda sobre el estado del evento.
+
+**Regla de subordinación:** el marcador es Fraunces 700 a **16 px**; el porcentaje del líder es 30 px. El marcador informa, el porcentaje decide, y la proporción 30 : 16 lo dice sin leer.
+
+**Ejemplo A — Tenis Live (el caso más denso: sets + game en curso)**
+
+```
+┌──────────────────────────────────────────────────┐
+│ ●LIVE  40-30  2º set                 ● Deportes  │  16 px
+│ ● Alcaraz  6 4 2        Zverev  3 6 1            │  20 px
+│ ╭────────╮ Gana Alcaraz              Gana Zverev │
+│ │  71 %  │ paga 1.41×        29 %    paga 3.45×  │  36 px
+│ ╰────────╯                                       │
+│ ███████████████████████████████░░░░░░░░░░░░      │   3 px
+│ Quiebre hace 2 min · Pozo 5,900 pts · 142 jugando│  11 px
+└──────────────────────────────────────────────────┘   = 115 px
+```
+
+- **Header row:** `LIVE` · badge de **estado del punto** `40-30` (mono 10 px 700, tinte `--live` al 14 %, texto `--live`) · badge de fase `2º set` (10 px, `--panel2`, texto `--muted`) · a la derecha, categoría. 16 px.
+- **Main content (fila de marcador, 20 px):** dos grupos separados por 16 px. Cada grupo = apellido (13 px 600 `--text2`, `truncate` a 96 px) + sets en Fraunces **16 px / 700 `tabular-nums` `--text`**, separados 6 px, el set en curso con `opacity .72` para que no se confunda con los cerrados. Punto de saque: círculo de 5 px `--teal` a la izquierda de quien saca.
+- **Options block:** idéntico al binario estándar, con nombres propios — `Gana Alcaraz` / `Gana Zverev`. Nunca "Jugador 1".
+- **Footer:** `Quiebre hace 2 min · Pozo 5,900 pts · 142 jugando`. El evento reciente va primero: es lo que explica por qué el porcentaje se movió.
+- **Visual notes:** **115 px**. El game en curso (`40-30`) vive en el badge, no en la fila de marcador: cambia cada punto y ahí arriba se actualiza sin mover una sola caja. Al cerrarse un set, el número nuevo entra con `fade` de 120 ms y la fila destella `--up` 200 ms.
+
+**Ejemplo B — Béisbol Live (LMP / MLB)**
+
+```
+┌──────────────────────────────────────────────────┐
+│ ●LIVE  ALTA 7ª  2 out                ● Deportes  │  16 px
+│ Naranjeros  4           Tomateros  3             │  20 px
+│ ╭────────╮ Gana Naranjeros        Gana Tomateros │
+│ │  64 %  │ paga 1.56×        36 %    paga 2.78×  │  36 px
+│ ╰────────╯                                       │
+│ ███████████████████████████░░░░░░░░░░░░░░░░      │   3 px
+│ Corredores en 1ª y 3ª · Pozo 2,860 pts · 71 juga…│  11 px
+└──────────────────────────────────────────────────┘   = 115 px
+```
+
+- **Header row:** `LIVE` · badge de entrada `ALTA 7ª` (mono 10 px, tinte `--live` 14 %) · badge de outs `2 out` (`--panel2`). La flecha de entrada se escribe con palabra (`ALTA` / `BAJA`), no con símbolo: se lee igual en voz alta.
+- **Main content:** mismo patrón — nombre + carrera en 16 px 700. Sin escudos: a 390 px dos nombres de equipo de la LMP ya llenan la fila.
+- **Footer:** el estado de bases en palabras (`Corredores en 1ª y 3ª`, `Bases limpias`), que es lo que mueve el precio en entradas finales.
+- **Visual notes:** **115 px**. Al entrar una carrera, el número destella `--up` 200 ms y la barra transiciona 240 ms. Cambio de pitcher: el pie pasa 30 s a `Cambio de pitcher` en `--text2` antes de volver al estado de bases — es el momento de mayor apuesta de la categoría (§4.6).
+
+**Fútbol (Liga MX)** conserva el patrón: badge de minuto `72'`, fila de marcador `América 2 · Santos 1` con escudos de 20 px sólo por encima de 360 px de ancho, y bloque 1X2 en formato multi-resultado (§3.4.4, 150 px).
+
+**Regla dura para toda la familia:** sin oráculo de marcador vivo no hay badge `LIVE` ni fila de marcador — el mercado cae a binario con nombre. Una tarjeta "en vivo" sin estado del evento es exactamente la card vacía que este rediseño existe para eliminar.
 
 #### 3.4.3 Binario con nombre (estándar)
 
 - **Header row:** badge `HOT` si aplica · badge de país (`MX`, `BR`, `CO`…, 10 px, fondo `--panel2`) · a la derecha, marca de categoría (cuadro 6 px `--hot`) + `Economía`. Alto 16 px.
 - **Main content:** `shortTitle` en una línea — `Banxico recorta la tasa en agosto`.
-- **Options block:** idéntico al de Cripto Live: pill líder + etiqueta + multiplicador a la izquierda, rival alineado a la derecha, barra binaria de 3 px debajo.
-  - `54 %` `Recorta` `1.80×`  ·  `46 %` `Mantiene` `2.12×`
+
+```
+┌──────────────────────────────────────────────────┐
+│ [HOT] [MX]                           ■ Economía  │  16 px
+│ Banxico recorta la tasa en agosto                │  19 px
+│ ╭────────╮ Recorta                      Mantiene │
+│ │  54 %  │ paga 1.80×        46 %    paga 2.12×  │  36 px
+│ ╰────────╯                                       │
+│ █████████████████████░░░░░░░░░░░░░░░░░░░░░░      │   3 px
+│ Pozo 2,240 pts · 38 jugando · Cierra el 8 ago    │  11 px
+└──────────────────────────────────────────────────┘   = 114 px
+```
+
+- **Options block:** geometría fija de §3.1. Pill 36 px con `54` en **30 px / 700**; a su derecha el stack `Recorta` (13 px 600 `--text2`) sobre `paga 1.80×` (mono 12 px 500 `--muted`). Rival sin relleno a la derecha: `46 %` en 20 px, `Mantiene`, `paga 2.12×`. Barra binaria debajo.
 - **Footer:** `Pozo 2,240 pts · 38 jugando · Cierra el 8 ago`.
-- **Visual notes:** alto **110 px** con `shortTitle`, 129 px en el caso degradado de dos líneas. Sin `LIVE` y sin borde de color: sólo el mercado con posición propia abierta lleva borde `--line`. **El Edge no aparece aquí** en ninguna forma.
+- **Visual notes:** **114 px** con `shortTitle`; 133 px en el caso degradado de título a dos líneas. Sin `LIVE` y sin borde de color: sólo el mercado con posición propia abierta lleva borde `--line`. **El Edge no aparece aquí** en ninguna forma.
 
 #### 3.4.4 Multi-resultado
 
 - **Header row:** badges igual que el estándar · a la derecha, categoría. Alto 16 px.
 - **Main content:** `shortTitle` en una línea — `Quién gana la elección en Chile`.
-- **Options block:** las **tres** respuestas con más pozo, una por fila, cada fila de 20 px + barra de 3 px, separadas 3 px:
-  - fila = pill compacta (alto 24, `px-8`, número 20 px) `41 %` · etiqueta `Gana Jara` (12 px `--text2`, `truncate`) · multiplicador `2.44×` alineado a la derecha (mono 12 px `--muted`) · barra debajo, ancho proporcional.
-  - Orden: por probabilidad descendente. Fila 1 con pill `--teal-soft` y barra `--teal`; filas 2 y 3 con pill `--panel2` y barra `--muted`.
+- **Options block:** las **tres** respuestas con más pozo, una por fila de 21 px + barra de 3 px, separadas 3 px:
+  - fila = número en **20 / 22 `tabular-nums`** a la izquierda (ancho fijo de 46 px para que las tres columnas queden alineadas) · etiqueta `Gana Jara` (13 px 600 `--text2`, `truncate`) · `paga 2.44×` a la derecha (mono 12 px 500 `--muted`) · barra debajo, ancho proporcional.
+  - Fila 1: número en `--text` con la pill rellena de `--teal-soft` (alto 26, `px-8`) y barra `--teal`. Filas 2 y 3: número en `--text2` **sin relleno** y barra `--muted`. Un solo bloque pintado por tarjeta, igual que en el binario.
 - **Footer:** `+4 respuestas · Pozo 9,800 pts · 211 jugando · Cierra el 16 nov`. El `+N respuestas` va primero y en `--text2`: es la señal de que hay más detrás.
-- **Visual notes:** alto **149 px**, excepción declarada al presupuesto de 116 px — reemplaza la información de tres tarjetas, así que sigue siendo el formato más denso disponible. Nunca se muestran más de 3 filas en la tarjeta, ni siquiera con hueco: la cuarta respuesta se lee en el detalle. Si hay exactamente 2 respuestas, no es multi-resultado: es binario con nombre.
+- **Visual notes:** alto **150 px**, excepción declarada al techo de 116 px — reemplaza la información de tres tarjetas, así que sigue siendo el formato más denso disponible. Nunca más de 3 filas, ni siquiera con hueco: la cuarta respuesta se lee en el detalle. Con exactamente 2 respuestas no es multi-resultado: es binario con nombre.
 
 ### 3.5 Regla de variante
 
@@ -296,9 +373,11 @@ frescura_oráculo = 1 si < 60 s · 0.5 si < 5 min · 0 si más
 
 **Histéresis (anti-parpadeo):** una moneda sólo desplaza a la titular si supera su score en ≥ 15 % durante **2 ciclos seguidos** (10 min). Sin esto el riel cambia cada refresco y el feed se siente inestable.
 
-**Elegibilidad de "Live":** ventana de mercado ≤ 24 h, precio de referencia programático, cierre y resolución leídos de la misma vela. Un mercado semanal de BTC no es Live: es binario con nombre.
+**Ventanas cortas, siempre encendidas.** BTC y ETH corren **ventanas de 5 y 15 minutos de forma continua**: al cerrar una vela se siembra la siguiente con el umbral recalculado sobre el spot. Esto sostiene la promesa de "siempre hay algo vivo" sin depender del calendario deportivo, y responde a lo que la gente pide en live: resolución corta. Requisitos: oráculo con cadencia ≤ 5 s, liquidación por vela cerrada de la misma fuente, y semilla de pozo (`SEED`) en cada ventana nueva para que el primero en entrar no vea un pago absurdo.
 
-**Techo:** máximo **4** tarjetas Cripto Live simultáneas (2 fijas + 2 rotatorias). Degradación: oráculo atrasado > 5 min → se cae el badge; > 15 min → la tarjeta sale del riel Live y el feed lo declara con la franja de datos viejos que ya existe.
+**Elegibilidad de "Live":** ventana ≤ 24 h —en la práctica 5 min, 15 min o 1 h—, precio de referencia programático, cierre y resolución leídos de la misma vela. Un mercado semanal de BTC no es Live: es binario con nombre.
+
+**Techo:** máximo **4** tarjetas Cripto Live simultáneas (2 fijas + 2 rotatorias), y como mucho **2** suben a Hot ahora (§4.6). Degradación: oráculo atrasado > 5 min → se cae el badge; > 15 min → la tarjeta sale del riel Live y el feed lo declara con la franja de datos viejos que ya existe.
 
 ### 4.2 Deportes — selectivo por definición
 
@@ -359,18 +438,38 @@ Reglas: el mercado nombra a la encuestadora o al órgano que lo resuelve dentro 
 **Candidatos:** `status === "live"` ∨ `hot === true` ∨ cierra en < 24 h ∨ pozo en el decil superior.
 
 ```
-score = 0.40 · vivo + 0.25 · z(pozo) + 0.20 · z(participantes) + 0.15 · urgencia_cierre
-vivo = 1 si status === "live", 0.6 si cierra en < 6 h, 0 si no
-urgencia_cierre = 1 − min(horas_al_cierre / 72, 1)
+score = 0.34 · nivel_live
+      + 0.22 · resolucion_corta
+      + 0.18 · z(pozo)
+      + 0.14 · z(participantes)
+      + 0.12 · evento_reciente
+
+nivel_live        Cripto 5/15 min ........ 1.00   (siempre disponible, alta rotación)
+                  Tenis con momentum ..... 0.92   (break point o quiebre en los últimos 5 min)
+                  Béisbol entradas 7+ .... 0.85   (o cambio de pitcher en curso)
+                  Tenis normal ........... 0.75
+                  Liga MX en juego ....... 0.70
+                  Béisbol entradas 1-6 ... 0.60
+                  Sin live ............... 0
+resolucion_corta  1 − min(minutos_al_cierre / 120, 1)   → un mercado de 5 min vale 0.96;
+                                                          uno que cierra en 2 h vale 0
+evento_reciente   1 si hubo gol, quiebre, carrera o cambio de pitcher en los últimos 3 min;
+                  decae lineal a 0 a los 10 min
 ```
 
+La escalera de `nivel_live` es la prioridad pedida, escrita como número: Cripto Live manda porque siempre está y siempre resuelve pronto; el tenis sube cuando hay momentum, que es cuando la gente entra; el béisbol pesa en entradas finales y cambio de pitcher; Liga MX entra cuando hay partido en curso.
+
 **Reglas de armado, en este orden:**
-1. Ordenar candidatos por score descendente.
-2. **Máximo 2 por categoría** — seis mercados de cripto no son un feed, son un ticker.
-3. Si hay algún deporte en vivo, el primero entra sí o sí en el top 3.
-4. Cortar en 5. Si el sexto tiene score ≥ 0,55, entra: **6**.
-5. Si hay menos de 5 candidatos, completar con los mercados abiertos de mayor score hasta 5. El riel **nunca** muestra 4.
-6. Ningún mercado con menos de `MIN_APOSTADORES` (2) entra en Hot: un pozo de una persona no está caliente.
+1. **Puerta de calidad (antes de ordenar).** Un mercado live sólo es candidato si tiene ≥ 8 apostadores **o** pozo ≥ p60 de su categoría. El volumen se concentra en pocos eventos calientes: diluir el riel con live mediocres cuesta más de lo que suma.
+2. Ordenar los candidatos que pasaron la puerta por score descendente.
+3. **Máximo 2 por categoría** — seis mercados de cripto no son un feed, son un ticker.
+4. **Piso de Cripto Live: 1 slot garantizado**, techo 2. Siempre hay una ventana de 5 o 15 min viva, así que el riel nunca depende de que haya partido.
+5. Si hay algún deporte en vivo que pasó la puerta, el de mayor score entra en el top 3.
+6. Cortar en 5. Si el sexto tiene score ≥ 0,55, entra: **6**.
+7. Si hay menos de 5 candidatos, completar con los mercados abiertos de mayor score hasta 5. El riel **nunca** muestra 4.
+8. Ningún mercado con menos de `MIN_APOSTADORES` (2) entra en Hot: un pozo de una persona no está caliente.
+
+**Reordenamiento:** el riel se recalcula cada 30 s, pero un mercado **no cambia de posición** hasta que su score difiere ≥ 10 % del que ocupa el lugar — misma histéresis que en §4.1. Una lista que se reordena bajo el dedo pierde la apuesta que ya estaba decidida.
 
 El encabezado `Hot ahora` sigue siendo `sr-only`: los badges ya lo dicen y 36 px de cromo son un tercio de tarjeta.
 
@@ -382,16 +481,20 @@ El encabezado `Hot ahora` sigue siendo `sr-only`: los badges ya lo dicen y 36 px
 
 ## 5 · Interacción y pulido
 
+Cuatro animaciones en todo el sistema. Ninguna dura más de 240 ms y ninguna se repite salvo el pulso.
+
 | Estado | Especificación |
 |---|---|
-| **Pulso LIVE** | Punto de 6 px `--live`, `opacity 1 → 0.35 → 1`, 1,8 s `ease-in-out`, infinito. Un solo punto por tarjeta. Se detiene con `prefers-reduced-motion`. |
-| **Actualización de probabilidad** | El número cruza con `fade` de 120 ms; la barra transiciona 240 ms `cubic-bezier(.22,1,.36,1)`. Sube → destello `--up` 200 ms sobre el número; baja → `--dn`. Umbral mínimo para animar: 0,5 pp. |
-| **Marcador deportivo** | Al cambiar, el marcador destella `--up` 200 ms y el minuto se refresca sin animación. |
-| **Presionado** | Toda la tarjeta es un target. `active:` fondo `--panel2`, `scale(0.985)`, 120 ms `ease-out`. Sin efecto de elevación. |
-| **Cargando (feed)** | 5 esqueletos de **exactamente 110 px** con `animate-shimmer`. La altura clavada es lo que mantiene el CLS en 0. |
+| **Pulso LIVE** | Sólo el punto de 6 px `--live`: `opacity 1 → 0.4 → 1`, **2 s** `ease-in-out`, infinito. La palabra `LIVE` **no** parpadea y la barra tampoco: un solo elemento en movimiento por tarjeta, y es el más chico. Se detiene con `prefers-reduced-motion`. |
+| **Actualización de probabilidad** | El número cruza con `fade` de 120 ms; la barra transiciona 240 ms `cubic-bezier(.22,1,.36,1)`. Sube → destello `--up` 200 ms sobre el número; baja → `--dn`. Umbral mínimo para animar: 0,5 pp — por debajo, el valor cambia sin animación. |
+| **Marcador deportivo** | Al cambiar, destella `--up` 200 ms. El minuto, la entrada y el game (`40-30`) se refrescan sin animación: cambian demasiado seguido como para llamar la atención cada vez. |
+| **Presionado — pill de porcentaje** | La pill es un `<button>` propio. `:active` → `scale(0.96)`, fondo a `color-mix(in srgb, var(--teal) 26%, var(--panel))`, anillo 1 px `--teal`, **90 ms** `ease-out`. En el rival, que no tiene relleno, el `:active` pinta ese mismo fondo desde transparente. Vibración de 8 ms si `navigator.vibrate` existe. |
+| **Selección de una opción** | Al soltar, la pill **queda armada** —anillo `--teal` de 1 px y fondo al 26 %— durante los 180 ms que tarda en abrir la hoja de detalle, y la hoja abre con **ese resultado preseleccionado**. El estado armado no sobrevive al cierre de la hoja: no es una selección persistente, es continuidad visual entre el toque y el destino. |
+| **Presionado — resto de la tarjeta** | Tocar fuera de las pills abre el detalle sin preselección: fondo `--panel2`, `scale(0.985)`, 120 ms `ease-out`. Sin elevación. |
+| **Cargando (feed)** | 5 esqueletos de **exactamente 114 px** con `animate-shimmer` (1,4 s). La altura clavada es lo que mantiene el CLS en 0. |
 | **Cargando (acción)** | El botón conserva su ancho y cambia el texto (`Preparando…`), nunca se encoge. |
 | **Vacío (filtro)** | `No hay mercados en esta categoría por ahora.` + `Ver todos los mercados`. |
-| **Vacío (Hot)** | No existe: la regla 4.6.5 garantiza 5. |
+| **Vacío (Hot)** | Sólo en arranque en frío u offline, cuando el motor devuelve menos de 2 mercados: un panel con forma de tarjeta (114 px, mismo radio y borde) con `Estamos armando los mercados de hoy.` y `Reintentar`. Con datos, la regla 4.6.7 garantiza 5. |
 | **Vacío (Portafolio)** | `Todavía no tienes posiciones.` + `Ver mercados`. |
 | **Error** | `ErrorState` con mensaje en español y `Reintentar`. Nunca un stack trace (R-008). |
 | **Datos viejos** | Franja existente sobre el feed: `Esto es lo último que cargamos` + `Reintentar`. Se sigue mostrando el contenido. |
@@ -456,8 +559,15 @@ Tono: se tutea, se dice lo que pasa y se cierra la frase. `Pozo 2,240 pts`, no `
 | 7.10 | Selección automática de Cripto Live con histéresis | `src/adapters/ownMarkets/ownMarketsAdapter.ts`, `src/adapters/oracles/priceOracle.ts` | Medio |
 | 7.11 | Armado de Hot ahora por score con techo por categoría | `src/screens/HomeScreen.tsx` → mover a `src/domain/feed.ts` (nuevo) | Medio — la regla debe ser probable sin montar la UI |
 | 7.12 | Presupuesto de densidad nuevo: ≤ 116 px por tarjeta, ≥ 5 enteras | `scripts/densidad.mjs`, `vault/CARD_SPEC.md` | Bajo |
+| 7.13 | `MarketCard` deja de ser un `<button>` envolvente: pasa a `<article>` + enlace estirado (`::after` absoluto) con las pills como `<button>` reales por encima. Es lo que permite el estado presionado de §5 sin anidar interactivos | `MarketCard.tsx`, pruebas de a11y | Medio — cambia la semántica que hoy leen las pruebas |
+| 7.14 | Token nuevo `--pill-ring` (`--teal` al 55 % en oscuro, 65 % en claro). **Mueve `tokens.lock.json`** | `styles/tokens.css`, `vault/tokens.lock.json` | Bajo — único token nuevo del rediseño |
+| 7.15 | Escala `prob-pill` 30 · `prob-riv` 20 · `prob-row` 20 · `mult` 12; pie a 11 / 11 con máscara en vez de `overflow-hidden` | `tailwind.config.ts`, `MarketCard.tsx` | Bajo |
+| 7.16 | Cripto de 5 y 15 min siempre encendido: oráculo con cadencia ≤ 5 s, siembra automática de la vela siguiente, liquidación por vela | `oracles/priceOracle.ts`, `ownMarkets/templates.ts`, `scripts/settle.mts` | **Alto** — multiplica la frecuencia de liquidación; es el cambio con más superficie operativa |
+| 7.17 | `nivel_live`, `resolucion_corta` y `evento_reciente` en el score de Hot, con histéresis de reordenamiento | `domain/feed.ts` (nuevo), `oracles/matchOracle.ts` (expone `ultimoEvento`) | Medio |
+| 7.18 | `marcador` se vuelve estructurado: sets de tenis · entrada/outs/bases de béisbol · goles de fútbol | `domain/types.ts`, `oracles/matchOracle.ts`, `MarketCard.tsx` | Medio |
+| 7.19 | Pruebas de contraste: agregar los pares de §9 en los dos temas | `tests/contrast.test.ts` | Bajo |
 
-**Enmiendas de reglas que quedan escritas:** R-004 (el nodo de 44 px pasa al detalle; la pill de 24 px es el dominante de la tarjeta), R-001 (el Edge sigue teniendo umbral de 4 pp, pero su superficie es sólo el detalle), R-063 (los dos lados siguen a la vista y ahora además tienen nombre propio).
+**Enmiendas de reglas que quedan escritas:** R-004 (el nodo de 44 px pasa al detalle; el porcentaje de 30 px en peso 700 es el dominante de la tarjeta), R-001 (el Edge sigue teniendo umbral de 4 pp, pero su superficie es sólo el detalle), R-063 (los dos lados siguen a la vista y ahora además tienen nombre propio).
 
 ---
 
@@ -474,3 +584,52 @@ Cinco agentes revisaron el borrador completo. Ronda 1 con dos fallos, corregidos
 | **5 · LATAM Voice** | PASS — Liga MX, LMP, Banxico, Cutzamala, Popocatépetl, mezcla mexicana, Servel/CNE/TSE; copy tuteado y sin anglicismos de relleno | PASS |
 
 **Veredicto: 5/5 PASS.** Especificación emitida.
+
+---
+
+## 9 · Apéndice — Contraste WCAG, medido
+
+Calculado sobre los hex reales de `src/styles/tokens.css` con la fórmula de luminancia relativa de WCAG 2.1, incluidas las composiciones alfa de los badges. Script reproducible en `tests/contrast.test.ts` (7.19).
+
+**Tokens en juego**
+
+| Rol | Oscuro (default) | Claro |
+|---|---|---|
+| Fondo de tarjeta (`--panel`) | `#102528` | `#ffffff` |
+| Fondo de pill líder (`--teal-soft`) | `#12312f` | `#e2eeec` |
+| Texto principal / % líder (`--text`) | `#eceae1` | `#12262a` |
+| % rival, etiquetas (`--text2`) | `#b7c3c1` | `#3c5250` |
+| Multiplicador, pie, categoría (`--muted`) | `#829290` | `#596a69` |
+| Barra del líder (`--teal`) | `#4cbab2` | `#0b6b6e` |
+| Barra del resto (`--muted`) | `#829290` | `#596a69` |
+| Badge LIVE (`--live`) | `#ff6b5a` | `#b03a22` |
+| Badge HOT (`--hot`) | `#e8a33d` | `#8a5a0b` |
+| Variación ▲ / ▼ (`--up` / `--dn`) | `#43c989` / `#e5795e` | `#157048` / `#a8412b` |
+
+**Ratios**
+
+| Par | Objetivo | Oscuro | Claro |
+|---|---|---|---|
+| % líder vs tarjeta | ≥ 7 | **13,23** | **15,71** |
+| % líder vs pill (`--teal-soft`) | ≥ 7 | **11,57** | **13,23** |
+| % rival vs tarjeta *(sin relleno)* | ≥ 7 | **8,80** | **8,35** |
+| Título vs tarjeta | ≥ 7 | **13,23** | **15,71** |
+| Etiqueta de resultado vs tarjeta | ≥ 4,5 | **8,80** | **8,35** |
+| Multiplicador vs tarjeta | ≥ 4,5 | **4,91** | **5,69** |
+| Pie vs tarjeta | ≥ 4,5 | **4,91** | **5,69** |
+| Barra del líder vs tarjeta | ≥ 3 | **6,81** | **6,28** |
+| Barra del resto vs tarjeta | ≥ 3 | **4,91** | **5,69** |
+| Badge LIVE vs su tinte al 14 % | ≥ 4,5 | **4,75** | **4,87** |
+| Badge HOT vs su tinte al 14 % | ≥ 4,5 | **5,74** | **4,86** |
+| Variación ▲ vs tarjeta | ≥ 4,5 | **7,56** | **6,10** |
+| Variación ▼ vs tarjeta | ≥ 4,5 | **5,49** | **6,08** |
+| Anillo `--pill-ring` vs tarjeta | ≥ 3 | **3,05** (teal @55 %) | **3,01** (teal @65 %) |
+
+**El único fallo encontrado y cómo se corrigió.** El % del rival sobre una pill de `--panel2` daba **6,83:1 en tema claro** (`#3c5250` sobre `#ede8dc`), por debajo del objetivo de 7:1 para números grandes. Corrección: **el rival pierde el relleno** y su número se pinta sobre la tarjeta → 8,35:1. La corrección mejora además la jerarquía, porque deja un solo bloque pintado por tarjeta.
+
+**Notas de método.**
+- El riel vacío de la barra (`--line2` compuesto sobre la tarjeta) da 1,22:1 en oscuro y 1,16:1 en claro. Es correcto que sea bajo: el riel no porta información — la portan los dos segmentos, que cumplen ≥ 3:1 por separado. Lo mismo aplica al relleno de la pill líder (1,14:1 / 1,19:1), que es decoración; la jerarquía la cargan el tamaño (30 vs 20 px) y el texto.
+- Los badges se miden contra su fondo compuesto real (color al 14 % sobre la tarjeta), no contra la tarjeta desnuda, que es lo que ve el ojo.
+- El multiplicador en `--muted` pasa por 0,41 puntos en oscuro. Es el margen más chico del sistema: **`--muted` no puede oscurecerse más** sin romper el pie, la categoría y el multiplicador a la vez. Queda anotado como restricción, no como sugerencia.
+
+**El significado nunca depende del color.** Cada resultado lleva su nombre escrito al lado del número (§3.3); la variación de precio lleva flecha **y** signo además de color; el estado activo de la nav cambia de peso además de color; la categoría lleva forma además de color (R-005); LIVE lleva la palabra además del punto. Quitando todo el color, la tarjeta se sigue leyendo entera.
