@@ -64,7 +64,8 @@ Contraste: **§9 trae los ratios medidos, par por par y tema por tema**, incluid
 | Número del rival | Fraunces, `tabular-nums` | **20 / 22**, `tracking-[-0.015em]` | 600 |
 | Etiqueta de resultado | Hanken | 13 / 15 | 600 |
 | Multiplicador | Mono, `tabular-nums` | 12 / 13, `tracking-[0.01em]` | **500** |
-| Marcador deportivo | Fraunces, `tabular-nums` | 16 / 20 | 600 |
+| Marcador deportivo (números) | Fraunces, `tabular-nums` | 16 / 20 | **700** |
+| Nombre de equipo o jugador | Hanken | 13 / 15 | 600 |
 | Badges (LIVE/HOT/país) | Hanken | 10 / 12, `tracking-[0.04em]`, versalitas | 700 |
 | Pie de tarjeta | Hanken | 11 / 11, `tracking-[0.005em]` | 450 |
 | Categoría | Hanken | 11 / 12 | 500 |
