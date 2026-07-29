@@ -574,6 +574,57 @@ describe("De la apuesta al pago — la vela se liquida sola", () => {
     expect(listarMercados(store, [seed], despues, ticker)).toHaveLength(1);
   });
 
+  /**
+   * La regla del feed dejó de mirar el calendario y mira si alguien espera.
+   * Antes valía para las velas y no para el resto: un mercado normal se iba
+   * 48 h después de su fecha de resolución, hubiera pasado lo que hubiera
+   * pasado. Eso dejaba pasar las dos direcciones del error.
+   */
+  it("un mercado normal ya pagado se va del feed, aunque su ventana siga abierta", () => {
+    const ticker = tickerFalso({ "BTC/USD": 71_183 });
+    const vivos = new MercadosVivos(store, ticker, { intervalos: [5], activos: [BTC] });
+    vivos.tick(DENTRO);
+    // un mercado sin regla de vela: el camino que antes no se filtraba nunca
+    const normal = { ...vivos.seeds()[0], id: "mercado-normal", rule: undefined } as never;
+    store.asegurarPozo({
+      marketId: "mercado-normal",
+      outcomes: { si: 100, no: 100 },
+      feeBps: 300,
+    });
+    const despues = new Date(vivos.seeds()[0].closesAt).getTime() + 1_000;
+
+    // cerrado y con gente dentro: se queda, porque todavía no cobran
+    expect(listarMercados(store, [normal], despues, ticker)).toHaveLength(1);
+
+    // pagado: el resultado ya vive en el portafolio y la tarjeta estorba
+    store.guardarLiquidacion({
+      marketId: "mercado-normal",
+      phase: "pagado",
+      outcome: "si",
+    } as never);
+    expect(listarMercados(store, [normal], despues, ticker)).toHaveLength(0);
+  });
+
+  it("un mercado atorado NO desaparece: se le debe algo a alguien", () => {
+    const ticker = tickerFalso({ "BTC/USD": 71_183 });
+    const vivos = new MercadosVivos(store, ticker, { intervalos: [5], activos: [BTC] });
+    vivos.tick(DENTRO);
+    const normal = { ...vivos.seeds()[0], id: "mercado-atorado", rule: undefined } as never;
+    store.asegurarPozo({
+      marketId: "mercado-atorado",
+      outcomes: { si: 100, no: 100 },
+      feeBps: 300,
+    });
+    store.guardarLiquidacion({
+      marketId: "mercado-atorado",
+      phase: "atorado",
+      evidence: "el oráculo no pudo leer la fuente",
+    } as never);
+    // muy por delante de cualquier ventana de 48 h: el calendario no manda
+    const mucho = new Date(vivos.seeds()[0].closesAt).getTime() + 30 * 86_400_000;
+    expect(listarMercados(store, [normal], mucho, ticker)).toHaveLength(1);
+  });
+
   it("una vela cerrada deja de encabezar el feed", () => {
     const ticker = tickerFalso({ "BTC/USD": 71_183 });
     const vivos = new MercadosVivos(store, ticker, { intervalos: [5, 15], activos: [BTC] });

@@ -218,3 +218,43 @@ propósito — inventar un resultado sería peor que tardarse.
 Está en `COMPLIANCE.md` y `ACELERACION.md`. Resumen: para jugar con puntos no
 hace falta nada más. Para dinero hacen falta la consulta legal por país y la
 llave del proveedor de wallet — ninguna de las dos se resuelve desde aquí.
+
+
+---
+
+## Persistencia: la única variable que decide si esto es un producto
+
+**`MAREA_DATA_DIR` tiene que apuntar a un volumen montado.** No es una
+optimización: es la diferencia entre un producto y una demo cara.
+
+El servidor guarda cuentas, apuestas, pozos y liquidaciones en
+`$MAREA_DATA_DIR/marea.json`. Sin la variable, el default es
+`marea/data/servidor/`, que vive **dentro del contenedor** y viaja en el repo.
+Consecuencia exacta: **cada redeploy revierte el estado al snapshot
+versionado.** Quien se registró ayer deja de existir; quien apostó pierde su
+apuesta y sus puntos.
+
+### Cómo dejarlo bien en Railway
+
+1. Servicio de Marea → **Variables** → `MAREA_DATA_DIR=/data`.
+2. Servicio → **Volumes** → montar un volumen en `/data`.
+3. Redeploy.
+
+Junto con `MAREA_SECRETO`, que firma las sesiones: sin él, cada redeploy saca
+a todos aunque sus cuentas sobrevivan.
+
+### Cómo verificar que está bien, en treinta segundos
+
+```bash
+curl -s https://<tu-dominio>/salud | grep -A3 '"datos"'
+```
+
+Anota `usuarios` y `apuestas`. Fuerza un redeploy. Vuelve a consultar:
+
+- **Los números se mantienen** → hay volumen, el estado sobrevive.
+- **Los números vuelven a 4 usuarios y 3 apuestas** → estás sirviendo el
+  snapshot del repo y **cada deploy está borrando gente real**. Arréglalo antes
+  de mandar una sola visita al sitio.
+
+Esa segunda lectura es el chequeo que hay que correr **antes de cada campaña**,
+no después.

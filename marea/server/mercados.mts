@@ -20,7 +20,6 @@ import { resolutionSummary } from "../src/domain/resolution";
 import { FLAGS } from "../src/lib/flags";
 import {
   OWN_MARKETS,
-  activeSeeds,
   validateSeed,
   type OwnMarketSeed,
 } from "../src/adapters/ownMarkets/catalog";
@@ -204,27 +203,50 @@ export function construirMercado(
   });
 }
 
+/** Las fases en las que ya nadie espera nada: el dinero llegó a su destino. */
+const FASES_TERMINADAS = new Set(["pagado", "devuelto"]);
+
+/**
+ * ¿Este mercado sigue teniendo algo que hacer en el feed?
+ *
+ * Antes había dos reglas y las dos miraban el calendario: las velas se iban al
+ * bloquear si nadie había apostado, y el resto se iba **48 h después de su
+ * fecha de resolución**, hubiera pasado lo que hubiera pasado. Eso dejaba dos
+ * zonas grises en direcciones opuestas:
+ *
+ *  - Un mercado que cerró y pagó en dos minutos seguía dos días en la pantalla
+ *    de **todo el mundo**, incluido quien nunca entró: una tarjeta que ya no se
+ *    puede contestar y que no le dice nada a nadie.
+ *  - Un mercado **atorado** —el oráculo no pudo leer, espera a una persona—
+ *    desaparecía a las 48 h con los puntos de alguien todavía dentro. La
+ *    promesa se iba de la pantalla antes que la deuda.
+ *
+ * La regla nueva no mira el calendario, mira si **alguien está esperando**:
+ *
+ *   abierto                          → se ve, se puede apostar
+ *   cerrado y nadie apostó           → se va en el acto
+ *   cerrado, con gente, sin pagar    → se queda, sin límite de tiempo
+ *   cerrado, con gente, ya pagado    → se va; el resultado vive en el portafolio
+ *
+ * Un mercado atorado se queda a la vista hasta que se resuelva, y eso es lo
+ * correcto: es un recordatorio visible de que se le debe algo a alguien
+ * (R-040). `/salud` los lista aparte para que no dependa de que alguien mire.
+ */
+export function vigenteEnFeed(store: Store, seed: OwnMarketSeed, ahora: number): boolean {
+  if (new Date(seed.closesAt).getTime() > ahora) return true;
+  // nadie adentro: cerrado y sin pozo no le importa a nadie
+  if (store.pozo(seed.id) === undefined) return false;
+  const estado = store.liquidacion(seed.id);
+  return !(estado && FASES_TERMINADAS.has(estado.phase));
+}
+
 export function listarMercados(
   store: Store,
   seeds: OwnMarketSeed[],
   ahora = Date.now(),
   contexto?: ContextoVivo,
 ): Market[] {
-  const vigentes = activeSeeds(ahora, seeds).filter((seed) => {
-    /**
-     * Una vela que ya bloqueó y en la que nadie apostó se va del feed en el
-     * acto. Nacen cada cinco minutos: dejar las muertas los mismos dos días que
-     * a un mercado normal llenaría la pantalla de preguntas que ya no se pueden
-     * contestar ni le importan a nadie.
-     *
-     * La que sí tiene gente adentro se queda hasta que se paga: quien apostó
-     * tiene derecho a ver en qué terminó, y el pozo guardado es exactamente la
-     * señal de que hay alguien esperando ese resultado.
-     */
-    if (!esVelaViva(seed)) return true;
-    if (new Date(seed.closesAt).getTime() > ahora) return true;
-    return store.pozo(seed.id) !== undefined;
-  });
+  const vigentes = seeds.filter((seed) => vigenteEnFeed(store, seed, ahora));
   const totales = vigentes
     .map((seed) => totalPool(poolDe(store, seed)))
     .sort((a, b) => b - a);

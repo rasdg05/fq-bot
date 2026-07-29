@@ -26,6 +26,11 @@ Tres reglas que ganan a cualquier impulso de ir rápido:
    sigue — no la deshagas por tu cuenta.
 3. **Diff pequeño y verificable.** Un cambio que no sabes cómo probar no está
    listo para escribirse.
+4. **Esto está en producción con gente adentro.** Hay cuentas reales, apuestas
+   reales y puntos que alguien espera cobrar. Un agujero de ciclo de vida
+   —alguien apuesta y no cobra, o su apuesta desaparece— vence a **cualquier**
+   funcionalidad nueva y a cualquier mejora visual. Si encuentras uno mientras
+   haces otra cosa, ése pasa a ser el trabajo.
 
 ---
 
@@ -177,7 +182,7 @@ todas siempre.
 cd marea
 
 npx tsc -b --noEmit          # tipos
-npm test                     # 342 pruebas · ~25 s
+npm test                     # 344 pruebas · ~25 s
 npx vitest run tests/X.test.tsx   # dirigido, mientras iteras
 npm run validate             # VALIDATION_REPORT: V1-V24, red-team, compliance
 ```
@@ -281,6 +286,31 @@ Si un carril cambia un contrato de `domain/types`, los de aguas abajo **esperan*
 
 ---
 
+## 6b · Zonas grises: cómo se cazan
+
+Un producto vivo no se rompe con errores que truenan, se rompe con estados que
+nadie definió. Los que ya se cazaron aquí tenían la misma forma: **una regla
+que miraba el calendario en vez de mirar si alguien estaba esperando.**
+
+Antes de dar por buena una superficie, pregúntale estas cinco cosas:
+
+1. **¿Qué pasa justo después del corte?** No en la hora siguiente: en el
+   segundo siguiente. El cierre de una vela dura 10 s entre bloqueo y fin.
+2. **¿Quién sigue esperando algo?** Si alguien tiene puntos dentro, su mercado
+   no puede desaparecer de la pantalla — aunque haya pasado cualquier plazo.
+3. **¿Qué ve el que NO participó?** Una tarjeta que ya no se puede contestar es
+   ruido para todos los demás.
+4. **¿El estado muerto se puede tocar?** Un botón que existe y no hace nada
+   enseña a desconfiar de todos los botones.
+5. **¿Hay dos caminos de código para lo mismo?** Aquí los hubo: el adapter del
+   navegador filtraba los mercados cerrados y el servidor no. **El de
+   producción es `server/`** — es el que sirve la app de verdad.
+
+**Cómo se comprueba: observando, no razonando.** Levanta el servidor, sondea la
+API cada 10 s durante varios minutos y registra las transiciones. Siete minutos
+de sondeo contra 180 lecturas cerraron una duda que el razonamiento no cerraba.
+Un mercado de vela dura 5 min: cabe entero en una observación.
+
 ## 7 · Cómo se entrega
 
 Por cada unidad de trabajo, en este formato y en este orden:
@@ -329,6 +359,13 @@ pendiente.
       4.02:1, por debajo de AA). Si aparece en el feed, se pinta neutra.
 - [ ] **Cobertura de la puerta:** hoy sólo la ejerce el feed. Detalle,
       portafolio y búsqueda no tienen presupuesto medido.
+- [ ] **`liquidados: 0`.** El ciclo de cobro nunca se ha cerrado en producción
+      contra una apuesta real. La primera ocasión es el cierre de
+      `btc-cierre-semanal`, con 3 personas y 300 pts dentro. Ese día, `/salud`
+      manda sobre cualquier otra tarea.
+- [ ] **Persistencia:** verificar que `MAREA_DATA_DIR` apunta a un volumen
+      montado. Ver `LANZAMIENTO.md` §Persistencia. Sin eso, cada deploy borra
+      usuarios reales — y es lo único de esta lista que empeora solo.
 
 Para el camino con dinero real: `vault/COMPLIANCE.md` y
 `vault/PROMPT_DINERO_REAL.md`. **No se empieza sin opinión legal** — la
