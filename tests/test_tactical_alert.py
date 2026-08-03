@@ -9,8 +9,11 @@ Cubre:
   - fq_bot_v3_2._compute_tactical_tps: RR 1.0/1.5/2.2 para long y short.
   - fq_bot_v3_2._should_promote_tactical_to_vip: gating combinado.
 """
+import importlib
 import os
 import sys
+
+import pytest
 
 # Shim para entornos sin pandas-ta instalado (pandas-ta-classic provee la API)
 try:
@@ -21,6 +24,31 @@ except ImportError:
         sys.modules["pandas_ta"] = _ta
     except ImportError:
         pass
+
+
+@pytest.fixture(autouse=True)
+def _monolito_pristino():
+    """Devuelve fq_bot_v3_2 a como estaba despues de cada test de este archivo.
+
+    Varios tests de aqui escriben en os.environ y recargan el monolito para
+    releer UNA constante de modulo (_reload_with_flag, FQ_FIELD_TIMEFRAMES...).
+    Pero `importlib.reload` re-ejecuta el modulo ENTERO: se lleva puestas las
+    ~200 constantes restantes con lo que haya en el entorno en ese momento, y
+    nunca las devuelve.
+
+    Combinado con la fuga de env de test_forward_measure_switch.py, eso hacia
+    que test_xsym_motor_paper.py::test_link_bnb_off_by_default fallara en la
+    suite completa y pasara corriendo solo — el sintoma clasico de un test que
+    depende del orden.
+    """
+    previo = dict(os.environ)
+    yield
+    if dict(os.environ) != previo:
+        os.environ.clear()
+        os.environ.update(previo)
+        mod = sys.modules.get("fq_bot_v3_2")
+        if mod is not None:
+            importlib.reload(mod)
 
 
 # ===========================================

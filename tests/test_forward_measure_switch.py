@@ -2,6 +2,7 @@
 measure-first — motores paper ON, broadcast OFF, regime tags ON — respetando
 overrides del usuario (setdefault) y SIN tocar FQ_KL_FILTER (taggea, no gatea)."""
 import importlib
+import os
 
 import pytest
 
@@ -13,11 +14,26 @@ _KEYS = ["FQ_FORWARD_MEASURE", "FQ_REGIME_TAGS",
 
 
 @pytest.fixture
-def launcher(monkeypatch):
+def launcher():
+    """Aisla os.environ a mano, sin monkeypatch.
+
+    monkeypatch solo deshace lo que MONKEYPATCH escribio, y aqui la que escribe
+    es la funcion bajo prueba: `_apply_forward_measure()` hace
+    `os.environ["FQ_MOTOR_PAPER_LINK"] = "1"` directo. Con `delenv(raising=False)`
+    sobre una clave ausente no se registra nada que restaurar, asi que esas
+    variables quedaban PEGADAS para el resto de la sesion de pytest y
+    contaminaban a cualquier test posterior que releyera el entorno.
+    """
+    previo = {k: os.environ.get(k) for k in _KEYS}
     for k in _KEYS:
-        monkeypatch.delenv(k, raising=False)
+        os.environ.pop(k, None)
     import launcher as L
-    return importlib.reload(L)
+    yield importlib.reload(L)
+    for k, v in previo.items():
+        if v is None:
+            os.environ.pop(k, None)
+        else:
+            os.environ[k] = v
 
 
 def test_sin_flag_no_hace_nada(launcher, monkeypatch):
