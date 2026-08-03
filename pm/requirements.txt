@@ -1,0 +1,13 @@
+# Dependencias SOLO del paquete pm/ (Polymarket). Deliberadamente separadas de
+# requirements.txt de la raiz: el bot de senales no tiene por que cargar con
+# esto, y la Fase 0 no debe poder romper el CI del sistema en produccion.
+#
+# py-clob-client-v2 es el cliente oficial del CLOB v2 (Polymarket Engineering).
+# Se fija la version verificada: la libreria se mueve rapido.
+#
+# NOTA para la Fase 1: Polymarket recomienda su SDK unificado `polymarket-client`
+# para proyectos nuevos, y las cuentas creadas desde mayo-2026 son Deposit
+# Wallets, que el enum de firmas de esta libreria NO contempla. Para SOLO LEER
+# libros publicos (Fase 0) esta libreria es la opcion estable; la migracion se
+# decide al escribir el cliente autenticado. Ver POLYMARKET_AUDIT.md.
+py-clob-client-v2==1.1.0

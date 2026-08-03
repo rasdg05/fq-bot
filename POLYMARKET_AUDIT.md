@@ -184,7 +184,7 @@ arriesgar un peso — y es exactamente lo que ningún prompt puede contestar.
 
 | # | Problema | Corrección |
 |---|---|---|
-| 1 | **`signature_type` / `funder` ausentes.** Es el fallo silencioso nº1: si el capital está en la proxy wallet de la UI de Polymarket y el bot firma con la EOA, el bot ve balance 0 y todas las órdenes rebotan. | `ClobClient(..., signature_type=SignatureTypeV2.POLY_PROXY (1) o POLY_GNOSIS_SAFE (2), funder="<dirección proxy>")`. Con EOA pura: `EOA (0)`. **Hay que confirmar dónde vive el dinero antes de escribir el cliente.** |
+| 1 | **`signature_type` / `funder` ausentes.** Es el fallo silencioso nº1: si el capital está en el smart wallet de la cuenta y el bot firma con la EOA, el bot ve balance 0 y todas las órdenes rebotan. | Ver §4-bis: la respuesta cambió en mayo de 2026 y merece sección propia. |
 | 2 | `cancel_order(order_id: str)` | La firma real es `cancel_order(payload: OrderPayload)`. También existen `cancel_orders`, `cancel_market_orders`, `cancel_all`. |
 | 3 | Colateral descrito como **USDC.e** | La doc actual habla de **pUSD** (Polymarket USD). Rebates y rewards se pagan en pUSD. Verificar el flujo de fondeo antes de depositar. |
 | 4 | No se menciona `post_only` | `create_and_post_order(..., post_only=True)`. **Imprescindible para MM**: garantiza estatus maker (fee 0 + elegible a rebate) y evita cruzar el spread por accidente. |
@@ -200,6 +200,92 @@ endpoints de scoring en vivo (`is_order_scoring`, `are_orders_scoring`,
 `get_current_rewards`, `get_earnings_for_user_for_day`). Ese último grupo es oro:
 permite **verificar desde el bot si nuestras órdenes están puntuando para
 rewards**, en vez de adivinar.
+
+---
+
+## 4-bis. ¿Dónde vive el dinero? (y por qué la respuesta cambió)
+
+Esta era la pregunta abierta del plan. La documentación oficial la contesta, y
+el dato importa más de lo que parecía:
+
+| Tipo de wallet | Cuándo aplica |
+|---|---|
+| **Deposit Wallet** | **Todas las cuentas de Polymarket desplegadas a partir del 4 de mayo de 2026.** |
+| Proxy Wallet | *Legacy*: cuentas creadas con Magic Link / Google en polymarket.com |
+| Safe Wallet | *Legacy*: cuentas creadas con firmante externo (MetaMask, Rabby) |
+
+Hoy es agosto de 2026. **Una cuenta creada ahora es Deposit Wallet, no hay
+opción.** Los proxies y Safes ya no se pueden elegir; solo existen si tu cuenta
+es vieja.
+
+Y aquí está el detalle que hay que ver antes de escribir el cliente:
+
+- `py_clob_client_v2.SignatureTypeV2` = `EOA(0)`, `POLY_PROXY(1)`,
+  `POLY_GNOSIS_SAFE(2)`, `POLY_1271(3)`. **No tiene Deposit Wallet.**
+- El SDK nuevo (`polymarket-client`) usa
+  `WalletType = EOA(0) | POLY_PROXY(1) | GNOSIS_SAFE(2) | DEPOSIT_WALLET(3)`.
+
+El entero **3 significa cosas distintas en las dos librerías**. Un bot que mande
+`signature_type=3` creyendo "Deposit Wallet" contra la librería vieja estaría
+firmando como EIP-1271. Trampa perfecta para perder un fin de semana.
+
+### El flujo moderno
+
+Cuenta en polymarket.com → copiar la **dirección del wallet** del menú de perfil
+→ **Settings → API Keys → Relayer API Keys** → crear una, que devuelve un
+**Signer Address** y una **API Key**. Con eso:
+
+```python
+from polymarket import SecureClient, RelayerApiKey
+
+client = SecureClient.create(
+    private_key=os.environ["SIGNER_PRIVATE_KEY"],
+    wallet=os.environ["POLYMARKET_WALLET_ADDRESS"],
+    api_key=RelayerApiKey(key=..., address=...),
+)
+```
+
+La Relayer API key **autoriza operaciones de wallet sin gas**. Eso resuelve solo
+dos dolores de cabeza: no hay que tener POL para gas, y no hay que mandar las
+aprobaciones on-chain a mano.
+
+### Recomendación
+
+**Cuenta creada desde polymarket.com (Deposit Wallet) + Relayer API key**, y para
+la capa autenticada de la Fase 1, el SDK nuevo `polymarket-client`.
+
+Los cuatro motivos, en orden de peso:
+
+1. **No es realmente una elección.** Una cuenta nueva hoy es Deposit Wallet.
+   Elegir "EOA pura" significa renunciar a la cuenta de Polymarket, no elegir
+   otra variante de ella.
+2. **Sin gas y sin aprobaciones manuales.** El relayer se encarga. Con una EOA
+   pura hay que fondear POL y mandar las aprobaciones de los contratos a mano:
+   más piezas que se atoran, y se atoran en producción a las 3 AM.
+3. **Kill switch manual gratis.** Las posiciones se ven y se cierran desde la web
+   o el celular. Para un bot de $500 corriendo solo, poder matarlo desde el
+   teléfono sin SSH vale mucho.
+4. **La llave firmante no es la llave del dinero.** El signer firma; los fondos
+   viven en el smart wallet. La Relayer API key se revoca y se rota sin mover
+   un peso.
+
+Higiene, sin negociar: **cuenta dedicada al bot**, solo el capital de operación
+(arrancar con $50, no con $500), la llave únicamente en variables de entorno o
+GitHub Secrets, nunca en el repo. `.env` ya está en `.gitignore`.
+
+### Y lo mejor: no bloquea nada
+
+**La Fase 0 no necesita wallet, ni llaves, ni un peso.** Solo lee endpoints
+públicos. La decisión de la cuenta se puede tomar tranquilo mientras el
+recolector junta datos.
+
+### Pendiente de verificar en la Fase 1
+
+`polymarket-client` publicó su primera versión estable el 22-jul-2026 (0.1.0),
+la 0.2.0 el 24-jul y ya iba en 0.3.0b2 el 31-jul. Se mueve **muy** rápido. Por
+eso la Fase 0 usa `py-clob-client-v2` (estable, verificado, solo lectura) y la
+migración se decide al escribir el cliente autenticado, con una orden de prueba
+de $5 antes de cualquier otra cosa.
 
 ---
 
@@ -280,12 +366,49 @@ módulos dedicados hasta entonces.
 
 ---
 
-## 7. Lo que necesito de vos para arrancar
+## 7. Estado y siguiente paso
 
-1. **¿Dónde va a vivir el dinero?** ¿Cuenta creada desde la web de Polymarket
-   (proxy wallet / Gnosis Safe) o wallet propia (EOA)? Define `signature_type`
-   y `funder`. Es el fallo nº1 y no se puede adivinar.
-2. **¿Le entramos a la Fase 0?** Es la que contesta si este bot tiene sentido, y
-   no cuesta nada.
-3. **¿Va en este repo (`pm/`) o repo aparte?** Mi recomendación: aquí, por el
-   gobernador de riesgo y el ledger.
+| Decisión | Estado |
+|---|---|
+| ¿Dónde vive el dinero? | **Resuelto** (§4-bis): Deposit Wallet + Relayer API key. No hace falta crearla todavía. |
+| ¿Repo aparte o aquí? | **Aquí**, en `pm/`, reusando `RiskGovernor`, `HashLedger` y `Reconciler`. |
+| Fase 0 | **Implementada.** `pm/probe.py`, `pm/rewards.py`, `pm/analyze.py` + 44 tests. |
+
+### Cómo correr la Fase 0
+
+```bash
+pip install -r pm/requirements.txt
+
+python -m pm.probe --once --top 25          # una muestra, prueba rápida
+python -m pm.probe --minutes 20 --top 40    # una corrida normal
+python -m pm.analyze --bankroll 500         # el veredicto acumulado
+```
+
+En automático lo corre `.github/workflows/pm_probe.yml` cada 3 horas. **Ojo con
+la misma trampa de `centinela.yml`: el trigger `schedule` solo dispara desde la
+rama por defecto**, así que el cron no arranca hasta mergear a `main`. Mientras
+tanto se dispara a mano con `workflow_dispatch` desde cualquier rama.
+
+### Primera foto (25 mercados, una muestra, 2026-08-03)
+
+Una sola muestra no decide nada — el análisis lo dice solo y pide 100
+observaciones mínimo. Pero ya se ve la forma del problema:
+
+| Mercado | Pool/día | Profundidad calificada compitiendo |
+|---|---|---|
+| will-the-us-invade-iran-before-2027 | $1,000 | $633,124 |
+| fed-rate-hike-in-2026 | $200 | $142,686 |
+| will-the-us-confirm-that-aliens-exist | $100 | $417,755 |
+| **will-mitch-mcconnell-resign-from-the-senate** | **$100** | **$5,764** |
+
+Los pools gordos están saturados: con $500 contra $633k nos tocarían ~$0.79/día,
+debajo del piso de pago. Pero el de McConnell tiene un pool de $100 con solo
+$5.7k compitiendo — ahí $296 de capital estimarían **$5.28/día**. Ese es
+exactamente el tipo de mercado que la Fase 0 tiene que encontrar, y la pregunta
+que faltan los datos para contestar es si esos huecos **duran** o se llenan en
+minutos.
+
+El recolector también trae un guardarraíl que ya se ganó su lugar en el primer
+smoke test: un mercado con pool de $30 y libro calificado vacío hacía que el
+estimador nos asignara el 100% del pool. Ahora se marca **DUDOSO** y queda fuera
+del total. Un pool que nadie reclama casi nunca es un regalo.

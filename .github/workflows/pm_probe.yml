@@ -1,0 +1,98 @@
+name: PM Probe (Fase 0 — medicion read-only de Polymarket)
+
+# Recolecta libros de los mercados con mejor pool de Liquidity Rewards para
+# contestar la unica pregunta que decide si el bot de Polymarket vale la pena:
+# ¿hay pools decentes con POCA profundidad calificada compitiendo?
+#
+# CERO riesgo: no autentica, no manda ordenes, no toca dinero. Solo endpoints
+# publicos del CLOB. No necesita ningun secret.
+#
+# Cadencia: 8 corridas al dia, 20 minutos de muestreo cada una a 1 muestra/min
+# => ~160 observaciones por mercado por dia. En una semana da muestra de sobra
+# para la mediana (el analisis pide 100 minimo).
+#
+# IMPORTANTE (misma trampa que centinela.yml): el trigger `schedule` SOLO
+# dispara desde la rama POR DEFECTO. Hay que mergear este archivo a main para
+# que el cron empiece a correr. Mientras tanto se puede probar a mano con
+# workflow_dispatch desde cualquier rama.
+#
+# Los datos se commitean comprimidos a pm_data/ (~12 KB por corrida, ~5 MB por
+# semana). Cuando termine la Fase 0 y se decida, ese directorio se puede borrar.
+
+on:
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: "Duracion del muestreo en minutos"
+        default: "20"
+      top:
+        description: "Cuantos mercados seguir (por pool diario)"
+        default: "40"
+      commit:
+        description: "Commitear los datos al repo"
+        type: boolean
+        default: true
+  schedule:
+    - cron: "0 */3 * * *"      # cada 3 horas
+
+# Que no se pisen dos corridas escribiendo en pm_data/ a la vez.
+concurrency:
+  group: pm-probe
+  cancel-in-progress: false
+
+permissions:
+  contents: write               # para commitear las muestras
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar el cliente del CLOB
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r pm/requirements.txt
+
+      - name: Recolectar (read-only, sin claves)
+        run: |
+          python -m pm.probe \
+            --minutes "${{ inputs.minutes || '20' }}" \
+            --interval 60 \
+            --top "${{ inputs.top || '40' }}"
+
+      - name: Veredicto acumulado hasta ahora
+        run: python -m pm.analyze --bankroll 500 --spread 1.0
+
+      - name: Guardar las muestras
+        if: ${{ inputs.commit != 'false' }}
+        run: |
+          if [ -z "$(git status --porcelain pm_data/)" ]; then
+            echo "Sin muestras nuevas (¿fallo la red?). Nada que commitear."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pm_data/
+          git commit -m "pm probe: muestras $(date -u +%Y-%m-%dT%H:%MZ)"
+          # Otra corrida pudo haber empujado mientras esta muestreaba.
+          for i in 1 2 3 4; do
+            git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            echo "reintento $i"; sleep $((2 ** i))
+          done
+          echo "No se pudo empujar las muestras"; exit 1
+
+      - name: Respaldo como artefacto (por si el push fallo)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pm-probe-${{ github.run_id }}
+          path: pm_data/*.jsonl.gz
+          if-no-files-found: ignore
+          retention-days: 30
