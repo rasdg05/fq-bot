@@ -163,7 +163,7 @@ def _fetch_last_n_outcomes(bucket_key, n=10):
         try:
             rows = conn.execute(
                 "SELECT outcome FROM signals WHERE bucket_key = ? "
-                "AND outcome IS NOT NULL ORDER BY ts_closed DESC LIMIT ?",
+                "AND " + ev.AUDITABLE_SQL + "ORDER BY ts_closed DESC LIMIT ?",
                 (bucket_key, n)
             ).fetchall()
         finally:

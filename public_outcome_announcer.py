@@ -376,40 +376,41 @@ def mark_tp3_announced(vip_signal_id, direction=None, hit_price=None):
 # STATS de la semana (7 dias) - leyendo VIP ledger read-only
 # ============================================================
 def compute_weekly_stats():
-    """Lee ledger VIP read-only y calcula stats de los ultimos 7 dias"""
+    """Lee ledger VIP read-only y calcula stats de los ultimos 7 dias.
+
+    Delega el calculo en ledger_stats.window_stats en vez de repetirlo aqui:
+    esta funcion tenia su propia copia de la aritmetica (y ninguna nocion de
+    auditabilidad), asi que /resultados y los anuncios de cierre podian
+    publicar numeros distintos del MISMO ledger. Un solo motor de stats ->
+    una sola verdad, con el filtro de auditabilidad aplicado en ambos.
+    """
     vip_conn = _connect_vip_readonly()
     if vip_conn is None:
         return None
     cutoff_7d = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
     try:
         rows = vip_conn.execute("""
-            SELECT outcome, pnl_r, direction
+            SELECT outcome, pnl_r, direction, minutes_open
             FROM signals
             WHERE outcome IS NOT NULL AND ts_closed >= ?
         """, (cutoff_7d,)).fetchall()
     finally:
         vip_conn.close()
 
-    if not rows:
+    stats = ledger_stats.window_stats(rows)
+    if not stats:
         return None
-    n = len(rows)
-    wins = sum(1 for r in rows if r["outcome"] in ("tp1","tp2","tp3","tp4"))
-    sls  = sum(1 for r in rows if r["outcome"] == "sl")
-    pnls = [r["pnl_r"] for r in rows if r["pnl_r"] is not None]
-    win_rate = wins / n
-    expectancy = sum(pnls) / len(pnls) if pnls else 0
-    win_pnl = sum(p for p in pnls if p > 0)
-    loss_pnl = abs(sum(p for p in pnls if p < 0)) or 0.01
-    profit_factor = win_pnl / loss_pnl
-    best_pnl = max(pnls) if pnls else 0
+    auditable, _ = ledger_stats.filter_auditable(rows)
     return {
-        "n_closed_7d":    n,
-        "wins":           wins,
-        "sls":            sls,
-        "win_rate":       win_rate,
-        "expectancy":     expectancy,
-        "profit_factor":  profit_factor,
-        "best_pnl":       best_pnl,
+        "n_closed_7d":    stats["n"],
+        "n_excluded":     stats["n_excluded"],
+        "wins":           sum(1 for r in auditable
+                              if r["outcome"] in ledger_stats.WIN_OUTCOMES),
+        "sls":            sum(1 for r in auditable if r["outcome"] == "sl"),
+        "win_rate":       stats["win_rate"],
+        "expectancy":     stats["expectancy"],
+        "profit_factor":  stats["profit_factor"],
+        "best_pnl":       stats["best_pnl"],
     }
 
 def compute_short_stats_7d():
@@ -438,7 +439,7 @@ def compute_results_summary():
         return None
     try:
         all_rows = vip_conn.execute("""
-            SELECT outcome, pnl_r, ts_closed
+            SELECT outcome, pnl_r, ts_closed, minutes_open
             FROM signals
             WHERE outcome IS NOT NULL
             ORDER BY ts_closed ASC

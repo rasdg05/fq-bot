@@ -294,6 +294,54 @@ def _symbol_from_jsonl(jsonl_path):
     return base.replace("_", "/", 1)
 
 
+def resume_equity_from_ledger(ledger, default_equity):
+    """Reconstruye (equity, peak_equity) desde el ledger durable.
+
+    Por que
+    -------
+    La cuenta paper se creaba SIEMPRE con FQ_MOTOR_PAPER_EQUITY (10000) en cada
+    arranque del proceso, aunque el ledger fuese durable. En el ledger de
+    jul-2026 eso se ve directamente: `equity_at_open == 10000.0` exacto en 87 de
+    114 aperturas. Consecuencias, en orden de gravedad:
+
+      1. No hay curva de equity — hay N arranques desde cero. El drawdown real
+         del sistema nunca se midio.
+      2. El gate de supervivencia FQ_MOTOR_MAX_DD estaba MUERTO: compara contra
+         peak_equity, y el pico se reseteaba junto con la equity en cada
+         restart. Un sistema que perdio 45R nunca disparo su propio halt.
+      3. El sizing (risk_frac sobre equity) se calculaba sobre un capital
+         ficticio constante, no sobre el que quedaba.
+
+    El pico se reconstruye recorriendo la serie, no tomando el maximo de
+    `equity_after`: el maximo historico de la cuenta es lo que define el
+    drawdown, y hay que verlo en orden para respetar los reinicios previos.
+    Devuelve (default_equity, default_equity) si el ledger no tiene cierres.
+    """
+    equity = float(default_equity)
+    peak = float(default_equity)
+    try:
+        records = list(getattr(ledger, "records", None) or [])
+    except Exception:
+        return equity, peak
+    seen_close = False
+    for rec in records:
+        p = rec.get("payload", {}) if isinstance(rec, dict) else {}
+        if p.get("event") != "CLOSE":
+            continue
+        eq = p.get("equity_after")
+        if eq is None:
+            continue
+        try:
+            equity = float(eq)
+        except (TypeError, ValueError):
+            continue
+        seen_close = True
+        peak = max(peak, equity)
+    if not seen_close:
+        return float(default_equity), float(default_equity)
+    return equity, peak
+
+
 def open_motor_ledger(jsonl_path, symbol):
     """Ledger del motor (CARGADO) según FQ_LEDGER_SQLITE: SQLite multi-símbolo (1
     archivo, consultable) o el JSONL legacy por símbolo. Reversible (default OFF=JSONL,

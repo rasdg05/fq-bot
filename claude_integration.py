@@ -27,13 +27,32 @@ log = logging.getLogger("fq_claude")
 # ============================================================
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 
-MODEL_SONNET = "claude-sonnet-4-5"
-MODEL_OPUS   = "claude-opus-4-6"
+MODEL_SONNET = "claude-sonnet-5"
+MODEL_OPUS   = "claude-opus-5"
 
+# --- Presupuesto de tokens y thinking -------------------------------------
+# OJO (cambio de contrato en la familia 5): `max_tokens` acota thinking + texto
+# JUNTOS, y en Opus 5 / Sonnet 5 el thinking adaptativo esta ENCENDIDO por
+# defecto cuando no se manda el parametro. Con los limites de antes (700/900,
+# dimensionados para modelos sin thinking) las respuestas se truncarian a mitad
+# de frase. Dos regimenes:
+#
+#   TACTICO (mensajes cortos y formateados para Telegram): thinking DESACTIVADO
+#     + effort bajo. Son reformulaciones de un snapshot que el motor ya decidio;
+#     no necesitan cadena de razonamiento y si necesitan latencia baja. Nota:
+#     desactivar thinking solo es legal con effort <= "high".
+#   DELIBERATIVO (copiloto de senal y self-audit): thinking ADAPTATIVO + effort
+#     alto + presupuesto amplio. Aqui el razonamiento es el producto.
 MAX_TOKENS_TACTICAL  = 700
-MAX_TOKENS_SIGNAL    = 900
+MAX_TOKENS_SIGNAL    = 8000   # antes 900: ahora comparte presupuesto con thinking
+MAX_TOKENS_AUDIT     = 16000  # self-audit: analisis largo sobre el ledger
 MAX_TOKENS_VIP_BRIEF = 560   # FQ v5.x: +140 para el bullet de eleccion de niveles (QTE optimizer advisory)
 TIMEOUT_SECONDS      = 35
+
+# Regimenes de razonamiento, por nombre. _call_anthropic los traduce a
+# parametros de la API para que los call sites no repitan la config.
+THINKING_OFF      = {"type": "disabled"}
+THINKING_ADAPTIVE = {"type": "adaptive"}
 
 _client = None
 
@@ -55,26 +74,66 @@ def get_client():
 # ============================================================
 SYSTEM_PROMPT_FQ = """Eres el copiloto tactico del sistema FQ (senales SOL/BTC/ETH en OKX).
 
-CONTEXTO TECNICO:
+<contexto>
 Recibes snapshots cuantitativos por vela: precio, sesgo, niveles candidatos
 (entry/SL/TPs), simulacion Monte Carlo con probabilidades de toque por TP y SL,
 EV en multiplos de R, regimen dominante, coherencia entre paths, sincronizacion
 temporal, datos externos (funding, OI, long/short, walls), eventos estructurales
 (displacements, sweeps, breakouts) y bias multi-timeframe.
 
-DECISION:
-El motor ya filtra setups con EV negativo o probabilidad de SL alta. Tu trabajo
-es interpretar lo que el motor ya decidio: confirmar, corregir o vetar con
-postura clara, anclando a niveles reales (Order Blocks, liquidez, swings).
+El motor ya filtro los setups con EV negativo o probabilidad de SL alta. Tu
+trabajo es interpretar lo que el motor ya decidio: confirmar, corregir o vetar
+con postura clara, anclando a niveles reales (Order Blocks, liquidez, swings).
+</contexto>
 
-REGLAS DE ORO:
+<cadena_de_evidencia>
+Toda afirmacion que hagas debe poder trazarse a un campo concreto del snapshot.
+Antes de afirmar algo, comprueba de que dato sale. Si sale de un campo ausente,
+nulo o marcado como no disponible, la afirmacion NO se hace — se omite, o se
+dice que ese dato falta.
+
+Nunca conviertas la ausencia de una senal en evidencia de lo contrario: que no
+haya sweep detectado no significa que no lo hubo, significa que no se midio.
+Cuando dos campos se contradicen, dilo y quedate con el mas cercano al precio,
+no con el que apoya la direccion del setup.
+
+Distingue siempre tres cosas y no las mezcles en la misma frase:
+  - lo que el dato MUESTRA (medicion),
+  - lo que de ahi se INFIERE (lectura),
+  - lo que se RECOMIENDA hacer (postura).
+</cadena_de_evidencia>
+
+<honestidad_estadistica>
+Esta es la regla que mas importa y la que mas facil se rompe.
+
+- Una muestra pequena no demuestra edge. Con menos de ~30 desenlaces cerrados
+  no afirmes que algo "funciona", "tiene edge" ni "esta validado": describe lo
+  observado y di explicitamente que la muestra no permite concluir.
+- Una racha no es una tendencia. Varias ganadoras seguidas en una muestra corta
+  son el resultado esperado del azar, no una senal de calidad.
+- Un track record en un mercado que se movio fuerte en una direccion no mide
+  habilidad si casi todas las operaciones apuntaban a esa direccion. Cuando la
+  direccion explique el resultado por si sola, dilo.
+- Los desenlaces marcados como no auditables ('stale', o vida registrada mayor
+  que el horizonte de la senal) NO son evidencia de nada. No los cuentes, no
+  los promedies y no los cites como respaldo.
+- Si te piden interpretar metricas y la muestra no da, la respuesta correcta es
+  "aun no se puede afirmar", no una version suavizada de la conclusion optimista.
+- Nunca presentes un backtest o un cierre reconstruido a posteriori como si
+  fuera desempeno realizado.
+</honestidad_estadistica>
+
+<reglas_de_oro>
 1. SL inmutable una vez entrada.
 2. SL anclado a estructura real, nunca a indicadores volatiles.
 3. Leverage maximo 8x solo en conviccion extrema.
 4. Veto fin de semana (viernes 22 UTC a domingo 22 UTC).
+</reglas_de_oro>
 
-ESTILO DE OUTPUT:
+<estilo>
 - Directo, conciso, lenguaje de trader. Sin floritura.
+- Empieza por la conclusion. La primera frase responde "que hago con esto";
+  el detalle va despues.
 - En vistas de cara al cliente (VIP /analisis): cualitativo. Di "probabilidad
   alta", "edge claro", "campo neutro", "trampa probable" en lugar de citar
   porcentajes crudos o multiplos de R en el cuerpo. Puedes mencionar precios
@@ -87,10 +146,16 @@ ESTILO DE OUTPUT:
 - No digas "esto no es asesoria financiera".
 - No menciones versiones del producto, modelos de IA, frameworks, ni jerga
   interna del motor en el texto que el cliente lee.
+- Responde solo lo que se te pide. No anadas secciones, alternativas que no
+  elegiste ni resumenes de tu propio proceso.
+</estilo>
 
-TONO:
+<tono>
 Segundo par de ojos calibrado. No eres cheerleader. Si funding extremo, OI
 colapsando o wall hostil cerca, mencionalo en lenguaje operativo, no academico.
+Si el setup no te convence, decirlo es mas util que adornarlo: quien lee esto
+arriesga dinero propio.
+</tono>
 """
 
 # ============================================================
@@ -485,19 +550,55 @@ def build_signal_prompt(s):
 # ============================================================
 # API CALLS
 # ============================================================
-def _call_anthropic(model, prompt, max_tokens):
-    """Helper interno con manejo robusto de errores"""
+def _call_anthropic(model, prompt, max_tokens, thinking=None, effort=None):
+    """Helper interno con manejo robusto de errores.
+
+    thinking: THINKING_OFF (tactico) o THINKING_ADAPTIVE (deliberativo).
+              Default THINKING_OFF -- explicito a proposito: en la familia 5 el
+              thinking esta ENCENDIDO cuando se omite el parametro, y los
+              limites tacticos de max_tokens no lo aguantan (thinking y texto
+              comparten presupuesto). Que el default aqui sea 'off' evita que un
+              call site nuevo se trunque en silencio.
+    effort:   'low' | 'medium' | 'high' | 'xhigh' | 'max'. OJO: desactivar el
+              thinking solo es legal con effort <= 'high'.
+    """
     try:
         client = get_client()
-        resp = client.messages.create(
-            model=model,
-            max_tokens=max_tokens,
-            system=SYSTEM_PROMPT_FQ,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        text = "".join([blk.text for blk in resp.content if hasattr(blk, "text")])
-        log.info("Claude [{}] OK - in:{} out:{}".format(
-            model, resp.usage.input_tokens, resp.usage.output_tokens))
+        kwargs = {
+            "model": model,
+            "max_tokens": max_tokens,
+            # System prompt como bloque con cache_control: es identico en cada
+            # llamada y se cobra en todas. Cachearlo lo baja a ~0.1x en las
+            # lecturas. El prefijo cacheado debe ir PRIMERO y no puede contener
+            # nada volatil (por eso el snapshot va en el mensaje del usuario,
+            # nunca interpolado aqui: rompiria el cache en cada vela).
+            "system": [{
+                "type": "text",
+                "text": SYSTEM_PROMPT_FQ,
+                "cache_control": {"type": "ephemeral"},
+            }],
+            "messages": [{"role": "user", "content": prompt}],
+            "thinking": thinking if thinking is not None else THINKING_OFF,
+        }
+        if effort:
+            kwargs["output_config"] = {"effort": effort}
+        resp = client.messages.create(**kwargs)
+
+        # stop_reason primero: los modelos actuales pueden declinar por
+        # clasificador y devolver HTTP 200 con content vacio. Leer content[0]
+        # a ciegas revienta justo ahi.
+        if getattr(resp, "stop_reason", None) == "refusal":
+            log.warning("Claude [%s] declino la peticion", model)
+            return "[Claude] Peticion declinada por el modelo."
+
+        text = "".join([blk.text for blk in resp.content
+                        if getattr(blk, "type", None) == "text"])
+        if getattr(resp, "stop_reason", None) == "max_tokens":
+            log.warning("Claude [%s] truncado por max_tokens (%d)", model, max_tokens)
+        u = resp.usage
+        log.info("Claude [{}] OK - in:{} out:{} cache_r:{}".format(
+            model, u.input_tokens, u.output_tokens,
+            getattr(u, "cache_read_input_tokens", 0)))
         return text.strip()
     except RateLimitError:
         log.warning("Anthropic rate limit on {}".format(model))
@@ -513,24 +614,33 @@ def _call_anthropic(model, prompt, max_tokens):
         return "[Claude] Error inesperado: {}".format(str(e)[:120])
 
 def tactical_general(snapshot):
-    """Lectura tactica general - Sonnet"""
-    return _call_anthropic(MODEL_SONNET, build_general_prompt(snapshot), MAX_TOKENS_TACTICAL)
+    """Lectura tactica general - Sonnet, regimen tactico (sin thinking)"""
+    return _call_anthropic(MODEL_SONNET, build_general_prompt(snapshot),
+                           MAX_TOKENS_TACTICAL, THINKING_OFF, "low")
 
 def tactical_pspace(snapshot):
-    """Lectura P-Space con order book - Sonnet"""
-    return _call_anthropic(MODEL_SONNET, build_pspace_prompt(snapshot), MAX_TOKENS_TACTICAL)
+    """Lectura P-Space con order book - Sonnet, regimen tactico"""
+    return _call_anthropic(MODEL_SONNET, build_pspace_prompt(snapshot),
+                           MAX_TOKENS_TACTICAL, THINKING_OFF, "low")
 
 def tactical_niveles(snapshot):
-    """Afinacion de plan de entrada - Sonnet"""
-    return _call_anthropic(MODEL_SONNET, build_niveles_prompt(snapshot), MAX_TOKENS_TACTICAL)
+    """Afinacion de plan de entrada - Sonnet, regimen tactico"""
+    return _call_anthropic(MODEL_SONNET, build_niveles_prompt(snapshot),
+                           MAX_TOKENS_TACTICAL, THINKING_OFF, "medium")
 
 def tactical_analisis_vip(snapshot):
-    """Lectura VIP breve para /analisis - Sonnet, 320 tokens, 4 bullets"""
-    return _call_anthropic(MODEL_SONNET, build_analisis_vip_prompt(snapshot), MAX_TOKENS_VIP_BRIEF)
+    """Lectura VIP breve para /analisis - Sonnet, 4 bullets, regimen tactico"""
+    return _call_anthropic(MODEL_SONNET, build_analisis_vip_prompt(snapshot),
+                           MAX_TOKENS_VIP_BRIEF, THINKING_OFF, "medium")
 
 def signal_copilot(snapshot):
-    """Co-pilot para senal auto-disparada de alta conviccion - Opus"""
-    return _call_anthropic(MODEL_OPUS, build_signal_prompt(snapshot), MAX_TOKENS_SIGNAL)
+    """Co-pilot para senal auto-disparada de alta conviccion - Opus.
+
+    Regimen DELIBERATIVO: aqui si vale el thinking adaptativo (es la unica
+    llamada que puede cambiar una decision con dinero encima) y el presupuesto
+    es amplio porque thinking y texto lo comparten."""
+    return _call_anthropic(MODEL_OPUS, build_signal_prompt(snapshot),
+                           MAX_TOKENS_SIGNAL, THINKING_ADAPTIVE, "high")
 
 def is_high_conviction(p_master, phi_cubed=4.236):
     """Determina si la senal es de alta conviccion (P_master >= phi^3)"""

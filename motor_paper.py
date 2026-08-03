@@ -31,7 +31,8 @@ import logging
 from collections import deque
 
 from execution import (RiskGovernor, GovernorConfig, Account, PaperBroker, DurableHashLedger,
-                       SqliteHashLedger, open_motor_ledger, _motor_db_path, _symbol_from_jsonl)
+                       SqliteHashLedger, open_motor_ledger, _motor_db_path, _symbol_from_jsonl,
+                       resume_equity_from_ledger)
 from live_driver import normalize_fire_report
 from bt_engine import CostModel
 import gold_paper
@@ -185,8 +186,20 @@ class MotorPaperRuntime:
         exec_mode = os.environ.get("FQ_EXEC_MODE", "")
         cost = cost_from_exec_mode(exec_mode)
         broker = PaperBroker(ledger=open_motor_ledger(led_path, symbol), cost=cost)
-        equity = float(os.environ.get("FQ_MOTOR_PAPER_EQUITY", "10000"))
-        acc = Account("paper-motor-%s" % symbol, equity)
+        equity0 = float(os.environ.get("FQ_MOTOR_PAPER_EQUITY", "10000"))
+        # Continuidad de equity: se reanuda desde el ledger durable en vez de
+        # volver a 10000 en cada arranque. Sin esto el drawdown nunca se mide y
+        # el halt FQ_MOTOR_MAX_DD no puede dispararse (el pico se resetea con la
+        # equity). FQ_MOTOR_PAPER_RESET_EQUITY=1 fuerza el comportamiento viejo
+        # para empezar un experimento limpio a proposito.
+        if os.environ.get("FQ_MOTOR_PAPER_RESET_EQUITY", "0").strip() in ("1", "true", "yes"):
+            equity, peak = equity0, equity0
+        else:
+            equity, peak = resume_equity_from_ledger(broker.ledger, equity0)
+            if equity != equity0:
+                log.info("[motor] %s equity reanudada del ledger: %.2f (pico %.2f)",
+                         symbol, equity, peak)
+        acc = Account("paper-motor-%s" % symbol, equity, peak_equity=peak)
         # Halt de supervivencia pico-a-valle (GATE del fantasma: 28% WR = rachas
         # brutales). FQ_MOTOR_MAX_DD=0.25 -> deja de abrir si el equity cae 25% del
         # pico. 0 (default) -> gobernador estándar, byte-idéntico.
@@ -524,11 +537,22 @@ def _ts_ms(ts):
 
 def _cvd_meta(cvd):
     """Campos CVD para MOTOR_OPEN_META. {} si no hubo medicion (filtro off / sin
-    data) -> ledger IDENTICO al historico cuando FQ_CVD_FILTER=0 (backward-compat)."""
+    data / data RANCIA) -> ledger IDENTICO al historico cuando FQ_CVD_FILTER=0
+    (backward-compat).
+
+    Sella tambien `cvd_staleness_min`: la edad de la ultima barra CVD respecto
+    al fire. Sin ese campo era imposible distinguir en el ledger una
+    confirmacion viva de una calculada sobre un parquet parado — que es
+    exactamente lo que paso en jul-2026 (imbalance constante por simbolo
+    durante un mes). Ahora la ausencia del campo significa 'no habia medicion
+    utilizable', y su presencia trae la prueba de frescura al lado del dato."""
     if not cvd:
         return {}
-    return {"cvd_confirmed": bool(cvd.get("confirmed")),
+    meta = {"cvd_confirmed": bool(cvd.get("confirmed")),
             "cvd_imbalance": cvd.get("imbalance")}
+    if cvd.get("staleness_min") is not None:
+        meta["cvd_staleness_min"] = cvd["staleness_min"]
+    return meta
 
 
 def cvd_confirm_live(symbol, ts, direction, imb_min=None):

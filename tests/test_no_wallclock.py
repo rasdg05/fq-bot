@@ -35,7 +35,11 @@ ENGINE_PATH_BASELINE = {
     "signal_scorer.py":     1,   # sello ts
     "signal_engine_v2.py":  6,   # cooldowns + sellos
     "regime_detector.py":   1,   # sello ts
-    "entropy_cognition.py": 10,  # sellos de ledger/outcomes
+    # +1 (ago-2026): audit_signal_ledger sella la hora del ultimo audit en
+    # _ledger_health. Es un reloj de MONITORIZACION, no del path de decision:
+    # no entra en ningun outcome ni en el replay, solo registra cuando se
+    # ejecuto la comprobacion. Subida consciente del baseline.
+    "entropy_cognition.py": 11,  # sellos de ledger/outcomes + sello del audit
     "market_context.py":    0,
     "session_bias.py":      0,
     "segment_veto.py":      0,   # F2.6 §6.8: juzga el ts de la VELA, nunca now()

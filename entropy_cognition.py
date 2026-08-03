@@ -66,6 +66,20 @@ KAPPA_EVO_MAX         = 0.15           # +-15% modulador
 KAPPA_EVO_MIN_SAMPLES = 8              # min senales cerradas en bucket para modular
 AUDIT_EVERY_N_CLOSED  = 25             # trigger self-audit
 OUTCOME_TIMEOUT_HOURS = int(os.environ.get("FQ_OUTCOME_TIMEOUT_HOURS", "8"))
+
+# --- Auditabilidad: un solo predicado para TODO lo que lee outcomes ---------
+# Mismo invariante que ledger_stats.is_auditable, expresado en SQL para las
+# rutas que agregan en la base. Importa que este filtro cubra tambien el
+# APRENDIZAJE (kappa, buckets, entropia), no solo el numero publicado: si el
+# bloque corrupto del 10-jun alimenta la evolucion de kappa, el sistema no
+# solo miente hacia fuera — se ajusta hacia dentro contra desenlaces que nunca
+# ocurrieron. Se compone con AND sobre las clausulas existentes.
+AUDITABLE_SQL = (
+    "outcome IS NOT NULL "
+    "AND outcome != 'stale' "
+    "AND (minutes_open IS NULL OR minutes_open <= {}) ".format(
+        ledger_stats.MAX_AUDITABLE_MINUTES)
+)
 BACKUP_EVERY_N_SIGNED = int(os.environ.get("FQ_BACKUP_EVERY_N", "50"))
 PHI                   = 1.6180339887
 PHI_SQ                = PHI * PHI
@@ -368,7 +382,7 @@ def count_signals(closed_only=False, symbol="SOL"):
         try:
             if closed_only:
                 row = conn.execute(
-                    "SELECT COUNT(*) as n FROM signals WHERE outcome IS NOT NULL AND symbol = ?",
+                    "SELECT COUNT(*) as n FROM signals WHERE " + AUDITABLE_SQL + "AND symbol = ?",
                     (symbol,)
                 ).fetchone()
             else:
@@ -390,25 +404,49 @@ def check_outcome_against_candles(signal_row, df):
     Retorna dict con outcome, exit_price, pnl_r, minutes_open o None si sigue abierta.
 
     df debe ser 15m con index temporal (timestamp). Usamos las velas POSTERIORES
-    al ts_emitted.
+    al ts_emitted y ANTERIORES O IGUALES al horizonte (ts_emitted +
+    OUTCOME_TIMEOUT_HOURS): la senal solo puede resolverse dentro de su propia
+    vida util.
+
+    HORIZONTE DURO (fix del 'fantasma' de jun-2026)
+    -----------------------------------------------
+    Antes este barrido recorria TODAS las velas posteriores a la emision sin
+    tope, y el timeout se evaluaba DESPUES del bucle (solo si no se habia
+    tocado nada). Consecuencia: una senal que debia morir por timeout a las 8h
+    seguia "viva" indefinidamente hasta encontrar su TP, y al volver el tracker
+    tras un downtime se le acreditaba un TP4 tocado semanas mas tarde. El
+    10-jun-2026 eso cerro 23 senales de mayo en 763 ms, todas tp4 (shorts) o sl
+    (longs) — el resultado era una funcion de la direccion y de una caida del
+    -21% en SOL, no del sistema. Ese bloque inflaba el track record publico a
+    E[R]=+1.84 mientras el motor con fees marcaba -0.51R.
+
+    Ahora el horizonte se aplica ANTES de iterar: si ninguna vela DENTRO de la
+    ventana de vida toca un nivel, el outcome es 'timeout' al cierre de la
+    ultima vela del horizonte. Un TP tocado despues del horizonte ya no existe
+    para el ledger, que es exactamente el trade que el usuario habria cerrado.
     """
-    ts_emitted = datetime.fromisoformat(signal_row["ts_emitted"])
-    if ts_emitted.tzinfo is None:
-        ts_emitted = ts_emitted.replace(tzinfo=timezone.utc)
+    ts_emitted = _ts_emitted_utc(signal_row)
     now = datetime.now(timezone.utc)
-    elapsed_min = (now - ts_emitted).total_seconds() / 60.0
+    horizon = ts_emitted + timedelta(hours=OUTCOME_TIMEOUT_HOURS)
 
     # Filtra velas post-emision. Las velas OHLCV vienen en UTC pero tz-naive
     # (datetime64[ms]); ts_emitted es tz-aware. Pandas NO compara naive vs aware
     # ("Invalid comparison between dtype=datetime64[ms] and Timestamp"), asi que
     # normalizamos AMBOS lados a UTC tz-naive antes de comparar.
     cutoff = pd.Timestamp(ts_emitted).tz_localize(None)
+    horizon_naive = pd.Timestamp(horizon).tz_localize(None)
     ts_col = df["timestamp"]
     if getattr(ts_col.dtype, "tz", None) is not None:
         ts_col = ts_col.dt.tz_convert("UTC").dt.tz_localize(None)
     df_post = df[ts_col > cutoff]
     if len(df_post) == 0:
         return None  # aun no hay velas posteriores
+
+    # Ventana de vida: solo las velas hasta el horizonte pueden resolver la
+    # senal. df_life se re-filtra sobre la misma columna normalizada.
+    life_mask = (ts_col > cutoff) & (ts_col <= horizon_naive)
+    df_life = df[life_mask]
+    ts_life = ts_col[life_mask]
 
     direction = signal_row["direction"]
     entry = signal_row["entry_price"]
@@ -423,55 +461,86 @@ def check_outcome_against_candles(signal_row, df):
 
     # Para LONG: SL si low <= sl, TP si high >= tp
     # Para SHORT: SL si high >= sl, TP si low <= tp
-    # Iteramos vela por vela en orden cronologico
+    # Iteramos vela por vela en orden cronologico DENTRO DEL HORIZONTE.
     # Si en la misma vela tocan SL y TP, conservadoramente asumimos SL primero (peor caso).
-    for _, row in df_post.iterrows():
+    for pos, (_, row) in enumerate(df_life.iterrows()):
         hi = float(row["high"])
         lo = float(row["low"])
+        ts_bar = ts_life.iloc[pos]
         if direction == "long":
             if lo <= sl:
-                return _build_outcome("sl", sl, entry, sl, direction, ts_emitted)
+                return _build_outcome("sl", sl, entry, sl, direction, ts_emitted, ts_bar)
             if hi >= tp4:
-                return _build_outcome("tp4", tp4, entry, sl, direction, ts_emitted)
+                return _build_outcome("tp4", tp4, entry, sl, direction, ts_emitted, ts_bar)
             if hi >= tp3:
-                return _build_outcome("tp3", tp3, entry, sl, direction, ts_emitted)
+                return _build_outcome("tp3", tp3, entry, sl, direction, ts_emitted, ts_bar)
             if hi >= tp2:
-                return _build_outcome("tp2", tp2, entry, sl, direction, ts_emitted)
+                return _build_outcome("tp2", tp2, entry, sl, direction, ts_emitted, ts_bar)
             if hi >= tp1:
-                return _build_outcome("tp1", tp1, entry, sl, direction, ts_emitted)
+                return _build_outcome("tp1", tp1, entry, sl, direction, ts_emitted, ts_bar)
         else:  # short
             if hi >= sl:
-                return _build_outcome("sl", sl, entry, sl, direction, ts_emitted)
+                return _build_outcome("sl", sl, entry, sl, direction, ts_emitted, ts_bar)
             if lo <= tp4:
-                return _build_outcome("tp4", tp4, entry, sl, direction, ts_emitted)
+                return _build_outcome("tp4", tp4, entry, sl, direction, ts_emitted, ts_bar)
             if lo <= tp3:
-                return _build_outcome("tp3", tp3, entry, sl, direction, ts_emitted)
+                return _build_outcome("tp3", tp3, entry, sl, direction, ts_emitted, ts_bar)
             if lo <= tp2:
-                return _build_outcome("tp2", tp2, entry, sl, direction, ts_emitted)
+                return _build_outcome("tp2", tp2, entry, sl, direction, ts_emitted, ts_bar)
             if lo <= tp1:
-                return _build_outcome("tp1", tp1, entry, sl, direction, ts_emitted)
+                return _build_outcome("tp1", tp1, entry, sl, direction, ts_emitted, ts_bar)
 
-    # Sin outcome - revisa timeout
-    if elapsed_min >= OUTCOME_TIMEOUT_HOURS * 60:
-        last_close = float(df_post["close"].iloc[-1])
-        return _build_outcome("timeout", last_close, entry, sl, direction, ts_emitted)
+    # Ninguna vela DENTRO del horizonte resolvio la senal.
+    #   - Si el horizonte ya paso y TENEMOS velas de su vida: timeout honesto,
+    #     al cierre de la ultima vela del horizonte.
+    #   - Si el horizonte paso pero la ventana no alcanza ninguna vela de su
+    #     vida, no es auditable -> 'stale' (pnl_r=0, no ensucia expectancy).
+    #     En la practica reconcile_outcomes ya lo filtra con _covers_signal;
+    #     esto es el cinturon por si se llama a la funcion directamente.
+    #   - Si aun no paso: la senal sigue viva, no se decide nada.
+    if now >= horizon:
+        if len(df_life) > 0:
+            return _build_outcome("timeout", float(df_life["close"].iloc[-1]),
+                                  entry, sl, direction, ts_emitted,
+                                  ts_life.iloc[-1])
+        return {"outcome": "stale", "exit_price": float(df_post["close"].iloc[-1]),
+                "pnl_r": 0.0, "minutes_open": OUTCOME_TIMEOUT_HOURS * 60}
 
     return None  # sigue abierta
 
-def _build_outcome(outcome, exit_price, entry, sl, direction, ts_emitted):
+def _build_outcome(outcome, exit_price, entry, sl, direction, ts_emitted,
+                   ts_exit=None):
+    """Construye el outcome. ts_exit es el timestamp de la VELA que resolvio la
+    senal: minutes_open se mide contra el, no contra datetime.now(). Medirlo
+    contra 'ahora' era lo que producia los 43.611 minutos abiertos del bloque
+    fantasma (una senal cerrada por una vela de hace tres semanas figuraba
+    abierta hasta el instante del reconcile)."""
     risk = abs(entry - sl)
     if direction == "long":
         pnl = exit_price - entry
     else:
         pnl = entry - exit_price
     pnl_r = pnl / risk if risk > 0 else 0
-    minutes_open = int((datetime.now(timezone.utc) - ts_emitted).total_seconds() / 60)
+    ref = _as_utc(ts_exit) if ts_exit is not None else datetime.now(timezone.utc)
+    minutes_open = max(0, int((ref - ts_emitted).total_seconds() / 60))
+    # Cota dura: por construccion una senal no puede vivir mas que su horizonte.
+    minutes_open = min(minutes_open, OUTCOME_TIMEOUT_HOURS * 60)
     return {
         "outcome":      outcome,
         "exit_price":   exit_price,
         "pnl_r":        pnl_r,
         "minutes_open": minutes_open,
     }
+
+
+def _as_utc(ts):
+    """Normaliza a datetime tz-aware UTC. Acepta pd.Timestamp (tz-naive, que es
+    como llegan las velas), datetime naive o datetime aware."""
+    if isinstance(ts, datetime):
+        return ts if ts.tzinfo is not None else ts.replace(tzinfo=timezone.utc)
+    ts = pd.Timestamp(ts)
+    ts = ts.tz_localize("UTC") if ts.tzinfo is None else ts.tz_convert("UTC")
+    return ts.to_pydatetime()
 
 # Necesita pandas - import local para evitar circulos
 try:
@@ -563,8 +632,12 @@ def _stale_outcome(sig, df):
     (un TP/SL pudo tocarse en el hueco y no es verificable). pnl_r=0 neutral:
     ningun consumidor lo cuenta como win y no ensucia la expectancy."""
     last_close = float(df["close"].iloc[-1])
-    minutes_open = int(
+    # minutes_open acotado al horizonte: una senal 'stale' no vivio mas que su
+    # timeout, solo que no pudimos verla morir. Sin la cota, un downtime largo
+    # escribia vidas de semanas en el ledger (ver check_outcome_against_candles).
+    elapsed = int(
         (datetime.now(timezone.utc) - _ts_emitted_utc(sig)).total_seconds() / 60)
+    minutes_open = max(0, min(elapsed, OUTCOME_TIMEOUT_HOURS * 60))
     return {"outcome": "stale", "exit_price": last_close, "pnl_r": 0.0,
             "minutes_open": minutes_open}
 
@@ -696,7 +769,7 @@ def get_bucket_distribution(closed_only=False, last_n=None, symbol="SOL"):
             conds = ["symbol = ?"]
             params = [symbol]
             if closed_only:
-                conds.append("outcome IS NOT NULL")
+                conds.append(AUDITABLE_SQL)
             sql += " WHERE " + " AND ".join(conds)
             sql += " ORDER BY id DESC"
             if last_n:
@@ -779,7 +852,7 @@ def get_bucket_stats(bucket_key, symbol="SOL"):
         try:
             rows = conn.execute(
                 "SELECT outcome, pnl_r FROM signals "
-                "WHERE bucket_key = ? AND outcome IS NOT NULL AND symbol = ?",
+                "WHERE bucket_key = ? AND " + AUDITABLE_SQL + "AND symbol = ?",
                 (bucket_key, symbol)
             ).fetchall()
         finally:
@@ -852,7 +925,7 @@ def get_global_metrics(symbol="SOL"):
         try:
             rows = conn.execute(
                 "SELECT outcome, pnl_r, tier, session, direction FROM signals "
-                "WHERE outcome IS NOT NULL AND symbol = ?",
+                "WHERE " + AUDITABLE_SQL + "AND symbol = ?",
                 (symbol,)
             ).fetchall()
         finally:
@@ -935,6 +1008,108 @@ def get_recent_signals(n=10, symbol=None):
         finally:
             conn.close()
 
+# ============================================================
+# AUDITORIA DEL LEDGER DE SENALES (Reconciler cableado a lo que se publica)
+# ============================================================
+# Estado de salud del ledger de senales. Lo escribe audit_signal_ledger() y lo
+# leen get_results_summary() / el bot publico ANTES de publicar nada.
+_ledger_health = {
+    "ok": True,          # False -> el tracker esta produciendo cierres imposibles
+    "reasons": [],
+    "ts": None,
+    "n": None,
+    "live_expectancy_r": None,
+}
+
+
+def get_closed_rows_for_audit(symbol="SOL"):
+    """Filas cerradas crudas (SIN filtrar) para el auditor. Sin filtrar a
+    proposito: el auditor necesita VER las filas malas para detectarlas."""
+    with _lock:
+        conn = _connect()
+        try:
+            return conn.execute(
+                "SELECT outcome, pnl_r, ts_closed, minutes_open FROM signals "
+                "WHERE outcome IS NOT NULL AND symbol = ? ORDER BY ts_closed ASC",
+                (symbol,)
+            ).fetchall()
+        finally:
+            conn.close()
+
+
+def signal_ledger_is_trusted():
+    """True si el ultimo audit no encontro cierres imposibles recientes."""
+    return bool(_ledger_health.get("ok", True))
+
+
+def get_ledger_health():
+    return dict(_ledger_health)
+
+
+def audit_signal_ledger(symbol="SOL", baseline_r=None, min_trades=20,
+                        lookback_days=7):
+    """Corre el Reconciler contra el ledger de SENALES (lo que se publica).
+
+    Hasta ahora el Reconciler solo auditaba los HashLedger de gold/funding
+    paper — y apagado por defecto. El track record de clientes salia de
+    fq_ledger.db sin auditor alguno, y por ahi entro el bloque del 10-jun.
+    Esto cierra el lazo.
+
+    Consecuencia de un fallo de integridad: se marca el ledger como NO fiable
+    y get_results_summary() deja de devolver numeros. Es deliberado que la
+    consecuencia sea "callar" y no "seguir emitiendo un numero con asterisco":
+    un track record que no se puede defender no se publica.
+
+    baseline_r: expectancy de referencia (p.ej. la del motor paper con fees).
+    Si es None solo se comprueba integridad, no drift.
+    """
+    import reconciler as rc
+
+    view = rc.SignalLedgerView(
+        fetch_rows=lambda: get_closed_rows_for_audit(symbol),
+        lookback_days=lookback_days,
+    )
+    reasons = []
+    ok = True
+
+    if not view.verify():
+        ok = False
+        reasons.append(
+            "cierres NO auditables en los ultimos {}d: minutes_open supera el "
+            "horizonte de {}h. El tracker de outcomes esta roto -> track "
+            "record suspendido.".format(lookback_days, OUTCOME_TIMEOUT_HOURS))
+
+    live = rc.extract_closed_r(view)
+    n = len(live)
+    live_exp = (sum(live) / n) if n else None
+
+    if ok and baseline_r is not None and n >= min_trades:
+        try:
+            import bt_forward
+            recon = bt_forward.reconcile(float(baseline_r), live, ci=0.90)
+            if (recon.get("within") is False
+                    and live_exp is not None
+                    and live_exp < float(baseline_r)):
+                reasons.append(
+                    "DRIFT a la baja: expectancy viva {:+.3f}R < baseline "
+                    "{:+.3f}R y fuera del IC (n={})".format(
+                        live_exp, float(baseline_r), n))
+        except Exception as e:
+            log.warning("audit_signal_ledger: reconcile fallo (%s)", e)
+
+    _ledger_health.update({
+        "ok": ok,
+        "reasons": reasons,
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "n": n,
+        "live_expectancy_r": live_exp,
+    })
+    if reasons:
+        for r in reasons:
+            log.error("[audit ledger senales] %s", r)
+    return dict(_ledger_health)
+
+
 def get_results_summary(symbol="SOL"):
     """
     Track record verificable desde el ledger propio (acceso directo VIP).
@@ -945,13 +1120,20 @@ def get_results_summary(symbol="SOL"):
     CLIENTES -- no se diluye/mezcla con BTC/ETH sin una decision explicita
     de producto (RasDG). Combinar los 3 track records es un cambio de
     producto deliberado, no un efecto secundario de cerrar el gap del ledger.
+
+    Devuelve None si el ultimo audit marco el ledger como NO fiable: un track
+    record que no se puede defender no se publica (ver audit_signal_ledger).
     """
+    if not signal_ledger_is_trusted():
+        log.error("get_results_summary: ledger NO fiable -> no se publica (%s)",
+                  "; ".join(_ledger_health.get("reasons") or []))
+        return None
     with _lock:
         conn = _connect()
         try:
             rows = conn.execute(
-                "SELECT outcome, pnl_r, ts_closed FROM signals "
-                "WHERE outcome IS NOT NULL AND symbol = ? ORDER BY ts_closed ASC",
+                "SELECT outcome, pnl_r, ts_closed, minutes_open FROM signals "
+                "WHERE " + AUDITABLE_SQL + "AND symbol = ? ORDER BY ts_closed ASC",
                 (symbol,)
             ).fetchall()
         finally:
@@ -1022,14 +1204,23 @@ def build_audit_prompt():
         "   Mira H_total, KL drift, y la dispersion de tiers/sesiones/direcciones.\n\n"
         "2. ATRACTORES TOXICOS: hay buckets con muchas senales y expectancy negativa?\n"
         "   Si si, nombralos y propon: subir threshold de ese bucket, o ignorar?\n\n"
-        "3. EDGE OCULTO: hay buckets ganadores con pocas muestras (n<8) que valdria\n"
-        "   la pena explorar mas? Como invitar a esos setups sin forzar?\n\n"
+        "3. CANDIDATOS A VIGILAR: hay buckets que APUNTAN a algo? Nombralos con su n,\n"
+        "   pero NO recomiendes subirles exposicion si n<30: con esa muestra la\n"
+        "   expectancy de un bucket es indistinguible del ruido, y ordenar por\n"
+        "   expectancy selecciona precisamente los extremos del azar. La accion\n"
+        "   correcta ante un bucket prometedor con n bajo es esperar muestra.\n\n"
         "4. SUGERENCIA DE THRESHOLD: el PMASTER_MIN actual es 2.30. Con esta data,\n"
         "   subirias o bajarias? Justifica con numeros.\n\n"
         "5. SUGERENCIA DE COOLDOWN: el cooldown es 1h. Demasiado corto/largo?\n\n"
         "Estas son SUGERENCIAS, no instrucciones. RasDG decide. Maximo 6 parrafos.\n"
         "Se brutalmente honesto - si el edge es marginal, dilo. Si hay un bucket\n"
-        "que se ve a leguas que es un casino, exponlo."
+        "que se ve a leguas que es un casino, exponlo.\n\n"
+        "Cita la n en la que te apoyas en cada afirmacion. Si la muestra global no\n"
+        "da para responder algo, di 'aun no se puede afirmar' en vez de dar una\n"
+        "version suavizada de la conclusion optimista. Y si la distribucion de\n"
+        "outcomes se ve imposible (p.ej. cero tp1/tp2/tp3, o separacion perfecta por\n"
+        "direccion), reportalo como fallo de medicion ANTES que cualquier lectura de\n"
+        "edge: una metrica demasiado limpia casi siempre es un bug."
     ).format(
         metrics["n"],
         metrics["win_rate"],
@@ -1066,7 +1257,7 @@ def _bucket_performance_table(symbol="SOL"):
                        SUM(CASE WHEN outcome IN ('tp1','tp2','tp3','tp4') THEN 1 ELSE 0 END) as wins,
                        AVG(pnl_r) as expectancy
                 FROM signals
-                WHERE outcome IS NOT NULL AND symbol = ?
+                WHERE """ + AUDITABLE_SQL + """AND symbol = ?
                 GROUP BY bucket_key
                 HAVING n >= 4
             """, (symbol,)).fetchall()
@@ -1335,7 +1526,7 @@ def count_closed_v2_buckets(symbol="SOL"):
         try:
             row = conn.execute(
                 "SELECT COUNT(*) AS c FROM signals "
-                "WHERE bucket_key_v2 IS NOT NULL AND outcome IS NOT NULL AND symbol = ?",
+                "WHERE bucket_key_v2 IS NOT NULL AND " + AUDITABLE_SQL + "AND symbol = ?",
                 (symbol,)
             ).fetchone()
             return int(row["c"]) if row else 0
@@ -1350,7 +1541,7 @@ def get_bucket_stats_v2(bucket_key_v2, symbol="SOL"):
         try:
             rows = conn.execute(
                 "SELECT outcome, pnl_r FROM signals "
-                "WHERE bucket_key_v2 = ? AND outcome IS NOT NULL AND symbol = ?",
+                "WHERE bucket_key_v2 = ? AND " + AUDITABLE_SQL + "AND symbol = ?",
                 (bucket_key_v2, symbol)
             ).fetchall()
         finally:
@@ -1635,7 +1826,7 @@ def _bucket_beta_counts(bucket_key_v3, fallback_coarse=None):
         try:
             rows = conn.execute(
                 "SELECT outcome, pnl_r FROM signals "
-                "WHERE bucket_key_v3 = ? AND outcome IS NOT NULL",
+                "WHERE bucket_key_v3 = ? AND " + AUDITABLE_SQL,
                 (bucket_key_v3,)
             ).fetchall()
         finally:
@@ -1647,7 +1838,7 @@ def _bucket_beta_counts(bucket_key_v3, fallback_coarse=None):
             try:
                 rows = conn.execute(
                     "SELECT outcome, pnl_r FROM signals "
-                    "WHERE bucket_key_v3 = ? AND outcome IS NOT NULL",
+                    "WHERE bucket_key_v3 = ? AND " + AUDITABLE_SQL,
                     (fallback_coarse,)
                 ).fetchall()
             finally:
@@ -1824,7 +2015,7 @@ def get_concept_performance():
             rows = conn.execute(
                 "SELECT had_breaker, had_mss, had_inducement, had_pwr3, had_bpr, "
                 "had_ote_strict, had_displacement, outcome, pnl_r "
-                "FROM signals WHERE outcome IS NOT NULL AND bucket_key_v3 IS NOT NULL"
+                "FROM signals WHERE " + AUDITABLE_SQL + "AND bucket_key_v3 IS NOT NULL"
             ).fetchall()
         finally:
             conn.close()
@@ -1874,7 +2065,7 @@ def get_weekend_performance():
         try:
             rows = conn.execute(
                 "SELECT weekend_flag, outcome, pnl_r FROM signals "
-                "WHERE outcome IS NOT NULL AND weekend_flag IS NOT NULL"
+                "WHERE " + AUDITABLE_SQL + "AND weekend_flag IS NOT NULL"
             ).fetchall()
         finally:
             conn.close()
@@ -1915,13 +2106,13 @@ def get_tp_distribution_by_tf(symbol=None):
             if symbol:
                 rows = conn.execute(
                     "SELECT tf_id, outcome, pnl_r FROM signals "
-                    "WHERE outcome IS NOT NULL AND outcome != 'stale' AND symbol = ?",
+                    "WHERE " + AUDITABLE_SQL + "AND symbol = ?",
                     (symbol,)
                 ).fetchall()
             else:
                 rows = conn.execute(
                     "SELECT tf_id, outcome, pnl_r FROM signals "
-                    "WHERE outcome IS NOT NULL AND outcome != 'stale'"
+                    "WHERE " + AUDITABLE_SQL
                 ).fetchall()
         finally:
             conn.close()
@@ -2082,15 +2273,26 @@ def build_audit_prompt_v3():
         "   Nombralos uno por uno con tu juicio.\n\n"
         "2. ATRACTORES TOXICOS: hay buckets v3 con muchas senales y expectancy negativa?\n"
         "   Sugiere: subir threshold de ese bucket, o vetarlo entirely?\n\n"
-        "3. EDGE OCULTO: hay combinaciones de conceptos (ej: breaker+ote_strict) con pocas\n"
-        "   muestras pero expectancy alta? Vale invitar mas exposicion?\n\n"
+        "3. CANDIDATOS A VIGILAR: hay combinaciones de conceptos (ej: breaker+ote_strict)\n"
+        "   que apunten a algo? Dilas con su n. NO recomiendes mas exposicion con n<30:\n"
+        "   cruzar conceptos multiplica los cortes y por tanto el ruido, asi que la\n"
+        "   combinacion mas vistosa suele ser la mas sobreajustada. Esperar muestra es\n"
+        "   la recomendacion correcta, no asignar riesgo.\n\n"
         "4. WEEKEND: el filtro fin de semana se justifica con la data? (si hay data v3 de\n"
         "   weekend). Si veto es conservador, podemos relajar?\n\n"
         "5. PMASTER_MIN sugerido (actual 1.80). Subir/bajar y por que.\n\n"
         "6. KAPPA EVO METHOD: actual es Thompson sampling con prior Beta(1,1).\n"
         "   El prior es razonable o muy ancho? Sugiere si vale concentrar (prior(2,2)).\n\n"
         "Maximo 8 parrafos. Brutalmente honesto. Si un concepto del PDF no aporta edge,\n"
-        "dilo (esto es ciencia, no fe)."
+        "dilo (esto es ciencia, no fe).\n\n"
+        "Cita la n en la que te apoyas en cada afirmacion; una afirmacion sin su n no\n"
+        "vale. El punto 1 en particular exige muestra: una diferencia de 0.3R entre\n"
+        "'con' y 'sin' un concepto no significa nada si cualquiera de los dos lados\n"
+        "tiene n<30 -- en ese caso el veredicto correcto es 'sin muestra suficiente',\n"
+        "no 'aporta' ni 'es ruido'. Y si la distribucion de outcomes se ve imposible\n"
+        "(p.ej. cero tp1/tp2/tp3, o separacion perfecta por direccion), reportalo como\n"
+        "fallo de medicion ANTES que cualquier lectura de edge: una metrica demasiado\n"
+        "limpia casi siempre es un bug."
     ).format(
         metrics["n"],
         metrics["win_rate"], metrics["expectancy_r"],

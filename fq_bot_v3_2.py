@@ -308,6 +308,31 @@ FIELD_TIMEFRAMES = _resolve_field_timeframes()
 
 TIMEFRAMES = _resolve_timeframes()
 
+# --- Auditoria del ledger de senales ---------------------------------------
+# Baseline contra el que se mide la expectancy VIVA del ledger de senales.
+# Vacio (default) = solo se comprueba integridad, no drift: un baseline
+# inventado produce alarmas inventadas. Cuando haya un numero defendible (p.ej.
+# la expectancy del motor paper CON fees, que es la unica medicion honesta del
+# repo), ponerlo en FQ_SIGNAL_LEDGER_BASELINE_R.
+def _resolve_signal_ledger_baseline():
+    raw = os.environ.get("FQ_SIGNAL_LEDGER_BASELINE_R", "").strip()
+    if not raw:
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        # sys.stderr, no log: esto corre a nivel de modulo y `log` aun no existe
+        # (se define mas abajo). Un log.warning aqui seria un NameError.
+        sys.stderr.write(
+            "[WARN] FQ_SIGNAL_LEDGER_BASELINE_R invalido (%r) -> drift OFF\n" % raw)
+        return None
+
+SIGNAL_LEDGER_BASELINE_R = _resolve_signal_ledger_baseline()
+
+# Estado de alerta del audit: evita spamear en cada cierre de vela; solo avisa
+# en la transicion sano->roto y roto->sano (mismo patron que ops/maintenance).
+_LEDGER_ALERT_STATE = {"alerted": False, "drift": False}
+
 # Aliases legacy: comandos manuales y paths admin siguen usando 15m por default.
 TIMEFRAME             = "15m"
 INTRA_CANDLE_MINUTES  = TF_PROFILES["15m"]["INTRA_CANDLE_MINUTES"]
@@ -6316,6 +6341,33 @@ def evolution_periodic_hook(exchange):
                 closed.extend(ev.reconcile_outcomes(fetch_ohlcv, exchange, SYMBOL, tf_id))
             except Exception as e:
                 log.error("reconcile [{}] error: {}".format(tf_id, e))
+
+        # AUDITORIA DEL LEDGER DE SENALES (justo DESPUES de escribir cierres).
+        # El Reconciler se conecta ahora a lo que realmente se publica: si el
+        # tracker vuelve a producir cierres imposibles (vida > horizonte), el
+        # track record se suspende solo y avisa a admin. Antes esto no existia
+        # para fq_ledger.db y por ahi entro el bloque del 10-jun-2026.
+        try:
+            health = ev.audit_signal_ledger(
+                symbol="SOL", baseline_r=SIGNAL_LEDGER_BASELINE_R)
+            if not health["ok"] and not _LEDGER_ALERT_STATE.get("alerted"):
+                _LEDGER_ALERT_STATE["alerted"] = True
+                telegram_send(
+                    "🛑 <b>LEDGER DE SENALES NO FIABLE</b>\n"
+                    "El track record queda SUSPENDIDO (no se publica).\n\n"
+                    "{}\n\n"
+                    "Revisar el tracker de outcomes antes de volver a exponer "
+                    "numeros.".format("\n".join(health["reasons"])))
+            elif health["ok"] and _LEDGER_ALERT_STATE.get("alerted"):
+                _LEDGER_ALERT_STATE["alerted"] = False
+                telegram_send("✅ Ledger de senales vuelve a ser auditable.")
+            for r in health.get("reasons", []):
+                if "DRIFT" in r and not _LEDGER_ALERT_STATE.get("drift"):
+                    _LEDGER_ALERT_STATE["drift"] = True
+                    telegram_send("⚠️ <b>Drift de expectancy</b>\n{}".format(r))
+        except Exception as e:
+            log.error("audit_signal_ledger error: {}".format(e))
+
         for c in closed:
             outcome = c["outcome"]
             relevant = (

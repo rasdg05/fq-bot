@@ -23,24 +23,35 @@ def ledger(tmp_path, monkeypatch):
         CREATE TABLE signals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ts_emitted TEXT, ts_closed TEXT,
-            outcome TEXT, pnl_r REAL,
+            outcome TEXT, pnl_r REAL, minutes_open INTEGER,
             symbol TEXT NOT NULL DEFAULT 'SOL'
         )
     """)
     now = datetime.now(timezone.utc)
+    # (outcome, pnl_r, dias_atras, minutes_open). minutes_open dentro del
+    # horizonte auditable (<= 8h + gracia) -> las 5 cuentan.
     data = [
-        ("tp3", 1.8, 5), ("tp1", 0.9, 10), ("sl", -1.0, 25),
-        ("tp2", 1.4, 50), ("sl", -1.0, 200),
+        ("tp3", 1.8, 5, 120), ("tp1", 0.9, 10, 45), ("sl", -1.0, 25, 14),
+        ("tp2", 1.4, 50, 300), ("sl", -1.0, 200, 30),
     ]
-    for outcome, pnl, days in data:
+    for outcome, pnl, days, mins in data:
         ts = (now - timedelta(days=days)).isoformat()
         conn.execute(
-            "INSERT INTO signals (ts_emitted, ts_closed, outcome, pnl_r) VALUES (?,?,?,?)",
-            (ts, ts, outcome, pnl))
+            "INSERT INTO signals (ts_emitted, ts_closed, outcome, pnl_r, minutes_open) "
+            "VALUES (?,?,?,?,?)",
+            (ts, ts, outcome, pnl, mins))
     # una senal abierta (no debe contar)
     conn.execute(
         "INSERT INTO signals (ts_emitted, ts_closed, outcome, pnl_r) VALUES (?,?,?,?)",
         (now.isoformat(), None, None, None))
+    # Cierre NO AUDITABLE: vida registrada de 30 dias, imposible bajo un tracker
+    # correcto (horizonte 8h). Es la firma del bloque fantasma del 10-jun-2026 y
+    # NO debe entrar en ninguna metrica publicada, ni siquiera como perdida.
+    ts_ghost = (now - timedelta(days=7)).isoformat()
+    conn.execute(
+        "INSERT INTO signals (ts_emitted, ts_closed, outcome, pnl_r, minutes_open) "
+        "VALUES (?,?,?,?,?)",
+        (ts_ghost, ts_ghost, "tp4", 10.9, 43611))
     conn.commit()
     conn.close()
 
@@ -53,9 +64,20 @@ def ledger(tmp_path, monkeypatch):
 def test_get_results_summary_counts(ledger):
     s = ledger.get_results_summary()
     assert s is not None
-    assert s["total"]["n"] == 5          # 5 cerradas, la abierta no cuenta
+    # 5 cerradas auditables. Ni la abierta ni el cierre fantasma (minutes_open
+    # 43611 > horizonte) cuentan.
+    assert s["total"]["n"] == 5
     assert s["w30"]["n"] == 3            # 5,10,25 dias
     assert s["w90"]["n"] == 4            # + 50 dias
+
+
+def test_cierre_no_auditable_excluido(ledger):
+    """Una senal cuya vida registrada excede su horizonte no pudo producirla un
+    tracker correcto -> fuera de las metricas, y su +10.9R no infla nada."""
+    s = ledger.get_results_summary()
+    assert s["total"]["n"] == 5
+    assert s["total"]["best_pnl"] < 2.0        # el 10.9R fantasma no aparece
+    assert s["total"]["expectancy"] < 1.0
 
 
 def test_get_results_summary_winrate(ledger):
@@ -72,6 +94,7 @@ def test_get_results_summary_empty(tmp_path, monkeypatch):
         CREATE TABLE signals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ts_emitted TEXT, ts_closed TEXT, outcome TEXT, pnl_r REAL,
+            minutes_open INTEGER,
             symbol TEXT NOT NULL DEFAULT 'SOL')
     """)
     conn.commit()
