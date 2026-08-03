@@ -90,9 +90,13 @@ def test_resolve_none_cost_is_gross_unchanged():
     assert "fees_quote" not in b.ledger.records[-1]["payload"]
 
 
-def test_resolve_net_taker_subtracts_fees_and_slippage():
+def test_resolve_net_taker_subtracts_fees_and_slippage(monkeypatch):
     # taker: eff_entry=100.01, eff_exit=102.9897 -> gross_slip=297.97 ;
     # fees=0.0005*100*(100+103)=10.15 -> neto 287.82 (< bruto 300)
+    # Este test mide la aritmetica de _settle, no la politica de sizing: fija el
+    # dimensionado BRUTO para que size sea 100 redondo y los numeros del
+    # comentario sigan siendo verificables a mano.
+    monkeypatch.setenv("FQ_COST_AWARE_SIZING", "0")
     a, b = _acct(10_000), ex.PaperBroker(cost=CostModel())
     pos = b.open(a, _sig(entry=100, stop=99, tp=103), 0.01)   # size=100
     r = b.resolve(a, pos, 103.0, "tp")
@@ -103,9 +107,13 @@ def test_resolve_net_taker_subtracts_fees_and_slippage():
     assert pay["fees_quote"] == pytest.approx(10.15, abs=1e-2)
 
 
-def test_resolve_maker_beats_taker_same_trade():
+def test_resolve_maker_beats_taker_same_trade(monkeypatch):
     # mismo trade, dos modos: maker entra sin slippage + fee 2bps (vs 5bps) ->
     # neto MAYOR. Ahorro en este trade (size=100) ~= 4.0 quote.
+    # Sizing bruto fijado: con el consciente de costes cada modo tomaria un size
+    # distinto (maker arriesga menos por unidad) y la comparacion dejaria de ser
+    # "el mismo trade en dos modos".
+    monkeypatch.setenv("FQ_COST_AWARE_SIZING", "0")
     sig = _sig(entry=100, stop=99, tp=103)
     a_t, b_t = _acct(10_000), ex.PaperBroker(cost=CostModel(maker_entry=False))
     a_m, b_m = _acct(10_000), ex.PaperBroker(cost=CostModel(maker_entry=True))

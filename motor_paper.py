@@ -128,7 +128,8 @@ class MotorPaperRuntime:
     def __init__(self, symbol, *, account, governor=None, broker=None,
                  veto=None, tp_key="tp1", notify_fn=None, requested_risk=None,
                  digest_every=0, maker_sim=True, maker_eps_bps=1.0,
-                 maker_ttl_bars=6, cost=None, cvd_path=None, cvd_imb_min=0.50):
+                 maker_ttl_bars=6, cost=None, cvd_path=None, cvd_imb_min=0.50,
+                 min_fill_bars=0):
         self.symbol = symbol
         self.account = account
         self.governor = governor or RiskGovernor()
@@ -143,6 +144,10 @@ class MotorPaperRuntime:
         self.maker_sim = bool(maker_sim)
         self.maker_eps = float(maker_eps_bps) / 10_000.0
         self.maker_ttl_bars = int(maker_ttl_bars)
+        # Barras minimas que debe aguantar una limite antes de aceptar su fill.
+        # 0 = gate apagado (comportamiento historico). Ver el bloque de
+        # seleccion adversa en _process_pending_entries.
+        self.min_fill_bars = int(min_fill_bars)
         self._maker_pending = []
         # EJECUCION maker (FQ_EXEC_MODE=maker -> cost.maker_entry): en vez de abrir
         # taker al instante, encola una limite en el nivel y la abre al PENETRAR
@@ -218,6 +223,10 @@ class MotorPaperRuntime:
             os.environ.get("FQ_GOLD_DIGEST_EVERY", "0")))
         maker_eps = float(os.environ.get("FQ_GOLD_MAKER_EPS_BPS", "1.0"))
         maker_ttl = int(os.environ.get("FQ_GOLD_MAKER_TTL_BARS", "6"))
+        # Gate de calidad de fill. Default 2 (descarta los fills de 1 barra,
+        # donde vive el 80% de la perdida medida). El motor es PAPEL: encenderlo
+        # es medir, no arriesgar capital. 0 lo apaga.
+        min_fill_bars = int(os.environ.get("FQ_MOTOR_MIN_FILL_BARS", "2"))
         maker_sim = os.environ.get("FQ_MOTOR_PAPER_MAKER_SIM", "1").strip() \
             in ("1", "true", "yes")
         # Capa 3 order-flow (measurement-first): FQ_CVD_FILTER=1 lee el parquet del
@@ -236,7 +245,8 @@ class MotorPaperRuntime:
         return cls(symbol, account=acc, broker=broker, veto=veto, tp_key=tp_key,
                    governor=governor, notify_fn=notify_fn, digest_every=digest_every,
                    maker_sim=maker_sim, maker_eps_bps=maker_eps,
-                   maker_ttl_bars=maker_ttl, cvd_path=cvd_path, cvd_imb_min=cvd_imb_min)
+                   maker_ttl_bars=maker_ttl, cvd_path=cvd_path, cvd_imb_min=cvd_imb_min,
+                   min_fill_bars=min_fill_bars)
 
     def _maybe_digest(self):
         if self.digest_every and self._ticks % self.digest_every == 0 \
@@ -403,8 +413,36 @@ class MotorPaperRuntime:
             sig = pe["sig"]
             d, limit = sig["direction"], sig["entry"]
             if gold_paper.maker_penetrated(d, limit, high, low, self.maker_eps):
+                waited = pe["waited"] + 1
+                # GATE DE CALIDAD DE FILL (seleccion adversa).
+                #
+                # Una limite que se llena en la PRIMERA barra se esta llenando
+                # porque el precio la esta atravesando: el fill no es un retroceso
+                # amable hacia tu nivel, es momentum en tu contra. En el ledger de
+                # jul-2026 (90 cierres con fees) eso se ve concentrado:
+                #   fills <=2 barras: n=53, WR 11%, sumR -36.69  (80% de la perdida)
+                #   fills >=5 barras: n=25, WR 44%, sumR  -2.14
+                # Fisher exacto p=0.0024 (sobrevive Bonferroni sobre ~10 cortes) y
+                # el signo aguanta en las DOS mitades temporales de la muestra.
+                # El precio de entrada es exacto (entry==limit, sin deslizamiento):
+                # la perdida no viene de entrar mal, viene de lo que pasa DESPUES.
+                #
+                # Honestidad sobre el alcance: filtrar los fills rapidos lleva la
+                # E[R] de -0.51 a ~-0.09, pero su IC95% SIGUE cruzando el cero. Esto
+                # deja de sangrar; NO demuestra edge. Por eso el gate se mide
+                # forward (MOTOR_FILL_REJECTED queda sellado) en vez de darse por
+                # bueno. FQ_MOTOR_MIN_FILL_BARS=0 lo apaga.
+                if waited < self.min_fill_bars:
+                    self.counts["fill_rejected"] = self.counts.get("fill_rejected", 0) + 1
+                    self.broker.ledger.append({
+                        "event": "MOTOR_FILL_REJECTED", "ts": ts,
+                        "tf": pe.get("tf"), "killzone": pe.get("killzone"),
+                        "limit": limit, "bars_waited": waited,
+                        "min_fill_bars": self.min_fill_bars,
+                        "why": "seleccion adversa: fill demasiado rapido"})
+                    continue
                 pos = self._open_pending(sig, pe, fill_type="maker",
-                                         bars_waited=pe["waited"] + 1, ts=ts)
+                                         bars_waited=waited, ts=ts)
                 if pos is not None:
                     opened.append({"pid": pos.pid, "fill_type": "maker",
                                    "killzone": pe.get("killzone"), "tf": pe.get("tf"),

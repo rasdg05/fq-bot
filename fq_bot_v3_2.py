@@ -310,12 +310,19 @@ TIMEFRAMES = _resolve_timeframes()
 
 # --- Auditoria del ledger de senales ---------------------------------------
 # Baseline contra el que se mide la expectancy VIVA del ledger de senales.
-# Vacio (default) = solo se comprueba integridad, no drift: un baseline
-# inventado produce alarmas inventadas. Cuando haya un numero defendible (p.ej.
-# la expectancy del motor paper CON fees, que es la unica medicion honesta del
-# repo), ponerlo en FQ_SIGNAL_LEDGER_BASELINE_R.
+#
+# Default 0.0 = "avisame cuando el track record publicado sea negativo con
+# confianza estadistica". No es un numero inventado ni ajustado a la data: es el
+# umbral de que el sistema pierde dinero. El Reconciler solo alerta si la
+# expectancy viva cae por DEBAJO del baseline Y FUERA del IC bootstrap, asi que
+# con 0.0 no salta por ruido -- salta cuando la perdida es defendible.
+#
+# Deliberadamente NO se usa la expectancy del motor (-0.51R) como baseline: eso
+# convertiria "pierde menos que el motor" en aprobado, que es un list0n bajisimo.
+# Con menos de min_trades cierres auditables no se evalua nada (hoy n=12).
+# Vacio explicito ("") apaga la deteccion de drift y deja solo la de integridad.
 def _resolve_signal_ledger_baseline():
-    raw = os.environ.get("FQ_SIGNAL_LEDGER_BASELINE_R", "").strip()
+    raw = os.environ.get("FQ_SIGNAL_LEDGER_BASELINE_R", "0.0").strip()
     if not raw:
         return None
     try:

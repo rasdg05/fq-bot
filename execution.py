@@ -379,12 +379,56 @@ class PaperBroker:
         #            del A/B taker-vs-maker (FQ_EXEC_MODE). Funding: commit 2.
         self.cost = cost
 
+    def net_unit_loss(self, entry, stop, direction, entry_maker=None):
+        """Perdida NETA por unidad si salta el stop, incluyendo fees y slippage.
+
+        Sin cost model devuelve la distancia bruta al stop (compat exacta).
+        Replica el mismo modelo que _settle: la pierna de salida por stop SIEMPRE
+        cruza el book (taker), la de entrada depende del fill.
+        """
+        c = self.cost
+        rdist = abs(entry - stop)
+        if c is None:
+            return rdist
+        d = int(direction)
+        if entry_maker is None:
+            entry_maker = bool(getattr(c, "maker_entry", False))
+        eff_entry = entry if entry_maker else entry * (1 + d * c.slippage_frac)
+        eff_exit = stop * (1 - d * c.slippage_frac)          # el stop cruza -> taker
+        gross_per_unit = d * (eff_exit - eff_entry)          # negativo
+        fees_per_unit = ((c.maker_fee if entry_maker else c.taker_fee) * entry
+                         + c.taker_fee * stop)
+        loss = -(gross_per_unit - fees_per_unit)
+        return loss if loss > 0 else rdist                   # defensivo
+
     def open(self, account: Account, signal: dict, risk_frac: float, ts=None):
         entry, stop = float(signal["entry"]), float(signal["stop"])
         rdist = abs(entry - stop)
         if rdist <= 0:
             raise ValueError("riesgo nulo (entry == stop)")
-        size = account.equity * risk_frac / rdist
+        # SIZING CONSCIENTE DE COSTES.
+        #
+        # `size = equity * risk_frac / rdist` dimensiona para que la perdida
+        # BRUTA al stop sea exactamente risk_frac del equity -- pero _settle
+        # resta despues fees y slippage, asi que la perdida REALIZADA es mayor.
+        # En el ledger del motor (jul-2026) el stop medio costo -1.191R en vez
+        # de -1.0R: un 19% de sobrecoste sistematico. Consecuencia: risk_frac no
+        # significa lo que dice, y con el se desfasan TODOS los topes del
+        # gobernador (max_total_risk_frac, max_daily_loss_frac, max_drawdown_frac),
+        # que quedan un 19% mas laxos de lo configurado.
+        #
+        # Ahora se dimensiona desde la perdida NETA: arriesgar 0.25% significa
+        # perder 0.25% cuando salta el stop. OJO: esto corrige el PRESUPUESTO DE
+        # RIESGO, no la expectancy -- R es una unidad, reescalarla no crea edge.
+        # FQ_COST_AWARE_SIZING=0 restaura el dimensionado bruto historico.
+        if (self.cost is not None
+                and os.environ.get("FQ_COST_AWARE_SIZING", "1").strip()
+                not in ("0", "false", "no")):
+            denom = self.net_unit_loss(entry, stop, int(signal["direction"]),
+                                       signal.get("entry_fill_type"))
+        else:
+            denom = rdist
+        size = account.equity * risk_frac / denom
         self._pid += 1
         pos = Position(account_id=account.account_id, symbol=signal["symbol"],
                        direction=int(signal["direction"]), entry=entry, stop=stop,
