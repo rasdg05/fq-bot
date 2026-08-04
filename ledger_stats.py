@@ -29,11 +29,43 @@ Es auto-verificable (no hay lista de ids ni ventana hardcodeada), captura el
 bloque historico exactamente, y vuelve a saltar sola si el bug reaparece por
 otra via. Las filas excluidas NO se borran: siguen en el ledger y se reportan
 en `n_excluded` para que el numero publicado sea explicable, no solo correcto.
+
+=============================================================================
+  DESGLOSE OBLIGATORIO  (la vacuna estructural contra el espejismo de mayo)
+=============================================================================
+Un numero agregado esconde exactamente lo que hay que ver. GHOST_MAP H1 lo
+midio: 2020-22 pagaba LONG (+0.36-0.46) y 2023-25 paga SHORT (+0.21-0.32) —
+el lado ganador SE VOLTEA por epoca, y sobre 7 anos el agregado sale +0.224R
+para los dos lados, un volado. El fantasma de mayo fue precisamente un
+agregado sobre UN solo regimen presentado como ley.
+
+De ahi la regla: **el agregado es el que lleva el asterisco, no el desglose.**
+`window_stats` devuelve siempre `by_period`, y `format_expectancy` — el UNICO
+renderizador sancionado de una expectancy agregada — LEVANTA si el desglose no
+esta. Un periodo con n<%d sale MARCADO en vez de diluido en el promedio.
+
+Que esto no se pueda evitar por descuido lo garantiza `tests/
+test_desglose_obligatorio.py` (guarda AST, mismo patron que test_no_wallclock):
+ninguna superficie de publicacion puede formatear una expectancy por su cuenta.
 """
 import os
 from datetime import datetime, timezone, timedelta
 
 WIN_OUTCOMES = ("tp1", "tp2", "tp3", "tp4")
+
+# Por debajo de esto un periodo no concluye — ni a favor ni en contra. Mismo
+# criterio que el resto del repo: con muestra chica, ordenar por resultado
+# selecciona ruido.
+PARTITION_MIN_N = 30
+
+
+class AggregateWithoutBreakdownError(RuntimeError):
+    """Se intento publicar una expectancy agregada sin su desglose al lado.
+
+    No es cosmetica. El track record de mayo (WR 60%, +1.84R) era exacto como
+    agregado y falso como afirmacion sobre el sistema, porque describia un mes
+    de un solo regimen. Un desglose obligatorio lo habria delatado en el acto.
+    """
 
 # Outcomes que por definicion no miden nada: la ventana de velas no cubria la
 # vida de la senal, asi que un TP/SL pudo tocarse en el hueco sin verse.
@@ -96,26 +128,99 @@ def filter_auditable(rows):
     return keep, len(rows) - len(keep)
 
 
-def window_stats(rows):
-    """Stats sobre una lista de filas cerradas. None si no queda ninguna
-    auditable. `n` cuenta SOLO filas auditables; `n_excluded` deja constancia
-    de cuantas se descartaron para que el numero sea explicable."""
-    rows, n_excluded = filter_auditable(rows)
-    if not rows:
-        return None
+def period_of(r):
+    """Etiqueta de particion de una fila: su regimen si lo trae, si no su ano.
+
+    El ano es el proxy de regimen que SIEMPRE esta disponible en el ledger de
+    senales, y es el corte con el que GHOST_MAP H1 midio que el lado ganador se
+    voltea. Si alguna vez las filas traen `regime`, manda ese.
+    """
+    reg = _get(r, "regime")
+    if reg:
+        return str(reg)
+    ts = _get(r, "ts_closed")
+    return str(ts)[:4] if ts else "sin fecha"
+
+
+def _core_stats(rows):
+    """Los numeros de un lote YA filtrado. Sin desglose: uso interno."""
     n = len(rows)
     wins = sum(1 for r in rows if _get(r, "outcome") in WIN_OUTCOMES)
     pnls = [p for p in (_pnl(r) for r in rows) if p is not None]
-    win_pnl  = sum(p for p in pnls if p > 0)
+    win_pnl = sum(p for p in pnls if p > 0)
     loss_pnl = abs(sum(p for p in pnls if p < 0))
     return {
         "n":             n,
-        "n_excluded":    n_excluded,
         "win_rate":      wins / n,
         "expectancy":    (sum(pnls) / len(pnls)) if pnls else 0.0,
         "profit_factor": (win_pnl / loss_pnl) if loss_pnl > 0 else float("inf"),
         "best_pnl":      max(pnls) if pnls else 0.0,
     }
+
+
+def partition_stats(rows, key=period_of):
+    """{periodo: stats} sobre filas YA auditadas, con `thin` marcando n<30.
+
+    `thin` no es decorativo: un periodo de 4 cierres mete su ruido entero en el
+    agregado con el mismo peso que uno de 400, y el lector no tiene como saberlo
+    si el desglose no se lo dice.
+    """
+    grupos = {}
+    for r in rows:
+        grupos.setdefault(key(r), []).append(r)
+    out = {}
+    for periodo, rs in grupos.items():
+        st = _core_stats(rs)
+        st["thin"] = st["n"] < PARTITION_MIN_N
+        out[periodo] = st
+    return dict(sorted(out.items()))
+
+
+def window_stats(rows):
+    """Stats sobre una lista de filas cerradas. None si no queda ninguna
+    auditable. `n` cuenta SOLO filas auditables; `n_excluded` deja constancia
+    de cuantas se descartaron para que el numero sea explicable.
+
+    Trae SIEMPRE `by_period`: el agregado no viaja nunca sin su desglose, para
+    que ninguna superficie pueda publicarlo suelto por descuido (ver cabecera).
+    """
+    rows, n_excluded = filter_auditable(rows)
+    if not rows:
+        return None
+    st = _core_stats(rows)
+    st["n_excluded"] = n_excluded
+    st["by_period"] = partition_stats(rows)
+    return st
+
+
+def format_expectancy(stats, *, label="Expectancy", indent="  "):
+    """UNICO renderizador sancionado de una expectancy agregada.
+
+    Levanta si le falta el desglose. Ese `raise` es la invariante: hace
+    IMPOSIBLE imprimir un E[R] agregado sin que salga al lado de que periodos
+    sale — que es lo que el track record de mayo necesitaba y no tenia.
+    """
+    if not isinstance(stats, dict) or "expectancy" not in stats:
+        raise AggregateWithoutBreakdownError("no es un stats con expectancy")
+    by = stats.get("by_period")
+    if not by:
+        raise AggregateWithoutBreakdownError(
+            "expectancy agregada sin by_period: un numero agrupado esconde que "
+            "el lado ganador se voltea por epoca (GHOST_MAP H1). Usa "
+            "window_stats(), que siempre lo adjunta.")
+    thin = [p for p, s in by.items() if s["thin"]]
+    lineas = ["%s%s %+.2fR  (n=%d, agregado%s)" % (
+        indent, label, stats["expectancy"], stats["n"],
+        "*" if thin else "")]
+    for periodo, s in by.items():
+        lineas.append("%s  %-10s %+.2fR  n=%-4d%s" % (
+            indent, periodo, s["expectancy"], s["n"],
+            "  <- n<%d, no concluye" % PARTITION_MIN_N if s["thin"] else ""))
+    if thin:
+        lineas.append("%s  * %d periodo(s) con muestra insuficiente entran en el"
+                      % (indent, len(thin)))
+        lineas.append("%s    agregado con el mismo peso que los demas." % indent)
+    return "\n".join(lineas)
 
 
 def longest_win_streak(rows_sorted):

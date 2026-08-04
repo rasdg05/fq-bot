@@ -13,6 +13,8 @@ from branding import (
     lux_header, lux_block, lux_item, lux_check, lux_footer,
 )
 import qte_verdict  # veredicto canonico compartido con el bloque QTE admin
+# E9: la expectancy publicada SIEMPRE sale por aqui, nunca formateada a mano.
+from ledger_stats import format_expectancy
 
 CDMX_TZ = timezone(timedelta(hours=-6))
 
@@ -653,9 +655,10 @@ def _fmt_results_window(label, w):
         "  {label}\n"
         "  {c} Senales      {n}\n"
         "  {c} Win rate     {wr:.0%}\n"
-        "  {c} Expectancy   {ex:+.2f}R\n"
+        "{ex}\n"
         "  {c} Profit fctr  {pf}"
-    ).format(label=label, n=w["n"], wr=w["win_rate"], ex=w["expectancy"], pf=pf_str, c=c)
+    ).format(label=label, n=w["n"], wr=w["win_rate"], pf=pf_str, c=c,
+             ex=format_expectancy(w, label="{} Expectancy".format(c)))
 
 def build_resultados(summary):
     """Track record VIP. summary = dict de get_results_summary, o None."""

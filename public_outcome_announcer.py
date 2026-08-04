@@ -409,6 +409,9 @@ def compute_weekly_stats():
         "sls":            sum(1 for r in auditable if r["outcome"] == "sl"),
         "win_rate":       stats["win_rate"],
         "expectancy":     stats["expectancy"],
+        # E9: el desglose viaja PEGADO al agregado. Un pass-through que lo deja
+        # atras es justo como se pierde: aguas abajo ya nadie sabe que falta.
+        "by_period":      stats["by_period"],
         "profit_factor":  stats["profit_factor"],
         "best_pnl":       stats["best_pnl"],
     }
@@ -422,6 +425,7 @@ def compute_short_stats_7d():
         "n_closed_7d":   full["n_closed_7d"],
         "win_rate_7d":   full["win_rate"],
         "expectancy_7d": full["expectancy"],
+        "by_period":     full["by_period"],
     }
 
 # ============================================================

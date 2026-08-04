@@ -86,13 +86,21 @@ def _client_surfaces():
     levels["sl_anchor"] = "OB_bullish"
     last = {"close": 145.0}
 
+    # E9: los stats llevan SIEMPRE su desglose por periodo. Un fixture sin
+    # `by_period` no representa nada que window_stats pueda producir, y
+    # format_expectancy lo rechaza a proposito.
+    def _w(n, wr, ex, pf, best, periodos):
+        return {"n": n, "win_rate": wr, "expectancy": ex, "profit_factor": pf,
+                "best_pnl": best,
+                "by_period": {p: {"n": pn, "win_rate": wr, "expectancy": pex,
+                                  "profit_factor": pf, "best_pnl": best,
+                                  "thin": pn < 30}
+                              for p, (pn, pex) in periodos.items()}}
+
     summary = {
-        "w30": {"n": 3, "win_rate": 0.66, "expectancy": 0.5,
-                "profit_factor": 2.0, "best_pnl": 1.8},
-        "w90": {"n": 5, "win_rate": 0.8, "expectancy": 1.1,
-                "profit_factor": 4.0, "best_pnl": 2.5},
-        "total": {"n": 7, "win_rate": 0.7, "expectancy": 0.7,
-                  "profit_factor": 3.0, "best_pnl": 2.5},
+        "w30":   _w(3, 0.66, 0.5, 2.0, 1.8, {"2026": (3, 0.5)}),
+        "w90":   _w(5, 0.80, 1.1, 4.0, 2.5, {"2026": (5, 1.1)}),
+        "total": _w(7, 0.70, 0.7, 3.0, 2.5, {"2025": (2, -0.3), "2026": (5, 1.1)}),
         "longest_streak": 3,
     }
 
@@ -127,9 +135,8 @@ def _client_surfaces():
         ("pub.tp3", public_format.build_tp3_celebration(
             {"direction": "long", "ts_emitted": "2026-06-01T13:00:00Z",
              "hit_price": 152.30, "tp3": 152.30})),
-        ("pub.weekly", public_format.build_weekly_stats(
-            {"n_closed_7d": 4, "win_rate": 0.75, "expectancy": 1.1,
-             "profit_factor": 3.0, "best_pnl": 2.5})),
+        ("pub.weekly", public_format.build_weekly_stats(dict(
+            _w(4, 0.75, 1.1, 3.0, 2.5, {"2026": (4, 1.1)}), n_closed_7d=4))),
         # CTAs y mantras (todas las variantes)
     ] + [
         ("pub.cta.%d" % i, public_format.build_cta(i))

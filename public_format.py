@@ -9,6 +9,9 @@ from branding import (
     PRODUCT, PAIR, DESK, GLYPHS, RULE, LUX_RULE, DISCLAIMER,
     lux_header, lux_block, lux_item, lux_check, lux_footer,
 )
+# E9: la expectancy publicada SIEMPRE sale por aqui, nunca formateada a mano.
+# `format_expectancy` levanta si le falta el desglose por periodo.
+from ledger_stats import format_expectancy
 
 CDMX_TZ = timezone(timedelta(hours=-6))
 
@@ -252,7 +255,7 @@ def build_weekly_stats(stats):
         RULE,
         "  {} Senales cerradas   {}".format(G["bullet_chk"], stats.get("n_closed_7d", 0)),
         "  {} Win rate           {:.0%}".format(G["bullet_chk"], stats.get("win_rate", 0)),
-        "  {} Expectancy         {:+.2f}R".format(G["bullet_chk"], stats.get("expectancy", 0)),
+        format_expectancy(stats, label="{} Expectancy".format(G["bullet_chk"])),
         "  {} Profit factor      {:.2f}".format(G["bullet_chk"], stats.get("profit_factor", 0)),
     ]
     if stats.get("best_pnl"):
@@ -279,10 +282,11 @@ def _fmt_window(label, w):
         "  {label}\n"
         "  {chk} Senales      {n}\n"
         "  {chk} Win rate     {wr:.0%}\n"
-        "  {chk} Expectancy   {ex:+.2f}R\n"
+        "{ex}\n"
         "  {chk} Profit fctr  {pf}"
-    ).format(label=label, chk=G["bullet_chk"], n=w["n"],
-             wr=w["win_rate"], ex=w["expectancy"], pf=pf_str)
+    ).format(label=label, chk=G["bullet_chk"], n=w["n"], wr=w["win_rate"],
+             ex=format_expectancy(w, label="{} Expectancy".format(G["bullet_chk"])),
+             pf=pf_str)
 
 def build_resultados(summary):
     """Track record. summary = dict de compute_results_summary, o None."""
