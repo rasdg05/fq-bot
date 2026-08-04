@@ -37,6 +37,7 @@ from live_driver import normalize_fire_report
 from bt_engine import CostModel
 import gold_paper
 import segment_veto
+import feature_snapshot
 
 log = logging.getLogger("motor_paper")
 
@@ -141,6 +142,10 @@ class MotorPaperRuntime:
         self.digest_every = digest_every
         self._ticks = 0
         self.counts = {"fire": 0, "opened": 0, "vetoed": 0}
+        # E1: vigila features constantes (vp_basis estuvo meses asi sin que nadie
+        # lo viera). Barato y siempre activo -- solo mira lo que ya se computo.
+        self._variance = feature_snapshot.VarianceMonitor(
+            min_runs=int(os.environ.get("FQ_FEATURE_STALE_RUNS", "50")))
         self.maker_sim = bool(maker_sim)
         self.maker_eps = float(maker_eps_bps) / 10_000.0
         self.maker_ttl_bars = int(maker_ttl_bars)
@@ -351,7 +356,11 @@ class MotorPaperRuntime:
                                 "sig": sig, "risk_frac": d["risk_frac"], "killzone": kz,
                                 "regime": regime, "cvd": cvd, "tf": tf_id, "waited": 0,
                                 "regime_tags": _regime_tags(df_primary, sig.get("entry"),
-                                                            symbol=self.symbol)})
+                                                            symbol=self.symbol),
+                                # E1: el vector se congela en el FIRE, no en el
+                                # fill: es lo que el motor vio para decidir. Una
+                                # limite puede llenarse 6 velas despues.
+                                "features": self._feature_meta(field, report)})
                             self.broker.ledger.append({
                                 "event": "MAKER_ENTRY_PENDING", "ts": ts, "tf": tf_id,
                                 "killzone": kz, "limit": sig["entry"],
@@ -376,7 +385,8 @@ class MotorPaperRuntime:
                             self.broker.ledger.append({
                                 "event": "MOTOR_OPEN_META", "ts": ts, "pid": pos.pid,
                                 "tf": tf_id, "killzone": kz, "regime": regime,
-                                **_cvd_meta(cvd), **rtags})
+                                **_cvd_meta(cvd), **rtags,
+                                **self._feature_meta(field, report)})
                             if self.maker_sim:
                                 self._maker_pending.append({
                                     "pid": pos.pid, "direction": pos.direction,
@@ -485,7 +495,8 @@ class MotorPaperRuntime:
             "tf": pe.get("tf"), "killzone": pe.get("killzone"),
             "regime": pe.get("regime"),
             "fill_type": fill_type, "bars_waited": bars_waited,
-            **_cvd_meta(pe.get("cvd")), **pe.get("regime_tags", {})})
+            **_cvd_meta(pe.get("cvd")), **pe.get("regime_tags", {}),
+            **(pe.get("features") or {})})
         if self.notify_fn is not None:
             try:
                 self.notify_fn(sig, {"killzone": pe.get("killzone"), "tf": pe.get("tf"),
@@ -494,6 +505,26 @@ class MotorPaperRuntime:
             except Exception as e:
                 log.warning("[motor] notify_fn: %s", e)
         return pos
+
+    def _feature_meta(self, field, report):
+        """E1: vector COMPLETO + schema_version para el OPEN. {} si el flag esta
+        off -> MOTOR_OPEN_META byte-identico al historico (Constitucion II.1).
+
+        Ademas vigila varianza: si una feature lleva N aperturas sin moverse lo
+        sella como MOTOR_FEATURE_STALE. Sobre-sellar una columna muerta es un
+        fallo tan silencioso como no sellarla -- `vp_basis` estuvo constante
+        meses y el ledger lo guardaba fielmente.
+        """
+        if not feature_snapshot.enabled():
+            return {}
+        snap = feature_snapshot.snapshot(field, report)
+        for k in self._variance.observe(snap[feature_snapshot.FEATURES_KEY]):
+            self.broker.ledger.append({
+                "event": "MOTOR_FEATURE_STALE", "symbol": self.symbol,
+                "feature": k, "runs": self._variance.min_runs})
+            log.warning("[motor] %s: feature '%s' lleva %d aperturas sin cambiar",
+                        self.symbol, k, self._variance.min_runs)
+        return snap
 
     def _cvd_confirm(self, direction, ts):
         """Confirmacion de order-flow CAUSAL en el ts del fire (measurement-first,
