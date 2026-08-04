@@ -154,11 +154,16 @@ TEMAS_LECTURAS = [
     },
 ]
 
+def pick_topic_for_day(day_of_year):
+    """Tema de un dia concreto. La rotacion es deterministica por dia del ano,
+    asi que el tema de pasado manana ya se conoce hoy — que es exactamente lo
+    que hace precomputable la lectura (ver generate_lecturas_batch)."""
+    return TEMAS_LECTURAS[int(day_of_year) % len(TEMAS_LECTURAS)]
+
+
 def pick_topic_for_today():
     """Rota tema deterministicamente segun dia del ano - asi nunca repite el mismo dia"""
-    day_of_year = datetime.now(timezone.utc).timetuple().tm_yday
-    idx = day_of_year % len(TEMAS_LECTURAS)
-    return TEMAS_LECTURAS[idx]
+    return pick_topic_for_day(datetime.now(timezone.utc).timetuple().tm_yday)
 
 # ============================================================
 # PROMPT PARA LECTURAS (Sonnet)
@@ -207,6 +212,57 @@ def generate_lectura():
     except Exception as e:
         log.error("generate_lectura: {}".format(e))
         return None, None
+
+LECTURA_BATCH_SURFACE = "lectura"
+
+
+def _lectura_custom_id(day_of_year):
+    return "lectura-doy-%03d" % int(day_of_year)
+
+
+def generate_lecturas_batch(days_ahead=7, start_day=None, client=None):
+    """E5: encola las lecturas de los proximos N dias por la Batches API (50%).
+
+    Es el unico trabajo del repo que cumple las dos condiciones: se conoce con
+    antelacion (la rotacion de tema es deterministica por dia del ano) y su
+    resultado no gatea ninguna decision — si un dia falla, el slot se salta,
+    igual que hoy. Devuelve el batch_id, o None si no hay nada que encolar.
+
+    Lo que NO se batchea esta declarado en batch_llm.NEVER_BATCH, con la
+    decision que gatea cada superficie.
+    """
+    import batch_llm
+    start = start_day if start_day is not None else \
+        datetime.now(timezone.utc).timetuple().tm_yday
+    jobs = []
+    for offset in range(int(days_ahead)):
+        doy = int(start) + offset
+        t = pick_topic_for_day(doy)
+        jobs.append((_lectura_custom_id(doy),
+                     "Tema de hoy: {}\n\nGuia: {}".format(t["titulo"], t["guia"])))
+    return batch_llm.submit(jobs, surface=LECTURA_BATCH_SURFACE,
+                            model=MODEL_SONNET, max_tokens=MAX_TOKENS_LECTURA,
+                            system=SYSTEM_PROMPT_LECTURA, client=client)
+
+
+def collect_lecturas_batch(batch_id, client=None):
+    """{day_of_year: (titulo, cuerpo)} de las lecturas que salieron bien.
+
+    Las fallidas simplemente no estan: el llamador cae a la generacion en linea
+    para ese dia, que es el comportamiento de siempre. Un hueco jamas se publica
+    como si fuera contenido.
+    """
+    import batch_llm
+    ok, _fallidos = batch_llm.collect(batch_id, client=client)
+    out = {}
+    for cid, cuerpo in ok.items():
+        try:
+            doy = int(cid.rsplit("-", 1)[-1])
+        except ValueError:
+            continue
+        out[doy] = (pick_topic_for_day(doy)["titulo"], cuerpo)
+    return out
+
 
 # ============================================================
 # CTAs EXTRA con Haiku (opcional - hoy usamos templates estaticos en public_format)
