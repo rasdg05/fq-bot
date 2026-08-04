@@ -5339,7 +5339,7 @@ def command_listener(exchange):
                               "/gencode", "/grant", "/broadcast",
                               "/atribucion", "/regimen", "/sweep",
                               "/timelines", "/paper", "/cadencia", "/tphits",
-                              "/forward"}
+                              "/forward", "/salud"}
                 if cmd_name in ADMIN_ONLY and str(chat_id) != str(TELEGRAM_CHAT_ID):
                     telegram_send(
                         "Comando no disponible. Usa /help para ver tus comandos.",
@@ -5725,6 +5725,26 @@ def cmd_metrics(exchange=None):
 
 def cmd_ledger(exchange=None):
     return ev.format_ledger_telegram(10)
+
+
+def cmd_salud(exchange=None):
+    """Admin: ¿me puedo fiar de lo que este sistema publica, AHORA?
+
+    Junta los cinco arreglos que estaban escritos y no se veían (auditabilidad
+    del ledger, exclusiones, frescura del CVD, rechazo de fills, último audit).
+    Cinco arreglos invisibles no son producto: eran cinco cosas que había que
+    acordarse de ir a mirar, y acordarse es lo que falló en julio.
+
+    Toda la lógica vive en `salud.py` (puro, testeable). Aquí solo se pinta.
+    """
+    import salud
+    from datetime import datetime, timezone
+    try:
+        checks = salud.gather_live(ahora_iso=datetime.now(timezone.utc).isoformat())
+        return salud.render(checks)
+    except Exception as e:
+        # Un panel de salud que se cae con el sistema no sirve de nada.
+        return "❔ <b>Salud</b>\n\nNo se pudo leer el estado: %s" % str(e)[:200]
 
 
 def cmd_paper(exchange=None):
@@ -6574,6 +6594,7 @@ def main():
         "/metrics":   lambda exc=None: cmd_metrics(),
         "/ledger":    lambda exc=None: cmd_ledger(),
         "/paper":     lambda exc=None: cmd_paper(),
+        "/salud":     lambda exc=None: cmd_salud(),
         "/cadencia":  lambda exc=None: cmd_cadencia(),
         "/evolve":    lambda exc=None: cmd_evolve(),
         "/campo":     cmd_campo,

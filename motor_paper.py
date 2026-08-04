@@ -891,6 +891,8 @@ def ledger_report(path):
     recs = [r["payload"] for r in led.records]
     pnl, kz, maker, vetoed, ftype, regime_m, cvd_m = {}, {}, {}, {}, {}, {}, {}
     kl_m, poc_m, fund_m = {}, {}, {}
+    vetoed_by_stage = {}
+    n_fill_rejected = 0
     n_runaway = 0
     net = False
     for p in recs:
@@ -921,6 +923,14 @@ def ledger_report(path):
         elif ev == "MOTOR_VETOED":
             k = p.get("killzone")
             vetoed[k] = vetoed.get(k, 0) + 1
+            # E2: quien suprimio. Sin repartirlo, "el motor esta mudo" no tiene
+            # culpable y el stack de gates se investiga a ojo (GHOST_MAP H7).
+            st = p.get("stage", "segmento")
+            vetoed_by_stage[st] = vetoed_by_stage.get(st, 0) + 1
+        elif ev == "MOTOR_FILL_REJECTED":
+            # E3: el gate donde vive el 80% de la perdida medida. Estaba sellado
+            # en el ledger y no lo contaba nadie -> invisible en /paper y /salud.
+            n_fill_rejected += 1
     closed = {pid: r for pid, r in pnl.items() if r is not None}
 
     def _agg(rs):
@@ -952,6 +962,7 @@ def ledger_report(path):
     return {
         "records": len(recs), "n_open_meta": len(kz), "n_closed": len(closed),
         "n_vetoed": sum(vetoed.values()), "vetoed_by_kz": vetoed, "net": net,
+        "vetoed_by_stage": vetoed_by_stage, "n_fill_rejected": n_fill_rejected,
         "portfolio": _agg(list(closed.values())),
         "fill": _agg([closed[p] for p in closed if maker.get(p) == "FILL"]),
         "miss": _agg([closed[p] for p in closed if maker.get(p) == "MISS"]),
