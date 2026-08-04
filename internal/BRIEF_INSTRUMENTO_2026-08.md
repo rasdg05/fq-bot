@@ -91,6 +91,87 @@ escribas de memoria.
 
 ---
 
+## Las tres brechas reales (E7–E9)
+
+E1–E5 construyen el instrumento. E7–E9 lo apuntan a las tres cosas que
+realmente separan a este sistema de uno que funcione. **No son tareas de
+ajuste: son diagnósticos.** Un desenlace legítimo de cualquiera de las tres es
+"la estrategia no es viable como está", y decirlo vale más que maquillarlo.
+
+---
+
+## E7 · La brecha de win rate — contestable HOY con 13k, no en 30 trades
+
+**El problema.** 21.1% de aciertos contra un 36.9% de equilibrio. Faltan 16
+puntos, y no se cierran con ejecución: o la geometría TP/SL está mal, o la señal
+no separa. Son dos enfermedades con el mismo síntoma.
+
+**El atajo.** `tools/geometry_report.py` lee el ledger vivo, donde hay que
+esperar cierres. Pero el cube **ya tiene MFE/MAE por señal**: `GHOST_MAP` H5
+reporta MFE medio +6.66R, MAE medio −5.65R sobre las 13.429 señales canónicas.
+La pregunta se puede contestar ahora con tres órdenes de magnitud más muestra.
+
+**Entrega.** Que la lógica de lectura de `geometry_report` (distribución,
+TP-demasiado-lejos, SL-demasiado-cerca, separación, contrafactual) corra sobre
+`cosecha_cubes/*.parquet`. Reutiliza las funciones; no las dupliques.
+
+**Antes de creerte el número, verifica dos cosas y di lo que encuentres:**
+1. **¿Coincide la definición?** El MFE/MAE del cube se mide sobre el horizonte de
+   la etiqueta triple-barrera; el del ledger, sobre la vida real con TTL. Si no
+   son lo mismo, los números no son comparables y hay que decirlo, no promediarlos.
+2. **¿Hay orden de barra?** El contrafactual necesita saber si el MFE llegó antes
+   que el MAE. Si el cube no lo trae, aplica la regla pesimista y **declara
+   explícitamente que la tabla es una cota inferior**.
+
+**La lectura que más importa** es la de separación: si el recorrido de ganadores
+y perdedores se solapa sobre 13k señales, ninguna geometría lo arregla y el
+trabajo se mueve a la entrada. `GHOST_MAP` H4 ya apunta ahí (`p_master` no
+separó); esto lo confirmaría o lo mataría con muestra seria.
+
+---
+
+## E8 · La brecha bruto/neto — la pregunta abierta 6 del GHOST_MAP
+
+**El problema.** El cube dice **+0.224R**. El motor con fees dice **−0.510R**. El
+coste de ejecución no muerde el edge: se lo come entero y sigue con hambre. La
+pregunta abierta 6 del `GHOST_MAP` se preguntaba cuánto sobrevive; la respuesta
+medida es "nada", y eso cambia qué estrategias son siquiera viables.
+
+**Entrega.** Aplicar `bt_engine.CostModel` a las etiquetas del cube para que
+backtest y forward hablen en las mismas unidades. Después responder:
+¿cuántas de las 13k sobreviven costes? ¿el edge neto se concentra en algún
+subconjunto (símbolo, régimen, horizonte, distancia de TP) que sí aguante?
+
+**Cuidado con el alcance.** El cube etiqueta con triple barrera y **sin modelo de
+fill**. Aplicarle fees da una cota superior de lo capturable, no una simulación:
+ya sabemos que el fill importa muchísimo (los maker rápidos pierden el 80% del R).
+No presentes el resultado como "lo que se habría ganado".
+
+**Por qué esto va antes que cualquier idea nueva.** Mientras el edge bruto no
+sobreviva a los costes, añadir features es decorar. Si algún subconjunto sí
+sobrevive, ese subconjunto **es** la estrategia y todo lo demás es ruido caro.
+
+---
+
+## E9 · La brecha de régimen — nunca más un número agregado
+
+**El problema.** 90 trades de un mes. `GHOST_MAP` H1 ya muestra que el lado
+ganador se voltea por época: 2020-22 pagó LONG (+0.36–0.46), 2023-25 pagó SHORT
+(+0.21–0.32). **Un número agrupado esconde exactamente eso** — y el fantasma fue
+precisamente un agregado sobre un solo régimen presentado como ley.
+
+**Entrega.** Que toda métrica del repo se reporte **particionada por régimen (o
+año) con su n**, y que el agregado sea el que lleve el asterisco, no al revés.
+Empieza por `ledger_stats` (el cuello de botella de lo publicado) y por los
+reportes de `tools/`.
+
+**Criterio de aceptación.** Que sea *imposible* imprimir un E[R] agregado sin que
+salga al lado su desglose. Si un régimen tiene n<30, que aparezca marcado en vez
+de diluido en el promedio. Esta es la vacuna estructural: el espejismo de mayo no
+habría sobrevivido a un desglose obligatorio.
+
+---
+
 ## E6 · Mapeado, NO implementar
 
 Estas cuatro están **prohibidas** en este encargo. Se documentan para que nadie
@@ -130,8 +211,23 @@ como señal hasta que sobreviva el mismo gate que todo lo demás.
 
 ---
 
+## Orden y por qué
+
+**E7 y E8 primero.** Son diagnósticos que pueden invalidar el resto: si la señal
+no separa sobre 13k, o si ningún subconjunto sobrevive a los costes, entonces
+E1–E5 están instrumentando algo que no debería operar. Cuestan poco (leen data
+que ya existe) y pueden ahorrar meses.
+
+Luego E1, E2, E9 (miden hacia adelante), E3 y E4 (hacen visible el instrumento),
+E5 (abarata el research). E6 no se toca.
+
 ## Cómo entregar
 
-Rama `claude/instrumento-2026-08`. Un commit por entrega, cada uno con su test.
-Suite completa (~40 s) verde antes de cada commit. No mergees a `main` sin
-decirlo — `main` despliega a producción con suscriptores de pago.
+Rama `claude/instrumento-2026-08`. Un commit por entrega, cada uno con el test
+que hace fallar la regresión. Suite completa (~40 s) verde antes de cada commit.
+No mergees a `main` sin decirlo — `main` despliega a producción con suscriptores
+de pago.
+
+**Si E7 o E8 salen en contra**, para y dilo antes de seguir con el resto. Un
+diagnóstico que mata una línea de trabajo es un buen resultado, no un fracaso; el
+repo tiene `MEMORY/CEMENTERIO.md` justo para eso.
