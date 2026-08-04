@@ -36,6 +36,11 @@ import numpy as np
 import pandas as pd
 
 BASE = "https://data.binance.vision/data/futures/um/daily/klines"
+# Binance publica el MISMO dataset agregado por mes. Un mes completo son ~30
+# peticiones diarias o 1 mensual: bajar 7 anos x 13 simbolos por dias son 34.500
+# requests, por meses son 1.100. Los diarios se siguen usando para el mes en
+# curso (que aun no tiene mensual publicado) y para tapar huecos sueltos.
+BASE_MONTHLY = "https://data.binance.vision/data/futures/um/monthly/klines"
 DEFAULT_DIR = os.environ.get("FQ_CVD_DIR") or ("/data" if os.path.isdir("/data") else "data/okx")
 COLS = ["ts", "open", "high", "low", "close", "volume", "taker_buy_base"]
 _RAW = ["open_time", "open", "high", "low", "close", "volume", "close_time",
@@ -49,18 +54,34 @@ def _days(start, end):
         d += timedelta(days=1)
 
 
-def _klines_day(sym, d):
-    """Baja el klines 5m del día -> [ts, open, high, low, close, volume, taker_buy_base].
-    None si el archivo no existe (día previo a la inception / aún no subido)."""
-    url = "%s/%s/5m/%s-5m-%s.zip" % (BASE, sym, sym, d.isoformat())
+def _months(start, end):
+    """(año, mes) que intersectan el rango, en orden."""
+    y, m = start.year, start.month
+    while (y, m) <= (end.year, end.month):
+        yield y, m
+        y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+
+
+def _month_days(y, m):
+    d = date(y, m, 1)
+    while d.month == m:
+        yield d
+        d += timedelta(days=1)
+
+
+def _fetch_zip(url):
+    """CSV del zip -> DataFrame crudo. None si no existe (pre-inception / no subido)."""
     try:
-        with urllib.request.urlopen(url, timeout=60) as r:
+        with urllib.request.urlopen(url, timeout=120) as r:
             data = r.read()
         with zipfile.ZipFile(io.BytesIO(data)) as z:
-            df = pd.read_csv(z.open(z.namelist()[0]), header=None, names=_RAW)
+            return pd.read_csv(z.open(z.namelist()[0]), header=None, names=_RAW)
     except Exception:
         return None
-    if df.empty:
+
+
+def _normalize(df):
+    if df is None or df.empty:
         return None
     # los CSV nuevos a veces traen header: la 1ra fila no parsea a número -> se cae sola
     df["ts"] = pd.to_numeric(df["open_time"], errors="coerce")
@@ -72,15 +93,42 @@ def _klines_day(sym, d):
     return df[COLS]
 
 
+def _klines_day(sym, d):
+    """Klines 5m de un día. None si el archivo no existe."""
+    return _normalize(_fetch_zip(
+        "%s/%s/5m/%s-5m-%s.zip" % (BASE, sym, sym, d.isoformat())))
+
+
+def _klines_month(sym, y, m):
+    """Klines 5m de un mes completo. None si aún no está publicado."""
+    return _normalize(_fetch_zip(
+        "%s/%s/5m/%s-5m-%04d-%02d.zip" % (BASE_MONTHLY, sym, sym, y, m)))
+
+
 def fetch(sym, start, end, out_dir=DEFAULT_DIR, workers=None):
     path = os.path.join(out_dir, "kl_hist_%s.parquet" % sym)
     os.makedirs(out_dir, exist_ok=True)
     have = pd.read_parquet(path) if os.path.exists(path) else pd.DataFrame(columns=COLS)
     done_days = set((pd.to_datetime(have["ts"], unit="ms").dt.date.unique()).tolist()) if len(have) else set()
     parts = [have] if len(have) else []
-    todo = [d for d in _days(start, end) if d not in done_days]
     w = workers or int(os.environ.get("FQ_KL_WORKERS", "12"))
     n_new = 0
+
+    # 1) Meses completos que faltan enteros -> 1 request por mes en vez de ~30.
+    faltan_mes = [(y, m) for y, m in _months(start, end)
+                  if not any(d in done_days for d in _month_days(y, m)
+                             if start <= d <= end)]
+    with ThreadPoolExecutor(max_workers=max(1, w)) as ex:
+        for (y, m), g in zip(faltan_mes,
+                             ex.map(lambda ym: _klines_month(sym, *ym), faltan_mes)):
+            if g is None:
+                continue                      # mes en curso o pre-inception -> diarios
+            parts.append(g)
+            done_days |= set(pd.to_datetime(g["ts"], unit="ms").dt.date.unique().tolist())
+            n_new += len(g) // 288 or 1
+
+    # 2) Lo que siga faltando (mes en curso, huecos sueltos) -> diarios.
+    todo = [d for d in _days(start, end) if d not in done_days]
     with ThreadPoolExecutor(max_workers=max(1, w)) as ex:
         for g in ex.map(lambda d: _klines_day(sym, d), todo):
             if g is None:

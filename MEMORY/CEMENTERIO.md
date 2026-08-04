@@ -243,6 +243,39 @@ si alguien resume una celda del cube sin `net_pnl_r` — ninguna sección del in
 imprimir el bruto solo. Tests: `tests/test_cube_costs.py`.
 Detalle: `internal/DIAGNOSTICO_E7_E8_2026-08.md`.
 
+### "Con entrada maker el edge se vuelve positivo" — muerto por el fill real (2026-08-04)
+La última puerta abierta de E8. Aplicando `CostModel(maker_entry=True, maker_tp_exit=True)`
+al cube, el signo se volteaba: **+0.0601R, IC95% [+0.0235, +0.0958]**, P(>0)=0.998 — la
+primera configuración medida de este repo con el IC por encima de cero. Pero asumía
+**fill del 100%** en el nivel.
+
+Medido contra velas reales (`tools/fill_quality.py`, 12.941 señales, 13 símbolos, velas
+5m de Binance Vision con gate de venue: corr MFE 0.995–1.000 vs el cube de OKX):
+
+- fill rate **88.4%** — no falla por falta de fills.
+- **llenadas +0.114R (WR 25.4%) vs escapadas +1.153R (WR 47.3%) → selección adversa −1.039R.**
+  El 12% que se escapa son los ganadores: la límite no se llena justo cuando el precio
+  se va a tu favor.
+- **neto maker sobre lo que se llena: −0.0350R**, IC95% [−0.074, +0.004].
+
+**Qué muere:** citar el +0.060R maker como evidencia de que el sistema es viable, y la
+esperanza de que el problema fuera solo la pierna taker. Sigue siendo cota superior — el
+fill se juzga con la vela y la cola de la orden no se conoce.
+
+**Qué NO muere:** la entrada (E7: asimetría +1.011R, IC95% por encima de cero, ambos lados,
+ocho años). La señal ve algo. Lo que no hay es forma conocida de cobrarlo por encima del peaje.
+
+**Condición para revivir:** una configuración cuyo neto **con fill medido** pase el gate
+(DSR>0.95 + IC95%>0). Las dos palancas sin medir son R por trade más grande (re-etiquetar
+con stops/objetivos anchos) y otro TF (cosecha nueva). Las dos son E6-adyacentes.
+
+**Efecto lateral que hay que remedir, no apagar:** `FQ_MOTOR_MIN_FILL_BARS=2` (ON por
+defecto) descarta los fills de 1 barra por un hallazgo de n=53. Sobre n=11.438 el orden se
+invierte — 1 barra neto **+0.0010R** vs ≥2 barras **−0.2409R** — o sea que el gate tira el
+único bucket no negativo y el 85% del flujo. La geometría no es la misma (cube tp4/h288 vs
+motor tp1/TTL), así que no es refutación estricta: es orden de remedirlo.
+Detalle: `internal/DIAGNOSTICO_E7_E8_2026-08.md`. Tests: `tests/test_fill_quality.py`.
+
 ### Quantum cognition / igualdad QQ — fascinante, no aplicable
 Único resultado cuántico-adyacente con dientes (predicción a priori sin parámetros para efectos
 de orden en preguntas binarias, confirmada en 70 encuestas de EE.UU.). PERO solo sirve para

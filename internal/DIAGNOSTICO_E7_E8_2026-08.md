@@ -192,3 +192,99 @@ justo lo que hace falta para decidir esto con datos — pero **instrumentan un
 sistema que hoy no debe operar con capital**. Eso ya era el estado del arte
 (`CLAUDE.md`: "no hay edge demostrado"); ahora está medido sobre 13.429 señales
 en vez de sobre 90.
+
+---
+
+## LA MEDICIÓN DEL FILL (2026-08-04) — la pregunta que decidía, contestada
+
+E8 dejó una sola puerta abierta: con **entrada maker** el signo se voltea
+(+0.0601R, IC95% [+0.0235, +0.0958], P(>0)=0.998). Pero ese escenario asume
+**fill del 100%**, y el repo ya sabía que la suposición es falsa en la dirección
+optimista. El error de la suposición era más grande que todo el margen — así que
+toda la diferencia entre rentable y no rentable estaba ahí.
+
+Ya no está abierta.
+
+> Reproducir (local, sin runners):
+> ```
+> for S in SOLUSDT BTCUSDT ETHUSDT BCHUSDT LTCUSDT XRPUSDT ADAUSDT AVAXUSDT \
+>          BNBUSDT DOGEUSDT DOTUSDT LINKUSDT TRXUSDT; do
+>   FQ_CVD_DIR=data/binance python tools/fetch_binance_vision_klines.py "$S" \
+>     --start 2019-06-01 --end 2026-06-30
+> done
+> python tools/fill_quality.py
+> ```
+> ~139 MB, unos minutos, coste cero (archivo público S3, sin API key).
+
+### Antes del número: el gate de venue
+
+Los cubos se cosecharon de **OKX**, que bloquea desde datacenter (403). Las velas
+vienen de **Binance Vision**, y un desajuste entre venues cae justo en la escala
+que esto mide (eps = 1 bp). Por eso `validate_venue()` corre primero y es un
+**gate, no una nota**: recomputa MFE/MAE desde las velas locales y las compara
+con las que el cube trae de OKX. Si no concuerdan, no se imprime ningún fill rate.
+
+Los 13 símbolos pasaron: **corr MFE 0.995–1.000, corr MAE 0.953–0.999**,
+92–100% de las señales alineadas por timestamp. Las dos series describen el
+mismo mercado, así que la medición es legible.
+
+### El resultado — n=12.941
+
+| | valor |
+|---|---|
+| fill rate (eps 1 bp, TTL 6 barras) | **88.4%** |
+| bruto de las **llenadas** | **+0.114R** (WR 25.4%) |
+| bruto de las **escapadas** | **+1.153R** (WR 47.3%) |
+| **selección adversa** | **−1.039R** |
+| **neto maker sobre lo que se llena** | **−0.0350R**, IC95% [−0.074, +0.004] |
+| (recordatorio: E8 con fill 100% asumido) | +0.0601R, IC95% [+0.024, +0.096] |
+
+**La selección adversa está confirmada y es enorme.** No es que se llene poco —
+se llena el 88%. Es que **el 12% que se escapa son los ganadores**: +1.153R con
+WR 47.3%, contra +0.114R y WR 25.4% de las que sí se llenan. La límite no se
+llena precisamente cuando el precio se va a tu favor, que es cuando la querías.
+
+**Veredicto: el margen teórico de E8 no sobrevive al fill real.** +0.0601R
+teórico → **−0.0350R** medido. Y sigue siendo cota superior: el fill se juzga con
+la vela, y dentro de la vela no se conoce la cola de la orden.
+
+### Hallazgo colateral: el gate de producción está al revés en esta muestra
+
+`FQ_MOTOR_MIN_FILL_BARS=2` está **ON por defecto** y descarta los fills de 1
+barra, por el hallazgo de agosto sobre n=53 (fills ≤2 barras: WR 11%, 80% de la
+pérdida). Sobre n=11.438 el orden se invierte:
+
+| barras de espera | n | NETO | IC95% |
+|---|---|---|---|
+| **1 barra** | 9.735 | **+0.0010R** | [−0.042, +0.043] |
+| 2 barras | 723 | −0.2447R | [−0.376, −0.110] |
+| 3–4 barras | 650 | −0.2349R | [−0.374, −0.091] |
+| 5+ barras | 330 | −0.2444R | [−0.448, −0.036] |
+
+| | n | NETO | IC95% |
+|---|---|---|---|
+| sin gate | 11.438 | −0.0350R | [−0.074, +0.004] |
+| **con gate ≥2 barras** | 1.703 | **−0.2409R** | [−0.329, −0.152] |
+
+El gate **descarta el único bucket que no es negativo y se queda con los peores**,
+y de paso tira el 85% del flujo.
+
+**Esto NO es orden de apagarlo.** La geometría no es la misma (el cube es
+tp4/h288; el motor vivo, tp1 con TTL), así que no es una refutación estricta. Es
+orden de **remedirlo antes de seguir confiando en él**: el hallazgo que lo
+justifica tiene n=53 y el que lo contradice n=11.438, y la regla de este repo
+sobre cuál pesa más ya está escrita.
+
+### Qué queda
+
+La palanca no es la entrada (E7: separa) ni el modelo (GATE-H: el ML empeora).
+Es la relación entre el recorrido disponible y el coste fijo, y ahora se sabe que
+**el fill maker no la arregla**. Lo que queda sin medir:
+
+1. **R por trade más grande.** Stops/objetivos más anchos y menos trades diluyen
+   el coste fijo — pero E7 midió que la asimetría escala igual, así que hace
+   falta comprobarlo, no suponerlo. Requiere re-etiquetar el cube.
+2. **Otro terreno.** Un TF más alto cambia la razón coste/recorrido de verdad.
+   Es una cosecha nueva, no un ajuste.
+
+Las dos son E6-adyacentes (tocan TP/SL). Ninguna se toca sin decidirlo antes.
