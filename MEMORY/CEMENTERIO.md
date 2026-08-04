@@ -207,6 +207,42 @@ Cont-Das 2022 (arXiv:2203.13820): la "rugosidad" es un **artefacto de estimació
 estimación sesga hacia H bajo; la volatilidad real probablemente está cerca de H~0.5. No pasaría
 el DSR. Nunca cableado.
 
+### El +0.224R bruto del cube como "el edge" — muerto por costes (2026-08-04, E8)
+La cifra que sostenía la tesis de edge del backtest **no sobrevive al modelo de costes
+del propio repo**. `bt_engine.CostModel` (taker ambos lados) sobre las 13.429 señales
+canónicas, celda tp4/h288: bruto **+0.2305R → neto −0.0258R**, IC95% [−0.059, +0.013],
+P(E[R]>0)=0.110. El coste son **−0.256R por trade**.
+
+No es mala suerte de parámetros, es aritmética: el fee va sobre el *notional* y la R es
+la *distancia al stop*, así que `coste_R ≈ (2·fee+2·slip)/(stop/precio)`. Con el stop
+mediano de esta cosecha (**0.525% del precio**) eso da 0.23R antes de funding. Las **12
+celdas tp × horizonte son negativas netas**.
+
+Y no se salva por partes: se inspeccionaron 28 cortes (símbolo, año, lado, quintil de
+distancia de stop) y **ninguno clarea DSR > 0.95** — el mejor es 2020 con DSR 0.359, o
+sea el ganador de un concurso de 28 juzgado después de ver los resultados. Los dos que
+más tientan ya estaban desmentidos: `GATE-D` (el liderazgo por símbolo no persiste,
+rank-corr −0.19) y `H1` (el régimen del año se voltea).
+
+Alcance: es **cota superior**, no simulación — la etiqueta asume fill perfecto en la
+barrera. Lo realizable está por debajo; el −0.510R del motor paper es la misma cosecha
+con fill real.
+
+**Qué muere exactamente:** citar el +0.224R como evidencia de edge, y la esperanza de
+que exista un subconjunto (símbolo / régimen / horizonte / TP) que lo salve tal cual.
+**Qué NO muere:** la entrada. E7 midió que el recorrido es asimétrico a favor del lado
+elegido (**+1.011R**, IC95% [+0.825, +1.199], en ambos lados y los ocho años). La señal
+ve algo; lo que no hay es geometría que lo cobre por encima del peaje.
+
+**Condición para revivir la línea:** una configuración cuyo **neto** —no bruto— pase el
+gate (DSR>0.95 + IC95% > 0), lo que exige subir R por trade (stops/objetivos más anchos,
+menos trades) o arreglar el fill. Ambas son E6-prohibidas hoy.
+
+Cableado para que no vuelva: `tools/cube_report.cell_stats` levanta `GrossWithoutNetError`
+si alguien resume una celda del cube sin `net_pnl_r` — ninguna sección del informe puede
+imprimir el bruto solo. Tests: `tests/test_cube_costs.py`.
+Detalle: `internal/DIAGNOSTICO_E7_E8_2026-08.md`.
+
 ### Quantum cognition / igualdad QQ — fascinante, no aplicable
 Único resultado cuántico-adyacente con dientes (predicción a priori sin parámetros para efectos
 de orden en preguntas binarias, confirmada en 70 encuestas de EE.UU.). PERO solo sirve para
