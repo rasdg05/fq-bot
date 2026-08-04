@@ -318,9 +318,12 @@ class MotorPaperRuntime:
             why = self.veto.reason(killzone=kz, ts_utc=ts) if self.veto.active else None
             if why:
                 self.counts["vetoed"] += 1
-                self.broker.ledger.append({
-                    "event": "MOTOR_VETOED", "ts": ts, "tf": tf_id,
-                    "killzone": kz, "why": why})
+                # La señal se normaliza IGUAL aunque se vete: es una lectura pura
+                # del report y es lo único que hace repreciable el contrafactual.
+                self._seal_veto(why, stage="segmento", ts=ts, tf_id=tf_id, kz=kz,
+                                field=field, report=report,
+                                sig=normalize_fire_report(report, self.symbol,
+                                                          tp_key=self.tp_key))
                 try:
                     import cockpit
                     cockpit.log_event(self.symbol, "veto", "vetado: %s" % why)
@@ -328,6 +331,13 @@ class MotorPaperRuntime:
                     pass
             else:
                 sig = normalize_fire_report(report, self.symbol, tp_key=self.tp_key)
+                if sig is None:
+                    # Un fire que no se puede normalizar (sin niveles, sin tp_key)
+                    # se caía en silencio: ni contado ni sellado. Un fire que no
+                    # llega a señal ES un fire perdido y hay que poder verlo.
+                    self._seal_veto("report no normalizable (sin niveles o sin %s)"
+                                    % self.tp_key, stage="normalize", ts=ts,
+                                    tf_id=tf_id, kz=kz, field=field, report=report)
                 if sig is not None:
                     cvd = self._cvd_confirm(sig.get("direction"), ts)  # tag CAUSAL (None si filtro off)
                     req = self.requested_risk
@@ -401,6 +411,14 @@ class MotorPaperRuntime:
                     else:
                         log.info("[motor] fire rechazado por gobernador: %s",
                                  d.get("reason"))
+                        # Un rechazo del gobernador (halt por drawdown, riesgo
+                        # cero, correlación) suprime la señal igual que un veto.
+                        # Solo se logueaba: no había forma de medir cuánto R
+                        # cuesta el halt, que es justo lo que hay que saber para
+                        # calibrarlo.
+                        self._seal_veto("gobernador: %s" % d.get("reason"),
+                                        stage="gobernador", ts=ts, tf_id=tf_id,
+                                        kz=kz, field=field, report=report, sig=sig)
         self._maybe_digest()
         return {"fire": bool(fire), "opened": opened, "resolved": resolved,
                 "maker_opened": maker_opened}
@@ -449,7 +467,15 @@ class MotorPaperRuntime:
                         "tf": pe.get("tf"), "killzone": pe.get("killzone"),
                         "limit": limit, "bars_waited": waited,
                         "min_fill_bars": self.min_fill_bars,
-                        "why": "seleccion adversa: fill demasiado rapido"})
+                        "why": "seleccion adversa: fill demasiado rapido",
+                        "stage": "fill",
+                        # E2: el rechazo de fill es un veto mas, y el que mas R
+                        # mueve (el 80% de la perdida vive en fills <=2 barras).
+                        # Con geometria + vector se puede repreciar igual que
+                        # los otros, en vez de creerle al corte a ciegas.
+                        "direction": sig.get("direction"), "entry": sig.get("entry"),
+                        "stop": sig.get("stop"), "tp": sig.get("tp"),
+                        **(pe.get("features") or {})})
                     continue
                 pos = self._open_pending(sig, pe, fill_type="maker",
                                          bars_waited=waited, ts=ts)
@@ -505,6 +531,32 @@ class MotorPaperRuntime:
             except Exception as e:
                 log.warning("[motor] notify_fn: %s", e)
         return pos
+
+    def _seal_veto(self, why, *, stage, ts, tf_id, kz, field, report, sig=None):
+        """E2: sella un fire SUPRIMIDO con lo necesario para REPRECIARLO.
+
+        Se medía lo que se abrió. Los vetos no dejaban rastro repreciable, así
+        que "¿este veto salva o cuesta?" no tenía respuesta ni con un año de
+        ledger — el contrafactual sencillamente no existía. Con la geometría
+        (dirección/entry/stop/tp) más el vector de E1, `tools/` puede contestar
+        "¿cuánto R dejó sobre la mesa cada veto?" sin arriesgar un centavo.
+
+        `stage` dice QUIÉN lo suprimió, que es la mitad de la pregunta: no es lo
+        mismo que corte el veto de sesión, el gobernador de riesgo o que el
+        report ni siquiera fuera normalizable. GHOST_MAP H7 sospecha que el
+        silencio del VIP es el stack de gates; sin `stage` esa sospecha no se
+        puede repartir entre culpables.
+        """
+        self.counts["veto_" + stage] = self.counts.get("veto_" + stage, 0) + 1
+        rec = {"event": "MOTOR_VETOED", "ts": ts, "tf": tf_id,
+               "killzone": kz, "why": why, "stage": stage}
+        if sig:
+            # Sin la geometría el veto es incontable: no se puede saber qué R
+            # habría hecho la señal que no se tomó.
+            rec.update({"direction": sig.get("direction"), "entry": sig.get("entry"),
+                        "stop": sig.get("stop"), "tp": sig.get("tp")})
+        rec.update(self._feature_meta(field, report))
+        self.broker.ledger.append(rec)
 
     def _feature_meta(self, field, report):
         """E1: vector COMPLETO + schema_version para el OPEN. {} si el flag esta
