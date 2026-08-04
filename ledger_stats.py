@@ -184,13 +184,31 @@ def window_stats(rows):
     Trae SIEMPRE `by_period`: el agregado no viaja nunca sin su desglose, para
     que ninguna superficie pueda publicarlo suelto por descuido (ver cabecera).
     """
+    n_in = len(rows or [])
     rows, n_excluded = filter_auditable(rows)
     if not rows:
         return None
     st = _core_stats(rows)
     st["n_excluded"] = n_excluded
     st["by_period"] = partition_stats(rows)
+    # E4: el numero viaja con su procedencia — de cuantas filas salio, que se le
+    # quito y de que colectores cuelga. Sin esto, cuando uno se rompe hay que
+    # ACORDARSE de que afirmaciones caen, y acordarse es lo que fallo en julio.
+    st["provenance"] = _provenance_trace(n_in, len(rows), n_excluded)
     return st
+
+
+def _provenance_trace(n_in, n_out, n_excluded):
+    """Ficha de procedencia del track record. Defensiva: si el modulo no esta
+    disponible el numero sigue saliendo (con procedencia vacia), porque romper
+    la publicacion por el trazador seria peor que no trazar."""
+    try:
+        import provenance
+        return provenance.trace(
+            "track_record.publico", rows_in=n_in, rows_out=n_out,
+            filters=(("vida > horizonte / outcome no auditable", n_excluded),))
+    except Exception:
+        return None
 
 
 def format_expectancy(stats, *, label="Expectancy", indent="  "):
@@ -208,6 +226,14 @@ def format_expectancy(stats, *, label="Expectancy", indent="  "):
             "expectancy agregada sin by_period: un numero agrupado esconde que "
             "el lado ganador se voltea por epoca (GHOST_MAP H1). Usa "
             "window_stats(), que siempre lo adjunta.")
+    # E4: si el numero cuelga de un colector roto, no sale. Callar es la
+    # consecuencia correcta: un track record que no se puede defender no se
+    # publica (misma regla que ya aplicaba audit_signal_ledger).
+    try:
+        import provenance
+        provenance.require_publishable("track_record.publico")
+    except ImportError:
+        pass
     thin = [p for p, s in by.items() if s["thin"]]
     lineas = ["%s%s %+.2fR  (n=%d, agregado%s)" % (
         indent, label, stats["expectancy"], stats["n"],

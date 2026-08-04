@@ -1097,6 +1097,20 @@ def audit_signal_ledger(symbol="SOL", baseline_r=None, min_trades=20,
         except Exception as e:
             log.warning("audit_signal_ledger: reconcile fallo (%s)", e)
 
+    # E4: el audit no solo escribe un flag, CORTA EL NODO. Todo lo que cuelgue
+    # de `tracker.outcomes` deja de ser publicable automaticamente, sin que
+    # nadie tenga que acordarse de que afirmaciones caen — que es exactamente
+    # lo que fallo en julio (el repo sabia y siguio publicando).
+    try:
+        import provenance
+        if ok:
+            provenance.heal_node("tracker.outcomes")
+        else:
+            provenance.break_node("tracker.outcomes", reasons[0] if reasons
+                                  else "audit sin veredicto")
+    except Exception as e:
+        log.warning("audit_signal_ledger: procedencia no actualizada (%s)", e)
+
     _ledger_health.update({
         "ok": ok,
         "reasons": reasons,

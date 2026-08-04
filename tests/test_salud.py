@@ -165,7 +165,23 @@ def test_lo_verde_no_gasta_lineas_en_acciones():
 
 def test_las_cinco_preguntas_del_brief_estan():
     claves = {c["clave"] for c in salud.gather()}
-    assert claves == {"track_record", "audit", "exclusiones", "cvd", "fills"}
+    assert {"track_record", "audit", "exclusiones", "cvd", "fills"} <= claves
+
+
+# --- E4: el panel dice QUE SE CAE con cada fuente rota ----------------------
+
+def test_una_fuente_rota_dice_que_afirmaciones_se_caen():
+    """En julio nadie hizo esta pregunta. 'El colector está caído' no basta:
+    hay que saber qué deja de sostenerse, y que salga solo."""
+    c = salud.check_procedencia(
+        {"tracker.outcomes": "cierres imposibles"},
+        [("track_record.publico", False), ("audit.veredicto", False)])
+    assert c["estado"] == salud.BROKEN
+    assert "track_record.publico" in c["accion"]
+
+
+def test_sin_fuentes_rotas_esta_verde():
+    assert salud.check_procedencia({})["estado"] == salud.OK
 
 
 # --- no se cae cuando el sistema se cae -------------------------------------
@@ -183,7 +199,7 @@ def test_gather_live_nunca_lanza(monkeypatch):
     monkeypatch.setenv("FQ_CVD_COLLECT", "/no/existe.parquet")
     monkeypatch.setenv("FQ_MOTOR_PAPER_LEDGER_PATH", "/no/existe.jsonl")
     checks = salud.gather_live(ahora_iso="2026-08-04T03:00:00")
-    assert len(checks) == 5
+    assert len(checks) == 6
     salud.render(checks)                       # tampoco al pintar
 
 

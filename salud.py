@@ -140,6 +140,23 @@ def check_audit(health, ahora_iso=None):
     return _check("audit", OK, "Audit al dia", detalle)
 
 
+def check_procedencia(rotos=None, claims=None):
+    """E4: ¿hay algún nodo roto, y qué se cae con él?
+
+    Es la pregunta que en julio nadie hizo. No basta con "el colector está
+    caído": hay que saber qué afirmaciones dejan de sostenerse por eso, y que la
+    respuesta salga sola en vez de reconstruirse de memoria.
+    """
+    if not rotos:
+        return _check("procedencia", OK, "Ninguna fuente rota")
+    caidas = [c for c in (claims or ()) if not c[1]]
+    detalle = "; ".join("%s (%s)" % (n, r) for n, r in sorted(rotos.items()))
+    return _check("procedencia", BROKEN,
+                  "Fuentes rotas: %d" % len(rotos), detalle,
+                  accion="Se cae: %s. No se publica hasta que la fuente vuelva."
+                         % (", ".join(n for n, _ in caidas) or "nada publicable"))
+
+
 def veredicto(checks):
     """El peor estado manda. Un solo chequeo roto rompe el conjunto."""
     if not checks:
@@ -170,11 +187,13 @@ def render(checks, titulo="Salud del sistema"):
 
 
 def gather(*, health=None, n_total=None, n_excluded=None, cvd_staleness_min=None,
-           cvd_activo=True, n_rejected=None, n_opened=None, ahora_iso=None):
-    """Los cinco chequeos, en orden de lo que mas importa a las 3am."""
+           cvd_activo=True, n_rejected=None, n_opened=None, ahora_iso=None,
+           rotos=None, claims=None):
+    """Los chequeos, en orden de lo que mas importa a las 3am."""
     return [
         check_track_record(health),
         check_audit(health, ahora_iso),
+        check_procedencia(rotos, claims),
         check_exclusiones(n_total, n_excluded),
         check_cvd(cvd_staleness_min, activo=cvd_activo),
         check_fills(n_rejected, n_opened),
@@ -216,9 +235,17 @@ def gather_live(*, ahora_iso=None):
     cvd_activo = os.environ.get("FQ_CVD_FILTER", "0").strip() in ("1", "true", "yes")
     staleness = _safe(lambda: _cvd_staleness(), None) if cvd_activo else None
 
+    def _proc():
+        import provenance
+        return (provenance.broken_nodes(),
+                [(c, provenance.is_publishable(c)[0]) for c in provenance.CLAIMS])
+
+    rotos, claims = _safe(_proc, ({}, []))
+
     return gather(health=health, n_total=n_total, n_excluded=n_excluded,
                   cvd_staleness_min=staleness, cvd_activo=cvd_activo,
-                  n_rejected=n_rejected, n_opened=n_opened, ahora_iso=ahora_iso)
+                  n_rejected=n_rejected, n_opened=n_opened, ahora_iso=ahora_iso,
+                  rotos=rotos, claims=claims)
 
 
 def _cvd_staleness():
