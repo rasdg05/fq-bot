@@ -276,6 +276,41 @@ invierte — 1 barra neto **+0.0010R** vs ≥2 barras **−0.2409R** — o sea q
 motor tp1/TTL), así que no es refutación estricta: es orden de remedirlo.
 Detalle: `internal/DIAGNOSTICO_E7_E8_2026-08.md`. Tests: `tests/test_fill_quality.py`.
 
+### "Stops mas anchos diluyen el coste fijo" — senal confirmada, producto inviable (2026-08-04)
+La ultima palanca que quedaba tras E7/E8 y la medicion del fill. Re-etiquetando las
+13.429 senales con triple barrera sobre una rejilla de 84 geometrias (`tools/geometry_sweep.py`),
+la hipotesis **se confirma como senal y se cae como producto**.
+
+Lo que PASA (seis controles independientes):
+- gradiente con **optimo interior** (kSL 5 -> 8 -> 12 empeora), no deriva a comprar-y-esperar.
+- **control de inversion**: real +0.0608R vs invertida −0.1013R. Si fuera beta la invertida
+  saldria mejor (el set es 57% short). No es beta.
+- **CPCV OOS** temporal: +0.0797R, 13/15 caminos; le gana a la geometria actual **15/15**.
+- **PBO 0.198** (referencia: umbral KL 0.897 = alerta; barbell 0.008 = limpio).
+- **holdout por simbolo x8 particiones: 8/8 con TEST positivo**, media +0.0494R. (La primera
+  particion alfabetica dio −0.0049 y casi lo mata: n=1 miente, tambien para matar.)
+- **fill**: a stops 5x el coste taker son 0.047R, y la entrada taker siempre llena. Ir maker
+  RESTA −0.0143R. El problema que mato la geometria vieja no aplica.
+
+Lo que NO pasa, y por eso muere:
+- **DSR = 0.432** incluso con la celda pre-fijada y `n_trials=1`. Perfil de loteria
+  (skew +2.68, kurtosis 10.6): el Sharpe por trade es 0.0377 y la vara no se degrada.
+- **RIESGO DE CARTERA — el decisivo.** Hold medio 2 dias -> **13.7 posiciones simultaneas**
+  (p95 29, max 54). Con capital comprometido en la apertura: risk 1% sin limite **arruina la
+  cuenta (DD 100%)**; risk 0.25% da x2.99 con **DD 69.3%**; la mejor por Calmar (risk 1%, cap 5
+  abiertas) da x12.86 con **DD 71.1% tirando el 66% de las senales**. Peores dias: −26.0R en 24
+  cierres el mismo dia. Las perdidas llegan juntas, medido.
+
+**Que muere:** "ensanchar el stop rescata el neto" como via a producto. La geometria esta
+**medida y agotada** — 84 celdas, seis controles, y la razon exacta por la que no basta.
+**Que NO muere:** la senal. Sigue confirmada (E7 +1.011R de asimetria; aqui seis pruebas mas).
+Lo que no existe es una forma conocida de cobrarla dentro de un perfil de riesgo operable.
+
+**Condicion para revivir:** un mecanismo que baje la CONCURRENCIA sin tirar la cadencia
+(no un cap ciego), o un perfil de riesgo que el producto pueda sostener con DD < 35%.
+Detalle: `internal/DIAGNOSTICO_E7_E8_2026-08.md`. Herramientas: `tools/geometry_sweep.py`,
+`tools/portfolio_risk.py`. Tests: `tests/test_geometry_sweep.py`, `tests/test_portfolio_risk.py`.
+
 ### Quantum cognition / igualdad QQ — fascinante, no aplicable
 Único resultado cuántico-adyacente con dientes (predicción a priori sin parámetros para efectos
 de orden en preguntas binarias, confirmada en 70 encuestas de EE.UU.). PERO solo sirve para

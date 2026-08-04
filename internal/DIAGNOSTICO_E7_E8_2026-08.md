@@ -393,3 +393,94 @@ No entra al cementerio. Queda como candidato con tres deberes concretos:
 3. **Entender el desacuerdo DSR/CPCV** — si el Sharpe por trade es la métrica
    equivocada para un perfil de lotería, hay que decirlo con argumento, no
    saltarse la vara.
+
+---
+
+## LOS TRES DEBERES, HECHOS (2026-08-04)
+
+### 1. Fill a la nueva geometría — **resuelto a favor**
+
+A stops 5× el coste taker son **0.0469R** (contra 0.256R de la geometría vieja).
+Eso cambia la respuesta correcta: ya no hay motivo para usar una límite pasiva.
+
+| entrada | n | neto |
+|---|---|---|
+| **TAKER, todas** (siempre se llena) | 12.941 | **+0.0852R** |
+| maker, solo lo que llena | 11.438 | +0.0709R |
+
+Ir maker **resta −0.0143R**: ahorras fee pero pierdes el 11.6% del flujo, que
+sigue siendo el mejor (escapadas +0.3658R brutas vs +0.1014R de las llenadas).
+La selección adversa sigue existiendo (−0.2644R) pero ya no muerde, porque con
+entrada taker no hay orden que se escape. **Veredicto: entrada taker, y el
+problema que mató la geometría vieja no aplica aquí.**
+
+### 2. Riesgo de cartera — **el que decide, y decide en contra**
+
+Hold medio **2.0 días** → **13.7 posiciones simultáneas de media, p95 29, máx 54**.
+Con el capital comprometido en la apertura y realizado en el cierre
+(`tools/portfolio_risk.py`):
+
+| config | ×7 años | DD máx | señales tiradas |
+|---|---|---|---|
+| risk 1.00% sin límite | **0.00** | **100%** | 0 |
+| risk 0.50% sin límite | 0.80 | 97.6% | 0 |
+| risk 0.25% sin límite | 2.99 | 69.3% | 0 |
+| risk 0.10% sin límite | 2.23 | 33.6% | 0 |
+| risk 1% · máx 5 abiertas | 12.86 | **71.1%** | 8.494 (66%) |
+| risk 1% · máx 3 abiertas | 9.29 | 57.9% | 10.162 (79%) |
+
+Peores días: **−26.0R en 24 cierres** el mismo día (2026-03-18), −24.2R en 23,
+−23.1R en 31. Las pérdidas llegan juntas — medido, no supuesto.
+
+**El edge por trade es real y el producto sigue siendo inviable.** La mejor
+configuración por Calmar (×12.86) paga un **71% de drawdown** y descarta **2 de
+cada 3 señales**. Un 71% de drawdown no es operable con suscriptores: el cliente
+se va mucho antes del suelo. Y es **cota inferior** — no se modela correlación
+explícita entre posiciones abiertas.
+
+### 3. El desacuerdo DSR/CPCV — **diagnosticado; el veredicto no cambia**
+
+El DSR falla por **el tamaño de mi rejilla**, no por la estrategia:
+
+| n_trials | sr_trials_std | vara sr0 | Sharpe/trade 0.0377 |
+|---|---|---|---|
+| 84 | 0.020 | 0.0494 | no la supera |
+| 9 | 0.020 | 0.0304 | la supera |
+| 1 | 0.020 | 0.0104 | la supera |
+
+Perfil: skew **+2.68**, kurtosis **10.6** — lotería. La corrección por
+no-normalidad del DSR castiga exactamente eso, y hace bien.
+
+Como eso es una crítica a mi búsqueda y no a la señal, lo probé fuera de muestra
+**por símbolo**, que es lo que el DSR está señalando:
+
+- Partición alfabética 7/6: FIT +0.1233R → **TEST −0.0049R**. Parecía muerte.
+- **Repetido sobre 8 particiones aleatorias: 8/8 con TEST positivo**, media
+  **+0.0494R**. La partición alfabética era la desafortunada — casi lo mato con
+  n=1, que es justo el error contra el que este repo entero está construido.
+- Por símbolo: **3/13 con IC95% > 0, 0/13 por debajo**, 10/13 con signo positivo.
+
+**El efecto transfiere.** Pero incluso dándole el máximo beneficio (celda ya
+fijada, `n_trials=1` sobre el holdout), **DSR = 0.432 < 0.95**. No pasa.
+
+### Veredicto final del candidato
+
+| prueba | resultado |
+|---|---|
+| gradiente con óptimo interior | ✅ |
+| control de inversión (¿es beta?) | ✅ no lo es (−0.101R invertida) |
+| CPCV OOS temporal | ✅ 13–15/15 caminos |
+| PBO | ✅ 0.198 |
+| holdout por símbolo (×8) | ✅ 8/8 positivos |
+| fill a la nueva geometría | ✅ taker, sin problema |
+| **DSR > 0.95** | ❌ 0.432 en el mejor caso |
+| **riesgo de cartera** | ❌ **71% DD tirando 2/3 del flujo** |
+
+**Se cierra.** No por falta de señal — la señal está confirmada por seis pruebas
+independientes. Se cierra porque **el perfil de riesgo que exige es incompatible
+con el producto**: 14 posiciones correlacionadas abiertas a la vez, holds de 2
+días, 1–6% de aciertos y drawdowns del 60–70% en la contabilidad optimista.
+
+Lo que queda escrito para el futuro: **la palanca de la geometría está medida y
+agotada.** Quien vuelva a proponer "stops más anchos" tiene aquí los 84 números,
+los seis controles y la razón exacta por la que no basta.

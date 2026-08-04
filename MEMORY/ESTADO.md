@@ -23,14 +23,15 @@ mismas 13.429 señales y el resultado cambia la lectura de todo lo que sigue:
 - **El fill maker está medido y NO salva**: 88,4% de fills, pero selección adversa
   **−1,039R** (llenadas +0,114R vs escapadas +1,153R). Neto maker real
   **−0,0350R**. → `CEMENTERIO.md`.
-- **PRIMER CANDIDATO REAL — geometría ancha (no a vivo).** Re-etiquetando con
-  stops 5× y objetivos a 10R sobre 12.941 señales: neto **+0,085R**, CPCV OOS
-  **+0,0797** (13/15 caminos), le gana a la geometría actual **15/15**, **PBO
-  0,198**, y el control de inversión descarta beta (−0,101R invertida).
-  **Pero DSR = 0,000 con n_trials=84 → no pasa el gate, y la vara no se toca.**
-  Además es otro producto: 63% timeout, 1% de aciertos, stop al 6,3% del precio,
-  holds de 4 días. Deberes antes de nada: fill a la nueva geometría, riesgo de
-  cartera con solapamiento, y entender el desacuerdo DSR/CPCV.
+- **La geometría ancha: señal confirmada, producto inviable. CERRADA.**
+  Seis controles la respaldan (óptimo interior, control de inversión, CPCV 13-15/15,
+  PBO 0,198, holdout por símbolo 8/8, fill resuelto a favor con entrada taker).
+  La matan dos: **DSR 0,432** aun con la celda pre-fijada, y sobre todo el
+  **riesgo de cartera** — hold de 2 días deja **13,7 posiciones simultáneas**;
+  a risk 1% sin límite **arruina la cuenta**, y la mejor por Calmar paga **71% de
+  drawdown tirando el 66% de las señales**. Las pérdidas llegan juntas (−26R en
+  24 cierres el mismo día). → `CEMENTERIO.md`.
+  **La palanca de la geometría está medida y agotada.**
 
 Detalle: `internal/DIAGNOSTICO_E7_E8_2026-08.md` · `MEMORY/CEMENTERIO.md`.
 Reproducir: `python tools/cube_report.py cosecha_cubes/` ·
@@ -46,6 +47,7 @@ Reproducir: `python tools/cube_report.py cosecha_cubes/` ·
 | `/salud` | (admin) | el veredicto es el PEOR chequeo, nunca el promedio |
 | Procedencia | (siempre) | el audit corta `tracker.outcomes` y lo que cuelga deja de publicarse |
 | Batches API | `FQ_LLM_BATCH` | superficie declarada o no se difiere (falla cerrado) |
+| Riesgo de cartera | (siempre) | `portfolio_risk`: el R por trade no describe la cuenta |
 
 ---
 
