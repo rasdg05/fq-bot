@@ -6,6 +6,36 @@
 
 ---
 
+## ⚠️ Encima de todo lo de abajo (agosto 2026)
+
+Los números por capa y por símbolo de esta página son **BRUTOS**. E8 midió el neto sobre las
+mismas 13.429 señales y el resultado cambia la lectura de todo lo que sigue:
+
+- **bruto +0.2305R → NETO −0.0258R**, IC95% [−0.059, +0.013]. Coste **−0.256R/trade**.
+- **Ningún subconjunto** (13 símbolos × 8 años × 2 lados × 5 quintiles de stop) clarea
+  DSR > 0.95. El mejor es 2020 con 0.359.
+- E7 midió que la **entrada sí separa**: asimetría de recorrido **+1.011R**, IC95%
+  [+0.825, +1.199], en ambos lados y los ocho años. El problema no es la señal.
+- **Con entrada maker el signo se voltea** (+0.060R, IC95% [+0.024, +0.096]) — pero eso
+  asume fill del 100%, y este repo ya midió que los maker rápidos pierden el 80% del R.
+  **La pregunta abierta que decide el proyecto es la calidad del fill, y es medible.**
+
+Detalle: `internal/DIAGNOSTICO_E7_E8_2026-08.md` · `MEMORY/CEMENTERIO.md`.
+Reproducir: `python tools/cube_report.py cosecha_cubes/`
+
+### Instrumento cableado en agosto (todo dormido por defecto)
+
+| Qué | Flag | Invariante que lo hace cumplir |
+|---|---|---|
+| Vector completo en el OPEN | `FQ_FEATURE_SNAPSHOT` | `SCHEMA` append-only; `read()` distingue "no existía" de "fue nula" |
+| Fires vetados repreciables | (siempre) | cada camino de supresión sella geometría + `stage` |
+| Desglose obligatorio del E[R] | (siempre) | `format_expectancy` levanta sin `by_period` + guarda AST |
+| `/salud` | (admin) | el veredicto es el PEOR chequeo, nunca el promedio |
+| Procedencia | (siempre) | el audit corta `tracker.outcomes` y lo que cuelga deja de publicarse |
+| Batches API | `FQ_LLM_BATCH` | superficie declarada o no se difiere (falla cerrado) |
+
+---
+
 ## Las 3 capas de edge — dónde está cada una
 
 | Capa | Edge | Números (validados, no prometidos) | Estado |
