@@ -20,8 +20,21 @@ mismas 13.429 señales y el resultado cambia la lectura de todo lo que sigue:
   asume fill del 100%, y este repo ya midió que los maker rápidos pierden el 80% del R.
   **La pregunta abierta que decide el proyecto es la calidad del fill, y es medible.**
 
+- **El fill maker está medido y NO salva**: 88,4% de fills, pero selección adversa
+  **−1,039R** (llenadas +0,114R vs escapadas +1,153R). Neto maker real
+  **−0,0350R**. → `CEMENTERIO.md`.
+- **PRIMER CANDIDATO REAL — geometría ancha (no a vivo).** Re-etiquetando con
+  stops 5× y objetivos a 10R sobre 12.941 señales: neto **+0,085R**, CPCV OOS
+  **+0,0797** (13/15 caminos), le gana a la geometría actual **15/15**, **PBO
+  0,198**, y el control de inversión descarta beta (−0,101R invertida).
+  **Pero DSR = 0,000 con n_trials=84 → no pasa el gate, y la vara no se toca.**
+  Además es otro producto: 63% timeout, 1% de aciertos, stop al 6,3% del precio,
+  holds de 4 días. Deberes antes de nada: fill a la nueva geometría, riesgo de
+  cartera con solapamiento, y entender el desacuerdo DSR/CPCV.
+
 Detalle: `internal/DIAGNOSTICO_E7_E8_2026-08.md` · `MEMORY/CEMENTERIO.md`.
-Reproducir: `python tools/cube_report.py cosecha_cubes/`
+Reproducir: `python tools/cube_report.py cosecha_cubes/` ·
+`python tools/fill_quality.py` · `python tools/geometry_sweep.py`
 
 ### Instrumento cableado en agosto (todo dormido por defecto)
 

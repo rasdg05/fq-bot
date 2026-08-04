@@ -288,3 +288,108 @@ Es la relación entre el recorrido disponible y el coste fijo, y ahora se sabe q
    Es una cosecha nueva, no un ajuste.
 
 Las dos son E6-adyacentes (tocan TP/SL). Ninguna se toca sin decidirlo antes.
+
+---
+
+## EL BARRIDO DE GEOMETRÍA (2026-08-04) — el primer candidato real
+
+De las dos palancas anteriores se midió la primera: **¿un stop más ancho diluye
+el coste fijo lo bastante?** Descartado el cambio de TF por decisión de RasDG.
+
+> `python tools/geometry_sweep.py --klines data/binance`
+
+### El contra-argumento, primero
+
+Ensanchar stop **y** objetivo a la vez es **invariante**: el coste en R se divide
+por k, pero la asimetría de recorrido de E7 (+1.011R) también. El ratio
+asimetría/coste queda en **4.42× para cualquier k**. Un reescalado puro no
+regala nada.
+
+Lo único que puede romper esa invarianza es que la **resolución por barreras no
+es lineal**: un trade que hoy muere en el stop y luego se recupera pasa a ganador
+con un stop más ancho. Eso cambia la *forma* de la distribución, no su escala.
+
+### Lo medido — rejilla de 84 celdas sobre 12.941 señales
+
+Re-etiquetado con `bt_labeler.label_event_grid` (misma convención de empate
+pesimista que la cosecha) sobre las velas locales, con costes **taker**:
+
+| kSL \ tpR (h=1152) | 1.0 | 3.0 | 6.0 | 10.0 |
+|---|---|---|---|---|
+| **1.0** (actual) | −0.111 | −0.046 | −0.007 | +0.005 |
+| 3.0 | +0.002 | +0.029 | +0.060 | +0.076 |
+| **5.0** | +0.026 | +0.027 | +0.061 | **+0.085** |
+| 8.0 | +0.016 | +0.035 | +0.057 | +0.068 |
+| 12.0 | +0.006 | +0.037 | +0.053 | +0.051 |
+
+**El gradiente existe y GIRA** (kSL 5 → 8 → 12 empeora): hay óptimo interior, no
+una deriva hacia comprar-y-esperar en la dimensión del stop.
+
+### Los tres controles
+
+**1. ¿Es deriva de mercado?** No. Misma geometría con la señal **invertida**:
+
+| kSL=5, tpR=6, h=1152 | neto |
+|---|---|
+| señal real | **+0.0608R** |
+| señal invertida | **−0.1013R** |
+
+Si fuera beta, la invertida saldría *mejor* (el set es 57% short). Sale peor por
+**0.162R**. La dirección que elige la señal vale, consistente con E7.
+
+**2. ¿Sobrevive fuera de muestra?** CPCV con folds temporales, 15 caminos:
+
+| geometría | OOS medio | caminos > 0 | peor camino |
+|---|---|---|---|
+| kSL=1.0 tpR=6 (**la actual**) | −0.0137 | 5/15 | −0.0710 |
+| kSL=5.0 tpR=10 | **+0.0797** | 13/15 | −0.0154 |
+| kSL=8.0 tpR=10 | +0.0633 | **15/15** | +0.0002 |
+| kSL=12 tpR=6 | +0.0510 | 14/15 | −0.0022 |
+
+**kSL=5/tpR=10 le gana a la geometría actual en 15/15 caminos, +0.0934R de media.**
+
+**3. ¿Es sobreajuste de selección?** **PBO = 0.198.** Bajo. (Referencia del propio
+repo: el umbral KL dio 0.897 — alerta; el barbell de convicción dio 0.008 — limpio.)
+
+### Y sin embargo: NO pasa el gate
+
+**DSR = 0.000** en todas las celdas, con `n_trials=84`.
+
+Las tres patas del gate **se contradicen**, y eso es en sí el hallazgo. CPCV dice
+que sobrevive OOS; PBO dice que elegirlo no es sobreajuste; DSR dice que el
+Sharpe **por trade** no se distingue del máximo de 84 intentos. Las tres pueden
+ser ciertas a la vez: el Sharpe por trade es diminuto porque el perfil es de
+lotería (**1–6% de aciertos**, colas gordas), y la corrección por skew/kurtosis
+del DSR castiga exactamente ese perfil.
+
+**La constitución no admite lectura:** *"nada entra a vivo sin DSR > 0.95"*. Esto
+**no va a vivo**, y no se degrada la vara para que quepa.
+
+### Lo que además hay que decir antes de ilusionarse
+
+- **Es OTRO producto.** La celda de mejor Sharpe (kSL=12, tpR=6) resuelve **63%
+  por timeout, 35% en stop, 1% en objetivo**, con el stop al **6.3% del precio**.
+  Eso no es afinar la geometría del bot: es mantener la dirección 4 días. La
+  cadencia, el drawdown y el compromiso de capital son otros.
+- **Reparte desigual por año** (2025 negativo; 2021 y 2023 con el IC cruzando
+  cero). El agregado no basta — por eso el informe lo desglosa siempre.
+- **Sigue siendo pre-fill.** Con una diferencia estructural a favor: a stops del
+  5–6% del precio el coste fijo son ~0.02R en vez de 0.23R, así que la
+  sensibilidad al fill —lo que mató la entrada maker— es un orden de magnitud
+  menor. Pero *menor* no es *medida*.
+- **La concurrencia no está medida.** Con holds de 4 días sobre 13 símbolos, las
+  posiciones se solapan. El riesgo de cartera NO es el R por trade.
+
+### Veredicto
+
+**El primer candidato real del proyecto.** Todo lo anterior (E7, E8, fill maker)
+terminó en "no". Esto termina en "**todavía no, y aquí está exactamente qué
+falta**": CPCV ✓, PBO ✓, control de inversión ✓, DSR ✗.
+
+No entra al cementerio. Queda como candidato con tres deberes concretos:
+1. **Fill medido a la nueva geometría** (`tools/fill_quality.py` ya lo hace; hay
+   que re-correrlo con los stops anchos).
+2. **Riesgo de cartera con solapamiento** — el R por trade no lo describe.
+3. **Entender el desacuerdo DSR/CPCV** — si el Sharpe por trade es la métrica
+   equivocada para un perfil de lotería, hay que decirlo con argumento, no
+   saltarse la vara.
