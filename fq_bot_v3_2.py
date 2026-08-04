@@ -6422,14 +6422,41 @@ def evolution_periodic_hook(exchange):
                     )
                     prompt = ev.build_audit_prompt_v3() if hasattr(ev, "build_audit_prompt_v3") else ev.build_audit_prompt()
                     if prompt:
-                        opus_response = ev_claude.self_audit(prompt)
+                        # Veredicto ESTRUCTURADO primero: es un dato sobre el que
+                        # el bot puede actuar. Si no sale, cae a la prosa de
+                        # siempre y no se pierde nada.
+                        verdict = None
+                        if hasattr(ev_claude, "self_audit_structured"):
+                            verdict = ev_claude.self_audit_structured(prompt)
+                        if verdict:
+                            opus_response = verdict.get("resumen", "")
+                            # Consecuencia real: si el auditor ve una distribucion
+                            # imposible, eso es un bug de medicion, no un hallazgo
+                            # -> se suspende el track record igual que con el
+                            # invariante de auditabilidad. Un numero que el propio
+                            # auditor no defiende no se publica.
+                            if verdict.get("fallo_de_medicion"):
+                                ev._ledger_health.update({
+                                    "ok": False,
+                                    "reasons": ["el self-audit reporta una distribucion "
+                                                "imposible (posible fallo de medicion)"],
+                                })
+                                telegram_send(
+                                    "🛑 <b>El auditor reporta FALLO DE MEDICION</b>\n"
+                                    "Track record suspendido hasta revisarlo.\n\n{}".format(
+                                        verdict.get("accion_urgente", "")))
+                            cab = "<b>FQ · Auditoria evolutiva</b>\n{}\n[{}] confianza {} · n minima {}".format(
+                                G["thin"], verdict.get("verdict", "?"),
+                                verdict.get("confianza", "?"), verdict.get("min_n_usada", "?"))
+                        else:
+                            opus_response = ev_claude.self_audit(prompt)
+                            cab = "<b>FQ · Auditoria evolutiva</b>\n{}".format(G["thin"])
                         audit_msg = (
-                            "<b>FQ · Auditoria evolutiva</b>\n"
-                            "{thin}\n\n{r}\n\n"
+                            "{cab}\n\n{r}\n\n"
                             "{thin}\n"
                             "Estas son SUGERENCIAS. RasDG decide.\n"
                             "#FQ #SelfAudit"
-                        ).format(thin=G["thin"], r=opus_response)
+                        ).format(cab=cab, thin=G["thin"], r=opus_response)
                         for p in split_telegram_message(audit_msg):
                             broadcast_to_subscribers(p)
                 except Exception as e:

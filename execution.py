@@ -53,10 +53,44 @@ class Position:
     entry_fill_type: str = None   # 'maker'|'taker' por-trade (lo fija el ejecutor
                                   # maker); None -> _settle usa el flag global del
                                   # cost model. No afecta el sizing.
+    # --- RECORRIDO (MFE/MAE) --------------------------------------------
+    # Precio mas favorable y mas adverso VISTOS mientras la posicion estuvo
+    # abierta. None hasta que se observa la primera vela. Son el dato que falta
+    # para juzgar la GEOMETRIA del trade: el ledger sella donde SALIO, no hasta
+    # donde LLEGO, y sin eso no se puede saber si el TP esta demasiado lejos, el
+    # SL demasiado cerca, o si la senal simplemente no separa.
+    mfe_price: float = None
+    mae_price: float = None
+    bars_held: int = 0
+    # Barra (1-indexada) en la que ocurrio cada extremo. Sin esto, MFE y MAE no
+    # bastan para repreciar otra geometria: un trade que llego a +2R y luego
+    # murio en el stop se contaria como perdedor bajo un TP de +1R, cuando en
+    # realidad habria salido en TP ANTES de que el stop existiera. El orden ENTRE
+    # barras es lo que desambigua; dentro de una barra sigue sin conocerse.
+    mfe_bar: int = None
+    mae_bar: int = None
 
     @property
     def risk_dist(self):
         return abs(self.entry - self.stop)
+
+    def excursion_r(self):
+        """(mfe_r, mae_r) en multiplos de R de PRECIO (distancia al stop).
+
+        mfe_r >= 0 (a favor), mae_r <= 0 (en contra). (None, None) si no se
+        observo ninguna vela: mejor ausencia que un cero que se leeria como
+        'no se movio'. Se normaliza por risk_dist -- la distancia de precio al
+        stop -- para que sean directamente comparables con donde estan puestos
+        el TP y el SL, que es justo la pregunta que responden.
+        """
+        if self.mfe_price is None or self.mae_price is None:
+            return None, None
+        rd = self.risk_dist
+        if rd <= 0:
+            return None, None
+        d = self.direction
+        return (d * (self.mfe_price - self.entry) / rd,
+                d * (self.mae_price - self.entry) / rd)
 
 
 @dataclass
@@ -458,6 +492,17 @@ class PaperBroker:
                  "pid": pos.pid, "exit": exit_price, "reason": reason,
                  "pnl_quote": pnl_quote, "pnl_r": pnl_r,
                  "equity_after": account.equity}
+        # RECORRIDO: hasta donde llego el trade, no solo donde salio. Es lo que
+        # permite juzgar la geometria TP/SL offline (tools/geometry_report.py).
+        # Ausente si no se observo ninguna vela (cierres directos sin barra):
+        # preferimos que falte a sellar un 0.0 que se leeria como "no se movio".
+        mfe_r, mae_r = pos.excursion_r()
+        if mfe_r is not None:
+            close["mfe_r"] = round(mfe_r, 4)
+            close["mae_r"] = round(mae_r, 4)
+            close["bars_held"] = pos.bars_held
+            close["mfe_bar"] = pos.mfe_bar
+            close["mae_bar"] = pos.mae_bar
         if self.cost is not None:
             close["fees_quote"] = fees_quote
             close["fill_type"] = fill_type     # pierna de ENTRADA: 'maker'|'taker'
@@ -492,10 +537,38 @@ class PaperBroker:
                 + (c.maker_fee if exit_maker else c.taker_fee) * pos.size * exit_price)
         return gross - fees, fees, ("maker" if entry_maker else "taker")
 
+    @staticmethod
+    def track_excursion(pos: Position, high: float, low: float):
+        """Actualiza el recorrido maximo favorable/adverso de una posicion con
+        una vela. Idempotente por vela y sin efectos: solo mueve extremos.
+
+        Se contabiliza TAMBIEN la vela que resuelve la posicion, que es la
+        convencion estandar de MFE/MAE. Dentro de una vela no se conoce el orden
+        de los extremos, asi que en la vela de salida el recorrido puede incluir
+        movimiento posterior al toque -- misma ambiguedad intra-vela que ya
+        asume el desempate pesimista de resolve_on_bar, y por eso el MFE debe
+        leerse como cota superior, no como 'lo que se podia haber capturado'.
+        """
+        high, low = float(high), float(low)
+        fav, adv = (high, low) if pos.direction == LONG else (low, high)
+        pos.bars_held += 1
+        bar = pos.bars_held
+        better = (lambda a, b: a > b) if pos.direction == LONG else (lambda a, b: a < b)
+        worse = (lambda a, b: a < b) if pos.direction == LONG else (lambda a, b: a > b)
+        if pos.mfe_price is None:
+            pos.mfe_price, pos.mae_price = fav, adv
+            pos.mfe_bar = pos.mae_bar = bar
+            return
+        if better(fav, pos.mfe_price):
+            pos.mfe_price, pos.mfe_bar = fav, bar
+        if worse(adv, pos.mae_price):
+            pos.mae_price, pos.mae_bar = adv, bar
+
     def resolve_on_bar(self, account: Account, pos: Position, high: float,
                        low: float, pessimistic: bool = True, ts=None):
         """Resuelve contra una vela: si toca TP y/o SL. Empate intra-vela ->
         pesimista (stop primero), igual que el etiquetado de research."""
+        self.track_excursion(pos, high, low)
         if pos.direction == LONG:
             hit_tp, hit_sl = high >= pos.tp, low <= pos.stop
         else:

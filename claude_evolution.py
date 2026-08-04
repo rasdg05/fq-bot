@@ -94,6 +94,91 @@ Reglas duras:
 </estilo>
 """
 
+# ============================================================
+# VEREDICTO ESTRUCTURADO
+# ============================================================
+# El audit devolvia prosa que se difundia a Telegram y ahi moria: nadie podia
+# ACTUAR sobre ella sin leerla. Con un esquema, el veredicto es un dato que el
+# bot puede enrutar (alertar, suspender, pedir muestra) en vez de un parrafo.
+#
+# `verdict` es deliberadamente pobre en opciones y una de ellas es
+# "muestra_insuficiente": sin esa salida el modelo se ve empujado a elegir entre
+# sano y roto aunque la n no de para ninguna de las dos, que es justo el error
+# que produjo el fantasma. `min_n_usada` obliga a declarar sobre cuanta muestra
+# se apoya cada veredicto.
+AUDIT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "verdict": {
+            "type": "string",
+            "enum": ["sano", "degradado", "roto", "muestra_insuficiente"],
+        },
+        "confianza": {"type": "string", "enum": ["alta", "media", "baja"]},
+        "min_n_usada": {
+            "type": "integer",
+            "description": "n de la muestra mas pequena en la que se apoya el veredicto",
+        },
+        "hallazgos": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "que": {"type": "string"},
+                    "evidencia": {"type": "string",
+                                  "description": "la metrica concreta y su n"},
+                    "n": {"type": "integer"},
+                    "accionable": {"type": "boolean"},
+                },
+                "required": ["que", "evidencia", "n", "accionable"],
+                "additionalProperties": False,
+            },
+        },
+        "fallo_de_medicion": {
+            "type": "boolean",
+            "description": "true si la distribucion parece imposible (bug, no hallazgo)",
+        },
+        "accion_urgente": {"type": "string"},
+        "resumen": {"type": "string", "description": "texto para Telegram, plano"},
+    },
+    "required": ["verdict", "confianza", "min_n_usada", "hallazgos",
+                 "fallo_de_medicion", "accion_urgente", "resumen"],
+    "additionalProperties": False,
+}
+
+
+def self_audit_structured(audit_prompt):
+    """Veredicto de auditoria como dato, no como prosa. None si no hay API o si
+    algo falla: el llamador cae al self_audit() de texto. Defensivo a proposito
+    -- una auditoria que revienta no puede tumbar el ciclo del bot."""
+    if not ci.is_available():
+        return None
+    try:
+        client = ci.get_client()
+        resp = client.messages.create(
+            model=ci.MODEL_OPUS,
+            max_tokens=ci.MAX_TOKENS_AUDIT,
+            system=[{"type": "text", "text": SYSTEM_PROMPT_AUDIT,
+                     "cache_control": {"type": "ephemeral"}}],
+            messages=[{"role": "user", "content": audit_prompt}],
+            thinking=ci.THINKING_ADAPTIVE,
+            output_config={"effort": "high",
+                           "format": {"type": "json_schema", "schema": AUDIT_SCHEMA}},
+        )
+        if getattr(resp, "stop_reason", None) == "refusal":
+            return None
+        import json
+        text = "".join(b.text for b in resp.content
+                       if getattr(b, "type", None) == "text")
+        out = json.loads(text)
+        log.info("Self-audit estructurado: verdict=%s conf=%s min_n=%s fallo_medicion=%s",
+                 out.get("verdict"), out.get("confianza"),
+                 out.get("min_n_usada"), out.get("fallo_de_medicion"))
+        return out
+    except Exception as e:
+        log.warning("Self-audit estructurado fallo (%s) -> cae a texto", e)
+        return None
+
+
 def self_audit(audit_prompt):
     """Auditoria del estado evolutivo con el modelo deliberativo.
 
