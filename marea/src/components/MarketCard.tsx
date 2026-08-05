@@ -6,6 +6,7 @@ import { CryptoLiveCard } from "@/components/CryptoLiveCard";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 import { CategoriaIcono } from "@/components/ui/categoria-icono";
+import { COLOR_CATEGORIA } from "@/lib/categoria";
 import { S } from "@/lib/strings";
 import { formatStake } from "@/lib/units";
 import { compactUsd, pct, closesIn, eventoTexto } from "@/lib/format";
@@ -66,6 +67,12 @@ interface OpcionProps {
   label: string;
   probability: number;
   multiplier?: string;
+  /**
+   * Color de la categoría, para teñir el anillo del líder. Es un acento y nada
+   * más: el que manda se sigue reconociendo por el tamaño y el peso del número
+   * (R-005). Sin esto el anillo se queda en `--pill-ring`, como estaba.
+   */
+  color?: string;
   destello: "up" | "dn" | null;
   onPick?: () => void;
   onCongelar?: (congelar: boolean) => void;
@@ -83,6 +90,7 @@ function Opcion({
   label,
   probability,
   multiplier,
+  color,
   destello,
   onPick,
   onCongelar,
@@ -111,11 +119,24 @@ function Opcion({
         className={cn(
           PILL_BASE,
           lider
-            ? "bg-teal-soft ring-1 ring-pill-ring [@media(hover:hover)and(pointer:fine)]:hover:ring-teal"
+            ? "bg-teal-soft ring-1 ring-[color:var(--pill-cat)] [@media(hover:hover)and(pointer:fine)]:hover:ring-teal"
             : "bg-pill-wash ring-1 ring-pill-line [@media(hover:hover)and(pointer:fine)]:hover:ring-pill-ring",
           destello === "up" ? "animate-flash-up" : "",
           destello === "dn" ? "animate-flash-dn" : "",
         )}
+        /* Sólo el anillo, y a media fuerza: el relleno sigue siendo `teal-soft`
+           para todas las categorías. Teñir también el fondo convertiría la
+           tarjeta en un semáforo de seis colores y le quitaría el sitio al
+           número, que es el nodo dominante (R-004). */
+        style={
+          lider
+            ? ({
+                "--pill-cat": color
+                  ? `color-mix(in srgb, ${color} 55%, transparent)`
+                  : "var(--pill-ring)",
+              } as React.CSSProperties)
+            : undefined
+        }
       >
         <span
           {...(lider ? { "data-dominant": "probability", "data-role": "probability" } : {})}
@@ -195,12 +216,15 @@ function ProbBar({ lider, rival }: { lider: number; rival: number }) {
 function FilaResultado({
   outcome,
   primera,
+  color,
   destello,
   onPick,
   onCongelar,
 }: {
   outcome: { id: OutcomeId; label: string; probability: number; multiplier: number };
   primera: boolean;
+  /** Igual que en `Opcion`: tiñe el anillo del que va primero, nada más. */
+  color?: string;
   destello: "up" | "dn" | null;
   onPick?: () => void;
   onCongelar?: (congelar: boolean) => void;
@@ -226,11 +250,20 @@ function FilaResultado({
             "transition-[background-color,outline-color,transform,color] duration-[120ms] ease-out",
             "active:scale-[.96] active:duration-90",
             primera
-              ? "bg-teal-soft ring-1 ring-pill-ring"
+              ? "bg-teal-soft ring-1 ring-[color:var(--pill-cat)]"
               : "bg-pill-wash ring-1 ring-pill-line",
             destello === "up" ? "animate-flash-up" : "",
             destello === "dn" ? "animate-flash-dn" : "",
           )}
+          style={
+            primera
+              ? ({
+                  "--pill-cat": color
+                    ? `color-mix(in srgb, ${color} 55%, transparent)`
+                    : "var(--pill-ring)",
+                } as React.CSSProperties)
+              : undefined
+          }
         >
           <span
             {...(primera
@@ -397,6 +430,7 @@ export function MarketCard({ market, variant, pulso, onOpen }: MarketCardProps) 
   const resolviendo = vista.status === "settling";
   const cerrado = vista.status === "resolved" || resolviendo;
   const closes = closesIn(vista.closesAt);
+  const colorCategoria = COLOR_CATEGORIA[vista.category];
   const estado = badgeEstado(vista.marcadorVivo);
   const evento = eventoTexto(vista.eventoReciente);
   const titulo = vista.shortTitle ?? vista.title;
@@ -478,6 +512,7 @@ export function MarketCard({ market, variant, pulso, onOpen }: MarketCardProps) 
                 key={outcome.id}
                 outcome={outcome}
                 primera={i === 0}
+                color={colorCategoria}
                 destello={i === 0 ? destello : null}
                 onPick={cerrado ? undefined : () => abrir(outcome.id)}
                 onCongelar={congelar}
@@ -497,6 +532,7 @@ export function MarketCard({ market, variant, pulso, onOpen }: MarketCardProps) 
                   )
                 : undefined
             }
+            color={colorCategoria}
             destello={destello}
             onPick={cerrado ? undefined : () => abrir(lider?.id)}
             onCongelar={congelar}

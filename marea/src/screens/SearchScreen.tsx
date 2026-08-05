@@ -1,20 +1,11 @@
 import * as React from "react";
 import { Search as SearchIcon } from "lucide-react";
-import type { MarketCategory } from "@/domain/types";
 import { MarketCard } from "@/components/MarketCard";
 import { Chip, ChipRow } from "@/components/ui/chip";
 import { EmptyState, ErrorState, ListSkeleton } from "@/components/StateViews";
 import { S } from "@/lib/strings";
 import { useApp } from "@/state/store";
-
-const CATEGORIES: MarketCategory[] = [
-  "cripto",
-  "economia",
-  "deportes",
-  "politica",
-  "cultura",
-  "otros",
-];
+import { CATEGORIAS_VISIBLES, COLOR_CATEGORIA } from "@/lib/categoria";
 
 function normalize(value: string): string {
   return value
@@ -85,10 +76,11 @@ export function SearchScreen() {
         <Chip active={state.category === "all"} onClick={() => actions.setCategory("all")}>
           {S.feed.allCategories}
         </Chip>
-        {CATEGORIES.map((id) => (
+        {CATEGORIAS_VISIBLES.map((id) => (
           <Chip
             key={id}
             active={state.category === id}
+            color={COLOR_CATEGORIA[id]}
             onClick={() => actions.setCategory(id)}
           >
             {S.categories[id]}

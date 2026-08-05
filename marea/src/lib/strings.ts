@@ -42,6 +42,8 @@ export const S = {
     deportes: "Deportes",
     politica: "Política",
     cultura: "Cultura",
+    "materias-primas": "Materias primas",
+    clima: "Clima",
     otros: "Otros",
   },
 

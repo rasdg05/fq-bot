@@ -82,6 +82,15 @@ export type MarketCategory =
   | "deportes"
   | "politica"
   | "cultura"
+  /**
+   * Las dos que todavía no tienen catálogo. Están en el tipo —y no sólo en una
+   * nota— para que su color, su glifo y su palabra existan antes que su primer
+   * mercado: el día que lleguen no se improvisa nada, y mientras tanto el
+   * compilador señala cualquier mapa por categoría al que le falten.
+   * No salen como pestaña: una que filtra a cero mercados es un callejón.
+   */
+  | "materias-primas"
+  | "clima"
   /** Sin señal clara para clasificar. Preferimos decirlo a inventar categoría. */
   | "otros";
 

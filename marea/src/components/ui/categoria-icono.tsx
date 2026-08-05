@@ -30,7 +30,11 @@ export function CategoriaIcono({
         "grid h-4 w-4 shrink-0 place-items-center rounded-[5px]",
         className,
       )}
-      style={{ backgroundColor: `color-mix(in srgb, ${color} 20%, transparent)` }}
+      /* 28 %, no 20 %: a 16 px un lavado del 20 % sobre `--panel` se lee como
+         gris y las seis categorías volvían a parecer la misma. El glifo va a
+         color pleno encima, que es lo que hace que el azulejo se distinga de
+         reojo. La caja no cambia de tamaño, así que la densidad tampoco. */
+      style={{ backgroundColor: `color-mix(in srgb, ${color} 28%, transparent)` }}
     >
       <Icono className="h-2.5 w-2.5" style={{ color }} strokeWidth={2.4} />
     </span>

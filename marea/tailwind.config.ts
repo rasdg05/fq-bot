@@ -41,6 +41,18 @@ const config: Config = {
         "pill-wash": "var(--pill-wash)",
         "flash-up": "var(--flash-up)",
         "flash-dn": "var(--flash-dn)",
+        // color por categoría: el azulejo, la raya de la pestaña activa y el
+        // anillo de la pill líder. Se tiñen con `color-mix` en `style` porque
+        // el valor es dinámico y el modificador de alfa no funciona sobre una
+        // custom property (R-017, V1b)
+        "cat-cripto": "var(--cat-cripto)",
+        "cat-economia": "var(--cat-economia)",
+        "cat-deportes": "var(--cat-deportes)",
+        "cat-politica": "var(--cat-politica)",
+        "cat-cultura": "var(--cat-cultura)",
+        "cat-otros": "var(--cat-otros)",
+        "cat-materias-primas": "var(--cat-materias-primas)",
+        "cat-clima": "var(--cat-clima)",
       },
       fontFamily: {
         display: "var(--font-display)",

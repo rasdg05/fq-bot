@@ -3,6 +3,12 @@ import { cn } from "@/lib/cn";
 
 export interface ChipProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   active?: boolean;
+  /**
+   * Color de la raya cuando esta pestaña manda, como `var(--cat-…)`. Sin él la
+   * raya es teal, que es lo que le toca a "Todas": no es una categoría, es su
+   * ausencia. Nunca es el portador del estado — ver abajo.
+   */
+  color?: string;
 }
 
 /**
@@ -17,7 +23,7 @@ export interface ChipProps extends React.ButtonHTMLAttributes<HTMLButtonElement>
  * (R-005)— y el target sigue midiendo 44 px de alto.
  */
 export const Chip = React.forwardRef<HTMLButtonElement, ChipProps>(
-  ({ className, active, children, ...props }, ref) => (
+  ({ className, active, color, children, ...props }, ref) => (
     <button
       ref={ref}
       type="button"
@@ -27,11 +33,22 @@ export const Chip = React.forwardRef<HTMLButtonElement, ChipProps>(
       className={cn(
         "relative min-h-touch shrink-0 whitespace-nowrap px-1 text-[17px] transition-colors",
         "after:absolute after:inset-x-1 after:bottom-1.5 after:h-[2px] after:rounded-pill",
+        // un `::after` no se puede pintar desde `style`, así que el color viaja
+        // como custom property y la clase la consume
         active
-          ? "font-bold text-text after:bg-teal"
+          ? "font-bold text-text after:bg-[color:var(--chip-raya)]"
           : "font-semibold text-muted after:bg-transparent",
         className,
       )}
+      /* La raya toma el color de la categoría, pero el color no anuncia nada
+         por su cuenta: la pestaña que manda ya cambia de peso y de color de
+         texto, y la raya está o no está (R-005). Quien no distinga los tonos
+         sigue viendo exactamente lo mismo que antes. */
+      style={
+        active
+          ? ({ "--chip-raya": color ?? "var(--teal)" } as React.CSSProperties)
+          : undefined
+      }
       {...props}
     >
       {children}

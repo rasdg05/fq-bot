@@ -123,7 +123,11 @@ check("V1", "ningún token de color usa modificador de opacidad", () => {
   // Tailwind no puede aplicar alfa sobre un color declarado como `var(--x)`:
   // la declaración se descarta y la superficie queda transparente (R-017).
   const tokens = "bg|text|border|ring|fill|stroke";
-  const names = "bg|panel|panel2|line|line2|text|text2|muted|teal|teal-deep|teal-soft|teal-ink|up|dn|hot|live";
+  // ojo: esta lista está duplicada respecto de `tailwind.config.ts`. Un token
+  // nuevo que no se añada aquí queda fuera de la validación sin avisar
+  const names =
+    "bg|panel|panel2|line|line2|text|text2|muted|teal|teal-deep|teal-soft|teal-ink|up|dn|hot|live|" +
+    "cat-cripto|cat-economia|cat-deportes|cat-politica|cat-cultura|cat-otros|cat-materias-primas|cat-clima";
   const bad = new RegExp(`\\b(?:${tokens})-(?:${names})/\\d+`, "g");
   const varAlpha = /var\(--[a-z0-9-]+\)\]\/\d+/g;
   const problems = [];

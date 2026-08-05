@@ -5,6 +5,7 @@ import { renderApp, READY_NO_FUNDS, READY_WITH_FUNDS } from "./helpers";
 import { S } from "@/lib/strings";
 import { SPLASH_MAX_MS } from "@/screens/OnboardingFlow";
 import { MOCK_MARKETS } from "@/adapters/mock/markets";
+import { CATEGORIAS_VISIBLES } from "@/lib/categoria";
 import { appError } from "@/domain/errors";
 
 const waitForP1 = () =>
@@ -33,8 +34,14 @@ describe("Red-team UX", () => {
     renderApp({ overrides: READY_NO_FUNDS });
     await screen.findByTestId("home-screen");
 
-    for (const label of Object.values(S.categories)) {
-      expect(screen.getByRole("tab", { name: label })).toBeInTheDocument();
+    // sólo las que tienen catálogo: `materias-primas` y `clima` existen en el
+    // tipo, con color y glifo, pero una pestaña que filtra a cero mercados
+    // manda a un callejón, así que todavía no salen (R-006)
+    for (const id of CATEGORIAS_VISIBLES) {
+      expect(screen.getByRole("tab", { name: S.categories[id] })).toBeInTheDocument();
+    }
+    for (const id of ["materias-primas", "clima"] as const) {
+      expect(screen.queryByRole("tab", { name: S.categories[id] })).toBeNull();
     }
     const cards = await screen.findAllByTestId("market-card");
     for (const card of cards.slice(0, 5)) {
