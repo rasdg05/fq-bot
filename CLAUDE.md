@@ -10,6 +10,19 @@
 Bot de señales cripto de order-flow, **vivo en producción** (Railway, rama `main`)
 con suscriptores de pago. SOL (pilar), BTC, ETH. Cada push a `main` redeploya.
 
+## ⚠️ LA RAMA (léelo antes que nada)
+
+**`main` está en JUNIO. Todo el trabajo de agosto vive en
+`claude/instrumento-2026-08-of95si`.** Si arrancas en `main` vas a leer un estado
+caducado y volver a concluir cosas ya medidas. Empieza siempre con:
+
+```
+git fetch origin claude/instrumento-2026-08-of95si && git checkout claude/instrumento-2026-08-of95si
+```
+
+Nada se mergea a `main` sin decírselo a RasDG: despliega a producción con
+suscriptores de pago.
+
 ## Antes de tocar nada
 
 1. `MEMORY/00-INDICE.md` — la puerta (60 s).
@@ -52,8 +65,13 @@ vuelva — si la respuesta es "acordarse", no está cerrado.
   invariante, no borradas.)
 - **Motor paper, 90 cierres CON fees**: E[R] **−0.510**, IC95% [−0.785, −0.205],
   P(E[R]≥0)=0.001. WR 21.1% contra un **WR de equilibrio de 36.9%**.
-- **Cube 7 años, bruto**: +0.224R. La diferencia entre eso y el −0.51R vivo **es
-  el coste de ejecución**, y responde la pregunta abierta 6 del GHOST_MAP.
+- **Cube 7 años, E8 (n=13.429)**: bruto **+0.2305R** → **neto −0.0258R**, IC95%
+  [−0.059, +0.013]. **El coste de ejecución es −0.256R/trade**: más grande que el
+  edge bruto entero. Ningún subconjunto (13 símbolos × 8 años × 2 lados × 5
+  quintiles de stop) clarea DSR > 0.95.
+- **E7 — la buena noticia, y está medida**: la entrada **SÍ separa**. Asimetría de
+  recorrido **+1.011R, IC95% [+0.825, +1.199]**, en ambos lados y los ocho años.
+  **El problema no es la señal**: son las barreras, el coste y el capital simultáneo.
 - **El VIP (BTC/ETH/SOL), neto sobre el cube, n=3.774**: la **selección de símbolos
   se sostiene** (+0.010R vs −0.040R del resto del pool), pero la **geometría que
   opera en vivo no**: **tp1/h288 = −0.069R, IC95% [−0.112, −0.028]** — entero bajo
@@ -61,6 +79,23 @@ vuelva — si la respuesta es "acordarse", no está cerrado.
 
 > Ninguna configuración medida tiene el IC95% de la expectancy por encima de cero.
 > No hay edge demostrado. Decirlo no es pesimismo: es el estado del arte del repo.
+>
+> **No uses el `n=12` para afirmar nada** (ni con clientes ni con inversores): está
+> bajo el `MIN_N=30` del propio repo y no concluye en ninguna dirección.
+
+## Contexto vivo que no es código (ago-2026)
+
+- **Encargo en curso**: `internal/BRIEF_VIP_2026-08.md` — V1 barrido tp1→tp2/tp3
+  acotado por `portfolio_risk` · V2 posición en cola · V3 capacidad. **Es local y
+  gratis**: el cube ya está en `cosecha_cubes/`, cero runners de CI.
+- **Presión de inversor**: un inversor del proyecto lleva meses viendo gasto sin
+  producto rentable. Propuso pivotar a copy-trading (Trump/políticos, Autopilot +
+  Hyperliquid). **Se midió antes de construir: 1 candidata de 100** → muerto en
+  `CEMENTERIO.md`; el espejo sin capital queda especificado en
+  `internal/EXPERIMENT_COPYTRADE_ONCHAIN.md` por si se retoma. **No se pivota**: el
+  pivote sube la quema justo cuando la queja es la quema. **V3 (capacidad) es la
+  respuesta a su ansiedad** — convierte "confía en mí" en una cifra. Detalle y qué
+  decirle: `MEMORY/ESTADO.md`, bloque de agosto.
 
 ## Reglas de trabajo
 

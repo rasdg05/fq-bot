@@ -340,6 +340,59 @@ bajo el `MIN_N=30` del propio repo y no concluye en ninguna dirección. n=3.774 
 > `internal/BRIEF_VIP_2026-08.md`, junto con el barrido tp1→tp2/tp3 acotado por
 > `portfolio_risk` desde el primer minuto.
 
+### Copy-trading por leaderboard ("copiar a los que más ganan") — 1 de 100 (2026-08-05)
+Origen: un vídeo de TikTok que un **inversor del proyecto** mandó a RasDG — "$1.000 →
+$426.000 copiando a Trump", "el insider de Trump, 100% de acierto" — en un momento de
+presión por ver producto rentable. Idea derivada: copy-trading de políticos (Autopilot,
+que tiene API) + wallets de Hyperliquid (registro on-chain), con dashboard para
+inversores privados.
+
+**Medido antes de construir nada** (`tools/copytrade_screen.py`, ~10 min, cero capital).
+Cohorte **congelada ex-ante**: top 100 por PnL allTime de las **41.276** cuentas del
+leaderboard de Hyperliquid, sellada `2026-08-05T08:20:28Z`
+(`internal/copytrade_cohorte_2026-08-05.json`). Ventana común y cerrada de 30d.
+
+| Filtro | Caen | Quedan |
+|---|---|---|
+| Sin un solo fill en 30 días | **59** | 41 |
+| Inalcanzables (≥20 fills/día) | **35** | 6 |
+| Sin PnL neto positivo | 3 | 3 |
+| Top trade > 50% del PnL | 1 | **2** |
+
+De las 2 supervivientes, una ganó **$42 en 30 días**. Queda **1 de 100**.
+
+**Qué muere:** el método de selección por leaderboard bruto. Entre las 41 activas la
+mediana es de **887 fills/día** (p90 70.781, máx 212.245): el top de un perp DEX no son
+direccionales copiables, son **market makers** — su PnL es el rebate y el spread, y
+replicarlo con latencia y fees retail es pérdida garantizada. Es la misma razón por la
+que los rankings brutos "apuntan al trader equivocado".
+
+**Qué NO muere:** la pregunta de si existe algún clúster copiable. Sigue abierta y su
+espejo está especificado (sin capital) en `internal/EXPERIMENT_COPYTRADE_ONCHAIN.md`.
+Con **un snapshot y n=100** esto no puede afirmar más.
+
+**Tres cosas estructurales que el screen dejó fijadas:**
+1. **Lo verificable y lo copiable no coinciden.** On-chain se verifica en segundos pero
+   la identidad no es atribuible (el "insider de Trump" es folklore: el rastro apunta a
+   un ex-CEO de BitForex que lo niega). Los trades de políticos sí son atribuibles pero
+   la STOCK Act da **45 días** — Autopilot y todo tracker copian *filings*, no
+   operaciones (~2 semanas de retraso medio; cobran $100/año y **no custodian**).
+2. **Multi-wallet, documentado en la propia wallet del vídeo:** el 10-oct-2025 transfirió
+   $30M a otra address que abrió shorts de ETH. La unidad de seguimiento es el **clúster**,
+   no la address. Las 59 inactivas son evidencia indirecta de rotación.
+3. **La enfermedad es la de casa, agravada.** `fill_quality.py` midió selección adversa
+   **−1.039R**; copiar a una ballena seguida por miles es esa dinámica con la multitud
+   empujando en contra.
+
+**Sesgos declarados, todos optimistas** (la realidad es peor): el neto no imputa la fee
+de apertura ni el funding; el corte de 20 fills/día es juicio, no medición; las cuentas
+capadas reportan cota inferior de su cadencia.
+
+> **Esto SÍ está cerrado**: `tools/copytrade_screen.py` (con `--self-test`) +
+> `tests/test_copytrade_screen.py` fijan el signo de la fee en el neto, la frontera del
+> 50% y que un lote capado dé cota inferior — que es lo que colaría un market maker como
+> "copiable". Reproducir: `python tools/copytrade_screen.py --top 100 --days 30`.
+
 ### Quantum cognition / igualdad QQ — fascinante, no aplicable
 Único resultado cuántico-adyacente con dientes (predicción a priori sin parámetros para efectos
 de orden en preguntas binarias, confirmada en 70 encuestas de EE.UU.). PERO solo sirve para

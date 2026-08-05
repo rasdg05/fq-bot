@@ -44,7 +44,24 @@ mismas 13.429 señales y el resultado cambia la lectura de todo lo que sigue:
   - El problema del VIP **no es el símbolo ni la señal: son las barreras y el capital
     simultáneo**. → `CEMENTERIO.md`. **Es NOTA, no arreglo** (script ad-hoc, sin test).
 
-Detalle: `internal/DIAGNOSTICO_E7_E8_2026-08.md` · `MEMORY/CEMENTERIO.md`.
+- **CONTEXTO DE NEGOCIO (2026-08-05) — presión de inversor, y por qué NO se pivota.**
+  Un inversor del proyecto lleva meses viendo gasto sin producto rentable y mandó un vídeo
+  de TikTok proponiendo copy-trading de Trump/políticos (Autopilot + Hyperliquid) con
+  dashboard para inversores privados. **Se midió antes de construir: queda 1 de 100**
+  (→ `CEMENTERIO.md`, "Copy-trading por leaderboard"). No se pivota, y la razón no es
+  terquedad: el pivote **sube** la quema (dominio nuevo, instrumento desde cero, frente
+  legal) justo cuando la queja es la quema. Tres cosas para hablar con él, todas medidas:
+  **(a)** la geometría viva del VIP pierde (−0.069R, IC entero bajo cero, n=3.774) y se
+  dice primero; **(b)** la señal SÍ separa (E7 +1.011R, IC [+0.825, +1.199], 8 años);
+  **(c)** lo que queda por medir (V1/V2/V3) es **local y gratis** — el cube ya está
+  cosechado. **NO uses el `n=12` con él**: está bajo `MIN_N=30` y no concluye.
+  **V3 (capacidad) es la respuesta a su ansiedad** — convierte "confía en mí" en una cifra:
+  si la capacidad es \$5k esto es un servicio de suscripción y se deja de hablar de fondos;
+  si es \$500k, hay otra conversación. Ojo legal: custodiar capital de terceros (el "Trust")
+  es gestión de fondos; Autopilot, con mucho más músculo, eligió **no** tocarlo.
+
+Detalle: `internal/DIAGNOSTICO_E7_E8_2026-08.md` · `MEMORY/CEMENTERIO.md` ·
+`internal/EXPERIMENT_COPYTRADE_ONCHAIN.md` (el espejo sin capital, si alguna vez se retoma).
 **Siguiente encargo: `internal/BRIEF_VIP_2026-08.md`** (V1 barrido tp1→tp2/tp3 acotado
 por cartera · V2 posición en cola · V3 capacidad).
 Reproducir: `python tools/cube_report.py cosecha_cubes/` ·
