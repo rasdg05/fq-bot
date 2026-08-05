@@ -334,11 +334,53 @@ asimetría +1.011R) ni el universo (medido mejor que el resto del pool).
 **No contradice el track record publicado** (`n=12 · WR 41.7% · E[R] +0.208`): n=12 está
 bajo el `MIN_N=30` del propio repo y no concluye en ninguna dirección. n=3.774 sí.
 
-> **Esto es una NOTA, no un arreglo.** Se midió con un script ad-hoc de sesión que no
-> quedó en el repo — sin tool, sin test, sin invariante. Por la regla de la casa, no está
-> cerrado hasta que se cemente. Cementarlo es la entrega **V1** de
-> `internal/BRIEF_VIP_2026-08.md`, junto con el barrido tp1→tp2/tp3 acotado por
-> `portfolio_risk` desde el primer minuto.
+> **CEMENTADO (V1, 2026-08-05).** Era una nota — script ad-hoc de sesión, sin tool ni
+> test. Ya no: `tools/vip_report.py` contesta "¿funciona el VIP?" con un comando
+> (`python tools/vip_report.py`) y reproduce estos números al cuarto decimal.
+> `tests/test_vip_report.py` fija que el universo medido es el que el bot difunde
+> (`FQ_VIP_PAIRS`) — medir un universo distinto del publicado son dos números
+> correctos describiendo productos distintos, y nadie se enteraría.
+
+### El eje TP como salida del VIP — barrido tp1→tp4 en contra (2026-08-05, V1)
+La otra mitad de V1: si tp1 reparte mal, ¿alejar el objetivo lo arregla? Barrido del eje
+TP a horizonte fijo (h288, el que opera), sobre el universo VIP, **con `portfolio_risk`
+aplicado ANTES de nombrar candidata a ninguna celda** — no como post-mortem. n=3.774.
+
+| celda | bruto | **neto** | IC95% | WR |
+|---|---|---|---|---|
+| tp1/h288 | +0.192 | **−0.069** | [−0.112, −0.028] | 51.0% |
+| tp2/h288 | +0.208 | **−0.053** | [−0.106, −0.002] | 38.7% |
+| tp3/h288 | +0.243 | **−0.018** | [−0.080, +0.044] | 33.3% |
+| tp4/h288 | +0.271 | **+0.010** | [−0.060, +0.080] | 29.5% |
+
+**Ninguna celda es candidata.** Ninguna tiene el IC95% entero sobre cero.
+
+**Y el diagnóstico NO es el de agosto — esto importa.** La geometría ancha murió por
+concurrencia (13.7 simultáneas, DD 71%). Aquí el hold medio son ~0.1 días y la
+concurrencia ~1.3: el filtro de cartera **no es el que mata**. Las tres celdas negativas
+tienen el DD *dentro* de la cota (26–27%) y aun así hunden la cuenta — no sobra riesgo,
+falta edge. Confundir los dos casos mandaría el trabajo a inventar un mecanismo de
+concurrencia que aquí no arreglaría nada. El informe los nombra por separado a propósito.
+
+**Lo que queda abierto, dicho en voz alta:** el neto **sube monótonamente** hasta tp4, que
+es el ÚLTIMO peldaño que el cube trae etiquetado — un **máximo en la esquina**, la misma
+bandera roja que hizo extender la rejilla de `geometry_sweep` hasta kSL=12. La tabla NO
+dice que tp4 sea el óptimo; dice que el gradiente apunta fuera del rango medido. Saberlo
+exige **re-etiquetar** con objetivos más lejanos (`geometry_sweep`, que necesita velas
+locales — hoy no hay `data/binance` en el repo), no extrapolar. Y con un aviso: alejar el
+objetivo alarga la vida del trade, o sea que devuelve el problema de concurrencia que mató
+la geometría ancha. El informe imprime este aviso solo, no depende de acordarse.
+
+**Desglose por año de la celda que opera (tp1/h288): 7 de 8 años con n≥30 salen
+NEGATIVOS.** No es un régimen malo tapando uno bueno: es consistente.
+
+**Qué NO muere:** el universo. La selección VIP da +0.050R netos por señal sobre el resto
+del pool (10 símbolos, n=9.655) en la misma celda de referencia. Son dos preguntas y solo
+una salió mal.
+
+Reproducir: `python tools/vip_report.py`. Tests: `tests/test_vip_report.py` (la invariante:
+una celda no se nombra candidata sin sostener una cartera, y el gate corre **sin cap** de
+concurrencia porque capear hace pasar cualquier cosa tirando señales).
 
 ### Copy-trading por leaderboard ("copiar a los que más ganan") — 1 de 100 (2026-08-05)
 Origen: un vídeo de TikTok que un **inversor del proyecto** mandó a RasDG — "$1.000 →
