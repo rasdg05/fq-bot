@@ -139,6 +139,18 @@ capa de **convicción+gating**, no el edge validado (ese es CVD/F2/KL). `session
 - **FASE 3 — ESCALA:** multi-símbolo (XRP/LTC/DOGE/ADA — el carry ya probó perps sanos); OFI si se
   justifica; distribución.
 
+**PLAN EN PAPEL (no arranca antes que E1-E9): copy-trading on-chain** —
+`internal/EXPERIMENT_COPYTRADE_ONCHAIN.md` (2026-08-05, encargo RasDG a partir de un vídeo de
+TikTok sobre "el insider de Trump"). Seguir wallets de Hyperliquid/Solana y replicar sus fills.
+Lo verificable y lo copiable **no coinciden**: on-chain es verificable en segundos pero la
+identidad ("Trump") no es atribuible; los trades de políticos (STOCK Act) sí son atribuibles pero
+llegan con **45 días de retraso por ley** — Autopilot y todo tracker de políticos copian filings,
+no operaciones. La métrica primaria NO es el PnL de la wallet sino el **deslizamiento de réplica**
+(es el mismo hueco que separa nuestro +0.224R bruto del −0.510R neto). Fase 0 = espejo sin capital
+sobre `PaperBroker`, lista de wallets **congelada ex-ante**, 5 invariantes antes de tocar nada.
+La variante custodial con dinero de inversores es gestión de fondos (SEC/CFTC/CNMV según sede):
+no se construye sin abogado previo.
+
 ---
 
 ## Auditoría del registro forward (el detonante del cerebro, 2026-06-27)
