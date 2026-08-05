@@ -89,6 +89,189 @@ def maker_entry_fill_mask(trades, high, low, *, eps, ttl_bars):
     return out
 
 
+class MakerFillAssumedError(RuntimeError):
+    """Se intentó publicar una cifra maker con el fill asumido al 100%.
+
+    Es la invariante de V2, y tiene una factura detrás: en agosto el techo
+    maker de E8 daba +0.060R IC95%[+0.024,+0.096] — con fill del 100% asumido —
+    y el fill real lo dejó en −0.0350R. El supuesto era MÁS GRANDE que el
+    margen entero. Una cifra maker sin modelo de fill no es optimista: es de
+    otro mundo, y aquí no puede salir por la puerta.
+    """
+
+
+# Procedencia del fill que lleva pegada cada fila que sale de `simulate`. El
+# número no viaja solo: viaja con cómo se decidió que la limite se llenaba.
+FILL_TAKER = "taker"            # no hay pierna maker de entrada: no aplica
+FILL_ASSUMED = "asumido_100"    # maker sin modelo -> TECHO, no publicable
+FILL_MODELED = "modelado"       # maker con p_fill por señal
+
+
+def maker_fill_probability(trades, high, low, *, eps, ttl_bars, queue_frac=None,
+                           queue_bps=None, volume=None, taker_buy=None):
+    """P(fill) de la entrada limite, condicionada al FLUJO que pasó por el nivel.
+
+    `maker_entry_fill_mask` contesta *"¿el precio llegó?"*. Esa es la pregunta
+    del backtest, no la del libro: una limite en el nivel no se llena porque el
+    precio la toque, se llena cuando el volumen operado en ese nivel consume la
+    COLA que tenía por delante. Dos señales con la misma penetración y flujo
+    distinto no se llenan igual, y la binaria las cuenta iguales.
+
+    Modelo (deliberadamente pequeño, y por eso declarable):
+
+        p = clip(flujo_consumido / cola_por_delante, 0, 1)
+
+    con dos formas de medir el flujo, en orden de fidelidad:
+
+    1. **flujo firmado** (`volume` + `taker_buy`, `queue_frac`): lo que consume
+       una BID descansando es el taker SELL que imprime en su nivel o por
+       debajo — no el volumen total, del que la mitad son compras que se cruzan
+       contra el ask. Simétrico para el SHORT. El reparto del volumen de la vela
+       dentro de su rango es uniforme: es una aproximación, y de las gordas, pero
+       es la que hay sin tick data y se equivoca en las dos direcciones, no en
+       una.
+    2. **profundidad** (`queue_bps`, sin volumen): el flujo se aproxima por los
+       bps de penetración acumulados más allá del nivel. Para cuando no hay
+       columna de volumen.
+
+    `queue_frac` = cola por delante medida en múltiplos del volumen MEDIANO de
+    barra del propio símbolo (unidad comparable entre BTC y SOL, que no comparten
+    ni escala de precio ni de volumen). `queue_bps` = su equivalente en bps.
+
+    Invariante de diseño, y está testeada: **p ≤ mask elementwise**. El flujo se
+    cuenta solo más allá de `eps`, así que donde la binaria dice MISS esto dice 0
+    y donde la binaria dice FILL esto dice como mucho 1. El refinamiento nunca es
+    más optimista que la cota que ya se consideraba optimista — no hay forma de
+    que este modelo INVENTE fills.
+
+    Devuelve un ndarray float en [0,1] alineado a `trades`.
+    """
+    if (queue_frac is None) == (queue_bps is None):
+        raise ValueError("declara exactamente una cola: queue_frac (flujo) o "
+                         "queue_bps (profundidad)")
+    if queue_frac is not None and volume is None:
+        raise ValueError("queue_frac mide la cola en volumen de barra: pasa "
+                         "`volume`, o usa queue_bps si no lo tienes")
+
+    high = np.asarray(high, dtype=float)
+    low = np.asarray(low, dtype=float)
+    n = len(low)
+    vol = None if volume is None else np.asarray(volume, dtype=float)
+    tbuy = None if taker_buy is None else np.asarray(taker_buy, dtype=float)
+    # La cola en unidades del propio símbolo. La mediana (no la media) porque el
+    # volumen de barra tiene cola derecha larga y la media la fija un puñado de
+    # velas de pánico que no describen la barra típica en la que descansa la orden.
+    cola = (float(queue_frac) * float(np.median(vol[vol > 0])) if queue_frac is not None
+            else float(queue_bps))
+    if not cola > 0:
+        raise ValueError("cola por delante <= 0: eso ES asumir fill del 100%")
+
+    ei = trades["entry_index"].to_numpy()
+    ent = trades["entry_price"].to_numpy(dtype=float)
+    dirn = trades["direction"].to_numpy()
+    out = np.zeros(len(trades), dtype=float)
+
+    for i in range(len(out)):
+        a = int(ei[i]) + 1
+        b = min(int(ei[i]) + int(ttl_bars), n - 1)
+        if a > b or int(ei[i]) < 0:
+            continue                       # sin velas evaluables -> MISS
+        d, e = int(dirn[i]), float(ent[i])
+        # El nivel efectivo YA lleva el eps: contar flujo entre el nivel y el eps
+        # haría que p > 0 donde la binaria dice MISS, y el refinamiento dejaría
+        # de ser una cota inferior de ella.
+        lvl = e * (1.0 - eps) if d > 0 else e * (1.0 + eps)
+        hi_w, lo_w = high[a:b + 1], low[a:b + 1]
+        rng = np.maximum(hi_w - lo_w, 1e-12)
+        if d > 0:
+            beyond = np.clip((np.minimum(hi_w, lvl) - lo_w) / rng, 0.0, 1.0)
+            prof = np.maximum(lvl - lo_w, 0.0) / lvl * 10_000.0
+        else:
+            beyond = np.clip((hi_w - np.maximum(lo_w, lvl)) / rng, 0.0, 1.0)
+            prof = np.maximum(hi_w - lvl, 0.0) / lvl * 10_000.0
+
+        if queue_bps is not None:
+            flujo = float(prof.sum())
+        else:
+            v = vol[a:b + 1]
+            if tbuy is not None:
+                # Firmado: una BID la consume el taker SELL; una ASK, el taker BUY.
+                v = (v - tbuy[a:b + 1]) if d > 0 else tbuy[a:b + 1]
+            flujo = float(np.sum(np.maximum(v, 0.0) * beyond))
+        out[i] = min(1.0, flujo / cola)
+    return out
+
+
+def maker_expectancy(trades, *, col="net_pnl_r", p_col="fill_p",
+                     model_col="fill_model", reps=2000, seed=7):
+    """E[R | se llenó] bajo el modelo de fill, con su IC y su procedencia.
+
+    La media simple de `net_pnl_r` sobre todas las señales responde a "¿cuánto
+    habría rendido esto si TODAS las limites se llenaran?" — la pregunta cuya
+    respuesta ya voló un resultado. Aquí cada señal pesa lo que se llena:
+
+        E[R|fill] = Σ pᵢ rᵢ / Σ pᵢ
+
+    y el IC95% se saca remuestreando señales **y sorteando el fill** Bernoulli(pᵢ)
+    en cada réplica: la incertidumbre del fill es parte de la incertidumbre del
+    número, no una nota al pie.
+
+    Levanta `MakerFillAssumedError` si las filas vienen marcadas `asumido_100`.
+    """
+    if model_col not in trades.columns or p_col not in trades.columns:
+        raise MakerFillAssumedError(
+            "estas filas no traen procedencia de fill (%s/%s): sin saber cómo se "
+            "decidió el fill, un E[R] maker no describe nada ejecutable"
+            % (model_col, p_col))
+    modelos = set(str(x) for x in trades[model_col].dropna().unique())
+    if FILL_ASSUMED in modelos:
+        raise MakerFillAssumedError(
+            "hay filas con fill %r: el techo maker de E8 (+0.060R) era esto "
+            "mismo y el fill real lo dejó en −0.0350R. Modela el fill "
+            "(`maker_fill_probability`) o publícalo llamándolo TECHO."
+            % FILL_ASSUMED)
+
+    r = trades[col].to_numpy(float)
+    p = np.clip(trades[p_col].to_numpy(float), 0.0, 1.0)
+    ok = ~(np.isnan(r) | np.isnan(p))
+    r, p = r[ok], p[ok]
+    peso = p.sum()
+    res = {"n": int(len(r)), "fill_rate": float(p.mean()) if len(p) else float("nan"),
+           "n_esperada": float(peso), "fill_model": sorted(modelos),
+           "expectancy": float(np.dot(p, r) / peso) if peso > 0 else float("nan")}
+    if len(r) < 2 or peso <= 0:
+        res.update(lo=float("nan"), hi=float("nan"), p_pos=float("nan"))
+        return res
+    rng = np.random.default_rng(seed)
+    medias = np.empty(reps)
+    for k in range(reps):
+        idx = rng.integers(0, len(r), len(r))
+        llena = rng.random(len(r)) < p[idx]
+        medias[k] = r[idx][llena].mean() if llena.any() else np.nan
+    medias = medias[~np.isnan(medias)]
+    res.update(lo=float(np.percentile(medias, 2.5)),
+               hi=float(np.percentile(medias, 97.5)),
+               p_pos=float((medias > 0).mean()))
+    return res
+
+
+def require_fill_modeled(res):
+    """Guardia de publicación: ninguna cifra maker sale con el fill asumido.
+
+    Espejo de `vip_report.require_screened` (una celda no se nombra candidata
+    sin cartera) y de `format_expectancy` (un E[R] no sale sin su desglose).
+    Aquí lo que no puede faltar es CÓMO se llenó la orden.
+    """
+    if not isinstance(res, dict) or "fill_model" not in res:
+        raise MakerFillAssumedError(
+            "esto no pasó por maker_expectancy(): una cifra maker sin modelo de "
+            "fill asume el 100% sin decirlo")
+    if FILL_ASSUMED in set(res["fill_model"]):
+        raise MakerFillAssumedError(
+            "cifra maker con fill %r: no es publicable como resultado" % FILL_ASSUMED)
+    return res
+
+
 def simulate(
     trades,
     equity0=10_000.0,
@@ -161,6 +344,18 @@ def simulate(
         entry_maker = bool(cost.maker_entry)
         exit_maker = bool(cost.maker_tp_exit) and str(t.get("outcome", "")) == "win"
 
+        # PROCEDENCIA DEL FILL (invariante V2). La fila sale marcada con cómo se
+        # decidió que la limite se llenaba. Sin pierna maker no aplica; con
+        # pierna maker y sin `fill_p`, esto es el TECHO — se ejecuta igual (el
+        # techo es una medición legítima), pero queda marcado `asumido_100` y
+        # `maker_expectancy` se niega a publicarlo como resultado.
+        if not entry_maker:
+            fill_model, fill_p = FILL_TAKER, 1.0
+        elif "fill_p" in trades.columns and not pd.isna(t.get("fill_p")):
+            fill_model, fill_p = FILL_MODELED, float(t["fill_p"])
+        else:
+            fill_model, fill_p = FILL_ASSUMED, 1.0
+
         # Slippage adverso: compras mas caro / vendes mas barato segun lado.
         eff_entry = entry if entry_maker else entry * (1 + d * cost.slippage_frac)
         eff_exit = exit_px if exit_maker else exit_px * (1 - d * cost.slippage_frac)
@@ -204,6 +399,8 @@ def simulate(
             "slippage_cost": slip_cost,
             "net_pnl": net_pnl,
             "net_pnl_r": net_pnl / risk_amount if risk_amount > 0 else 0.0,
+            "fill_model": fill_model,
+            "fill_p": fill_p,
             "return": ret,
             "equity_before": equity_before,
             "equity_after": equity,

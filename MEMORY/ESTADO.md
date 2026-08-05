@@ -2,7 +2,7 @@
 
 > La página que más caduca. Qué está vivo, qué duerme, qué mide, qué espera veredicto, qué
 > es plan en papel. Si la fecha de abajo es vieja, confírmala contra `git log` y `research/*.md`
-> antes de confiar. Fecha de corte: **2026-08-05**, rama `claude/claude-brief-vip-v1-kqa7w0`.
+> antes de confiar. Fecha de corte: **2026-08-05**, rama `claude/claude-brief-vip-v2-q1obx4`.
 >
 > **Las secciones "Por símbolo" y "Las 3 capas" de abajo son de junio y en BRUTO.** El
 > bloque de agosto que sigue les pasa por encima: léelo primero, o vas a citar números
@@ -73,6 +73,35 @@ mismas 13.429 señales y el resultado cambia la lectura de todo lo que sigue:
     (capear hace pasar cualquier cosa tirando señales), y el universo medido es el que
     el bot difunde (`FQ_VIP_PAIRS`).
 
+- **V2 ENTREGADO (2026-08-05) — la cola medida, y el maker cerrado por ejecución.**
+  El fill deja de ser binario: `bt_engine.maker_fill_probability` devuelve
+  **P(fill) condicionada al flujo FIRMADO** que imprimió en el nivel (a una BID la
+  consume el taker SELL, no el volumen total), con la cola declarada en `queue_frac` =
+  múltiplos del volumen mediano de barra del símbolo.
+  - **`queue_frac = 0` ES `maker_entry_fill_mask`**: la regla que el repo usó hasta hoy
+    es la **esquina más optimista** del modelo nuevo — la de estar siempre el primero de
+    la cola. Un test lo comprueba en cada corrida; el informe la imprime como primera fila.
+  - **Pool completo, n=12.941, tp4/h288, neto maker:** cola 0.00 **−0.0350**
+    [−0.076, **+0.004**] · **0.05 −0.0635 [−0.104, −0.025]** · 0.25 −0.1549 · 1.00 −0.3294
+    · 2.00 −0.4453. **Con 0.05 barras de cola el IC ya está entero bajo cero**: el último
+    número maker que rozaba el cero por arriba deja de rozarlo. No hacía falta
+    microestructura fina — bastaba con no ser el primero.
+  - **El mecanismo está medido, no argumentado:** **corr(P(fill), R neto) = −0.2267**,
+    monótona en cinco tramos (p<0.25 → **+0.8548R** n=1.468; **p=1 → −0.3784R** n=7.757).
+    Es la selección adversa de agosto (−1.039R) explicada: la cola **no filtra al azar**,
+    te deja justo las señales en las que el precio te atravesó.
+  - **VIP (BTC/ETH/SOL), n=3.565:** cola 0.00 +0.0282 [−0.047, +0.106] → 0.25 **−0.0845**
+    [−0.161, −0.007] → 2.00 −0.3884. Ni la esquina optimista clarea cero.
+  - **Qué muere:** arreglar el maker **por ejecución**. No hay dónde ponerse en la cola.
+  - **Invariante nueva:** cada fila de `simulate` sale marcada `taker`/`modelado`/
+    `asumido_100` y `maker_expectancy` levanta `MakerFillAssumedError` ante el último.
+    El techo se imprime **solo** por la puerta que lo etiqueta TECHO.
+  - **Honestidad del alcance:** `queue_frac` es un supuesto declarado, no una medición
+    (no hay libro L2 aquí). Por eso se publica la **curva** y el resultado que se cita es
+    el **umbral** (0.05), no un punto.
+  - Reproducir: `python tools/fill_quality.py --klines data/binance` (las velas se bajan
+    con `tools/fetch_binance_vision_klines.py`; `data/` está en `.gitignore`).
+
 - **CONTEXTO DE NEGOCIO (2026-08-05) — presión de inversor, y por qué NO se pivota.**
   Un inversor del proyecto lleva meses viendo gasto sin producto rentable y mandó un vídeo
   de TikTok proponiendo copy-trading de Trump/políticos (Autopilot + Hyperliquid) con
@@ -91,11 +120,10 @@ mismas 13.429 señales y el resultado cambia la lectura de todo lo que sigue:
 
 Detalle: `internal/DIAGNOSTICO_E7_E8_2026-08.md` · `MEMORY/CEMENTERIO.md` ·
 `internal/EXPERIMENT_COPYTRADE_ONCHAIN.md` (el espejo sin capital, si alguna vez se retoma).
-**Encargo: `internal/BRIEF_VIP_2026-08.md` — V1 ENTREGADO; quedan V2 y V3.**
-- **V2 · posición en cola** (la brecha técnica). Que `maker_entry_fill_mask` deje de ser
-  binario y devuelva probabilidad de fill condicionada al flujo que pasó por el nivel.
-  Invariante que tiene que salir: **ninguna cifra maker publicable con fill al 100%** —
-  ese supuesto ya volteó un signo en agosto (+0.060R → −0.0350R con el fill real).
+**Encargo: `internal/BRIEF_VIP_2026-08.md` — V1 y V2 ENTREGADOS; queda V3.**
+- ~~**V2 · posición en cola**~~ **ENTREGADO** (ver bloque arriba): P(fill) por flujo
+  firmado, la binaria como esquina `queue_frac=0`, y `MakerFillAssumedError` impidiendo
+  que una cifra maker salga con fill al 100%.
 - **V3 · capacidad** (la brecha de negocio, y la respuesta a la ansiedad del inversor).
   `tools/capacity_analysis.py` **ya existe — úsalo, no lo reescribas.** Reporta la curva,
   no un número suelto: \$5k y esto es un servicio de señales; \$500k y hay otra conversación.

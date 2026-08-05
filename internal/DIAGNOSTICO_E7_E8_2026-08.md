@@ -248,6 +248,98 @@ llena precisamente cuando el precio se va a tu favor, que es cuando la querías.
 teórico → **−0.0350R** medido. Y sigue siendo cota superior: el fill se juzga con
 la vela, y dentro de la vela no se conoce la cola de la orden.
 
+### V2 (2026-08-05) — POSICIÓN EN COLA: la frase de arriba, medida
+
+La sección anterior se cierra diciendo *"sigue siendo cota superior: el fill se
+juzga con la vela, y dentro de la vela no se conoce la cola de la orden"*. Eso
+era la última cota abierta y ahora tiene número.
+
+**Qué cambia en el modelo.** `maker_entry_fill_mask` contesta *"¿el precio
+llegó?"*. Una límite no se llena porque el precio la toque: se llena cuando el
+volumen operado en su nivel **consume la cola que tenía por delante**.
+`bt_engine.maker_fill_probability` sustituye el booleano por
+
+    p = clip(flujo_consumido / cola_por_delante, 0, 1)
+
+donde el flujo es el **firmado** — a una BID la consume el taker SELL que imprime
+en su nivel o por debajo, no el volumen total, del que la mitad son compras que
+se cruzan contra el ask (`taker_buy_base` de Binance Vision lo da por barra). La
+cola se declara en `queue_frac` = múltiplos del volumen **mediano** de barra del
+propio símbolo, que es lo que hace comparables BTC y SOL.
+
+**`queue_frac = 0` ES la binaria de siempre.** Con cola cero cualquier
+penetración llena con p=1. O sea que la regla que este repo usó hasta hoy no es
+otro modelo: es **la esquina más optimista de éste** — la de estar siempre el
+primero de la cola. El test `test_la_cola_cero_reproduce_la_binaria` lo comprueba
+en cada corrida, y el informe lo imprime como primera fila para que la tabla se
+lea desde ahí.
+
+**La curva — pool completo, n=12.941, celda tp4/h288, neto maker:**
+
+| queue_frac | fill | n esperada | **E[R] neto** | IC95% |
+|---|---|---|---|---|
+| **0.00** (= la binaria) | 88.4% | 11.438 | **−0.0350** | [−0.076, **+0.004**] |
+| 0.05 | 85.5% | 11.071 | **−0.0635** | [−0.104, −0.025] |
+| 0.10 | 83.2% | 10.764 | **−0.0908** | [−0.131, −0.053] |
+| 0.25 | 77.7% | 10.055 | **−0.1549** | [−0.195, −0.116] |
+| 0.50 | 71.1% | 9.206 | **−0.2311** | [−0.271, −0.193] |
+| 1.00 | 61.9% | 8.006 | **−0.3294** | [−0.370, −0.290] |
+| 2.00 | 49.5% | 6.403 | **−0.4453** | [−0.491, −0.403] |
+
+La fila 0.00 reproduce al cuarto decimal la medición del 2026-08-04 (−0.0350R,
+IC [−0.074, +0.004]): la misma medición, ahora como caso límite de un modelo.
+
+**Lo que la tabla dice, y es lo más caro de la sección:** el −0.0350R de agosto
+era el único número maker cuyo IC95% aún **rozaba** el cero por arriba (+0.004).
+**Con una cola de 0.05 barras medianas por delante — la suposición más pequeña
+que se puede hacer que no sea "soy el primero" — el IC ya está entero por debajo
+de cero.** No hace falta un modelo de microestructura fino para matar la vía
+maker: basta con no ser el primero de la cola.
+
+**El mecanismo, que es mejor evidencia que la curva.** Una curva que baja al
+meter cola podría ser puro encogimiento de muestra. Esto no lo es, y se ve
+ordenando las señales por su propia probabilidad de llenarse (queue_frac 0.50,
+sobre las 11.438 que la binaria da por llenas):
+
+| P(fill) | n | **NETO** |
+|---|---|---|
+| 0.00–0.25 | 1.468 | **+0.8548** |
+| 0.25–0.50 | 925 | +0.7976 |
+| 0.50–0.75 | 701 | +0.4710 |
+| 0.75–1.00 | 587 | +0.3613 |
+| **= 1.00** | **7.757** | **−0.3784** |
+
+**corr(P(fill), R neto) = −0.2267.** La orden que más seguro se llena es la que
+peor sale, y el gradiente es monótono en los cinco tramos. Esto es la selección
+adversa de agosto (−1.039R) **explicada por su mecanismo**: la cola no te quita
+señales al azar, te deja exactamente aquellas en las que el precio te atravesó.
+Estar atrás en la cola es un filtro, y filtra al revés.
+
+**El universo VIP (BTC/ETH/SOL), n=3.565 alineadas**, cuenta lo mismo un peldaño
+más arriba: cola 0.00 **+0.0282** [−0.047, +0.106] → cola 0.25 **−0.0845**
+[−0.161, −0.007] → cola 2.00 **−0.3884**. Ni siquiera la esquina optimista tiene
+el IC entero sobre cero.
+
+**Lo que NO dice.** `queue_frac` es un supuesto declarado, no una medición: este
+repo no tiene libro L2 y no sabe cuánta cola había de verdad. Por eso el informe
+imprime la **curva** y no un punto, y el resultado que se cita es el **umbral**:
+*a partir de 0.05 barras de cola, el signo está determinado*. Sigue habiendo una
+cota por arriba — dentro de la vela no se conoce el orden de los ticks — pero
+ahora la cota está por debajo de cero en todo el rango razonable.
+
+**La invariante que sale de aquí** (`bt_engine`): toda fila que sale de
+`simulate` lleva pegada la procedencia de su fill (`taker` / `modelado` /
+`asumido_100`), y `maker_expectancy` **levanta `MakerFillAssumedError`** ante
+`asumido_100`. El +0.060R de E8 no puede volver a publicarse como resultado: se
+puede imprimir, pero solo por la puerta que lo etiqueta TECHO. Es la misma
+enfermedad del fantasma de julio — un supuesto viajando sin etiqueta — y esta vez
+el cableado la para.
+
+> Reproducir: `python tools/fill_quality.py --klines data/binance`
+> (universo VIP: `--symbols SOL_USDT,BTC_USDT,ETH_USDT`; `--queue-grid` cambia la
+> rejilla). Las velas se bajan con el bucle de arriba: `data/` está en
+> `.gitignore`, así que un clon nuevo no las trae.
+
 ### Hallazgo colateral: el gate de producción está al revés en esta muestra
 
 `FQ_MOTOR_MIN_FILL_BARS=2` está **ON por defecto** y descarta los fills de 1

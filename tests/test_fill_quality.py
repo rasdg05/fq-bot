@@ -270,3 +270,91 @@ def test_el_informe_no_avisa_si_el_gate_ayuda():
     with contextlib.redirect_stdout(buf):
         fq.report(ev, np.ones(n, bool), espera, eps=1e-4, ttl_bars=6)
     assert "El gate EMPEORA el neto" not in buf.getvalue()
+
+
+# --- 6. la cola (V2) --------------------------------------------------------
+
+def _con_procedencia(ev, p):
+    """Filas como salen de `simulate` con la pierna maker MODELADA."""
+    import bt_engine as eng
+    return ev.assign(fill_p=p, fill_model=eng.FILL_MODELED)
+
+
+def test_la_rejilla_de_cola_empieza_en_la_binaria():
+    """queue_frac=0 no es un caso raro: es `maker_entry_fill_mask` exacta. Si
+    dejara de serlo, la tabla del informe compararía dos modelos distintos en
+    la misma columna sin avisar."""
+    kl = _klines()
+    kl["volume"] = 1_000.0
+    kl["taker_buy_base"] = 500.0
+    kl.loc[7, "low"] = 99.0
+    ev = _events([int(kl["ts"].iloc[5])])
+    pos = fq.align(ev, kl)
+    probs = fq.queue_probabilities(ev, kl, pos, eps=1e-4, ttl_bars=6,
+                                   grid=(0.0, 1.0))
+    lleno, _ = fq.measure_fills(ev, kl, pos, eps=1e-4, ttl_bars=6)
+    assert probs[0.0].tolist() == lleno.astype(float).tolist()
+    assert 0.0 <= probs[1.0][0] <= probs[0.0][0]
+
+
+def test_una_senal_sin_velas_no_tiene_probabilidad():
+    """pos < 0 (no alineada) -> p=0, no un número inventado."""
+    kl = _klines()
+    kl["volume"] = 1_000.0
+    ev = _events([1])                      # timestamp fuera de las velas
+    pos = fq.align(ev, kl)
+    probs = fq.queue_probabilities(ev, kl, pos, eps=1e-4, ttl_bars=6, grid=(1.0,))
+    assert probs[1.0].tolist() == [0.0]
+
+
+def test_el_informe_de_cola_dice_cuando_la_cola_cobra(capsys):
+    """El mecanismo, no solo el número: al retrasar la orden te quedas con las
+    señales en las que el precio te ATRAVESÓ, que son las peores. El informe
+    tiene que nombrarlo."""
+    n = 400
+    ev = _events([1_600_000_000_000] * n)
+    ev = ev.assign(net_pnl_r=np.r_[np.full(n // 2, 0.5), np.full(n // 2, -0.5)])
+    ev = _con_procedencia(ev, 1.0)
+    # las perdedoras llenan siempre; las ganadoras, casi nunca -> más cola, peor
+    probs = {0.0: np.r_[np.ones(n // 2), np.ones(n // 2)],
+             1.0: np.r_[np.full(n // 2, 0.05), np.ones(n // 2)]}
+    filas = fq.report_cola(ev, probs)
+    out = capsys.readouterr().out
+    assert "LA COLA COBRA" in out
+    assert filas[0]["expectancy"] > filas[-1]["expectancy"]
+
+
+def test_el_informe_de_cola_no_publica_un_fill_asumido():
+    """LA invariante de V2 en el sitio donde se publica: si las filas vienen del
+    techo (fill 100% asumido), la tabla no se imprime — levanta."""
+    import bt_engine as eng
+    n = 60
+    ev = _events([1_600_000_000_000] * n).assign(
+        net_pnl_r=0.1, fill_p=1.0, fill_model=eng.FILL_ASSUMED)
+    with pytest.raises(eng.MakerFillAssumedError):
+        fq.report_cola(ev, {0.0: np.ones(n)})
+
+
+def test_el_techo_sale_etiquetado_como_techo(capsys):
+    """El techo se puede imprimir — es una cota legítima — pero nunca sin decir
+    que lo es. La cifra de agosto viajó sin etiqueta y volteó un signo."""
+    n = 60
+    ev = _events([1_600_000_000_000] * n).assign(net_pnl_r=0.1)
+    fq.techo_asumido(ev)
+    out = capsys.readouterr().out
+    assert "TECHO" in out and "NO publicable" in out
+
+
+def test_el_informe_prueba_el_mecanismo_no_solo_el_numero(capsys):
+    """Una curva que baja podría ser encogimiento de muestra. Lo que la hace un
+    mecanismo es que la P(fill) PREDIGA el resultado — y el informe lo mide."""
+    n = 400
+    ev = _events([1_600_000_000_000] * n)
+    ev = ev.assign(net_pnl_r=np.r_[np.full(n // 2, 0.5), np.full(n // 2, -0.5)])
+    ev = _con_procedencia(ev, 1.0)
+    probs = {0.0: np.ones(n),
+             1.0: np.r_[np.full(n // 2, 0.10), np.full(n // 2, 0.95)]}
+    corr = fq._gradiente_de_fill(ev, probs)
+    out = capsys.readouterr().out
+    assert corr < -0.05
+    assert "PEOR sale" in out

@@ -13,16 +13,17 @@ con suscriptores de pago. SOL (pilar), BTC, ETH. Cada push a `main` redeploya.
 ## ⚠️ LA RAMA (léelo antes que nada)
 
 **`main` está en JUNIO. La rama viva es
-`claude/claude-brief-vip-v1-kqa7w0`.** Si arrancas en `main` vas a leer un estado
+`claude/claude-brief-vip-v2-q1obx4`.** Si arrancas en `main` vas a leer un estado
 caducado y volver a concluir cosas ya medidas. Empieza siempre con:
 
 ```
-git fetch origin claude/claude-brief-vip-v1-kqa7w0 && git checkout claude/claude-brief-vip-v1-kqa7w0
+git fetch origin claude/claude-brief-vip-v2-q1obx4 && git checkout claude/claude-brief-vip-v2-q1obx4
 ```
 
-Contiene `claude/instrumento-2026-08-of95si` entero (E1–E9) **más V1**. Esa rama
-ya no se toca: es historia, no punto de partida. Si abres una sesión nueva,
-apunta a la de arriba y no fusiones nada — está por delante, no en paralelo.
+Contiene `claude/instrumento-2026-08-of95si` entero (E1–E9), **V1 y V2**. Las
+ramas anteriores (`...-v1-kqa7w0`, `instrumento-...`) ya no se tocan: son
+historia, no punto de partida. Si abres una sesión nueva, apunta a la de arriba
+y no fusiones nada — está por delante, no en paralelo.
 
 Nada se mergea a `main` sin decírselo a RasDG: despliega a producción con
 suscriptores de pago.
@@ -63,6 +64,7 @@ vuelva — si la respuesta es "acordarse", no está cerrado.
 | Sin relojes de pared | `tests/test_no_wallclock.py` | Que el replay herede la hora del click |
 | Cartera antes que candidata | `vip_report.screen_cell` + `require_screened` | Publicar como hallazgo una celda con buen R por trade que arruina la cuenta |
 | Universo medido = publicado | `vip_report.vip_universe` vs `fq_bot_v3_2.VIP_PAIRS` | Medir un producto distinto del que se difunde, con los dos números correctos |
+| Fill maker con procedencia | `bt_engine.maker_expectancy` + `require_fill_modeled` | Publicar una cifra maker con fill 100% asumido (el supuesto que volteó +0.060R → −0.0350R) |
 
 ## Números vigentes (agosto 2026) — no inventes otros
 
@@ -97,6 +99,20 @@ vuelva — si la respuesta es "acordarse", no está cerrado.
   no hay `data/binance` en el repo**), no extrapolar. Y alejar el objetivo alarga
   la vida del trade, o sea que devuelve el problema de concurrencia ya cementado.
 
+- **V2 — la cola, medida (n=12.941 del pool; la vía maker cerrada por ejecución)**:
+  el fill deja de ser binario. `maker_fill_probability` da **P(fill) según el flujo
+  FIRMADO** que imprimió en el nivel, con la cola en `queue_frac` (múltiplos del volumen
+  mediano de barra). **`queue_frac=0` ES la binaria de siempre** — o sea que la regla
+  vieja era la esquina de *estar siempre el primero*. Neto maker por cola: **0.00
+  −0.0350 [−0.076, +0.004] · 0.05 −0.0635 [−0.104, −0.025] · 0.25 −0.1549 · 1.00
+  −0.3294**. **Con 0.05 barras de cola el IC ya está entero bajo cero**: el último número
+  maker que rozaba el cero deja de rozarlo. Mecanismo medido, no argumentado:
+  **corr(P(fill), R) = −0.2267** (p<0.25 → +0.8548R; **p=1 → −0.3784R**, n=7.757) — la
+  cola te deja justo las señales en las que el precio te atravesó. VIP (n=3.565): 0.00
+  +0.0282 → 0.25 **−0.0845** [−0.161, −0.007]. `queue_frac` es **supuesto declarado**, no
+  medición (aquí no hay L2): por eso se publica la curva y se cita el **umbral**.
+  Reproducir: `python tools/fill_quality.py --klines data/binance`.
+
 > Ninguna configuración medida tiene el IC95% de la expectancy por encima de cero.
 > No hay edge demostrado. Decirlo no es pesimismo: es el estado del arte del repo.
 >
@@ -106,11 +122,16 @@ vuelva — si la respuesta es "acordarse", no está cerrado.
 ## Contexto vivo que no es código (ago-2026)
 
 - **Encargo en curso**: `internal/BRIEF_VIP_2026-08.md`. **V1 ENTREGADO**
-  (`tools/vip_report.py` + `tests/test_vip_report.py`, commit `bf5690a`).
-  **Pendientes: V2** (posición en cola / selección adversa — la brecha técnica) y
-  **V3** (capacidad — la brecha de negocio, y la respuesta al inversor).
+  (`tools/vip_report.py` + `tests/test_vip_report.py`, commit `bf5690a`) y **V2
+  ENTREGADO** (`bt_engine.maker_fill_probability` / `maker_expectancy` +
+  `tools/fill_quality.py`, sección 6). **Pendiente: V3** (capacidad — la brecha de
+  negocio, y la respuesta al inversor).
   **Es local y gratis**: el cube ya está en `cosecha_cubes/`, cero runners de CI.
   V3 usa `tools/capacity_analysis.py`, que **ya existe** — no lo reescribas.
+  **Ojo con las velas**: `data/` está en `.gitignore`, así que V2 no se re-corre en un
+  clon nuevo hasta bajar los klines
+  (`tools/fetch_binance_vision_klines.py <SYM> --out-dir data/binance`, ~10 min los 13
+  símbolos, gratis, sin API key).
 - **Presión de inversor**: un inversor del proyecto lleva meses viendo gasto sin
   producto rentable. Propuso pivotar a copy-trading (Trump/políticos, Autopilot +
   Hyperliquid). **Se midió antes de construir: 1 candidata de 100** → muerto en

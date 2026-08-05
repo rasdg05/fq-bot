@@ -262,6 +262,37 @@ Medido contra velas reales (`tools/fill_quality.py`, 12.941 señales, 13 símbol
 esperanza de que el problema fuera solo la pierna taker. Sigue siendo cota superior — el
 fill se juzga con la vela y la cola de la orden no se conoce.
 
+**AMPLIACIÓN V2 (2026-08-05) — la cola, medida: se cierra también el "roza el cero".**
+Aquel −0.0350R tenía el IC95% [−0.074, **+0.004**]: el último número maker que aún tocaba
+el cero por arriba. `bt_engine.maker_fill_probability` mete la cola en la ecuación
+(p = flujo firmado que imprimió en el nivel / cola por delante, con `queue_frac` en
+múltiplos del volumen mediano de barra del símbolo). Sobre las mismas n=12.941:
+
+| cola por delante | fill | **neto maker** | IC95% |
+|---|---|---|---|
+| **0.00 = la binaria de siempre** | 88.4% | −0.0350 | [−0.076, **+0.004**] |
+| **0.05** | 85.5% | **−0.0635** | **[−0.104, −0.025]** |
+| 0.25 | 77.7% | −0.1549 | [−0.195, −0.116] |
+| 1.00 | 61.9% | −0.3294 | [−0.370, −0.290] |
+
+**Con 0.05 barras medianas de cola por delante — la suposición más pequeña que no sea
+"soy el primero de la cola" — el IC95% ya está entero bajo cero.** Y el mecanismo está
+medido, no argumentado: **corr(P(fill), R neto) = −0.2267**, monótona en cinco tramos
+(p<0.25 → +0.8548R con n=1.468; p=1 → **−0.3784R** con n=7.757). La cola no te quita
+señales al azar: te deja las que el precio atravesó.
+
+**Qué muere además:** la esperanza de arreglar el maker **por ejecución** — ponerse mejor
+en la cola, afinar el eps, esperar más. No hay dónde ponerse: la esquina de estar SIEMPRE
+el primero ya no clarea cero, y todo lo demás está peor. En el universo VIP (n=3.565) pasa
+lo mismo un peldaño arriba (cola 0.00 +0.0282 [−0.047, +0.106] → cola 0.25 −0.0845
+[−0.161, −0.007]).
+
+**Invariante que lo hace cumplir:** cada fila de `bt_engine.simulate` sale marcada
+`taker`/`modelado`/`asumido_100`, y `maker_expectancy` levanta `MakerFillAssumedError`
+ante `asumido_100`. El techo se puede imprimir; no se puede publicar sin la etiqueta.
+Tests: `tests/test_bt_maker_fill.py`, `tests/test_fill_quality.py`.
+Reproducir: `python tools/fill_quality.py --klines data/binance`.
+
 **Qué NO muere:** la entrada (E7: asimetría +1.011R, IC95% por encima de cero, ambos lados,
 ocho años). La señal ve algo. Lo que no hay es forma conocida de cobrarlo por encima del peaje.
 

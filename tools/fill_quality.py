@@ -65,11 +65,27 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(_HERE))
 sys.path.insert(0, _HERE)
 
-from bt_engine import CostModel, maker_entry_fill_mask, simulate   # noqa: E402
+from bt_engine import (CostModel, MakerFillAssumedError,       # noqa: E402
+                       maker_entry_fill_mask, maker_expectancy,
+                       maker_fill_probability, require_fill_modeled, simulate)
 from cube_report import cell_events, load_pool                     # noqa: E402
 
 BAR_MS = 300_000          # 5m
 MIN_N = 30
+
+# La rejilla de cola (V2). `queue_frac` = cuánta cola tiene por delante la orden,
+# medida en múltiplos del volumen MEDIANO de barra del propio símbolo.
+#
+# El 0.0 no es relleno: es la binaria. Con cola cero, cualquier flujo más allá de
+# eps llena con p=1 y el modelo COLAPSA exactamente en `maker_entry_fill_mask`.
+# O sea que la regla que este repo usó hasta hoy es la ESQUINA MÁS OPTIMISTA de
+# esta curva — la de estar siempre el primero de la cola. Verlo en la misma tabla
+# es medio hallazgo.
+QUEUE_GRID = (0.0, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0)
+# El punto que se cita cuando hay que citar uno. No sale de una medición de libro
+# (este repo no tiene L2): sale de elegir el centro de la rejilla y decirlo. Por
+# eso el informe imprime la CURVA entera y el veredicto se lee de la curva.
+DEFAULT_QUEUE_FRAC = 0.25
 
 # Acuerdo mínimo entre venues para que la medición sea legible. La correlación
 # de la excursión es el juez: si Binance y OKX contaran historias distintas
@@ -80,12 +96,22 @@ VENUE_MAX_MED_ABS_DIFF_R = 0.25    # en R, mediana de |ΔMFE| y |ΔMAE|
 
 
 def load_klines(klines_dir, symbol):
-    """Velas 5m de un símbolo del cube ('SOL_USDT' -> kl_hist_SOLUSDT.parquet)."""
+    """Velas 5m de un símbolo del cube ('SOL_USDT' -> kl_hist_SOLUSDT.parquet).
+
+    `volume` y `taker_buy_base` son OPCIONALES en disco y obligatorios para el
+    modelo de cola: sin ellos no hay flujo que medir y la P(fill) cae al modo
+    profundidad. Se piden aparte para que un parquet viejo (solo OHLC) siga
+    sirviendo para la binaria en vez de romper el informe entero.
+    """
     sym = symbol.replace("_", "")
     path = os.path.join(klines_dir, "kl_hist_%s.parquet" % sym)
     if not os.path.exists(path):
         return None
-    df = pd.read_parquet(path, columns=["ts", "high", "low", "close"])
+    cols = ["ts", "high", "low", "close"]
+    try:
+        df = pd.read_parquet(path, columns=cols + ["volume", "taker_buy_base"])
+    except Exception:
+        df = pd.read_parquet(path, columns=cols)
     return df.drop_duplicates("ts").sort_values("ts").reset_index(drop=True)
 
 
@@ -201,6 +227,36 @@ def measure_fills(events, kl, pos, *, eps, ttl_bars):
     return lleno, espera
 
 
+def queue_probabilities(events, kl, pos, *, eps, ttl_bars, grid=QUEUE_GRID):
+    """P(fill) por señal para cada cola de la rejilla. dict {queue_frac: ndarray}.
+
+    El elemento `0.0` se calcula con `maker_entry_fill_mask`, no con el modelo:
+    con cola cero el modelo colapsa en la binaria por construcción, y hacerlo
+    con la función de verdad convierte esa afirmación en algo que el informe
+    COMPRUEBA cada vez que corre, en vez de algo que dice el docstring.
+    """
+    ev = events.copy()
+    ev["entry_index"] = pos
+    hi, lo = kl["high"].to_numpy(float), kl["low"].to_numpy(float)
+    vol = kl["volume"].to_numpy(float) if "volume" in kl.columns else None
+    tb = kl["taker_buy_base"].to_numpy(float) if "taker_buy_base" in kl.columns else None
+    out = {}
+    for q in grid:
+        if q <= 0:
+            out[q] = maker_entry_fill_mask(ev, hi, lo, eps=eps,
+                                           ttl_bars=ttl_bars).astype(float)
+        elif vol is None:
+            # Sin volumen no hay flujo: la cola se mide en bps de penetración
+            # acumulada. Peor modelo, y por eso el informe lo dice al imprimir.
+            out[q] = maker_fill_probability(ev, hi, lo, eps=eps, ttl_bars=ttl_bars,
+                                            queue_bps=q)
+        else:
+            out[q] = maker_fill_probability(ev, hi, lo, eps=eps, ttl_bars=ttl_bars,
+                                            queue_frac=q, volume=vol, taker_buy=tb)
+        out[q] = np.where(pos >= 0, out[q], 0.0)
+    return out
+
+
 def _agg(x):
     x = np.asarray(x, float)
     if not len(x):
@@ -218,7 +274,136 @@ def _boot(x, reps=2000, seed=7):
     return float(np.percentile(m, 2.5)), float(np.percentile(m, 97.5)), float((m > 0).mean())
 
 
-def report(ev, lleno, espera, *, eps, ttl_bars):
+def report_cola(ev, probs, *, col="net_pnl_r"):
+    """V2 — la curva de la cola: ¿cuánto del maker sobrevive a NO ser el primero?
+
+    La binaria contesta "¿el precio llegó?". Esta tabla contesta "¿y dónde estaba
+    mi orden cuando llegó?", que es la pregunta que separa un backtest de una
+    ejecución. Se lee de arriba abajo: la fila `0.00` es la regla que este repo
+    usó hasta hoy — la esquina de estar SIEMPRE el primero de la cola.
+
+    El mecanismo que hay que ver, y que la binaria no puede ver: una cola por
+    delante no filtra al azar. Filtra por PENETRACIÓN — te quedas con las señales
+    en las que el precio te atravesó del todo, que son justo las que la selección
+    adversa ya señaló como perdedoras (−1.039R medido en agosto). Más cola no es
+    "menos muestra": es muestra sesgada hacia lo peor.
+    """
+    if not probs:
+        return None
+    print("\n=== 6. POSICIÓN EN COLA (V2) — el fill deja de ser binario ===")
+    print("  queue_frac = cola por delante en múltiplos del volumen MEDIANO de")
+    print("  barra del símbolo, consumida por el flujo FIRMADO que imprimió en el")
+    print("  nivel o más allá (a una BID la consume el taker SELL, no el volumen")
+    print("  total). Reparto uniforme dentro de la vela: aproximación declarada.")
+    print("\n  %-10s %9s %9s %11s %22s %8s" % (
+        "queue_frac", "fill", "n_esperada", "E[R] neto", "IC95%", "P(>0)"))
+    filas = []
+    for q in sorted(probs):
+        res = maker_expectancy(ev.assign(fill_p=probs[q]), col=col)
+        require_fill_modeled(res)
+        res["queue_frac"] = q
+        filas.append(res)
+        flaco = "  <- n<%d" % MIN_N if res["n_esperada"] < MIN_N else ""
+        print("  %-10.2f %8.1f%% %10.0f %+11.4f  [%+8.4f,%+8.4f] %7.3f%s"
+              % (q, res["fill_rate"] * 100, res["n_esperada"], res["expectancy"],
+                 res["lo"], res["hi"], res["p_pos"], flaco))
+    print("  (la fila 0.00 ES `maker_entry_fill_mask`: cola cero = siempre el")
+    print("   primero. Todo lo de debajo es lo que cuesta no serlo.)")
+
+    utiles = [f for f in filas if f["n_esperada"] >= MIN_N]
+    if len(utiles) >= 2:
+        base, peor = utiles[0], utiles[-1]
+        delta = peor["expectancy"] - base["expectancy"]
+        print("\n  -- lo que cuesta la cola --")
+        print("  de queue_frac %.2f a %.2f: %+.4fR -> %+.4fR  (%+.4fR)"
+              % (base["queue_frac"], peor["queue_frac"], base["expectancy"],
+                 peor["expectancy"], delta))
+        if delta < -0.01:
+            print("  >> LA COLA COBRA. El E[R] baja al retrasar la orden: no es")
+            print("     ruido de muestra, es el mecanismo de la selección adversa")
+            print("     — cuanto más atrás estás, más te llenas SOLO cuando el")
+            print("     precio te atraviesa. El fill binario cobraba de más.")
+        elif delta > 0.01:
+            print("  >> LA COLA NO COBRA en esta muestra: retrasar la orden no")
+            print("     empeora el E[R]. Míralo dos veces antes de creerlo — es")
+            print("     lo contrario de lo que dice la selección adversa medida.")
+        else:
+            print("  >> NEUTRA: la cola no mueve el E[R] de forma legible.")
+
+    _gradiente_de_fill(ev, probs, col=col)
+
+    vivos = [f for f in utiles if f["lo"] > 0]
+    print("\n  -- veredicto --")
+    if vivos:
+        print("  Colas con el IC95%% ENTERO sobre cero: %s"
+              % ", ".join("%.2f" % f["queue_frac"] for f in vivos))
+        print("  Necesario, no suficiente: pásalo por el gate (DSR/CPCV/PBO).")
+    else:
+        print("  NINGUNA cola tiene el IC95% entero sobre cero — tampoco la 0.00,")
+        print("  que es el mejor caso imaginable. El maker no se salva por")
+        print("  ejecución: no hay dónde ponerse en la cola que lo arregle.")
+    return filas
+
+
+def _gradiente_de_fill(ev, probs, *, col="net_pnl_r", q=None):
+    """¿La P(fill) PREDICE el resultado? Es la prueba del mecanismo, no del número.
+
+    Una curva que baja al meter cola podría ser puro encogimiento de muestra. Lo
+    que la convierte en un mecanismo es esto: ordenar las señales por su
+    probabilidad de llenarse y ver el neto caer. Si las que se llenan seguro son
+    las peores, entonces "estar más atrás en la cola" no te quita señales al
+    azar — te deja EXACTAMENTE las que no querías.
+    """
+    if q is None:
+        candidatas = [k for k in probs if k > 0]
+        if not candidatas:
+            return None
+        q = sorted(candidatas)[len(candidatas) // 2]
+    p, r = np.asarray(probs[q], float), ev[col].to_numpy(float)
+    vivo = (np.asarray(probs[min(probs)], float) > 0) & ~np.isnan(r)
+    if vivo.sum() < MIN_N:
+        return None
+    p, r = p[vivo], r[vivo]
+    print("\n  -- el mecanismo: ¿la P(fill) predice el resultado? (queue_frac %.2f) --" % q)
+    print("     sobre las %d que la binaria da por llenas" % vivo.sum())
+    cortes = ((0.0, 0.25), (0.25, 0.50), (0.50, 0.75), (0.75, 1.0), (1.0, 1.01))
+    for lo_b, hi_b in cortes:
+        m = (p >= lo_b) & (p < hi_b)
+        if m.sum() < MIN_N:
+            print("     p %.2f-%.2f  n=%5d   <- n<%d" % (lo_b, min(hi_b, 1.0), m.sum(), MIN_N))
+            continue
+        print("     p %.2f-%.2f  n=%5d  NETO %+.4f" % (lo_b, min(hi_b, 1.0),
+                                                       m.sum(), r[m].mean()))
+    corr = float(np.corrcoef(p, r)[0, 1]) if np.std(p) > 1e-12 else float("nan")
+    print("     corr(P(fill), R neto) = %+.4f" % corr)
+    if corr < -0.05:
+        print("     >> La orden que MÁS seguro se llena es la que PEOR sale. La")
+        print("        cola no te quita señales al azar: te deja las que el")
+        print("        precio atravesó. Selección adversa, medida por el fill.")
+    return corr
+
+
+def techo_asumido(ev, *, col="net_pnl_r"):
+    """El número de E8 (+0.060R) reconstruido, y marcado como lo que es.
+
+    Se imprime a propósito, y a propósito NO pasa por `maker_expectancy`: esa
+    función levanta ante `asumido_100`. Aquí se calcula a mano y se etiqueta
+    TECHO para que quede al lado de la curva y se vea la distancia. Un techo
+    sirve de cota; lo que no puede es viajar sin la etiqueta.
+    """
+    x = ev[col].to_numpy(float)
+    x = x[~np.isnan(x)]
+    if len(x) < MIN_N:
+        return None
+    print("\n  -- el techo, etiquetado --")
+    print("  fill 100%% asumido: n=%d  E[R] %+.4f   <- TECHO, NO publicable como"
+          % (len(x), x.mean()))
+    print("     resultado (bt_engine.MakerFillAssumedError lo impide). Es la")
+    print("     cifra que en agosto dijo +0.060R y el fill real dejó en −0.0350R.")
+    return float(x.mean())
+
+
+def report(ev, lleno, espera, *, eps, ttl_bars, probs=None):
     r = ev["pnl_r"].to_numpy(float)
     neto = ev["net_pnl_r"].to_numpy(float) if "net_pnl_r" in ev.columns else None
     n = len(ev)
@@ -302,13 +487,24 @@ def report(ev, lleno, espera, *, eps, ttl_bars):
             else:
                 print("\n  >> NO SOBREVIVE. El IC95%% cruza cero: el margen teórico")
                 print("     de E8 se lo come el fill real.")
+
+    if neto is not None and probs:
+        report_cola(ev, probs)
+        techo_asumido(ev)
+
     print("\n  Cota superior aún: el fill se juzga con la vela, y dentro de la")
-    print("  vela no se conoce la cola de la orden. Lo realizable está por")
+    print("  vela no se conoce la cola de la orden%s. Lo realizable está por"
+          % (" al tick" if probs else ""))
     print("  debajo de esto, nunca por encima.")
 
 
+def _pcol(q):
+    return "_p_%.4f" % q
+
+
 def run(cube_dir, klines_dir, *, tp="tp4", horizon=288, eps_bps=1.0, ttl_bars=6,
-        cost=None, symbols=None):
+        cost=None, symbols=None, queue_grid=QUEUE_GRID,
+        queue_frac=DEFAULT_QUEUE_FRAC):
     cube = load_pool(cube_dir)
     ev_all = cell_events(cube, tp=tp, horizon=horizon)
     if symbols:
@@ -336,6 +532,12 @@ def run(cube_dir, klines_dir, *, tp="tp4", horizon=288, eps_bps=1.0, ttl_bars=6,
         ev, pos = ev[m].reset_index(drop=True), pos[m]
         lleno, espera = measure_fills(ev, kl, pos, eps=eps, ttl_bars=ttl_bars)
         ev = ev.assign(_lleno=lleno, _espera=espera)
+        # El modelo de cola se calibra POR SÍMBOLO (el volumen mediano de barra
+        # de BTC y el de SOL no son el mismo número ni de lejos); por eso la
+        # rejilla se evalúa aquí dentro y no sobre el concatenado.
+        pq = queue_probabilities(ev, kl, pos, eps=eps, ttl_bars=ttl_bars,
+                                 grid=queue_grid)
+        ev = ev.assign(**{_pcol(q): v for q, v in pq.items()})
         trozos.append(ev)
 
     if rechazados:
@@ -348,11 +550,19 @@ def run(cube_dir, klines_dir, *, tp="tp4", horizon=288, eps_bps=1.0, ttl_bars=6,
     ev = pd.concat(trozos, ignore_index=True)
     # Neto MAKER: entrada límite (sin slippage, fee maker) + TP maker.
     maker = cost or CostModel(maker_entry=True, maker_tp_exit=True)
-    ev = simulate(ev.assign(direction=ev.direction.astype(int)),
-                  equity0=1e9, risk_frac=1e-6, bar_minutes=5.0,
+    # `fill_p` viaja HASTA simulate a propósito: es lo que hace que las filas
+    # salgan marcadas `modelado` en vez de `asumido_100`. Sin esa columna, el
+    # mismo cálculo sale marcado como techo y `maker_expectancy` se niega a
+    # publicarlo — que es exactamente la invariante que V2 tenía que dejar.
+    ev = ev.assign(direction=ev.direction.astype(int))
+    if _pcol(queue_frac) in ev.columns:
+        ev = ev.assign(fill_p=ev[_pcol(queue_frac)])
+    ev = simulate(ev, equity0=1e9, risk_frac=1e-6, bar_minutes=5.0,
                   cost=maker, stop_on_ruin=False)["trades"]
+    probs = {q: ev[_pcol(q)].to_numpy(float) for q in queue_grid
+             if _pcol(q) in ev.columns}
     report(ev, ev["_lleno"].to_numpy(bool), ev["_espera"].to_numpy(int),
-           eps=eps, ttl_bars=ttl_bars)
+           eps=eps, ttl_bars=ttl_bars, probs=probs)
     return ev
 
 
@@ -365,11 +575,17 @@ def main(argv=None):
     ap.add_argument("--eps-bps", type=float, default=1.0)
     ap.add_argument("--ttl-bars", type=int, default=6)
     ap.add_argument("--symbols", default=None, help="coma-separados, p.ej. SOL_USDT,BTC_USDT")
+    ap.add_argument("--queue-frac", type=float, default=DEFAULT_QUEUE_FRAC,
+                    help="cola por delante (múltiplos del volumen mediano de barra)")
+    ap.add_argument("--queue-grid", default=",".join("%g" % q for q in QUEUE_GRID),
+                    help="rejilla de colas a barrer; 0 = la binaria de siempre")
     a = ap.parse_args(argv)
     syms = a.symbols.split(",") if a.symbols else None
+    grid = tuple(sorted(float(x) for x in a.queue_grid.split(",") if x.strip()))
     print("=== GATE DE VENUE (los cubos son de OKX; las velas, de Binance) ===")
     out = run(a.cube, a.klines, tp=a.tp, horizon=a.horizon, eps_bps=a.eps_bps,
-              ttl_bars=a.ttl_bars, symbols=syms)
+              ttl_bars=a.ttl_bars, symbols=syms, queue_grid=grid,
+              queue_frac=a.queue_frac)
     return 0 if out is not None else 1
 
 
