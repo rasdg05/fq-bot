@@ -71,7 +71,7 @@ Lo que **no** existe es la atribución. "El insider de Trump" es una address que
 alguien bautizó. Nadie ha probado quién la controla; el rastro público apunta al
 ex-CEO de BitForex Garrett Jin, que **niega** vínculo con la familia Trump y niega
 haber usado información privilegiada. Podemos seguir la address — no podemos
-decirle a un inversor de quién es. Ver §4, invariante I-2.
+decirle a un inversor de quién es. Ver §5, invariante I-2.
 
 ### A-bis. La wallet única no existe: la unidad real es el clúster
 
@@ -188,7 +188,71 @@ ha terminado y no hace falta discutir nada más.
 
 ---
 
-## 3. Fase 0 — el espejo (sin un centavo, ni propio ni ajeno)
+## 3. PRIMER RESULTADO MEDIDO (2026-08-05) — el embudo
+
+No hizo falta construir el colector. La pregunta *"¿queda alguien copiable en el
+top de un leaderboard?"* se responde con la API pública en diez minutos, y ese era
+el resultado barato que había que ir a buscar antes de escribir nada.
+
+**Método** (`tools/copytrade_screen.py`, tests en `tests/test_copytrade_screen.py`):
+
+- **Cohorte congelada ANTES de medir** (I-4): top 100 por PnL *allTime* de las
+  **41.276** cuentas del leaderboard de Hyperliquid, sellada
+  `2026-08-05T08:20:28Z`. Es deliberadamente la población que un ranking bruto
+  señala — o sea, a quién copiaría alguien que siga el vídeo.
+- **Ventana común y cerrada** de 30 días para todas. Dentro del experimento no se
+  ordena por resultado.
+- Tres filtros en orden de coste: ¿opera? → ¿es alcanzable? → ¿pasa I-7?
+
+**Embudo:**
+
+| Filtro | Cuentas | Qué queda |
+|---|---|---|
+| Cohorte (top 100 allTime) | 100 | — |
+| **Sin un solo fill en 30 días** | **59** | 41 |
+| **Inalcanzables** (≥20 fills/día) | **35** | 6 |
+| Sin PnL neto positivo en la ventana | 3 | 3 |
+| **Fallan I-7** (top trade >50% del PnL) | **1** | **2** |
+
+Y de esas 2 supervivientes, una ganó **$42 en 30 días** sobre 59 cierres: ruido, no
+señal. **Queda 1 de 100** (129 fills, 125 cierres, ~$63k netos, resto tras quitar
+su mejor trade: 81%).
+
+**La distribución de cadencia es el hallazgo grande.** Entre las 41 activas, la
+mediana es de **887 fills/día**, el p90 de **70.781** y el máximo de **212.245**.
+El 49% supera los 1.000 fills diarios. El top de un leaderboard de perp DEX no
+son traders direccionales: son **market makers**. No hay nada que copiar ahí —
+su PnL *es* el rebate de maker y el spread, y replicarlo con latencia y fees
+retail lo convierte en pérdida garantizada. Esto también explica por qué los
+rankings brutos "apuntan al trader equivocado": el PnL enorme viene con volumen
+enorme, y el volumen enorme es el negocio, no el edge.
+
+**Las 59 inactivas son la mejor evidencia indirecta de I-6.** Una cuenta en el top
+100 histórico que no hace un solo fill en un mes es compatible con dos cosas:
+murió, o **rotó a otra address**. Para el copiador da igual — la address que sigue
+no hace nada. Para el experimento no da igual: es el argumento más fuerte de que
+la unidad de seguimiento tiene que ser el clúster.
+
+**Lo que este resultado NO dice.** No dice que el copy-trading no tenga edge; esa
+pregunta sigue abierta y necesita el espejo de §4. Dice que **el método de
+selección del vídeo — mirar quién ha ganado más — apunta casi enteramente a cosas
+muertas, inalcanzables o de un solo trade.** Con un solo snapshot y n=100, eso es
+todo lo que se puede afirmar, y es suficiente para cambiar el orden de ataque.
+
+**Sesgos declarados, todos en la dirección optimista:**
+
+- El neto resta la fee del fill de cierre pero **no** la de apertura ni el
+  funding: el PnL real de las supervivientes es *peor* que el reportado.
+- El corte de copiabilidad en 20 fills/día es un **juicio, no una medición**. Con
+  un corte más laxo entran más candidatas, todas peores.
+- Las cuentas capadas en 2.000 fills reportan una **cota inferior** de su
+  cadencia: son aún más inalcanzables de lo que dice la tabla.
+- Un snapshot, una ventana, un venue. Repetirlo en otra ventana es barato y
+  debería hacerse antes de tratar el 1/100 como estable.
+
+---
+
+## 4. Fase 0 — el espejo (sin un centavo, ni propio ni ajeno)
 
 Un colector no-crítico que sigue wallets y simula la copia contra el `PaperBroker`
 que ya cobra fees y slippage. Cero capital, cero terceros, cero promesas.
@@ -222,7 +286,7 @@ concluye ni a favor ni en contra, y no se enseña a nadie.
 
 ---
 
-## 4. Invariantes a cablear ANTES de tocar capital
+## 5. Invariantes a cablear ANTES de tocar capital
 
 Un hallazgo sin invariante que lo haga cumplir es una nota, no un arreglo. Estas
 cinco son la condición de entrada, no el trabajo posterior.
@@ -247,7 +311,7 @@ experimento y ya descarta al candidato estrella antes de escribir el colector.
 
 ---
 
-## 5. El muro legal (y es un muro, no un trámite)
+## 6. El muro legal (y es un muro, no un trámite)
 
 Esto es lo que separa "un dashboard" de "un fondo", y no es opinable:
 
@@ -276,7 +340,7 @@ expectancy por encima de cero.
 
 ---
 
-## 6. Criterio de muerte
+## 7. Criterio de muerte
 
 El experimento se cierra y se escribe en `CEMENTERIO.md` si, con n≥30 réplicas
 cerradas y la lista de wallets congelada ex-ante, ocurre cualquiera de estas:
@@ -296,19 +360,24 @@ Se cierra igual, y antes, si el track record de una wallet vuelve a salir
 
 ---
 
-## 7. Orden de ataque
+## 8. Orden de ataque
 
 1. **Nada de esto va antes que E1-E9** de `BRIEF_INSTRUMENTO_2026-08.md`. El
    instrumento que mediría este experimento es el que aún se está cerrando; medir
    copy-trading con el instrumento roto reproduce el fantasma en un dominio nuevo.
-2. Congelar la lista de **clústeres** (no de addresses) **hoy**, sellada, aunque el
-   colector tarde semanas. Cada día sin congelarla es un día de contaminación por
-   selección. Aplicar I-7 en el momento de congelar: es una consulta al histórico
-   público, cuesta horas, y puede vaciar la lista entera — que sería un resultado
-   legítimo y barato.
-3. Colector `fetch_onchain_follow.py` + los dos campos de ledger + I-1/I-5.
-4. Correr el espejo hasta n≥30. No enseñar nada mientras tanto.
-5. Solo si pasa el gate: hablar con un abogado sobre la estructura **no-custodial**.
+2. ~~Congelar la cohorte y aplicar I-7~~ → **HECHO (§3).** Cohorte sellada
+   `2026-08-05T08:20:28Z`, embudo corrido: **1 candidata de 100**. Costó diez
+   minutos y vació la lista casi entera, que era el resultado barato que este
+   paso existía para producir.
+3. **Repetir el screen en otra ventana** antes de tratar el 1/100 como estable.
+   `tools/copytrade_screen.py --top 100 --days 30`. Barato; hazlo un par de veces
+   con semanas de separación. Si el superviviente cambia cada vez, la conclusión
+   ya no es "queda uno" sino "no queda ninguno de forma persistente", y el
+   experimento se cierra aquí sin escribir el colector.
+4. **Solo si sobrevive alguien de forma persistente**: colector
+   `fetch_onchain_follow.py` + los dos campos de ledger + I-1/I-5/I-6.
+5. Correr el espejo hasta n≥30. No enseñar nada mientras tanto.
+6. Solo si pasa el gate: hablar con un abogado sobre la estructura **no-custodial**.
 
 _Fuentes externas consultadas (ago-2026): docs de la Info API y WebSocket de
 Hyperliquid; cobertura de la STOCK Act y de la Stop Insider Trading Act aprobada

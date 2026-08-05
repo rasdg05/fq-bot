@@ -150,6 +150,14 @@ no operaciones. La métrica primaria NO es el PnL de la wallet sino el **desliza
 sobre `PaperBroker`, lista de wallets **congelada ex-ante**, 5 invariantes antes de tocar nada.
 La variante custodial con dinero de inversores es gestión de fondos (SEC/CFTC/CNMV según sede):
 no se construye sin abogado previo.
+**MEDIDO YA (2026-08-05, `tools/copytrade_screen.py`, 10 min y cero capital):** cohorte congelada
+del top 100 por PnL allTime de las 41.276 cuentas del leaderboard de Hyperliquid, ventana común de
+30d. Embudo: **59/100 sin un solo fill en 30 días**; de las 41 activas, **35 hacen ≥20 fills/día**
+(mediana 887/día, máx 212.245 — son **market makers**, no direccionales copiables); quedan 6, de
+las cuales 3 sin PnL positivo y 1 falla I-7 → **1 candidata de 100**. No prueba que el copy-trading
+no tenga edge; prueba que **seleccionar por leaderboard bruto apunta a muerto, inalcanzable o n=1**.
+Las 59 inactivas son además la mejor evidencia indirecta de I-6 (la entidad rota de address).
+Siguiente paso, barato: repetir el screen en otra ventana antes de creerse el 1/100.
 
 ---
 
