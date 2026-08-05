@@ -2,7 +2,11 @@
 
 > La página que más caduca. Qué está vivo, qué duerme, qué mide, qué espera veredicto, qué
 > es plan en papel. Si la fecha de abajo es vieja, confírmala contra `git log` y `research/*.md`
-> antes de confiar. Fecha de corte: **2026-06-30** (HEAD: `ead6809`).
+> antes de confiar. Fecha de corte: **2026-08-05**, rama `claude/claude-brief-vip-v1-kqa7w0`.
+>
+> **Las secciones "Por símbolo" y "Las 3 capas" de abajo son de junio y en BRUTO.** El
+> bloque de agosto que sigue les pasa por encima: léelo primero, o vas a citar números
+> que el neto ya desmintió.
 
 ---
 
@@ -42,7 +46,32 @@ mismas 13.429 señales y el resultado cambia la lectura de todo lo que sigue:
     −0.069R neto, IC95% [−0.112, −0.028]**. Entero bajo cero: signo determinado, no
     "no concluye". Por símbolo (tp4): ETH +0.059 · BTC +0.003 · **SOL −0.054**.
   - El problema del VIP **no es el símbolo ni la señal: son las barreras y el capital
-    simultáneo**. → `CEMENTERIO.md`. **Es NOTA, no arreglo** (script ad-hoc, sin test).
+    simultáneo**. → `CEMENTERIO.md`.
+
+- **V1 ENTREGADO (2026-08-05) — la nota es ya un arreglo, y el eje TP está cerrado.**
+  `tools/vip_report.py` contesta "¿funciona el VIP?" con **un comando** y reproduce los
+  números de arriba al cuarto decimal. `tests/test_vip_report.py` los fija.
+  - **Barrido del eje TP a horizonte fijo (h288), universo VIP, n=3.774**, con
+    `portfolio_risk` aplicado **ANTES** de nombrar candidata a ninguna celda:
+    tp1 **−0.069** · tp2 **−0.053** · tp3 **−0.018** · tp4 **+0.010**.
+    **Ninguna es candidata**: ninguna tiene el IC95% entero sobre cero.
+  - **El diagnóstico NO es el de la geometría ancha, y confundirlos cuesta trabajo.**
+    Aquí el hold medio es ~0.1 días y la concurrencia ~1.3; las tres celdas negativas
+    tienen el **DD dentro de la cota (26–27% < 35%)** y aun así hunden la cuenta.
+    **No sobra riesgo: falta edge.** Un mecanismo de concurrencia no arreglaría ninguna.
+  - **Abierto y dicho en voz alta: máximo en la esquina.** El neto sube monótonamente
+    hasta tp4, que es el **último peldaño que el cube trae etiquetado**. La tabla no dice
+    que tp4 sea el óptimo — dice que el gradiente apunta **fuera del rango medido**.
+    Saberlo exige **re-etiquetar** con objetivos más lejanos (`geometry_sweep`, que
+    necesita velas locales; **hoy no hay `data/binance` en el repo**), no extrapolar.
+    Aviso pegado: alejar el objetivo alarga la vida del trade → devuelve la concurrencia
+    que ya mató la geometría ancha. El informe lo imprime solo.
+  - **Desglose por año de la celda viva (tp1/h288): 7 de 8 años con n≥30 salen
+    NEGATIVOS.** No es un régimen malo tapando uno bueno: es consistente.
+  - **Invariantes nuevas:** una celda no se nombra candidata sin sostener una cartera
+    (`screen_cell` + `require_screened`), el gate corre **sin cap** de concurrencia
+    (capear hace pasar cualquier cosa tirando señales), y el universo medido es el que
+    el bot difunde (`FQ_VIP_PAIRS`).
 
 - **CONTEXTO DE NEGOCIO (2026-08-05) — presión de inversor, y por qué NO se pivota.**
   Un inversor del proyecto lleva meses viendo gasto sin producto rentable y mandó un vídeo
@@ -62,10 +91,18 @@ mismas 13.429 señales y el resultado cambia la lectura de todo lo que sigue:
 
 Detalle: `internal/DIAGNOSTICO_E7_E8_2026-08.md` · `MEMORY/CEMENTERIO.md` ·
 `internal/EXPERIMENT_COPYTRADE_ONCHAIN.md` (el espejo sin capital, si alguna vez se retoma).
-**Siguiente encargo: `internal/BRIEF_VIP_2026-08.md`** (V1 barrido tp1→tp2/tp3 acotado
-por cartera · V2 posición en cola · V3 capacidad).
-Reproducir: `python tools/cube_report.py cosecha_cubes/` ·
+**Encargo: `internal/BRIEF_VIP_2026-08.md` — V1 ENTREGADO; quedan V2 y V3.**
+- **V2 · posición en cola** (la brecha técnica). Que `maker_entry_fill_mask` deje de ser
+  binario y devuelva probabilidad de fill condicionada al flujo que pasó por el nivel.
+  Invariante que tiene que salir: **ninguna cifra maker publicable con fill al 100%** —
+  ese supuesto ya volteó un signo en agosto (+0.060R → −0.0350R con el fill real).
+- **V3 · capacidad** (la brecha de negocio, y la respuesta a la ansiedad del inversor).
+  `tools/capacity_analysis.py` **ya existe — úsalo, no lo reescribas.** Reporta la curva,
+  no un número suelto: \$5k y esto es un servicio de señales; \$500k y hay otra conversación.
+
+Reproducir: `python tools/vip_report.py` · `python tools/cube_report.py cosecha_cubes/` ·
 `python tools/fill_quality.py` · `python tools/geometry_sweep.py`
+(`geometry_sweep` necesita `--klines data/binance`, que **no está en el repo**.)
 
 ### Instrumento cableado en agosto (todo dormido por defecto)
 

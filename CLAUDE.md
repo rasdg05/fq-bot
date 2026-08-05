@@ -12,13 +12,17 @@ con suscriptores de pago. SOL (pilar), BTC, ETH. Cada push a `main` redeploya.
 
 ## ⚠️ LA RAMA (léelo antes que nada)
 
-**`main` está en JUNIO. Todo el trabajo de agosto vive en
-`claude/instrumento-2026-08-of95si`.** Si arrancas en `main` vas a leer un estado
+**`main` está en JUNIO. La rama viva es
+`claude/claude-brief-vip-v1-kqa7w0`.** Si arrancas en `main` vas a leer un estado
 caducado y volver a concluir cosas ya medidas. Empieza siempre con:
 
 ```
-git fetch origin claude/instrumento-2026-08-of95si && git checkout claude/instrumento-2026-08-of95si
+git fetch origin claude/claude-brief-vip-v1-kqa7w0 && git checkout claude/claude-brief-vip-v1-kqa7w0
 ```
+
+Contiene `claude/instrumento-2026-08-of95si` entero (E1–E9) **más V1**. Esa rama
+ya no se toca: es historia, no punto de partida. Si abres una sesión nueva,
+apunta a la de arriba y no fusiones nada — está por delante, no en paralelo.
 
 Nada se mergea a `main` sin decírselo a RasDG: despliega a producción con
 suscriptores de pago.
@@ -57,6 +61,8 @@ vuelva — si la respuesta es "acordarse", no está cerrado.
 | Equity continua | `execution.resume_equity_from_ledger` | Drawdown invisible y halt `FQ_MOTOR_MAX_DD` muerto |
 | Frescura de CVD | `tools/fetch_cvd.cvd_confirmation` | Un colector parado contestando como si midiera |
 | Sin relojes de pared | `tests/test_no_wallclock.py` | Que el replay herede la hora del click |
+| Cartera antes que candidata | `vip_report.screen_cell` + `require_screened` | Publicar como hallazgo una celda con buen R por trade que arruina la cuenta |
+| Universo medido = publicado | `vip_report.vip_universe` vs `fq_bot_v3_2.VIP_PAIRS` | Medir un producto distinto del que se difunde, con los dos números correctos |
 
 ## Números vigentes (agosto 2026) — no inventes otros
 
@@ -76,6 +82,20 @@ vuelva — si la respuesta es "acordarse", no está cerrado.
   se sostiene** (+0.010R vs −0.040R del resto del pool), pero la **geometría que
   opera en vivo no**: **tp1/h288 = −0.069R, IC95% [−0.112, −0.028]** — entero bajo
   cero. Por símbolo: ETH +0.059 · BTC +0.003 · **SOL −0.054**.
+  **V1 cerró el eje TP entero** (h288, universo VIP): tp1 −0.069 · tp2 −0.053 ·
+  tp3 −0.018 · tp4 +0.010. **Ninguna celda es candidata** — ninguna tiene el IC95%
+  entero sobre cero. Reproducir: `python tools/vip_report.py`.
+  Dos matices que hay que llevar puestos, porque cambian a dónde va el trabajo:
+  **(a)** estas celdas **no caen por cartera** — hold ~0.1 días, concurrencia ~1.3,
+  DD 26–27% *dentro* de la cota del 35% y aun así hunden la cuenta: no sobra
+  riesgo, **falta edge**. No es el fallo de la geometría ancha (13.7 simultáneas),
+  así que un mecanismo de concurrencia no arreglaría ninguna.
+  **(b)** el neto **sube monótonamente hasta tp4**, el último peldaño etiquetado
+  del cube: **máximo en la esquina**. La tabla NO dice que tp4 sea el óptimo; dice
+  que el gradiente apunta fuera del rango medido. Resolverlo exige **re-etiquetar**
+  con objetivos más lejanos (`geometry_sweep`, que necesita velas locales — **hoy
+  no hay `data/binance` en el repo**), no extrapolar. Y alejar el objetivo alarga
+  la vida del trade, o sea que devuelve el problema de concurrencia ya cementado.
 
 > Ninguna configuración medida tiene el IC95% de la expectancy por encima de cero.
 > No hay edge demostrado. Decirlo no es pesimismo: es el estado del arte del repo.
@@ -85,9 +105,12 @@ vuelva — si la respuesta es "acordarse", no está cerrado.
 
 ## Contexto vivo que no es código (ago-2026)
 
-- **Encargo en curso**: `internal/BRIEF_VIP_2026-08.md` — V1 barrido tp1→tp2/tp3
-  acotado por `portfolio_risk` · V2 posición en cola · V3 capacidad. **Es local y
-  gratis**: el cube ya está en `cosecha_cubes/`, cero runners de CI.
+- **Encargo en curso**: `internal/BRIEF_VIP_2026-08.md`. **V1 ENTREGADO**
+  (`tools/vip_report.py` + `tests/test_vip_report.py`, commit `bf5690a`).
+  **Pendientes: V2** (posición en cola / selección adversa — la brecha técnica) y
+  **V3** (capacidad — la brecha de negocio, y la respuesta al inversor).
+  **Es local y gratis**: el cube ya está en `cosecha_cubes/`, cero runners de CI.
+  V3 usa `tools/capacity_analysis.py`, que **ya existe** — no lo reescribas.
 - **Presión de inversor**: un inversor del proyecto lleva meses viendo gasto sin
   producto rentable. Propuso pivotar a copy-trading (Trump/políticos, Autopilot +
   Hyperliquid). **Se midió antes de construir: 1 candidata de 100** → muerto en
