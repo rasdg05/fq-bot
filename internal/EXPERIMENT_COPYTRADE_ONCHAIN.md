@@ -68,8 +68,69 @@ y es gratis.** Un fill on-chain no necesita que nadie lo confirme; el fill es el
 comprobante.
 
 Lo que **no** existe es la atribución. "El insider de Trump" es una address que
-alguien bautizó. Nadie ha probado quién la controla. Podemos seguirla — no podemos
+alguien bautizó. Nadie ha probado quién la controla; el rastro público apunta al
+ex-CEO de BitForex Garrett Jin, que **niega** vínculo con la familia Trump y niega
+haber usado información privilegiada. Podemos seguir la address — no podemos
 decirle a un inversor de quién es. Ver §4, invariante I-2.
+
+### A-bis. La wallet única no existe: la unidad real es el clúster
+
+Tres preguntas de RasDG (2026-08-05) que rompen la versión ingenua del plan:
+*¿esa wallet es consistente? ¿no usan varias? ¿cómo estar al tanto?*
+
+**Multi-wallet: confirmado, documentado, y en la misma wallet del vídeo.** El
+10-oct-2025, la address famosa **transfirió $30M a otra address de Hyperliquid que
+acto seguido abrió shorts de ETH**. No es una hipótesis sobre cómo operan las
+ballenas: es el registro on-chain de esta ballena concreta. Motivos estructurales
+para hacerlo (todos vigentes): en Hyperliquid **el precio de liquidación es
+público**, así que una address grande y conocida es un objetivo; y una address
+seguida por miles de copiadores es un activo explotable por su propio dueño.
+
+**Consistencia: medible con exactitud, y la respuesta preliminar es que no.** El
+histórico completo de fills de una address es público, así que aquí no hay que
+adivinar nada — se calcula. Lo que ya se ve en fuentes públicas: el short del
+arancel del 100% a China (oct-2025) rindió **~$200M**, y el total acumulado de la
+cuenta en Hyperliquid se reporta después en **~$100M**. Las dos cifras vienen de
+fuentes y fechas distintas y no deben tratarse como un balance auditado, pero la
+dirección es inequívoca: **un trade legendario y una devolución posterior de la
+mitad.** Eso no es "100% de acierto" — es n=1 con varianza enorme, que es
+literalmente lo que este repo tiene prohibido llamar edge.
+
+**El sesgo que esto crea es peor que elegir ganadores.** Si una entidad opera 10
+addresses, la que hace +6.000% recibe el mote y la cuenta de Twitter; las 9 que
+reventaron son invisibles. No estás seleccionando la mejor de un universo
+conocido: estás seleccionando de un universo **cuyo denominador está oculto por
+diseño**. Ninguna corrección estadística arregla un denominador que no observas.
+
+**El riesgo adversario** (estructural, no documentado como caso probado: trátalo
+como amenaza de diseño, no como hecho). Una address seguida por miles es una
+palanca: abrir en la seguida, dejar que los copiadores empujen el precio, salir
+por la otra. No hace falta que esté ocurriendo para que el diseño deba resistirlo.
+
+**Cómo se está al tanto, entonces:** no se sigue una address, se sigue un
+**clúster**, y se construye desde el flujo de fondos on-chain — que es
+precisamente lo que delató a esta ballena. Señales de pertenencia, en orden de
+fuerza:
+
+1. **Transferencia directa** entre addresses (el caso de los $30M). Es la más
+   fuerte y la más fácil de vigilar: basta con escuchar transfers de cada address
+   seguida y promover el destino a candidato del clúster.
+2. **Origen de fondos común**: mismo depósito desde Arbitrum, mismo puente, misma
+   address de retiro de CEX.
+3. **Sub-cuentas y vaults**, que en Hyperliquid están enlazados on-chain de forma
+   explícita: es atribución, no heurística.
+4. **Correlación temporal y estructural** de fills (mismo activo, mismo lado,
+   ventana de segundos). La más débil: co-movimiento no es control.
+
+Etiquetadores externos (Arkham, Nansen, Cielo — que RasDG ya usa) aceleran esto,
+pero sus etiquetas son **heurísticas de terceros, no pruebas**. Entran al ledger
+con su fuente y su fecha, y nunca como `verified` (I-2).
+
+**Y el recordatorio incómodo:** hay plataformas siguiendo 4.800+ wallets de
+Hyperliquid con clasificación neta de fees y funding, y trackers en vivo de las
+addresses más rentables. Si tú lo ves, lo ven todos. No llegas temprano — llegas a
+la vez que la multitud que mueve el precio contra tu fill. Eso no invalida el
+experimento; es exactamente lo que mide el deslizamiento de réplica (§2).
 
 ### B. Trades de políticos — atribuibles, pero estructuralmente tardíos
 
@@ -173,9 +234,16 @@ cinco son la condición de entrada, no el trabajo posterior.
 | **I-3** | **Horizonte de réplica.** Un fill detectado con retraso > umbral no se copia y se registra como `missed`. | Que el backtest asuma una réplica que en vivo nunca habría ocurrido (misma forma que el horizonte de outcome) | colector + `PaperBroker` |
 | **I-4** | **Lista de wallets congelada y sellada con timestamp.** Cambiar la lista abre una cohorte nueva; las cohortes no se mezclan. | Elegir ganadoras a posteriori — el error que mató la racha de mayo | test que falla si la lista cambia sin nueva cohorte |
 | **I-5** | **Precio de réplica = mercado en `ts_detected`.** Nunca el precio de la wallet. | Fabricar el edge exacto que el experimento debe medir | `PaperBroker.open` |
+| **I-6** | **La unidad seguida es el CLÚSTER, no la address.** Toda address entra con `cluster_id` y el motivo de pertenencia (transferencia / origen de fondos / sub-cuenta / correlación). Una transferencia desde una address seguida promueve el destino a candidato **automáticamente**. | Medir 1 de las 10 wallets de una entidad y creer que mides a la entidad | colector + test de promoción |
+| **I-7** | **Concentración de PnL.** Si al quitar el trade top el PnL de por vida del clúster cae por debajo del 50%, ese clúster es `n=1` y **no es copiable**, gane lo que gane. | Confundir un volado legendario con consistencia (es la lección de mayo, en dominio nuevo) | métrica del colector + gate |
 
 Cada una necesita su test en `tests/`. Si un test no se puede escribir, la
 invariante no está cerrada y la fase 0 no arranca.
+
+**I-7 no es teórica.** Aplicada hoy a la wallet del vídeo con las cifras públicas
+(~$200M en el short del arancel, ~$100M acumulado después), el clúster **no pasa**:
+el trade top es más del 100% del PnL de por vida. Es el filtro más barato del
+experimento y ya descarta al candidato estrella antes de escribir el colector.
 
 ---
 
@@ -217,6 +285,11 @@ cerradas y la lista de wallets congelada ex-ante, ocurre cualquiera de estas:
 2. El deslizamiento de réplica mediano supera el edge bruto de la wallet.
 3. La tasa de `missed` (I-3) supera el 30% de los fills de la fuente: la señal
    existe pero no es alcanzable.
+4. Todos los clústeres candidatos fallan I-7 (concentración de PnL): no hay a
+   quién copiar, solo a quién admirar.
+5. El clúster deja de ser observable — la entidad rota a addresses nuevas más
+   rápido de lo que el detector de flujo las promociona. Si el denominador se
+   esconde a voluntad, no hay medición posible y decirlo es el resultado.
 
 Se cierra igual, y antes, si el track record de una wallet vuelve a salir
 "demasiado limpio". Eso ya no se investiga: se descarta.
@@ -228,8 +301,11 @@ Se cierra igual, y antes, si el track record de una wallet vuelve a salir
 1. **Nada de esto va antes que E1-E9** de `BRIEF_INSTRUMENTO_2026-08.md`. El
    instrumento que mediría este experimento es el que aún se está cerrando; medir
    copy-trading con el instrumento roto reproduce el fantasma en un dominio nuevo.
-2. Congelar la lista de wallets **hoy**, sellada, aunque el colector tarde semanas.
-   Cada día que pasa sin congelarla es un día de contaminación por selección.
+2. Congelar la lista de **clústeres** (no de addresses) **hoy**, sellada, aunque el
+   colector tarde semanas. Cada día sin congelarla es un día de contaminación por
+   selección. Aplicar I-7 en el momento de congelar: es una consulta al histórico
+   público, cuesta horas, y puede vaciar la lista entera — que sería un resultado
+   legítimo y barato.
 3. Colector `fetch_onchain_follow.py` + los dos campos de ledger + I-1/I-5.
 4. Correr el espejo hasta n≥30. No enseñar nada mientras tanto.
 5. Solo si pasa el gate: hablar con un abogado sobre la estructura **no-custodial**.
