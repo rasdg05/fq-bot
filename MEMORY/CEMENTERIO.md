@@ -311,6 +311,35 @@ Lo que no existe es una forma conocida de cobrarla dentro de un perfil de riesgo
 Detalle: `internal/DIAGNOSTICO_E7_E8_2026-08.md`. Herramientas: `tools/geometry_sweep.py`,
 `tools/portfolio_risk.py`. Tests: `tests/test_geometry_sweep.py`, `tests/test_portfolio_risk.py`.
 
+### "El VIP publica la mejor geometría" — tp1 medido en contra (2026-08-05)
+Pregunta de RasDG: *"¿Y el VIP? ¿Funciona?"*. Se midió el universo exacto del producto
+(`FQ_VIP_PAIRS = BTC,ETH,SOL`, n=3.774 señales canónicas 2019-2026) sobre el cube, neto
+de costes. Dos cosas salieron, y las dos cuentan.
+
+**Lo que SOBREVIVE — la selección de símbolos.** El universo VIP da **+0.010R neto** en
+tp4/h288 (IC95% [−0.060, +0.080]) contra **−0.040R del resto del pool** (10 símbolos,
+n=9.655). Elegir SOL/BTC/ETH en junio-2026 fue correcto y ahora tiene 7 años detrás en
+vez de una ventana de 2 meses. Por símbolo: **ETH +0.059 · BTC +0.003 · SOL −0.054**
+(el pilar del producto es el peor de los tres), ~16 señales/mes cada uno.
+
+**Lo que MUERE — tp1 como geometría del producto.** En la celda que el motor vivo
+realmente opera, **tp1/h288: −0.069R neto, IC95% [−0.112, −0.028]**, WR 51.0%. El
+intervalo está **entero por debajo de cero**: no es "no concluye", es signo determinado
+sobre n=3.774. En tp4 el IC cruza cero (+0.010 / +0.017); en tp1 no cruza.
+
+**Qué muere:** la idea de que el VIP publica la geometría correcta y que lo que falta es
+muestra. La muestra ya está: son las barreras. **Qué NO muere:** ni la señal (E7:
+asimetría +1.011R) ni el universo (medido mejor que el resto del pool).
+
+**No contradice el track record publicado** (`n=12 · WR 41.7% · E[R] +0.208`): n=12 está
+bajo el `MIN_N=30` del propio repo y no concluye en ninguna dirección. n=3.774 sí.
+
+> **Esto es una NOTA, no un arreglo.** Se midió con un script ad-hoc de sesión que no
+> quedó en el repo — sin tool, sin test, sin invariante. Por la regla de la casa, no está
+> cerrado hasta que se cemente. Cementarlo es la entrega **V1** de
+> `internal/BRIEF_VIP_2026-08.md`, junto con el barrido tp1→tp2/tp3 acotado por
+> `portfolio_risk` desde el primer minuto.
+
 ### Quantum cognition / igualdad QQ — fascinante, no aplicable
 Único resultado cuántico-adyacente con dientes (predicción a priori sin parámetros para efectos
 de orden en preguntas binarias, confirmada en 70 encuestas de EE.UU.). PERO solo sirve para

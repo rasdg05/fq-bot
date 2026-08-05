@@ -33,7 +33,20 @@ mismas 13.429 señales y el resultado cambia la lectura de todo lo que sigue:
   24 cierres el mismo día). → `CEMENTERIO.md`.
   **La palanca de la geometría está medida y agotada.**
 
+- **EL VIP, MEDIDO (2026-08-05).** Universo exacto del producto (`FQ_VIP_PAIRS =
+  BTC,ETH,SOL`), n=3.774 señales canónicas 2019-2026, neto de costes:
+  - **La selección de símbolos se sostiene**: VIP **+0.010R** en tp4/h288 (IC95%
+    [−0.060, +0.080]) vs **−0.040R del resto del pool** (n=9.655). Elegir SOL/BTC/ETH
+    en junio fue correcto, y ahora con 7 años detrás.
+  - **La geometría viva NO**: en **tp1/h288 — la celda que el motor realmente opera —
+    −0.069R neto, IC95% [−0.112, −0.028]**. Entero bajo cero: signo determinado, no
+    "no concluye". Por símbolo (tp4): ETH +0.059 · BTC +0.003 · **SOL −0.054**.
+  - El problema del VIP **no es el símbolo ni la señal: son las barreras y el capital
+    simultáneo**. → `CEMENTERIO.md`. **Es NOTA, no arreglo** (script ad-hoc, sin test).
+
 Detalle: `internal/DIAGNOSTICO_E7_E8_2026-08.md` · `MEMORY/CEMENTERIO.md`.
+**Siguiente encargo: `internal/BRIEF_VIP_2026-08.md`** (V1 barrido tp1→tp2/tp3 acotado
+por cartera · V2 posición en cola · V3 capacidad).
 Reproducir: `python tools/cube_report.py cosecha_cubes/` ·
 `python tools/fill_quality.py` · `python tools/geometry_sweep.py`
 
@@ -55,7 +68,7 @@ Reproducir: `python tools/cube_report.py cosecha_cubes/` ·
 
 | Capa | Edge | Números (validados, no prometidos) | Estado |
 |---|---|---|---|
-| **1 — Direccional** | motor maker + veto | +0.10R OOS, Deflated Sharpe ✓ (BTC 1.00 / SOL 0.97) | **VIVO en clientes** |
+| **1 — Direccional** | motor maker + veto | ~~+0.10R OOS, DSR ✓ (BTC 1.00 / SOL 0.97)~~ **BRUTO. El neto del mismo universo en la geometría viva (tp1) es −0.069R, IC95% [−0.112, −0.028], n=3.774** | **VIVO en clientes, sin edge neto demostrado** |
 | **2 — Carry** | short-perp funding, delta-neutral | +12.5% APY net, Sharpe 13.6 bruto, positivo 6 años incl. bear | **Midiendo forward** (`carry_paper`, 0% real) |
 | **3 — Order-flow** | CVD firmado (imb≥0.50) | +0.27R (SOL) / +0.34R (BTC), 5 años tick data | **Cableado, midiendo forward** |
 
@@ -100,7 +113,8 @@ sube conviction client-facing. Hoy mide, no decide.
 ## Qué está vivo / dormido / midiendo / pendiente
 
 **VIVO (en clientes / capital):**
-- Motor direccional capa 1 (+0.10R, DSR ✓). Vetos de régimen/sesión (default ON, validados 5 años).
+- Motor direccional capa 1 (+0.10R **bruto**, DSR ✓; **neto tp1 −0.069R** — ver bloque de agosto).
+  Vetos de régimen/sesión (default ON, validados 5 años).
 - Gate de validación (`tools/validation_gate.py`). Colectores forward (read-only, no-críticos).
 - Ejecución taker + maker en motor paper (mide R neto: fees + slippage).
 

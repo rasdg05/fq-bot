@@ -74,6 +74,16 @@ Además de los 5 archivos núcleo, la memoria guarda las **obras** (PDF + texto)
 
 ---
 
+## Encargo abierto (agosto 2026)
+
+`internal/BRIEF_VIP_2026-08.md` — el trabajo pendiente en orden, y la calibración de
+dónde está el proyecto de verdad. Se lee después de esta página y de `ESTADO.md`.
+Resumen: **V1** barrido tp1→tp2/tp3 sobre el universo VIP con `portfolio_risk` puesto
+desde el primer minuto · **V2** simulador de posición en cola (la brecha que ya costó
+−1.039R de selección adversa) · **V3** capacidad con `tools/capacity_analysis.py`.
+
+---
+
 ## Las 3 reglas de oro (si solo recuerdas tres cosas)
 
 1. **MEASURE-FIRST O MUERTE.** Nada entra a vivo (clientes / capital) sin pasar el gate

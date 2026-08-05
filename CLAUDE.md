@@ -54,6 +54,10 @@ vuelva — si la respuesta es "acordarse", no está cerrado.
   P(E[R]≥0)=0.001. WR 21.1% contra un **WR de equilibrio de 36.9%**.
 - **Cube 7 años, bruto**: +0.224R. La diferencia entre eso y el −0.51R vivo **es
   el coste de ejecución**, y responde la pregunta abierta 6 del GHOST_MAP.
+- **El VIP (BTC/ETH/SOL), neto sobre el cube, n=3.774**: la **selección de símbolos
+  se sostiene** (+0.010R vs −0.040R del resto del pool), pero la **geometría que
+  opera en vivo no**: **tp1/h288 = −0.069R, IC95% [−0.112, −0.028]** — entero bajo
+  cero. Por símbolo: ETH +0.059 · BTC +0.003 · **SOL −0.054**.
 
 > Ninguna configuración medida tiene el IC95% de la expectancy por encima de cero.
 > No hay edge demostrado. Decirlo no es pesimismo: es el estado del arte del repo.
