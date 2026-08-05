@@ -102,6 +102,43 @@ mismas 13.429 señales y el resultado cambia la lectura de todo lo que sigue:
   - Reproducir: `python tools/fill_quality.py --klines data/binance` (las velas se bajan
     con `tools/fetch_binance_vision_klines.py`; `data/` está en `.gitignore`).
 
+- **V3 ENTREGADO (2026-08-05) — la capacidad, con la liquidez MEDIDA. Cinco dígitos.**
+  `python tools/capacity_analysis.py --vip`. El tool existía desde N8.4 y contestaba con
+  **parámetros de catálogo**: su default `avg_bar_notional=3e6` estaba **8x por debajo del
+  BTC real** (2.563e7 USD/barra 5m, medido) y el `stop_frac=0.012` era el doble del real.
+  - **Liquidez medida de las velas locales** (mediana, no media — cola derecha gordísima):
+    BTC **2.563e7** USD/barra · σ 20.3bps · stop 0.45% || ETH **1.428e7** · 26.5bps · 0.50%
+    || SOL **4.278e6** · 34.9bps · 0.63%. El coeficiente de impacto **se deriva de esa σ**
+    (ley raíz `Y·σ·√q`); lo único declarado que queda es **Y** (~0.5–1.5 en la literatura),
+    y por eso se publica la **curva** sobre Y, no un punto. Mismo trato que `queue_frac`.
+  - **Bug que nadie podía ver: `fill_bars` elegía la respuesta.** σ iba por barra y la
+    liquidez por ventana → la capacidad escalaba con √fill_bars (C0 de **$12k a $1.1M**
+    de fill_bars 1 a 96). Con σ escalada a la misma ventana la ley raíz es **invariante**
+    y hay test. El default de 24 multiplicaba la capacidad por 24.
+  - **La curva (tp4/h288, VIP, risk 1%, Y=1):** bruto BTC C½ $308k / C0 $1.2M · ETH
+    $162k/$650k · SOL $15k/$60k. **Neto: solo ETH tiene algo — C½ $5k, C0 $22k.**
+    BTC (+0.0027R) y SOL (−0.0539R) no tienen capacidad que medir.
+  - **A tamaños reales (Y=1), la única celda positiva del producto entero es ETH a $10k
+    (+0.019R).** A $100k: BTC −0.081 · ETH −0.068 · SOL −0.267. A $1M, SOL paga el 37%
+    de una barra de 5m.
+  - **La frontera, que es lo accionable:** capital al que el impacto (escala) iguala al
+    coste fijo por trade (no escala): **BTC $1.2M · ETH $434k · SOL $106k**. Por debajo
+    manda el coste fijo — **encoger la cuenta no arregla nada**. El rango de la
+    conversación ($10k–$500k) **cruza esa frontera en SOL**.
+  - **Por qué sale tan baja, y no es lo que parece:** no falta libro (BTC mueve 2.6e7 por
+    barra). Es que el **stop apretado** (0.45–0.63%) divide el impacto en R. Y el repo ya
+    midió (2026-06-30) que **el stop apretado ES el edge** (Q1 +0.316R vs Q4 +0.147R):
+    **lo que hace rentable a la señal es lo que la hace frágil al tamaño.** Un compromiso
+    con números por los dos lados, no dos problemas.
+  - **Por año (E9):** el notional de SOL creció ~100x dentro del cube; su C0 bruto va de
+    $8k (2023) a $867k (2026). La capacidad sube con el mercado; el edge neto no.
+  - **Veredicto de negocio: SERVICIO DE SEÑALES, no vehículo de capital.** Es el escenario
+    "\$5k" del brief, no el "\$500k". Con el matiz obligado: la capacidad del neto es ~cero
+    porque **no hay edge neto que escalar**, no por falta de libro.
+  - **Invariante nueva:** `require_measured` levanta `CapacityAssumedError` ante liquidez
+    supuesta **y** ante serie bruta sin `allow_ceiling=True`. Sin velas locales el informe
+    **se para** y dice cómo bajarlas, en vez de contestar con el default de catálogo.
+
 - **CONTEXTO DE NEGOCIO (2026-08-05) — presión de inversor, y por qué NO se pivota.**
   Un inversor del proyecto lleva meses viendo gasto sin producto rentable y mandó un vídeo
   de TikTok proponiendo copy-trading de Trump/políticos (Autopilot + Hyperliquid) con
@@ -120,17 +157,25 @@ mismas 13.429 señales y el resultado cambia la lectura de todo lo que sigue:
 
 Detalle: `internal/DIAGNOSTICO_E7_E8_2026-08.md` · `MEMORY/CEMENTERIO.md` ·
 `internal/EXPERIMENT_COPYTRADE_ONCHAIN.md` (el espejo sin capital, si alguna vez se retoma).
-**Encargo: `internal/BRIEF_VIP_2026-08.md` — V1 y V2 ENTREGADOS; queda V3.**
+**Encargo: `internal/BRIEF_VIP_2026-08.md` — V1, V2 y V3 ENTREGADOS. El encargo está cerrado.**
 - ~~**V2 · posición en cola**~~ **ENTREGADO** (ver bloque arriba): P(fill) por flujo
   firmado, la binaria como esquina `queue_frac=0`, y `MakerFillAssumedError` impidiendo
   que una cifra maker salga con fill al 100%.
-- **V3 · capacidad** (la brecha de negocio, y la respuesta a la ansiedad del inversor).
-  `tools/capacity_analysis.py` **ya existe — úsalo, no lo reescribas.** Reporta la curva,
-  no un número suelto: \$5k y esto es un servicio de señales; \$500k y hay otra conversación.
+- ~~**V3 · capacidad**~~ **ENTREGADO** (ver bloque arriba): liquidez medida de las velas,
+  `fill_bars` ya no elige la respuesta, y la cifra de negocio es **de cinco dígitos**.
+
+Las tres brechas del brief están medidas y **ninguna abrió una puerta**: la geometría
+(V1) no tiene celda operable, la ejecución (V2) no tiene dónde ponerse en la cola, y el
+tamaño (V3) se acaba antes de que el edge empiece. **Lo que falta no es otra medición del
+mismo cube: es una señal con más edge bruto, o un coste de ejecución estructuralmente
+menor.** Cualquier encargo nuevo que no ataque una de esas dos cosas está decorando.
 
 Reproducir: `python tools/vip_report.py` · `python tools/cube_report.py cosecha_cubes/` ·
-`python tools/fill_quality.py` · `python tools/geometry_sweep.py`
-(`geometry_sweep` necesita `--klines data/binance`, que **no está en el repo**.)
+`python tools/fill_quality.py` · `python tools/geometry_sweep.py` ·
+`python tools/capacity_analysis.py --vip`
+(los cuatro últimos necesitan las velas en `data/binance`, que **no están en el repo**:
+`python tools/fetch_binance_vision_klines.py BTCUSDT --start 2019-06-01 --end 2026-06-30
+--out-dir data/binance`, ~40 s por símbolo, gratis, sin API key.)
 
 ### Instrumento cableado en agosto (todo dormido por defecto)
 

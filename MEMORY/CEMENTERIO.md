@@ -413,6 +413,64 @@ Reproducir: `python tools/vip_report.py`. Tests: `tests/test_vip_report.py` (la 
 una celda no se nombra candidata sin sostener una cartera, y el gate corre **sin cap** de
 concurrencia porque capear hace pasar cualquier cosa tirando señales).
 
+### "El default de capacidad describe algún mercado" — 8x fuera, y la ventana elegía la cifra (2026-08-05, V3)
+`tools/capacity_analysis.py` existía desde N8.4 y su propio docstring pedía "CALIBRARLOS
+con volumen real". Nadie lo hizo en meses. Medido ahora contra las velas locales, el
+default `avg_bar_notional=3e6` estaba **8x por debajo del BTC real** (2.563e7 USD por
+barra de 5m) y el `stop_frac=0.012` era el doble del real (0.45–0.63%).
+
+Y había algo peor que un default flojo: **`fill_bars` elegía la respuesta**. La ley raíz
+es `impacto = Y·σ_ventana·√q`, pero el tool usaba σ **por barra** contra liquidez **por
+ventana**, así que la capacidad escalaba con √fill_bars sin que nada lo delatara:
+
+| fill_bars | C0 (σ sin escalar, lo que hacía) | C0 (σ escalada, correcto) |
+|---|---|---|
+| 1 | $12k | $12k |
+| 6 | $70k | $12k |
+| 24 (el default) | $282k | $12k |
+| 96 | $1.126M | $12k |
+
+`fill_bars` es **cómo troceas tu orden**, no una propiedad del mercado. El default de 24
+estaba multiplicando la capacidad publicable por 24.
+
+**Qué muere:** citar una capacidad de este repo anterior al 2026-08-05. No estaba
+"aproximada": estaba compuesta de un volumen inventado, un stop inventado y una ventana
+de ejecución que movía el resultado dos órdenes de magnitud.
+
+**Invariante:** `require_measured` levanta `CapacityAssumedError` ante liquidez supuesta
+y ante serie bruta sin `allow_ceiling=True`; sin velas locales el informe se para en seco
+en vez de contestar con el catálogo. Tests: `tests/test_capacity_analysis.py`
+(`test_capacity_is_invariant_to_fill_bars` fija la invariancia).
+
+### La capacidad como defensa del producto — cinco dígitos, y por la razón equivocada (2026-08-05, V3)
+La pregunta de V3 era de negocio: *¿a qué tamaño se muere esto?* Medido sobre el universo
+VIP, celda tp4/h288, risk 1%/trade, con liquidez medida y Y=1:
+
+| símbolo | bruto | C½ / C0 bruto | **neto** | **C½ / C0 neto** |
+|---|---|---|---|---|
+| BTC | +0.2912 | $308k / $1.2M | +0.0027 | <$1k / <$1k |
+| ETH | +0.3220 | $162k / $650k | **+0.0586** | **$5k / $22k** |
+| SOL | +0.1656 | $15k / $60k | −0.0539 | — |
+
+**Todo el edge neto medido del producto cabe en ETH por debajo de ~$22k.** Es el escenario
+"\$5k → servicio de señales" del brief, no el "\$500k → otra conversación".
+
+**Pero la lectura honesta invierte la causa:** la capacidad del neto es ~cero **porque no
+hay edge neto que escalar**, no por falta de libro. BTC mueve 2.6e7 USD por barra y a $1M
+la orden es el 8.6% de una barra de 5m. La frontera donde el impacto iguala al coste fijo
+por trade está en **$1.2M (BTC) / $434k (ETH) / $106k (SOL)**: por debajo manda el coste
+fijo y **encoger la cuenta no arregla nada**.
+
+**El hallazgo que conecta dos medidas viejas:** el impacto entra en R **dividido** por la
+distancia al stop, así que el **stop apretado** del motor (0.45–0.63%) es lo que hace la
+capacidad tan baja — y el 2026-06-30 se midió que **el stop apretado ES el edge**
+(Q1 +0.316R vs Q4 +0.147R, pooled n=13.429). Lo que hace rentable a la señal es lo que la
+hace frágil al tamaño. No son dos problemas: es un compromiso, y la salida natural
+(ensanchar) ya está cerrada por cartera (2026-08-04).
+
+**Qué NO muere:** el marco. La curva es útil y ahora está calibrada; lo que muere es la
+esperanza de que "escalar" fuera una palanca. Reproducir: `python tools/capacity_analysis.py --vip`.
+
 ### Copy-trading por leaderboard ("copiar a los que más ganan") — 1 de 100 (2026-08-05)
 Origen: un vídeo de TikTok que un **inversor del proyecto** mandó a RasDG — "$1.000 →
 $426.000 copiando a Trump", "el insider de Trump, 100% de acierto" — en un momento de

@@ -13,17 +13,17 @@ con suscriptores de pago. SOL (pilar), BTC, ETH. Cada push a `main` redeploya.
 ## ⚠️ LA RAMA (léelo antes que nada)
 
 **`main` está en JUNIO. La rama viva es
-`claude/claude-brief-vip-v2-q1obx4`.** Si arrancas en `main` vas a leer un estado
+`claude/v3-capacidad-velas-rp3v9u`.** Si arrancas en `main` vas a leer un estado
 caducado y volver a concluir cosas ya medidas. Empieza siempre con:
 
 ```
-git fetch origin claude/claude-brief-vip-v2-q1obx4 && git checkout claude/claude-brief-vip-v2-q1obx4
+git fetch origin claude/v3-capacidad-velas-rp3v9u && git checkout claude/v3-capacidad-velas-rp3v9u
 ```
 
-Contiene `claude/instrumento-2026-08-of95si` entero (E1–E9), **V1 y V2**. Las
-ramas anteriores (`...-v1-kqa7w0`, `instrumento-...`) ya no se tocan: son
-historia, no punto de partida. Si abres una sesión nueva, apunta a la de arriba
-y no fusiones nada — está por delante, no en paralelo.
+Contiene `claude/instrumento-2026-08-of95si` entero (E1–E9) y **V1, V2 y V3**. Las
+ramas anteriores (`...-v1-kqa7w0`, `...-v2-q1obx4`, `instrumento-...`) ya no se
+tocan: son historia, no punto de partida. Si abres una sesión nueva, apunta a la
+de arriba y no fusiones nada — está por delante, no en paralelo.
 
 Nada se mergea a `main` sin decírselo a RasDG: despliega a producción con
 suscriptores de pago.
@@ -65,6 +65,8 @@ vuelva — si la respuesta es "acordarse", no está cerrado.
 | Cartera antes que candidata | `vip_report.screen_cell` + `require_screened` | Publicar como hallazgo una celda con buen R por trade que arruina la cuenta |
 | Universo medido = publicado | `vip_report.vip_universe` vs `fq_bot_v3_2.VIP_PAIRS` | Medir un producto distinto del que se difunde, con los dos números correctos |
 | Fill maker con procedencia | `bt_engine.maker_expectancy` + `require_fill_modeled` | Publicar una cifra maker con fill 100% asumido (el supuesto que volteó +0.060R → −0.0350R) |
+| Liquidez medida, no supuesta | `capacity_analysis.require_measured` | Publicar una capacidad calculada con el default de catálogo (estaba **8x** fuera en BTC) o sobre serie bruta sin etiquetarla TECHO |
+| La ventana no elige la cifra | `test_capacity_is_invariant_to_fill_bars` | Que `fill_bars` mueva la capacidad ×24 sin que nada lo delate (σ por barra contra liquidez por ventana) |
 
 ## Números vigentes (agosto 2026) — no inventes otros
 
@@ -113,6 +115,22 @@ vuelva — si la respuesta es "acordarse", no está cerrado.
   medición (aquí no hay L2): por eso se publica la curva y se cita el **umbral**.
   Reproducir: `python tools/fill_quality.py --klines data/binance`.
 
+- **V3 — la capacidad, con la liquidez MEDIDA: la cifra es de CINCO dígitos.**
+  El tool existía desde N8.4 contestando con parámetros de catálogo: su default
+  `avg_bar_notional=3e6` estaba **8x por debajo del BTC real** (2.563e7 USD/barra 5m) y
+  `fill_bars=24` multiplicaba la capacidad **por 24** (σ iba por barra contra liquidez
+  por ventana; con σ escalada la ley raíz es invariante y hay test).
+  Medido (tp4/h288, VIP, risk 1%, Y=1): bruto BTC C½ $308k / C0 $1.2M · ETH $162k/$650k ·
+  SOL $15k/$60k. **Neto: solo ETH tiene algo — C½ $5k, C0 $22k**; BTC (+0.0027R) y SOL
+  (−0.0539R) no tienen capacidad que medir. **Todo el edge neto del producto cabe en ETH
+  por debajo de ~$22k** → es un **servicio de señales, no un vehículo de capital**.
+  La frontera donde el impacto iguala al coste fijo: **BTC $1.2M · ETH $434k · SOL $106k**
+  — por debajo manda el coste fijo y **encoger la cuenta no arregla nada**.
+  **Y la causa no es falta de libro** (BTC mueve 2.6e7/barra): es el **stop apretado**
+  (0.45–0.63%), que divide el impacto en R — y el stop apretado **ES el edge** (medido
+  2026-06-30: Q1 +0.316R vs Q4 +0.147R). Lo que hace rentable a la señal es lo que la
+  hace frágil al tamaño. Reproducir: `python tools/capacity_analysis.py --vip`.
+
 > Ninguna configuración medida tiene el IC95% de la expectancy por encima de cero.
 > No hay edge demostrado. Decirlo no es pesimismo: es el estado del arte del repo.
 >
@@ -121,17 +139,18 @@ vuelva — si la respuesta es "acordarse", no está cerrado.
 
 ## Contexto vivo que no es código (ago-2026)
 
-- **Encargo en curso**: `internal/BRIEF_VIP_2026-08.md`. **V1 ENTREGADO**
-  (`tools/vip_report.py` + `tests/test_vip_report.py`, commit `bf5690a`) y **V2
-  ENTREGADO** (`bt_engine.maker_fill_probability` / `maker_expectancy` +
-  `tools/fill_quality.py`, sección 6). **Pendiente: V3** (capacidad — la brecha de
-  negocio, y la respuesta al inversor).
-  **Es local y gratis**: el cube ya está en `cosecha_cubes/`, cero runners de CI.
-  V3 usa `tools/capacity_analysis.py`, que **ya existe** — no lo reescribas.
-  **Ojo con las velas**: `data/` está en `.gitignore`, así que V2 no se re-corre en un
-  clon nuevo hasta bajar los klines
-  (`tools/fetch_binance_vision_klines.py <SYM> --out-dir data/binance`, ~10 min los 13
-  símbolos, gratis, sin API key).
+- **Encargo CERRADO**: `internal/BRIEF_VIP_2026-08.md`, las tres entregas hechas —
+  **V1** (`tools/vip_report.py`), **V2** (`bt_engine.maker_fill_probability` +
+  `tools/fill_quality.py`) y **V3** (`tools/capacity_analysis.py --vip`).
+  **Ninguna de las tres abrió una puerta**: la geometría no tiene celda operable, la
+  ejecución no tiene dónde ponerse en la cola, y el tamaño se acaba antes de que el edge
+  empiece. **Lo que falta no es otra medición del mismo cube: es una señal con más edge
+  BRUTO, o un coste de ejecución estructuralmente menor.** Un encargo nuevo que no ataque
+  una de esas dos cosas está decorando.
+  **Ojo con las velas**: `data/` está en `.gitignore`, así que V2 y V3 no se re-corren en
+  un clon nuevo hasta bajarlas
+  (`python tools/fetch_binance_vision_klines.py BTCUSDT --start 2019-06-01 --end
+  2026-06-30 --out-dir data/binance`, ~40 s por símbolo, gratis, sin API key).
 - **Presión de inversor**: un inversor del proyecto lleva meses viendo gasto sin
   producto rentable. Propuso pivotar a copy-trading (Trump/políticos, Autopilot +
   Hyperliquid). **Se midió antes de construir: 1 candidata de 100** → muerto en
@@ -161,6 +180,9 @@ internal/GHOST_MAP_*.md  radiografía del motor sobre 7 años de cube
 internal/EXPERIMENT_*.md experimentos measure-first planificados
 tools/validation_gate.py el gate DSR/CPCV/PBO — la vara
 tools/geometry_report.py juzga geometría TP/SL con el recorrido (MFE/MAE)
+tools/vip_report.py      "¿funciona el VIP?" — universo + eje TP con cartera (V1)
+tools/fill_quality.py    fill maker real: P(fill) por cola y flujo firmado (V2)
+tools/capacity_analysis.py  --vip: a qué tamaño se muere, con liquidez medida (V3)
 execution.py             PaperBroker: sizing, costes, recorrido, ledger hash-chain
 entropy_cognition.py     ledger de señales, outcomes, κ, entropía, auditoría
 ledger_stats.py          ÚNICO punto por el que sale el track record público

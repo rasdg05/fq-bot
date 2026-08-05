@@ -576,3 +576,152 @@ días, 1–6% de aciertos y drawdowns del 60–70% en la contabilidad optimista.
 Lo que queda escrito para el futuro: **la palanca de la geometría está medida y
 agotada.** Quien vuelva a proponer "stops más anchos" tiene aquí los 84 números,
 los seis controles y la razón exacta por la que no basta.
+
+---
+
+## V3 · CAPACIDAD (2026-08-05) — a qué tamaño se muere, con liquidez MEDIDA
+
+> Reproducir: `python tools/capacity_analysis.py --vip`
+> (necesita `data/binance/kl_hist_{BTC,ETH,SOL}USDT.parquet`; se bajan con
+> `tools/fetch_binance_vision_klines.py <SYM> --start 2019-06-01 --end 2026-06-30`)
+
+### Lo primero: el tool contestaba con parámetros inventados
+
+`tools/capacity_analysis.py` existía desde N8.4 y su propio docstring pedía
+"CALIBRARLOS con volumen real". Nadie lo hizo. Medido ahora contra las velas
+locales, el default `avg_bar_notional=3e6` estaba **8x por debajo de BTC**:
+
+| símbolo | barras 5m | USD/barra (mediana) | σ/barra | stop mediano (del cube) |
+|---|---|---|---|---|
+| BTC | 677.766 | **2.563e7** | 20,3 bps | 0,45% |
+| ETH | 681.605 | **1.428e7** | 26,5 bps | 0,50% |
+| SOL | 523.732 | **4.278e6** | 34,9 bps | 0,63% |
+
+Mediana y no media: media/mediana ≈ 2 en los tres (cola derecha gordísima), y la
+media describe el día del crash, no la barra en la que se opera.
+
+El `stop_frac` también estaba inventado (0,012 por defecto). El real es
+**0,45–0,63%**, o sea la mitad — y como el impacto entra en R **dividido** por la
+distancia al stop, ese solo parámetro desplazaba la curva entera.
+
+### El bug que nadie podía ver: `fill_bars` elegía la respuesta
+
+La ley raíz es `impacto = Y · σ_ventana · sqrt(participación)`. El tool usaba σ
+**por barra** contra liquidez **por ventana** (`avg_bar_notional × fill_bars`), y
+esa mezcla de escalas hacía que la capacidad creciera con `sqrt(fill_bars)`:
+
+```
+sin escalar σ (lo que hacía el tool)      con σ escalada a la ventana
+fill_bars=  1 -> C0 $12k                  fill_bars=  1 -> C0 $12k
+fill_bars=  6 -> C0 $70k                  fill_bars=  6 -> C0 $12k
+fill_bars= 24 -> C0 $282k                 fill_bars= 24 -> C0 $12k
+fill_bars= 96 -> C0 $1.126M               fill_bars= 96 -> C0 $12k
+```
+
+`fill_bars` es **cómo troceas tu orden**, no una propiedad del mercado: no puede
+mover dónde muere el edge. Con σ escalada a la misma ventana que el volumen la
+ley raíz es exactamente invariante, y `test_capacity_is_invariant_to_fill_bars`
+lo fija. El default de 24 estaba multiplicando la capacidad por 24.
+
+### La curva (celda tp4/h288, universo VIP, risk 1%/trade)
+
+Y es lo único declarado — adimensional, ~0,5–1,5 en la literatura de impacto. Por
+eso va la curva entera y lo que se cita es el umbral, no el punto. (Mismo trato
+que `queue_frac` en V2.)
+
+| símbolo | Y | bruto | C½ | C0 | **neto** | **C½** | **C0** |
+|---|---|---|---|---|---|---|---|
+| BTC | 0,5 | +0,2912 | $1,2M | $4,9M | +0,0027 | <$1k | <$1k |
+| BTC | 1,0 | +0,2912 | $308k | $1,2M | +0,0027 | <$1k | <$1k |
+| BTC | 1,5 | +0,2912 | $137k | $547k | +0,0027 | <$1k | <$1k |
+| ETH | 0,5 | +0,3220 | $650k | $2,6M | +0,0586 | $22k | $86k |
+| **ETH** | **1,0** | +0,3220 | $162k | $650k | **+0,0586** | **$5k** | **$22k** |
+| ETH | 1,5 | +0,3220 | $72k | $288k | +0,0586 | $2k | $10k |
+| SOL | 0,5 | +0,1656 | $60k | $242k | −0,0539 | — | — |
+| SOL | 1,0 | +0,1656 | $15k | $60k | −0,0539 | — | — |
+| SOL | 1,5 | +0,1656 | $7k | $27k | −0,0539 | — | — |
+
+### A los tamaños de la conversación real (Y=1)
+
+| capital | BTC (q · edge) | ETH (q · edge) | SOL (q · edge) |
+|---|---|---|---|
+| $10k | 0,09% · −0,024 | 0,14% · **+0,019** | 0,37% · −0,121 |
+| $50k | 0,43% · −0,056 | 0,70% · −0,031 | 1,85% · −0,205 |
+| $100k | 0,86% · −0,081 | 1,41% · −0,068 | 3,71% · −0,267 |
+| $500k | 4,31% · −0,183 | 7,04% · −0,224 | 18,54% · −0,530 |
+| $1M | 8,61% · −0,260 | 14,09% · −0,341 | 37,08% · −0,728 |
+
+**Todo el edge medido del producto cabe en una celda: ETH por debajo de ~$22k.**
+Es literalmente el escenario que el brief planteaba como "si la capacidad resulta
+ser de $5k, el producto es un servicio de señales y punto".
+
+### La frontera entre dos regímenes, que es lo accionable
+
+Capital al que el impacto (**escala** con el tamaño) iguala al coste fijo por
+trade (fees + slippage de catálogo, **no escala**):
+
+| símbolo | coste fijo | el impacto lo iguala en |
+|---|---|---|
+| BTC | 0,289R | **$1,2M** |
+| ETH | 0,263R | **$434k** |
+| SOL | 0,219R | **$106k** |
+
+Por debajo manda el coste fijo: **encoger la cuenta no arregla nada**. Por encima
+manda el impacto y la capacidad es el límite real. El rango de la conversación
+($10k–$500k) **cruza esa frontera en SOL y roza la de ETH** — no es un tramo
+donde el tamaño salga gratis, y hasta hoy nadie sabía de qué lado estaba.
+
+### Por qué sale tan baja, que no es lo que parece
+
+No es falta de libro: BTC mueve 2,6e7 USD por barra de 5m y a $1M la orden es el
+8,6% de una barra. Es que **el stop del motor es apretado** (0,45–0,63%) y el
+impacto entra en R dividido por esa distancia: los mismos 7 bps valen 0,03R con
+un stop del 5% y 0,22R con uno del 0,63%.
+
+Y aquí se cruzan dos medidas viejas del repo que nadie había puesto juntas: el
+2026-06-30 se midió que **el stop apretado ES el edge** (Q1-apretado +0,316R vs
+Q4-ancho +0,147R, pooled n=13.429) y que ensancharlo bajaría la expectativa.
+**Lo que hace rentable a la señal es exactamente lo que la hace frágil al
+tamaño.** No son dos problemas: es un compromiso, y ahora tiene números por los
+dos lados. (La geometría ancha, que sería la salida natural, está cerrada por
+cartera desde el 2026-08-04.)
+
+### Desglose por año — la capacidad de hace cinco años no es la de hoy
+
+El notional por barra de SOL creció **~100x** dentro del cube (4e4 en 2020 →
+9,2e6 en 2025). Citar una capacidad de siete años promediados es el mismo error
+que citar una expectancy agregada, así que el informe la desglosa (E9):
+
+| año | SOL USD/barra | bruto | C0 bruto |
+|---|---|---|---|
+| 2021 | 1,349e6 | −0,2507 | — (bruto ≤ 0) |
+| 2022 | 2,151e6 | +0,4763 | $156k |
+| 2023 | 1,895e6 | +0,0877 | $8k |
+| 2024 | 6,862e6 | +0,1060 | $62k |
+| 2025 | 9,215e6 | +0,2133 | $248k |
+| 2026 | 4,578e6 | +0,4274 | $867k |
+
+La capacidad **sube con el mercado**, y la de 2026 es 100x la de 2023. Lo que no
+sube es el edge neto.
+
+### Veredicto
+
+**La pregunta de negocio de V3 tiene respuesta, y es de cinco dígitos.** Esto es
+un **servicio de señales, no un vehículo de capital**: la escala a la que el
+impacto empieza a doler está en las decenas de miles, y llega **antes** de que el
+edge neto esté demostrado.
+
+Con el matiz que manda decir en voz alta: la capacidad del edge **neto** es
+prácticamente cero porque **no hay edge neto que escalar**, no porque falte
+libro. El techo de ejecución perfecta (serie bruta, sin coste alguno) está en
+$60k–$1,2M según símbolo — y esa distancia entre $60k y "<$1k" **es** el coste de
+ejecución, otra vez, medido por tercera vía independiente.
+
+### La invariante
+
+`require_measured()` levanta `CapacityAssumedError` ante (a) una capacidad
+calculada con liquidez supuesta y (b) una capacidad sobre serie BRUTA sin pedir
+explícitamente `allow_ceiling=True`. Espejo de `MakerFillAssumedError` (V2) y de
+`GrossWithoutNetError` (E8). Y sin velas locales el informe **se para en seco**
+diciendo cómo bajarlas, en vez de contestar con el default de catálogo — que es
+lo que llevaba haciendo desde N8.4.
