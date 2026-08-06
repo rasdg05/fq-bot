@@ -6,6 +6,7 @@ import { formatStake } from "@/lib/units";
 import { useApp } from "@/state/store";
 import { cn } from "@/lib/cn";
 import { isPointsMode } from "@/lib/flags";
+import { FRESCURA_SALDO_MS, saldoVisible } from "@/domain/saldo";
 
 /**
  * Portafolio. Vacío no es un callejón: siempre ofrece volver al feed (R-006).
@@ -16,6 +17,10 @@ export function PortfolioScreen() {
 
   React.useEffect(() => {
     if (positions.status === "loading") void actions.loadPositions();
+    // el saldo se muestra aquí y en el header, así que esta pantalla también
+    // tiene que partir de un dato fresco. Con la guarda de frescura no cuesta
+    // una petición por visita: si se supo hace nada, se reusa
+    void actions.cargarCuenta(FRESCURA_SALDO_MS);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -39,7 +44,7 @@ export function PortfolioScreen() {
     );
   }
 
-  const saldo = isPointsMode() ? state.points.balance : (state.wallet?.balance ?? 0);
+  const saldo = saldoVisible(state, isPointsMode());
   const open = positions.data.filter((p) => p.status === "open");
   const settled = positions.data.filter((p) => p.status !== "open");
 
@@ -109,7 +114,16 @@ function Section({
       </h2>
       <div className="space-y-3 px-4">
         {items.map((position) => (
-          <Card key={position.id} className="p-4" data-testid="position-row">
+          <Card
+            key={position.id}
+            /* atenuada mientras el servidor no la acusa. Sin spinner y sin
+               bloquear nada: la pantalla se sigue usando, y quien no perciba
+               la opacidad tiene la palabra al lado del lado apostado (R-005).
+               No entra ninguna fila nueva, así que la altura no cambia */
+            className={cn("p-4", position.pendiente && "opacity-60")}
+            data-testid="position-row"
+            data-pendiente={position.pendiente || undefined}
+          >
             <p className="font-display text-[16px] font-semibold leading-snug text-text">
               {position.marketTitle ?? position.market_id}
             </p>
@@ -123,6 +137,13 @@ function Section({
                   <span className="ml-2 font-mono text-[13px] font-medium text-text2 tabular-nums">
                     {formatStake(position.size)}
                   </span>
+                  {/* la palabra, no sólo la atenuación: el color y la opacidad
+                      nunca cargan solos con el significado */}
+                  {position.pendiente ? (
+                    <span className="ml-2 text-[12px] font-semibold text-muted">
+                      {S.portfolio.pendiente}
+                    </span>
+                  ) : null}
                 </p>
               </div>
               <div className="text-right">

@@ -7,6 +7,7 @@ import { S } from "@/lib/strings";
 import { useApp } from "@/state/store";
 import { hasEdge } from "@/domain/edge";
 import { CATEGORIAS_VISIBLES, COLOR_CATEGORIA } from "@/lib/categoria";
+import { FRESCURA_SALDO_MS } from "@/domain/saldo";
 
 function isHot(market: Market): boolean {
   return Boolean(market.hot) || market.status === "live" || hasEdge(market);
@@ -24,7 +25,7 @@ export function HomeScreen() {
   React.useEffect(() => {
     if (markets.status === "loading") void actions.loadMarkets();
     // ¿hay sesión viva? Si la hay, el saldo y las posiciones vuelven solos
-    void actions.cargarCuenta();
+    void actions.cargarCuenta(FRESCURA_SALDO_MS);
     // sólo al montar: el feed no se recarga solo al cambiar de filtro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

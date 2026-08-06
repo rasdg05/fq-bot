@@ -6,6 +6,7 @@ import { useApp } from "@/state/store";
 import { S } from "@/lib/strings";
 import { formatStake } from "@/lib/units";
 import { isPointsMode } from "@/lib/flags";
+import { saldoVisible } from "@/domain/saldo";
 
 /**
  * Header. Dos estados y nada más.
@@ -22,7 +23,7 @@ import { isPointsMode } from "@/lib/flags";
 export function AppHeader() {
   const { state, actions } = useApp();
   const puntos = isPointsMode();
-  const balance = puntos ? state.points.balance : (state.wallet?.balance ?? 0);
+  const balance = saldoVisible(state, puntos);
   /**
    * "Con sesión" aquí es **tener saldo propio**: wallet creada o puntos
    * otorgados. La cuenta de servidor es otro eje —sirve para que lo tuyo siga

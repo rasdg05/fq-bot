@@ -11,6 +11,7 @@ import {
   canStake,
   type PointsLedger,
 } from "@/domain/points";
+import type { MovimientoOptimista } from "@/domain/saldo";
 import { isPointsMode } from "@/lib/flags";
 import { appError as appErrorFor, toAppError } from "@/domain/errors";
 import {
@@ -88,13 +89,31 @@ export interface AppState {
   country?: CountryCode;
   /** De dónde salió el país. Inferido se puede corregir; declarado manda. */
   countrySource: CountrySource;
-  /** Ledger de puntos. Sólo vive en el motor de puntos. */
+  /**
+   * Ledger de puntos. Sólo manda **cuando no hay cuenta de servidor**: con
+   * cuenta, el saldo bueno es `cuenta.puntos` y este ledger deja de tocarse.
+   * Antes los dos escribían el mismo número y por eso saltaba (ver
+   * `domain/saldo.ts`). Nadie lo lee directo: se lee por `saldoVisible`.
+   */
   points: PointsLedger;
+  /**
+   * Movimientos que la persona ya confirmó y el servidor todavía no acusa. Se
+   * suman al saldo para que la interfaz responda al instante, y se quitan por
+   * id —tanto al confirmar como al fallar— para que nunca quede un número que
+   * nadie respalda.
+   */
+  optimistas: MovimientoOptimista[];
   /**
    * Cuenta en el servidor. `null` significa que estás explorando sin entrar,
    * que es un estado legítimo y completo: mirar nunca pide cuenta (R-002).
    */
   cuenta: Cuenta | null;
+  /**
+   * Cuándo se supo de la cuenta por última vez (`Date.now()`). Existe para no
+   * volver a pedirla en cada montaje: al cambiar de pestaña las pantallas se
+   * desmontan, y `cargarCuenta()` sin guarda disparaba una petición por visita.
+   */
+  cuentaAt: number | null;
   /** La hoja de cuenta está abierta. Se abre al querer apostar sin sesión. */
   cuentaAbierta: boolean;
   /**
@@ -134,6 +153,8 @@ type Action =
   | { type: "vivos"; pulsos: PulsoVivo[] }
   | { type: "balance"; balance: number }
   | { type: "points"; ledger: PointsLedger }
+  | { type: "optimista"; movimiento: MovimientoOptimista }
+  | { type: "optimista_cerrar"; id: string }
   | { type: "country"; country: CountryCode; source: CountrySource }
   | { type: "cuenta"; cuenta: Cuenta | null }
   | { type: "cuenta_abierta"; abierta: boolean; modo?: ModoCuenta }
@@ -203,6 +224,8 @@ export function initialState(overrides: Partial<AppState> = {}): AppState {
     country: guess.country,
     countrySource: guess.source,
     cuenta: null,
+    cuentaAt: null,
+    optimistas: [],
     cuentaAbierta: false,
     cuentaModo: "registro",
     cuentaBusy: false,
@@ -267,18 +290,29 @@ function reducer(state: AppState, action: Action): AppState {
     }
     case "points":
       return { ...state, points: action.ledger };
+    case "optimista":
+      return { ...state, optimistas: [...state.optimistas, action.movimiento] };
+    case "optimista_cerrar":
+      // sirve para confirmar y para deshacer: en los dos casos el movimiento
+      // deja de estar en el aire. Al confirmar, el saldo base ya lo incluye
+      return {
+        ...state,
+        optimistas: state.optimistas.filter((m) => m.id !== action.id),
+      };
     case "country":
       return { ...state, country: action.country, countrySource: action.source };
     case "cuenta":
       return {
         ...state,
         cuenta: action.cuenta,
+        cuentaAt: action.cuenta ? Date.now() : null,
         cuentaBusy: false,
         cuentaError: null,
-        // el saldo que manda es el del servidor: el ledger local sólo lo espeja
-        points: action.cuenta
-          ? { balance: action.cuenta.puntos, entries: state.points.entries }
-          : state.points,
+        // `points` ya NO se toca aquí. Escribir `balance` desde la cuenta y
+        // dejar los `entries` como estaban rompía el invariante del ledger
+        // (`balance === Σ entries`) y ponía a dos escritores sobre el mismo
+        // número. Con cuenta manda `cuenta.puntos` y punto; sin cuenta manda
+        // el ledger. Quien decide cuál se ve es `saldoVisible`, no el reducer
       };
     case "cuenta_abierta":
       return {
@@ -309,6 +343,11 @@ export interface Adapters {
   marketData: MarketDataAdapter;
   /** Presente sólo con servidor: es lo que habilita cuentas y saldo real. */
   api?: ApiClient;
+  /**
+   * Cable por el que el adapter empuja la cuenta fresca que viene dentro de
+   * cada respuesta del servidor. Sin él, el saldo bueno llegaba y se tiraba.
+   */
+  alRecibirCuenta?: (fn: (cuenta: Cuenta) => void) => void;
   wallet: WalletAdapter;
   analytics: AnalyticsAdapter;
   errors: ErrorReporter;
@@ -349,6 +388,14 @@ function createActions(
   const acreditados = new Set<string>();
   let suscrito = false;
 
+  /**
+   * Ids de los movimientos optimistas. Se cuenta y no se sella con la hora:
+   * dos apuestas dentro del mismo milisegundo compartirían `Date.now()` y
+   * cerrar una cerraría la otra — el mismo defecto que el doble tap (R-016).
+   */
+  let secuencia = 0;
+  const contador = () => (secuencia += 1);
+
   const fail = (error: unknown, fallback: Parameters<typeof toAppError>[1]) => {
     const appErr = toAppError(error, fallback);
     adapters.errors.report(appErr);
@@ -364,6 +411,11 @@ function createActions(
    */
   const creditSettlements = (positions: Position[]) => {
     if (!isPointsMode()) return;
+    // Con servidor **no se acredita nada aquí**: `store.mts` ya sumó el pago a
+    // `usuario.puntos` al liquidar, y volver a sumarlo en el cliente era la
+    // causa del saldo que saltaba entre 700 y 900. Esta rama existe sólo para
+    // el modo sin servidor, donde el ledger local es la única contabilidad
+    if (adapters.api) return;
     let ledger = getState().points;
     let cambio = false;
 
@@ -391,6 +443,31 @@ function createActions(
     if (cambio) dispatch({ type: "points", ledger });
   };
 
+  /**
+   * Carga las posiciones. Vive fuera del objeto de acciones porque `submitTrade`
+   * también la necesita: al confirmar, la lista del servidor reemplaza a la
+   * posición pendiente que se pintó de forma optimista, y así el portafolio no
+   * se queda con una copia fantasma marcada como "pendiente" para siempre.
+   */
+  const cargarPosiciones = async () => {
+    // volver al portafolio no vacía la lista para volver a llenarla: lo que
+    // ya se cargó sigue siendo válido mientras llega lo nuevo. Ese parpadeo
+    // era gratis y se notaba en cada cambio de pestaña
+    if (getState().positions.status !== "data") {
+      dispatch({ type: "positions", value: { status: "loading" } });
+    }
+    try {
+      const data = await adapters.marketData.listPositions();
+      dispatch({ type: "positions", value: { status: "data", data } });
+      creditSettlements(data);
+    } catch (error) {
+      dispatch({
+        type: "positions",
+        value: { status: "error", error: fail(error, "E_PORTFOLIO_FETCH_FAILED") },
+      });
+    }
+  };
+
   /** Los errores del servidor ya vienen en español: se muestran tal cual. */
   const fallaCuenta = (error: unknown): string => {
     if (error && typeof error === "object" && "mensaje" in error) {
@@ -405,9 +482,25 @@ function createActions(
   return {
     creditSettlements,
 
-    /** Al abrir la app: ¿hay sesión viva? Explorar no depende de la respuesta. */
-    async cargarCuenta() {
+    /**
+     * ¿Hay sesión viva? Explorar no depende de la respuesta.
+     *
+     * Se llama al montar cualquier pantalla que enseñe saldo, y por eso lleva
+     * guarda de frescura: sin ella, cambiar de pestaña disparaba una petición
+     * por visita —las pantallas se desmontan, no hay router— y el saldo
+     * parpadeaba mientras iba y volvía. Con `maxEdadMs` el dato reciente se
+     * reusa y el viejo se vuelve a pedir, que es lo que hace que el header y el
+     * portafolio partan siempre del mismo número.
+     */
+    async cargarCuenta(maxEdadMs = 0) {
       if (!adapters.api) return;
+      const { cuentaAt, optimistas } = getState();
+      if (maxEdadMs > 0 && cuentaAt !== null && Date.now() - cuentaAt < maxEdadMs) {
+        return;
+      }
+      // con un movimiento en el aire, la respuesta del servidor todavía no lo
+      // incluye: pedirla ahora haría parpadear el saldo al valor de antes
+      if (optimistas.length > 0) return;
       try {
         dispatch({ type: "cuenta", cuenta: await adapters.api.yo() });
       } catch {
@@ -585,24 +678,7 @@ function createActions(
         });
       }
     },
-    async loadPositions() {
-      // volver al portafolio no vacía la lista para volver a llenarla: lo que
-      // ya se cargó sigue siendo válido mientras llega lo nuevo. Ese parpadeo
-      // era gratis y se notaba en cada cambio de pestaña
-      if (getState().positions.status !== "data") {
-        dispatch({ type: "positions", value: { status: "loading" } });
-      }
-      try {
-        const data = await adapters.marketData.listPositions();
-        dispatch({ type: "positions", value: { status: "data", data } });
-        creditSettlements(data);
-      } catch (error) {
-        dispatch({
-          type: "positions",
-          value: { status: "error", error: fail(error, "E_PORTFOLIO_FETCH_FAILED") },
-        });
-      }
-    },
+    loadPositions: cargarPosiciones,
     goToOnboardingStep(step: OnboardingStep) {
       dispatch({ type: "onboarding_step", step });
       if (step !== "done") {
@@ -698,23 +774,53 @@ function createActions(
       dispatch({ type: "trade_busy", busy: true });
       dispatch({ type: "trade_error", error: null });
 
-      // apuesta optimista: el saldo y el pozo se mueven al instante y el
+      // Apuesta optimista: el saldo y el pozo se mueven al instante y el
       // servidor manda después. Con la red lenta, esperar el viaje de ida y
       // vuelta hacía que la app pareciera trabada justo en el momento que más
-      // importa. Se guarda la foto de antes para poder deshacerlo: nunca se
-      // deja un estado que el servidor no confirmó (I3, I5)
-      const antesCuenta = getState().cuenta;
+      // importa.
+      //
+      // El descuento entra como movimiento con id, no como foto del saldo
+      // anterior. Con la foto, dos apuestas seguidas se pisaban: la segunda
+      // retrataba el valor ya descontado por la primera, y deshacer la primera
+      // restauraba un número que ya no era verdad. Restar `size` y luego
+      // quitar ese movimiento da igual en cualquier orden de respuesta.
+      const movimiento = { id: `apuesta-${market.id}-${contador()}`, delta: -size };
       const antesMercados = getState().markets;
+      const antesPosiciones = getState().positions;
       const optimista = market.pool
         ? {
             ...market,
             pool: addStake(market.pool, side, size),
           }
         : market;
-      if (antesCuenta) {
+      dispatch({ type: "optimista", movimiento });
+      // la posición entra a "Abiertas" ya, marcada como pendiente. Apostar y
+      // que el portafolio siga vacío hasta que responda el servidor es la
+      // forma más rápida de que alguien crea que su apuesta se perdió
+      if (antesPosiciones.status === "data") {
+        const cotiza = market.pool ? quote(market.pool, side, size) : null;
         dispatch({
-          type: "cuenta",
-          cuenta: { ...antesCuenta, puntos: Math.max(0, antesCuenta.puntos - size) },
+          type: "positions",
+          value: {
+            status: "data",
+            data: [
+              {
+                id: movimiento.id,
+                market_id: market.id,
+                side,
+                sideLabel: market.outcomes?.find((o) => o.id === side)?.label,
+                size,
+                entry_price: cotiza?.probability ?? market.probability,
+                pnl: 0,
+                status: "open",
+                marketTitle: market.title,
+                toWin: cotiza?.toWin,
+                multiplier: cotiza?.multiplier,
+                pendiente: true,
+              },
+              ...antesPosiciones.data,
+            ],
+          },
         });
       }
       if (antesMercados.status === "data" && market.pool) {
@@ -738,9 +844,14 @@ function createActions(
         });
         adapters.analytics.track("trade_confirmed", { market_id: market.id, side });
         if (adapters.api) {
-          // el saldo nuevo ya vino en la respuesta del servidor
-          const cuenta = await adapters.api.yo();
-          dispatch({ type: "cuenta", cuenta });
+          // Se pide la cuenta explícitamente en vez de confiar en el aviso que
+          // el adapter emite al vuelo: mientras hay un movimiento en el aire
+          // ese aviso se ignora —no se puede distinguir de una respuesta
+          // anterior a la apuesta, y aplicarla haría saltar el saldo al valor
+          // de antes—, así que aquí hace falta el dato bueno de forma
+          // inequívoca antes de cerrar el movimiento. Es un viaje de más que
+          // el usuario no espera: el saldo ya se movió hace rato
+          dispatch({ type: "cuenta", cuenta: await adapters.api.yo() });
         } else if (isPointsMode()) {
           dispatch({
             type: "points",
@@ -780,16 +891,32 @@ function createActions(
         } catch {
           /* sin vibración no se rompe nada */
         }
-        const balance = getState().wallet?.balance ?? 0;
-        dispatch({ type: "balance", balance: Math.max(0, balance - size) });
+        if (!isPointsMode()) {
+          // con dinero el saldo vive en la wallet y es ella la que baja
+          const balance = getState().wallet?.balance ?? 0;
+          dispatch({ type: "balance", balance: Math.max(0, balance - size) });
+        }
+        // el saldo base ya trae el descuento: el movimiento deja de estar en el
+        // aire. Va después del `cuenta` a propósito, y React agrupa los dos en
+        // una sola pintada, así que el número no baja de más ni por un cuadro
+        dispatch({ type: "optimista_cerrar", id: movimiento.id });
+        // la lista de verdad reemplaza a la posición pendiente. Sin esto se
+        // quedaría marcada como pendiente hasta la siguiente carga, con un id
+        // que el servidor no conoce
+        if (antesPosiciones.status === "data") void cargarPosiciones();
         return true;
       } catch (error) {
         // el servidor no lo aceptó: se devuelve la pantalla a como estaba. Un
         // saldo descontado por una apuesta que no existe es exactamente el
         // estado mentiroso que la apuesta optimista no puede dejar
-        if (antesCuenta) dispatch({ type: "cuenta", cuenta: antesCuenta });
+        dispatch({ type: "optimista_cerrar", id: movimiento.id });
         if (antesMercados.status === "data") {
           dispatch({ type: "markets", value: antesMercados });
+        }
+        // y la posición que se pintó pendiente se va con ella: dejarla sería
+        // enseñar una apuesta que no existe en ningún lado
+        if (antesPosiciones.status === "data") {
+          dispatch({ type: "positions", value: antesPosiciones });
         }
         dispatch({ type: "trade_error", error: fail(error, "E_TRADE_INIT_FAILED") });
         return false;
@@ -807,20 +934,39 @@ function createActions(
     setBalance(balance: number) {
       dispatch({ type: "balance", balance });
     },
-    /** Recarga diaria contra el servidor, cuando hay cuenta. */
+    /**
+     * Recarga diaria contra el servidor.
+     *
+     * También optimista: los puntos aparecen al tocar y se retiran si el
+     * servidor dice que no. El monto es el que el propio servidor declara
+     * disponible (`recargaDisponible`), no uno que inventemos aquí.
+     */
     async recargarEnServidor() {
       if (!adapters.api) return false;
+      const cuenta = getState().cuenta;
+      const disponible = cuenta?.recargaDisponible ?? 0;
+      const movimiento = { id: `recarga-${contador()}`, delta: disponible };
+      if (disponible > 0) dispatch({ type: "optimista", movimiento });
       try {
         dispatch({ type: "cuenta", cuenta: await adapters.api.recargar() });
+        dispatch({ type: "optimista_cerrar", id: movimiento.id });
         return true;
       } catch (error) {
+        dispatch({ type: "optimista_cerrar", id: movimiento.id });
         dispatch({ type: "cuenta_error", error: fallaCuenta(error) });
         return false;
       }
     },
 
-    /** Recarga diaria: existe para el que se quedó en cero, no como ingreso. */
-    topUpPoints() {
+    /**
+     * Recarga diaria: existe para el que se quedó en cero, no como ingreso.
+     *
+     * Con servidor delega en él. Antes sumaba siempre al ledger local, y como
+     * el saldo bueno venía de la cuenta, la recarga se deshacía sola en la
+     * siguiente visita al feed: el botón parecía funcionar y no funcionaba.
+     */
+    topUpPoints(): boolean | Promise<boolean> {
+      if (adapters.api) return this.recargarEnServidor();
       const ledger = getState().points;
       const amount = dailyTopUp(ledger);
       if (amount <= 0) return false;
@@ -859,6 +1005,18 @@ export function AppProvider({
     () => createActions(dispatch, adapters, () => stateRef.current),
     [adapters],
   );
+
+  /**
+   * La cuenta que el servidor mete en cada respuesta entra directo al store.
+   * Con un movimiento optimista en el aire se ignora: esa respuesta todavía no
+   * lo incluye y aplicarla haría parpadear el saldo al valor de antes.
+   */
+  React.useEffect(() => {
+    adapters.alRecibirCuenta?.((cuenta) => {
+      if (stateRef.current.optimistas.length > 0) return;
+      dispatch({ type: "cuenta", cuenta });
+    });
+  }, [adapters]);
 
   const value = React.useMemo(
     () => ({ state, adapters, actions }),

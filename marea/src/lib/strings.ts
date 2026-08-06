@@ -210,6 +210,8 @@ export const S = {
     emptyCta: "Ver mercados",
     open: "Abiertas",
     settled: "Cerradas",
+    /** Se ve mientras el servidor confirma. Tuteado y sin jerga: es un estado, no un error. */
+    pendiente: "Confirmando",
     pnl: "Resultado",
     toWin: "Si aciertas",
     atRisk: "Arriesgas",

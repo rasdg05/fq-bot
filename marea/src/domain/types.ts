@@ -270,6 +270,13 @@ export interface Position {
   payout?: number;
   /** Qué se leyó para resolver, para que el pago no sea un acto de fe. */
   evidence?: string;
+  /**
+   * La apuesta ya se confirmó en pantalla y el servidor todavía no la acusa.
+   * Existe para que la posición aparezca en "Abiertas" al instante en vez de
+   * después del viaje de ida y vuelta. Se pinta atenuada y con su palabra —
+   * nunca sólo por color— y desaparece si el servidor la rechaza.
+   */
+  pendiente?: boolean;
 }
 
 export interface Wallet {
