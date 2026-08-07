@@ -1,6 +1,7 @@
 import * as React from "react";
 import type { Market } from "@/domain/types";
 import { MarketCard } from "@/components/MarketCard";
+import { CarruselDestacados } from "@/components/CarruselDestacados";
 import { Chip, ChipRow } from "@/components/ui/chip";
 import { EmptyState, ErrorState, ListSkeleton } from "@/components/StateViews";
 import { S } from "@/lib/strings";
@@ -129,16 +130,14 @@ export function HomeScreen() {
               <h2 id="hot-heading" className="sr-only">
                 {S.feed.hotNow}
               </h2>
-              <div className="space-y-2 px-4">
-                {hot.map((market) => (
-                  <MarketCard
-                    key={market.id}
-                    market={market}
-                    pulso={state.vivos[market.id]}
-                    onOpen={actions.openMarket}
-                  />
-                ))}
-              </div>
+              {/* en horizontal: los mismos mercados calientes, sin empujar el
+                  resto del catálogo fuera de la primera pantalla */}
+              <CarruselDestacados
+                markets={hot}
+                vivos={state.vivos}
+                onOpen={actions.openMarket}
+                etiqueta={S.feed.hotNow}
+              />
             </section>
           ) : null}
 

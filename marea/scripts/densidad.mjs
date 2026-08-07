@@ -60,9 +60,18 @@ async function medir(page) {
     const alturaTabs = tabs ? tabs.getBoundingClientRect().height : 0;
     const cards = [...document.querySelectorAll('[data-testid="market-card"]')];
 
+    // entera = se ve completa, también de lado. Sin la comprobación
+    // horizontal, las tarjetas del carrusel que están fuera de pantalla a la
+    // derecha se contaban como visibles y el número subía a 15 sin que nadie
+    // viera 15 mercados: la puerta se volvía más fácil sola
     const enteras = cards.filter((c) => {
       const b = c.getBoundingClientRect();
-      return b.top >= 0 && b.bottom <= window.innerHeight - alturaTabs;
+      return (
+        b.top >= 0 &&
+        b.bottom <= window.innerHeight - alturaTabs &&
+        b.left >= 0 &&
+        b.right <= window.innerWidth
+      );
     }).length;
 
     // un nodo envuelve si su alto pasa de una línea de su propio line-height.
@@ -210,7 +219,12 @@ for (const ancho of ANCHOS) {
 
   await pasarOnboarding(page);
   const real = await page.evaluate(() => {
-    const cards = [...document.querySelectorAll('[data-testid="market-card"]')];
+    // sólo las de la lista vertical: el esqueleto representa **esa** lista, y
+    // dos tarjetas del carrusel van una al lado de la otra, así que el hueco
+    // entre ellas es negativo y no dice nada del salto de layout
+    const cards = [...document.querySelectorAll('[data-testid="market-card"]')].filter(
+      (c) => !c.closest('[data-testid="carrusel-item"]'),
+    );
     if (cards.length === 0) return { alto: 0, hueco: 0 };
     // el esqueleto reemplaza a la card normal: la viva no existe hasta que el
     // ticker responde, y compararlo con ella medía dos cosas distintas
