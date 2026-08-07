@@ -67,6 +67,8 @@ vuelva — si la respuesta es "acordarse", no está cerrado.
 | Fill maker con procedencia | `bt_engine.maker_expectancy` + `require_fill_modeled` | Publicar una cifra maker con fill 100% asumido (el supuesto que volteó +0.060R → −0.0350R) |
 | Liquidez medida, no supuesta | `capacity_analysis.require_measured` | Publicar una capacidad calculada con el default de catálogo (estaba **8x** fuera en BTC) o sobre serie bruta sin etiquetarla TECHO |
 | La ventana no elige la cifra | `test_capacity_is_invariant_to_fill_bars` | Que `fill_bars` mueva la capacidad ×24 sin que nada lo delate (σ por barra contra liquidez por ventana) |
+| Crecimiento junto a la media | `ledger_stats.format_expectancy` + `growth.ArithmeticWithoutGrowthError` | Publicar un E[R] aritmético sin `g`, `f*` y P(acabar arriba) — el E[R] es del ensemble, la cuenta vive UNA trayectoria |
+| Una sola `f` | `execution.GovernorConfig` ← `growth.configured_risk_frac` | Que el gobernador arriesgue una fracción y el informe juzgue otra (ninguna otra métrica del repo depende de `f`) |
 
 ## Números vigentes (agosto 2026) — no inventes otros
 
@@ -131,6 +133,17 @@ vuelva — si la respuesta es "acordarse", no está cerrado.
   2026-06-30: Q1 +0.316R vs Q4 +0.147R). Lo que hace rentable a la señal es lo que la
   hace frágil al tamaño. Reproducir: `python tools/capacity_analysis.py --vip`.
 
+- **V4 — el crecimiento, no la media (2026-08-05).** E[R] es el promedio del
+  *ensemble*; una cuenta vive UNA trayectoria y compone. Con `f` = fracción por trade,
+  `g = E[ln(1+f·R)] ≈ f·μ − f²σ²/2`. Medido sobre el VIP: **tp1/h288 tiene f\* = 0**
+  (ninguna fracción positiva hace crecer esa celda) y **P(acabar arriba) = 21%** a 200
+  trades; tp4 llega a **51%** con f\* = 0.20%. La cuenta viva arriesga **0.25%**, o sea
+  **1.2x f\*** — correcto por poco, y hasta hoy nadie podía saberlo: **E[R], IC95% y DSR
+  son invariantes a `f` por construcción**, así que el sistema de medición entero era
+  incapaz de ver una sobre-apuesta. Ojo con el texto de ergodicidad: `μ − σ²/2` aplica a
+  apostar el 100%; en múltiplos de R a f=0.25% el arrastre es `f²σ²/2` ≈ 1e-5.
+  **Medir en R ya era la vacuna** — lo que faltaba era mirar `f`.
+
 > Ninguna configuración medida tiene el IC95% de la expectancy por encima de cero.
 > No hay edge demostrado. Decirlo no es pesimismo: es el estado del arte del repo.
 >
@@ -183,6 +196,7 @@ tools/geometry_report.py juzga geometría TP/SL con el recorrido (MFE/MAE)
 tools/vip_report.py      "¿funciona el VIP?" — universo + eje TP con cartera (V1)
 tools/fill_quality.py    fill maker real: P(fill) por cola y flujo firmado (V2)
 tools/capacity_analysis.py  --vip: a qué tamaño se muere, con liquidez medida (V3)
+growth.py                g / f* / P(acabar arriba) — lo que E[R] no dice (V4)
 execution.py             PaperBroker: sizing, costes, recorrido, ledger hash-chain
 entropy_cognition.py     ledger de señales, outcomes, κ, entropía, auditoría
 ledger_stats.py          ÚNICO punto por el que sale el track record público

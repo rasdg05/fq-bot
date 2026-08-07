@@ -2,7 +2,7 @@
 
 > La página que más caduca. Qué está vivo, qué duerme, qué mide, qué espera veredicto, qué
 > es plan en papel. Si la fecha de abajo es vieja, confírmala contra `git log` y `research/*.md`
-> antes de confiar. Fecha de corte: **2026-08-05**, rama `claude/claude-brief-vip-v2-q1obx4`.
+> antes de confiar. Fecha de corte: **2026-08-05**, rama `claude/v3-capacidad-velas-rp3v9u`.
 >
 > **Las secciones "Por símbolo" y "Las 3 capas" de abajo son de junio y en BRUTO.** El
 > bloque de agosto que sigue les pasa por encima: léelo primero, o vas a citar números
@@ -138,6 +138,33 @@ mismas 13.429 señales y el resultado cambia la lectura de todo lo que sigue:
   - **Invariante nueva:** `require_measured` levanta `CapacityAssumedError` ante liquidez
     supuesta **y** ante serie bruta sin `allow_ceiling=True`. Sin velas locales el informe
     **se para** y dice cómo bajarlas, en vez de contestar con el default de catálogo.
+
+- **V4 ENTREGADO (2026-08-05) — el crecimiento al lado de la media, y una sola `f`.**
+  Origen: RasDG trajo el texto de Tsitsiklis/ergodicidad (media del ensemble vs trayectoria).
+  Lo primero, la corrección técnica: el `1.5 × 0.6` del ejemplo supone apostar el **100%**
+  del capital; en múltiplos de R a f=0.25% el arrastre es `f²σ²/2` ≈ 1e-5. **Medir en R ya
+  era la vacuna.** Pero el principio muerde donde nadie miraba.
+  - **El punto ciego era estructural.** `cube_report.apply_costs` lo dice en su docstring:
+    *"la R neta por trade sale invariante al capital"*. E[R], IC95% y DSR **no cambian** si
+    arriesgas 0.25% o 5% → el sistema de medición era **incapaz por construcción** de
+    detectar sobre-apuesta. `growth.py` es el único sitio donde `f` cambia el veredicto.
+  - **Medido sobre el VIP (h288, neto):** tp1 **f\* = 0** (ninguna fracción positiva hace
+    crecer esa celda) y **P(acabar arriba) = 21.2%**; tp2 31.4% · tp3 43.4% · **tp4 51.0%**
+    con f\* = 0.20%. La cuenta viva arriesga 0.25% → **1.2x f\***, correcto por poco.
+    Corrección a lo dicho en la conversación: el "5x" era sobre el **1% que asumen los
+    tools de research**, no sobre el gobernador vivo (`GovernorConfig` estaba en 0.25%).
+  - **Y el fenómeno del texto está en nuestros datos:** tp4 neto tiene media +0.0099R con
+    **mediana −1.18R** y skew +1.96 — a f=1%, media del capital **x1.02** y **mediana
+    x0.97**. El promedio lo levanta una cola que el suscriptor no vive.
+  - **Invariantes nuevas:** (a) `format_expectancy` levanta `ArithmeticWithoutGrowthError`
+    sin el bloque de crecimiento — mismo choke point que E9, misma familia de error;
+    (b) `GovernorConfig.max_risk_frac` sale de `growth.configured_risk_frac()`, así que el
+    gobernador y el informe no pueden juzgar fracciones distintas. Sin env: **0.25%,
+    byte-idéntico**. `/salud` gana el sexto chequeo (ROTO solo si la cuenta ENCOGE, aviso
+    si te pasas de Kelly: confundirlos gasta la alarma).
+  - **Lo que V4 NO es:** edge. Si μ≤0, f\*=0 y el sizing solo elige a qué velocidad se
+    pierde. Es disciplina de riesgo, y convierte un edge en crecimiento — no la falta de
+    edge en edge.
 
 - **CONTEXTO DE NEGOCIO (2026-08-05) — presión de inversor, y por qué NO se pivota.**
   Un inversor del proyecto lleva meses viendo gasto sin producto rentable y mandó un vídeo

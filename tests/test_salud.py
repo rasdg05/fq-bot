@@ -142,12 +142,26 @@ def test_aviso_pesa_mas_que_desconocido():
 # --- se entiende a las 3am --------------------------------------------------
 
 def test_el_veredicto_va_primero():
-    """Si todo está bien no hay que leer nada más."""
+    """Si todo está bien no hay que leer nada más.
+
+    V4: "todo bien" incluye ahora el sizing. Sin `gstats` el panel dice
+    DESCONOCIDO a proposito — no saber si arriesgas de mas no es estar bien."""
+    import growth
+    sano = growth.growth_stats([3.0, -1.0, -1.0] * 40, 0.005)
+    txt = salud.render(salud.gather(health={"ok": True, "n": 5, "ts": "2026-08-04T01:00"},
+                                    n_total=10, n_excluded=0, cvd_activo=False,
+                                    n_rejected=1, n_opened=9, gstats=sano,
+                                    ahora_iso="2026-08-04T03:00"))
+    assert "TODO EN ORDEN" in txt.split("\n")[2]
+
+
+def test_sin_saber_el_sizing_el_panel_no_dice_que_todo_esta_bien():
+    """No saber si arriesgas de mas no es estar bien: es no saberlo."""
     txt = salud.render(salud.gather(health={"ok": True, "n": 5, "ts": "2026-08-04T01:00"},
                                     n_total=10, n_excluded=0, cvd_activo=False,
                                     n_rejected=1, n_opened=9,
                                     ahora_iso="2026-08-04T03:00"))
-    assert "TODO EN ORDEN" in txt.split("\n")[2]
+    assert "TODO EN ORDEN" not in txt
 
 
 def test_lo_roto_dice_que_hacer():
@@ -166,6 +180,12 @@ def test_lo_verde_no_gasta_lineas_en_acciones():
 def test_las_cinco_preguntas_del_brief_estan():
     claves = {c["clave"] for c in salud.gather()}
     assert {"track_record", "audit", "exclusiones", "cvd", "fills"} <= claves
+
+
+def test_y_la_sexta_que_ninguna_otra_metrica_contesta():
+    """El sizing: E[R], IC95% y DSR son invariantes a la fraccion arriesgada, asi
+    que sin este chequeo una sobre-apuesta no deja huella en ningun sitio."""
+    assert "sobreapuesta" in {c["clave"] for c in salud.gather()}
 
 
 # --- E4: el panel dice QUE SE CAE con cada fuente rota ----------------------
@@ -199,7 +219,7 @@ def test_gather_live_nunca_lanza(monkeypatch):
     monkeypatch.setenv("FQ_CVD_COLLECT", "/no/existe.parquet")
     monkeypatch.setenv("FQ_MOTOR_PAPER_LEDGER_PATH", "/no/existe.jsonl")
     checks = salud.gather_live(ahora_iso="2026-08-04T03:00:00")
-    assert len(checks) == 6
+    assert len(checks) == 7
     salud.render(checks)                       # tampoco al pintar
 
 

@@ -53,6 +53,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(_HERE))           # raiz del repo (bt_engine)
 sys.path.insert(0, _HERE)                            # tools/
 
+import growth                                                    # noqa: E402
 from bt_engine import CostModel                                  # noqa: E402
 from cube_report import _boot_ci, apply_costs, cell_events, load_pool  # noqa: E402
 from portfolio_risk import simulate_portfolio, worst_days         # noqa: E402
@@ -208,9 +209,15 @@ def screen_cell(trades, *, label="", min_n=MIN_N, dd_max=DD_MAX,
                 % (min(-r["max_drawdown"] for r in crecen) * 100, dd_max * 100))
 
     base = intentos[-1] if intentos else {}
+    # V4: la celda se juzga tambien por lo que le hace a UNA cuenta, no solo por
+    # su media. La `f` es la que gobierna la cuenta viva — evaluar la celda a una
+    # fraccion distinta de la que se opera es medir otro producto (misma familia
+    # de error que medir un universo distinto del que se difunde).
+    g = growth.growth_stats(net_r)
     return {
         "label": label,
         "n": n,
+        "growth": g,
         "gross": float(trades["pnl_r"].mean()),
         "net": float(np.mean(net_r)),
         "lo": lo, "hi": hi,
@@ -346,18 +353,22 @@ def print_sweep(filas, *, dd_max=DD_MAX):
     print("  Una celda NO se nombra candidata si no sostiene una cuenta. El")
     print("  filtro corre SIN cap de concurrencia: capear hace pasar cualquier")
     print("  cosa tirando señales (la ganadora de agosto tiraba el 66%).")
-    print("\n  %-10s %6s %9s %9s %20s %6s %7s %7s %9s" % (
-        "celda", "n", "bruto", "NETO", "IC95% neto", "WR", "conc.", "hold_d",
-        "DD mejor"))
+    print("\n  %-10s %6s %9s %9s %20s %6s %7s %9s %10s %8s" % (
+        "celda", "n", "bruto", "NETO", "IC95% neto", "WR", "hold_d",
+        "DD mejor", "g/trade", "P(arriba)"))
     for f in filas:
         if f["n"] == 0:
             print("  %-10s   (vacía)" % f["label"])
             continue
         dd = ("%8.1f%%" % (-f["cartera"]["max_drawdown"] * 100)
               if f["cartera"] else "     ---")
-        print("  %-10s %6d %+9.4f %+9.4f  [%+8.4f,%+8.4f] %5.1f%% %7.1f %7.1f %9s"
+        g = f.get("growth") or {}
+        gg = "%+10.6f" % g["g"] if g.get("g") is not None else "     RUINA"
+        pu = "%7.1f%%" % (g["p_up"] * 100) if g.get("p_up") is not None else "      --"
+        print("  %-10s %6d %+9.4f %+9.4f  [%+8.4f,%+8.4f] %5.1f%% %7.1f %9s %10s %8s"
               % (f["label"], f["n"], f["gross"], f["net"], f["lo"], f["hi"],
-                 f["wr"], f["conc_media"], f["hold_dias"], dd))
+                 f["wr"], f["hold_dias"], dd, gg, pu))
+    _aviso_de_crecimiento(filas)
 
     _aviso_de_esquina(filas)
 
@@ -504,6 +515,34 @@ def main(argv=None):
               tps=tuple(x.strip() for x in a.tps.split(",") if x.strip()),
               dd_max=a.dd_max, bar_minutes=a.bar_minutes)
     return 0 if out["universo"] is not None else 1
+
+
+def _aviso_de_crecimiento(filas):
+    """La lectura que la columna E[R] no da: qué le pasa a UNA cuenta.
+
+    La media aritmética es el promedio del ensemble. Una cuenta vive una
+    trayectoria y compone, y sobre estas distribuciones (skew ~+2, mediana muy
+    por debajo de la media) las dos divergen con signo. Que la tabla imprima
+    `g` y `P(arriba)` al lado del E[R] es el equivalente de V4 a lo que E9 hizo
+    con el desglose: el número que se entiende va pegado al que no.
+    """
+    vivas = [f for f in filas if f["n"] and (f.get("growth") or {}).get("g") is not None]
+    if not vivas:
+        return
+    rf = vivas[0]["growth"]["risk_frac"]
+    hor = vivas[0]["growth"]["horizon"]
+    print("\n  g = crecimiento logarítmico por trade a risk %.2f%% (la `f` que" % (rf * 100))
+    print("  gobierna la cuenta viva) · P(arriba) = acabar sobre el capital")
+    print("  inicial tras %d trades. Aproximación normal: con skew positivo la" % hor)
+    print("  real es algo PEOR, así que esa columna es optimista.")
+    for f in vivas:
+        g = f["growth"]
+        if g["f_star"] <= 0:
+            print("     %-10s f* = 0 -> ninguna fracción positiva hace crecer "
+                  "esta celda" % f["label"])
+        elif growth.is_overbet(g):
+            print("     %-10s f* = %.2f%% -> a risk %.2f%% se apuesta %.1fx de más"
+                  % (f["label"], g["f_star"] * 100, g["risk_frac"] * 100, g["overbet"]))
 
 
 if __name__ == "__main__":

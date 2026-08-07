@@ -47,9 +47,31 @@ esta. Un periodo con n<%d sale MARCADO en vez de diluido en el promedio.
 Que esto no se pueda evitar por descuido lo garantiza `tests/
 test_desglose_obligatorio.py` (guarda AST, mismo patron que test_no_wallclock):
 ninguna superficie de publicacion puede formatear una expectancy por su cuenta.
+
+=============================================================================
+  CRECIMIENTO OBLIGATORIO  (V4 — la media aritmetica no es la cuenta)
+=============================================================================
+Misma enfermedad, otro eje. E[R] es el promedio del ENSEMBLE; una cuenta vive UNA
+trayectoria y compone, y las dos divergen con signo: sobre la celda que opera hoy
+(tp1/h288 neto) E[R] = -0.069R y lo que el lector necesita saber es que **el 19%
+de las trayectorias acaba por encima del capital inicial**. Sobre la mejor celda
+medida (tp4 neto) la media del capital sube (x1.02) mientras la MEDIANA baja
+(x0.97): el promedio lo levanta una cola que el suscriptor no va a vivir.
+
+Y hay un parametro que ninguna metrica de este repo puede ver: la fraccion
+arriesgada. E[R], IC95% y DSR son todos INVARIANTES a `f` por construccion, asi
+que el sistema de medicion es estructuralmente incapaz de detectar sobre-apuesta.
+Por eso `window_stats` adjunta siempre `growth` (g, f*, P(acabar arriba)) y
+`format_expectancy` LEVANTA sin el.
 """
 import os
 from datetime import datetime, timezone, timedelta
+
+# Import DURO a proposito (a diferencia de `provenance`, que es defensivo). Alli
+# la degradacion correcta es "el numero sale sin traza"; aqui no hay degradacion
+# correcta: una expectancy aritmetica sin su tasa de crecimiento describe algo
+# distinto de lo que el lector entiende, y publicarla es el fallo, no el fallback.
+import growth
 
 WIN_OUTCOMES = ("tp1", "tp2", "tp3", "tp4")
 
@@ -191,6 +213,11 @@ def window_stats(rows):
     st = _core_stats(rows)
     st["n_excluded"] = n_excluded
     st["by_period"] = partition_stats(rows)
+    # V4: la media aritmetica no es lo que le pasa a la cuenta. Viaja SIEMPRE con
+    # su tasa de crecimiento, su f* y la probabilidad de acabar arriba — igual que
+    # el agregado viaja con su desglose, y por la misma razon.
+    st["growth"] = growth.growth_stats(
+        [p for p in (_pnl(r) for r in rows) if p is not None])
     # E4: el numero viaja con su procedencia — de cuantas filas salio, que se le
     # quito y de que colectores cuelga. Sin esto, cuando uno se rompe hay que
     # ACORDARSE de que afirmaciones caen, y acordarse es lo que fallo en julio.
@@ -226,6 +253,11 @@ def format_expectancy(stats, *, label="Expectancy", indent="  "):
             "expectancy agregada sin by_period: un numero agrupado esconde que "
             "el lado ganador se voltea por epoca (GHOST_MAP H1). Usa "
             "window_stats(), que siempre lo adjunta.")
+    if "growth" not in stats:
+        raise growth.ArithmeticWithoutGrowthError(
+            "expectancy aritmetica sin bloque de crecimiento: E[R] describe el "
+            "promedio del ensemble, no lo que le pasa a UNA cuenta que compone. "
+            "Usa window_stats(), que siempre lo adjunta.")
     # E4: si el numero cuelga de un colector roto, no sale. Callar es la
     # consecuencia correcta: un track record que no se puede defender no se
     # publica (misma regla que ya aplicaba audit_signal_ledger).
@@ -246,6 +278,7 @@ def format_expectancy(stats, *, label="Expectancy", indent="  "):
         lineas.append("%s  * %d periodo(s) con muestra insuficiente entran en el"
                       % (indent, len(thin)))
         lineas.append("%s    agregado con el mismo peso que los demas." % indent)
+    lineas.append(growth.format_growth(stats["growth"], indent=indent))
     return "\n".join(lineas)
 
 

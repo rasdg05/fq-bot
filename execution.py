@@ -31,6 +31,8 @@ import logging
 from dataclasses import dataclass, field, asdict
 from typing import Optional
 
+import growth
+
 log = logging.getLogger("execution")
 
 LONG, SHORT = 1, -1
@@ -125,7 +127,13 @@ class Account:
 # ============================================================
 @dataclass
 class GovernorConfig:
-    max_risk_frac: float = 0.0025        # 0.25% por trade (arranque bajo)
+    # La fraccion por trade sale de `growth.configured_risk_frac()` — MISMA fuente
+    # que la que juzga el crecimiento en `ledger_stats`. Que el gobernador operase
+    # una `f` y el informe evaluara otra es la forma exacta de no enterarse de una
+    # sobre-apuesta (ninguna otra metrica del repo depende de `f`: E[R], IC95% y
+    # DSR son invariantes a ella por construccion). Env sin poner -> 0.0025, o sea
+    # byte-identico a antes.
+    max_risk_frac: float = field(default_factory=growth.configured_risk_frac)
     max_daily_loss_frac: float = 0.04    # corta el día al -4% (regla de DD diaria)
     max_open_positions: int = 3
     max_total_risk_frac: float = 0.02    # riesgo simultáneo total

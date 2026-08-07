@@ -26,6 +26,11 @@ fallo en un chequeo DESCONOCIDO en vez de tumbar el comando. Un panel de salud
 que se cae con el sistema no sirve de nada.
 ================================================================================
 """
+# Unico import de modulo del archivo, y a proposito: `growth` es matematica pura
+# sin I/O ni colectores detras, asi que no puede tumbar el panel. Todo lo demas
+# se importa dentro de las funciones, que es de donde vienen los fallos de 3am.
+import growth
+
 OK = "ok"
 WARN = "revisar"
 BROKEN = "roto"
@@ -102,6 +107,63 @@ def check_cvd(staleness_min, activo=True):
                       accion="Reinicia el colector. Las confirmaciones de este "
                              "rato no valen como medicion.")
     return _check("cvd", OK, "CVD fresco (%.0f min)" % staleness_min)
+
+
+def check_sobreapuesta(gstats):
+    """¿Estamos arriesgando mas de lo que hace crecer la cuenta?
+
+    Es la unica pregunta del panel que NINGUNA otra metrica puede contestar:
+    E[R], IC95% y DSR son invariantes a la fraccion arriesgada, asi que una
+    sobre-apuesta no deja huella en nada de lo que este repo publica.
+
+    El criterio de ROTO no es "pasarse de Kelly" sino que la cuenta ENCOJA
+    (`g <= 0`), que es lo que ocurre pasado ~2xf*. Entre f* y 2xf* creces menos
+    de lo que podrias con MAS varianza: es malo, no es mortal, y llamarlo roto
+    gastaria la alarma. Ese es justo el tramo donde la media sigue positiva
+    mientras el camino empeora — el aviso tiene que decir eso, no gritar.
+    """
+    if not gstats:
+        return _check("sobreapuesta", UNKNOWN, "Sizing: sin muestra para juzgar",
+                      accion="Hacen falta cierres auditados para estimar f*.")
+    f, fs, g = gstats["risk_frac"], gstats["f_star"], gstats["g"]
+    p_up = gstats.get("p_up")
+    detalle = "riesgo %.2f%%/trade · f* %.2f%% · g %s/trade" % (
+        f * 100, fs * 100, "RUINA" if g is None else "%+.6f" % g)
+    if p_up is not None:
+        detalle += " · P(acabar arriba) %.0f%%" % (p_up * 100)
+    rec = gstats["recommended_risk_frac"]
+
+    if gstats.get("thin"):
+        return _check("sobreapuesta", UNKNOWN,
+                      "Sizing: muestra corta (n=%d)" % gstats["n"], detalle=detalle,
+                      accion="Con n<%d la varianza esta peor estimada que la "
+                             "media: f* aqui orienta, no manda." % growth.GROWTH_MIN_N)
+    if fs <= 0:
+        return _check("sobreapuesta", BROKEN,
+                      "Sizing: f* = 0 — la apuesta optima es NO apostar",
+                      detalle=detalle,
+                      accion="Ninguna fraccion positiva hace crecer esta "
+                             "distribucion. No es sizing: falta edge.")
+    if g is None or g <= 0:
+        return _check("sobreapuesta", BROKEN,
+                      "SOBRE-APUESTA %.1fx: la cuenta ENCOGE" % gstats["overbet"],
+                      detalle=detalle,
+                      accion="Baja FQ_MAX_RISK_FRAC a %.2f%% (media Kelly). A esta "
+                             "fraccion el capital decrece aunque la media sea "
+                             "positiva." % (rec * 100))
+    if growth.is_overbet(gstats):
+        return _check("sobreapuesta", WARN,
+                      "Sizing %.1fx sobre f* — crece, pero de mas" % gstats["overbet"],
+                      detalle=detalle,
+                      accion="Recomendado %.2f%% (media Kelly): mismo orden de "
+                             "crecimiento con la mitad de varianza." % (rec * 100))
+    if f > 0.5 * fs:
+        return _check("sobreapuesta", WARN, "Sizing por encima de media Kelly",
+                      detalle=detalle,
+                      accion="Crece, pero el camino es mas duro de lo necesario "
+                             "(recomendado %.2f%%)." % (rec * 100))
+    return _check("sobreapuesta", OK, "Sizing dentro de media Kelly",
+                  detalle=detalle)
 
 
 def check_fills(n_rejected, n_opened):
@@ -188,13 +250,14 @@ def render(checks, titulo="Salud del sistema"):
 
 def gather(*, health=None, n_total=None, n_excluded=None, cvd_staleness_min=None,
            cvd_activo=True, n_rejected=None, n_opened=None, ahora_iso=None,
-           rotos=None, claims=None):
+           rotos=None, claims=None, gstats=None):
     """Los chequeos, en orden de lo que mas importa a las 3am."""
     return [
         check_track_record(health),
         check_audit(health, ahora_iso),
         check_procedencia(rotos, claims),
         check_exclusiones(n_total, n_excluded),
+        check_sobreapuesta(gstats),
         check_cvd(cvd_staleness_min, activo=cvd_activo),
         check_fills(n_rejected, n_opened),
     ]
@@ -223,6 +286,17 @@ def gather_live(*, ahora_iso=None):
 
     n_total, n_excluded = _safe(_rows, (None, None))
 
+    def _growth():
+        """f* del ledger REAL, no de un cube: la pregunta es si la cuenta que
+        opera esta bien dimensionada para la distribucion que esta viviendo."""
+        import entropy_cognition as ec
+        import ledger_stats as ls
+        keep, _ = ls.filter_auditable(ec.get_closed_rows_for_audit())
+        st = ls.window_stats(keep)
+        return (st or {}).get("growth")
+
+    gstats = _safe(_growth, None)
+
     def _fills():
         import motor_paper
         rep = motor_paper.ledger_report(
@@ -245,7 +319,7 @@ def gather_live(*, ahora_iso=None):
     return gather(health=health, n_total=n_total, n_excluded=n_excluded,
                   cvd_staleness_min=staleness, cvd_activo=cvd_activo,
                   n_rejected=n_rejected, n_opened=n_opened, ahora_iso=ahora_iso,
-                  rotos=rotos, claims=claims)
+                  rotos=rotos, claims=claims, gstats=gstats)
 
 
 def _cvd_staleness():
