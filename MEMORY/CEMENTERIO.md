@@ -471,6 +471,34 @@ hace frágil al tamaño. No son dos problemas: es un compromiso, y la salida nat
 **Qué NO muere:** el marco. La curva es útil y ahora está calibrada; lo que muere es la
 esperanza de que "escalar" fuera una palanca. Reproducir: `python tools/capacity_analysis.py --vip`.
 
+### "El sizing puede rescatar una celda sin edge" — f* = 0 en tres de cuatro (2026-08-05, V4)
+La ergodicidad promete que dimensionar bien convierte una media en crecimiento. Medido sobre
+el VIP (h288, neto, `growth.py`), con `f*` buscado sobre la distribucion REAL:
+
+| celda | E[R] | g/trade | **f\*** | P(acabar arriba, 200 trades) |
+|---|---|---|---|---|
+| tp1 | −0.0692 | −0.000178 | **0.00%** | **21.2%** |
+| tp2 | −0.0533 | −0.000142 | 0.00% | 31.4% |
+| tp3 | −0.0179 | −0.000056 | 0.00% | 43.4% |
+| tp4 | +0.0099 | +0.000010 | 0.20% | 51.0% |
+
+**Tres de las cuatro celdas tienen f\* = 0**: ninguna fraccion positiva las hace crecer. No es
+sizing mal puesto, es que no hay nada que dimensionar — la traduccion al idioma del crecimiento
+de lo que V1 ya habia medido. **Qué muere:** la esperanza de que el tamaño de la apuesta sea una
+palanca de rescate. Si μ ≤ 0, el sizing solo elige a qué velocidad se pierde.
+
+**Qué NO muere, y es el hallazgo:** el punto ciego. `E[R]`, `IC95%` y `DSR` son **invariantes a
+`f` por construccion** (`cube_report.apply_costs`: *"la R neta por trade sale invariante al
+capital"*), asi que el sistema de medicion entero era incapaz de ver una sobre-apuesta. La cuenta
+viva arriesga 0.25% contra un f\* de 0.20% — **1.2x, correcta por poco**, y hasta hoy nadie tenia
+con que saberlo. Invariantes: `ArithmeticWithoutGrowthError` en `format_expectancy` y una sola
+fuente para la fraccion (`GovernorConfig` ← `growth.configured_risk_frac`).
+
+**Ojo con el texto de ergodicidad que origino esto:** el `1.5 × 0.6` supone apostar el **100%**
+del capital. En multiplos de R a f=0.25% el arrastre es `f²σ²/2` ≈ 1e-5, invisible. **Medir en R
+ya era la vacuna**; lo que faltaba era mirar `f`. Aplicar `μ − σ²/2` a nuestro +0.27R daria −2.12
+y es un disparate — si alguien lo cita asi, esta mal.
+
 ### Copy-trading por leaderboard ("copiar a los que más ganan") — 1 de 100 (2026-08-05)
 Origen: un vídeo de TikTok que un **inversor del proyecto** mandó a RasDG — "$1.000 →
 $426.000 copiando a Trump", "el insider de Trump, 100% de acierto" — en un momento de

@@ -197,6 +197,11 @@ tamaño (V3) se acaba antes de que el edge empiece. **Lo que falta no es otra me
 mismo cube: es una señal con más edge bruto, o un coste de ejecución estructuralmente
 menor.** Cualquier encargo nuevo que no ataque una de esas dos cosas está decorando.
 
+**ENCARGO SIGUIENTE (escrito, listo para arranque en frio): `internal/BRIEF_FRONTERA_2026-08.md`.**
+Dónde está la frontera en UNA cifra (**+0.07R por trade**: lo que falta para que el IC95% del neto
+quede entero sobre cero), las cuatro palancas vivas con su prior ya medido, la lista de lo que NO
+hay que volver a proponer, y las nueve puertas anti-espejismo. Léelo antes de proponer nada.
+
 Reproducir: `python tools/vip_report.py` · `python tools/cube_report.py cosecha_cubes/` ·
 `python tools/fill_quality.py` · `python tools/geometry_sweep.py` ·
 `python tools/capacity_analysis.py --vip`

@@ -20,10 +20,11 @@ caducado y volver a concluir cosas ya medidas. Empieza siempre con:
 git fetch origin claude/v3-capacidad-velas-rp3v9u && git checkout claude/v3-capacidad-velas-rp3v9u
 ```
 
-Contiene `claude/instrumento-2026-08-of95si` entero (E1–E9) y **V1, V2 y V3**. Las
-ramas anteriores (`...-v1-kqa7w0`, `...-v2-q1obx4`, `instrumento-...`) ya no se
-tocan: son historia, no punto de partida. Si abres una sesión nueva, apunta a la
-de arriba y no fusiones nada — está por delante, no en paralelo.
+Contiene `claude/instrumento-2026-08-of95si` entero (E1–E9) y **V1, V2, V3 y V4**
+(el nombre de la rama dice "v3" y se quedó corto: V4 está dentro). Las ramas
+anteriores (`...-v1-kqa7w0`, `...-v2-q1obx4`, `instrumento-...`) ya no se tocan:
+son historia, no punto de partida. Si abres una sesión nueva, apunta a la de
+arriba y no fusiones nada — está por delante, no en paralelo.
 
 Nada se mergea a `main` sin decírselo a RasDG: despliega a producción con
 suscriptores de pago.
@@ -160,10 +161,16 @@ vuelva — si la respuesta es "acordarse", no está cerrado.
   empiece. **Lo que falta no es otra medición del mismo cube: es una señal con más edge
   BRUTO, o un coste de ejecución estructuralmente menor.** Un encargo nuevo que no ataque
   una de esas dos cosas está decorando.
+  **V4 se añadió después** (`growth.py`), y no es una cuarta entrega del brief sino la
+  respuesta a un texto de ergodicidad que trajo RasDG: cableó `g`/`f*`/P(acabar arriba).
+  No cambia el veredicto — lo traduce al idioma en el que un suscriptor lo entiende.
   **Ojo con las velas**: `data/` está en `.gitignore`, así que V2 y V3 no se re-corren en
   un clon nuevo hasta bajarlas
   (`python tools/fetch_binance_vision_klines.py BTCUSDT --start 2019-06-01 --end
   2026-06-30 --out-dir data/binance`, ~40 s por símbolo, gratis, sin API key).
+- **Encargo SIGUIENTE, ya escrito**: `internal/BRIEF_FRONTERA_2026-08.md` — dónde está
+  la frontera en una cifra, las palancas vivas con su prior medido, y la lista
+  anti-espejismo. Léelo ANTES de proponer nada nuevo.
 - **Presión de inversor**: un inversor del proyecto lleva meses viendo gasto sin
   producto rentable. Propuso pivotar a copy-trading (Trump/políticos, Autopilot +
   Hyperliquid). **Se midió antes de construir: 1 candidata de 100** → muerto en
