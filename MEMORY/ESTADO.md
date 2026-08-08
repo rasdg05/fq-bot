@@ -199,9 +199,23 @@ mismas 13.429 señales y el resultado cambia la lectura de todo lo que sigue:
     viva tiene: no cambia ninguna entrada → `n` constante → la vara NO se mueve → toda mejora es
     real.** Bloqueante: el cube no trae el ORDEN de barra del MFE/MAE; se desbloquea bajando
     `data/binance` (~2 min, gratis).
-    **Encargo escrito y pre-registrado: `internal/BRIEF_SALIDA_2026-08.md`** (hipótesis,
-    rejilla de 7, `n_trials=7` + cota paranoica 588, criterio de decisión y 8 puertas
-    anti-espejismo, todo fijado ANTES de correr). Extiende `tools/geometry_sweep.py`, no crea.
+    **Encargo `internal/BRIEF_SALIDA_2026-08.md` — EJECUTADO el 2026-08-08. Veredicto:
+    H1 ✓ · H2 ✓ · H3 ✗.** `python tools/geometry_sweep.py --exits --vip` (n=3.565, `n_trials=6`).
+    - **La salida hace lo prometido, y es grande:** trailing k=0.50 baja el hold de 1.95 a 1.06
+      días, el **DD a la `f` viva de 30.6% a 11.1%**, y sube el **Sharpe/trade de 0.0530 a
+      0.0740**. Con `n` IDÉNTICA al control → **la vara no se movió**: es la única palanca en
+      meses sin peaje de muestra.
+    - **Y aun así no es candidato, por dos razones que el tool imprime solo:** (a) **el control
+      ya cruza** — lo que cambió frente al cementerio no es la salida sino el **universo**
+      (3 símbolos con velas vs 13 del pool), y eso es una afirmación de SUBCONJUNTO que choca
+      con `CEMENTERIO.md` ("el liderazgo rota"); (b) el **DSR pasa de 0.986 a 0.366** con la cota
+      paranoica (504 = 84×6). → `CEMENTERIO.md`.
+    - **Lo que queda vivo de esto:** la salida dinámica es una palanca de **RIESGO**, no de edge
+      (misma familia que V4). Si aparece edge bruto, convierte el producto en uno con la mitad
+      del drawdown. Guardada, medida, sin usar.
+    - **Lo que hace falta para cerrar la duda del subconjunto:** bajar las velas de los 10
+      símbolos restantes y re-correr el control sobre el pool entero. Es la misma receta
+      (~40 s/símbolo) y es lo primero que debe hacer la próxima sesión.
 
 - **CONTEXTO DE NEGOCIO (2026-08-05) — presión de inversor, y por qué NO se pivota.**
   Un inversor del proyecto lleva meses viendo gasto sin producto rentable y mandó un vídeo

@@ -52,10 +52,11 @@ sys.path.insert(0, os.path.dirname(_HERE))
 sys.path.insert(0, _HERE)
 
 from bt_engine import CostModel                                   # noqa: E402
-from bt_labeler import label_event_grid                           # noqa: E402
+from bt_labeler import label_event_dynamic, label_event_grid      # noqa: E402
 from cube_report import cell_events, load_pool                    # noqa: E402
 from fill_quality import align, load_klines, recompute_excursion, validate_venue  # noqa: E402
 from validation_gate import _sharpe, deflated_from_trials         # noqa: E402
+from vip_report import require_screened, screen_cell, vip_universe  # noqa: E402
 
 MIN_N = 30
 # La rejilla llega hasta kSL=12 a proposito: con (1..5) el maximo caia en la
@@ -65,6 +66,47 @@ MIN_N = 30
 SL_MULTS = (1.0, 1.5, 2.0, 3.0, 5.0, 8.0, 12.0)
 TP_RS = (1.0, 2.0, 3.0, 4.0, 6.0, 10.0)
 HORIZONS = (576, 1152)
+
+# --------------------------------------------------------------------------
+#  EJE DE SALIDA — pre-registrado en internal/BRIEF_SALIDA_2026-08.md
+# --------------------------------------------------------------------------
+# La geometria NO se busca: viene PRE-FIJADA por el resultado publicado del
+# cementerio (2026-08-04), que es un resultado con fecha y no una busqueda nueva.
+CELDA_PRIMARIA = (5.0, 6.0, 1152)      # la de +0.0608R
+CELDA_REPLICA = (5.0, 10.0, 1152)      # la de CPCV 13/15, replica declarada
+
+# Estas 7 SON el `n_trials`. Declaradas enteras antes de correr; el brief
+# prohibe expresamente cruzarlas con nada. `arm=1.0` en la familia A queda FIJO
+# (no se busca) porque sin umbral de armado la regla es degenerada.
+EXIT_RULES = (
+    ("control (barreras fijas)", None),
+    ("A trail k=0.33", {"kind": "trail", "k": 0.33, "arm": 1.0}),
+    ("A trail k=0.50", {"kind": "trail", "k": 0.50, "arm": 1.0}),
+    ("A trail k=0.67", {"kind": "trail", "k": 0.67, "arm": 1.0}),
+    # OJO — DEGENERACION DE LA PRE-REGISTRACION, encontrada al correr (2026-08-08).
+    # `be_trail(m=1.0, k=0.50)` es MATEMATICAMENTE IDENTICO a `trail(k=0.50,
+    # arm=1.0)`: al armarse con mfe>=1.0, el `max(0, mfe*0.5)` del breakeven
+    # nunca muerde porque mfe*0.5 >= 0.5 > 0. Las dos reglas producen la MISMA
+    # columna hasta el ultimo decimal. Se deja en la tabla marcada como duplicado
+    # en vez de borrarla: la rejilla se declaro antes de correr y borrarla a
+    # posteriori seria reescribir la pre-registracion. Pero NO cuenta como
+    # evidencia independiente ni como trial.
+    ("B breakeven m=1.0 (= A k=0.50)", {"kind": "be_trail", "m": 1.0, "k": 0.50}),
+    ("B breakeven m=2.0", {"kind": "be_trail", "m": 2.0, "k": 0.50}),
+    ("C techo T=96", {"kind": "time", "T": 96}),
+    ("C techo T=288", {"kind": "time", "T": 288}),
+)
+# El control no es un trial, y el duplicado tampoco: son 6 reglas DISTINTAS.
+DUPLICADA = "(= A k=0.50)"
+N_TRIALS_SALIDA = len([n for n, r in EXIT_RULES
+                       if r is not None and DUPLICADA not in n])
+N_TRIALS_PARANOICO = 84 * N_TRIALS_SALIDA      # divulgacion obligatoria
+
+# La `f` que gobierna la cuenta viva. El drawdown se reporta AQUI, no en la
+# risk_frac mas conservadora de la rejilla: informar el DD minimo entre cuatro
+# fracciones es informar el de la mas timida (0.1%), que no es la que se opera y
+# hace parecer segura una celda que a 0.25% lleva el doble de DD.
+F_VIVA = 0.0025
 
 
 def net_r_vectorized(direction, entry, exit_price, stop, bars_held, outcome,
@@ -246,6 +288,226 @@ def report(long, cost, *, bar_minutes=5.0):
     return long
 
 
+def relabel_exits(events, kl, pos, symbol, *, celda, exit_rules=EXIT_RULES):
+    """Re-etiqueta cada senal bajo cada REGLA DE SALIDA, con la geometria fija.
+
+    La geometria (kSL, tpR, horizonte) no se mueve: viene pre-fijada. Lo unico
+    que varia es cuando se cierra. Por eso el control (`exit_rule=None`) es
+    exactamente comparable — misma entrada, mismo stop, mismo objetivo.
+    """
+    k_sl, tp_r, horizon = celda
+    hi, lo, cl = (kl["high"].to_numpy(float), kl["low"].to_numpy(float),
+                  kl["close"].to_numpy(float))
+    n = len(kl)
+    entry = events["entry_price"].to_numpy(float)
+    stop0 = events["stop_price"].to_numpy(float)
+    d = events["direction"].to_numpy(int)
+    ts = events["entry_ts"].to_numpy()
+    risk0 = np.abs(entry - stop0)
+
+    filas = []
+    for i in range(len(events)):
+        p = pos[i]
+        if p < 0 or risk0[i] <= 0:
+            continue
+        a, b = p + 1, min(p + 1 + horizon, n)
+        if b - a < 2:
+            continue
+        bars = pd.DataFrame({"high": hi[a:b], "low": lo[a:b], "close": cl[a:b]})
+        riesgo = risk0[i] * k_sl
+        stop = entry[i] - d[i] * riesgo
+        target = entry[i] + d[i] * tp_r * riesgo
+        for nombre, regla in exit_rules:
+            r = label_event_dynamic(bars, entry[i], stop, target, int(d[i]),
+                                    exit_rule=regla, max_bars=horizon,
+                                    pessimistic=True)
+            filas.append((symbol, ts[i], int(d[i]), entry[i], stop, riesgo,
+                          nombre, r["outcome"], r["bars_held"],
+                          r["exit_price"], r["pnl_r"]))
+    return pd.DataFrame(filas, columns=[
+        "symbol", "entry_ts", "direction", "entry_price", "stop_price", "risk",
+        "salida", "outcome", "bars_held", "exit_price", "pnl_r"])
+
+
+def report_exits(long, cost, *, celda, bar_minutes=5.0, etiqueta="PRIMARIA",
+                 n_trials=N_TRIALS_SALIDA):
+    """El veredicto del eje de salida, con las tres puertas de la casa puestas:
+    vara propia por fila, cartera antes que candidata, y DSR deflactado."""
+    long = long.copy()
+    long["net_pnl_r"] = net_r_vectorized(
+        long.direction, long.entry_price, long.exit_price, long.stop_price,
+        long.bars_held, long.outcome, cost, bar_minutes)
+    long["t0"] = pd.to_datetime(long["entry_ts"])
+    long["t1"] = long["t0"] + pd.to_timedelta(
+        long["bars_held"].astype(float) * bar_minutes, unit="m")
+    long["net_r"] = long["net_pnl_r"]
+
+    k_sl, tp_r, horizon = celda
+    print("\n" + "=" * 78)
+    print("  EJE DE SALIDA · celda %s PRE-FIJADA kSL=%.1f tpR=%.1f h=%d"
+          % (etiqueta, k_sl, tp_r, horizon))
+    print("=" * 78)
+    print("  n_trials = %d (las reglas; el control no cuenta)." % n_trials)
+    print("  Divulgacion paranoica: la celda salio de una rejilla de 84, asi")
+    print("  que la cota superior de trials es %d. Se imprime al lado."
+          % N_TRIALS_PARANOICO)
+
+    grupos = {nombre: g for nombre, g in long.groupby("salida")}
+    sharpes = {nombre: _sharpe(g["net_r"].to_numpy(float)[
+        ~np.isnan(g["net_r"].to_numpy(float))])
+        for nombre, g in grupos.items() if len(g) >= MIN_N}
+
+    print("\n  %-26s %6s %8s %9s %9s %10s %8s %8s"
+          % ("salida", "n", "hold_d", "bruto", "NETO", "brecha", "DSR", "DSRp"))
+    filas = []
+    orden = [nombre for nombre, _ in EXIT_RULES if nombre in grupos]
+    for nombre in orden:
+        g = grupos[nombre]
+        x = g["net_r"].to_numpy(float)
+        x = x[~np.isnan(x)]
+        if len(x) < MIN_N:
+            continue
+        lo_, hi_, _ = _boot(x)
+        brecha = -lo_                      # la vara de SU n (frontier_report)
+        dsr = deflated_from_trials(x, list(sharpes.values()))
+        dsr_p = deflated_from_trials(x, list(sharpes.values()) * 84)
+        hold_d = float(g["bars_held"].mean()) * bar_minutes / 60.0 / 24.0
+        s = require_screened(screen_cell(g, label=nombre))
+        filas.append({"salida": nombre, "n": len(x), "neto": float(x.mean()),
+                      "brecha": brecha, "hold_d": hold_d, "dsr": dsr["dsr"],
+                      "dsr_paranoico": dsr_p["dsr"], "screen": s,
+                      "lo": lo_, "hi": hi_})
+        print("  %-26s %6d %8.2f %+9.4f %+9.4f %+10.4f %8.3f %8.3f%s"
+              % (nombre, len(x), hold_d, g.pnl_r.mean(), x.mean(), brecha,
+                 dsr["dsr"], dsr_p["dsr"], "" if s["candidato"] else "   no"))
+
+    ctrl = next((f for f in filas if f["salida"].startswith("control")), None)
+    print("\n  -- H1 (concurrencia) y H2 (perfil), contra el control --")
+    print("  El DD es el de la `f` VIVA (%.2f%%), NO el minimo de la rejilla de"
+          % (F_VIVA * 100))
+    print("  fracciones: reportar el minimo es reportar el de la mas timida.")
+    print("  %-30s %8s %9s %9s %8s %9s"
+          % ("salida", "d_hold", "DD@f_viva", "equity", "skew", "Sharpe/tr"))
+    for f in filas:
+        g = grupos[f["salida"]]
+        x = g["net_r"].to_numpy(float)
+        x = x[~np.isnan(x)]
+        viva = next((r for r in f["screen"]["intentos"]
+                     if abs(r["risk_frac"] - F_VIVA) < 1e-12), None)
+        f["dd_viva"] = -viva["max_drawdown"] if viva else float("nan")
+        f["equity_viva"] = viva["equity_final"] if viva else float("nan")
+        f["skew"] = float(pd.Series(x).skew())
+        f["sharpe"] = _sharpe(x)
+        print("  %-30s %+8.2f %8.1f%% %9.3f %+8.2f %9.4f"
+              % (f["salida"], f["hold_d"] - (ctrl["hold_d"] if ctrl else 0.0),
+                 f["dd_viva"] * 100, f["equity_viva"], f["skew"], f["sharpe"]))
+    return filas, ctrl
+
+
+def veredicto_exits(filas, ctrl):
+    """Las tres hipotesis, contestadas con el criterio fijado ANTES."""
+    print("\n" + "-" * 78)
+    print("  VEREDICTO — criterio pre-registrado (H3 exige las cuatro cosas)")
+    candidatos = [f for f in filas if f["brecha"] <= 0 and f["screen"]["candidato"]
+                  and f["dsr"] > 0.95]
+    for f in filas:
+        if f["salida"].startswith("control"):
+            continue
+        fallos = []
+        if f["brecha"] > 0:
+            fallos.append("IC95%% no cruza (falta %+.4fR)" % f["brecha"])
+        if not f["screen"]["candidato"]:
+            fallos.append(f["screen"]["motivos"][0] if f["screen"]["motivos"]
+                          else "cartera")
+        if f["dsr"] <= 0.95:
+            fallos.append("DSR %.3f <= 0.95" % f["dsr"])
+        print("  %-26s %s" % (f["salida"], "PASA" if not fallos
+                              else " · ".join(fallos)))
+    print()
+    if candidatos:
+        print("  >> Hay reglas que clarean el criterio literal. NO las llames")
+        print("     candidatas todavia: lee los dos avisos de abajo primero.")
+    else:
+        print("  >> NINGUNA regla de salida clarea el criterio. Al CEMENTERIO")
+        print("     con su n, su rejilla y su n_trials.")
+
+    if ctrl:
+        mejor = min((f for f in filas if not f["salida"].startswith("control")),
+                    key=lambda f: f["brecha"], default=None)
+        if mejor:
+            print("\n  Mejor regla: %s · brecha %+.4f vs control %+.4f (%s%+.4f)"
+                  % (mejor["salida"], mejor["brecha"], ctrl["brecha"],
+                     "cierra " if mejor["brecha"] < ctrl["brecha"] else "abre ",
+                     ctrl["brecha"] - mejor["brecha"]))
+            print("  n IGUAL que el control (%d vs %d) -> la vara NO se movio y"
+                  % (mejor["n"], ctrl["n"]))
+            print("  toda la diferencia es real. Es lo unico limpio de la tabla.")
+
+        # AVISO 1 — el confundido que se come el titular.
+        if ctrl["brecha"] <= 0:
+            print("\n  " + "!" * 70)
+            print("  AVISO 1 — EL CONTROL YA CRUZA. La regla de salida NO es lo")
+            print("  que hace pasar esto. El control (barreras FIJAS) ya tiene")
+            print("  brecha %+.4f y DD@f_viva %.1f%%. Lo que cambio frente al"
+                  % (ctrl["brecha"], ctrl.get("dd_viva", float("nan")) * 100))
+            print("  cementerio NO es la salida: es el UNIVERSO (3 simbolos con")
+            print("  velas en vez de los 13 del pool). La concurrencia escala con")
+            print("  el numero de simbolos, asi que restringir el universo baja el")
+            print("  DD por aritmetica, no por hallazgo.")
+            print("  Eso es una afirmacion de SUBCONJUNTO y arrastra su propia")
+            print("  carga de multiple-testing (13 simbolos -> 3), ademas de")
+            print("  chocar con el CEMENTERIO: 'concentrar en los mejores")
+            print("  simbolos - el liderazgo rota; los rezagados ganan OOS'.")
+            print("  " + "!" * 70)
+
+        # AVISO 2 — el DSR se cae en cuanto se cuenta de verdad.
+        fragiles = [f for f in filas if f["dsr"] > 0.95 and f["dsr_paranoico"] <= 0.95]
+        if fragiles:
+            print("\n  AVISO 2 — DSR FRAGIL. Estas clarean a n_trials=%d y se caen"
+                  % N_TRIALS_SALIDA)
+            print("  a la cota paranoica (%d), que es la que cuenta la rejilla de"
+                  % N_TRIALS_PARANOICO)
+            print("  84 de la que salio la celda:")
+            for f in fragiles:
+                print("     %-30s DSR %.3f -> %.3f"
+                      % (f["salida"], f["dsr"], f["dsr_paranoico"]))
+            print("  Ninguna sobrevive a contar los trials de verdad.")
+    print("\n  COTA INFERIOR: convencion pesimista intra-vela (el extremo adverso")
+    print("  se asume primero). Y sigue sin modelo de fill en la ENTRADA.")
+    return candidatos
+
+
+def run_exits(cube_dir, klines_dir, *, tp="tp4", horizon=288, cost=None,
+              symbols=None, celda=CELDA_PRIMARIA, etiqueta="PRIMARIA",
+              n_trials=N_TRIALS_SALIDA):
+    cube = load_pool(cube_dir)
+    ev_all = cell_events(cube, tp=tp, horizon=horizon)
+    if symbols:
+        ev_all = ev_all[ev_all.symbol.isin(symbols)]
+    trozos = []
+    for sym, ev in ev_all.groupby("symbol"):
+        kl = load_klines(klines_dir, sym)
+        if kl is None or kl.empty:
+            continue
+        ev = ev.reset_index(drop=True)
+        pos = align(ev, kl)
+        mfe_l, mae_l = recompute_excursion(ev, kl, pos, horizon)
+        ok, rep = validate_venue(ev, mfe_l, mae_l)
+        print("  [venue] %-10s %5d/%5d alineadas  corr MFE %.3f  %s"
+              % (sym, rep.get("n_alineadas", 0), rep["n_total"],
+                 rep.get("corr_mfe", float("nan")), "OK" if ok else "RECHAZADO"))
+        if not ok:
+            continue
+        trozos.append(relabel_exits(ev, kl, pos, sym, celda=celda))
+    if not trozos:
+        print("\n  Ningun simbolo paso el gate de venue. Sin medicion.")
+        return None
+    filas, ctrl = report_exits(pd.concat(trozos, ignore_index=True),
+                               cost or CostModel(), celda=celda,
+                               etiqueta=etiqueta, n_trials=n_trials)
+    return veredicto_exits(filas, ctrl), filas
+
+
 def run(cube_dir, klines_dir, *, tp="tp4", horizon=288, cost=None, symbols=None,
         sl_mults=SL_MULTS, tp_rs=TP_RS, horizons=HORIZONS):
     cube = load_pool(cube_dir)
@@ -280,10 +542,31 @@ def main(argv=None):
     ap.add_argument("--cube", default="cosecha_cubes/")
     ap.add_argument("--klines", default="data/binance")
     ap.add_argument("--symbols", default=None)
+    ap.add_argument("--exits", action="store_true",
+                    help="barrer el EJE DE SALIDA sobre la celda pre-fijada "
+                         "(internal/BRIEF_SALIDA_2026-08.md)")
+    ap.add_argument("--vip", action="store_true",
+                    help="restringir al universo que difunde el bot")
+    ap.add_argument("--replica", action="store_true",
+                    help="ademas, la celda replica declarada (n_trials x2)")
     a = ap.parse_args(argv)
+
+    syms = a.symbols.split(",") if a.symbols else None
+    if a.vip and not syms:
+        syms = ["%s_USDT" % s for s in sorted(vip_universe())]
+
     print("=== GATE DE VENUE (cubos de OKX; velas de Binance) ===")
-    out = run(a.cube, a.klines,
-              symbols=a.symbols.split(",") if a.symbols else None)
+    if a.exits:
+        out = run_exits(a.cube, a.klines, symbols=syms)
+        if out is not None and a.replica:
+            print("\n\n" + "#" * 78)
+            print("  REPLICA DECLARADA — n_trials sube a %d, y se dice"
+                  % (2 * N_TRIALS_SALIDA))
+            print("#" * 78)
+            run_exits(a.cube, a.klines, symbols=syms, celda=CELDA_REPLICA,
+                      etiqueta="REPLICA", n_trials=2 * N_TRIALS_SALIDA)
+        return 0 if out is not None else 1
+    out = run(a.cube, a.klines, symbols=syms)
     return 0 if out is not None else 1
 
 

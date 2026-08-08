@@ -499,6 +499,53 @@ del capital. En multiplos de R a f=0.25% el arrastre es `f²σ²/2` ≈ 1e-5, in
 ya era la vacuna**; lo que faltaba era mirar `f`. Aplicar `μ − σ²/2` a nuestro +0.27R daria −2.12
 y es un disparate — si alguien lo cita asi, esta mal.
 
+### La regla de SALIDA dinámica — H1 ✓, H2 ✓, H3 ✗ (2026-08-08, pre-registrada)
+Encargo `internal/BRIEF_SALIDA_2026-08.md`, ejecutado sobre la celda **pre-fijada** del
+cementerio (kSL=5.0, tpR=6.0, h=1152), universo VIP, n=**3.565**, `n_trials=6` distintos
+(la rejilla se declaró entera antes de correr). `python tools/geometry_sweep.py --exits --vip`.
+
+**Lo que SÍ hace, y hace exactamente lo prometido** (contra el control de barreras fijas):
+
+| salida | hold | DD@f=0.25% | skew | Sharpe/trade | NETO | brecha |
+|---|---|---|---|---|---|---|
+| control (barreras fijas) | 1.95 d | **30.6%** | +1.84 | 0.0530 | +0.1087 | −0.0368 |
+| **A trail k=0.50** | 1.06 d | **11.1%** | +1.75 | **0.0740** | +0.0950 | **−0.0531** |
+| A trail k=0.33 | 0.91 d | 10.8% | +0.62 | 0.0681 | +0.0746 | −0.0372 |
+
+- **H1 (concurrencia) CONFIRMADA:** hold −0.88 días, **DD de 30.6% a 11.1%** a la `f` viva.
+- **H2 (perfil) CONFIRMADA:** Sharpe por trade **0.0530 → 0.0740** (+40%).
+- **Y sin peaje de muestra:** `n = 3.565` idéntica al control. Es **la única palanca medida en
+  meses que no mueve la vara** — toda la diferencia de brecha (+0.0163) es real.
+
+**Por qué muere igual — dos avisos que el propio tool imprime:**
+1. **EL CONTROL YA CRUZA (brecha −0.0368).** La salida **no es** lo que hace pasar esto. Lo que
+   cambió frente al cementerio no es la salida: es el **UNIVERSO** — 3 símbolos con velas en vez
+   de los 13 del pool. La concurrencia escala con el número de símbolos, así que restringir el
+   universo baja el DD **por aritmética, no por hallazgo**. Es una afirmación de SUBCONJUNTO,
+   con su propia carga de multiple-testing (13 → 3), y choca de frente con este mismo cementerio:
+   *"concentrar en los mejores símbolos — el liderazgo rota; los rezagados ganan OOS"*.
+2. **El DSR se cae al contarlo de verdad:** A k=0.50 da **0.986 con `n_trials=6`** y **0.366** con
+   la cota paranoica (504 = 84 × 6), que es la que cuenta la rejilla de 84 de la que salió la
+   celda. Ninguna regla sobrevive.
+
+**Qué muere:** la salida dinámica **como vía a candidato por sí sola**. **Qué NO muere:** el
+mecanismo, que está medido y es grande — si algún día aparece edge bruto, esta salida lo
+convierte en un producto con la mitad del drawdown y 40% más de Sharpe por trade. Es una palanca
+de RIESGO real, no de edge. Misma familia que V4: convierte un edge en producto, no la falta de
+edge en edge.
+
+**Degeneración de la propia pre-registración, encontrada al correr y NO borrada:**
+`be_trail(m=1.0, k=0.50)` resultó **matemáticamente idéntica** a `trail(k=0.50, arm=1.0)` — al
+armarse con mfe≥1.0 el `max(0, ·)` nunca muerde. Producían la misma columna hasta el último
+decimal. Se deja en la tabla marcada como duplicado (borrarla a posteriori sería reescribir la
+pre-registración) pero **no cuenta como trial ni como evidencia independiente**: 7 declaradas → 6
+distintas.
+**Invariantes nuevas:** `bt_labeler.label_event_dynamic` construye el nivel de trailing SOLO con
+las velas `0..i-1` (`LookaheadExitError`, `tests/test_exit_rule.py` lo comprueba con una serie de
+futuro espectacular); hereda el pesimismo intra-vela de la cosecha; y una salida **no cambia `n`**.
+Además el DD se reporta a la **`f` viva (0.25%)**, no al mínimo de la rejilla de fracciones —
+informar el mínimo es informar el de la más tímida (0.1%), que da 13.1% en vez de 30.6%.
+
 ### "Bajar comisiones vale +0.06 a +0.09R y no depende de ningún research" — la pared de V3 por el otro lado (2026-08-08)
 `BRIEF_FRONTERA_2026-08.md` la puso de palanca **#1**, "del tamaño de la frontera entera".
 Medido con `tools/frontier_report.py` sobre el universo VIP (tp4/h288, n=3.774):

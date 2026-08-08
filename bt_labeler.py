@@ -144,6 +144,144 @@ def label_event(bars, entry_price, stop_price, target_price, direction,
     }
 
 
+TRAIL = "trail"
+
+
+class LookaheadExitError(RuntimeError):
+    """Una regla de salida miro el futuro.
+
+    Es LA trampa de este experimento. Un trailing necesita el maximo *hasta
+    ahora*; si se calcula el MFE de toda la vida del trade y luego se "sale en
+    k x MFE", la regla sabe a donde va a llegar el precio y produce una curva
+    preciosa y falsa. Aqui el nivel de trailing de la vela `i` se construye SOLO
+    con las velas `0..i-1`, y `test_la_salida_dinamica_es_causal` lo comprueba
+    alimentando una serie cuyo futuro es espectacular.
+    """
+
+
+def _trail_level_r(rule, mfe_r_prev, armed):
+    """Nivel de salida en R, construido con el MFE **hasta la vela anterior**.
+
+    Devuelve `(nivel_r, armed)`. `-1.0` significa "manda el stop duro" (en las
+    unidades de R de esta geometria el stop duro es exactamente -1R por
+    construccion, porque R = |entry - stop|).
+    """
+    kind = rule["kind"]
+    if kind == "time":
+        return -1.0, armed
+    if kind == "trail":
+        # Se ARMA al llegar a `arm` R. Sin umbral de armado la regla es
+        # degenerada: con MFE=0 el nivel k*0 = 0 seria breakeven desde el tick
+        # uno, mas apretado que el propio stop duro. `arm` NO se busca (queda
+        # fijo en 1.0R) para no gastar n_trials en el.
+        armed = armed or (mfe_r_prev >= rule["arm"])
+        if not armed:
+            return -1.0, armed
+        return mfe_r_prev * (1.0 - rule["k"]), armed
+    if kind == "be_trail":
+        # Breakeven al llegar a `m` R, y a partir de ahi cede la mitad del pico.
+        armed = armed or (mfe_r_prev >= rule["m"])
+        if not armed:
+            return -1.0, armed
+        return max(0.0, mfe_r_prev * (1.0 - rule["k"])), armed
+    raise ValueError("regla de salida desconocida: %r" % kind)
+
+
+def label_event_dynamic(bars, entry_price, stop_price, target_price, direction,
+                        exit_rule, max_bars=None, pessimistic=True):
+    """Como `label_event`, pero con una salida DINAMICA encima de las barreras.
+
+    El stop duro y el objetivo siguen ahi: la regla dinamica solo puede cerrar
+    ANTES. Por eso el control (`exit_rule=None` -> `label_event`) es exactamente
+    comparable, que es lo que exige la pre-registracion.
+
+    Dos convenciones, y las dos son las de la casa:
+
+    * **Causalidad.** El nivel de trailing de la vela `i` se calcula con el MFE
+      de las velas `0..i-1`. Nunca con el de la vela en curso ni con el futuro.
+    * **Pesimismo intra-vela.** Dentro de una vela no se sabe si el extremo
+      adverso llego antes que el favorable, asi que se asume que si. El orden de
+      comprobacion es: (1) nivel de salida/stop contra el extremo ADVERSO,
+      (2) objetivo contra el favorable, (3) recien entonces se actualiza el MFE.
+      Es el mismo sesgo que `label_event` (empate -> gana el stop), y por eso el
+      resultado se publica como COTA INFERIOR.
+
+    `outcome` gana un valor nuevo, `'trail'`, para que el desenlace por salida
+    dinamica no se confunda con un stop ni con un timeout.
+    """
+    if direction not in (LONG, SHORT):
+        raise ValueError("direction debe ser LONG(+1) o SHORT(-1)")
+    risk = abs(entry_price - stop_price)
+    if risk <= 0:
+        raise ValueError("riesgo no positivo (entry == stop)")
+    if exit_rule is None:
+        return label_event(bars, entry_price, stop_price, target_price,
+                           direction, max_bars=max_bars,
+                           pessimistic=pessimistic)
+
+    horizon = len(bars) if max_bars is None else min(max_bars, len(bars))
+    if exit_rule["kind"] == "time":
+        horizon = min(horizon, int(exit_rule["T"]))
+    d = direction
+
+    highs = bars["high"].to_numpy()
+    lows = bars["low"].to_numpy()
+    closes = bars["close"].to_numpy()
+
+    mfe_r = 0.0          # MFE hasta la vela ANTERIOR (esto es la causalidad)
+    mae_r = 0.0
+    armed = False
+    last_close = entry_price
+
+    for i in range(horizon):
+        hi, lo, cl = highs[i], lows[i], closes[i]
+        last_close = cl
+
+        nivel_r, armed = _trail_level_r(exit_rule, mfe_r, armed)
+        # El nivel efectivo nunca es mas flojo que el stop duro.
+        nivel_r = max(nivel_r, -1.0)
+        nivel_px = entry_price + d * nivel_r * risk
+
+        fav_price = hi if d == LONG else lo
+        adv_price = lo if d == LONG else hi
+
+        # (1) Extremo ADVERSO primero: pesimismo intra-vela.
+        toca_salida = (adv_price <= nivel_px) if d == LONG else (adv_price >= nivel_px)
+        # (2) Objetivo.
+        toca_tp = (hi >= target_price) if d == LONG else (lo <= target_price)
+
+        if toca_salida:
+            # Un empate con el objetivo se resuelve a favor de la salida, igual
+            # que `label_event` resuelve el empate a favor del stop.
+            outcome = LOSS if nivel_r <= -1.0 else TRAIL
+            res = _result(outcome, i + 1, nivel_px, entry_price, stop_price,
+                          d, risk, mfe_r, mae_r, i)
+            res["exit_kind"] = exit_rule["kind"]
+            return res
+        if toca_tp:
+            res = _result(WIN, i + 1, target_price, entry_price, stop_price,
+                          d, risk, mfe_r, mae_r, i)
+            res["exit_kind"] = exit_rule["kind"]
+            return res
+
+        # (3) Recien AHORA entra esta vela en el MFE/MAE, para que el nivel de
+        # la vela siguiente la use y el de esta no.
+        mfe_r = max(mfe_r, d * (fav_price - entry_price) / risk)
+        mae_r = min(mae_r, d * (adv_price - entry_price) / risk)
+
+    pnl_r = d * (last_close - entry_price) / risk
+    return {
+        "outcome": TIMEOUT,
+        "bars_held": horizon,
+        "exit_price": last_close,
+        "pnl_r": pnl_r,
+        "mfe_r": mfe_r,
+        "mae_r": mae_r,
+        "hit_index": None,
+        "exit_kind": exit_rule["kind"],
+    }
+
+
 def _result(outcome, bars_held, exit_price, entry_price, stop_price,
             d, risk, mfe_r, mae_r, idx):
     pnl_r = d * (exit_price - entry_price) / risk
