@@ -136,15 +136,25 @@ Las tres que este brief planteó están **CONTESTADAS (2026-08-08)** por
 `internal/EVALUACION_V1_V4_FRONTERA_2026-08.md`. La #3 (funding-gate neto) sigue
 abierta porque el cube no trae la serie de funding.
 
-**La que queda viva, y es la única del cube:** el coste en R es
-`(2·fee + 2·slip)/stop_frac`. Todo agosto atacó el **numerador** y está agotado.
-El **denominador** (`stop_frac` = 0.51%) nunca se ha mirado **neto, sobre el
-universo VIP, con la vara móvil y la cartera puesta** — el screening de quintiles
-de stop se hizo en bruto y sobre el pool entero. El repo midió que *el stop
-apretado ES el edge* (Q1 +0.316R vs Q4 +0.147R), y eso es exactamente la variable
-que **divide** el coste: los dos efectos van en sentidos opuestos y nadie ha
-medido dónde se cruzan. Prior en contra (~25%), cuesta una corrida, y su
-desenlace legítimo es `CEMENTERIO.md`.
+**La que queda viva: la REGLA DE SALIDA.** → `internal/BRIEF_SALIDA_2026-08.md`
+(pre-registrado: hipótesis, rejilla, `n_trials` y criterio fijados antes de
+correr).
+
+> ⚠️ **Ojo, que aquí se propuso mal una vez (2026-08-08).** Se apuntó primero al
+> `stop_frac` como "el denominador del coste que nadie miró". **Falso por dos
+> lados:** (1) está medido y muerto — `tools/geometry_sweep.py`, 84 celdas,
+> `DSR = 0.000` con `n_trials=84`, riesgo de cartera decisivo; y (2) la
+> aritmética lo desactiva de todos modos: bruto y coste escalan **los dos** por
+> `1/s`, así que **reescalar el stop no mueve el t-estadístico**. Solo puede
+> ayudar cambiando la COMPOSICIÓN de desenlaces, y eso ya se barrió.
+> **Lee `CEMENTERIO.md` antes de proponer, incluido tú.**
+
+Lo que **sí** queda sin medir es cambiar la **regla de salida** (trailing /
+breakeven / techo de tiempo) sobre la celda ancha ya identificada. Es la
+condición de reviving que el propio cementerio dejó escrita — *"un mecanismo que
+baje la CONCURRENCIA sin tirar la cadencia"* — y tiene una propiedad que ninguna
+otra palanca viva tiene: **no cambia ninguna entrada, así que `n` es constante,
+la vara no se mueve y toda mejora del neto es real**.
 
 Reproducibles (todo local y gratis; el cube ya está en `cosecha_cubes/`):
 

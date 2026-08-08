@@ -187,10 +187,21 @@ mismas 13.429 señales y el resultado cambia la lectura de todo lo que sigue:
     fueron instrumentos, y tres destaparon errores de medición que inflaban cifras publicadas
     (fill 100% en V2, liquidez de catálogo + `fill_bars` en V3, R invariante a `f` en V4). Lo que
     aportaron fue **impedir que ese 58% se leyera como 100%**.
-  - **La única pregunta del cube que queda VIVA:** el coste en R es `(2·fee+2·slip)/stop_frac` y
-    todo agosto atacó el **numerador** (agotado). El **denominador** (`stop_frac` = 0.51%) no se
-    ha mirado **neto, sobre el VIP, con la vara móvil y la cartera puesta** — solo bruto y sobre
-    el pool. Prior en contra (~25%), cuesta una corrida, desenlace legítimo `CEMENTERIO.md`.
+  - **La única pregunta que queda VIVA: la REGLA DE SALIDA.** (Corrección del 2026-08-08: primero
+    se apuntó al `stop_frac`, y eso **ya está muerto** — 84 celdas, `DSR=0.000` con `n_trials=84`.
+    Además la aritmética lo desactiva: bruto y coste escalan los dos por `1/s`, así que
+    **reescalar el stop no mueve el t-estadístico**; solo puede ayudar cambiando la COMPOSICIÓN.)
+    Lo que nadie ha medido es **cambiar la regla de salida** (trailing / breakeven / techo de
+    tiempo) sobre la celda ancha ya identificada. Es **la condición de reviving escrita en el
+    propio cementerio**: *"un mecanismo que baje la CONCURRENCIA sin tirar la cadencia"*.
+    Ataca **las dos** causas de muerte de la geometría ancha (concurrencia 13.7 y perfil de
+    lotería skew +2.68 / Sharpe-trade 0.0377), y tiene una propiedad que **ninguna otra palanca
+    viva tiene: no cambia ninguna entrada → `n` constante → la vara NO se mueve → toda mejora es
+    real.** Bloqueante: el cube no trae el ORDEN de barra del MFE/MAE; se desbloquea bajando
+    `data/binance` (~2 min, gratis).
+    **Encargo escrito y pre-registrado: `internal/BRIEF_SALIDA_2026-08.md`** (hipótesis,
+    rejilla de 7, `n_trials=7` + cota paranoica 588, criterio de decisión y 8 puertas
+    anti-espejismo, todo fijado ANTES de correr). Extiende `tools/geometry_sweep.py`, no crea.
 
 - **CONTEXTO DE NEGOCIO (2026-08-05) — presión de inversor, y por qué NO se pivota.**
   Un inversor del proyecto lleva meses viendo gasto sin producto rentable y mandó un vídeo
