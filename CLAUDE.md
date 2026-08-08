@@ -70,6 +70,8 @@ vuelva — si la respuesta es "acordarse", no está cerrado.
 | La ventana no elige la cifra | `test_capacity_is_invariant_to_fill_bars` | Que `fill_bars` mueva la capacidad ×24 sin que nada lo delate (σ por barra contra liquidez por ventana) |
 | Crecimiento junto a la media | `ledger_stats.format_expectancy` + `growth.ArithmeticWithoutGrowthError` | Publicar un E[R] aritmético sin `g`, `f*` y P(acabar arriba) — el E[R] es del ensemble, la cuenta vive UNA trayectoria |
 | Una sola `f` | `execution.GovernorConfig` ← `growth.configured_risk_frac` | Que el gobernador arriesgue una fracción y el informe juzgue otra (ninguna otra métrica del repo depende de `f`) |
+| Vara propia por configuración | `frontier_report.require_own_bar` | Comparar una config filtrada contra la vara de otra: filtrar sube la media Y aleja la frontera (`-IC_lo` depende de la n) |
+| Puerta del tier de fees | `frontier_report.require_reachable` | Contar un descuento que la cuenta no alcanza. Falla **cerrado**: puerta no evaluable ≠ puerta cruzada |
 
 ## Números vigentes (agosto 2026) — no inventes otros
 

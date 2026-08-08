@@ -499,6 +499,67 @@ del capital. En multiplos de R a f=0.25% el arrastre es `f²σ²/2` ≈ 1e-5, in
 ya era la vacuna**; lo que faltaba era mirar `f`. Aplicar `μ − σ²/2` a nuestro +0.27R daria −2.12
 y es un disparate — si alguien lo cita asi, esta mal.
 
+### "Bajar comisiones vale +0.06 a +0.09R y no depende de ningún research" — la pared de V3 por el otro lado (2026-08-08)
+`BRIEF_FRONTERA_2026-08.md` la puso de palanca **#1**, "del tamaño de la frontera entera".
+Medido con `tools/frontier_report.py` sobre el universo VIP (tp4/h288, n=3.774):
+
+**La mitad que SÍ es aritmética se confirma:** cada punto básico de fee taker vale **+0.0436R**
+(`coste_R = (2·fee + 2·slip)/stop_frac`, stop mediano 0.51%).
+
+**La mitad que no lo es, mata la palanca.** El brief mismo avisó: *"lo que NO es aritmética es
+qué tier alcanza de verdad una cuenta pequeña"*. Respuesta:
+
+| escalón | taker | NETO | brecha | ¿alcanzable? |
+|---|---|---|---|---|
+| Binance VIP0 (base de TODO el repo) | 5.00 | +0.0099 | +0.0599 | sí |
+| **Hyperliquid + referral (−4%)** | **4.32** | **+0.0396** | **+0.0303** | **sí — el techo real** |
+| Binance VIP1 | 4.00 | +0.0536 | +0.0164 | **NO: pide $15M/30d** |
+| Binance VIP4-ish | 3.00 | +0.0972 | **−0.0273** | requisito sin verificar |
+
+La estrategia emite **~45 señales/mes** en el VIP; a la capacidad NETA que midió V3 ($22k) eso
+son **$970.973/30d — 15x por debajo de VIP1**. Y VIP1 aún no cruza: cruzar pide bajar de 4.00 bps,
+o sea escalones aún más caros de volumen.
+
+> **El edge no sostiene la cuenta que haría falta para abaratar el edge.** V3 (capacidad) y la
+> palanca #1 (comisiones) son **la misma pared vista por los dos lados**. No es una tarea
+> pendiente, es estructural.
+
+**Qué muere:** contar "bajar comisiones" como palanca de tamaño-frontera. **Vale +0.030R
+alcanzables, no +0.06–0.09R.** Corrige la tabla del brief.
+**Qué NO muere:** los +0.030R son reales y gratis (cambiar de venue + un código de referral).
+**Invariante:** `FeeTierUnreachableError` — un tier no se cuenta sin comprobar su puerta contra
+el throughput/capital de la cuenta, y falla **cerrado** (puerta no evaluable ≠ puerta cruzada).
+Es la tercera vez que el repo publica una cifra apoyada en un supuesto mayor que el margen
+entero: fill al 100% (V2), liquidez de catálogo (V3), tier de comisiones (aquí).
+**Ojo con el escalón de 4.10 bps:** se compra inmovilizando HYPE. Es exposición **direccional a
+un token** para subvencionar una estrategia sin edge demostrado; su varianza es órdenes de
+magnitud mayor que los +0.010R que compra. `MAX_CAPITAL_LOCK_FRAC` lo deja a la vista.
+
+### "La frontera son +0.07R" — no es una constante, y filtrar la aleja (2026-08-08)
+El mismo brief la escribió como número fijo contra el que medir cualquier propuesta. **La
+frontera es `-IC_lo` y depende de la n**, así que toda palanca que FILTRA señales sube la media
+y **encarece la vara a la vez**. Medido (tp4/h288, VIP, palancas #1+#2 apiladas):
+
+| configuración | NETO | Δ media | brecha | n |
+|---|---|---|---|---|
+| punto de partida | +0.0099 | — | +0.0599 | 3.774 |
+| + comisiones alcanzables (4.32bps) | +0.0396 | +0.0297 | +0.0303 | 3.774 |
+| + corte del tercil bajo de convicción | +0.0320 | +0.0220 | +0.0551 | 2.510 |
+| **+ las dos** | **+0.0620** | **+0.0521** | **+0.0250** | **2.510** |
+
+La media subió **+0.0521**, la brecha solo bajó **+0.0349**: **+0.0172R se los comió la vara al
+moverse**. O sea que **un tercio de lo que el corte de convicción aparenta ganar es
+contabilidad**. Apilando todo lo alcanzable la brecha se cierra un **58% y sigue sin cruzar**.
+**Qué muere:** comparar una configuración filtrada contra la vara de la configuración sin
+filtrar. Sin esta invariante, la forma más fácil de "acercarse a la frontera" en este repo sería
+**filtrar más** — que es justo la forma de no acercarse.
+**Invariante:** `frontier_gap` calcula la vara sobre la n de cada fila; `require_own_bar` levanta
+`FrontierBarMovedError` ante una fila publicada sin ella.
+**Corolario sobre la palanca #2 (convicción), medida neta por primera vez:** en tp4 aporta
++0.022R de media, de los que ~+0.017R se los come la vara → aporte real a la brecha **+0.005R**.
+Y **en la celda que el motor OPERA (tp1) no rescata nada**: −0.0589R, IC95% [−0.107, −0.006],
+entero bajo cero. **Encender `FQ_CONVICTION_LONGS` no arreglaría el producto vivo.**
+
 ### Copy-trading por leaderboard ("copiar a los que más ganan") — 1 de 100 (2026-08-05)
 Origen: un vídeo de TikTok que un **inversor del proyecto** mandó a RasDG — "$1.000 →
 $426.000 copiando a Trump", "el insider de Trump, 100% de acierto" — en un momento de

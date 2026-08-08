@@ -166,6 +166,32 @@ mismas 13.429 señales y el resultado cambia la lectura de todo lo que sigue:
     pierde. Es disciplina de riesgo, y convierte un edge en crecimiento — no la falta de
     edge en edge.
 
+- **EVALUACIÓN V1–V4 vs LA FRONTERA (2026-08-08) — la frontera se mueve, y la palanca #1 se cae.**
+  `python tools/frontier_report.py` · detalle en `internal/EVALUACION_V1_V4_FRONTERA_2026-08.md`.
+  - **La frontera NO es +0.07R constante.** Es **`-IC_lo`** y depende de la n → toda palanca que
+    FILTRA sube la media y **encarece la vara a la vez**. Invariantes: `frontier_gap` la calcula
+    sobre la n de cada fila; `require_own_bar` levanta `FrontierBarMovedError` sin ella.
+  - **Palanca #1 (comisiones) MEDIDA: vale +0.030R alcanzables, no +0.06–0.09R.** Cada bp de fee
+    taker = **+0.0436R** (aritmética, confirmada), pero el techo alcanzable es **Hyperliquid +
+    referral, 4.32 bps**. **Binance VIP1 pide $15M/30d y la estrategia genera $970.973/30d** a la
+    capacidad neta de V3 (~45 señales/mes, stop mediano 0.51%). → **El edge no sostiene la cuenta
+    que haría falta para abaratar el edge: V3 y la palanca #1 son la MISMA pared.**
+    Invariante: `FeeTierUnreachableError`, falla **cerrado** (puerta no evaluable ≠ cruzada).
+  - **Palanca #2 (tercil de convicción) medida NETA por primera vez:** en tp4 aporta +0.022R de
+    media pero solo **+0.005R de brecha**; **en tp1 (la celda VIVA) NO rescata: −0.0589R, IC95%
+    [−0.107, −0.006], entero bajo cero.** → **encender `FQ_CONVICTION_LONGS` no arregla el
+    producto vivo.**
+  - **Lo mejor alcanzable HOY** (tp4/h288, 4.32bps, sin tercil bajo): **NETO +0.0620, n=2.510,
+    IC95% [−0.0250, +0.1463] → brecha +0.0250. Se cierra el 58% y sigue sin cruzar.**
+  - **Lectura sobre V1–V4:** ninguna movió el neto — **ninguna era palanca de edge**. Las cuatro
+    fueron instrumentos, y tres destaparon errores de medición que inflaban cifras publicadas
+    (fill 100% en V2, liquidez de catálogo + `fill_bars` en V3, R invariante a `f` en V4). Lo que
+    aportaron fue **impedir que ese 58% se leyera como 100%**.
+  - **La única pregunta del cube que queda VIVA:** el coste en R es `(2·fee+2·slip)/stop_frac` y
+    todo agosto atacó el **numerador** (agotado). El **denominador** (`stop_frac` = 0.51%) no se
+    ha mirado **neto, sobre el VIP, con la vara móvil y la cartera puesta** — solo bruto y sobre
+    el pool. Prior en contra (~25%), cuesta una corrida, desenlace legítimo `CEMENTERIO.md`.
+
 - **CONTEXTO DE NEGOCIO (2026-08-05) — presión de inversor, y por qué NO se pivota.**
   Un inversor del proyecto lleva meses viendo gasto sin producto rentable y mandó un vídeo
   de TikTok proponiendo copy-trading de Trump/políticos (Autopilot + Hyperliquid) con
@@ -202,7 +228,8 @@ Dónde está la frontera en UNA cifra (**+0.07R por trade**: lo que falta para q
 quede entero sobre cero), las cuatro palancas vivas con su prior ya medido, la lista de lo que NO
 hay que volver a proponer, y las nueve puertas anti-espejismo. Léelo antes de proponer nada.
 
-Reproducir: `python tools/vip_report.py` · `python tools/cube_report.py cosecha_cubes/` ·
+Reproducir: `python tools/frontier_report.py` · `python tools/vip_report.py` ·
+`python tools/cube_report.py cosecha_cubes/` ·
 `python tools/fill_quality.py` · `python tools/geometry_sweep.py` ·
 `python tools/capacity_analysis.py --vip`
 (los cuatro últimos necesitan las velas en `data/binance`, que **no están en el repo**:
@@ -220,6 +247,8 @@ Reproducir: `python tools/vip_report.py` · `python tools/cube_report.py cosecha
 | Procedencia | (siempre) | el audit corta `tracker.outcomes` y lo que cuelga deja de publicarse |
 | Batches API | `FQ_LLM_BATCH` | superficie declarada o no se difiere (falla cerrado) |
 | Riesgo de cartera | (siempre) | `portfolio_risk`: el R por trade no describe la cuenta |
+| Vara propia por config | (siempre) | `require_own_bar`: filtrar sube la media Y aleja la frontera |
+| Tier de fees con su puerta | (siempre) | `require_reachable`: falla cerrado; no evaluable ≠ alcanzable |
 
 ---
 
