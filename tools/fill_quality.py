@@ -95,16 +95,22 @@ VENUE_MIN_CORR = 0.95
 VENUE_MAX_MED_ABS_DIFF_R = 0.25    # en R, mediana de |ΔMFE| y |ΔMAE|
 
 
-def load_klines(klines_dir, symbol):
-    """Velas 5m de un símbolo del cube ('SOL_USDT' -> kl_hist_SOLUSDT.parquet).
+def load_klines(klines_dir, symbol, interval="5m"):
+    """Velas de un símbolo del cube ('SOL_USDT' -> kl_hist_SOLUSDT.parquet).
 
     `volume` y `taker_buy_base` son OPCIONALES en disco y obligatorios para el
     modelo de cola: sin ellos no hay flujo que medir y la P(fill) cae al modo
     profundidad. Se piden aparte para que un parquet viejo (solo OHLC) siga
     sirviendo para la binaria en vez de romper el informe entero.
+
+    `interval` distinto de 5m lee el parquet con sufijo. El 5m conserva el
+    nombre historico a proposito: cualquier otra cosa invalidaria en silencio
+    todas las cifras ya publicadas del repo.
     """
     sym = symbol.replace("_", "")
-    path = os.path.join(klines_dir, "kl_hist_%s.parquet" % sym)
+    nombre = ("kl_hist_%s.parquet" % sym if interval == "5m"
+              else "kl_hist_%s_%s.parquet" % (sym, interval))
+    path = os.path.join(klines_dir, nombre)
     if not os.path.exists(path):
         return None
     cols = ["ts", "high", "low", "close"]

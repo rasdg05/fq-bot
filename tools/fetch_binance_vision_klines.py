@@ -93,20 +93,43 @@ def _normalize(df):
     return df[COLS]
 
 
-def _klines_day(sym, d):
-    """Klines 5m de un día. None si el archivo no existe."""
+# Los intervalos que Binance Vision publica y que este repo usa. El 1m NO es
+# para operar mas rapido (la aritmetica del peaje lo desaconseja: el coste fijo
+# no escala con el timeframe). Es para RESOLVER EL ORDEN INTRA-VELA: en la celda
+# tp4/h288 el 86% de las señales cruza los dos umbrales dentro de la misma vela
+# de 5m sin orden conocido, y toda la cosecha aplica la convencion pesimista a
+# ese 86%. Con velas de 1m la ambiguedad se reduce 5x.
+INTERVALS = ("1m", "5m")
+BARS_PER_DAY = {"1m": 1440, "5m": 288}
+
+
+def _klines_day(sym, d, interval="5m"):
+    """Klines de un día. None si el archivo no existe."""
     return _normalize(_fetch_zip(
-        "%s/%s/5m/%s-5m-%s.zip" % (BASE, sym, sym, d.isoformat())))
+        "%s/%s/%s/%s-%s-%s.zip" % (BASE, sym, interval, sym, interval,
+                                   d.isoformat())))
 
 
-def _klines_month(sym, y, m):
-    """Klines 5m de un mes completo. None si aún no está publicado."""
+def _klines_month(sym, y, m, interval="5m"):
+    """Klines de un mes completo. None si aún no está publicado."""
     return _normalize(_fetch_zip(
-        "%s/%s/5m/%s-5m-%04d-%02d.zip" % (BASE_MONTHLY, sym, sym, y, m)))
+        "%s/%s/%s/%s-%s-%04d-%02d.zip" % (BASE_MONTHLY, sym, interval, sym,
+                                          interval, y, m)))
 
 
-def fetch(sym, start, end, out_dir=DEFAULT_DIR, workers=None):
-    path = os.path.join(out_dir, "kl_hist_%s.parquet" % sym)
+def kline_path(out_dir, sym, interval="5m"):
+    """El 5m conserva el nombre historico para no invalidar ningun cache ni
+    ninguna cifra ya publicada; los demas intervalos llevan sufijo."""
+    if interval == "5m":
+        return os.path.join(out_dir, "kl_hist_%s.parquet" % sym)
+    return os.path.join(out_dir, "kl_hist_%s_%s.parquet" % (sym, interval))
+
+
+def fetch(sym, start, end, out_dir=DEFAULT_DIR, workers=None, interval="5m"):
+    if interval not in INTERVALS:
+        raise ValueError("intervalo no soportado: %r (usa %s)"
+                         % (interval, "/".join(INTERVALS)))
+    path = kline_path(out_dir, sym, interval)
     os.makedirs(out_dir, exist_ok=True)
     have = pd.read_parquet(path) if os.path.exists(path) else pd.DataFrame(columns=COLS)
     done_days = set((pd.to_datetime(have["ts"], unit="ms").dt.date.unique()).tolist()) if len(have) else set()
@@ -120,17 +143,19 @@ def fetch(sym, start, end, out_dir=DEFAULT_DIR, workers=None):
                              if start <= d <= end)]
     with ThreadPoolExecutor(max_workers=max(1, w)) as ex:
         for (y, m), g in zip(faltan_mes,
-                             ex.map(lambda ym: _klines_month(sym, *ym), faltan_mes)):
+                             ex.map(lambda ym: _klines_month(sym, *ym,
+                                                             interval=interval),
+                                    faltan_mes)):
             if g is None:
                 continue                      # mes en curso o pre-inception -> diarios
             parts.append(g)
             done_days |= set(pd.to_datetime(g["ts"], unit="ms").dt.date.unique().tolist())
-            n_new += len(g) // 288 or 1
+            n_new += len(g) // BARS_PER_DAY[interval] or 1
 
     # 2) Lo que siga faltando (mes en curso, huecos sueltos) -> diarios.
     todo = [d for d in _days(start, end) if d not in done_days]
     with ThreadPoolExecutor(max_workers=max(1, w)) as ex:
-        for g in ex.map(lambda d: _klines_day(sym, d), todo):
+        for g in ex.map(lambda d: _klines_day(sym, d, interval=interval), todo):
             if g is None:
                 continue
             parts.append(g)
@@ -146,8 +171,8 @@ def fetch(sym, start, end, out_dir=DEFAULT_DIR, workers=None):
     out.to_parquet(tmp, index=False)
     os.replace(tmp, path)
     span = (out.ts.max() - out.ts.min()) / 8.64e7
-    print("[kl-hist] %s: +%d días -> %d barras 5m (%.0f días) %s"
-          % (sym, n_new, len(out), span, path))
+    print("[kl-hist] %s: +%d días -> %d barras %s (%.0f días) %s"
+          % (sym, n_new, len(out), interval, span, path))
     return path
 
 
@@ -157,8 +182,12 @@ def main(argv):
     p.add_argument("--start", required=True, help="YYYY-MM-DD")
     p.add_argument("--end", required=True, help="YYYY-MM-DD")
     p.add_argument("--out-dir", default=DEFAULT_DIR)
+    p.add_argument("--interval", default="5m", choices=list(INTERVALS),
+                   help="5m = el de siempre; 1m = para resolver el orden "
+                        "intra-vela (no para operar mas rapido)")
     a = p.parse_args(argv)
-    fetch(a.symbol, date.fromisoformat(a.start), date.fromisoformat(a.end), a.out_dir)
+    fetch(a.symbol, date.fromisoformat(a.start), date.fromisoformat(a.end),
+          a.out_dir, interval=a.interval)
     return 0
 
 

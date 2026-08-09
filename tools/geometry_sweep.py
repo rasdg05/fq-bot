@@ -477,6 +477,119 @@ def veredicto_exits(filas, ctrl):
     return candidatos
 
 
+def run_intrabar(cube_dir, klines_dir, *, tp="tp4", horizon=288, cost=None,
+                 symbols=None, celda=CELDA_PRIMARIA, exit_rules=EXIT_RULES):
+    """¿Cuanto cuesta NO saber el orden intra-vela?
+
+    El cube guarda el maximo y el minimo del tramo, no cuando ocurrio cada uno.
+    Toda la cosecha aplica por eso la convencion pesimista (empate -> gana el
+    stop), y `DIAGNOSTICO_E7_E8` midio que en la celda tp4/h288 **el 86% de las
+    señales cruza los dos umbrales** dentro del mismo tramo. O sea que el sesgo
+    no toca a un caso raro: toca a casi todo.
+
+    Esto NO es operar mas rapido. La aritmetica del peaje desaconseja bajar de
+    timeframe: `coste_R = (2*fee + 2*slip)/stop_frac` y el peaje es FIJO en
+    precio, asi que un stop mas apretado lo AMPLIFICA. Aqui el stop no se toca:
+    lo unico que cambia es la RESOLUCION con la que se mira dentro de la barra.
+    Mismas señales, misma geometria, misma regla de salida — velas de 1m en vez
+    de 5m, y `max_bars` x5 para cubrir exactamente el mismo tiempo de reloj.
+
+    La ambiguedad no desaparece, se reduce 5x: dentro de una vela de 1m sigue
+    sin saberse el orden. Por eso el 1m tambien es COTA INFERIOR, solo que menos
+    apretada. La diferencia entre las dos es lo que la convencion estaba
+    costando.
+    """
+    cube = load_pool(cube_dir)
+    ev_all = cell_events(cube, tp=tp, horizon=horizon)
+    if symbols:
+        ev_all = ev_all[ev_all.symbol.isin(symbols)]
+    k_sl, tp_r, h5 = celda
+
+    salidas = {}
+    for interval, escala in (("5m", 1), ("1m", 5)):
+        trozos = []
+        for sym, ev in ev_all.groupby("symbol"):
+            kl = load_klines(klines_dir, sym, interval=interval)
+            if kl is None or kl.empty:
+                print("  [%s] %-10s sin velas -> fuera" % (interval, sym))
+                continue
+            ev = ev.reset_index(drop=True)
+            pos = align(ev, kl)
+            if (pos >= 0).sum() == 0:
+                print("  [%s] %-10s 0 alineadas -> fuera" % (interval, sym))
+                continue
+            print("  [%s] %-10s %5d/%5d alineadas" % (interval, sym,
+                                                      int((pos >= 0).sum()),
+                                                      len(ev)))
+            trozos.append(relabel_exits(ev, kl, pos, sym,
+                                        celda=(k_sl, tp_r, h5 * escala),
+                                        exit_rules=exit_rules))
+        if not trozos:
+            print("\n  Sin velas de %s. Bajalas con:" % interval)
+            print("  python tools/fetch_binance_vision_klines.py BTCUSDT "
+                  "--start 2019-06-01 --end 2026-06-30 --out-dir data/binance "
+                  "--interval %s" % interval)
+            return None
+        long = pd.concat(trozos, ignore_index=True)
+        long["net_pnl_r"] = net_r_vectorized(
+            long.direction, long.entry_price, long.exit_price, long.stop_price,
+            long.bars_held, long.outcome, cost or CostModel(),
+            5.0 / escala)
+        salidas[interval] = long
+
+    print("\n" + "=" * 78)
+    print("  QUE COSTABA NO SABER EL ORDEN INTRA-VELA")
+    print("  celda kSL=%.1f tpR=%.1f · mismo tiempo de reloj en las dos columnas"
+          % (k_sl, tp_r))
+    print("=" * 78)
+    print("  %-30s %19s %19s %10s"
+          % ("salida", "NETO 5m (hoy)", "NETO 1m (5x res)", "delta"))
+    filas = []
+    for nombre, _ in exit_rules:
+        a = salidas["5m"]
+        b = salidas["1m"]
+        xa = a[a.salida == nombre]["net_pnl_r"].to_numpy(float)
+        xb = b[b.salida == nombre]["net_pnl_r"].to_numpy(float)
+        xa, xb = xa[~np.isnan(xa)], xb[~np.isnan(xb)]
+        if len(xa) < MIN_N or len(xb) < MIN_N:
+            continue
+        la, ha, _ = _boot(xa)
+        lb, hb, _ = _boot(xb)
+        filas.append({"salida": nombre, "n5": len(xa), "n1": len(xb),
+                      "neto5": xa.mean(), "neto1": xb.mean(),
+                      "brecha5": -la, "brecha1": -lb})
+        print("  %-30s %+9.4f [%+.3f] %+9.4f [%+.3f] %+10.4f"
+              % (nombre, xa.mean(), -la, xb.mean(), -lb, xb.mean() - xa.mean()))
+
+    if filas:
+        ctrl = filas[0]
+        print("\n  -- lectura --")
+        d = ctrl["neto1"] - ctrl["neto5"]
+        vara = abs(ctrl["brecha5"])
+        print("  El control cambia %+.4fR al mirar con 5x de resolucion." % d)
+        print("  Su vara es %.4fR, o sea que eso es el %.0f%% de lo que falta."
+              % (vara, 100.0 * d / vara if vara else float("nan")))
+        if d > 0:
+            print("  La convencion pesimista SI estaba regalando R -- el signo es")
+            print("  el esperado y la direccion es real. Lo que NO es, es del")
+            print("  tamaño de la frontera.")
+        else:
+            print("  El 1m NO devuelve R: la convencion pesimista no estaba")
+            print("  costando edge. Sesgo real, medido en vez de supuesto.")
+        print("  OJO con el 86%% de ambiguedad de DIAGNOSTICO_E7_E8: se midio")
+        print("  sobre la geometria APRETADA (tp4/h288, stop 0.51%%). En una")
+        print("  celda ancha cruzar las dos barreras en la misma vela es raro,")
+        print("  asi que ahi el sesgo es aun menor. Citar el 86%% fuera de su")
+        print("  celda es prometer un arreglo que esa celda no necesita.")
+        print("  n: %d (5m) vs %d (1m). Si difieren, alguna señal no alinea en"
+              % (ctrl["n5"], ctrl["n1"]))
+        print("  una de las dos resoluciones y la comparacion no es limpia.")
+        print("\n  Las DOS columnas siguen siendo COTA INFERIOR: dentro de una")
+        print("  vela de 1m tampoco se sabe el orden. La ambiguedad baja 5x, no")
+        print("  desaparece.")
+    return filas
+
+
 def run_exits(cube_dir, klines_dir, *, tp="tp4", horizon=288, cost=None,
               symbols=None, celda=CELDA_PRIMARIA, etiqueta="PRIMARIA",
               n_trials=N_TRIALS_SALIDA):
@@ -547,6 +660,15 @@ def main(argv=None):
                          "(internal/BRIEF_SALIDA_2026-08.md)")
     ap.add_argument("--vip", action="store_true",
                     help="restringir al universo que difunde el bot")
+    ap.add_argument("--celda", default=None,
+                    help="kSL,tpR,horizonte — por defecto la PRE-FIJADA del "
+                         "cementerio. El 86%% de ambiguedad de DIAGNOSTICO_E7_E8 "
+                         "se midio sobre la geometria APRETADA (kSL=1), no sobre "
+                         "esta: para probar la hipotesis donde de verdad muerde "
+                         "hay que apuntar ahi.")
+    ap.add_argument("--intrabar", action="store_true",
+                    help="cuanto costaba NO saber el orden intra-vela: mismas "
+                         "señales a 5m vs 1m (NO es operar mas rapido)")
     ap.add_argument("--replica", action="store_true",
                     help="ademas, la celda replica declarada (n_trials x2)")
     a = ap.parse_args(argv)
@@ -556,6 +678,13 @@ def main(argv=None):
         syms = ["%s_USDT" % s for s in sorted(vip_universe())]
 
     print("=== GATE DE VENUE (cubos de OKX; velas de Binance) ===")
+    celda = CELDA_PRIMARIA
+    if a.celda:
+        k, t, h = a.celda.split(",")
+        celda = (float(k), float(t), int(h))
+    if a.intrabar:
+        return 0 if run_intrabar(a.cube, a.klines, symbols=syms,
+                                 celda=celda) else 1
     if a.exits:
         out = run_exits(a.cube, a.klines, symbols=syms)
         if out is not None and a.replica:

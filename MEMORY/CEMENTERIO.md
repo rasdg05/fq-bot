@@ -499,6 +499,64 @@ del capital. En multiplos de R a f=0.25% el arrastre es `f²σ²/2` ≈ 1e-5, in
 ya era la vacuna**; lo que faltaba era mirar `f`. Aplicar `μ − σ²/2` a nuestro +0.27R daria −2.12
 y es un disparate — si alguien lo cita asi, esta mal.
 
+### "Bajar a velas de 1m es lo que nos va a salvar" — medido, y son ~0.005R (2026-08-09)
+Propuesta de RasDG: el order book cambia en segundos y leemos velas de 5m. La intuición es
+correcta y el arreglo que sugiere va al revés. Dos medidas, las dos con número:
+
+**(a) Operar señales de 1m — muerto por aritmética, sin correr nada.** El peaje es **fijo en
+precio** y lo que capturas **escala con el timeframe**. Despejando de lo medido (`net=+0.0099R`
+a stop 0.51%): capturas ~**12.5 bps** de movimiento por trade y pagas **12.0 bps**. A 1m, con
+stop ~0.23% (σ/√5), capturarías ~5.6 bps y seguirías pagando 12 → **neto ≈ −0.28R**.
+
+| stop | timeframe | coste en R (VIP0) |
+|---|---|---|
+| 0.51% | **5m, el de hoy** | **0.235R** |
+| 0.23% | ~1m | 0.522R |
+| 0.10% | scalp 1m | **1.200R** |
+
+Por eso los que operan a esa velocidad tienen fees casi cero — y nosotros ya medimos que **no
+bajamos de 4.32 bps** (pared, 2026-08-08). **Ir rápido amplifica justo la pared que nos mata.**
+Corolario: la aritmética apunta al lado **contrario** (más ancho, no más rápido), y la regla de
+salida es lo que hace la geometría ancha sostenible.
+
+**(b) Velas de 1m para RESOLVER EL ORDEN INTRA-VELA — real, medido, y 10x demasiado pequeño.**
+Ésta sí valía la pena: no toca el stop, solo la resolución. Mismas señales, misma geometría,
+`max_bars` ×5 para cubrir el mismo tiempo de reloj. `python tools/geometry_sweep.py --intrabar
+--vip`, n=3.565:
+
+| celda | control 5m | control 1m | delta | vara |
+|---|---|---|---|---|
+| ancha (kSL=5, tpR=6) | +0.1087 | +0.1094 | **+0.0007** | 0.037 |
+| **apretada (kSL=1, tpR=4)** | +0.0008 | +0.0054 | **+0.0045** | 0.070 |
+
+**El signo es el esperado y la dirección es real** — la convención pesimista sí regalaba R. Pero
+son **+0.0045R contra una brecha de +0.070R: el 6%.** Y algunas reglas salen PEOR a 1m
+(techo T=288: −0.0414). **Qué muere:** el 1m como palanca de rescate. **Qué queda:** el sesgo
+está medido en vez de supuesto, y las dos columnas siguen siendo COTA INFERIOR (dentro de una
+vela de 1m tampoco se sabe el orden; la ambigüedad baja 5x, no desaparece).
+
+**Error propio, corregido:** cité el **86% de ambigüedad** de `DIAGNOSTICO_E7_E8` para motivar
+esto, y ese 86% se midió sobre la geometría **apretada** (tp4/h288, stop 0.51%), no sobre la
+ancha — donde cruzar las dos barreras en la misma vela es raro. Citar el 86% fuera de su celda
+prometía un arreglo que esa celda no necesitaba. El tool ahora lo imprime.
+
+### Cuentas de fondeo (prop firms) al 1% por tiro — la vara más estricta, no la más blanda (2026-08-09)
+Idea de RasDG: usar el sistema en cuentas fondeadas arriesgando <1% y cobrar payouts. Tres
+números ya medidos la cierran, y ninguno es opinión:
+- **El 1% es 5x sobre Kelly.** V4: `f* = 0.20%` en tp4 y **`f* = 0` en tp1, tp2 y tp3**. En la
+  celda que opera hoy **ninguna fracción positiva hace crecer la cuenta**.
+- **El max drawdown de una prop (6–10% total, 4–5% diario) es ~5x más estricto que la cota de
+  35% del propio repo.** Nuestro DD medido a f=0.25% es **30.6%** (control) y **11.1%** con el
+  trailing; a f=1% el control da **82.7%**. Breach casi seguro.
+- **P(acabar arriba)=51% a 200 trades** con E[R]≈0: pasar la evaluación es un volado y **se paga
+  por intento** → expectativa cero se convierte en negativa.
+**Qué NO muere, y hay que comprobarlo:** el **tier de comisiones**. Cada bp vale +0.0436R; si una
+firma diera 2 bps en vez de 4.32 serían **+0.10R**, más que toda la brecha. Se resuelve con un
+correo preguntando el coste all-in por round-turn. Aviso: muchas prop de cripto son
+CFD/sintéticas con spread MÁS ancho, así que puede salir al revés.
+**Condición para revivir:** una celda con IC95% entero sobre cero **y** DD medido por debajo del
+límite de la firma. Es el mismo gate de siempre.
+
 ### La regla de SALIDA dinámica — H1 ✓, H2 ✓, H3 ✗ (2026-08-08, pre-registrada)
 Encargo `internal/BRIEF_SALIDA_2026-08.md`, ejecutado sobre la celda **pre-fijada** del
 cementerio (kSL=5.0, tpR=6.0, h=1152), universo VIP, n=**3.565**, `n_trials=6` distintos
