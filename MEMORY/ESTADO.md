@@ -2,7 +2,8 @@
 
 > La página que más caduca. Qué está vivo, qué duerme, qué mide, qué espera veredicto, qué
 > es plan en papel. Si la fecha de abajo es vieja, confírmala contra `git log` y `research/*.md`
-> antes de confiar. Fecha de corte: **2026-08-05**, rama `claude/v3-capacidad-velas-rp3v9u`.
+> antes de confiar. Fecha de corte: **2026-08-09**, rama
+> `claude/v1-v4-evaluation-frontier-ibkw12` (contiene E1–E9, V1–V4 y el trabajo del 8–9 ago).
 >
 > **Las secciones "Por símbolo" y "Las 3 capas" de abajo son de junio y en BRUTO.** El
 > bloque de agosto que sigue les pasa por encima: léelo primero, o vas a citar números
@@ -217,6 +218,42 @@ mismas 13.429 señales y el resultado cambia la lectura de todo lo que sigue:
       símbolos restantes y re-correr el control sobre el pool entero. Es la misma receta
       (~40 s/símbolo) y es lo primero que debe hacer la próxima sesión.
 
+- **⭐ LA CIFRA EN DÓLARES (2026-08-09) — lo que este repo nunca había calculado.**
+  R es adimensional; la cuenta vive en dólares. Con la capacidad NETA de V3 ($22k),
+  45 señales/mes y la `f` viva (0.25%):
+  | E[R] | qué es | $/año | APY sobre $22k |
+  |---|---|---|---|
+  | +0.0099 | **medido hoy** | **$294** | 1.3% |
+  | +0.0620 | mejor alcanzable | $1.841 | 8.4% |
+  | +0.0700 | **frontera — si TODO saliera** | **$2.079** | **9.5%** |
+  - **La TASA no es el problema (9.5% neto es respetable). La BASE está tapiada en $22k.**
+    El premio es `edge × capacidad × frecuencia`, y **la capacidad manda ~20x más que el
+    edge**. Ningún avance sobre este alpha cambia el producto.
+  - **Lo que cinco meses compraron NO es el upside, es el downside evitado.** Julio publicaba
+    `WR 60% · E[R] +1.84R · PF 7.23` (falso); la realidad medida es −0.510R. Ir a vivo con
+    aquello sobre $22k: **−$15.147/año (−69%)** a f=0.25%, −275% (reventada) a f=1%.
+    **El instrumento evitó 7x más de lo que el edge podía ganar.**
+  - **Regla de decisión:** si operar esto cuesta >$170/mes, el trading es EV-negativo
+    **incluso en la frontera**. Los cinco meses son coste hundido.
+
+- **⭐ EL TECHO DE $22k NO ES DEL SISTEMA, ES DE LA GEOMETRÍA (2026-08-09) — encargo V5.**
+  Despejando el capital de la ley que `capacity_analysis.py` YA implementa
+  (`impact_R = Y·σ·√q/stop_frac`, `notional = capital·f/stop_frac`): **capacidad ∝ stop_frac³**.
+  Con la liquidez MEDIDA de ETH y presupuesto de impacto 0.02R:
+  | geometría | stop | capital | vs hoy |
+  |---|---|---|---|
+  | tp4/h288 (la que midió V3) | 0.51% | $73.547 | 1x |
+  | kSL=2 | 1.02% | $588.378 | **8x** |
+  | **kSL=5 — la celda ANCHA** | **2.55%** | **$9.193.411** | **125x** |
+  **Doblar el stop da 8x de capacidad.** V3 midió la capacidad sobre la geometría MÁS
+  APRETADA, que es la que el bot opera por accidente histórico. Y la celda ancha es la de
+  los seis controles, cuya concurrencia **ya se arregló** (trailing k=0.50: DD 30.6%→11.1%).
+  **Es una DERIVACIÓN, no una medición** — es exactamente lo que hay que cerrar.
+  **→ `internal/BRIEF_CAPACIDAD_ANCHA_2026-08.md` (V5), pre-registrado, listo para arranque
+  en frío.** Es lo único pendiente y decide si esto es un negocio o un pasatiempo caro.
+  **Puerta 3 del brief primero:** bajar las velas de los 10 símbolos que faltan y cerrar el
+  confundido del subconjunto ANTES de creerse nada.
+
 - **CONTEXTO DE NEGOCIO (2026-08-05) — presión de inversor, y por qué NO se pivota.**
   Un inversor del proyecto lleva meses viendo gasto sin producto rentable y mandó un vídeo
   de TikTok proponiendo copy-trading de Trump/políticos (Autopilot + Hyperliquid) con
@@ -248,7 +285,9 @@ tamaño (V3) se acaba antes de que el edge empiece. **Lo que falta no es otra me
 mismo cube: es una señal con más edge bruto, o un coste de ejecución estructuralmente
 menor.** Cualquier encargo nuevo que no ataque una de esas dos cosas está decorando.
 
-**ENCARGO SIGUIENTE (escrito, listo para arranque en frio): `internal/BRIEF_FRONTERA_2026-08.md`.**
+**ENCARGO SIGUIENTE (escrito, pre-registrado, listo para arranque en frío):
+`internal/BRIEF_CAPACIDAD_ANCHA_2026-08.md` (V5)** — ¿el techo son $22k o son millones?
+Es lo ÚNICO pendiente. `internal/BRIEF_FRONTERA_2026-08.md` queda CONTESTADO (2026-08-08).
 Dónde está la frontera en UNA cifra (**+0.07R por trade**: lo que falta para que el IC95% del neto
 quede entero sobre cero), las cuatro palancas vivas con su prior ya medido, la lista de lo que NO
 hay que volver a proponer, y las nueve puertas anti-espejismo. Léelo antes de proponer nada.

@@ -13,18 +13,25 @@ con suscriptores de pago. SOL (pilar), BTC, ETH. Cada push a `main` redeploya.
 ## ⚠️ LA RAMA (léelo antes que nada)
 
 **`main` está en JUNIO. La rama viva es
-`claude/v3-capacidad-velas-rp3v9u`.** Si arrancas en `main` vas a leer un estado
-caducado y volver a concluir cosas ya medidas. Empieza siempre con:
+`claude/v1-v4-evaluation-frontier-ibkw12`.** Si arrancas en `main` vas a leer un
+estado caducado y volver a concluir cosas ya medidas. Empieza siempre con:
 
 ```
-git fetch origin claude/v3-capacidad-velas-rp3v9u && git checkout claude/v3-capacidad-velas-rp3v9u
+git fetch origin claude/v1-v4-evaluation-frontier-ibkw12 && git checkout claude/v1-v4-evaluation-frontier-ibkw12
 ```
 
-Contiene `claude/instrumento-2026-08-of95si` entero (E1–E9) y **V1, V2, V3 y V4**
-(el nombre de la rama dice "v3" y se quedó corto: V4 está dentro). Las ramas
-anteriores (`...-v1-kqa7w0`, `...-v2-q1obx4`, `instrumento-...`) ya no se tocan:
-son historia, no punto de partida. Si abres una sesión nueva, apunta a la de
-arriba y no fusiones nada — está por delante, no en paralelo.
+Contiene TODO lo anterior — `claude/instrumento-2026-08-of95si` (E1–E9), **V1–V4**
+(que vivían en `claude/v3-capacidad-velas-rp3v9u`) — más el trabajo del 8–9 de
+agosto: **la frontera medida, la regla de salida, el 1m y la cifra en DÓLARES**.
+Las ramas anteriores (`...-v1-kqa7w0`, `...-v2-q1obx4`, `instrumento-...`,
+`v3-capacidad-velas-...`) ya no se tocan: son historia, no punto de partida. Si
+abres una sesión nueva, apunta a la de arriba y no fusiones nada — está por
+delante, no en paralelo.
+
+**Encargo abierto, escrito y pre-registrado:
+`internal/BRIEF_CAPACIDAD_ANCHA_2026-08.md` (V5).** Es lo único pendiente y
+decide si el proyecto es un negocio o un pasatiempo caro. Léelo antes de
+proponer nada.
 
 Nada se mergea a `main` sin decírselo a RasDG: despliega a producción con
 suscriptores de pago.
@@ -72,6 +79,8 @@ vuelva — si la respuesta es "acordarse", no está cerrado.
 | Una sola `f` | `execution.GovernorConfig` ← `growth.configured_risk_frac` | Que el gobernador arriesgue una fracción y el informe juzgue otra (ninguna otra métrica del repo depende de `f`) |
 | Vara propia por configuración | `frontier_report.require_own_bar` | Comparar una config filtrada contra la vara de otra: filtrar sube la media Y aleja la frontera (`-IC_lo` depende de la n) |
 | Puerta del tier de fees | `frontier_report.require_reachable` | Contar un descuento que la cuenta no alcanza. Falla **cerrado**: puerta no evaluable ≠ puerta cruzada |
+| Salida sin look-ahead | `bt_labeler.label_event_dynamic` + `LookaheadExitError` | Que un trailing use el MFE de toda la vida del trade (curva preciosa y falsa) |
+| **PENDIENTE (V5)**: dinero junto a la R | *a cablear* — `RWithoutMoneyError` | Publicar un `+0.02R` sin ver al lado que son ~$50/mes. **R esconde el tamaño del premio** |
 
 ## Números vigentes (agosto 2026) — no inventes otros
 
@@ -147,8 +156,32 @@ vuelva — si la respuesta es "acordarse", no está cerrado.
   apostar el 100%; en múltiplos de R a f=0.25% el arrastre es `f²σ²/2` ≈ 1e-5.
   **Medir en R ya era la vacuna** — lo que faltaba era mirar `f`.
 
+- **V5 — LA CIFRA EN DÓLARES (2026-08-09), y el hallazgo que abre el encargo vivo.**
+  R es adimensional y nadie había hecho la multiplicación. Con la capacidad NETA de V3
+  ($22k), 45 señales/mes y la `f` viva (0.25%): hoy **$294/año (1.3% APY)**; en la
+  **frontera, si todo saliera, $2.079/año (9.5% APY)**. **La tasa no es el problema; la
+  BASE está tapiada en $22k.** El premio es `edge × capacidad × frecuencia` y **la
+  capacidad manda ~20x más que el edge**.
+  Contrafactual que ordena los cinco meses: ir a vivo con los números falsos de julio
+  habría dado **−$15.147/año (−69% de la cuenta)** a f=0.25%. **El instrumento evitó 7x
+  más de lo que el edge podía ganar** — ésa es la contabilidad correcta.
+  **Y el techo de $22k NO es del sistema: es de la geometría.** Despejando el capital de
+  la ley que `capacity_analysis.py` ya implementa → **capacidad ∝ stop_frac³**. Con la
+  liquidez MEDIDA de ETH: tp4/h288 (stop 0.51%) $73k · kSL=2 **8x** · **kSL=5 (la celda
+  ancha) 125x = $9.2M**. V3 midió la capacidad sobre la geometría MÁS APRETADA, que es la
+  que el bot opera por accidente. **Es una DERIVACIÓN, no una medición** → encargo V5.
+  Cerrado en esta tanda y al `CEMENTERIO.md`: **bajar a velas de 1m** (el peaje es FIJO en
+  precio y lo capturado ESCALA con el timeframe: a 1m el coste pasa de 0.235R a 0.522R;
+  resolver el orden intra-vela vale solo **+0.0045R** contra una brecha de +0.070R) y
+  **cuentas de fondeo al 1%** (es 5x sobre el `f*`=0.20% de V4, y el max DD de una prop
+  es ~5x más estricto que la cota de 35% del repo contra un DD medido de 30.6%).
+
 > Ninguna configuración medida tiene el IC95% de la expectancy por encima de cero.
 > No hay edge demostrado. Decirlo no es pesimismo: es el estado del arte del repo.
+>
+> **Y aunque lo hubiera, en la frontera son ~$2k/año sobre la capacidad medida.** Ésa es
+> la pregunta que decide el proyecto, y está escrita en
+> `internal/BRIEF_CAPACIDAD_ANCHA_2026-08.md`.
 >
 > **No uses el `n=12` para afirmar nada** (ni con clientes ni con inversores): está
 > bajo el `MIN_N=30` del propio repo y no concluye en ninguna dirección.
