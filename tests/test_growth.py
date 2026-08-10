@@ -219,3 +219,98 @@ def test_salud_distingue_falta_de_edge_de_mal_sizing():
     c = salud.check_sobreapuesta(growth.growth_stats(_perdedora(), 0.01))
     assert c["estado"] == salud.BROKEN
     assert "falta edge" in c["accion"]
+
+
+# =========================================================================
+#  V5 — R es adimensional; la cuenta vive en dolares
+# =========================================================================
+# Cuarto eje de la misma familia. El desglose (E9) corrige SOBRE QUE REGIMEN se
+# publica el numero; `g` (V4) corrige QUE PROMEDIO; el dinero corrige el TAMAÑO
+# DEL PREMIO — lo unico que decide si algo merece trabajo. Se descubrio tarde y
+# caro: cinco meses de palancas discutidas en R para un premio de $2.079/año.
+
+
+def test_el_dinero_es_capacidad_por_f_por_er_por_cadencia():
+    """La identidad, fijada. Es aritmetica de una linea, y por eso nadie la
+    hizo: parecia obvia y no parecia trabajo."""
+    m = growth.money_stats(0.0099, capital=22_000, risk_frac=0.0025,
+                           signals_per_month=45)
+    assert m["usd_per_trade"] == pytest.approx(22_000 * 0.0025 * 0.0099)
+    assert m["usd_per_month"] == pytest.approx(m["usd_per_trade"] * 45)
+    assert m["usd_per_year"] == pytest.approx(m["usd_per_month"] * 12)
+    # La cifra que abrio el encargo V5, al dolar.
+    assert m["usd_per_year"] == pytest.approx(294.0, abs=1.0)
+    assert m["apy"] == pytest.approx(m["usd_per_year"] / 22_000)
+
+
+def test_el_mismo_R_vale_cosas_distintas_segun_la_capacidad():
+    """El punto entero: `+0.02R` se lee igual siendo $50/mes que $50.000/mes.
+    La capacidad manda sobre el premio mucho mas que el edge."""
+    chico = growth.money_stats(0.02, capital=22_000, risk_frac=0.0025,
+                               signals_per_month=45)
+    grande = growth.money_stats(0.02, capital=22_000_000, risk_frac=0.0025,
+                                signals_per_month=45)
+    assert grande["usd_per_month"] / chico["usd_per_month"] == pytest.approx(1000.0)
+    # y doblar el EDGE solo dobla: por eso el orden de las palancas cambia.
+    doble = growth.money_stats(0.04, capital=22_000, risk_frac=0.0025,
+                               signals_per_month=45)
+    assert doble["usd_per_month"] / chico["usd_per_month"] == pytest.approx(2.0)
+
+
+def test_un_edge_negativo_da_dinero_negativo_sin_maquillar():
+    """El bloque no existe para dar buenas noticias. Con E[R] < 0 la cifra sale
+    negativa y se publica igual — es la que evito ir a vivo en julio."""
+    m = growth.money_stats(-0.510, capital=22_000, risk_frac=0.0025,
+                           signals_per_month=45)
+    assert m["usd_per_year"] < 0
+    assert "$-" in growth.format_money(m)
+
+
+def test_window_stats_adjunta_siempre_el_dinero():
+    st = ls.window_stats(_rows())
+    assert st["money"] is not None
+    assert st["money"]["mean_r"] == pytest.approx(st["expectancy"])
+
+
+def test_no_se_puede_publicar_una_expectancy_sin_dinero():
+    """LA INVARIANTE DE V5, en el mismo choke point que el desglose y que `g`.
+
+    Que sea IMPOSIBLE enseñar un `+0.02R` sin ver al lado que son ~$50/mes.
+    """
+    st = ls.window_stats(_rows())
+    st.pop("money")
+    with pytest.raises(growth.RWithoutMoneyError):
+        ls.format_expectancy(st)
+
+
+def test_el_render_publica_la_capacidad_de_la_que_sale():
+    """El dinero sin su capacidad al lado es otro numero sin procedencia: a
+    $22k y a $22M el mismo E[R] da cifras 1000x distintas."""
+    st = ls.window_stats(_rows())
+    salida = ls.format_expectancy(st)
+    assert "DINERO" in salida
+    assert "/mes" in salida and "/año" in salida
+    assert growth._miles(st["money"]["capital"]) in salida
+
+
+def test_la_capacidad_y_la_cadencia_salen_del_entorno(monkeypatch):
+    """Los dos parametros declarados se mueven desde una sola fuente, como la
+    `f`. Sin env, los defaults son los MEDIDOS (V3: $22k; VIP: 45/mes)."""
+    assert growth.configured_capacity_usd() == pytest.approx(22_000.0)
+    assert growth.configured_signals_per_month() == pytest.approx(45.0)
+    monkeypatch.setenv(growth.CAPACITY_ENV, "250000")
+    monkeypatch.setenv(growth.SIGNALS_MONTH_ENV, "166")
+    m = growth.money_stats(0.0150)
+    assert m["capital"] == pytest.approx(250_000.0)
+    assert m["signals_per_month"] == pytest.approx(166.0)
+    assert m["capital_source"].startswith("env:")
+
+
+def test_require_money_falla_cerrado():
+    """No saber no es pasar: sin bloque, levanta. Mismo criterio que
+    `require_reachable` con una puerta no evaluable."""
+    with pytest.raises(growth.RWithoutMoneyError):
+        growth.require_money({"expectancy": 0.02})
+    with pytest.raises(growth.RWithoutMoneyError):
+        growth.require_money({"money": None})
+    growth.require_money({"money": growth.money_stats(0.02)})

@@ -221,3 +221,40 @@ def test_el_desglose_marca_los_anos_con_muestra_chica(capsys):
                       _grid_frame({2022: 0.2}, n_por_ano=5)], ignore_index=True)
     gs.report(long, CostModel())
     assert "no concluye" in capsys.readouterr().out
+
+
+# --- PUERTA 3: el confundido del subconjunto, cerrado el 2026-08-10 ---------
+# El 2026-08-08 este tool solo tenia velas de 3 simbolos y AVISO 1 decia,
+# correctamente, "no se sabe si lo que hace cruzar esto es la salida o el
+# universo". Bajadas las 13, la pregunta esta contestada. Un aviso que se
+# imprime IGUAL habiendo medido que sin medir es ruido, no una guardia: estos
+# dos tests fijan que el texto depende del universo que se midio de verdad.
+
+def _filas_cruzando(dd=0.30, brecha=-0.04):
+    ctrl = {"salida": "control (barreras fijas)", "n": 3565, "neto": 0.10,
+            "brecha": brecha, "hold_d": 1.9, "dsr": 0.80, "dsr_paranoico": 0.05,
+            "screen": {"candidato": True, "motivos": [], "cartera": {}},
+            "lo": -brecha, "hi": 0.2, "dd_viva": dd}
+    otra = dict(ctrl, salida="A trail k=0.50", brecha=brecha - 0.01,
+                dsr=0.986, dsr_paranoico=0.366, dd_viva=0.111)
+    return [ctrl, otra], ctrl
+
+
+def test_sobre_un_subconjunto_el_aviso_sigue_abierto(capsys):
+    filas, ctrl = _filas_cruzando()
+    gs.veredicto_exits(filas, ctrl, n_simbolos=3)
+    out = capsys.readouterr().out
+    assert "AVISO 1" in out
+    assert "SUBCONJUNTO" in out
+    assert "sin --vip" in out            # dice COMO cerrarlo
+    assert "esta CERRADO" not in out
+
+
+def test_sobre_el_pool_entero_el_aviso_dice_que_se_cerro(capsys):
+    filas, ctrl = _filas_cruzando()
+    gs.veredicto_exits(filas, ctrl, n_simbolos=gs.POOL_SIMBOLOS)
+    out = capsys.readouterr().out
+    assert "AVISO 1" in out
+    assert "esta CERRADO" in out
+    assert "DRAWDOWN" in out             # lo que SI era del subconjunto
+    assert "SUBCONJUNTO con su propia carga" not in out

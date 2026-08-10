@@ -291,3 +291,146 @@ def test_sin_velas_locales_no_hay_capacidad(mundo, tmp_path):
     with pytest.raises(FileNotFoundError, match="fetch_binance_vision_klines"):
         vip_capacity(cube_dir, str(vacio), tp="tp4", horizon=288,
                      universe=frozenset({"BTC", "SOL"}))
+
+
+# =========================================================================
+#  V5 — la capacidad de la geometria ANCHA (BRIEF_CAPACIDAD_ANCHA_2026-08)
+# =========================================================================
+# El brief derivo `capacidad ∝ stop_frac³` y con eso prometio 125x al pasar de
+# la geometria apretada (kSL=1) a la ancha (kSL=5). Medido sobre el pool, el
+# exponente AGUANTA (ETH 203x, AVAX 171x, BCH 73x) y el edge se muere igual al
+# tamaño. Estos tests fijan las dos mitades: la ley, y las guardias que
+# impidieron leer el "SI/SI/SI" literal como un hallazgo.
+
+
+def test_la_capacidad_va_con_el_cubo_del_stop():
+    """LA DERIVACION DEL BRIEF, fijada.
+
+    `C = B²·1e8·sf³·V/(4·coef²·f)`: el stop entra al CUBO y nada mas cambia.
+    Doblarlo da 8x, quintuplicarlo 125x. Si alguien toca la ley de impacto y el
+    exponente deja de ser 3, este test cae — que es lo que separa la formula
+    publicada de un numero que alguien recuerda.
+    """
+    from tools.capacity_analysis import with_stop_frac
+
+    base = _liq(stop_frac=0.005)
+    c1 = capital_where_impact_equals(0.02, base, risk_frac=0.0025, fill_bars=1)
+    for k in (2.0, 5.0, 8.0):
+        ck = capital_where_impact_equals(
+            0.02, with_stop_frac(base, base.stop_frac * k),
+            risk_frac=0.0025, fill_bars=1)
+        assert ck / c1 == pytest.approx(k ** 3, rel=1e-9)
+
+
+def test_with_stop_frac_no_toca_el_mercado():
+    """La geometria es de la ESTRATEGIA; el libro es del MERCADO. Cambiar una
+    no puede cambiar el otro, y la procedencia tiene que sobrevivir: si
+    `source` se perdiera, `require_measured` dejaria pasar una capacidad
+    calculada sobre liquidez inventada."""
+    from tools.capacity_analysis import with_stop_frac
+
+    a = _liq()
+    b = with_stop_frac(a, a.stop_frac * 5)
+    assert (b.bar_notional, b.sigma_bar, b.symbol) == (a.bar_notional,
+                                                       a.sigma_bar, a.symbol)
+    assert b.measured and b.source == a.source
+    assert b.impact_coef() == pytest.approx(a.impact_coef())   # coef no depende del stop
+
+
+def test_la_capacidad_no_depende_de_f_pero_el_absoluto_si():
+    """Por que H1 se evalua por RATIO y no por el $220k del brief.
+
+    `C ∝ 1/f`, asi que el umbral absoluto describe la CONVENCION con la que se
+    escribio, no el sistema. El ratio entre dos geometrias es invariante — y es
+    lo que la hipotesis dice de verdad.
+    """
+    liq = _liq()
+    c_1pct = capital_where_impact_equals(0.02, liq, risk_frac=0.01)
+    c_025 = capital_where_impact_equals(0.02, liq, risk_frac=0.0025)
+    assert c_025 / c_1pct == pytest.approx(4.0, rel=1e-9)
+
+    from tools.capacity_analysis import with_stop_frac
+    ancho = with_stop_frac(liq, liq.stop_frac * 5)
+    for f in (0.01, 0.0025, 0.001):
+        r = (capital_where_impact_equals(0.02, ancho, risk_frac=f)
+             / capital_where_impact_equals(0.02, liq, risk_frac=f))
+        assert r == pytest.approx(125.0, rel=1e-9)
+
+
+def test_el_ratio_contra_un_suelo_no_se_publica():
+    """La trampa que produjo un '12634x' en la primera corrida: dividir por un
+    C0 que esta en el SUELO de la rejilla. Un simbolo sin neto apreciable no
+    tiene capacidad que medir (V3 lo dijo de BTC a +0.0027R), asi que su ratio
+    sale marcado NO EVALUABLE en vez de salir enorme."""
+    from tools.capacity_analysis import NETO_MINIMO_PARA_RATIO, ratios_h1
+
+    liq = _liq()
+    gordo = capacity_curve(_rs(mean_R=0.10), liquidity=liq, basis="neto")
+    plano = capacity_curve(_rs(mean_R=NETO_MINIMO_PARA_RATIO / 10.0),
+                           liquidity=liq, basis="neto")
+    out = {r["symbol"]: r for r in ratios_h1({"X": {1.0: gordo},
+                                              "Y": {1.0: gordo}},
+                                             {"X": gordo, "Y": plano})}
+    assert out["X"]["evaluable"] and out["X"]["ratio"] == pytest.approx(1.0)
+    assert not out["Y"]["evaluable"] and out["Y"]["ratio"] is None
+
+
+def _trades_sinteticos(n=200, mean_r=0.10, seed=3):
+    """Frame con la forma que produce `ancha_trades`: una senal por fila, su R
+    neta ANTES de impacto, y la ventana temporal que la cartera necesita."""
+    rng = np.random.default_rng(seed)
+    ts = pd.date_range("2024-01-01", periods=n, freq="6h")
+    r = rng.normal(mean_r, 1.0, size=n)
+    return pd.DataFrame({
+        "symbol": "SOL_USDT", "entry_ts": ts,
+        "pnl_r": r + 0.05, "net_r_sin_impacto": r, "net_r": r,
+        "t0": ts, "t1": ts + pd.Timedelta(hours=5),
+    })
+
+
+def test_el_barrido_usa_UNA_sola_f():
+    """V4 cableado aqui: el impacto y la cartera se juzgan a la MISMA fraccion.
+
+    La primera corrida de V5 restaba impacto a f=1% y despues dejaba a
+    `screen_cell` buscar entre cuatro fracciones: salian filas marcadas
+    'cartera ok' cuyo drawdown venia de una `f` a la que ese impacto no
+    corresponde. Es exactamente la enfermedad que `GovernorConfig` <-
+    `growth.configured_risk_frac` existe para impedir.
+    """
+    from tools.capacity_analysis import capital_sweep
+
+    filas = capital_sweep(_trades_sinteticos(), {"SOL_USDT": _liq()},
+                          capitals=(1e5, 1e6), risk_frac=0.0025)
+    for f in filas:
+        assert len(f["screen"]["intentos"]) == 1
+        assert f["screen"]["intentos"][0]["risk_frac"] == pytest.approx(0.0025)
+
+
+def test_el_impacto_solo_resta_y_es_monotono_en_el_capital():
+    """Mas capital nunca puede MEJORAR el neto: el impacto es un peaje, no una
+    palanca. Si esto se invierte, el signo de la ley se colo al reves."""
+    from tools.capacity_analysis import capital_sweep
+
+    filas = capital_sweep(_trades_sinteticos(), {"SOL_USDT": _liq()},
+                          capitals=(1e4, 1e5, 1e6, 1e7), risk_frac=0.0025)
+    netos = [f["neto"] for f in filas]
+    assert netos == sorted(netos, reverse=True)
+    assert netos[0] < _trades_sinteticos()["net_r_sin_impacto"].mean()
+    assert all(f["n"] == filas[0]["n"] for f in filas)   # el capital no tira senales
+
+
+def test_cada_fila_del_barrido_trae_su_cifra_en_dolares():
+    """La invariante de V5 al nivel del informe: ninguna fila sale sin dinero, y
+    el dinero es EXACTAMENTE `capacidad x f x E[R] x senales/mes`."""
+    from tools.capacity_analysis import capital_sweep
+
+    filas = capital_sweep(_trades_sinteticos(), {"SOL_USDT": _liq()},
+                          capitals=(1e5, 5e5), risk_frac=0.0025,
+                          senales_mes=45.0)
+    for f in filas:
+        m = f["money"]
+        assert m is not None
+        assert m["usd_per_month"] == pytest.approx(
+            f["capital"] * 0.0025 * f["neto"] * 45.0)
+        assert m["usd_per_year"] == pytest.approx(m["usd_per_month"] * 12)
+        assert m["capital"] == pytest.approx(f["capital"])

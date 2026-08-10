@@ -28,10 +28,11 @@ Las ramas anteriores (`...-v1-kqa7w0`, `...-v2-q1obx4`, `instrumento-...`,
 abres una sesión nueva, apunta a la de arriba y no fusiones nada — está por
 delante, no en paralelo.
 
-**Encargo abierto, escrito y pre-registrado:
-`internal/BRIEF_CAPACIDAD_ANCHA_2026-08.md` (V5).** Es lo único pendiente y
-decide si el proyecto es un negocio o un pasatiempo caro. Léelo antes de
-proponer nada.
+**No hay encargo abierto.** El último (`internal/BRIEF_CAPACIDAD_ANCHA_2026-08.md`,
+V5) se **ejecutó el 2026-08-10** y salió que **no**: veredicto en
+`internal/CAPACIDAD_ANCHA_V5_2026-08.md`, lápida en `MEMORY/CEMENTERIO.md`.
+Antes de proponer nada nuevo, lee esos dos — la línea de la geometría está
+agotada por tercera vez y por tres razones distintas.
 
 Nada se mergea a `main` sin decírselo a RasDG: despliega a producción con
 suscriptores de pago.
@@ -80,7 +81,10 @@ vuelva — si la respuesta es "acordarse", no está cerrado.
 | Vara propia por configuración | `frontier_report.require_own_bar` | Comparar una config filtrada contra la vara de otra: filtrar sube la media Y aleja la frontera (`-IC_lo` depende de la n) |
 | Puerta del tier de fees | `frontier_report.require_reachable` | Contar un descuento que la cuenta no alcanza. Falla **cerrado**: puerta no evaluable ≠ puerta cruzada |
 | Salida sin look-ahead | `bt_labeler.label_event_dynamic` + `LookaheadExitError` | Que un trailing use el MFE de toda la vida del trade (curva preciosa y falsa) |
-| **PENDIENTE (V5)**: dinero junto a la R | *a cablear* — `RWithoutMoneyError` | Publicar un `+0.02R` sin ver al lado que son ~$50/mes. **R esconde el tamaño del premio** |
+| Dinero junto a la R | `ledger_stats.format_expectancy` + `growth.RWithoutMoneyError` | Publicar un `+0.02R` sin ver al lado que son ~$50/mes. **R esconde el tamaño del premio** |
+| Una sola `f` en el barrido | `capacity_analysis.capital_sweep` (`screen_cell` a la `f` del impacto) | Juzgar la cartera a una fracción y el impacto a otra |
+| Ratio contra un suelo | `capacity_analysis.ratios_h1` → `n/e` | Un "12.634x" que sale de dividir por un C0 en el suelo de la rejilla |
+| El aviso sabe qué universo se midió | `geometry_sweep.veredicto_exits(n_simbolos=…)` | Imprimir "puede ser el subconjunto" igual habiendo medido que sin medir |
 
 ## Números vigentes (agosto 2026) — no inventes otros
 
@@ -176,12 +180,32 @@ vuelva — si la respuesta es "acordarse", no está cerrado.
   **cuentas de fondeo al 1%** (es 5x sobre el `f*`=0.20% de V4, y el max DD de una prop
   es ~5x más estricto que la cota de 35% del repo contra un DD medido de 30.6%).
 
+- **V5 EJECUTADO (2026-08-10) — la ley del cubo es REAL y no sirve. Encargo cerrado.**
+  `python tools/capacity_analysis.py --ancha --pool` · `internal/CAPACIDAD_ANCHA_V5_2026-08.md`.
+  - **PUERTA 3 primero.** Con las velas de los 13 símbolos (n=**12.941**), el confundido del
+    subconjunto queda cerrado y la respuesta se parte en dos: **el CRUCE no era artefacto**
+    (control sobre el pool: brecha −0.0246; DSR paranoico 0.366 → **0.607** con 3.6x más
+    muestra), pero **el DRAWDOWN sí**: control 30.6% → **75.6%**, trailing 11.1% → **34.2%**.
+    La concurrencia NO estaba arreglada — esa cifra era de 3 símbolos.
+  - **H1 CONFIRMADA:** `capacidad ∝ stop_frac³` aguanta la medición — **ETH 203x** ($86k →
+    $17.5M), AVAX 171x, BCH 73x. **El techo de $22k era de la geometría, no del sistema.**
+  - **H3 = NO en todos los capitales.** A $22k el DD a la `f` viva ya es **36.3% > 35%**; a
+    $250k el neto es +0.0150R con **IC95% [−0.0066, +0.0357] cruzando cero**; a $1M ya es
+    negativo. **El máximo del premio es interior: $250k → $18.713/año (APY 7.5%) con 45% de
+    drawdown.** ~9x el $2.079/año de la geometría apretada, con el triple de riesgo y la misma
+    indemostrabilidad. **No es una tesis de negocio: es la misma pared, más lejos.**
+  - Sobre el VIP el mismo experimento da **SÍ/SÍ/SÍ**: toda la diferencia es el subconjunto,
+    que miente por los dos lados (neto ×1.8, DD ÷3). Por eso PUERTA 3 iba primero.
+  - **El brief tenía el exponente bien y el ancla 7.2x arriba:** sus $73.547 solo se reproducen
+    con σ=20.3bps (la de BTC) y Y=0.5; con la σ medida de ETH y Y=1.0 son $10.174.
+
 > Ninguna configuración medida tiene el IC95% de la expectancy por encima de cero.
 > No hay edge demostrado. Decirlo no es pesimismo: es el estado del arte del repo.
 >
-> **Y aunque lo hubiera, en la frontera son ~$2k/año sobre la capacidad medida.** Ésa es
-> la pregunta que decide el proyecto, y está escrita en
-> `internal/BRIEF_CAPACIDAD_ANCHA_2026-08.md`.
+> **Y aunque lo hubiera, el premio está medido y es chico.** Con la geometría que opera:
+> ~$2k/año en la frontera. Con la geometría ANCHA, el pool entero y todo a favor (V5):
+> **$18.713/año como máximo, con 45% de drawdown y el IC cruzando cero.** Esa cifra es el
+> techo de la línea, no un objetivo.
 >
 > **No uses el `n=12` para afirmar nada** (ni con clientes ni con inversores): está
 > bajo el `MIN_N=30` del propio repo y no concluye en ninguna dirección.
@@ -237,8 +261,9 @@ tools/validation_gate.py el gate DSR/CPCV/PBO — la vara
 tools/geometry_report.py juzga geometría TP/SL con el recorrido (MFE/MAE)
 tools/vip_report.py      "¿funciona el VIP?" — universo + eje TP con cartera (V1)
 tools/fill_quality.py    fill maker real: P(fill) por cola y flujo firmado (V2)
-tools/capacity_analysis.py  --vip: a qué tamaño se muere, con liquidez medida (V3)
-growth.py                g / f* / P(acabar arriba) — lo que E[R] no dice (V4)
+tools/capacity_analysis.py  --vip: a qué tamaño se muere (V3) · --ancha[ --pool]: la
+                         capacidad de la geometría ancha y el premio en dólares (V5)
+growth.py                g / f* / P(acabar arriba) (V4) + $/mes a la capacidad medida (V5)
 execution.py             PaperBroker: sizing, costes, recorrido, ledger hash-chain
 entropy_cognition.py     ledger de señales, outcomes, κ, entropía, auditoría
 ledger_stats.py          ÚNICO punto por el que sale el track record público

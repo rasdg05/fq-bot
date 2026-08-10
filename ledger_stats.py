@@ -218,6 +218,12 @@ def window_stats(rows):
     # el agregado viaja con su desglose, y por la misma razon.
     st["growth"] = growth.growth_stats(
         [p for p in (_pnl(r) for r in rows) if p is not None])
+    # V5: R es adimensional. El agregado viaja tambien con lo que vale en
+    # DINERO a la capacidad MEDIDA — misma razon que el desglose y que `g`, y
+    # el eje que faltaba: los otros dos corrigen que promedio se publica, este
+    # corrige el TAMAÑO del premio, que es lo que decide si algo merece
+    # trabajo.
+    st["money"] = growth.money_stats(st["expectancy"], n=st["n"])
     # E4: el numero viaja con su procedencia — de cuantas filas salio, que se le
     # quito y de que colectores cuelga. Sin esto, cuando uno se rompe hay que
     # ACORDARSE de que afirmaciones caen, y acordarse es lo que fallo en julio.
@@ -258,6 +264,9 @@ def format_expectancy(stats, *, label="Expectancy", indent="  "):
             "expectancy aritmetica sin bloque de crecimiento: E[R] describe el "
             "promedio del ensemble, no lo que le pasa a UNA cuenta que compone. "
             "Usa window_stats(), que siempre lo adjunta.")
+    # V5: y sin la cifra en DOLARES tampoco sale. R esconde el tamaño del
+    # premio: el mismo +0.02R se lee igual siendo $50/mes que siendo $50.000.
+    growth.require_money(stats, what="expectancy publicada")
     # E4: si el numero cuelga de un colector roto, no sale. Callar es la
     # consecuencia correcta: un track record que no se puede defender no se
     # publica (misma regla que ya aplicaba audit_signal_ledger).
@@ -279,6 +288,7 @@ def format_expectancy(stats, *, label="Expectancy", indent="  "):
                       % (indent, len(thin)))
         lineas.append("%s    agregado con el mismo peso que los demas." % indent)
     lineas.append(growth.format_growth(stats["growth"], indent=indent))
+    lineas.append(growth.format_money(stats["money"], indent=indent))
     return "\n".join(lineas)
 
 

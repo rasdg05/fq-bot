@@ -404,8 +404,25 @@ def report_exits(long, cost, *, celda, bar_minutes=5.0, etiqueta="PRIMARIA",
     return filas, ctrl
 
 
-def veredicto_exits(filas, ctrl):
-    """Las tres hipotesis, contestadas con el criterio fijado ANTES."""
+# --------------------------------------------------------------------------
+#  PUERTA 3 — el confundido del subconjunto, cerrado el 2026-08-10
+# --------------------------------------------------------------------------
+# El 2026-08-08 este tool solo podia correr sobre 3 simbolos (eran los unicos
+# con velas locales) y AVISO 1 decia, correctamente, que no se sabia si lo que
+# hacia cruzar la celda era la salida o el UNIVERSO. Bajadas las velas de los
+# 13, la pregunta esta contestada y el aviso ya no puede seguir siendo el
+# mismo texto: un aviso que se imprime igual habiendo medido que sin medir es
+# ruido, no una guardia.
+POOL_SIMBOLOS = 13
+
+
+def veredicto_exits(filas, ctrl, n_simbolos=None):
+    """Las tres hipotesis, contestadas con el criterio fijado ANTES.
+
+    `n_simbolos` decide que aviso corresponde: sobre un subconjunto el
+    confundido sigue vivo; sobre el pool entero esta cerrado y lo que toca es
+    decir QUE contesto.
+    """
     print("\n" + "-" * 78)
     print("  VEREDICTO — criterio pre-registrado (H3 exige las cuatro cosas)")
     candidatos = [f for f in filas if f["brecha"] <= 0 and f["screen"]["candidato"]
@@ -443,21 +460,33 @@ def veredicto_exits(filas, ctrl):
                   % (mejor["n"], ctrl["n"]))
             print("  toda la diferencia es real. Es lo unico limpio de la tabla.")
 
-        # AVISO 1 — el confundido que se come el titular.
+        # AVISO 1 — el confundido que se come el titular. Desde el 2026-08-10
+        # tiene dos versiones, porque la pregunta ya se puede contestar.
         if ctrl["brecha"] <= 0:
+            completo = (n_simbolos or 0) >= POOL_SIMBOLOS
             print("\n  " + "!" * 70)
-            print("  AVISO 1 — EL CONTROL YA CRUZA. La regla de salida NO es lo")
-            print("  que hace pasar esto. El control (barreras FIJAS) ya tiene")
-            print("  brecha %+.4f y DD@f_viva %.1f%%. Lo que cambio frente al"
-                  % (ctrl["brecha"], ctrl.get("dd_viva", float("nan")) * 100))
-            print("  cementerio NO es la salida: es el UNIVERSO (3 simbolos con")
-            print("  velas en vez de los 13 del pool). La concurrencia escala con")
-            print("  el numero de simbolos, asi que restringir el universo baja el")
-            print("  DD por aritmetica, no por hallazgo.")
-            print("  Eso es una afirmacion de SUBCONJUNTO y arrastra su propia")
-            print("  carga de multiple-testing (13 simbolos -> 3), ademas de")
-            print("  chocar con el CEMENTERIO: 'concentrar en los mejores")
-            print("  simbolos - el liderazgo rota; los rezagados ganan OOS'.")
+            print("  AVISO 1 — EL CONTROL YA CRUZA (brecha %+.4f, DD@f_viva"
+                  % ctrl["brecha"])
+            print("  %.1f%%). La regla de salida NO es lo que hace pasar esto."
+                  % (ctrl.get("dd_viva", float("nan")) * 100))
+            if completo:
+                print("  Y esto corre sobre el POOL ENTERO (%d simbolos), asi que"
+                      % n_simbolos)
+                print("  el confundido del subconjunto esta CERRADO: el cruce del")
+                print("  control no era un artefacto de mirar solo 3 simbolos.")
+                print("  Lo que SI era del subconjunto es el DRAWDOWN — la")
+                print("  concurrencia escala con el numero de simbolos y aqui se")
+                print("  ve entera. Compara este DD con el del run --vip antes de")
+                print("  citar ninguna cifra de riesgo.")
+            else:
+                print("  Y esto corre sobre %d simbolos, no sobre los %d del pool:"
+                      % (n_simbolos or 0, POOL_SIMBOLOS))
+                print("  es una afirmacion de SUBCONJUNTO con su propia carga de")
+                print("  multiple-testing. La concurrencia escala con el numero de")
+                print("  simbolos, asi que restringir el universo baja el DD por")
+                print("  ARITMETICA, no por hallazgo, y choca con el CEMENTERIO:")
+                print("  'el liderazgo rota; los rezagados ganan OOS'. Cierralo")
+                print("  corriendo esto MISMO sin --vip (velas de los 13).")
             print("  " + "!" * 70)
 
         # AVISO 2 — el DSR se cae en cuanto se cuenta de verdad.
@@ -615,10 +644,10 @@ def run_exits(cube_dir, klines_dir, *, tp="tp4", horizon=288, cost=None,
     if not trozos:
         print("\n  Ningun simbolo paso el gate de venue. Sin medicion.")
         return None
-    filas, ctrl = report_exits(pd.concat(trozos, ignore_index=True),
-                               cost or CostModel(), celda=celda,
+    long = pd.concat(trozos, ignore_index=True)
+    filas, ctrl = report_exits(long, cost or CostModel(), celda=celda,
                                etiqueta=etiqueta, n_trials=n_trials)
-    return veredicto_exits(filas, ctrl), filas
+    return veredicto_exits(filas, ctrl, long["symbol"].nunique()), filas
 
 
 def run(cube_dir, klines_dir, *, tp="tp4", horizon=288, cost=None, symbols=None,

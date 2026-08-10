@@ -41,6 +41,28 @@ No crea edge. Si μ ≤ 0 ninguna `f` lo arregla: `f*` sale ~0 y lo único que e
 sizing elige es a qué velocidad se pierde. Esto es disciplina de riesgo, no de
 alfa — convierte un edge en crecimiento, no la falta de edge en edge.
 
+=============================================================================
+  DINERO OBLIGATORIO  (V5 — R es adimensional; la cuenta vive en dólares)
+=============================================================================
+Misma familia, tercer eje. `g` corrigió *qué promedio* se publica; el desglose
+corrigió *sobre qué régimen*. Lo que ninguno de los dos toca es **el tamaño del
+premio**: un `+0.02R` se lee igual siendo $50/mes que siendo $50.000/mes, y este
+repo estuvo cinco meses discutiendo palancas de R sin haber hecho nunca la
+multiplicación. Cuando se hizo (2026-08-09), el mejor caso alcanzable sobre la
+capacidad MEDIDA por V3 resultó ser **$2.079/año**.
+
+    $/mes = capacidad × f × E[R] × señales/mes
+
+`capacidad` no es "el dinero que uno quiera poner": es el techo al que el
+impacto de mercado se come el edge, y sale MEDIDO (`tools/capacity_analysis.py`
+con velas locales). Ponerlo a ojo aquí sería repetir el error del default de
+catálogo de V3, que estaba 8x por debajo del BTC real — por eso los dos
+parámetros se leen del entorno, con su fuente escrita al lado, y viajan dentro
+del bloque para que se publiquen junto a la cifra que producen.
+
+`format_expectancy` LEVANTA sin este bloque: que sea imposible enseñar un E[R]
+sin ver al lado lo que son en dinero a la capacidad medida.
+
 Stdlib puro a propósito: lo consume `ledger_stats` (producción) además de
 `tools/` (research), y la superficie de publicación no debe crecer dependencias.
 =============================================================================
@@ -69,6 +91,23 @@ KELLY_SAFETY = 0.5
 RISK_FRAC_ENV = "FQ_MAX_RISK_FRAC"
 RISK_FRAC_DEFAULT = 0.0025
 
+# --- V5: los dos parámetros que convierten R en dólares -------------------
+# Ninguno se inventa aquí. Ambos son MEDIDOS y ambos son declarados, con la
+# misma disciplina que `Y` en V3 y `queue_frac` en V2: se publican junto a la
+# cifra que producen para que nadie cite el dinero sin ver de qué capacidad y
+# de qué cadencia salió.
+#
+#   capacidad  = C0 NETO de ETH (tp4/h288, Y=1, risk 1%) medido por V3 sobre
+#                velas locales — el único símbolo del VIP con neto > 0. Es un
+#                TECHO del producto entero, no un objetivo de captación.
+#   señales/mes= cadencia del universo VIP en el cube (~45), la misma que usa
+#                `tools/frontier_report.py` para el volumen de 30 días.
+CAPACITY_ENV = "FQ_CAPACITY_USD"
+CAPACITY_DEFAULT = 22_000.0
+SIGNALS_MONTH_ENV = "FQ_SIGNALS_PER_MONTH"
+SIGNALS_MONTH_DEFAULT = 45.0
+MONTHS_PER_YEAR = 12.0
+
 
 class ArithmeticWithoutGrowthError(RuntimeError):
     """Se intentó publicar una expectancy aritmética sin su tasa de crecimiento.
@@ -82,13 +121,44 @@ class ArithmeticWithoutGrowthError(RuntimeError):
     """
 
 
-def configured_risk_frac(env=None):
-    """La `f` que arriesga la cuenta viva, de una sola fuente de verdad."""
+class RWithoutMoneyError(RuntimeError):
+    """Se intentó publicar una afirmación de edge sin su cifra en dólares.
+
+    Hermana de `AggregateWithoutBreakdownError` (E9) y de
+    `ArithmeticWithoutGrowthError` (V4), y de la misma familia: un número
+    exacto que el lector interpreta como algo que no es. El agregado escondía
+    el régimen; la media aritmética escondía el camino; **R esconde el tamaño
+    del premio**.
+
+    La factura: cinco meses de palancas discutidas en R (comisiones, terciles,
+    geometría, salida) sin que nadie multiplicara. Hecha la multiplicación, el
+    mejor caso alcanzable sobre la capacidad MEDIDA son ~$2.079/año — o sea que
+    la conversación entera cabía por debajo del coste de tenerla. Un `+0.02R`
+    no puede volver a salir sin que se vea al lado que son ~$50/mes.
+    """
+
+
+def _env_float(key, default, env=None):
     src = os.environ if env is None else env
     try:
-        return float(src.get(RISK_FRAC_ENV, RISK_FRAC_DEFAULT))
+        return float(src.get(key, default))
     except (TypeError, ValueError):
-        return RISK_FRAC_DEFAULT
+        return default
+
+
+def configured_risk_frac(env=None):
+    """La `f` que arriesga la cuenta viva, de una sola fuente de verdad."""
+    return _env_float(RISK_FRAC_ENV, RISK_FRAC_DEFAULT, env)
+
+
+def configured_capacity_usd(env=None):
+    """La capacidad MEDIDA sobre la que se traduce R a dólares (V3)."""
+    return _env_float(CAPACITY_ENV, CAPACITY_DEFAULT, env)
+
+
+def configured_signals_per_month(env=None):
+    """La cadencia medida del universo que se publica."""
+    return _env_float(SIGNALS_MONTH_ENV, SIGNALS_MONTH_DEFAULT, env)
 
 
 def _clean(rs):
@@ -219,6 +289,96 @@ def growth_stats(rs, f=None, *, horizon=DEFAULT_HORIZON, safety=KELLY_SAFETY):
         "recommended_risk_frac": f_star * safety,
         "safety": safety,
     }
+
+
+def money_stats(mean_r, *, capital=None, risk_frac=None, signals_per_month=None,
+                n=None, capital_source=None):
+    """Lo que un E[R] vale en DINERO a la capacidad medida.
+
+        $/trade = capacidad · f · E[R]
+        $/mes   = $/trade · señales/mes
+        APY     = $/año / capacidad
+
+    Es aritmética de una línea, y ésa es exactamente la razón por la que nadie
+    la hizo durante cinco meses: parecía obvia y por eso no parecía trabajo. El
+    resultado no lo era — la capacidad manda ~20x más que el edge sobre el
+    premio final, así que el orden en el que se atacan las palancas cambia
+    entero al ver esta cifra.
+
+    Devuelve None solo si `mean_r` no es un número: en todo lo demás la
+    respuesta existe, incluso (sobre todo) cuando es ridícula.
+    """
+    try:
+        mu = float(mean_r)
+    except (TypeError, ValueError):
+        return None
+    if mu != mu or abs(mu) == float("inf"):
+        return None
+    cap = configured_capacity_usd() if capital is None else float(capital)
+    f = configured_risk_frac() if risk_frac is None else float(risk_frac)
+    spm = (configured_signals_per_month() if signals_per_month is None
+           else float(signals_per_month))
+    riesgo = cap * f
+    por_trade = riesgo * mu
+    por_mes = por_trade * spm
+    por_ano = por_mes * MONTHS_PER_YEAR
+    return {
+        "n": n,
+        "mean_r": mu,
+        "capital": cap,
+        "capital_source": capital_source or ("env:%s" % CAPACITY_ENV
+                                             if os.environ.get(CAPACITY_ENV)
+                                             else "V3 medido (C0 neto ETH)"),
+        "risk_frac": f,
+        "signals_per_month": spm,
+        "risk_usd": riesgo,
+        "usd_per_trade": por_trade,
+        "usd_per_month": por_mes,
+        "usd_per_year": por_ano,
+        "apy": (por_ano / cap) if cap else float("nan"),
+    }
+
+
+def require_money(stats, *, what="afirmación de edge"):
+    """Guardia: ninguna cifra de edge sale sin su traducción a dinero.
+
+    Espejo exacto de `ledger_stats.format_expectancy` para el desglose y de
+    `is_overbet` para la fracción: no prohíbe el número, obliga a que viaje con
+    lo que significa. Que la respuesta sea deprimente no es motivo para
+    omitirla — es el motivo por el que existe.
+    """
+    if not isinstance(stats, dict) or not stats.get("money"):
+        raise RWithoutMoneyError(
+            "%s sin bloque de dinero: R es adimensional y esconde el tamaño "
+            "del premio. Adjunta money_stats(E[R]) — a la capacidad MEDIDA, no "
+            "a la que a uno le gustaría tener." % what)
+    return stats
+
+
+def format_money(m, *, indent="  "):
+    """Render del bloque de dinero. Va pegado al E[R], nunca aparte."""
+    if not m:
+        return "%s(sin cifra en dólares: nadie hizo la multiplicación)" % indent
+    L = ["%sEn DINERO a la capacidad medida ($%s, %s)"
+         % (indent, _miles(m["capital"]), m["capital_source"])]
+    L.append("%s  $%s/mes  ·  $%s/año  ·  APY %.1f%%"
+             % (indent, _miles(m["usd_per_month"]), _miles(m["usd_per_year"]),
+                m["apy"] * 100))
+    L.append("%s  = capacidad x f %.2f%% x E[R] %+.4f x %.0f señales/mes"
+             % (indent, m["risk_frac"] * 100, m["mean_r"],
+                m["signals_per_month"]))
+    return "\n".join(L)
+
+
+def _miles(x):
+    """'1234567.8' -> '1.234.568'. Sin locale: el render no depende del host."""
+    try:
+        v = float(x)
+    except (TypeError, ValueError):
+        return "?"
+    signo = "-" if v < 0 else ""
+    entero = "{:,.0f}".format(abs(v)).replace(",", ".")
+    return signo + entero
 
 
 def is_overbet(stats, *, tol=1.0):

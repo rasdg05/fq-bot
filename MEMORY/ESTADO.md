@@ -2,8 +2,8 @@
 
 > La página que más caduca. Qué está vivo, qué duerme, qué mide, qué espera veredicto, qué
 > es plan en papel. Si la fecha de abajo es vieja, confírmala contra `git log` y `research/*.md`
-> antes de confiar. Fecha de corte: **2026-08-09**, rama
-> `claude/v1-v4-evaluation-frontier-ibkw12` (contiene E1–E9, V1–V4 y el trabajo del 8–9 ago).
+> antes de confiar. Fecha de corte: **2026-08-10**, rama
+> `claude/v1-v4-evaluation-frontier-ibkw12` (contiene E1–E9, V1–V5 y el trabajo del 8–10 ago).
 >
 > **Las secciones "Por símbolo" y "Las 3 capas" de abajo son de junio y en BRUTO.** El
 > bloque de agosto que sigue les pasa por encima: léelo primero, o vas a citar números
@@ -214,9 +214,11 @@ mismas 13.429 señales y el resultado cambia la lectura de todo lo que sigue:
     - **Lo que queda vivo de esto:** la salida dinámica es una palanca de **RIESGO**, no de edge
       (misma familia que V4). Si aparece edge bruto, convierte el producto en uno con la mitad
       del drawdown. Guardada, medida, sin usar.
-    - **Lo que hace falta para cerrar la duda del subconjunto:** bajar las velas de los 10
-      símbolos restantes y re-correr el control sobre el pool entero. Es la misma receta
-      (~40 s/símbolo) y es lo primero que debe hacer la próxima sesión.
+    - **La duda del subconjunto: CERRADA el 2026-08-10** (ver el bloque ⭐ de V5). Bajadas las
+      velas de los 13, el control **sigue cruzando** sobre el pool (brecha −0.0246) y el DSR
+      paranoico *mejora* con la muestra (0.366 → 0.607) — el cruce no era artefacto. **Lo que
+      SÍ era del subconjunto es el drawdown**: control 30.6% → **75.6%**, trailing 11.1% →
+      **34.2%**. La cifra de riesgo que se citaba era la de 3 símbolos.
 
 - **⭐ LA CIFRA EN DÓLARES (2026-08-09) — lo que este repo nunca había calculado.**
   R es adimensional; la cuenta vive en dólares. Con la capacidad NETA de V3 ($22k),
@@ -236,23 +238,54 @@ mismas 13.429 señales y el resultado cambia la lectura de todo lo que sigue:
   - **Regla de decisión:** si operar esto cuesta >$170/mes, el trading es EV-negativo
     **incluso en la frontera**. Los cinco meses son coste hundido.
 
-- **⭐ EL TECHO DE $22k NO ES DEL SISTEMA, ES DE LA GEOMETRÍA (2026-08-09) — encargo V5.**
-  Despejando el capital de la ley que `capacity_analysis.py` YA implementa
-  (`impact_R = Y·σ·√q/stop_frac`, `notional = capital·f/stop_frac`): **capacidad ∝ stop_frac³**.
-  Con la liquidez MEDIDA de ETH y presupuesto de impacto 0.02R:
-  | geometría | stop | capital | vs hoy |
-  |---|---|---|---|
-  | tp4/h288 (la que midió V3) | 0.51% | $73.547 | 1x |
-  | kSL=2 | 1.02% | $588.378 | **8x** |
-  | **kSL=5 — la celda ANCHA** | **2.55%** | **$9.193.411** | **125x** |
-  **Doblar el stop da 8x de capacidad.** V3 midió la capacidad sobre la geometría MÁS
-  APRETADA, que es la que el bot opera por accidente histórico. Y la celda ancha es la de
-  los seis controles, cuya concurrencia **ya se arregló** (trailing k=0.50: DD 30.6%→11.1%).
-  **Es una DERIVACIÓN, no una medición** — es exactamente lo que hay que cerrar.
-  **→ `internal/BRIEF_CAPACIDAD_ANCHA_2026-08.md` (V5), pre-registrado, listo para arranque
-  en frío.** Es lo único pendiente y decide si esto es un negocio o un pasatiempo caro.
-  **Puerta 3 del brief primero:** bajar las velas de los 10 símbolos que faltan y cerrar el
-  confundido del subconjunto ANTES de creerse nada.
+- **⭐ V5 EJECUTADO (2026-08-10) — el techo SÍ era de la geometría, y no sirve. Encargo CERRADO.**
+  `python tools/capacity_analysis.py --ancha --pool` · detalle en
+  `internal/CAPACIDAD_ANCHA_V5_2026-08.md` · al `CEMENTERIO.md`.
+  - **PUERTA 3 PRIMERO, y era medio real.** Bajadas las velas 5m de los 13 símbolos, el eje de
+    salida se re-corrió sobre el pool entero (n=**12.941** vs 3.565 del VIP). **El CRUCE no era
+    del subconjunto** (control sobre 13: brecha −0.0246; el DSR paranoico *sube* 0.366 → 0.607
+    con 3.6x más muestra). **El DRAWDOWN sí lo era:** control 30.6% → **75.6%**, trailing k=0.50
+    11.1% → **34.2%**. O sea que *"la concurrencia ya está arreglada"* era una cifra de 3
+    símbolos. Y la mejor regla ROTA con el universo (VIP k=0.50; pool k=0.67, y cierra 4x menos).
+  - **H1 CONFIRMADA y grande:** `capacidad ∝ stop_frac³` sobrevive a la medición —
+    **ETH 203x** ($86k → $17.5M), **AVAX 171x**, **BCH 73x**, cuadrando al decimal con la
+    aritmética (`5³ × (0.0749/0.0586)² = 204`). **El techo de $22k era de la geometría más
+    apretada, no del sistema.**
+  - **H3 = NO en TODOS los capitales.** Sobre el pool, ni el más chico sostiene una cuenta:
+
+    | capital | NETO | IC95% | DD @ f viva | $/año |
+    |---|---|---|---|---|
+    | $22k | +0.0397 | [+0.0182, +0.0604] | **36.3%** | $4.355 |
+    | $250k | +0.0150 | **[−0.0066, +0.0357]** | 45.0% | **$18.713** ← máximo |
+    | $500k | +0.0005 | [−0.0211, +0.0212] | 60.6% | $1.173 |
+    | $2.0M | −0.0492 | [−0.0709, −0.0284] | 89.3% | −$490.411 |
+
+    A $22k el DD ya es **36.3% > 35%** (la cota del cementerio). H2 pasa por la LETRA a $250k
+    (+0.0150R > 0) y falla por el fondo: **su IC95% cruza cero.**
+  - **La cifra de negocio: el máximo del premio es INTERIOR, $250k → $18.713/año (APY 7.5%)**,
+    con 45% de drawdown y signo indeterminado. ~9x el "$2.079/año en la frontera" de la
+    geometría apretada, con el triple de riesgo y la misma indemostrabilidad. **No es una tesis
+    de negocio: es la misma pared, más lejos.** Desenlace 2 de los cuatro que el brief declaraba
+    legítimos: *la capacidad nunca fue el cuello de botella.*
+  - **Sobre el VIP el mismo experimento da SÍ/SÍ/SÍ** ($2.0M → +0.0678R, DD 13.0%, $186.534/año).
+    **Toda la diferencia es el subconjunto**, que miente por los dos lados a la vez (neto ×1.8,
+    DD ÷3). Por eso PUERTA 3 iba primero.
+  - **Cuatro espejismos cazados antes de publicar** (puerta 7): un ratio de **12.634x** por
+    dividir por un C0 en el suelo (el "$22k de V3" es el C0 de **ETH**, no el techo del conjunto,
+    que V3 imprimió `<$1k`); **DSR 1.000** en toda la tabla porque los 6 capitales no son 6
+    estrategias sino la misma serie con una constante restada (Sharpes con std 0.0070 → el eje se
+    auto-deflacta a nada); el impacto a f=1% mientras `screen_cell` buscaba entre cuatro
+    fracciones (la enfermedad que V4 cableó); y en el propio brief, sus **$73.547** para ETH solo
+    se reproducen con **σ=20.3bps (la de BTC) y Y=0.5** — con la σ medida de ETH y Y=1.0 son
+    **$10.174**. El exponente era correcto; el ancla estaba **7.2x** arriba.
+  - **Invariante nueva, la que el brief pedía: `growth.RWithoutMoneyError`.** Ninguna expectancy
+    sale sin su cifra en DÓLARES a la capacidad medida — mismo choke point que el desglose (E9) y
+    el crecimiento (V4). `$/mes = capacidad × f × E[R] × señales/mes`, con `FQ_CAPACITY_USD` y
+    `FQ_SIGNALS_PER_MONTH` declarados y viajando dentro del bloque.
+  - **Qué queda vivo:** la ley del cubo, medida y guardada. Si aparece edge BRUTO, esta geometría
+    le da capacidad de siete cifras. Es la **tercera** palanca de la misma familia (salida =
+    riesgo, sizing = crecimiento, geometría = capacidad): **ninguna crea edge.** Lo que falta
+    sigue siendo lo de agosto: **más edge bruto, o un coste de ejecución estructuralmente menor.**
 
 - **CONTEXTO DE NEGOCIO (2026-08-05) — presión de inversor, y por qué NO se pivota.**
   Un inversor del proyecto lleva meses viendo gasto sin producto rentable y mandó un vídeo

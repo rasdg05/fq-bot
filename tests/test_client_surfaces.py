@@ -87,13 +87,15 @@ def _client_surfaces():
     last = {"close": 145.0}
 
     # E9: los stats llevan SIEMPRE su desglose por periodo. V4: y su bloque de
-    # crecimiento. Un fixture sin cualquiera de los dos no representa nada que
-    # window_stats pueda producir, y format_expectancy lo rechaza a proposito.
+    # crecimiento. V5: y su cifra en DOLARES a la capacidad medida. Un fixture
+    # sin cualquiera de los tres no representa nada que window_stats pueda
+    # producir, y format_expectancy lo rechaza a proposito.
     def _w(n, wr, ex, pf, best, periodos):
         import growth
         return {"n": n, "win_rate": wr, "expectancy": ex, "profit_factor": pf,
                 "best_pnl": best,
                 "growth": growth.growth_stats([ex, -1.0, ex, best] * max(n, 4)),
+                "money": growth.money_stats(ex, n=n),
                 "by_period": {p: {"n": pn, "win_rate": wr, "expectancy": pex,
                                   "profit_factor": pf, "best_pnl": best,
                                   "thin": pn < 30}

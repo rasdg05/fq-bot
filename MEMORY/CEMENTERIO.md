@@ -604,6 +604,71 @@ futuro espectacular); hereda el pesimismo intra-vela de la cosecha; y una salida
 Además el DD se reporta a la **`f` viva (0.25%)**, no al mínimo de la rejilla de fracciones —
 informar el mínimo es informar el de la más tímida (0.1%), que da 13.1% en vez de 30.6%.
 
+### La CAPACIDAD de la geometría ancha — H1 ✓, H2 no, H3 ✗ (2026-08-10, pre-registrada)
+Encargo `internal/BRIEF_CAPACIDAD_ANCHA_2026-08.md` (V5), ejecutado sobre la celda **pre-fijada**
+(kSL=5.0, tpR=6.0, h=1152) con la salida **pre-fijada** (`A trail k=0.50`), a la `f` viva (0.25%).
+**n = 12.941** (pool de 13 símbolos) · rejilla = **6 capitales** ($22k, $100k, $250k, $500k, $1M,
+$2M) · `n_trials = 6`, cota paranoica **3.024** (84 geometrías × 6 salidas × 6 capitales).
+`python tools/capacity_analysis.py --ancha --pool`. Detalle: `internal/CAPACIDAD_ANCHA_V5_2026-08.md`.
+
+**H1 (la capacidad) CONFIRMADA, y es grande.** La ley `capacidad ∝ stop_frac³` sobrevive a la
+medición: **ETH 203x** ($86k → $17.5M), **AVAX 171x**, **BCH 73x** — y cuadra al decimal con la
+aritmética (`5³ × (0.0749/0.0586)² = 204`). **El techo de $22k NO era del sistema: era de la
+geometría más apretada**, que es la que el bot opera por accidente histórico. Esa mitad del brief
+es correcta.
+
+**Y no sirve, porque el edge se muere al tamaño antes de llegar:**
+
+| capital | NETO | IC95% | DD @ f viva | $/año |
+|---|---|---|---|---|
+| $22k | +0.0397 | [+0.0182, +0.0604] | **36.3%** | $4.355 |
+| $250k | +0.0150 | **[−0.0066, +0.0357]** | 45.0% | **$18.713** ← máximo |
+| $500k | +0.0005 | [−0.0211, +0.0212] | 60.6% | $1.173 |
+| $2.0M | −0.0492 | [−0.0709, −0.0284] | 89.3% | −$490.411 |
+
+**Ningún capital de la rejilla es candidato**, ni el más chico: a $22k el DD a la `f` viva ya es
+**36.3% > 35%**, que es la cota escrita en este mismo cementerio como condición para revivir esta
+geometría. H2 pasa por la LETRA a $250k (+0.0150R > 0) y falla por el fondo: su IC95% cruza cero.
+El máximo del premio es **interior** ($250k → **$18.713/año, APY 7.5%**, con 45% de DD y signo
+indeterminado): ~9x el "$2.079/año en la frontera" de la geometría apretada, con el triple de
+drawdown y la misma indemostrabilidad.
+
+**PUERTA 3 — el confundido del subconjunto, CERRADO (y era medio real).** Bajadas las velas de los
+10 símbolos que faltaban, el eje de salida se re-corrió sobre el pool: **el CRUCE no era del
+subconjunto** (control sobre 13: brecha −0.0246, y el DSR paranoico *sube* 0.366 → 0.607 con 3.6x
+más muestra), pero **el DRAWDOWN sí lo era**: control 30.6% → **75.6%**, trailing 11.1% → **34.2%**.
+La frase del brief *"la concurrencia ya está arreglada"* es una cifra de 3 símbolos. Y la mejor
+regla ROTA con el universo (VIP k=0.50 cierra +0.0163; pool k=0.67 cierra +0.0044). Sobre el VIP
+este mismo experimento da **SÍ/SÍ/SÍ**; sobre el pool, H3 = NO en todos los capitales. **Toda la
+diferencia es el subconjunto**, que miente por los dos lados a la vez (neto ×1.8, DD ÷3).
+
+**Qué muere:** la capacidad como vía a producto, y con ella la última palanca de la geometría.
+Es el **desenlace 2** de los cuatro que el brief declaraba legítimos: *la capacidad nunca fue el
+cuello de botella*. **Qué NO muere:** la ley del cubo, que está medida y guardada — si algún día
+aparece edge BRUTO, la geometría ancha le da capacidad de siete cifras. Tercera palanca de la
+misma familia (salida = riesgo, sizing = crecimiento, geometría = capacidad): **ninguna crea edge.**
+
+**Tres espejismos que el propio experimento produjo y se cazaron antes de publicar** (puerta 7):
+(a) un ratio de **12.634x** por dividir por un C0 en el suelo de la rejilla — el "$22k de V3" es el
+C0 de **ETH**, no el techo del conjunto, que V3 imprimió como `<$1k`; (b) **DSR 1.000** en toda la
+tabla, porque los 6 capitales no son 6 estrategias sino la misma serie con una constante restada
+(sus Sharpes no se separan: std 0.0070 en el VIP) y `deflated_from_trials` se auto-deflacta a nada;
+(c) el impacto calculado a f=1% mientras `screen_cell` buscaba entre cuatro fracciones — la
+enfermedad exacta que V4 cableó. Y una cuarta, en el brief: sus **$73.547** para ETH solo se
+reproducen con **σ=20.3bps (la de BTC) y Y=0.5**; con la σ medida de ETH y Y=1.0 son **$10.174**.
+El exponente era correcto; el ancla absoluta estaba **7.2x** arriba.
+
+**Invariantes nuevas:** (a) `growth.RWithoutMoneyError` — `format_expectancy` levanta sin la cifra
+en DÓLARES a la capacidad medida (mismo choke point que el desglose y que `g`); (b) `capital_sweep`
+juzga cartera e impacto a **una sola `f`**; (c) `ratios_h1` marca `n/e` un ratio contra un suelo de
+rejilla; (d) `geometry_sweep.veredicto_exits` cambia de aviso según el universo REALMENTE medido.
+Tests: `tests/test_capacity_analysis.py`, `tests/test_growth.py`, `tests/test_geometry_sweep.py`.
+
+**Condición para revivir:** edge BRUTO nuevo — no otra medición del mismo cube. Con μ bruto mayor,
+esta geometría ya tiene la capacidad y la salida ya tiene el perfil de riesgo; lo que falta sigue
+siendo lo mismo que en agosto: **una señal con más edge bruto, o un coste de ejecución
+estructuralmente menor.**
+
 ### "Bajar comisiones vale +0.06 a +0.09R y no depende de ningún research" — la pared de V3 por el otro lado (2026-08-08)
 `BRIEF_FRONTERA_2026-08.md` la puso de palanca **#1**, "del tamaño de la frontera entera".
 Medido con `tools/frontier_report.py` sobre el universo VIP (tp4/h288, n=3.774):
