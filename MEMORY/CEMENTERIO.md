@@ -26,12 +26,36 @@
 | ¿El coste se come el edge, como en perps? | **NO.** Breakeven 4pp vs 1.90pp adversos: margen **2.1x** | idem |
 | ¿Le ganamos al precio del venue con modelo propio? | **NO.** 17,430 preds OOS, error **3.29 pp** vs vara de 2 pp | `marea/vault/MODEL.md` |
 | ¿Hay arbitraje Polymarket↔Kalshi en el inventario? | **0 de 544** preguntas emparejadas | `marea/vault/DATA_SOURCES.md` |
-| ¿Hay edge medido? | **NO. Ninguno.** Todo cuelga de un edge SUPUESTO de 2pp | — |
+| ¿Le gana una RECALIBRACIÓN del precio? | **NO — MUERTA.** Brier advantage **−0.0043** (gana el mercado); edge +0.29pp, IC95% [−0.85, +1.44] vs breakeven 0.95pp. n_oos=5,249 mercados | `tools/polymarket_brier.py` |
+| ¿Hay edge medido? | **NO. Ninguno.** Los 3 pasos: coste ✓ ✓, señal ✗ | — |
 
-**Estado: LEAD ABIERTO, no validado. El venue es viable; la señal no existe.**
-Los dos pasos de coste salieron a favor — y eso es todo lo que salió a favor. **Cero
-capital, cero código en el path del motor, cero flags.** El gate (DSR/CPCV/PBO) no se ha
-corrido porque todavía no hay ninguna señal que gatear.
+**Estado: los 3 pasos hechos. El venue es viable; NO hay señal.** Los dos pasos de coste
+salieron a favor y el de señal salió **en contra**. **Cero capital, cero código en el path
+del motor, cero flags.** El gate (DSR/CPCV/PBO) nunca se corrió porque no hay señal que
+gatear — y el walk-forward ya dijo que no la hay por la vía de la recalibración.
+
+### MUERTO — recalibración del precio de Polymarket como edge (2026-08-17)
+
+- **Idea:** el precio del venue tiene un sesgo de calibración sistemático; recalibrarlo
+  (`p_modelo = f(p_mercado)`) da edge mecánico sin información externa.
+- **Medición:** 6,561 mercados con resolución limpia y vol ≥$100k, walk-forward por tiempo
+  (n_oos=5,249). **Brier del mercado 0.1777 vs modelo 0.1820 → advantage −0.0043: el modelo
+  PIERDE fuera de muestra.** Edge realizado +0.29pp ± 0.58 EE, IC95% cruza el cero, y ni el
+  punto llega al breakeven de 0.95pp. El mercado tiene skill real (+0.24 a +0.29 vs tasa base).
+- **La tabla de calibración SÍ muestra patrón** (precios bajos infravalorados, altos
+  sobrevalorados — el inverso del favorite-longshot clásico) **y no se puede cobrar**: es
+  estructura en muestra que no se replica. El bucket 0.95–0.98 marca −10.21pp **con n=60** —
+  el número más grande de la tabla en la celda con menos muestra. El +1.47R de n=17 otra vez.
+- **EL ARTEFACTO, para que no vuelva:** la primera medición ponderó por TRADE y dio un sesgo
+  de **−4/−5pp monótono** en el tramo 0.35–0.80 sobre millones de trades. Falso. Un mercado
+  que cae de 0.60 a 0 genera enorme volumen **en la caída**, así que ponderar por trade
+  sobre-muestrea "estaba caro y resolvió NO". Por mercado a 1h el sesgo es **+0.22pp**.
+  Cableado en `test_ponderar_por_trade_fabrica_un_sesgo_que_por_mercado_NO_existe`, que exige
+  que los dos sesgos salgan de SIGNO CONTRARIO.
+- **Alcance honesto:** mata la familia de mapas `f(p_mercado)` — que por construcción no usan
+  nada de fuera del precio. **NO mata** un edge de información externa (latencia de fuente de
+  resolución, coherencia `neg_risk`). Esos no pasan por esta prueba.
+- **Status: CEMENTERIO.** No re-proponer "recalibrar el precio de Polymarket".
 
 **Trampa de lectura (importante):** el corte de ≤1d tiene el retorno anualizado más alto
 (350%) y es **el más frágil**: horquilla 3.29pp, margen sobre breakeven de solo **1.2x**,

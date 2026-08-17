@@ -112,9 +112,9 @@ sube conviction client-facing. Hoy mide, no decide.
 - OFI verdadero (Tardis L2): solo si el CVD validado lo justifica forward.
 - A vivo (FASE 2): `FQ_EXEC_MODE=live` en sub-cuenta chica cuando el fill-rate maker selle.
 
-**LEAD ABIERTO — Polymarket (2026-08-17, los 2 pasos de coste HECHOS, 0 capital):**
+**LEAD ABIERTO — Polymarket (2026-08-17, los 3 pasos HECHOS, 0 capital):**
 
-> **En una línea: el venue es viable, la señal no existe.**
+> **En una línea: el venue es viable, la señal NO existe — y ya está medido, no supuesto.**
 
 - **Paso 1, la oferta existe:** 32,085 mercados en 2026 (7 meses) con vol ≥$100k y h ≤7d,
   $13.8B. El horizonte mediano del venue es **1.44 días** — el volumen se mudó a corto
@@ -125,16 +125,25 @@ sube conviction client-facing. Hoy mide, no decide.
 - **La trampa:** el corte de ≤1d tiene el retorno más alto (350%) y el margen más frágil
   (horquilla 3.29pp → **1.2x**) con solo $0.2M de capacidad. Maximizar vueltas elige la
   esquina frágil. Esto vive en ≤7d (237% neto, 2.1x, $4.5M) y ≤30d (106%, 2.3x, $17.5M).
-- **BLOQUEANTE REAL: no hay ningún edge medido.** Todo cuelga de un 2pp supuesto. El único
-  intento propio medido salió mal: 17,430 preds OOS, error 3.29pp vs vara 2pp
-  (`marea/vault/MODEL.md`). Arbitraje Polymarket↔Kalshi: 0/544 (`marea/vault/DATA_SOURCES.md`).
-- **Siguiente paso honesto:** Brier advantage contra el precio del venue sobre una familia
-  de preguntas concreta, y por el gate (DSR/CPCV/PBO) como todo lo demás. NO operar.
-- Herramientas: `tools/polymarket_supply.py` (13 tests) + `tools/polymarket_spread.py`
-  (19 tests). Radiografías: `internal/POLYMARKET_OFERTA_2026-08.md` y
-  `internal/POLYMARKET_HORQUILLA_2026-08.md`. Triaje de los 10 repos: `CEMENTERIO.md`.
-- **Nada cableado, ningún flag, ningún peso.** El gate no se ha corrido porque todavía
-  no hay señal que gatear.
+- **Paso 3, la señal NO está — y la recalibración MUERE:** 6,561 mercados resueltos,
+  walk-forward n_oos=5,249. **Brier advantage −0.0043: el modelo PIERDE contra el precio
+  crudo.** Edge realizado +0.29pp ± 0.58 EE (IC95% [−0.85, +1.44]) contra un breakeven de
+  0.95pp. El mercado tiene skill real (+0.24/+0.29 vs tasa base). → `CEMENTERIO.md`.
+- **El artefacto que casi pasa:** ponderar por TRADE daba −4/−5pp de sesgo monótono en el
+  tramo líquido. Falso — un mercado que cae de 0.60 a 0 genera el volumen EN la caída. Por
+  mercado, +0.22pp. Cableado como test que exige signos contrarios.
+- **Priors nuestros, alineados:** 17,430 preds OOS con error 3.29pp vs vara 2pp
+  (`marea/vault/MODEL.md`); arbitraje Polymarket↔Kalshi 0/544 (`marea/vault/DATA_SOURCES.md`).
+- **Lo que queda vivo (no medido aún):** (1) coherencia de conjunto completo `neg_risk` —
+  los excluyentes de un evento deben sumar 1; arb mecánico SIN modelo, 17.8% de mercados
+  llevan el flag. (2) Latencia de la fuente de resolución — leer un feed público antes de
+  que el mercado repreecie; es la forma que este repo ya tiene (colectores no-críticos).
+  **NO hacer:** modelo propio de probabilidad para macro/política — dos mediciones en contra.
+- Herramientas: `polymarket_supply.py` (13 tests) + `polymarket_spread.py` (19) +
+  `polymarket_brier.py` (14). Radiografías: `internal/POLYMARKET_{OFERTA,HORQUILLA,BRIER}_2026-08.md`.
+  Triaje de los 10 repos: `CEMENTERIO.md`.
+- **Nada cableado, ningún flag, ningún peso.** El gate nunca se corrió porque no hay señal
+  que gatear.
 
 ---
 

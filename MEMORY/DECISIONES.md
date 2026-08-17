@@ -723,7 +723,41 @@ es viable, la señal no existe"** — que es un problema distinto, no un permiso
 que sí está medido falla (3.29pp vs vara 2pp, `marea/vault/MODEL.md`). El siguiente paso
 es Brier advantage contra el precio del venue, por el gate como todo lo demás.
 
-**Evidencia.** `internal/POLYMARKET_HORQUILLA_2026-08.md`, `tools/polymarket_spread.py`,
+### 22-ter · El paso 3: la señal no está, y el artefacto que casi la inventa
+
+**Resultado.** Brier advantage **−0.0043** sobre 5,249 mercados fuera de muestra: la
+recalibración **pierde** contra el precio crudo. Edge realizado +0.29pp ± 0.58 EE, IC95%
+[−0.85, +1.44], contra un breakeven de 0.95pp. **No hay edge de recalibración.** Al
+cementerio, con su n.
+
+**La decisión que importa: la unidad de observación.** La primera medición ponderó por
+TRADE y encontró un sesgo de −4/−5pp monótono en el tramo 0.35–0.80 sobre millones de
+trades. Contra un breakeven de 0.95pp habría sido el hallazgo del año. **Era un
+artefacto:** un mercado que cae de 0.60 a 0 genera el volumen EN la caída, así que ponderar
+por trade sobre-muestrea "estaba caro y resolvió NO". Por mercado a 1h: +0.22pp.
+
+Lo cazó la regla de la casa —*una métrica demasiado limpia es un bug antes que un
+hallazgo*— aplicada a mi propio resultado favorable. Un sesgo de 4pp en la parte más
+líquida de un mercado de $13.8B sería dinero gratis y alguien ya lo habría tomado.
+
+**Por qué esto es la entrada más valiosa de las tres.** Los pasos 1 y 2 quitaron
+objeciones; éste estuvo a punto de fabricar una respuesta. La diferencia entre publicarlo
+y matarlo fueron dos líneas de disciplina que ya estaban escritas en `CLAUDE.md`. Julio
+falló exactamente ahí, y esta vez no.
+
+**Alcance honesto.** Mata la familia `p_modelo = f(p_mercado)` — mapas que por construcción
+no usan nada de fuera del precio. NO mata un edge de información externa (latencia de fuente
+de resolución, coherencia `neg_risk`), que no pasa por esta prueba. Y es una apuesta
+declarada: si 8 parámetros no ganan OOS, 800 tampoco lo harán por buenas razones.
+
+**Evidencia.** `internal/POLYMARKET_BRIER_2026-08.md`, `tools/polymarket_brier.py`,
+`tests/test_polymarket_brier.py` (14 tests, con el que reconstruye el artefacto en sintético
+y exige que los dos sesgos salgan de SIGNO CONTRARIO, más la guarda anti-fuga: sobre ruido
+puro la recalibración no puede ganar fuera de muestra).
+
+---
+
+**Evidencia (22-bis).** `internal/POLYMARKET_HORQUILLA_2026-08.md`, `tools/polymarket_spread.py`,
 `tests/test_polymarket_spread.py` (19 tests, incluidos los que verifican que cada estimador
 recupera una horquilla SINTÉTICA conocida — un estimador sin esa verificación es una
 opinión con decimales).
@@ -746,7 +780,7 @@ opinión con decimales).
 | Híbrido data/venue | TradFi: validar en Dukascopy, ejecutar en perp | `fetch_dukascopy.py`, #116/#122 | Cosecha XAU+NQ en marcha |
 | Deploy hygiene | docs no re-despliegan; blacklist = fallo seguro | `railway.toml`, #138 | VIVO |
 | Producto 2 tiers | UN SOLO canal: tier "free" de la BD recibe el firehose etiquetado; VIP el filtrado; candado VIP→FREE | `_free_broadcast`, `build_free_signal`, `free_leak_guard` | Cableado (dormido: `FQ_FREE_TIER` + `FQ_FREE_TO_VIP`) |
-| Polymarket: cancha antes que estrategia | el diagnóstico que invalida va primero; oferta ✓, horquilla ✓ (1.13–1.90pp, margen 2.1x) | `tools/polymarket_supply.py`, `tools/polymarket_spread.py`, `internal/POLYMARKET_*_2026-08.md` | Lead abierto (0 capital; **venue viable, sin señal medida**) |
+| Polymarket: cancha antes que estrategia | oferta ✓, horquilla ✓ (margen 2.1x), **señal ✗** (Brier advantage −0.0043 OOS) | `tools/polymarket_{supply,spread,brier}.py`, `internal/POLYMARKET_*_2026-08.md` | 3 pasos hechos, 0 capital; **venue viable, recalibración MUERTA** |
 
 ---
 

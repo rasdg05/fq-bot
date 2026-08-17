@@ -76,9 +76,10 @@ vuelva — si la respuesta es "acordarse", no está cerrado.
 MEMORY/                  bitácora de proceso (constitución, decisiones, cementerio, estado)
 internal/GHOST_MAP_*.md  radiografía del motor sobre 7 años de cube
 internal/EXPERIMENT_*.md experimentos measure-first planificados
-internal/POLYMARKET_*.md lead de Polymarket: oferta ✓ y horquilla ✓ (1.13-1.90pp, margen
-                         2.1x). El venue es viable; NO hay señal medida. No operar.
-                         (triaje de los 10 repos en CEMENTERIO.md — no re-proponerlos)
+internal/POLYMARKET_*.md Polymarket, 3 pasos medidos: oferta ✓, horquilla ✓ (margen 2.1x),
+                         SEÑAL ✗ (Brier advantage −0.0043 OOS → recalibración al
+                         CEMENTERIO). Venue viable, sin edge. No operar. Triaje de
+                         los 10 repos en CEMENTERIO.md — no re-proponerlos.
 tools/validation_gate.py el gate DSR/CPCV/PBO — la vara
 tools/geometry_report.py juzga geometría TP/SL con el recorrido (MFE/MAE)
 execution.py             PaperBroker: sizing, costes, recorrido, ledger hash-chain
