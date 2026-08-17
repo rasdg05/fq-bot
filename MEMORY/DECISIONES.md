@@ -648,6 +648,54 @@ siguen sin ningún nivel, y los niveles siguen al `ANALISIS_ANCHOR_TF` si cambia
 
 ---
 
+## 22. Polymarket: se mide la CANCHA antes que la estrategia (2026-08-17)
+
+**Contexto.** Llegó una lista de 10 repos de Polymarket con la intención explícita de
+buscar rentabilidad ahí. La tentación obvia era clonar el que trae "118 estrategias
+listas" y ponerlo a correr.
+
+**Decisión.** No se evalúa ninguna estrategia. Se mide primero **la oferta capturable**
+— cuántos mercados tienen volumen y horizonte para que un edge sea siquiera capturable,
+y cuánto capital-tiempo cuesta cada uno — porque es el diagnóstico que puede matar la
+línea entera antes de gastar en ella. Mismo criterio que ordena E7/E8 en el brief: los
+diagnósticos que invalidan van primero porque cuestan poco.
+
+**Por qué el orden importa aquí en particular.** Yo mismo abrí la conversación afirmando
+que el capital de Polymarket queda bloqueado hasta la resolución (meses) y que eso mataba
+la anualización. **El dato lo refutó:** el horizonte mediano es 1.44 días y en 2026 el
+volumen se mudó a ≤7d ($13.6B en 1-7d vs $1.6B en >90d). Una objeción que sonaba
+estructural era un prior sin medir. Ese es exactamente el costo de opinar antes de medir,
+y quedó registrado a propósito.
+
+**Qué se construyó.** `tools/polymarket_supply.py` — sondeo sobre `markets.parquet`
+(281 MB de un dataset de 53 GB: el paso barato a propósito). La identidad que gobierna:
+
+```
+retorno_anual = 365·(edge − spread/2) / (precio · h_pond)
+```
+
+con `h_pond` = horizonte ponderado por VOLUMEN. La participación **se cancela del
+retorno**: solo fija cuánto capital cabe. De ahí el hallazgo de forma: donde el retorno
+es espectacular el capital que cabe es ridículo ($0.2M a ≤1d), y donde cabe capital serio
+($48M a ≤90d) el retorno es terrenal.
+
+**Qué NO se decidió.** Nada sobre operar. El spread —único coste real del venue— no se
+mide en `markets.parquet`, y con ~113 vueltas al año **una horquilla de 4pp anula un edge
+de 2pp**. El apalancamiento temporal no distingue entre edge y coste. Veredicto abierto.
+
+**Evidencia.** `internal/POLYMARKET_OFERTA_2026-08.md` (radiografía completa),
+`tools/polymarket_supply.py`, `tests/test_polymarket_supply.py` (13 tests). Cero código en
+el path del motor, cero flags nuevos, cero capital. `MEMORY/CEMENTERIO.md` §Polymarket
+guarda el triaje de los 10 repos para no re-proponerlos.
+
+**La invariante que deja.** El reporte **falla** (`ValueError`) si se le pide un agregado
+sin desglose por año — criterio de aceptación de E9, cableado en el único sitio que hoy
+imprime números de Polymarket. La n<30 se marca en el impreso, las filas excluidas se
+cuentan encima de los números, y las columnas constantes se delatan (cazó `active` y
+`archived`, constantes en las 1.84M filas: la lección `vp_basis` en dataset ajeno).
+
+---
+
 ## Resumen
 
 | Decisión | Razonamiento core | Archivos / commits clave | Estado |
@@ -664,6 +712,7 @@ siguen sin ningún nivel, y los niveles siguen al `ANALISIS_ANCHOR_TF` si cambia
 | Híbrido data/venue | TradFi: validar en Dukascopy, ejecutar en perp | `fetch_dukascopy.py`, #116/#122 | Cosecha XAU+NQ en marcha |
 | Deploy hygiene | docs no re-despliegan; blacklist = fallo seguro | `railway.toml`, #138 | VIVO |
 | Producto 2 tiers | UN SOLO canal: tier "free" de la BD recibe el firehose etiquetado; VIP el filtrado; candado VIP→FREE | `_free_broadcast`, `build_free_signal`, `free_leak_guard` | Cableado (dormido: `FQ_FREE_TIER` + `FQ_FREE_TO_VIP`) |
+| Polymarket: cancha antes que estrategia | el diagnóstico que invalida va primero; la oferta existe, el spread decide | `tools/polymarket_supply.py`, `internal/POLYMARKET_OFERTA_2026-08.md` | Lead abierto (0 capital, falta medir spread) |
 
 ---
 

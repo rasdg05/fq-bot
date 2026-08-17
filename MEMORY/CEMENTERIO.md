@@ -9,6 +9,55 @@
 
 ---
 
+## POLYMARKET — qué está medido y qué NO (2026-08-17)
+
+> Llegó una lista de 10 repos ("10 free GitHub repos for trading on Polymarket").
+> Aquí queda el triaje para que **no se re-proponga la lista entera cada tres meses**.
+> Radiografía completa: `internal/POLYMARKET_OFERTA_2026-08.md`.
+
+### Lo que ya está MEDIDO y es nuestro (no re-derivar)
+
+| Pregunta | Respuesta medida | Dónde |
+|---|---|---|
+| ¿Hay oferta capturable? | **SÍ.** 32,085 mercados en 2026 con vol ≥$100k y h ≤7d; $13.8B | `tools/polymarket_supply.py` |
+| ¿El capital queda bloqueado meses? | **NO, ya no.** h mediano 1.44d; el volumen se mudó a ≤7d en 2026 | idem |
+| ¿Le ganamos al precio del venue con modelo propio? | **NO.** 17,430 preds OOS, error **3.29 pp** vs vara de 2 pp | `marea/vault/MODEL.md` |
+| ¿Hay arbitraje Polymarket↔Kalshi en el inventario? | **0 de 544** preguntas emparejadas | `marea/vault/DATA_SOURCES.md` |
+| ¿Cuál es la horquilla? | **NO MEDIDA** — es el único juez, y falta | paso 2, `quant.parquet` |
+
+**Estado: LEAD ABIERTO, no validado.** El sondeo de oferta salió a favor; el veredicto
+depende del spread, que no se ha medido. **Cero capital, cero código en el path del motor.**
+El gate (DSR/CPCV/PBO) no se ha corrido porque todavía no hay señal que gatear.
+
+### Lo que se DESCARTA de la lista (no re-proponer)
+
+- **"118 estrategias listas" (CloddsBot)** — 118 estrategias son **118 trials**. Ya subimos
+  `n_trials` de 16 a 44 en F2 por honestidad; con 118 configs barridas la vara se va al techo
+  y el PBO se dispara. Es una máquina de fabricar el espejismo de mayo, empaquetada.
+- **Arbitraje cross-venue** — medido: 0/544 emparejadas. Caveat honesto: fue sobre 500 mercados
+  por volumen 24h + series curadas de Kalshi, con nuestro emparejador y para un fin de producto.
+  No es un estudio exhaustivo de arbitraje, pero es un prior fuerte y es nuestro.
+- **Bot de liquidity rewards** — es market making: cobra rebate a cambio de **selección adversa**.
+  Es EXACTAMENTE la enfermedad ya diagnosticada (los maker rápidos pierden el 80% del R; el
+  `BRIEF` E6 lo mapea como evento de libro). El rebate no salva de eso: paga por sufrirlo.
+- **Copy-trading / analizar traders** — n<30 + sesgo de supervivencia. La regla de la casa aplica igual.
+- **Terminal MCP con Claude, toolkits, awesome-lists, pydantic-ai** — superficie de ejecución
+  o mapas. No son edge y no pasan ningún gate.
+
+### Lo único que se rescata
+
+- **El dataset** ([SII-WANGZJ/Polymarket_data](https://huggingface.co/datasets/SII-WANGZJ/Polymarket_data)):
+  1.84M mercados. `markets.parquet` (281 MB) ya explotado; `trades/quant.parquet` (53 GB) es el paso 2.
+  `orderfilled.parquet` trae **tape firmado** = el material del CVD, nuestra única primitiva con
+  DSR ✓ cross-símbolo. **Con la advertencia grande:** el edge de cripto **NO transfiere** de venue
+  (POC-distance PBO 0.76 en TradFi; KL solo en NQ y del lado contrario). Un venue nuevo empieza en
+  cero, no hereda.
+- **La métrica Brier advantage** del repo `evan-kolberg/prediction-market-backtesting` — **la idea,
+  no el código**: meter NautilusTrader sería reemplazar `validation_gate.py` + `deflated.py` +
+  `bt_walkforward` por un motor ajeno. Anti-objetivo VII: no cambiamos de framework por conveniencia.
+
+---
+
 ## VALIDADO (cableado o en marcha)
 
 ### CVD — confirmación de order-flow firmado — **DSR ✓ (BTC ~1.00 / SOL ~0.98)**

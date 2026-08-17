@@ -3,6 +3,11 @@
 > La página que más caduca. Qué está vivo, qué duerme, qué mide, qué espera veredicto, qué
 > es plan en papel. Si la fecha de abajo es vieja, confírmala contra `git log` y `research/*.md`
 > antes de confiar. Fecha de corte: **2026-06-30** (HEAD: `ead6809`).
+>
+> **Añadido 2026-08-17:** lead abierto de Polymarket (ver sección al final de "Qué está vivo /
+> dormido / midiendo / pendiente"). El resto de esta foto sigue con corte de junio: los números
+> vigentes de agosto (track record n=12, motor paper −0.510R) están en `CLAUDE.md`, que es la
+> fuente más fresca.
 
 ---
 
@@ -106,6 +111,22 @@ sube conviction client-facing. Hoy mide, no decide.
 - Cerebro (analítica dedicada multi-símbolo). Etapa 0 lista para arrancar al OK de RasDG.
 - OFI verdadero (Tardis L2): solo si el CVD validado lo justifica forward.
 - A vivo (FASE 2): `FQ_EXEC_MODE=live` en sub-cuenta chica cuando el fill-rate maker selle.
+
+**LEAD ABIERTO — Polymarket (2026-08-17, sondeo de oferta hecho, 0 capital):**
+- **La oferta existe:** 32,085 mercados en 2026 (7 meses) con vol ≥$100k y h ≤7d, $13.8B.
+  El horizonte mediano del venue es **1.44 días** — el volumen se mudó a corto plazo
+  (2026: $13.6B en 1-7d vs $1.6B en >90d; en 2024 era al revés, era la elección de EE.UU.).
+- **Trade-off medido:** a ≤1d el retorno es enorme pero solo caben $0.2M; a ≤90d caben
+  $48M y el retorno es terrenal. Capacidad y retorno se pelean por el eje del horizonte.
+- **BLOQUEANTE: el spread no está medido.** Con ~113 vueltas/año, una horquilla de 4pp
+  anula un edge de 2pp. Está en `quant.parquet` (21 GB) — paso 2, no hecho.
+- **Priors nuestros que ya acotan el problema:** modelo propio de probabilidad NO le gana
+  al venue (17,430 preds OOS, 3.29pp vs vara 2pp, `marea/vault/MODEL.md`); arbitraje
+  Polymarket↔Kalshi 0/544 emparejadas (`marea/vault/DATA_SOURCES.md`).
+- Herramienta `tools/polymarket_supply.py` + 13 tests. Radiografía:
+  `internal/POLYMARKET_OFERTA_2026-08.md`. Triaje de los 10 repos: `CEMENTERIO.md`.
+- **Nada cableado, ningún flag, ningún peso.** El gate no se ha corrido porque todavía
+  no hay señal que gatear.
 
 ---
 
