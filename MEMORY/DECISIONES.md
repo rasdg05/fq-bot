@@ -723,6 +723,42 @@ es viable, la señal no existe"** — que es un problema distinto, no un permiso
 que sí está medido falla (3.29pp vs vara 2pp, `marea/vault/MODEL.md`). El siguiente paso
 es Brier advantage contra el precio del venue, por el gate como todo lo demás.
 
+### 22-quater · El paso 4 y el CIERRE de la línea
+
+**Resultado.** El arbitraje de conjunto completo `neg_risk` no sobrevive: incoherencia
+mediana **1.00pp** contra coste mediano **3.80pp** (n=472 obs / 395 eventos), neto
+−2.55pp. Ni el caso más barato (2 patas: 1.00pp vs 1.90pp). **El coste escala con N patas
+y la incoherencia no** — ése es todo el argumento, y es estructural, no muestral.
+
+**El hallazgo económico que vale.** Σp>1 en el 64.8% de los casos con mediana +0.90pp: hay
+margen de casa real y sistemático. Y está **calibrado justo por debajo del coste de
+arbitrarlo**. Eso responde la pregunta que hay que hacerle a todo arbitraje aparente —
+*¿por qué sigue ahí después de $13.8B de volumen?*— y la respuesta no es "nadie lo vio".
+
+**Segundo artefacto cazado en dos pasos consecutivos.** No exigir patas completas fabrica
+una desviación de **−35.00pp** (28,732 observaciones, 2 patas vistas de 8). Un "arbitraje
+del 35%". Y la asincronía duplica el mispricing porque un row group abarca ~8 días. Nótese
+que **la medición floja favorece la tesis** y aun así no la salva: matar algo con la
+medición sesgada a su favor es la forma robusta de matarlo.
+
+**LA DECISIÓN: se cierra la línea de Polymarket.** Cuatro pasos, cuatro números, cero edge.
+El coste del venue es genuinamente favorable —sorpresa real y medida, contraste con perps—
+pero no tenemos nada que venderle.
+
+**Por qué no se persigue la latencia de fuente de resolución, que es lo único vivo.** No es
+que sea mala idea: es que **rompe la disciplina que hizo baratos los cuatro pasos**. Cada
+uno se contestó con datos ya en disco, en horas de cómputo. La latencia no se puede medir
+con historia — exige construir el sistema en vivo para probar si el sistema en vivo
+funciona. Eso es invertir antes de medir, que es exactamente lo que la constitución evita.
+Queda con condición de desbloqueo explícita en `CEMENTERIO.md`, formato E6.
+
+**Evidencia.** `internal/POLYMARKET_NEGRISK_2026-08.md`, `tools/polymarket_negrisk.py`,
+`tests/test_polymarket_negrisk.py` (12 tests: las dos trampas reconstruidas en sintético,
+la aritmética coste∝N fijada, y la contraparte — si la incoherencia superara al coste, el
+veredicto lo dice).
+
+---
+
 ### 22-ter · El paso 3: la señal no está, y el artefacto que casi la inventa
 
 **Resultado.** Brier advantage **−0.0043** sobre 5,249 mercados fuera de muestra: la
@@ -780,7 +816,7 @@ opinión con decimales).
 | Híbrido data/venue | TradFi: validar en Dukascopy, ejecutar en perp | `fetch_dukascopy.py`, #116/#122 | Cosecha XAU+NQ en marcha |
 | Deploy hygiene | docs no re-despliegan; blacklist = fallo seguro | `railway.toml`, #138 | VIVO |
 | Producto 2 tiers | UN SOLO canal: tier "free" de la BD recibe el firehose etiquetado; VIP el filtrado; candado VIP→FREE | `_free_broadcast`, `build_free_signal`, `free_leak_guard` | Cableado (dormido: `FQ_FREE_TIER` + `FQ_FREE_TO_VIP`) |
-| Polymarket: cancha antes que estrategia | oferta ✓, horquilla ✓ (margen 2.1x), **señal ✗** (Brier advantage −0.0043 OOS) | `tools/polymarket_{supply,spread,brier}.py`, `internal/POLYMARKET_*_2026-08.md` | 3 pasos hechos, 0 capital; **venue viable, recalibración MUERTA** |
+| Polymarket: cancha antes que estrategia | oferta ✓, horquilla ✓, señal ✗, arb ✗ — el venue es bueno y no tenemos qué venderle | `tools/polymarket_{supply,spread,brier,negrisk}.py`, `internal/POLYMARKET_*_2026-08.md` | **LÍNEA CERRADA**, 0 capital, 4 pasos medidos |
 
 ---
 

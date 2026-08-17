@@ -27,12 +27,27 @@
 | ¿Le ganamos al precio del venue con modelo propio? | **NO.** 17,430 preds OOS, error **3.29 pp** vs vara de 2 pp | `marea/vault/MODEL.md` |
 | ¿Hay arbitraje Polymarket↔Kalshi en el inventario? | **0 de 544** preguntas emparejadas | `marea/vault/DATA_SOURCES.md` |
 | ¿Le gana una RECALIBRACIÓN del precio? | **NO — MUERTA.** Brier advantage **−0.0043** (gana el mercado); edge +0.29pp, IC95% [−0.85, +1.44] vs breakeven 0.95pp. n_oos=5,249 mercados | `tools/polymarket_brier.py` |
-| ¿Hay edge medido? | **NO. Ninguno.** Los 3 pasos: coste ✓ ✓, señal ✗ | — |
+| ¿Hay arb mecánico `neg_risk`, sin modelo? | **NO — MUERTO.** Incoherencia 1.00pp vs coste 3.80pp; neto −2.55pp. n=472 obs / 395 eventos | `tools/polymarket_negrisk.py` |
+| ¿Hay edge medido? | **NO. Ninguno.** 4 pasos: coste ✓ ✓, señal ✗, arb ✗ | — |
 
-**Estado: los 3 pasos hechos. El venue es viable; NO hay señal.** Los dos pasos de coste
-salieron a favor y el de señal salió **en contra**. **Cero capital, cero código en el path
-del motor, cero flags.** El gate (DSR/CPCV/PBO) nunca se corrió porque no hay señal que
-gatear — y el walk-forward ya dijo que no la hay por la vía de la recalibración.
+**Estado: LÍNEA CERRADA (2026-08-17). El venue es bueno y no tenemos nada que venderle.**
+Los dos pasos de coste salieron a favor; los dos de edge salieron en contra. **Cero
+capital, cero código en el path del motor, cero flags.** El gate nunca se corrió porque
+nunca hubo señal que gatear.
+
+| paso | pregunta | veredicto |
+|---|---|---|
+| 1 · oferta | ¿hay mercados capturables? | **SÍ** — 32,085 en 2026, $13.8B, h mediano 1.44d |
+| 2 · horquilla | ¿el coste se come el edge? | **NO** — 1.90pp vs 4pp de breakeven, margen 2.1x |
+| 3 · Brier | ¿le ganamos al precio? | **NO** — advantage −0.0043 OOS, gana el mercado |
+| 4 · neg_risk | ¿hay arb mecánico sin modelo? | **NO** — 1.00pp de incoherencia vs 3.80pp de coste |
+
+**Lo ÚNICO que queda, y no se persigue:** latencia de la fuente de resolución (leer un feed
+público antes de que el mercado repreecie). **Condición de desbloqueo (formato E6):**
+evidencia pública y verificable, **medible con datos históricos**, de que el desfase entre
+la publicación de una fuente concreta y la repreciación supera **1.90pp** de forma
+consistente. Sin eso no se abre — porque exigiría construir el sistema en vivo para probar
+si el sistema en vivo funciona, que es invertir antes de medir.
 
 ### MUERTO — recalibración del precio de Polymarket como edge (2026-08-17)
 
@@ -56,6 +71,33 @@ gatear — y el walk-forward ya dijo que no la hay por la vía de la recalibraci
   nada de fuera del precio. **NO mata** un edge de información externa (latencia de fuente de
   resolución, coherencia `neg_risk`). Esos no pasan por esta prueba.
 - **Status: CEMENTERIO.** No re-proponer "recalibrar el precio de Polymarket".
+
+### MUERTO — arbitraje de conjunto completo `neg_risk` en Polymarket (2026-08-17)
+
+- **Idea:** en un evento `neg_risk` exactamente un resultado ocurre → ΣP(YES)=1. Si suma
+  1.05, comprar NO en todas las patas paga. **Sin modelo de nada**: aritmética, no pronóstico.
+- **El supuesto SÍ se sostiene** (verificado antes de medir): de 38,502 eventos cerrados con
+  ≥2 patas resueltas, el **97.9% tiene exactamente un SÍ**.
+- **Medición (n=472 obs / 395 eventos, simultaneidad ≤15 min):** incoherencia mediana
+  **1.00pp** contra coste mediano **3.80pp** → neto **−2.55pp**, rentable en 11.9%.
+  **Ni el caso más barato sobrevive**: con 2 patas, 1.00pp de incoherencia vs 1.90pp de coste.
+- **Por qué muere, en una línea: el coste escala con N patas y la incoherencia no.**
+  1.90pp con 2 patas → 15.69pp con 12+, mientras la desviación se queda en ~1-2pp.
+- **El sobre-redondeo existe y no se cobra:** Σp>1 en 64.8%, mediana +0.90pp. Margen de casa
+  real y sistemático, **calibrado justo por debajo del coste de arbitrarlo** — ésa es la
+  respuesta económica a "¿por qué nadie lo ha tomado en $13.8B de volumen?".
+- **TRAMPA (a) — patas faltantes fabrican el arb:** 28,732 observaciones incompletas dan una
+  desviación mediana **FINGIDA de −35.00pp** (2 patas vistas de 8). Un "arbitraje del 35%"
+  que no existe. Solo cuentan eventos con TODAS las patas vivas; una pata que falta jamás se
+  rellena. Y el denominador son las patas **vivas en ese instante**, no las de hoy.
+- **TRAMPA (b) — la asincronía duplica el mispricing:** un row group abarca ~8 DÍAS, así que
+  "último precio de cada pata en el row group" suma el lunes con el jueves. |dev| va de
+  1.90pp (cap 24h) a 1.00pp (cap 15min). **La medición floja favorece la tesis y aun así no
+  la salva** — con cap 24h, 1.90pp contra 2.85pp de coste sigue negativo.
+- **Robustez:** el veredicto aguanta en los 5 topes de frescura, incluido el de n=11,520.
+  Y no modela impacto ni ejecución parcial (llenarte 7 de 11 patas no es un arbitraje, es
+  una posición direccional) — el número real es **peor**, no mejor.
+- **Status: CEMENTERIO.** No re-proponer "arbitraje de conjunto completo en Polymarket".
 
 **Trampa de lectura (importante):** el corte de ≤1d tiene el retorno anualizado más alto
 (350%) y es **el más frágil**: horquilla 3.29pp, margen sobre breakeven de solo **1.2x**,

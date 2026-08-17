@@ -112,9 +112,11 @@ sube conviction client-facing. Hoy mide, no decide.
 - OFI verdadero (Tardis L2): solo si el CVD validado lo justifica forward.
 - A vivo (FASE 2): `FQ_EXEC_MODE=live` en sub-cuenta chica cuando el fill-rate maker selle.
 
-**LEAD ABIERTO — Polymarket (2026-08-17, los 3 pasos HECHOS, 0 capital):**
+**LÍNEA CERRADA — Polymarket (2026-08-17, los 4 pasos HECHOS, 0 capital):**
 
-> **En una línea: el venue es viable, la señal NO existe — y ya está medido, no supuesto.**
+> **En una línea: el venue es bueno y no tenemos nada que venderle.** Coste favorable
+> (medido), pero las dos vías de edge que no exigen ser más listo que el mercado están
+> muertas, y la vía de serlo tiene dos mediciones en contra. Detalle: `CEMENTERIO.md`.
 
 - **Paso 1, la oferta existe:** 32,085 mercados en 2026 (7 meses) con vol ≥$100k y h ≤7d,
   $13.8B. El horizonte mediano del venue es **1.44 días** — el volumen se mudó a corto
@@ -134,16 +136,23 @@ sube conviction client-facing. Hoy mide, no decide.
   mercado, +0.22pp. Cableado como test que exige signos contrarios.
 - **Priors nuestros, alineados:** 17,430 preds OOS con error 3.29pp vs vara 2pp
   (`marea/vault/MODEL.md`); arbitraje Polymarket↔Kalshi 0/544 (`marea/vault/DATA_SOURCES.md`).
-- **Lo que queda vivo (no medido aún):** (1) coherencia de conjunto completo `neg_risk` —
-  los excluyentes de un evento deben sumar 1; arb mecánico SIN modelo, 17.8% de mercados
-  llevan el flag. (2) Latencia de la fuente de resolución — leer un feed público antes de
-  que el mercado repreecie; es la forma que este repo ya tiene (colectores no-críticos).
-  **NO hacer:** modelo propio de probabilidad para macro/política — dos mediciones en contra.
+- **Paso 4, el arb mecánico `neg_risk` MUERE:** incoherencia mediana **1.00pp** contra coste
+  **3.80pp** (n=472 obs / 395 eventos) → neto −2.55pp. El coste escala con N patas y la
+  incoherencia no. El sobre-redondeo existe (+0.90pp, Σp>1 en 64.8%) y está calibrado justo
+  por debajo del coste de arbitrarlo — por eso sigue ahí. → `CEMENTERIO.md`.
+- **Segundo artefacto cazado:** no exigir patas completas fabrica un "arbitraje del 35%"
+  (28,732 obs incompletas, 2 patas vistas de 8). Y la asincronía duplica el mispricing
+  (row group = ~8 días). Ambos cableados como test.
+- **NO se persigue lo que queda.** Solo sobrevive la latencia de fuente de resolución, y
+  rompe la disciplina que hizo baratos los 4 pasos: no se puede medir con historia, exige
+  construir el sistema en vivo para probar si funciona. Condición de desbloqueo en
+  `CEMENTERIO.md`. **NO hacer** modelo propio para macro/política: dos mediciones en contra.
 - Herramientas: `polymarket_supply.py` (13 tests) + `polymarket_spread.py` (19) +
-  `polymarket_brier.py` (14). Radiografías: `internal/POLYMARKET_{OFERTA,HORQUILLA,BRIER}_2026-08.md`.
+  `polymarket_brier.py` (14) + `polymarket_negrisk.py` (12).
+  Radiografías: `internal/POLYMARKET_{OFERTA,HORQUILLA,BRIER,NEGRISK}_2026-08.md`.
   Triaje de los 10 repos: `CEMENTERIO.md`.
-- **Nada cableado, ningún flag, ningún peso.** El gate nunca se corrió porque no hay señal
-  que gatear.
+- **Nada cableado, ningún flag, ningún peso.** El gate nunca se corrió porque nunca hubo
+  señal que gatear.
 
 ---
 
