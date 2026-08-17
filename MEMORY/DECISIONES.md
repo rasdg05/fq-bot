@@ -694,6 +694,40 @@ imprime números de Polymarket. La n<30 se marca en el impreso, las filas exclui
 cuentan encima de los números, y las columnas constantes se delatan (cazó `active` y
 `archived`, constantes en las 1.84M filas: la lección `vp_basis` en dataset ajeno).
 
+### 22-bis · El paso 2: la horquilla, y el estimador elegido por adversidad
+
+**Resultado.** 1.13pp (rebote) a 1.90pp (Roll corregido) sobre 14.68M trades leídos por
+rangos HTTP (sin bajar los 37.5 GB). Contra el breakeven de 4pp, **margen 2.1x**: el coste
+NO se come el edge, al contrario que en perps. El veredicto cambia de "quizá" a **"el venue
+es viable, la señal no existe"** — que es un problema distinto, no un permiso.
+
+**Dos decisiones de método que valen más que el número.**
+
+1. **El veredicto usa el estimador MÁS ADVERSO, no el promedio ni el favorable.** Está
+   cableado en `verdict()` y fijado por test. Promediar dos estimadores que discrepan 68%
+   esconde el desacuerdo; elegir el favorable es selección por resultado.
+2. **El sesgo de Roll se mide, no se supone.** Roll asume signo del taker iid; en
+   Polymarket ρ₁=+0.295. La corrección `√(1+ρ₂−2ρ₁)` = 0.825 mueve 1.57 → 1.90. Sin
+   medir ρ, el veredicto habría viajado con un sesgo desconocido a su favor.
+
+**Dos correcciones honestas a lo que yo mismo escribí en este mismo encargo.**
+
+- Afirmé que sin colapsar por `transaction_hash` el rebote se sesgaba hacia cero. **Falso:
+  el efecto medido es −0.0%** (los fills del mismo lado nunca cambian de lado, ya salían
+  solos). El colapso se mantiene por definición correcta del precio del taker, no por sesgo.
+- El paso 1 señalaba el corte de ≤1d como el mejor (494 vueltas/año). **La horquilla ahí
+  es el doble** (3.29pp): margen 1.2x y $0.2M de capacidad. La optimización ingenua elegía
+  la esquina frágil, y solo se vio al medir el coste por corte.
+
+**Lo que sigue estando prohibido.** Operar. No hay edge medido; el único intento propio
+que sí está medido falla (3.29pp vs vara 2pp, `marea/vault/MODEL.md`). El siguiente paso
+es Brier advantage contra el precio del venue, por el gate como todo lo demás.
+
+**Evidencia.** `internal/POLYMARKET_HORQUILLA_2026-08.md`, `tools/polymarket_spread.py`,
+`tests/test_polymarket_spread.py` (19 tests, incluidos los que verifican que cada estimador
+recupera una horquilla SINTÉTICA conocida — un estimador sin esa verificación es una
+opinión con decimales).
+
 ---
 
 ## Resumen
@@ -712,7 +746,7 @@ cuentan encima de los números, y las columnas constantes se delatan (cazó `act
 | Híbrido data/venue | TradFi: validar en Dukascopy, ejecutar en perp | `fetch_dukascopy.py`, #116/#122 | Cosecha XAU+NQ en marcha |
 | Deploy hygiene | docs no re-despliegan; blacklist = fallo seguro | `railway.toml`, #138 | VIVO |
 | Producto 2 tiers | UN SOLO canal: tier "free" de la BD recibe el firehose etiquetado; VIP el filtrado; candado VIP→FREE | `_free_broadcast`, `build_free_signal`, `free_leak_guard` | Cableado (dormido: `FQ_FREE_TIER` + `FQ_FREE_TO_VIP`) |
-| Polymarket: cancha antes que estrategia | el diagnóstico que invalida va primero; la oferta existe, el spread decide | `tools/polymarket_supply.py`, `internal/POLYMARKET_OFERTA_2026-08.md` | Lead abierto (0 capital, falta medir spread) |
+| Polymarket: cancha antes que estrategia | el diagnóstico que invalida va primero; oferta ✓, horquilla ✓ (1.13–1.90pp, margen 2.1x) | `tools/polymarket_supply.py`, `tools/polymarket_spread.py`, `internal/POLYMARKET_*_2026-08.md` | Lead abierto (0 capital; **venue viable, sin señal medida**) |
 
 ---
 

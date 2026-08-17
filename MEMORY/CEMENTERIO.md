@@ -13,7 +13,8 @@
 
 > Llegó una lista de 10 repos ("10 free GitHub repos for trading on Polymarket").
 > Aquí queda el triaje para que **no se re-proponga la lista entera cada tres meses**.
-> Radiografía completa: `internal/POLYMARKET_OFERTA_2026-08.md`.
+> Radiografías: `internal/POLYMARKET_OFERTA_2026-08.md` (paso 1, oferta) y
+> `internal/POLYMARKET_HORQUILLA_2026-08.md` (paso 2, coste).
 
 ### Lo que ya está MEDIDO y es nuestro (no re-derivar)
 
@@ -21,13 +22,26 @@
 |---|---|---|
 | ¿Hay oferta capturable? | **SÍ.** 32,085 mercados en 2026 con vol ≥$100k y h ≤7d; $13.8B | `tools/polymarket_supply.py` |
 | ¿El capital queda bloqueado meses? | **NO, ya no.** h mediano 1.44d; el volumen se mudó a ≤7d en 2026 | idem |
+| ¿Cuál es la horquilla? | **1.13–1.90 pp** (rebote / Roll corregido) en vol≥100k, h≤7d | `tools/polymarket_spread.py` |
+| ¿El coste se come el edge, como en perps? | **NO.** Breakeven 4pp vs 1.90pp adversos: margen **2.1x** | idem |
 | ¿Le ganamos al precio del venue con modelo propio? | **NO.** 17,430 preds OOS, error **3.29 pp** vs vara de 2 pp | `marea/vault/MODEL.md` |
 | ¿Hay arbitraje Polymarket↔Kalshi en el inventario? | **0 de 544** preguntas emparejadas | `marea/vault/DATA_SOURCES.md` |
-| ¿Cuál es la horquilla? | **NO MEDIDA** — es el único juez, y falta | paso 2, `quant.parquet` |
+| ¿Hay edge medido? | **NO. Ninguno.** Todo cuelga de un edge SUPUESTO de 2pp | — |
 
-**Estado: LEAD ABIERTO, no validado.** El sondeo de oferta salió a favor; el veredicto
-depende del spread, que no se ha medido. **Cero capital, cero código en el path del motor.**
-El gate (DSR/CPCV/PBO) no se ha corrido porque todavía no hay señal que gatear.
+**Estado: LEAD ABIERTO, no validado. El venue es viable; la señal no existe.**
+Los dos pasos de coste salieron a favor — y eso es todo lo que salió a favor. **Cero
+capital, cero código en el path del motor, cero flags.** El gate (DSR/CPCV/PBO) no se ha
+corrido porque todavía no hay ninguna señal que gatear.
+
+**Trampa de lectura (importante):** el corte de ≤1d tiene el retorno anualizado más alto
+(350%) y es **el más frágil**: horquilla 3.29pp, margen sobre breakeven de solo **1.2x**,
+y solo $0.2M de capacidad. Maximizar vueltas elige la esquina frágil. Donde esto vive es
+≤7d / ≤30d (margen 2.1–2.3x, capacidad $4.5M–$17.5M).
+
+**Nota anti-ilusión:** la autocorrelación del signo del taker sale **ρ₁=+0.295** — la misma
+firma de order-splitting que validamos como F2. Aquí se usa SOLO para corregir el sesgo del
+estimador de Roll. **No es un lead de señal:** F2 es símbolo-específico incluso dentro de
+cripto (paga en 4/6, NEGATIVO en ETH) y un venue nuevo no hereda nada.
 
 ### Lo que se DESCARTA de la lista (no re-proponer)
 

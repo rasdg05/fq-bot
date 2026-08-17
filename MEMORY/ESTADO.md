@@ -112,19 +112,27 @@ sube conviction client-facing. Hoy mide, no decide.
 - OFI verdadero (Tardis L2): solo si el CVD validado lo justifica forward.
 - A vivo (FASE 2): `FQ_EXEC_MODE=live` en sub-cuenta chica cuando el fill-rate maker selle.
 
-**LEAD ABIERTO — Polymarket (2026-08-17, sondeo de oferta hecho, 0 capital):**
-- **La oferta existe:** 32,085 mercados en 2026 (7 meses) con vol ≥$100k y h ≤7d, $13.8B.
-  El horizonte mediano del venue es **1.44 días** — el volumen se mudó a corto plazo
-  (2026: $13.6B en 1-7d vs $1.6B en >90d; en 2024 era al revés, era la elección de EE.UU.).
-- **Trade-off medido:** a ≤1d el retorno es enorme pero solo caben $0.2M; a ≤90d caben
-  $48M y el retorno es terrenal. Capacidad y retorno se pelean por el eje del horizonte.
-- **BLOQUEANTE: el spread no está medido.** Con ~113 vueltas/año, una horquilla de 4pp
-  anula un edge de 2pp. Está en `quant.parquet` (21 GB) — paso 2, no hecho.
-- **Priors nuestros que ya acotan el problema:** modelo propio de probabilidad NO le gana
-  al venue (17,430 preds OOS, 3.29pp vs vara 2pp, `marea/vault/MODEL.md`); arbitraje
-  Polymarket↔Kalshi 0/544 emparejadas (`marea/vault/DATA_SOURCES.md`).
-- Herramienta `tools/polymarket_supply.py` + 13 tests. Radiografía:
-  `internal/POLYMARKET_OFERTA_2026-08.md`. Triaje de los 10 repos: `CEMENTERIO.md`.
+**LEAD ABIERTO — Polymarket (2026-08-17, los 2 pasos de coste HECHOS, 0 capital):**
+
+> **En una línea: el venue es viable, la señal no existe.**
+
+- **Paso 1, la oferta existe:** 32,085 mercados en 2026 (7 meses) con vol ≥$100k y h ≤7d,
+  $13.8B. El horizonte mediano del venue es **1.44 días** — el volumen se mudó a corto
+  plazo (2026: $13.6B en 1-7d vs $1.6B en >90d; en 2024 era al revés, la elección de EE.UU.).
+- **Paso 2, la horquilla NO mata:** 1.13pp (rebote) a 1.90pp (Roll corregido por ρ₁=+0.295)
+  sobre 14.68M trades. Contra un breakeven de 4pp (edge 2pp) → **margen 2.1x**. Es lo
+  CONTRARIO del motor de perps, donde el coste se come el edge entero (+0.224R → −0.510R).
+- **La trampa:** el corte de ≤1d tiene el retorno más alto (350%) y el margen más frágil
+  (horquilla 3.29pp → **1.2x**) con solo $0.2M de capacidad. Maximizar vueltas elige la
+  esquina frágil. Esto vive en ≤7d (237% neto, 2.1x, $4.5M) y ≤30d (106%, 2.3x, $17.5M).
+- **BLOQUEANTE REAL: no hay ningún edge medido.** Todo cuelga de un 2pp supuesto. El único
+  intento propio medido salió mal: 17,430 preds OOS, error 3.29pp vs vara 2pp
+  (`marea/vault/MODEL.md`). Arbitraje Polymarket↔Kalshi: 0/544 (`marea/vault/DATA_SOURCES.md`).
+- **Siguiente paso honesto:** Brier advantage contra el precio del venue sobre una familia
+  de preguntas concreta, y por el gate (DSR/CPCV/PBO) como todo lo demás. NO operar.
+- Herramientas: `tools/polymarket_supply.py` (13 tests) + `tools/polymarket_spread.py`
+  (19 tests). Radiografías: `internal/POLYMARKET_OFERTA_2026-08.md` y
+  `internal/POLYMARKET_HORQUILLA_2026-08.md`. Triaje de los 10 repos: `CEMENTERIO.md`.
 - **Nada cableado, ningún flag, ningún peso.** El gate no se ha corrido porque todavía
   no hay señal que gatear.
 

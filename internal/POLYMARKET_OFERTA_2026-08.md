@@ -145,6 +145,25 @@ está en `trades.parquet` (32 GB) y `quant.parquet` (21 GB) del mismo dataset.
 > un número que aún no medimos.** Presentar el 451% como resultado sería
 > exactamente el pecado de agosto con otro disfraz.
 
+### CERRADO — el paso 2 midió la horquilla (`POLYMARKET_HORQUILLA_2026-08.md`)
+
+**1.13 pp (rebote) a 1.90 pp (Roll corregido)** sobre 14.68M trades. Contra el
+breakeven de 4 pp: **margen 2.1x, el edge supuesto sobrevive.** El coste NO se
+come el edge como en perps.
+
+**Y corrigió una lectura de este documento.** La tabla del Resultado 3 señalaba
+el corte de ≤1d como el de mejor retorno. **La horquilla ahí es el doble**
+(3.29 pp): margen sobre breakeven de solo 1.2x, con $0.2M de capacidad. Netos:
+
+| corte 2026 | ret. anual BRUTO (este doc) | horquilla medida | **ret. anual NETO** | margen |
+|---|---|---|---|---|
+| ≤ 1d | 1975% | 3.29 pp | **350%** | 1.2x |
+| ≤ 7d | 451% | 1.90 pp | **237%** | 2.1x |
+| ≤ 30d | 188% | 1.74 pp | **106%** | 2.3x |
+
+La optimización ingenua de este documento —maximizar vueltas— elegía la esquina
+frágil. Solo se vio midiendo el coste **por corte**, no en agregado.
+
 ---
 
 ## Higiene del dato (lo que está roto, contado)
