@@ -4,6 +4,31 @@
 > vigentes y las invariantes: **no los repitas ni los re-derives**. Esto es solo
 > el trabajo pendiente, en orden.
 
+## ESTADO DEL ENCARGO — leer antes que nada (act. 2026-08-17)
+
+**Nada de E1–E9 está hecho.** Este brief sigue íntegro y sigue siendo el trabajo
+que toca. Lo que cambió es el contexto alrededor:
+
+- **La línea de Polymarket está CERRADA.** Se midieron cuatro pasos (oferta ✓,
+  horquilla ✓, Brier ✗, neg_risk ✗) y no hay edge. El venue es bueno y no
+  tenemos qué venderle. Detalle y condición de desbloqueo en `CEMENTERIO.md`
+  §Polymarket + `internal/POLYMARKET_*_2026-08.md`. **No re-proponerla**, ni
+  entera ni por partes (recalibración y arb de conjunto completo están muertos
+  con su n). El triaje de los 10 repos que la originaron también está ahí.
+- **Se añaden a E6 (prohibidas) las dos vías muertas de Polymarket**, ver tabla.
+- **El instrumento demostró que sirve.** En esa sesión cazó dos artefactos que se
+  habrían publicado como hallazgos: un sesgo de calibración de −4/−5 pp que era
+  ponderación por trade, y un "arbitraje del 35%" que eran patas faltantes. Las
+  dos reglas que los cazaron ya estaban escritas en `CLAUDE.md`. Eso es
+  exactamente lo que E1–E9 quiere multiplicar.
+
+**Orden recomendado sin cambios: E7 y E8 primero.** Son los diagnósticos que
+pueden invalidar el resto, leen datos que ya existen y cuestan poco. La sesión de
+Polymarket es evidencia a favor de ese orden: cuatro preguntas caras se
+contestaron con datos ya en disco, en horas de cómputo, sin arriesgar un peso.
+
+---
+
 ## Regla que gobierna este encargo
 
 Un hallazgo sin invariante que lo haga cumplir es una nota, no un arreglo. Cada
@@ -184,6 +209,9 @@ desbloquea.
 | Tocar TP/SL | ≥30 cierres con recorrido sellado + veredicto de `geometry_report` |
 | Añadir features nuevas | Arreglar antes las muertas (`vp_basis` constante, CVD congelado) |
 | Book imbalance (ver abajo) | Que el CVD firmado pase el gate primero |
+| Reabrir Polymarket (cualquier variante) | Nada la desbloquea salvo la condición E6 escrita en `CEMENTERIO.md` §Polymarket |
+| Recalibrar el precio de un venue de predicción | Muerta y medida (Brier advantage −0.0043 OOS). No se re-prueba |
+| Arb de conjunto completo / `neg_risk` | Muerta y medida (1.00pp de incoherencia vs 3.80pp de coste) |
 
 ### Sobre el book imbalance — contexto para no reinventarlo
 

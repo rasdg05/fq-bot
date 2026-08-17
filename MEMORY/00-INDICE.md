@@ -12,6 +12,21 @@ con suscriptores reales. Símbolos: SOL (pilar), BTC, ETH. Disciplina central:
 **measure-first** — nada se cree ni se despliega sin pasar el gate de validación; lo
 que no pasa va al cementerio, honesto.
 
+## Dónde estamos HOY (act. 2026-08-17) — 30 segundos
+
+- **No hay edge demostrado.** Ninguna configuración medida tiene el IC95% de la expectancy
+  por encima de cero. Motor paper con fees: E[R] −0.510 (n=90). Cube bruto: +0.224R. La
+  diferencia **es el coste de ejecución**. Los números vigentes están en `CLAUDE.md`.
+- **La línea de Polymarket está CERRADA** (ago-2026, 4 pasos medidos, 0 capital). El venue
+  es bueno y no tenemos qué venderle. **No re-proponerla** — ni entera ni por partes.
+  Ver `CEMENTERIO.md` §Polymarket (incluye el triaje de los 10 repos que la originaron).
+- **El trabajo que toca es `internal/BRIEF_INSTRUMENTO_2026-08.md`**, E7 y E8 primero: son
+  diagnósticos que pueden invalidar el resto y leen datos que ya existen.
+- **Rama con el contexto más fresco:** `claude/polymarket-trading-tools-grx05x`.
+  ⚠️ **`main` NO la tiene mergeada**: arrancar desde `main` re-propondría lo ya muerto.
+
+---
+
 ## Ruteo por ROL (el ecosistema, una sola verdad)
 La memoria es el **cerebro compartido** de todo el equipo. Cada función entra por su vista, pero
 todas leen el MISMO registro — Marketing no puede afirmar lo que Ingeniería no validó, y viceversa.

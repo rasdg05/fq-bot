@@ -17,6 +17,11 @@ con suscriptores de pago. SOL (pilar), BTC, ETH. Cada push a `main` redeploya.
    CPCV / PBO no se degrada jamás.**
 3. `MEMORY/CEMENTERIO.md` — antes de proponer algo, mira si ya se mató.
 4. `MEMORY/ESTADO.md` — qué está vivo / dormido / midiendo hoy.
+5. `internal/BRIEF_INSTRUMENTO_2026-08.md` — **el encargo vigente** (E7/E8 primero).
+
+> ⚠️ El contexto más fresco vive en la rama `claude/polymarket-trading-tools-grx05x`,
+> **no mergeada a `main`**. Arrancar desde `main` re-propondría la línea de Polymarket,
+> que está cerrada y medida.
 
 ## La lección más cara del proyecto
 

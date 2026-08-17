@@ -4,10 +4,11 @@
 > es plan en papel. Si la fecha de abajo es vieja, confírmala contra `git log` y `research/*.md`
 > antes de confiar. Fecha de corte: **2026-06-30** (HEAD: `ead6809`).
 >
-> **Añadido 2026-08-17:** lead abierto de Polymarket (ver sección al final de "Qué está vivo /
-> dormido / midiendo / pendiente"). El resto de esta foto sigue con corte de junio: los números
-> vigentes de agosto (track record n=12, motor paper −0.510R) están en `CLAUDE.md`, que es la
-> fuente más fresca.
+> **Añadido 2026-08-17:** la línea de Polymarket se abrió y se CERRÓ en el mismo día, con
+> cuatro pasos medidos y cero capital (ver la sección al final de "Qué está vivo / dormido /
+> midiendo / pendiente"). El resto de esta foto sigue con corte de junio: los números vigentes
+> de agosto (track record n=12, motor paper −0.510R) están en `CLAUDE.md`, que es la fuente más
+> fresca. **El trabajo que toca ahora es `internal/BRIEF_INSTRUMENTO_2026-08.md`, E7 y E8.**
 
 ---
 
