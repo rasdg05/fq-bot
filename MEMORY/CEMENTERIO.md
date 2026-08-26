@@ -9,6 +9,135 @@
 
 ---
 
+## POLYMARKET — qué está medido y qué NO (2026-08-17)
+
+> Llegó una lista de 10 repos ("10 free GitHub repos for trading on Polymarket").
+> Aquí queda el triaje para que **no se re-proponga la lista entera cada tres meses**.
+> Radiografías: `internal/POLYMARKET_OFERTA_2026-08.md` (paso 1, oferta) y
+> `internal/POLYMARKET_HORQUILLA_2026-08.md` (paso 2, coste).
+
+### Lo que ya está MEDIDO y es nuestro (no re-derivar)
+
+| Pregunta | Respuesta medida | Dónde |
+|---|---|---|
+| ¿Hay oferta capturable? | **SÍ.** 32,085 mercados en 2026 con vol ≥$100k y h ≤7d; $13.8B | `tools/polymarket_supply.py` |
+| ¿El capital queda bloqueado meses? | **NO, ya no.** h mediano 1.44d; el volumen se mudó a ≤7d en 2026 | idem |
+| ¿Cuál es la horquilla? | **1.13–1.90 pp** (rebote / Roll corregido) en vol≥100k, h≤7d | `tools/polymarket_spread.py` |
+| ¿El coste se come el edge, como en perps? | **NO.** Breakeven 4pp vs 1.90pp adversos: margen **2.1x** | idem |
+| ¿Le ganamos al precio del venue con modelo propio? | **NO.** 17,430 preds OOS, error **3.29 pp** vs vara de 2 pp | `marea/vault/MODEL.md` |
+| ¿Hay arbitraje Polymarket↔Kalshi en el inventario? | **0 de 544** preguntas emparejadas | `marea/vault/DATA_SOURCES.md` |
+| ¿Le gana una RECALIBRACIÓN del precio? | **NO — MUERTA.** Brier advantage **−0.0043** (gana el mercado); edge +0.29pp, IC95% [−0.85, +1.44] vs breakeven 0.95pp. n_oos=5,249 mercados | `tools/polymarket_brier.py` |
+| ¿Hay arb mecánico `neg_risk`, sin modelo? | **NO — MUERTO.** Incoherencia 1.00pp vs coste 3.80pp; neto −2.55pp. n=472 obs / 395 eventos | `tools/polymarket_negrisk.py` |
+| ¿Hay edge medido? | **NO. Ninguno.** 4 pasos: coste ✓ ✓, señal ✗, arb ✗ | — |
+
+**Estado: LÍNEA CERRADA (2026-08-17). El venue es bueno y no tenemos nada que venderle.**
+Los dos pasos de coste salieron a favor; los dos de edge salieron en contra. **Cero
+capital, cero código en el path del motor, cero flags.** El gate nunca se corrió porque
+nunca hubo señal que gatear.
+
+| paso | pregunta | veredicto |
+|---|---|---|
+| 1 · oferta | ¿hay mercados capturables? | **SÍ** — 32,085 en 2026, $13.8B, h mediano 1.44d |
+| 2 · horquilla | ¿el coste se come el edge? | **NO** — 1.90pp vs 4pp de breakeven, margen 2.1x |
+| 3 · Brier | ¿le ganamos al precio? | **NO** — advantage −0.0043 OOS, gana el mercado |
+| 4 · neg_risk | ¿hay arb mecánico sin modelo? | **NO** — 1.00pp de incoherencia vs 3.80pp de coste |
+
+**Lo ÚNICO que queda, y no se persigue:** latencia de la fuente de resolución (leer un feed
+público antes de que el mercado repreecie). **Condición de desbloqueo (formato E6):**
+evidencia pública y verificable, **medible con datos históricos**, de que el desfase entre
+la publicación de una fuente concreta y la repreciación supera **1.90pp** de forma
+consistente. Sin eso no se abre — porque exigiría construir el sistema en vivo para probar
+si el sistema en vivo funciona, que es invertir antes de medir.
+
+### MUERTO — recalibración del precio de Polymarket como edge (2026-08-17)
+
+- **Idea:** el precio del venue tiene un sesgo de calibración sistemático; recalibrarlo
+  (`p_modelo = f(p_mercado)`) da edge mecánico sin información externa.
+- **Medición:** 6,561 mercados con resolución limpia y vol ≥$100k, walk-forward por tiempo
+  (n_oos=5,249). **Brier del mercado 0.1777 vs modelo 0.1820 → advantage −0.0043: el modelo
+  PIERDE fuera de muestra.** Edge realizado +0.29pp ± 0.58 EE, IC95% cruza el cero, y ni el
+  punto llega al breakeven de 0.95pp. El mercado tiene skill real (+0.24 a +0.29 vs tasa base).
+- **La tabla de calibración SÍ muestra patrón** (precios bajos infravalorados, altos
+  sobrevalorados — el inverso del favorite-longshot clásico) **y no se puede cobrar**: es
+  estructura en muestra que no se replica. El bucket 0.95–0.98 marca −10.21pp **con n=60** —
+  el número más grande de la tabla en la celda con menos muestra. El +1.47R de n=17 otra vez.
+- **EL ARTEFACTO, para que no vuelva:** la primera medición ponderó por TRADE y dio un sesgo
+  de **−4/−5pp monótono** en el tramo 0.35–0.80 sobre millones de trades. Falso. Un mercado
+  que cae de 0.60 a 0 genera enorme volumen **en la caída**, así que ponderar por trade
+  sobre-muestrea "estaba caro y resolvió NO". Por mercado a 1h el sesgo es **+0.22pp**.
+  Cableado en `test_ponderar_por_trade_fabrica_un_sesgo_que_por_mercado_NO_existe`, que exige
+  que los dos sesgos salgan de SIGNO CONTRARIO.
+- **Alcance honesto:** mata la familia de mapas `f(p_mercado)` — que por construcción no usan
+  nada de fuera del precio. **NO mata** un edge de información externa (latencia de fuente de
+  resolución, coherencia `neg_risk`). Esos no pasan por esta prueba.
+- **Status: CEMENTERIO.** No re-proponer "recalibrar el precio de Polymarket".
+
+### MUERTO — arbitraje de conjunto completo `neg_risk` en Polymarket (2026-08-17)
+
+- **Idea:** en un evento `neg_risk` exactamente un resultado ocurre → ΣP(YES)=1. Si suma
+  1.05, comprar NO en todas las patas paga. **Sin modelo de nada**: aritmética, no pronóstico.
+- **El supuesto SÍ se sostiene** (verificado antes de medir): de 38,502 eventos cerrados con
+  ≥2 patas resueltas, el **97.9% tiene exactamente un SÍ**.
+- **Medición (n=472 obs / 395 eventos, simultaneidad ≤15 min):** incoherencia mediana
+  **1.00pp** contra coste mediano **3.80pp** → neto **−2.55pp**, rentable en 11.9%.
+  **Ni el caso más barato sobrevive**: con 2 patas, 1.00pp de incoherencia vs 1.90pp de coste.
+- **Por qué muere, en una línea: el coste escala con N patas y la incoherencia no.**
+  1.90pp con 2 patas → 15.69pp con 12+, mientras la desviación se queda en ~1-2pp.
+- **El sobre-redondeo existe y no se cobra:** Σp>1 en 64.8%, mediana +0.90pp. Margen de casa
+  real y sistemático, **calibrado justo por debajo del coste de arbitrarlo** — ésa es la
+  respuesta económica a "¿por qué nadie lo ha tomado en $13.8B de volumen?".
+- **TRAMPA (a) — patas faltantes fabrican el arb:** 28,732 observaciones incompletas dan una
+  desviación mediana **FINGIDA de −35.00pp** (2 patas vistas de 8). Un "arbitraje del 35%"
+  que no existe. Solo cuentan eventos con TODAS las patas vivas; una pata que falta jamás se
+  rellena. Y el denominador son las patas **vivas en ese instante**, no las de hoy.
+- **TRAMPA (b) — la asincronía duplica el mispricing:** un row group abarca ~8 DÍAS, así que
+  "último precio de cada pata en el row group" suma el lunes con el jueves. |dev| va de
+  1.90pp (cap 24h) a 1.00pp (cap 15min). **La medición floja favorece la tesis y aun así no
+  la salva** — con cap 24h, 1.90pp contra 2.85pp de coste sigue negativo.
+- **Robustez:** el veredicto aguanta en los 5 topes de frescura, incluido el de n=11,520.
+  Y no modela impacto ni ejecución parcial (llenarte 7 de 11 patas no es un arbitraje, es
+  una posición direccional) — el número real es **peor**, no mejor.
+- **Status: CEMENTERIO.** No re-proponer "arbitraje de conjunto completo en Polymarket".
+
+**Trampa de lectura (importante):** el corte de ≤1d tiene el retorno anualizado más alto
+(350%) y es **el más frágil**: horquilla 3.29pp, margen sobre breakeven de solo **1.2x**,
+y solo $0.2M de capacidad. Maximizar vueltas elige la esquina frágil. Donde esto vive es
+≤7d / ≤30d (margen 2.1–2.3x, capacidad $4.5M–$17.5M).
+
+**Nota anti-ilusión:** la autocorrelación del signo del taker sale **ρ₁=+0.295** — la misma
+firma de order-splitting que validamos como F2. Aquí se usa SOLO para corregir el sesgo del
+estimador de Roll. **No es un lead de señal:** F2 es símbolo-específico incluso dentro de
+cripto (paga en 4/6, NEGATIVO en ETH) y un venue nuevo no hereda nada.
+
+### Lo que se DESCARTA de la lista (no re-proponer)
+
+- **"118 estrategias listas" (CloddsBot)** — 118 estrategias son **118 trials**. Ya subimos
+  `n_trials` de 16 a 44 en F2 por honestidad; con 118 configs barridas la vara se va al techo
+  y el PBO se dispara. Es una máquina de fabricar el espejismo de mayo, empaquetada.
+- **Arbitraje cross-venue** — medido: 0/544 emparejadas. Caveat honesto: fue sobre 500 mercados
+  por volumen 24h + series curadas de Kalshi, con nuestro emparejador y para un fin de producto.
+  No es un estudio exhaustivo de arbitraje, pero es un prior fuerte y es nuestro.
+- **Bot de liquidity rewards** — es market making: cobra rebate a cambio de **selección adversa**.
+  Es EXACTAMENTE la enfermedad ya diagnosticada (los maker rápidos pierden el 80% del R; el
+  `BRIEF` E6 lo mapea como evento de libro). El rebate no salva de eso: paga por sufrirlo.
+- **Copy-trading / analizar traders** — n<30 + sesgo de supervivencia. La regla de la casa aplica igual.
+- **Terminal MCP con Claude, toolkits, awesome-lists, pydantic-ai** — superficie de ejecución
+  o mapas. No son edge y no pasan ningún gate.
+
+### Lo único que se rescata
+
+- **El dataset** ([SII-WANGZJ/Polymarket_data](https://huggingface.co/datasets/SII-WANGZJ/Polymarket_data)):
+  1.84M mercados. `markets.parquet` (281 MB) ya explotado; `trades/quant.parquet` (53 GB) es el paso 2.
+  `orderfilled.parquet` trae **tape firmado** = el material del CVD, nuestra única primitiva con
+  DSR ✓ cross-símbolo. **Con la advertencia grande:** el edge de cripto **NO transfiere** de venue
+  (POC-distance PBO 0.76 en TradFi; KL solo en NQ y del lado contrario). Un venue nuevo empieza en
+  cero, no hereda.
+- **La métrica Brier advantage** del repo `evan-kolberg/prediction-market-backtesting` — **la idea,
+  no el código**: meter NautilusTrader sería reemplazar `validation_gate.py` + `deflated.py` +
+  `bt_walkforward` por un motor ajeno. Anti-objetivo VII: no cambiamos de framework por conveniencia.
+
+---
+
 ## VALIDADO (cableado o en marcha)
 
 ### CVD — confirmación de order-flow firmado — **DSR ✓ (BTC ~1.00 / SOL ~0.98)**

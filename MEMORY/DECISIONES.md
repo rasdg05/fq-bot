@@ -648,6 +648,158 @@ siguen sin ningún nivel, y los niveles siguen al `ANALISIS_ANCHOR_TF` si cambia
 
 ---
 
+## 22. Polymarket: se mide la CANCHA antes que la estrategia (2026-08-17)
+
+**Contexto.** Llegó una lista de 10 repos de Polymarket con la intención explícita de
+buscar rentabilidad ahí. La tentación obvia era clonar el que trae "118 estrategias
+listas" y ponerlo a correr.
+
+**Decisión.** No se evalúa ninguna estrategia. Se mide primero **la oferta capturable**
+— cuántos mercados tienen volumen y horizonte para que un edge sea siquiera capturable,
+y cuánto capital-tiempo cuesta cada uno — porque es el diagnóstico que puede matar la
+línea entera antes de gastar en ella. Mismo criterio que ordena E7/E8 en el brief: los
+diagnósticos que invalidan van primero porque cuestan poco.
+
+**Por qué el orden importa aquí en particular.** Yo mismo abrí la conversación afirmando
+que el capital de Polymarket queda bloqueado hasta la resolución (meses) y que eso mataba
+la anualización. **El dato lo refutó:** el horizonte mediano es 1.44 días y en 2026 el
+volumen se mudó a ≤7d ($13.6B en 1-7d vs $1.6B en >90d). Una objeción que sonaba
+estructural era un prior sin medir. Ese es exactamente el costo de opinar antes de medir,
+y quedó registrado a propósito.
+
+**Qué se construyó.** `tools/polymarket_supply.py` — sondeo sobre `markets.parquet`
+(281 MB de un dataset de 53 GB: el paso barato a propósito). La identidad que gobierna:
+
+```
+retorno_anual = 365·(edge − spread/2) / (precio · h_pond)
+```
+
+con `h_pond` = horizonte ponderado por VOLUMEN. La participación **se cancela del
+retorno**: solo fija cuánto capital cabe. De ahí el hallazgo de forma: donde el retorno
+es espectacular el capital que cabe es ridículo ($0.2M a ≤1d), y donde cabe capital serio
+($48M a ≤90d) el retorno es terrenal.
+
+**Qué NO se decidió.** Nada sobre operar. El spread —único coste real del venue— no se
+mide en `markets.parquet`, y con ~113 vueltas al año **una horquilla de 4pp anula un edge
+de 2pp**. El apalancamiento temporal no distingue entre edge y coste. Veredicto abierto.
+
+**Evidencia.** `internal/POLYMARKET_OFERTA_2026-08.md` (radiografía completa),
+`tools/polymarket_supply.py`, `tests/test_polymarket_supply.py` (13 tests). Cero código en
+el path del motor, cero flags nuevos, cero capital. `MEMORY/CEMENTERIO.md` §Polymarket
+guarda el triaje de los 10 repos para no re-proponerlos.
+
+**La invariante que deja.** El reporte **falla** (`ValueError`) si se le pide un agregado
+sin desglose por año — criterio de aceptación de E9, cableado en el único sitio que hoy
+imprime números de Polymarket. La n<30 se marca en el impreso, las filas excluidas se
+cuentan encima de los números, y las columnas constantes se delatan (cazó `active` y
+`archived`, constantes en las 1.84M filas: la lección `vp_basis` en dataset ajeno).
+
+### 22-bis · El paso 2: la horquilla, y el estimador elegido por adversidad
+
+**Resultado.** 1.13pp (rebote) a 1.90pp (Roll corregido) sobre 14.68M trades leídos por
+rangos HTTP (sin bajar los 37.5 GB). Contra el breakeven de 4pp, **margen 2.1x**: el coste
+NO se come el edge, al contrario que en perps. El veredicto cambia de "quizá" a **"el venue
+es viable, la señal no existe"** — que es un problema distinto, no un permiso.
+
+**Dos decisiones de método que valen más que el número.**
+
+1. **El veredicto usa el estimador MÁS ADVERSO, no el promedio ni el favorable.** Está
+   cableado en `verdict()` y fijado por test. Promediar dos estimadores que discrepan 68%
+   esconde el desacuerdo; elegir el favorable es selección por resultado.
+2. **El sesgo de Roll se mide, no se supone.** Roll asume signo del taker iid; en
+   Polymarket ρ₁=+0.295. La corrección `√(1+ρ₂−2ρ₁)` = 0.825 mueve 1.57 → 1.90. Sin
+   medir ρ, el veredicto habría viajado con un sesgo desconocido a su favor.
+
+**Dos correcciones honestas a lo que yo mismo escribí en este mismo encargo.**
+
+- Afirmé que sin colapsar por `transaction_hash` el rebote se sesgaba hacia cero. **Falso:
+  el efecto medido es −0.0%** (los fills del mismo lado nunca cambian de lado, ya salían
+  solos). El colapso se mantiene por definición correcta del precio del taker, no por sesgo.
+- El paso 1 señalaba el corte de ≤1d como el mejor (494 vueltas/año). **La horquilla ahí
+  es el doble** (3.29pp): margen 1.2x y $0.2M de capacidad. La optimización ingenua elegía
+  la esquina frágil, y solo se vio al medir el coste por corte.
+
+**Lo que sigue estando prohibido.** Operar. No hay edge medido; el único intento propio
+que sí está medido falla (3.29pp vs vara 2pp, `marea/vault/MODEL.md`). El siguiente paso
+es Brier advantage contra el precio del venue, por el gate como todo lo demás.
+
+### 22-quater · El paso 4 y el CIERRE de la línea
+
+**Resultado.** El arbitraje de conjunto completo `neg_risk` no sobrevive: incoherencia
+mediana **1.00pp** contra coste mediano **3.80pp** (n=472 obs / 395 eventos), neto
+−2.55pp. Ni el caso más barato (2 patas: 1.00pp vs 1.90pp). **El coste escala con N patas
+y la incoherencia no** — ése es todo el argumento, y es estructural, no muestral.
+
+**El hallazgo económico que vale.** Σp>1 en el 64.8% de los casos con mediana +0.90pp: hay
+margen de casa real y sistemático. Y está **calibrado justo por debajo del coste de
+arbitrarlo**. Eso responde la pregunta que hay que hacerle a todo arbitraje aparente —
+*¿por qué sigue ahí después de $13.8B de volumen?*— y la respuesta no es "nadie lo vio".
+
+**Segundo artefacto cazado en dos pasos consecutivos.** No exigir patas completas fabrica
+una desviación de **−35.00pp** (28,732 observaciones, 2 patas vistas de 8). Un "arbitraje
+del 35%". Y la asincronía duplica el mispricing porque un row group abarca ~8 días. Nótese
+que **la medición floja favorece la tesis** y aun así no la salva: matar algo con la
+medición sesgada a su favor es la forma robusta de matarlo.
+
+**LA DECISIÓN: se cierra la línea de Polymarket.** Cuatro pasos, cuatro números, cero edge.
+El coste del venue es genuinamente favorable —sorpresa real y medida, contraste con perps—
+pero no tenemos nada que venderle.
+
+**Por qué no se persigue la latencia de fuente de resolución, que es lo único vivo.** No es
+que sea mala idea: es que **rompe la disciplina que hizo baratos los cuatro pasos**. Cada
+uno se contestó con datos ya en disco, en horas de cómputo. La latencia no se puede medir
+con historia — exige construir el sistema en vivo para probar si el sistema en vivo
+funciona. Eso es invertir antes de medir, que es exactamente lo que la constitución evita.
+Queda con condición de desbloqueo explícita en `CEMENTERIO.md`, formato E6.
+
+**Evidencia.** `internal/POLYMARKET_NEGRISK_2026-08.md`, `tools/polymarket_negrisk.py`,
+`tests/test_polymarket_negrisk.py` (12 tests: las dos trampas reconstruidas en sintético,
+la aritmética coste∝N fijada, y la contraparte — si la incoherencia superara al coste, el
+veredicto lo dice).
+
+---
+
+### 22-ter · El paso 3: la señal no está, y el artefacto que casi la inventa
+
+**Resultado.** Brier advantage **−0.0043** sobre 5,249 mercados fuera de muestra: la
+recalibración **pierde** contra el precio crudo. Edge realizado +0.29pp ± 0.58 EE, IC95%
+[−0.85, +1.44], contra un breakeven de 0.95pp. **No hay edge de recalibración.** Al
+cementerio, con su n.
+
+**La decisión que importa: la unidad de observación.** La primera medición ponderó por
+TRADE y encontró un sesgo de −4/−5pp monótono en el tramo 0.35–0.80 sobre millones de
+trades. Contra un breakeven de 0.95pp habría sido el hallazgo del año. **Era un
+artefacto:** un mercado que cae de 0.60 a 0 genera el volumen EN la caída, así que ponderar
+por trade sobre-muestrea "estaba caro y resolvió NO". Por mercado a 1h: +0.22pp.
+
+Lo cazó la regla de la casa —*una métrica demasiado limpia es un bug antes que un
+hallazgo*— aplicada a mi propio resultado favorable. Un sesgo de 4pp en la parte más
+líquida de un mercado de $13.8B sería dinero gratis y alguien ya lo habría tomado.
+
+**Por qué esto es la entrada más valiosa de las tres.** Los pasos 1 y 2 quitaron
+objeciones; éste estuvo a punto de fabricar una respuesta. La diferencia entre publicarlo
+y matarlo fueron dos líneas de disciplina que ya estaban escritas en `CLAUDE.md`. Julio
+falló exactamente ahí, y esta vez no.
+
+**Alcance honesto.** Mata la familia `p_modelo = f(p_mercado)` — mapas que por construcción
+no usan nada de fuera del precio. NO mata un edge de información externa (latencia de fuente
+de resolución, coherencia `neg_risk`), que no pasa por esta prueba. Y es una apuesta
+declarada: si 8 parámetros no ganan OOS, 800 tampoco lo harán por buenas razones.
+
+**Evidencia.** `internal/POLYMARKET_BRIER_2026-08.md`, `tools/polymarket_brier.py`,
+`tests/test_polymarket_brier.py` (14 tests, con el que reconstruye el artefacto en sintético
+y exige que los dos sesgos salgan de SIGNO CONTRARIO, más la guarda anti-fuga: sobre ruido
+puro la recalibración no puede ganar fuera de muestra).
+
+---
+
+**Evidencia (22-bis).** `internal/POLYMARKET_HORQUILLA_2026-08.md`, `tools/polymarket_spread.py`,
+`tests/test_polymarket_spread.py` (19 tests, incluidos los que verifican que cada estimador
+recupera una horquilla SINTÉTICA conocida — un estimador sin esa verificación es una
+opinión con decimales).
+
+---
+
 ## Resumen
 
 | Decisión | Razonamiento core | Archivos / commits clave | Estado |
@@ -664,6 +816,7 @@ siguen sin ningún nivel, y los niveles siguen al `ANALISIS_ANCHOR_TF` si cambia
 | Híbrido data/venue | TradFi: validar en Dukascopy, ejecutar en perp | `fetch_dukascopy.py`, #116/#122 | Cosecha XAU+NQ en marcha |
 | Deploy hygiene | docs no re-despliegan; blacklist = fallo seguro | `railway.toml`, #138 | VIVO |
 | Producto 2 tiers | UN SOLO canal: tier "free" de la BD recibe el firehose etiquetado; VIP el filtrado; candado VIP→FREE | `_free_broadcast`, `build_free_signal`, `free_leak_guard` | Cableado (dormido: `FQ_FREE_TIER` + `FQ_FREE_TO_VIP`) |
+| Polymarket: cancha antes que estrategia | oferta ✓, horquilla ✓, señal ✗, arb ✗ — el venue es bueno y no tenemos qué venderle | `tools/polymarket_{supply,spread,brier,negrisk}.py`, `internal/POLYMARKET_*_2026-08.md` | **LÍNEA CERRADA**, 0 capital, 4 pasos medidos |
 
 ---
 

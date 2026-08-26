@@ -3,6 +3,12 @@
 > La página que más caduca. Qué está vivo, qué duerme, qué mide, qué espera veredicto, qué
 > es plan en papel. Si la fecha de abajo es vieja, confírmala contra `git log` y `research/*.md`
 > antes de confiar. Fecha de corte: **2026-06-30** (HEAD: `ead6809`).
+>
+> **Añadido 2026-08-17:** la línea de Polymarket se abrió y se CERRÓ en el mismo día, con
+> cuatro pasos medidos y cero capital (ver la sección al final de "Qué está vivo / dormido /
+> midiendo / pendiente"). El resto de esta foto sigue con corte de junio: los números vigentes
+> de agosto (track record n=12, motor paper −0.510R) están en `CLAUDE.md`, que es la fuente más
+> fresca. **El trabajo que toca ahora es `internal/BRIEF_INSTRUMENTO_2026-08.md`, E7 y E8.**
 
 ---
 
@@ -106,6 +112,48 @@ sube conviction client-facing. Hoy mide, no decide.
 - Cerebro (analítica dedicada multi-símbolo). Etapa 0 lista para arrancar al OK de RasDG.
 - OFI verdadero (Tardis L2): solo si el CVD validado lo justifica forward.
 - A vivo (FASE 2): `FQ_EXEC_MODE=live` en sub-cuenta chica cuando el fill-rate maker selle.
+
+**LÍNEA CERRADA — Polymarket (2026-08-17, los 4 pasos HECHOS, 0 capital):**
+
+> **En una línea: el venue es bueno y no tenemos nada que venderle.** Coste favorable
+> (medido), pero las dos vías de edge que no exigen ser más listo que el mercado están
+> muertas, y la vía de serlo tiene dos mediciones en contra. Detalle: `CEMENTERIO.md`.
+
+- **Paso 1, la oferta existe:** 32,085 mercados en 2026 (7 meses) con vol ≥$100k y h ≤7d,
+  $13.8B. El horizonte mediano del venue es **1.44 días** — el volumen se mudó a corto
+  plazo (2026: $13.6B en 1-7d vs $1.6B en >90d; en 2024 era al revés, la elección de EE.UU.).
+- **Paso 2, la horquilla NO mata:** 1.13pp (rebote) a 1.90pp (Roll corregido por ρ₁=+0.295)
+  sobre 14.68M trades. Contra un breakeven de 4pp (edge 2pp) → **margen 2.1x**. Es lo
+  CONTRARIO del motor de perps, donde el coste se come el edge entero (+0.224R → −0.510R).
+- **La trampa:** el corte de ≤1d tiene el retorno más alto (350%) y el margen más frágil
+  (horquilla 3.29pp → **1.2x**) con solo $0.2M de capacidad. Maximizar vueltas elige la
+  esquina frágil. Esto vive en ≤7d (237% neto, 2.1x, $4.5M) y ≤30d (106%, 2.3x, $17.5M).
+- **Paso 3, la señal NO está — y la recalibración MUERE:** 6,561 mercados resueltos,
+  walk-forward n_oos=5,249. **Brier advantage −0.0043: el modelo PIERDE contra el precio
+  crudo.** Edge realizado +0.29pp ± 0.58 EE (IC95% [−0.85, +1.44]) contra un breakeven de
+  0.95pp. El mercado tiene skill real (+0.24/+0.29 vs tasa base). → `CEMENTERIO.md`.
+- **El artefacto que casi pasa:** ponderar por TRADE daba −4/−5pp de sesgo monótono en el
+  tramo líquido. Falso — un mercado que cae de 0.60 a 0 genera el volumen EN la caída. Por
+  mercado, +0.22pp. Cableado como test que exige signos contrarios.
+- **Priors nuestros, alineados:** 17,430 preds OOS con error 3.29pp vs vara 2pp
+  (`marea/vault/MODEL.md`); arbitraje Polymarket↔Kalshi 0/544 (`marea/vault/DATA_SOURCES.md`).
+- **Paso 4, el arb mecánico `neg_risk` MUERE:** incoherencia mediana **1.00pp** contra coste
+  **3.80pp** (n=472 obs / 395 eventos) → neto −2.55pp. El coste escala con N patas y la
+  incoherencia no. El sobre-redondeo existe (+0.90pp, Σp>1 en 64.8%) y está calibrado justo
+  por debajo del coste de arbitrarlo — por eso sigue ahí. → `CEMENTERIO.md`.
+- **Segundo artefacto cazado:** no exigir patas completas fabrica un "arbitraje del 35%"
+  (28,732 obs incompletas, 2 patas vistas de 8). Y la asincronía duplica el mispricing
+  (row group = ~8 días). Ambos cableados como test.
+- **NO se persigue lo que queda.** Solo sobrevive la latencia de fuente de resolución, y
+  rompe la disciplina que hizo baratos los 4 pasos: no se puede medir con historia, exige
+  construir el sistema en vivo para probar si funciona. Condición de desbloqueo en
+  `CEMENTERIO.md`. **NO hacer** modelo propio para macro/política: dos mediciones en contra.
+- Herramientas: `polymarket_supply.py` (13 tests) + `polymarket_spread.py` (19) +
+  `polymarket_brier.py` (14) + `polymarket_negrisk.py` (12).
+  Radiografías: `internal/POLYMARKET_{OFERTA,HORQUILLA,BRIER,NEGRISK}_2026-08.md`.
+  Triaje de los 10 repos: `CEMENTERIO.md`.
+- **Nada cableado, ningún flag, ningún peso.** El gate nunca se corrió porque nunca hubo
+  señal que gatear.
 
 ---
 
