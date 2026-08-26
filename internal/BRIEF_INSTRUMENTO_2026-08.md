@@ -251,10 +251,26 @@ E5 (abarata el research). E6 no se toca.
 
 ## Cómo entregar
 
-Rama `claude/instrumento-2026-08`. Un commit por entrega, cada uno con el test
-que hace fallar la regresión. Suite completa (~40 s) verde antes de cada commit.
-No mergees a `main` sin decirlo — `main` despliega a producción con suscriptores
-de pago.
+Rama `claude/instrumento-2026-08`, **sacada de
+`claude/polymarket-trading-tools-grx05x`, NO de `main`**:
+
+```bash
+git fetch origin claude/polymarket-trading-tools-grx05x
+git checkout -b claude/instrumento-2026-08 origin/claude/polymarket-trading-tools-grx05x
+```
+
+Mientras esa rama no esté mergeada, es la única que tiene el cementerio de agosto
+(línea de Polymarket cerrada + triaje de los 10 repos) y las reglas E6 de abajo.
+Ramificar desde `main` las pierde y te haría re-proponer lo ya muerto. **Si para
+cuando leas esto ya está en `main`, sal de `main` y ya.** Compruébalo con:
+
+```bash
+git log origin/main --oneline | grep -i polymarket   # ¿vacío? entonces NO está mergeada
+```
+
+Un commit por entrega, cada uno con el test que hace fallar la regresión. Suite
+completa (~60 s) verde antes de cada commit. No mergees a `main` sin decirlo —
+`main` despliega a producción con suscriptores de pago.
 
 **Si E7 o E8 salen en contra**, para y dilo antes de seguir con el resto. Un
 diagnóstico que mata una línea de trabajo es un buen resultado, no un fracaso; el
