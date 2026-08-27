@@ -36,6 +36,21 @@ log = logging.getLogger("bt_labeler")
 LONG = 1
 SHORT = -1
 
+CUBE_SCHEMA = 2
+"""Version del esquema del cubo (tp_cube_<sym>.parquet).
+
+  1 (< ago-2026): `mfe_r`/`mae_r` de una fila eran la excursion de TODA la
+    ventana del horizonte, no la del trade. Leerlas como recorrido del trade
+    acredita movimiento posterior a su muerte.
+  2 (ago-2026):  `mfe_r`/`mae_r` son de la VIDA de la celda (acotadas a
+    `bars_held`, comparables con el ledger) y la de ventana vive aparte en
+    `mfe_horizon_r`/`mae_horizon_r`.
+
+Un cubo de esquema 1 NO se distingue por su contenido: tiene las mismas
+columnas con otro significado. Se distingue por la AUSENCIA de
+`mfe_horizon_r`; de ahi `require_life_scoped`.
+"""
+
 WIN = "win"
 LOSS = "loss"
 TIMEOUT = "timeout"
@@ -221,9 +236,27 @@ def label_event_grid(bars, entry_price, stop_price, direction, targets,
     pessimistic: si target y stop caen en la misma vela, asume stop primero.
 
     Devuelve dict:
-      cells : {(target_name, horizon): {outcome, bars_held, exit_price, pnl_r}}
-      mfe_r : {horizon: mfe_r}   # excursion favorable hasta ese horizonte (>=0)
-      mae_r : {horizon: mae_r}   # excursion adversa hasta ese horizonte (<=0)
+      cells : {(target_name, horizon): {outcome, bars_held, exit_price, pnl_r,
+                                        mfe_r, mae_r, mfe_bar, mae_bar}}
+      mfe_horizon_r : {horizon: r}   # excursion favorable en TODA la ventana (>=0)
+      mae_horizon_r : {horizon: r}   # excursion adversa en TODA la ventana (<=0)
+
+    DOS EXCURSIONES, Y NO SON LA MISMA COSA
+    ---------------------------------------
+    `mfe_r`/`mae_r` de una CELDA estan acotadas a `bars_held`: el recorrido que
+    la senal llego a ver ESTANDO VIVA. Es la definicion de `label_event`, la de
+    `execution.PaperBroker`, y la unica comparable con el ledger.
+
+    `mfe_horizon_r`/`mae_horizon_r` recorren la ventana ENTERA del horizonte,
+    muera la senal cuando muera. Sirven para preguntas sobre el TAPE ("hasta
+    donde llego el precio en 576 velas"), NUNCA para juzgar el trade: acreditan
+    movimiento POSTERIOR a la muerte de la senal. Un stop que salto en la vela 3
+    y luego vio +22R en la 500 no "estuvo a +22R a favor" — estaba cerrado.
+
+    Antes de ago-2026 la celda exportaba la de horizonte bajo el nombre `mfe_r`,
+    y eso contamino cuanto la leyera como recorrido del trade (GHOST_MAP H5:
+    "MFE medio +6.66R" era la ventana de 288 velas sobre senales que vivian 10).
+    El nombre es el cableado: por eso ahora son nombres distintos.
     """
     if direction not in (LONG, SHORT):
         raise ValueError("direction debe ser LONG(+1) o SHORT(-1)")
@@ -299,13 +332,19 @@ def label_event_grid(bars, entry_price, stop_price, direction, targets,
                 # stop primero o empate pesimista: LOSS.
                 outcome, bars_held, exit_price = LOSS, s + 1, float(stop_price)
                 pnl_r = d * (stop_price - entry_price) / risk
+            b = min(int(bars_held), max_h)      # vida efectiva de ESTA celda
             cells[(name, h)] = {
                 "outcome": outcome,
                 "bars_held": bars_held,
                 "exit_price": exit_price,
                 "pnl_r": float(pnl_r),
+                "mfe_r": float(mfe_cum[b]),
+                "mae_r": float(mae_cum[b]),
+                "mfe_bar": (int(np.argmax(fav_r[:b])) if b > 0 else None),
+                "mae_bar": (int(np.argmin(adv_r[:b])) if b > 0 else None),
             }
-    return {"cells": cells, "mfe_r": mfe_by_h, "mae_r": mae_by_h}
+    return {"cells": cells,
+            "mfe_horizon_r": mfe_by_h, "mae_horizon_r": mae_by_h}
 
 
 def label_events_grid(df, events, target_keys, horizons, pessimistic=True):
@@ -321,7 +360,9 @@ def label_events_grid(df, events, target_keys, horizons, pessimistic=True):
 
     Devuelve un DataFrame LARGO: una fila por (evento, tp, horizonte) con todas
     las claves del evento preservadas + tp, horizon, outcome, bars_held,
-    exit_price, pnl_r, mfe_r, mae_r. El subconjunto de una celda (tp, horizon)
+    exit_price, pnl_r, mfe_r, mae_r, mfe_bar, mae_bar (recorrido EN VIDA, de la
+    celda) y mfe_horizon_r / mae_horizon_r (recorrido de la VENTANA; ver
+    label_event_grid: no son intercambiables). El subconjunto de una celda (tp, horizon)
     tiene el MISMO esquema que label_events -> alimenta bt_engine/bt_metrics tal
     cual.
     """
@@ -347,8 +388,8 @@ def label_events_grid(df, events, target_keys, horizons, pessimistic=True):
             row.update(cell)
             row["tp"] = name
             row["horizon"] = h
-            row["mfe_r"] = grid["mfe_r"][h]
-            row["mae_r"] = grid["mae_r"][h]
+            row["mfe_horizon_r"] = grid["mfe_horizon_r"][h]
+            row["mae_horizon_r"] = grid["mae_horizon_r"][h]
             out.append(row)
     return pd.DataFrame(out)
 
@@ -409,3 +450,28 @@ def label_summary(labeled):
         "avg_mfe_r": float(resolved["mfe_r"].astype(float).mean()),
         "avg_mae_r": float(resolved["mae_r"].astype(float).mean()),
     }
+
+
+def cube_schema(df):
+    """Version de esquema de un cubo ya cargado. Ver CUBE_SCHEMA."""
+    return 2 if "mfe_horizon_r" in getattr(df, "columns", ()) else 1
+
+
+def require_life_scoped(df, who="este calculo"):
+    """Guarda: falla si `df` es un cubo de esquema 1, donde `mfe_r`/`mae_r` NO
+    son el recorrido del trade sino el de la ventana del horizonte.
+
+    Llamala en CUALQUIER consumidor que lea mfe_r/mae_r de un cubo como
+    "hasta donde llego el trade": geometria de TP/SL, trailing, "acerto pero le
+    salto el stop", separacion ganadores/perdedores. Sin ella el numero sale
+    limpio, grande y equivocado -- que es como se publico GHOST_MAP H5.
+
+    No aplica al ledger vivo (execution.PaperBroker ya sella en vida).
+    """
+    if cube_schema(df) == 1:
+        raise ValueError(
+            "cubo de esquema 1: sus mfe_r/mae_r son de la VENTANA del horizonte, "
+            "no del trade, y %s los leeria como recorrido. Re-etiqueta el cubo "
+            "con label_events_grid (bt_labeler >= ago-2026) o usa "
+            "tools/cube_regrade_excursion.py sobre las velas 5m." % who)
+    return df

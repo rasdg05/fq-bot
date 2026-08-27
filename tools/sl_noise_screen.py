@@ -23,8 +23,14 @@ import glob
 import os
 import re
 
+import sys
+
 import numpy as np
 import pandas as pd
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import bt_labeler as lb          # noqa: E402
 
 
 def bar_noise_pct(kl):
@@ -41,7 +47,14 @@ def stop_stats(cube):
 
 
 def right_but_stopped_pct(cube, *, tp="tp4", horizon=288, thr=1.0):
-    """% de PÉRDIDAS que llegaron a >=thr·R a favor antes de morir (screen, mfe sin timing)."""
+    """% de PÉRDIDAS que llegaron a >=thr·R a favor ANTES DE MORIR.
+
+    "Antes de morir" es literal: exige la excursión EN VIDA. Con la de ventana
+    (cubos de esquema 1) este número medía el tape posterior al stop y crecía
+    solo con alargar el horizonte — 58% a h96, 83% a h576 sobre las mismas
+    señales. Por eso la guarda: sin ella el screen sale limpio y equivocado.
+    """
+    lb.require_life_scoped(cube, who="right_but_stopped_pct")
     d = cube[(cube["fired"] == True) & (cube["tp"] == tp) & (cube["horizon"] == horizon)]  # noqa: E712
     los = d[d["outcome"] == "loss"]
     return float((los["mfe_r"] >= thr).mean() * 100) if len(los) else float("nan")
@@ -80,7 +93,11 @@ def _self_test():
     cube = pd.DataFrame({
         "entry_index": np.arange(n), "fired": True, "entry_price": ep,
         "stop_price": ep * 1.005, "direction": -1, "tp": "tp4", "horizon": 288,
-        "outcome": rng.choice(["win", "loss"], n), "mfe_r": rng.uniform(0, 4, n)})
+        "outcome": rng.choice(["win", "loss"], n),
+        # esquema 2: la de VIDA es la que juzga el trade; la de ventana la
+        # acota por arriba (aqui, el doble) y solo describe el tape.
+        "mfe_r": rng.uniform(0, 4, n), "mae_r": -rng.uniform(0, 2, n),
+        "mfe_horizon_r": rng.uniform(4, 8, n), "mae_horizon_r": -rng.uniform(2, 6, n)})
     cube.to_parquet(os.path.join(d, "tp_cube_TK_USDT.parquet"), index=False)
     df = screen(os.path.join(d, "tp_cube_*_USDT.parquet"), d)
     assert set(["sym", "stop_med", "stop_p10", "vela5m", "ratio", "rbs_pct", "n"]).issubset(df.columns)
