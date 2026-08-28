@@ -36,6 +36,14 @@ import fetch_okx_klines as OK      # noqa: E402
 BAR_MS = OK.BAR_MS
 OUT_DIR = os.environ.get("FQ_OKX_DIR", "data/okx_real")
 MARGEN = 2                          # velas de cortesía tras la muerte más tardía
+# Ventana MINIMA hacia adelante, igual para TODA señal viva o muerta. Existe por
+# la circularidad: comparar el recorrido de ganadores contra el de perdedores es
+# tautológico (un ganador tocó el TP, luego su MFE >= rr por definición; un
+# perdedor no, por definición). La única comparación no circular es sobre una
+# ventana FIJA que no dependa del desenlace. 96 velas = el horizonte más corto
+# del cubo, y es GRATIS: la API devuelve 100 velas por llamada, así que pedir la
+# ventana que acaba en entry+96 cuesta la misma petición que pedir entry+5.
+MIN_FWD = 96
 
 _lock = threading.Lock()
 _hechas = [0]
@@ -44,7 +52,7 @@ _hechas = [0]
 def ventanas(cube):
     """(entry_ms, n_velas) por señal: hasta la muerte de su celda más longeva."""
     g = cube.groupby(["entry_ts", "direction"])["bars_held"].max()
-    return [(int(pd.Timestamp(ts).value // 10**6), int(b) + MARGEN)
+    return [(int(pd.Timestamp(ts).value // 10**6), max(int(b) + MARGEN, MIN_FWD))
             for (ts, _), b in g.items()]
 
 

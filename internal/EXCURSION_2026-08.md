@@ -1,0 +1,155 @@
+# La excursión del cubo no era la del trade (agosto 2026)
+
+> Estado: **E7 en curso.** Los números de abajo son de 7 de 13 símbolos
+> (30.682 celdas ganadoras, 49.808 perdedoras); la cosecha de los 6 restantes
+> corre. Ninguna conclusión de aquí depende de los que faltan — son de tipo
+> "esto es imposible por construcción", no de tipo "el promedio dice".
+
+## Qué se estaba midiendo mal
+
+`bt_labeler` tiene dos rutas de etiquetado. `label_event` (una señal) acumula la
+excursión dentro del bucle y **retorna al tocar la barrera**. `label_event_grid`
+(el cubo) indexa por horizonte:
+
+```python
+mfe_by_h[h] = float(mfe_cum[min(hc, max_h)])   # hc = min(h, n), no bars_held
+```
+
+Las dos exportaban la columna `mfe_r`. Mismo nombre, dos definiciones. La del
+cubo recorre la ventana entera del horizonte, muera la señal cuando muera.
+
+Con `bars_held` mediano de 10 velas y horizontes de 96/288/576, eso es
+casi todo post-mortem. La firma es que el número **crece con la ventana sobre
+las mismas 13.429 señales**:
+
+| horizonte | MFE medio | perdedoras "que estuvieron a +1R" | % ya muertas |
+|---|---|---|---|
+| 96 | +3,88R | 58,5 % | 98,6 % |
+| 288 | +6,66R | 75,6 % | 99,9 % |
+| 576 | +9,64R | 83,4 % | 100 % |
+
+GHOST_MAP H5 publicó **+6,66R / −5,65R**: es exactamente el corte h288.
+
+## La prueba que no necesita muestra
+
+H5 lee el MAE así: *"−5,65 dice que muchos ganadores pasan MUY en contra
+primero"*. Eso es **aritméticamente imposible**. Un trade con el stop en −1R que
+llega a −5,65R no es un ganador que sufrió: es un trade cerrado.
+
+Medido en vida sobre 30.682 celdas ganadoras (7 símbolos):
+
+| | MAE de los ganadores |
+|---|---|
+| medio | **−0,364R** |
+| peor de todos | **−1,000R** |
+| que llegan a −1R | **0,0 %** |
+
+El peor caso toca exactamente la cota y no la cruza. Los ganadores **apenas
+sufren**: −0,36R de media, no −5,65R. La lectura publicada estaba invertida.
+
+(Que el peor sea −1,000R clavado es también la verificación del re-etiquetado:
+si el código estuviera mal, esa cota no aparecería sola.)
+
+## Lo que sí se llevó por delante: la separación es circular
+
+El brief pedía usar la lectura de separación de `geometry_report` como veredicto
+de E7 — *"si el recorrido de ganadores y perdedores se solapa, ninguna geometría
+lo arregla"*. No puede solaparse:
+
+| | MFE ≥ rr del TP |
+|---|---|
+| ganadores | **96,5 %** |
+| perdedores | **0,0 %** |
+
+Un ganador **es** el que tocó el TP, luego su MFE ≥ rr por definición. Un
+perdedor no lo tocó, luego MFE < rr por definición. La separación de 1,16R a
+3,18R que `geometry_report` imprimiría —y su veredicto *"Separan. Hay margen
+para que la geometría capture más"*— es una tautología. El único margen no
+definicional es el exceso sobre el rr: **+0,08R a +0,41R**.
+
+Esto **no es un defecto de aplicar la herramienta al cubo**: está en
+`geometry_report`, que corre sobre el ledger vivo. La condición
+`abs(mw - ml) < 0.25` no puede dispararse en un sistema con TP fijo.
+
+La única comparación no circular es sobre una **ventana fija** que no dependa
+del desenlace: el recorrido de las primeras k velas de toda señal, viva o
+muerta. Por eso la cosecha baja 96 velas por señal (`MIN_FWD`), cueste lo que
+viva.
+
+## El puente con E8: el stop no se llena donde se cree
+
+Con la excursión en vida aparece un dato que la de ventana escondía. El labeler
+asume fill **exacto** en `stop_price`. La vela que dispara el stop se pasa de
+largo (n = 49.808 perdedoras):
+
+| | sobrepaso de la vela respecto al stop |
+|---|---|
+| p50 | +0,211R |
+| p90 | +0,902R |
+| medio | **+0,388R** |
+
+**Cuidado con leer esto como slippage.** Es una **cota**, no una estimación: una
+orden stop se llena en algún punto entre `stop_price` y el extremo de la vela, y
+el recorrido solo dice hasta dónde llegó la vela. Pero la cota importa, porque
+el sobrepaso medio (0,388R) es **del mismo orden que la expectancy bruta del
+cube (+0,224R)**. La brecha bruto/neto de E8 (+0,224R en cube vs −0,510R vivo)
+tiene aquí un sospechoso con tamaño medido, no supuesto.
+
+## El venue: OKX spot, no Binance
+
+Re-etiquetar exige las velas del **mismo** venue: si se mueve el bar en que
+salta la barrera, se mueve la vida del trade, que es justo lo que se recorta.
+Verificado contra el `entry_price` de las señales:
+
+| feed | coincidencia exacta |
+|---|---|
+| OKX spot | **5/5** |
+| OKX swap | 0/5 |
+| Binance futuros | 0/5 — y el 22 % de los entries cae FUERA del [low,high] |
+
+Los cubos se cosecharon con `cosecha_shard --exchange okx` (el default). Con
+Binance el re-etiquetado reproducía `outcome` 0,977 pero `bars_held` 0,766; con
+OKX spot reproduce **1,0000 / 1,0000 / 1,0000** y sesgo +0,0000.
+
+> **Trampa activa en el repo:** `fetch_binance_vision_klines` escribe por defecto
+> en `data/okx/` — un directorio con nombre de OKX que guarda velas de BINANCE.
+> `sl_noise_screen` lee de ahí para compararlo contra cubos de OKX. Este camino
+> usa `data/okx_real`.
+
+## Qué quedó cableado
+
+| Invariante | Dónde | Qué impide |
+|---|---|---|
+| Una sola definición de excursión | `tests/test_cube_excursion_scope.py` | Que las dos rutas de etiquetado vuelvan a divergir bajo el mismo nombre |
+| Esquema del cubo | `bt_labeler.CUBE_SCHEMA` + `require_life_scoped` | Que un cubo viejo (mismas columnas, otro significado) entre como si fuera nuevo |
+| Barrido de consumidores | mismo test | Que un tool nuevo lea la excursión del cubo sin declarar el alcance |
+| Contigüidad de la ventana | `cube_regrade_excursion` | Que un hueco de velas adelante el toque de barrera en silencio |
+| Reproducir antes de creer | `cube_regrade_excursion.validate` | Escribir un cubo que no reproduce lo que él mismo ya afirmaba |
+
+El barrido de consumidores es el que encontró `sl_noise_screen.right_but_stopped_pct`
+leyendo la columna contaminada. No lo encontró nadie leyendo código.
+
+## Publicaciones a corregir
+
+- `internal/GHOST_MAP_2026-07.md` H5 — "+6,66R / −5,65R" es del **tape**, no del
+  trade. Correcto como "hasta dónde llegó el precio en 288 velas"; falso como
+  recorrido de la señal. La lectura derivada ("los ganadores pasan muy en
+  contra") está invertida: −0,364R.
+- `internal/GHOST_MAP_2026-07.md` pregunta abierta 4 — está construida sobre el
+  −5,65R. Se reformula o cae.
+- `internal/BRIEF_INSTRUMENTO_2026-08.md` E7 — cita el número y propone la
+  lectura de separación como veredicto. Ambas cosas hay que corregirlas.
+
+Ninguna de estas toca el **track record publicado** (n=12 · WR 41,7 % · E[R]
++0,208 · PF 1,76): ese sale de `ledger_stats` sobre el ledger vivo, que sella la
+excursión en vida desde siempre. La contaminación vivía en el research, no en el
+producto.
+
+## Lo que falta para cerrar E7
+
+1. Terminar la cosecha (6 símbolos) y re-etiquetar los 13.
+2. La lectura **no circular**: recorrido en ventana fija de k velas, ganadores
+   eventuales contra perdedores eventuales. Ese es el veredicto de E7, y puede
+   salir en contra.
+3. Arreglar la lectura de separación de `geometry_report`, que hoy es circular
+   también sobre el ledger vivo — con su test.
