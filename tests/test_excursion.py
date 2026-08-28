@@ -111,14 +111,28 @@ def test_el_informe_detecta_tp_demasiado_lejos(capsys):
     assert "Recoger antes" in out
 
 
-def test_el_informe_detecta_que_la_senal_no_separa(capsys):
-    """La lectura que mas duele: ganadores y perdedores con el mismo recorrido."""
+def test_el_veredicto_de_separacion_ya_no_existe(capsys):
+    """Este test afirmaba lo contrario hasta ago-2026, y por eso hay que leerlo.
+
+    Fijaba que el informe dictara "la senal NO separa" cuando ganadores y
+    perdedores tienen el mismo recorrido. El problema es que su fixture era
+    IMPOSIBLE: un perdedor con MFE 1.15 sobre un TP de +1.0R habria tocado el
+    TP, es decir, habria sido ganador. La rama "NO separa" solo se alcanzaba con
+    datos que no pueden existir -- por eso en produccion salia siempre la otra.
+
+    La comparacion es circular: ganar ES tocar el TP, luego MFE >= rr por
+    construccion. Ver tests/test_geometry_separacion.py.
+    """
     from tools import geometry_report as gr
-    closes = [_close(+1.0, 1.2, -0.5) for _ in range(20)]
-    closes += [_close(-1.0, 1.15, -1.0) for _ in range(20)]
-    gr.report_distribution(closes)
+    ganador = _close(+1.0, 1.2, -0.5)       # TP en +1.0R -> MFE >= 1.0. Coherente.
+    perdedor = _close(-1.0, 1.15, -1.0)     # MFE 1.15 > TP 1.0 -> IMPOSIBLE.
+    assert perdedor["mfe_r"] > ganador["pnl_r"], (
+        "el fixture viejo dependia de un perdedor que supero el TP")
+
+    gr.report_distribution([ganador] * 20 + [perdedor] * 20)
     out = capsys.readouterr().out
-    assert "NO separa" in out
+    assert "NO separa" not in out and "Separan" not in out
+    assert "circular" in out
 
 
 def test_el_contrafactual_es_pesimista_en_el_cruce():

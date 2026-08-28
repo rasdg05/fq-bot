@@ -107,6 +107,30 @@ def _note(n):
     return "" if n >= MIN_N else "   <- n<%d, NO concluir" % MIN_N
 
 
+def separacion_nota():
+    """Por que este informe NO compara el MFE de ganadores contra el de perdedores.
+
+    Porque es circular. Un ganador ES el que toco el TP, luego su MFE >= rr por
+    construccion; un perdedor no lo toco, luego su MFE < rr. Las dos clases no
+    pueden solaparse, asi que el veredicto "separan" sale SIEMPRE y no dice nada
+    de la senal. Medido sobre el cube (ago-2026, 7 simbolos): 96.5% de los
+    ganadores cumplen MFE >= rr y 0.0% de los perdedores.
+
+    El MAE no salva la comparacion: es circular al reves (un perdedor toco el
+    stop, luego su MAE = -1R por construccion).
+
+    La pregunta real -- si la senal se distingue ANTES de resolverse -- exige una
+    ventana FIJA que no dependa del desenlace, y eso necesita el CAMINO, no la
+    excursion sellada. La excursion sellada no puede contestarla: no es que falte
+    muestra, es que la pregunta no cabe en el dato.
+    """
+    print("\n  [separacion] no se compara MFE de ganadores vs perdedores: es")
+    print("  circular (ganar ES tocar el TP -> MFE >= rr por construccion; los")
+    print("  grupos no pueden solaparse y el veredicto 'separan' sale siempre).")
+    print("  Esa pregunta necesita una ventana FIJA sobre el camino, no la")
+    print("  excursion sellada. La excursion no puede contestarla con mas n.")
+
+
 def report_distribution(closes):
     print("\n=== RECORRIDO (en R de precio) ===")
     wins = [c for c in closes if c["pnl_r"] > 0]
@@ -121,15 +145,15 @@ def report_distribution(closes):
             nm, len(grp), _pct(mfe, 50), _pct(mfe, 75), _pct(mfe, 90),
             _pct(mae, 50), _note(len(grp))))
 
-    # 4. SEPARACION: solapamiento del MFE entre ganadores y perdedores.
-    if wins and loss:
-        mw, ml = _mean([c["mfe_r"] for c in wins]), _mean([c["mfe_r"] for c in loss])
-        print("\n  MFE medio  ganadores %+.2fR  vs  perdedores %+.2fR" % (mw, ml))
-        if abs(mw - ml) < 0.25:
-            print("  >> Se solapan. La senal NO separa por recorrido: ninguna")
-            print("     geometria de TP/SL arregla esto. El problema es la entrada.")
-        else:
-            print("  >> Separan. Hay margen para que la geometria capture mas.")
+    # SEPARACION: NO se calcula aqui, y no es una omision. Ver separacion_nota().
+    separacion_nota()
+    if wins:
+        # Lo unico no definicional del MFE de un ganador: cuanto se PASA la vela
+        # del TP. Es el espejo del sobrepaso del stop, y si es grande dice que el
+        # fill al nivel exacto del TP es optimista.
+        exceso = [c["mfe_r"] - c["pnl_r"] for c in wins]
+        print("\n  sobrepaso del TP en los ganadores: p50 %+.2fR  p90 %+.2fR%s" % (
+            _pct(exceso, 50), _pct(exceso, 90), _note(len(wins))))
 
 
 def report_tp_too_far(closes):
@@ -215,6 +239,18 @@ def counterfactual(closes, tps, sls):
     print("\n    Lee la celda como E[R] BRUTA en R del SL original, sin fees.")
     print("    Un SL mas ancho arriesga mas capital por trade: compara a riesgo")
     print("    igual, no celda contra celda.")
+    print("\n    SESGO MEDIDO DEL EJE SL (contra el camino real, 4.668 senales,")
+    print("    ago-2026). R = |entry - stop|, asi que SL=1.00 ES el stop original:")
+    print("      SL = 1.00  ->  exacto (error -0.006 a +0.022 R)")
+    print("      SL < 1.00  ->  el sellado SOBREESTIMA hasta +0.083R")
+    print("      SL > 1.00  ->  el sellado SUBESTIMA hasta -0.052R")
+    print("    Causa: mfe_bar/mae_bar marcan el EXTREMO, no el primer cruce del")
+    print("    umbral nuevo (sesga al estrechar); y tras el stop original el")
+    print("    camino no existe en el dato (sesga al ensanchar).")
+    print("    >> Sobre una expectancy de ~0.2R eso es un 40%. La fila del TP SI")
+    print("    es fiable a SL=1.00; MOVER EL STOP con esta tabla no lo es, y su")
+    print("    sesgo apunta justo a 'aprieta el stop'. Para eso hace falta el")
+    print("    camino (tools/cube_regrade_excursion.py + las velas del venue).")
 
 
 def main(argv=None):

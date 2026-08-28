@@ -136,6 +136,11 @@ CONSUMIDORES_EXENTOS = {
     # es el PRODUCTOR del cubo, no un consumidor.
     "tools/run_research_real.py":
         "productor: llama a label_events_grid",
+    # es el REGRADER: lee un cubo de esquema 1 a proposito para arreglarlo.
+    # De el solo lee outcome/bars_held/pnl_r (para validar que reproduce);
+    # las excursiones las recalcula desde las velas, no las hereda.
+    "tools/cube_regrade_excursion.py":
+        "regrader: recalcula la excursion desde las velas, no la lee del cubo",
     # concatena shards del mismo run; no interpreta la columna.
     "tools/cosecha_shard.py":
         "solo concatena/compara columnas entre shards, no las lee como recorrido",

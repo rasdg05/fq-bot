@@ -145,11 +145,63 @@ Ninguna de estas toca el **track record publicado** (n=12 · WR 41,7 % · E[R]
 excursión en vida desde siempre. La contaminación vivía en el research, no en el
 producto.
 
+## `geometry_report` arreglado (ago-2026)
+
+### La separación, retirada
+
+El veredicto circular ya no se dicta. En su lugar el informe explica por qué no
+puede dictarse y a dónde va la pregunta. Las otras tres lecturas **se quedan**,
+porque no son circulares: un perdedor se define por tocar el STOP, así que
+cuánto llegó a ganar antes de morir es legítimo; un ganador se define por tocar
+el TP, así que su MAE es libre en (−1R, 0].
+
+Que `report_sl_too_tight` sigue discriminando lo confirma el dato: su umbral
+(>30 % de ganadores por debajo de −0,7R) da **16,4 %** real — ni se dispara
+siempre ni es inalcanzable.
+
+> Había un **test fijando la lectura circular**
+> (`test_el_informe_detecta_que_la_senal_no_separa`). Su fixture era imposible:
+> un perdedor con MFE 1,15 sobre un TP de +1,0R habría tocado el TP y sería
+> ganador. La rama "NO separa" solo se alcanzaba con datos que no pueden
+> existir — por eso en producción salía siempre la otra. El test está reescrito
+> para decir eso.
+
+### El contrafactual: sesgo medido en el eje del SL
+
+Comparado contra el **camino real** sobre 4.668 señales (ventana de 96 velas):
+
+| error (sellado − real) | SL 0,50 | SL 0,75 | **SL 1,00** | SL 1,50 |
+|---|---|---|---|---|
+| TP 1,00 | +0,079 | +0,036 | **−0,004** | −0,032 |
+| TP 2,00 | +0,076 | +0,042 | **+0,000** | −0,052 |
+| TP 3,00 | +0,061 | +0,048 | **+0,022** | −0,049 |
+
+Como R = |entry − stop|, **SL = 1,00 ES el stop original**, y ahí el cálculo es
+exacto. El eje del TP también es fiable. Mover el stop no lo es:
+
+- **estrechar sobreestima** hasta +0,083R — `mfe_bar`/`mae_bar` marcan el
+  *extremo*, no el primer cruce del umbral nuevo;
+- **ensanchar subestima** hasta −0,052R — tras el stop original el camino no
+  existe en el dato.
+
+Sobre una expectancy de ~0,2R eso es un **40 %**, y el sesgo apunta justo a
+"aprieta el stop". El informe ahora lo declara en la propia tabla.
+
+### El sobrepaso también ocurre en el TP, y no se compensa
+
+| barrera | sobrepaso medio de la vela |
+|---|---|
+| stop | +0,388R |
+| TP | +0,485R |
+
+Parecen cancelarse, y no lo hacen: un TP suele ser orden **límite** (te llenas a
+tu precio; el exceso es dinero que no ves pero tampoco pierdes) y un stop suele
+ser **market** (te comes el exceso). La asimetría es de un solo lado, en contra.
+
 ## Lo que falta para cerrar E7
 
 1. Terminar la cosecha (6 símbolos) y re-etiquetar los 13.
 2. La lectura **no circular**: recorrido en ventana fija de k velas, ganadores
    eventuales contra perdedores eventuales. Ese es el veredicto de E7, y puede
    salir en contra.
-3. Arreglar la lectura de separación de `geometry_report`, que hoy es circular
-   también sobre el ledger vivo — con su test.
+3. ~~Arreglar la separación de `geometry_report`~~ — hecho, con su test.
