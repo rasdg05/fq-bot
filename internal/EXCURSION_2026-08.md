@@ -198,10 +198,62 @@ Parecen cancelarse, y no lo hacen: un TP suele ser orden **límite** (te llenas 
 tu precio; el exceso es dinero que no ves pero tampoco pierdes) y un stop suele
 ser **market** (te comes el exceso). La asimetría es de un solo lado, en contra.
 
+## E7, contestado (parcial: 5 símbolos, 4.321 señales)
+
+La lectura no circular: ventana **fija** de k velas, solo señales **vivas en k**,
+y **contra placebo** (misma cinta, mismo día, misma dirección, misma geometría
+relativa, entrada arbitraria 48 velas después).
+
+El placebo no es opcional. Sin él, el recorrido temprano da **AUC 0,69** y parece
+separación. Con él se ve lo que era: una entrada arbitraria sobre la misma cinta
+da lo mismo. Lo que medía no es la señal — es que el precio que ya se movió hacia
+el TP lo tiene más cerca. Cualquier entrada lo cumple.
+
+### Resultado 1 — la trayectoria NO anticipa nada
+
+Diferencia de AUC contra el placebo, bootstrap pareado (2.000 resamples):
+
+| k | mfe_k | net_k |
+|---|---|---|
+| 3 | +0,025 [−0,002, +0,051] ~ | +0,010 [−0,015, +0,034] ~ |
+| 6 | +0,029 [+0,002, +0,056] | +0,009 [−0,016, +0,033] ~ |
+| 12 | +0,016 [−0,013, +0,045] ~ | +0,000 [−0,028, +0,028] ~ |
+| 24 | +0,006 [−0,029, +0,042] ~ | −0,012 [−0,047, +0,021] ~ |
+
+Siete de ocho celdas cruzan cero. La única que no (mfe_k a k=6) es **1 de 8 a
+95 %**, justo lo que se espera por azar: no es un hallazgo. **El recorrido de las
+primeras velas no dice nada del desenlace que no diga ya la cinta.** Ninguna
+gestión basada en la trayectoria temprana va a añadir nada.
+
+### Resultado 2 — pero la ENTRADA sí bate al azar
+
+| | WR (vida 48 velas, TP=rr_tp4, SL=1R) |
+|---|---|
+| motor | **37,4 %** |
+| placebo | 32,7 % |
+| diferencia | **+4,7 pp**, IC95 % [+2,8, +6,7], P(diff≤0) = 0,000 |
+
+Es la primera vez en este repo que la entrada se mide contra un placebo
+emparejado, y **gana**. El emparejamiento sesga en contra (el placebo hereda el
+régimen que disparó la señal), así que +4,7 pp es un suelo.
+
+**Cuidado con lo que NO dice.** Esa geometría (vida 48 velas, TP a rr_tp4) no es
+la de producción, así que 37,4 % no es el WR publicable. Y +4,7 pp sobre un
+placebo no es rentabilidad: el WR de equilibrio con fees es 36,9 %, y el motor
+vivo mide 21,1 %. Que la entrada distinga es necesario y no es suficiente.
+
+### Cómo se lee junto
+
+E7 preguntaba: faltan 16 puntos de WR, ¿es la geometría o es que la señal no
+separa? Respuesta parcial: **la señal separa un poco en la entrada y nada en la
+trayectoria.** Así que ni el problema es "no hay señal" ni se arregla gestionando
+mejor el trade una vez abierto. Lo que queda en pie como sospechoso del hueco es
+el **coste de ejecución** — que es E8, y que ya tiene magnitud medida en la
+sección del sobrepaso.
+
 ## Lo que falta para cerrar E7
 
-1. Terminar la cosecha (6 símbolos) y re-etiquetar los 13.
-2. La lectura **no circular**: recorrido en ventana fija de k velas, ganadores
-   eventuales contra perdedores eventuales. Ese es el veredicto de E7, y puede
-   salir en contra.
+1. Terminar la cosecha (BCH, DOT y los 6 que faltan) y repetir sobre los 13.
+   Nada de lo de arriba depende de ellos para el signo, sí para la precisión.
+2. ~~La lectura no circular~~ — hecha, con placebo obligatorio dentro del tool.
 3. ~~Arreglar la separación de `geometry_report`~~ — hecho, con su test.
