@@ -1,9 +1,12 @@
 # La excursión del cubo no era la del trade (agosto 2026)
 
-> Estado: **E7 en curso.** Los números de abajo son de 7 de 13 símbolos
-> (30.682 celdas ganadoras, 49.808 perdedoras); la cosecha de los 6 restantes
-> corre. Ninguna conclusión de aquí depende de los que faltan — son de tipo
-> "esto es imposible por construcción", no de tipo "el promedio dice".
+> Estado: **E7 contestado.** Cosecha completa: 13 símbolos, 13.429 señales, cero
+> huecos de ventana. El re-etiquetado reproduce el cubo original al 1,0000 en
+> outcome, bars_held y pnl_r, con sesgo +0,0000, en los 13.
+>
+> Las cifras de excursión de las dos secciones siguientes son de los 7 símbolos
+> con los que se midieron (30.682 celdas ganadoras, 49.808 perdedoras); no se
+> re-corrieron porque son de tipo "imposible por construcción", no de promedio.
 
 ## Qué se estaba midiendo mal
 
@@ -198,7 +201,7 @@ Parecen cancelarse, y no lo hacen: un TP suele ser orden **límite** (te llenas 
 tu precio; el exceso es dinero que no ves pero tampoco pierdes) y un stop suele
 ser **market** (te comes el exceso). La asimetría es de un solo lado, en contra.
 
-## E7, contestado (parcial: 5 símbolos, 4.321 señales)
+## E7, contestado (13 símbolos, 13.429 señales — muestra completa)
 
 La lectura no circular: ventana **fija** de k velas, solo señales **vivas en k**,
 y **contra placebo** (misma cinta, mismo día, misma dirección, misma geometría
@@ -215,30 +218,37 @@ Diferencia de AUC contra el placebo, bootstrap pareado (2.000 resamples):
 
 | k | mfe_k | net_k |
 |---|---|---|
-| 3 | +0,025 [−0,002, +0,051] ~ | +0,010 [−0,015, +0,034] ~ |
-| 6 | +0,029 [+0,002, +0,056] | +0,009 [−0,016, +0,033] ~ |
-| 12 | +0,016 [−0,013, +0,045] ~ | +0,000 [−0,028, +0,028] ~ |
-| 24 | +0,006 [−0,029, +0,042] ~ | −0,012 [−0,047, +0,021] ~ |
+| 3 | +0,003 [−0,012, +0,017] ~ | −0,005 [−0,020, +0,009] ~ |
+| 6 | +0,011 [−0,005, +0,026] ~ | +0,008 [−0,007, +0,022] ~ |
+| 12 | +0,012 [−0,004, +0,030] ~ | +0,000 [−0,016, +0,016] ~ |
+| 24 | +0,005 [−0,016, +0,026] ~ | +0,001 [−0,017, +0,019] ~ |
 
-Siete de ocho celdas cruzan cero. La única que no (mfe_k a k=6) es **1 de 8 a
-95 %**, justo lo que se espera por azar: no es un hallazgo. **El recorrido de las
-primeras velas no dice nada del desenlace que no diga ya la cinta.** Ninguna
-gestión basada en la trayectoria temprana va a añadir nada.
+**Ocho de ocho celdas cruzan cero.** El recorrido de las primeras velas no dice
+nada del desenlace que no diga ya la cinta. Ninguna gestión basada en la
+trayectoria temprana va a añadir nada.
+
+> Sobre 5 símbolos (4.321 señales) una celda salía significativa: mfe_k a k=6,
+> +0,029 [+0,002, +0,056]. Con la muestra completa es +0,011 [−0,005, +0,026] —
+> se evaporó, como avisaba la nota de multiple testing. Es el ejemplo de por qué
+> el tool imprime esa advertencia debajo de la tabla.
 
 ### Resultado 2 — pero la ENTRADA sí bate al azar
 
 | | WR (vida 48 velas, TP=rr_tp4, SL=1R) |
 |---|---|
-| motor | **37,4 %** |
-| placebo | 32,7 % |
-| diferencia | **+4,7 pp**, IC95 % [+2,8, +6,7], P(diff≤0) = 0,000 |
+| motor | **36,0 %** |
+| placebo | 32,4 % |
+| diferencia | **+3,6 pp**, IC95 % [+2,5, +4,7], P(diff≤0) = 0,000 |
+
+(Sobre 5 símbolos daba +4,7 pp [+2,8, +6,7]. La muestra completa lo baja a +3,6
+con IC más estrecho: el subconjunto era algo optimista, el signo no cambia.)
 
 Es la primera vez en este repo que la entrada se mide contra un placebo
 emparejado, y **gana**. El emparejamiento sesga en contra (el placebo hereda el
-régimen que disparó la señal), así que +4,7 pp es un suelo.
+régimen que disparó la señal), así que +3,6 pp es un suelo.
 
 **Cuidado con lo que NO dice.** Esa geometría (vida 48 velas, TP a rr_tp4) no es
-la de producción, así que 37,4 % no es el WR publicable. Y +4,7 pp sobre un
+la de producción, así que 36,0 % no es el WR publicable. Y +4,7 pp sobre un
 placebo no es rentabilidad: el WR de equilibrio con fees es 36,9 %, y el motor
 vivo mide 21,1 %. Que la entrada distinga es necesario y no es suficiente.
 
@@ -253,7 +263,8 @@ sección del sobrepaso.
 
 ## Lo que falta para cerrar E7
 
-1. Terminar la cosecha (BCH, DOT y los 6 que faltan) y repetir sobre los 13.
-   Nada de lo de arriba depende de ellos para el signo, sí para la precisión.
+1. ~~Terminar la cosecha y repetir sobre los 13~~ — hecho. 13.429/13.429
+   señales, cero huecos, y el re-etiquetado reproduce el cubo original al
+   1,0000 en outcome, bars_held y pnl_r con sesgo +0,0000 en los 13 símbolos.
 2. ~~La lectura no circular~~ — hecha, con placebo obligatorio dentro del tool.
 3. ~~Arreglar la separación de `geometry_report`~~ — hecho, con su test.
