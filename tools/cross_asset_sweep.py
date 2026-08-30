@@ -52,7 +52,9 @@ def global_ac1(cvd_path):
 
 
 def klines_path(sym):
-    for p in ("data/kl_hist_%sUSDT.parquet" % sym, "data/okx/kl_hist_%sUSDT.parquet" % sym):
+    for p in ("data/kl_hist_%sUSDT.parquet" % sym,
+              "data/mercado/kl_hist_%sUSDT.parquet" % sym,
+              "data/okx/kl_hist_%sUSDT.parquet" % sym):   # okx/: nombre heredado
         if os.path.exists(p):
             return p
     return None

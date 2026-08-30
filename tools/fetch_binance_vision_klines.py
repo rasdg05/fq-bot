@@ -38,11 +38,16 @@ from datetime import date, timedelta
 import numpy as np
 import pandas as pd
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import bt_data as btd          # noqa: E402
+
 _ROOT = "https://data.binance.vision/data/futures/um"
 BASE_D = _ROOT + "/daily/klines"
 BASE_M = _ROOT + "/monthly/klines"
 BASE = BASE_D                      # compat: lectores viejos del modulo
-DEFAULT_DIR = os.environ.get("FQ_CVD_DIR") or ("/data" if os.path.isdir("/data") else "data/okx")
+DEFAULT_DIR = os.environ.get("FQ_CVD_DIR") or ("/data" if os.path.isdir("/data")
+               else ("data/okx" if os.path.isdir("data/okx") else "data/mercado"))
 COLS = ["ts", "open", "high", "low", "close", "volume", "taker_buy_base"]
 _RAW = ["open_time", "open", "high", "low", "close", "volume", "close_time",
         "quote_volume", "count", "taker_buy_volume", "taker_buy_quote_volume", "ignore"]
@@ -155,6 +160,9 @@ def fetch(sym, start, end, out_dir=DEFAULT_DIR, workers=None):
         return path
     out = (pd.concat(parts, ignore_index=True)
              .drop_duplicates("ts").sort_values("ts").reset_index(drop=True))
+    # Sella la procedencia EN EL DATO: el directorio por defecto se llamo
+    # `data/okx/` durante meses y guardaba esto, que es de Binance.
+    out = btd.stamp_venue(out, btd.VENUE_BINANCE_UM)
     tmp = path + ".tmp"
     out.to_parquet(tmp, index=False)
     os.replace(tmp, path)

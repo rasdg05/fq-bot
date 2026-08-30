@@ -11,6 +11,9 @@ Cubre:
 """
 import os
 import sys
+from datetime import datetime
+
+import pytest
 
 # Shim para entornos sin pandas-ta instalado (pandas-ta-classic provee la API)
 try:
@@ -284,6 +287,38 @@ def test_compute_tactical_tps_zero_risk():
 # ===========================================
 # 5. PROMOCION A VIP - LOGICA DE GATING
 # ===========================================
+@pytest.fixture(autouse=True)
+def reloj_fijo(monkeypatch):
+    """Fija el reloj de `is_dead_window` en un instante conocido y VIVO.
+
+    Estos tests se saltaban solos una hora al dia. `is_dead_window()` lee
+    `datetime.now(CDMX_TZ)`, asi que entre las 14:00 y las 16:00 CDMX -- y los
+    viernes por la tarde -- seis tests desaparecian sin que nadie lo viera: el
+    resumen decia "passed" con seis menos. Un test que se salta segun la hora no
+    es un test flaky, es una guarda que deja de guardar en silencio.
+
+    No se mockea el veredicto: se fija el INSTANTE y la logica real corre entera.
+    Martes 10:00 CDMX esta fuera de las tres franjas (2PM, ultima hora NY,
+    viernes tarde), asi que is_dead_window devuelve False por sus propias reglas.
+    Para probar la logica de franja muerta en si esta
+    test_dead_window_2pm_manipulation, que pasa las horas explicitamente.
+    """
+    import volume_quality as vq
+    real = vq.is_dead_window
+    fijo = datetime(2026, 8, 4, 10, 0, tzinfo=vq.CDMX_TZ)      # martes, activo
+    monkeypatch.setattr(vq, "is_dead_window",
+                        lambda now_cdmx=None: real(now_cdmx or fijo))
+    return fijo
+
+
+def test_el_reloj_fijo_cae_fuera_de_toda_franja_muerta():
+    """Si esto falla, el instante elegido dejo de ser 'vivo' y los tests que
+    dependen de el volverian a mentir -- callados, como antes."""
+    import volume_quality as vq
+    assert vq.is_dead_window() is False
+    assert vq.dead_window_label() in (None, "")
+
+
 def _reload_with_flag(flag_value):
     """Recarga fq_bot_v3_2 con FQ_TACTICAL_VIP_ENABLED= flag_value."""
     import importlib
@@ -323,16 +358,8 @@ def test_promote_ok_when_all_align():
     b = _reload_with_flag("1")
     plan = {"verdict": "EJECUTAR_AHORA", "direction": "short",
             "market": {"entry": 80.91, "p_sl": 0.28, "ev": 1.30}}
-    # Tambien debe evitar dead window. Aqui no podemos mockear is_dead_window
-    # facilmente sin freeze_time; el test depende de la hora actual.
-    # Para evitar flakiness, solo afirmamos que el gating no se bloquea por
-    # las condiciones que podemos controlar (vol+edge). is_dead_window depende
-    # de la hora; si runea en 15-16 CDMX o viernes tarde no promueve y el test
-    # se salta con xfail-like skip.
-    import volume_quality as vq
-    if vq.is_dead_window():
-        import pytest
-        pytest.skip("Test corriendo en franja muerta; no se puede afirmar promote=True")
+    # El reloj lo fija la fixture `reloj_fijo` (martes 10:00 CDMX): fuera de
+    # franja muerta, siempre, corra la suite a la hora que corra.
     ok, _ = b._should_promote_tactical_to_vip(plan, {"score": 1.2}, "asia_open")
     assert ok is True
 
@@ -341,10 +368,6 @@ def test_promote_allows_medium_probability():
     """v5.3: una señal 'Edge fuerte · probabilidad media' (p_sl=0.50) SI se
     promueve al VIP (el corte de probabilidad subio a 0.55)."""
     b = _reload_with_flag("1")
-    import volume_quality as vq
-    if vq.is_dead_window():
-        import pytest
-        pytest.skip("franja muerta")
     plan = {"verdict": "EJECUTAR_AHORA", "direction": "short",
             "market": {"entry": 80.91, "p_sl": 0.50, "ev": 1.30}}
     ok, reason = b._should_promote_tactical_to_vip(plan, {"score": 1.2}, "asia_open")
@@ -359,10 +382,6 @@ def test_promote_allows_medium_probability():
 
 def test_promote_accumulate_checks_zone_edge():
     b = _reload_with_flag("1")
-    import volume_quality as vq
-    if vq.is_dead_window():
-        import pytest
-        pytest.skip("franja muerta")
     plan = {"verdict": "ACUMULAR_EN_ZONA", "direction": "long",
             "market": {"entry": 80.91, "p_sl": 0.5, "ev": 0.3},
             "primary_zone": {"ev_cond": 1.2, "reach_prob": 0.4, "p_sl_cond": 0.40}}
@@ -381,10 +400,6 @@ def test_promote_accumulate_rejects_low_zone_probability():
     promueve aunque el R:R (ev_cond) sea bueno. Es el caso del SHORT $76.90
     que toco SL: reach alta pero probabilidad condicional baja."""
     b = _reload_with_flag("1")
-    import volume_quality as vq
-    if vq.is_dead_window():
-        import pytest
-        pytest.skip("franja muerta")
     base = {"verdict": "ACUMULAR_EN_ZONA", "direction": "short",
             "primary_zone": {"ev_cond": 1.6, "reach_prob": 0.7}}
 
@@ -422,10 +437,6 @@ def test_promote_blocked_asia_open_long_low_volume():
     'Volumen bajo' (~0.78). Antes pasaba el piso relajado de ACUMULAR (0.60) y
     salia al VIP; ahora el bull-fakeout guard lo bloquea."""
     b = _reload_with_flag("1")
-    import volume_quality as vq
-    if vq.is_dead_window():
-        import pytest
-        pytest.skip("franja muerta")
     plan = {"verdict": "ACUMULAR_EN_ZONA", "direction": "long",
             "market": {"entry": 68.75, "p_sl": 0.45, "ev": 0.30},
             "primary_zone": {"ev_cond": 1.4, "reach_prob": 0.5, "p_sl_cond": 0.40}}
@@ -452,10 +463,6 @@ def test_promote_volume_gate_by_type():
     la confirmacion (0.85). Rescata señales tipo el ACUMULA SHORT $76.90 que
     marco vol~0.78 y se quedaba fuera del VIP."""
     b = _reload_with_flag("1")
-    import volume_quality as vq
-    if vq.is_dead_window():
-        import pytest
-        pytest.skip("franja muerta")
 
     # ACUMULA con vol 0.78 (antes <0.85 lo bloqueaba) -> ahora SI promueve
     acum = {"verdict": "ACUMULAR_EN_ZONA", "direction": "short",

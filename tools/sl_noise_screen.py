@@ -30,6 +30,7 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import bt_data as btd            # noqa: E402
 import bt_labeler as lb          # noqa: E402
 
 
@@ -64,7 +65,15 @@ def screen_one(cube_path, klines_path=None):
     cube = pd.read_parquet(cube_path)
     sym = re.search(r"tp_cube_(.+)\.parquet", os.path.basename(cube_path)).group(1)
     st = stop_stats(cube)
-    noise = bar_noise_pct(pd.read_parquet(klines_path)) if klines_path and os.path.exists(klines_path) else float("nan")
+    noise = float("nan")
+    if klines_path and os.path.exists(klines_path):
+        kl = pd.read_parquet(klines_path)
+        # El ratio compara el stop del CUBO contra la vela de estas klines. Si
+        # no son el mismo tape, el cociente no significa nada -- y el directorio
+        # por defecto se llamo `data/okx/` mientras guardaba velas de Binance.
+        btd.require_same_venue(cube, kl, who="el screen de ruido del stop",
+                               nombres=("el cubo", "las velas"))
+        noise = bar_noise_pct(kl)
     ratio = st["stop_med"] / noise if noise == noise else float("nan")  # noqa: PLR0124
     return {"sym": sym.replace("_USDT", ""), **st, "vela5m": noise, "ratio": ratio,
             "rbs_pct": right_but_stopped_pct(cube)}

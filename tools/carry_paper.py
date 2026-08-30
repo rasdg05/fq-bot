@@ -45,7 +45,8 @@ import carry_backtest as cb            # noqa: E402  CLEAN_BASKET (fuente de ver
 import fetch_binance_vision_funding as bvf  # noqa: E402  metrics() con gate suavizado
 import fetch_okx_funding               # noqa: E402  fetch realizado forward
 
-OUT_DIR = os.environ.get("FQ_CARRY_DIR") or ("/data" if os.path.isdir("/data") else "data/okx")
+OUT_DIR = os.environ.get("FQ_CARRY_DIR") or ("/data" if os.path.isdir("/data")
+             else ("data/okx" if os.path.isdir("data/okx") else "data/mercado"))
 LEDGER = os.path.join(OUT_DIR, "carry_funding.parquet")
 SNAPSHOT = os.path.join(OUT_DIR, "carry_paper_snapshot.json")
 BASKET = cb.CLEAN_BASKET

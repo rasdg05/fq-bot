@@ -38,12 +38,40 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import bt_data as btd            # noqa: E402
 import bt_engine as eng          # noqa: E402
 import bt_labeler as lb          # noqa: E402
 
 CUBE_DIR = "cosecha_cubes_v2"
 MIN_N = 30
 N_BOOT = 2000
+
+
+# Venues cuyo tape NO tiene funding. Si el cube sale de uno de estos y el
+# CostModel lo cobra, hay un cruce que hay que NOMBRAR, no resolver en silencio.
+VENUES_SPOT = (btd.VENUE_OKX_SPOT, btd.VENUE_BINANCE_SPOT)
+
+
+def aviso_venue(venue, cost):
+    """Texto del cruce spot/perp, o None si no lo hay.
+
+    El cube se cosecha sobre velas de OKX **spot** (`cosecha_shard --exchange
+    okx`, el default) y el CostModel modela un USDT-**perp** con funding. Ni
+    cobrar el funding ni no cobrarlo es "lo correcto": el problema es la mezcla,
+    y el arreglo de verdad es re-cosechar sobre el tape que se opera. Medido, el
+    funding pesa +0.001R, asi que no cambia ningun signo -- por eso se avisa en
+    vez de bloquear. Pero se avisa SIEMPRE, y hay un test que lo exige: un cruce
+    silencioso es como se cuelan los errores caros de este repo.
+    """
+    if not venue or not getattr(cost, "apply_funding", False):
+        return None
+    if venue not in VENUES_SPOT:
+        return None
+    return ("AVISO DE VENUE: el cube salio de %s (spot) y el CostModel cobra "
+            "funding, que es de perp. El funding pesa +0.001R medido, asi que no "
+            "cambia el signo de nada aqui; pero la mezcla es real. El arreglo es "
+            "re-cosechar sobre el tape que se opera, no editar este informe. "
+            "(--no-funding la quita para ver cuanto pesa.)" % venue)
 
 
 def cost_for_symbol(symbol, no_funding=False):
@@ -114,6 +142,7 @@ def ci(x, n_boot=N_BOOT, seed=0):
 
 def cargar(cube_dir, tp, horizon, symbols=None, no_funding=False, fill_frac=0.0):
     partes = []
+    venues = set()
     for f in sorted(glob.glob(os.path.join(cube_dir, "tp_cube_*.parquet"))):
         sym = os.path.basename(f).replace("tp_cube_", "").replace(".parquet", "")
         if symbols and sym not in symbols:
@@ -126,8 +155,15 @@ def cargar(cube_dir, tp, horizon, symbols=None, no_funding=False, fill_frac=0.0)
         if n is None:
             continue
         n["symbol"] = sym
+        v = btd.venue_of(pool)
+        if v:
+            venues.add(v)
         partes.append(n)
-    return pd.concat(partes, ignore_index=True) if partes else None
+    if not partes:
+        return None
+    out = pd.concat(partes, ignore_index=True)
+    out.attrs["venues"] = sorted(venues)
+    return out
 
 
 def linea(nombre, d):
@@ -204,7 +240,12 @@ def main(argv=None):
     print("E8 PASO 1 — el cube con costes (%s / h%d)%s"
           % (a.tp, a.horizon, "  [sin funding]" if a.no_funding else ""))
     print("COTA SUPERIOR: el cube asume fill EXACTO en stop_price. Medido, la vela")
-    print("que dispara el stop se pasa +0.388R de media. Ver --fill-overshoot (paso 2).\n")
+    print("que dispara el stop se pasa +0.388R de media. Ver --fill-overshoot (paso 2).")
+    for v in d.attrs.get("venues", []):
+        av = aviso_venue(v, cost_for_symbol("POOL", a.no_funding))
+        if av:
+            print("\n  " + av)
+    print()
     cabecera()
     print(linea("POOL", d))
     if a.por_simbolo:

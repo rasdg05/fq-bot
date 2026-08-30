@@ -31,6 +31,7 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import bt_data as btd              # noqa: E402
 import fetch_okx_klines as OK      # noqa: E402
 
 BAR_MS = OK.BAR_MS
@@ -89,6 +90,7 @@ def bajar_simbolo(sym, total_reqs=None):
     df = (pd.DataFrame([(t, *v) for t, v in velas.items()],
                        columns=["ts", "high", "low", "close"])
             .sort_values("ts").reset_index(drop=True))
+    df = btd.stamp_venue(df, btd.VENUE_OKX_SPOT)
     tmp = path + ".tmp"
     df.to_parquet(tmp, index=False)
     os.replace(tmp, path)

@@ -34,7 +34,8 @@ from datetime import date, timedelta
 import pandas as pd
 
 BASE = "https://data.binance.vision/data/futures/um/daily/metrics"
-DEFAULT_DIR = os.environ.get("FQ_AGG_OI_DIR") or ("/data" if os.path.isdir("/data") else "data/okx")
+DEFAULT_DIR = os.environ.get("FQ_AGG_OI_DIR") or ("/data" if os.path.isdir("/data")
+               else ("data/okx" if os.path.isdir("data/okx") else "data/mercado"))
 COLS = ["ts", "oi_usd", "toptrader_ls", "taker_ls", "global_ls"]
 
 

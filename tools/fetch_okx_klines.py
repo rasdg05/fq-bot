@@ -35,6 +35,10 @@ from datetime import timedelta
 
 import pandas as pd
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import bt_data as btd          # noqa: E402
+
 API = "https://www.okx.com/api/v5/market/history-candles"
 DEFAULT_DIR = os.environ.get("FQ_OKX_DIR", "data/okx_real")
 COLS = ["ts", "open", "high", "low", "close", "volume"]
@@ -122,7 +126,7 @@ def fetch(inst, start, end, out_dir=DEFAULT_DIR, pause=0.11):
 def _save(parts, path):
     out = (pd.concat(parts, ignore_index=True)
              .drop_duplicates("ts").sort_values("ts").reset_index(drop=True))
-    out.attrs["venue"] = VENUE
+    out = btd.stamp_venue(out, btd.VENUE_OKX_SPOT)   # attrs no sobrevive a parquet
     tmp = path + ".tmp"
     out.to_parquet(tmp, index=False)
     os.replace(tmp, path)

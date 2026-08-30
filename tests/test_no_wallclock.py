@@ -112,3 +112,68 @@ def test_baseline_no_esta_inflado():
             inflados.append(f"{fname}: baseline {max_sites} pero hay {n} — "
                             f"baja el baseline a {n}")
     assert not inflados, "\n".join(inflados)
+
+
+# ---------------------------------------------------------------------------
+# LA SUITE TAMPOCO PUEDE LEER EL RELOJ (ago-2026)
+# ---------------------------------------------------------------------------
+# La guarda de arriba cubre el path del MOTOR. No cubria los tests, y ahi habia
+# el mismo bug: seis tests de test_tactical_alert.py llamaban a
+# `volume_quality.is_dead_window()` -- que lee `datetime.now()` -- y hacian
+# pytest.skip si daba True. Entre las 14:00 y las 16:00 CDMX, y los viernes por
+# la tarde, esos seis desaparecian y el resumen seguia diciendo "passed".
+#
+# Un test que se salta segun la hora no es flaky: es una guarda que deja de
+# guardar en silencio, que es exactamente el fallo que este fichero persigue.
+# Se arreglo fijando el instante (fixture `reloj_fijo`), no mockeando el
+# veredicto: la logica real corre entera, a una hora conocida.
+
+# Motivos legitimos para saltar un test: que falte una dependencia OPCIONAL, o
+# que el entorno tenga una flag puesta. Nunca la hora, la fecha ni el dia.
+SKIPS_LEGITIMOS = {
+    "test_bt_selectivity.py": "run_research_real no importable (deps opcionales)",
+    "test_html_safety.py": "skipif por dependencia del bot",
+    "test_signal_policy.py": "skipif por FQ_RADAR_ENABLED en el entorno",
+}
+
+_RELOJ = {"now", "utcnow", "today", "is_dead_window", "dead_window_label",
+          "is_weekend_closed", "time"}
+
+
+def _lee_reloj(nodo):
+    """¿Este subarbol llama a algo que lee el reloj de pared SIN pasarle la hora?"""
+    for n in ast.walk(nodo):
+        if not isinstance(n, ast.Call):
+            continue
+        f = n.func
+        nombre = f.attr if isinstance(f, ast.Attribute) else getattr(f, "id", None)
+        if nombre in _RELOJ and not n.args and not n.keywords:
+            return nombre
+    return None
+
+
+def test_ningun_test_se_salta_segun_la_hora():
+    tests_dir = os.path.join(ROOT, "tests")
+    malos = []
+    for name in sorted(os.listdir(tests_dir)):
+        if not (name.startswith("test_") and name.endswith(".py")):
+            continue
+        if name in SKIPS_LEGITIMOS:
+            continue
+        src = open(os.path.join(tests_dir, name), encoding="utf-8").read()
+        if "skip" not in src:
+            continue
+        arbol = ast.parse(src)
+        for n in ast.walk(arbol):
+            # `if <algo que lee el reloj>: pytest.skip(...)`
+            if not isinstance(n, ast.If):
+                continue
+            reloj = _lee_reloj(n.test)
+            if reloj and "skip" in ast.dump(ast.Module(body=n.body, type_ignores=[])):
+                malos.append("tests/%s (salta segun %s())" % (name, reloj))
+    assert not malos, (
+        "estos tests se saltan segun el reloj de pared, asi que desaparecen a "
+        "ciertas horas sin que nadie lo note: %s. Fija el instante con una "
+        "fixture (ver `reloj_fijo` en test_tactical_alert.py) en vez de saltar; "
+        "si el motivo es una dependencia opcional, declaralo en "
+        "SKIPS_LEGITIMOS." % ", ".join(malos))

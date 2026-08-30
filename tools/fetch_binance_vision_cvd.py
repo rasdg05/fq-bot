@@ -38,7 +38,8 @@ import numpy as np
 import pandas as pd
 
 BASE = "https://data.binance.vision/data/futures/um/daily/aggTrades"
-DEFAULT_DIR = os.environ.get("FQ_CVD_DIR") or ("/data" if os.path.isdir("/data") else "data/okx")
+DEFAULT_DIR = os.environ.get("FQ_CVD_DIR") or ("/data" if os.path.isdir("/data")
+               else ("data/okx" if os.path.isdir("data/okx") else "data/mercado"))
 
 
 def _days(start, end):

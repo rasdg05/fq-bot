@@ -235,7 +235,8 @@ class MotorPaperRuntime:
         cvd_path = None
         if os.environ.get("FQ_CVD_FILTER", "0").strip() in ("1", "true", "yes"):
             cvd_dir = os.environ.get("FQ_CVD_DIR") or (
-                "/data" if os.path.isdir("/data") else "data/okx")
+                "/data" if os.path.isdir("/data")
+            else ("data/okx" if os.path.isdir("data/okx") else "data/mercado"))
             cvd_path = os.path.join(cvd_dir, "cvd.parquet")
         cvd_imb_min = float(os.environ.get("FQ_CVD_IMB_MIN", "0.50"))
         log.info("[motor] runtime paper MOTOR BASE activo (%s, veto=%s, "
@@ -604,7 +605,8 @@ def cvd_confirm_live(symbol, ts, direction, imb_min=None):
         return None
     try:
         cvd_dir = os.environ.get("FQ_CVD_DIR") or (
-            "/data" if os.path.isdir("/data") else "data/okx")
+            "/data" if os.path.isdir("/data")
+            else ("data/okx" if os.path.isdir("data/okx") else "data/mercado"))
         cvd_path = os.path.join(cvd_dir, "cvd.parquet")
         if not os.path.exists(cvd_path):
             return None
@@ -631,7 +633,8 @@ def persist_confirm_live(symbol, ts, direction, thr=None):
         return None
     try:
         cvd_dir = os.environ.get("FQ_CVD_DIR") or (
-            "/data" if os.path.isdir("/data") else "data/okx")
+            "/data" if os.path.isdir("/data")
+            else ("data/okx" if os.path.isdir("data/okx") else "data/mercado"))
         cvd_path = os.path.join(cvd_dir, "cvd.parquet")
         if not os.path.exists(cvd_path):
             return None

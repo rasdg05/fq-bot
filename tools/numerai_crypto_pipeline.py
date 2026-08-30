@@ -167,7 +167,7 @@ def main(argv=None):
     p.add_argument("--start", help="YYYY-MM-DD")
     p.add_argument("--end", help="YYYY-MM-DD")
     p.add_argument("--out", default="numerai_crypto_submission.csv")
-    p.add_argument("--data-dir", default=os.environ.get("FQ_CVD_DIR", "data/okx"))
+    p.add_argument("--data-dir", default=os.environ.get("FQ_CVD_DIR", "data/mercado"))
     p.add_argument("--no-fetch", action="store_true", help="usa los parquets ya bajados")
     a = p.parse_args(argv)
     if a.self_test:

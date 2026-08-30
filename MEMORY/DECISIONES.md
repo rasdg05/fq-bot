@@ -819,6 +819,8 @@ opinión con decimales).
 | Excursión: vida ≠ ventana | el nombre es cableado; un cubo viejo se detecta por la AUSENCIA de `mfe_horizon_r` | `bt_labeler.py`, `test_cube_excursion_scope.py` | **CABLEADO** (ago-2026) |
 | Separación sin placebo no vale | AUC 0.69 del recorrido temprano = propiedad del camino, no de la señal | `tools/cube_fixed_window.py` | **CABLEADO**; la entrada sí gana (+3.6pp) |
 | El fill del stop se barre | rango 0–100% del sobrepaso, nunca un punto | `tools/cube_net_expectancy.py` | **CABLEADO**; E8 contestado |
+| Procedencia sellada | el venue va DENTRO del fichero; los cruces lo comprueban | `bt_data.stamp_venue`, `test_venue_procedencia.py` | **CABLEADO** (ago-2026) |
+| Ni la suite lee el reloj | 6 tests se saltaban una hora al día; ahora el instante se fija | `test_no_wallclock.py`, fixture `reloj_fijo` | **CABLEADO**; guarda verificada |
 | Polymarket: cancha antes que estrategia | oferta ✓, horquilla ✓, señal ✗, arb ✗ — el venue es bueno y no tenemos qué venderle | `tools/polymarket_{supply,spread,brier,negrisk}.py`, `internal/POLYMARKET_*_2026-08.md` | **LÍNEA CERRADA**, 0 capital, 4 pasos medidos |
 
 ---
@@ -904,6 +906,61 @@ come. Va de un solo lado, y el test lo fija para que nadie los cruce.
 
 **Evidencia.** `tools/cube_net_expectancy.py`, `tests/test_cube_net_expectancy.py`,
 `internal/E8_BRUTO_NETO_2026-08.md`. Commit `85fc03f`.
+
+---
+
+## 26. La procedencia va sellada en el dato, no en el nombre (2026-08-30)
+
+**Decisión.** De qué venue salió un fichero se **sella dentro del fichero**
+(`bt_data.stamp_venue`), y los puntos donde se cruzan dos datasets lo comprueban
+(`require_same_venue`). El nombre del directorio deja de ser la fuente de verdad.
+
+**Por qué.** El repo tenía un `data/okx/` en el que escribían **tres** fetchers de
+Binance. En ago-2026, re-etiquetar el cube exigía las velas del venue original; se
+bajaron 200 MB del equivocado y lo delató un `bars_held` que no cuadraba (0.766 con
+Binance contra 1.0000 con OKX spot), no el nombre del directorio. Nada dentro del fichero
+decía de dónde venía.
+
+**Importa más de lo que parece.** Si las velas no son las del venue con el que se cosechó,
+cambia el bar en que salta la barrera y con él la vida del trade — que es exactamente lo
+que la excursión en vida recorta. Y spot no es swap: el `entry_price` del cube coincide
+5/5 con OKX spot y 0/5 con OKX swap.
+
+**Honestidad de la guarda.** Un fichero sin sello (anterior a esto) **no se inventa**: la
+comprobación calla. Solo puede afirmar sobre lo que está sellado; mentir por omisión sería
+peor que no comprobar.
+
+**Lo que NO resuelve.** El cube se etiqueta sobre spot y se ejecuta en perp. Eso ahora se
+**nombra** en la salida de `cube_net_expectancy` (el funding pesa +0.001R, no cambia
+signos), pero el arreglo de verdad es re-cosechar sobre el tape que se opera. Sigue
+pendiente, y está escrito como tal.
+
+**Evidencia.** `bt_data.py`, `tests/test_venue_procedencia.py`, `tools/sl_noise_screen.py`,
+`tools/cube_regrade_excursion.py`, `tools/cube_net_expectancy.py`.
+
+---
+
+## 27. Un test que se salta según la hora es una guarda apagada (2026-08-30)
+
+**Decisión.** Ningún test se salta por el reloj de pared. Si un test necesita una hora, se
+**fija el instante** con una fixture y la lógica real corre entera; no se mockea el
+veredicto.
+
+**Por qué.** Seis tests de `test_tactical_alert.py` llamaban a `is_dead_window()` —que lee
+`datetime.now()`— y hacían `pytest.skip` si daba True. Entre las 14:00 y las 16:00 CDMX, y
+los viernes por la tarde, esos seis **desaparecían** y el resumen seguía diciendo "passed"
+con seis menos. Se descubrió por accidente, comparando dos corridas de la misma suite.
+
+Eso no es un test flaky: es la misma enfermedad que `test_no_wallclock.py` persigue en el
+path del motor, con la ironía de que la invariante no cubría la suite que la hace cumplir.
+
+**Cómo se hace cumplir.** `test_ningun_test_se_salta_segun_la_hora` recorre `tests/` por
+AST buscando un `pytest.skip` guardado por una llamada de reloj sin argumentos. Verificado
+plantando el patrón en un fichero temporal: lo detecta y nombra el fichero y la función.
+Los saltos legítimos (dependencia opcional ausente) van declarados en `SKIPS_LEGITIMOS`.
+
+**Evidencia.** `tests/test_no_wallclock.py`, `tests/test_tactical_alert.py` (fixture
+`reloj_fijo`). Suite: 6 skips menos, todos los restantes por dependencia.
 
 ---
 

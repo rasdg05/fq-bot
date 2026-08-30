@@ -260,3 +260,67 @@ def make_exchange(name, market_type="spot"):
     if market_type in ("swap", "future"):
         options["options"] = {"defaultType": market_type}
     return klass(options)
+
+
+# ============================================================
+# PROCEDENCIA: DE QUE VENUE SALIO CADA FICHERO (ago-2026)
+# ============================================================
+# El repo tenia -- y aun tiene a medias -- un directorio `data/okx/` en el que
+# escriben TRES fetchers de Binance. Un nombre de carpeta es una convencion que
+# nadie hace cumplir: cuando en ago-2026 hubo que re-etiquetar el cube, se
+# bajaron 200 MB del venue equivocado antes de que un `bars_held` que no cuadraba
+# lo delatara. Nada en el fichero decia de donde venia.
+#
+# Un venue SELLADO en el dato si es verificable. Es la misma idea que
+# `bt_labeler.CUBE_SCHEMA`: la verdad va dentro del fichero, no en su nombre.
+#
+# Por que importa mas de lo que parece: si las velas no son las del venue con el
+# que se cosecho, cambia el bar en que salta la barrera, y con el la vida del
+# trade. Medido: con velas de Binance el re-etiquetado reproducia `outcome` 0.977
+# pero `bars_held` solo 0.766; con OKX spot, 1.0000 y 1.0000.
+
+VENUE_COL = "venue"
+
+# Venues conocidos. El sufijo importa: spot y swap NO son el mismo tape.
+VENUE_OKX_SPOT = "okx_spot"
+VENUE_OKX_SWAP = "okx_swap"
+VENUE_BINANCE_UM = "binance_um"        # USD-M futures (perp)
+VENUE_BINANCE_SPOT = "binance_spot"
+
+
+def stamp_venue(df, venue):
+    """Sella la procedencia en el DataFrame. Barato: una columna constante que
+    parquet comprime a nada."""
+    out = df.copy()
+    out[VENUE_COL] = str(venue)
+    return out
+
+
+def venue_of(df, default=None):
+    """Venue sellado, o `default` si el fichero es anterior al sello."""
+    if VENUE_COL not in getattr(df, "columns", ()):
+        return default
+    vals = df[VENUE_COL].dropna().unique()
+    if len(vals) == 0:
+        return default
+    if len(vals) > 1:
+        raise ValueError("fichero con %d venues mezclados: %s"
+                         % (len(vals), sorted(vals)))
+    return str(vals[0])
+
+
+def require_same_venue(a, b, who="esta comparacion", nombres=("a", "b")):
+    """Falla si dos datasets sellados vienen de venues distintos.
+
+    Si alguno no trae sello (fichero viejo) NO se inventa: se deja pasar. La
+    guarda solo puede afirmar sobre lo que esta sellado; mentir por omision
+    seria peor que no comprobar.
+    """
+    va, vb = venue_of(a), venue_of(b)
+    if va and vb and va != vb:
+        raise ValueError(
+            "%s cruza venues: %s viene de %s y %s de %s. No son el mismo tape, "
+            "asi que el bar en que salta una barrera se mueve y con el la vida "
+            "del trade. Baja el venue correcto en vez de cruzarlos."
+            % (who, nombres[0], va, nombres[1], vb))
+    return va or vb

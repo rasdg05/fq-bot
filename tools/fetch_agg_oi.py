@@ -35,7 +35,8 @@ import urllib.request
 
 import pandas as pd
 
-OUT_DIR = os.environ.get("FQ_AGG_OI_DIR") or ("/data" if os.path.isdir("/data") else "data/okx")
+OUT_DIR = os.environ.get("FQ_AGG_OI_DIR") or ("/data" if os.path.isdir("/data")
+             else ("data/okx" if os.path.isdir("data/okx") else "data/mercado"))
 LEDGER = os.path.join(OUT_DIR, "agg_oi.parquet")
 CCYS = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "LTC"]
 

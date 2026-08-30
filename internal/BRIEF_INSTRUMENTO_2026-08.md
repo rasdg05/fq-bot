@@ -92,20 +92,37 @@ con el que se cosechó el cube (OKX **spot**), y nada medido encima vale.
 3. **E3 y E4** (el `/salud` y la procedencia). Hacen visible el instrumento.
 4. **E5** (Batches API) abarata el research.
 
-### Deuda conocida, medida, y sin arreglar
+### Deuda que estaba abierta y quedó cerrada (2026-08-30)
 
-- **Franja muerta en los tests.** `volume_quality.is_dead_window()` lee el reloj de pared
-  y **6 tests de `test_tactical_alert.py` se saltan una hora al día** (14:00–15:00 CDMX) y
-  los viernes tarde. Es la misma enfermedad que `tests/test_no_wallclock.py` persigue en el
-  path del motor, pero la invariante no cubre la suite. Arreglo: inyectar reloj congelado.
-  ~20 min. **No está hecho.**
-- **Cruce de venue en la cosecha.** El cube se cosecha sobre OKX **spot**
-  (`cosecha_shard --exchange okx`, el default) y el `CostModel` modela un USDT-**perp** con
-  funding. El funding pesa +0.001R, así que no cambia ningún signo — pero es una mezcla que
-  conviene arreglar en la cosecha, no en el informe.
-- **`fetch_binance_vision_klines` escribe en `data/okx/`** — un directorio con nombre de
-  OKX que guarda velas de BINANCE, y `sl_noise_screen` lee de ahí para compararlo contra
-  cubos de OKX. Trampa activa; los docstrings ya la avisan, el nombre sigue mal.
+- ~~**Franja muerta en los tests.**~~ **ARREGLADO.** Los 6 tests de
+  `test_tactical_alert.py` que se saltaban una hora al día ya no dependen del reloj: la
+  fixture `reloj_fijo` fija el instante (martes 10:00 CDMX) y la lógica real de
+  `is_dead_window` corre entera. No se mockea el veredicto, se fija el instante.
+  **Invariante:** `test_no_wallclock.py::test_ningun_test_se_salta_segun_la_hora` barre
+  `tests/` por AST y falla si alguien vuelve a saltar según la hora. Verificado plantando
+  el patrón: lo detecta.
+- ~~**`fetch_binance_vision_klines` escribe en `data/okx/`.**~~ **ARREGLADO, y era peor
+  de lo que parecía: escribían ahí TRES fetchers de Binance**, no uno. Dos cambios:
+  1. El defecto local pasa a `data/mercado` (neutral), con `data/okx` como fallback si
+     existe — nada se rompe. Producción usa `/data`, no le afecta.
+  2. **El arreglo de verdad: el venue va SELLADO en el dato** (`bt_data.stamp_venue`), no
+     en el nombre del directorio. Los fetchers de velas sellan, el cubo re-etiquetado
+     hereda el sello de sus velas, y `sl_noise_screen` exige que cubo y klines vengan del
+     mismo tape antes de dividir uno por otro. Un fichero sin sello no se inventa: la
+     guarda calla.
+  **Invariante:** `tests/test_venue_procedencia.py`.
+- ~~**Cruce de venue spot/perp.**~~ **NOMBRADO, no silenciado.** `cube_net_expectancy` lee
+  el venue del cube y, si sale de un tape spot mientras el `CostModel` cobra funding (que
+  es de perp), **lo dice en su propia salida**. El funding pesa +0.001R y no cambia ningún
+  signo, por eso avisa en vez de bloquear. **El arreglo de verdad sigue pendiente y es
+  re-cosechar sobre el tape que se opera** — no editar el informe. El aviso lo exige un
+  test, para que el cruce no vuelva a ser silencioso.
+
+### Deuda que sigue abierta
+
+- **Re-cosechar el cube sobre el tape que se opera.** Hoy se etiqueta sobre OKX spot y se
+  ejecuta en perp. Medido, el funding pesa +0.001R — pero la mezcla es real y el día que
+  algo dependa del tape (basis, funding, profundidad) va a morder.
 
 ### Lo que NO se hace
 

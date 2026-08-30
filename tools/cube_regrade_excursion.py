@@ -43,6 +43,7 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import bt_data as btd            # noqa: E402
 import bt_labeler as lb          # noqa: E402
 
 CUBE_DIR = "cosecha_cubes"
@@ -59,7 +60,10 @@ def load_life_candles(sym, kl_dir=KL_DIR):
     if not os.path.exists(path):
         return None
     kl = pd.read_parquet(path).drop_duplicates("ts").sort_values("ts")
-    return kl.set_index(kl["ts"].astype("int64"))[["high", "low", "close"]]
+    cols = ["high", "low", "close"]
+    if btd.VENUE_COL in kl.columns:
+        cols.append(btd.VENUE_COL)
+    return kl.set_index(kl["ts"].astype("int64"))[cols]
 
 
 def regrade(cube, kl):
@@ -95,6 +99,7 @@ def regrade(cube, kl):
         g = lb.label_event_grid(bars, float(row["entry_price"]),
                                 float(row["stop_price"]), int(row["direction"]),
                                 targets, HORIZONS)
+        venue = btd.venue_of(kl)
         for (name, h), cell in g["cells"].items():
             r = dict(row)
             r.update(cell)
@@ -102,6 +107,8 @@ def regrade(cube, kl):
             r["horizon"] = h
             r["mfe_horizon_r"] = g["mfe_horizon_r"][h]
             r["mae_horizon_r"] = g["mae_horizon_r"][h]
+            if venue:
+                r[btd.VENUE_COL] = venue      # el cubo hereda de que tape salio
             filas.append(r)
         diag["ok"] += 1
     return (pd.DataFrame(filas) if filas else None), diag
