@@ -4,10 +4,39 @@
 > vigentes y las invariantes: **no los repitas ni los re-derives**. Esto es solo
 > el trabajo pendiente, en orden.
 
-## ESTADO DEL ENCARGO — leer antes que nada (act. 2026-08-17)
+## ESTADO DEL ENCARGO — leer antes que nada (act. 2026-08-30)
 
-**Nada de E1–E9 está hecho.** Este brief sigue íntegro y sigue siendo el trabajo
-que toca. Lo que cambió es el contexto alrededor:
+**E7 y E8 están HECHOS y CONTESTADOS.** Lo demás (E1–E5, E9) sigue pendiente y sigue
+siendo el trabajo que toca. E6 sigue prohibido.
+
+> **E7 — `internal/EXCURSION_2026-08.md`.** La ENTRADA sí distingue: +3.6 pp de WR sobre
+> un placebo emparejado, IC95% [+2.5, +4.7], n=13.429. La TRAYECTORIA no: 8 de 8 celdas
+> indistinguibles del placebo.
+>
+> **E8 — `internal/E8_BRUTO_NETO_2026-08.md`.** Del bruto no sobrevive nada. Neto −0.023R
+> suponiendo fill exacto en `stop_price` (imposible), −0.170R con medio sobrepaso medido.
+> Ningún símbolo aguanta. Pregunta abierta 6 del GHOST_MAP: contestada.
+>
+> **En una frase: hay señal y no alcanza.** No se sigue que el sistema no pueda funcionar;
+> se sigue que *esta* configuración no, y por cuánto.
+
+### Dos cosas que este brief decía y estaban mal
+
+1. **E7 proponía la lectura de separación de `geometry_report` como veredicto.** Es
+   circular: ganar ES tocar el TP, luego MFE ≥ rr por construcción (96.5% vs 0.0%). El
+   veredicto "separan" salía siempre. Sustituida por `tools/cube_fixed_window.py`
+   (ventana fija + solo vivas en k + placebo obligatorio).
+2. **E7 citaba "MFE +6.66R / MAE −5.65R" del GHOST_MAP H5 como recorrido por señal.** Era
+   la excursión de la ventana del horizonte. En vida el MAE de los ganadores es −0.364R.
+   Ver `CEMENTERIO.md` §Instrumento.
+
+Y una tercera, que no estaba en el brief pero afectaba a su condición de desbloqueo de E6:
+el contrafactual de `geometry_report` **sesgaba a "aprieta el stop"** (+0.083R al
+estrechar). E8 midió después que apretar el stop **encarece** el trade en R.
+
+---
+
+Lo que cambió antes, en agosto:
 
 - **La línea de Polymarket está CERRADA.** Se midieron cuatro pasos (oferta ✓,
   horquilla ✓, Brier ✗, neg_risk ✗) y no hay edge. El venue es bueno y no
@@ -22,10 +51,69 @@ que toca. Lo que cambió es el contexto alrededor:
   dos reglas que los cazaron ya estaban escritas en `CLAUDE.md`. Eso es
   exactamente lo que E1–E9 quiere multiplicar.
 
-**Orden recomendado sin cambios: E7 y E8 primero.** Son los diagnósticos que
+**Orden recomendado (histórico): E7 y E8 primero.** Ya están hechos; se deja el
+razonamiento porque se cumplió: cuatro preguntas caras se contestaron con datos en disco. Son los diagnósticos que
 pueden invalidar el resto, leen datos que ya existen y cuestan poco. La sesión de
 Polymarket es evidencia a favor de ese orden: cuatro preguntas caras se
 contestaron con datos ya en disco, en horas de cómputo, sin arriesgar un peso.
+
+---
+
+## QUÉ TOCA AHORA (act. 2026-08-30) — arranque en frío
+
+```bash
+git fetch origin claude/instrumento-2026-08
+git checkout -b <tu-rama> origin/claude/instrumento-2026-08
+git log origin/main --oneline | grep -i excursion   # ¿vacío? NO está mergeada
+python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt pytest
+.venv/bin/python -m pytest tests/ -q                # ~45 s, debe dar 1372 passed
+```
+
+**Ojo con los datos.** `data/` está en `.gitignore` y el contenedor es efímero: las velas
+de OKX y los cubos re-etiquetados **no viajan con la rama**. Regenerarlos cuesta ~25 min:
+
+```bash
+.venv/bin/python tools/fetch_okx_life_windows.py --workers 5   # ~20 min, 9.127 peticiones
+.venv/bin/python tools/cube_regrade_excursion.py               # debe dar 13/13 a 1.0000
+```
+Si el regrade NO reproduce 1.0000, **para**: significa que las velas no son las del venue
+con el que se cosechó el cube (OKX **spot**), y nada medido encima vale.
+
+### El orden, con lo que ya se sabe
+
+1. **E9 primero** (antes era el último de su grupo). Métrica particionada por régimen con
+   su n, y agregado con asterisco. Sube de prioridad porque E7/E8 acaban de demostrar que
+   un número agregado sobre una sola configuración esconde el problema: el bruto +0.231R
+   y el neto −0.023R son el MISMO set, y solo uno de los dos se citaba.
+2. **E1 y E2** (snapshot de features en el OPEN, y los fires VETADOS). Miden hacia
+   adelante y son lo que permitirá contestar la pregunta que E7/E8 dejan abierta: si la
+   entrada distingue (+3.6 pp) pero no alcanza, ¿hay un subconjunto de entradas con más
+   edge por trade? Eso no se contesta con el cube, se contesta registrando mejor.
+3. **E3 y E4** (el `/salud` y la procedencia). Hacen visible el instrumento.
+4. **E5** (Batches API) abarata el research.
+
+### Deuda conocida, medida, y sin arreglar
+
+- **Franja muerta en los tests.** `volume_quality.is_dead_window()` lee el reloj de pared
+  y **6 tests de `test_tactical_alert.py` se saltan una hora al día** (14:00–15:00 CDMX) y
+  los viernes tarde. Es la misma enfermedad que `tests/test_no_wallclock.py` persigue en el
+  path del motor, pero la invariante no cubre la suite. Arreglo: inyectar reloj congelado.
+  ~20 min. **No está hecho.**
+- **Cruce de venue en la cosecha.** El cube se cosecha sobre OKX **spot**
+  (`cosecha_shard --exchange okx`, el default) y el `CostModel` modela un USDT-**perp** con
+  funding. El funding pesa +0.001R, así que no cambia ningún signo — pero es una mezcla que
+  conviene arreglar en la cosecha, no en el informe.
+- **`fetch_binance_vision_klines` escribe en `data/okx/`** — un directorio con nombre de
+  OKX que guarda velas de BINANCE, y `sl_noise_screen` lee de ahí para compararlo contra
+  cubos de OKX. Trampa activa; los docstrings ya la avisan, el nombre sigue mal.
+
+### Lo que NO se hace
+
+- Tocar TP/SL. Sigue prohibido por E6, y ahora además se sabe que el contrafactual que
+  desbloqueaba ese candado estaba sesgado hacia el lado equivocado.
+- Citar `−0.170R` sin decir que viene de suponer que el stop se come medio sobrepaso.
+- Citar cualquier celda de la rejilla tp×horizonte elegida por ser la mejor: son doce
+  sobre el mismo set, y eso es selección.
 
 ---
 

@@ -9,6 +9,75 @@
 
 ---
 
+## INSTRUMENTO — tres lecturas que medían otra cosa (2026-08-30)
+
+> No son ideas muertas: son **mediciones muertas**. Estaban en el repo, se usaban, y no
+> medían lo que su nombre decía. Quedan aquí para que nadie las resucite citando el
+> número viejo. Radiografías: `internal/EXCURSION_2026-08.md`,
+> `internal/E8_BRUTO_NETO_2026-08.md`.
+
+### MUERTA — "MFE medio +6.66R, MAE medio −5.65R" (GHOST_MAP H5)
+
+- **Qué decía:** el motor corre lejos en ambos sentidos antes de resolver, y
+  *"MAE −5.65 dice que muchos ganadores pasan MUY en contra primero"*.
+- **Por qué murió:** era la excursión de la **ventana del horizonte**, no la del trade.
+  `label_event_grid` indexaba por horizonte y no por `bars_held`, así que acreditaba
+  recorrido POSTERIOR a la muerte de la señal. El +6.66R es exactamente el corte h288.
+- **Cómo se ve sin muestra:** un trade con el stop en −1R **no puede** tener MAE −5.65R
+  y seguir vivo. Medido en vida sobre 30.682 celdas ganadoras: MAE medio **−0.364R**,
+  peor **−1.000R**, y **0.0%** llega a −1R. La lectura estaba invertida: los ganadores
+  apenas sufren.
+- **Sigue siendo cierto** como número del *tape* ("hasta dónde llegó el precio en 288
+  velas"). Falso como recorrido de la señal.
+- **Invariante que lo impide:** `bt_labeler.CUBE_SCHEMA` + `require_life_scoped` +
+  `tests/test_cube_excursion_scope.py` (que además barre `tools/` — así se encontró
+  `sl_noise_screen` leyendo la columna contaminada).
+
+### MUERTA — la lectura de separación de `geometry_report`
+
+- **Qué decía:** *"Separan. Hay margen para que la geometría capture más"* comparando el
+  MFE medio de ganadores contra el de perdedores.
+- **Por qué murió: es circular.** Ganar ES tocar el TP, luego MFE ≥ rr por construcción;
+  perder es no tocarlo, luego MFE < rr. Medido: **96.5% vs 0.0%**. Los grupos no pueden
+  solaparse, así que el veredicto salía SIEMPRE.
+- **Por qué importaba:** el brief la pone como condición de desbloqueo de E6 ("tocar
+  TP/SL: ≥30 cierres + veredicto de `geometry_report`"). Ese candado se abría solo.
+- **Había un test fijándola.** Su fixture era imposible (un perdedor con MFE 1.15 sobre
+  un TP de +1.0R habría ganado). La rama "NO separa" solo era alcanzable con datos que
+  no pueden existir.
+- **Sustituta viva:** `tools/cube_fixed_window.py` — ventana fija, solo señales vivas en
+  k, y **placebo obligatorio dentro del tool**. Sin placebo el recorrido temprano da AUC
+  0.69 y parece separación; el placebo da lo mismo.
+- **Invariante:** `tests/test_geometry_separacion.py`.
+
+### MUERTO — mover el stop con el contrafactual de `geometry_report`
+
+- **Qué decía:** la rejilla TP×SL repreciaba el mismo set bajo otra geometría.
+- **Por qué murió (el eje SL, no el del TP):** medido contra el **camino real** sobre
+  4.668 señales. Como R = |entry − stop|, **SL = 1.00 ES el stop original** y ahí el
+  cálculo es exacto (error −0.006 a +0.022). Fuera de esa columna: **estrechar
+  sobreestima hasta +0.083R, ensanchar subestima hasta −0.052R.** Sobre una expectancy
+  de ~0.2R es un 40%, y el sesgo apunta justo a *"aprieta el stop"*.
+- **Causa:** `mfe_bar`/`mae_bar` marcan el EXTREMO, no el primer cruce del umbral nuevo;
+  y tras el stop original el camino no existe en el dato.
+- **Lo irónico:** E8 midió después que apretar el stop **encarece** el trade en R (el fee
+  es 0.215R porque el stop es estrecho). El tool empujaba hacia el lado equivocado.
+- **El eje del TP sí es fiable** a SL=1.00. La tabla lo declara ahora en su salida.
+
+### NO muerto, pero medido y sin margen — la configuración actual
+
+- 13.429 señales, tp4/h288, `bt_engine.CostModel`: bruto +0.231R → **neto −0.023R**,
+  IC95% [−0.060, +0.014], **suponiendo fill exacto en `stop_price`** (imposible). Con la
+  mitad del sobrepaso medido: **−0.170R**, P(≤0)=1.000.
+- **Ningún símbolo sobrevive.** AVAX salía +0.145R (P=0.034) al fill optimista — 1 de 13
+  a p=0.034, lo esperado por azar — y queda en +0.014 (P=0.449) al fill realista. Los
+  tres del VIP (SOL/BTC/ETH) todos bajo cero.
+- **Condición de desbloqueo (formato E6):** una geometría o un venue de salida cuyo
+  E[R] NETO tenga el IC95% por encima de cero con fill no optimista, n≥100 y pasando el
+  gate. No basta con que el bruto suba.
+
+---
+
 ## POLYMARKET — qué está medido y qué NO (2026-08-17)
 
 > Llegó una lista de 10 repos ("10 free GitHub repos for trading on Polymarket").

@@ -12,18 +12,30 @@ con suscriptores reales. Símbolos: SOL (pilar), BTC, ETH. Disciplina central:
 **measure-first** — nada se cree ni se despliega sin pasar el gate de validación; lo
 que no pasa va al cementerio, honesto.
 
-## Dónde estamos HOY (act. 2026-08-17) — 30 segundos
+## Dónde estamos HOY (act. 2026-08-30) — 30 segundos
 
 - **No hay edge demostrado.** Ninguna configuración medida tiene el IC95% de la expectancy
   por encima de cero. Motor paper con fees: E[R] −0.510 (n=90). Cube bruto: +0.224R. La
-  diferencia **es el coste de ejecución**. Los números vigentes están en `CLAUDE.md`.
+  diferencia **es el coste de ejecución** — y desde ago-2026 está medida, no supuesta.
+  Los números vigentes están en `CLAUDE.md`.
 - **La línea de Polymarket está CERRADA** (ago-2026, 4 pasos medidos, 0 capital). El venue
   es bueno y no tenemos qué venderle. **No re-proponerla** — ni entera ni por partes.
   Ver `CEMENTERIO.md` §Polymarket (incluye el triaje de los 10 repos que la originaron).
-- **El trabajo que toca es `internal/BRIEF_INSTRUMENTO_2026-08.md`**, E7 y E8 primero: son
-  diagnósticos que pueden invalidar el resto y leen datos que ya existen.
-- **Rama con el contexto más fresco:** `claude/polymarket-trading-tools-grx05x`.
-  ⚠️ **`main` NO la tiene mergeada**: arrancar desde `main` re-propondría lo ya muerto.
+- **E7 y E8 están CONTESTADOS** (2026-08-30, `internal/EXCURSION_2026-08.md` y
+  `internal/E8_BRUTO_NETO_2026-08.md`). En una frase: **hay señal y no alcanza.** La
+  entrada bate a un placebo emparejado (+3.6 pp de WR, IC95% [+2.5,+4.7], n=13.429), la
+  trayectoria no aporta nada (8 de 8 celdas indistinguibles), y el coste de ejecución se
+  lleva el edge entero (neto −0.023R con fill imposible; −0.170R con fill realista).
+- **Tres lecturas del repo medían otra cosa de la que decían**, y las tres están
+  cableadas ahora: la excursión del cube era de la VENTANA y no del trade; la separación
+  de `geometry_report` era circular; el contrafactual sesgaba a "aprieta el stop". Ver
+  `CEMENTERIO.md` §Instrumento.
+- **El encargo vigente sigue siendo `internal/BRIEF_INSTRUMENTO_2026-08.md`**, ahora por
+  E1/E2/E9 (miden hacia adelante) — E7/E8 ya no.
+- **Rama con el contexto más fresco:** `claude/instrumento-2026-08`.
+  ⚠️ **`main` NO la tiene mergeada**: arrancar desde `main` re-propondría lo ya muerto y
+  volvería a leer mal la excursión. Comprobar:
+  `git log origin/main --oneline | grep -i excursion` (¿vacío? no está mergeada).
 
 ---
 

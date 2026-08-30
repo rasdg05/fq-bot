@@ -61,6 +61,21 @@ corte direccional por año, escalera de TP, MFE/MAE, por símbolo.
 - **Lectura:** motor de pocos aciertos grandes. La gestión de stop/parciales es donde se
   gana o se tira el edge (MAE −5.65 dice que muchos ganadores pasan MUY en contra primero).
 
+> ⚠️ **CORREGIDO 2026-08-30 — la lectura de arriba está INVERTIDA.** El +6.66R/−5.65R es
+> la excursión de la **ventana del horizonte** (es exactamente el corte h288), no la del
+> trade: `label_event_grid` indexaba por horizonte y no por `bars_held`, así que acreditaba
+> recorrido POSTERIOR a la muerte de la señal, que vive 10 velas medianas.
+>
+> No hace falta muestra para verlo: un trade con el stop en −1R **no puede** tener MAE
+> −5.65R y seguir vivo. Medido en vida sobre 30.682 celdas ganadoras: **MAE medio −0.364R,
+> peor −1.000R, 0.0% llega a −1R**. Los ganadores **apenas sufren**; no "pasan muy en
+> contra primero".
+>
+> El +6.66R sigue siendo cierto como número del *tape* ("hasta dónde llegó el precio en 288
+> velas"). Es falso como recorrido de la señal. Se deja el texto original a la vista, no
+> borrado — misma política que las 23 filas del fantasma.
+> Detalle: `internal/EXCURSION_2026-08.md`.
+
 ### H6 · El edge no está parejo entre símbolos
 - Top R total: BCH +531, ETH +324, AVAX +313, LTC +295, BTC +226. Cola: XRP +100, TRX +27.
 - Mismo motor, misma cosecha — el edge vive con distinta fuerza en cada tape. Candidato a
@@ -132,7 +147,12 @@ El gate previno dos overfits (umbral KL, score p_master). Measure-first funcion�
 2. ¿El motor debe ser **direccionalmente neutro** (tomar long y short según régimen) en vez
    de sesgado? ¿Qué señal de régimen predice qué lado gana el próximo trimestre?
 3. ¿p_master aporta separación real fuera de muestra, o es decoración? (decil vs pnl_r en 13k).
-4. ¿La gestión de MAE (−5.65R medio antes de ganar) se puede mejorar sin matar los ganadores
+4. ~~¿La gestión de MAE (−5.65R medio antes de ganar) se puede mejorar sin matar los ganadores~~
+   **CAE (2026-08-30):** la premisa era falsa. El MAE de los ganadores en vida es −0.364R,
+   no −5.65R, y ningún ganador llega a −1R (no puede). No hay nada que gestionar ahí.
+   La pregunta que la sustituye está en E8: el stop no se llena donde el cube cree.
+   _(texto original abajo, para trazabilidad)_
+4b. ¿La gestión de MAE (−5.65R medio antes de ganar) se puede mejorar sin matar los ganadores
    grandes? (¿stops más anchos + size menor?).
 5. ¿Por qué XRP/TRX no separan? ¿Microestructura, o el edge es cripto-beta disfrazada?
 6. Coste de ejecución real: el cube es bruto. ¿Cuánto del +0.224R sobrevive slippage/funding/

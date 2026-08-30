@@ -4,11 +4,41 @@
 > es plan en papel. Si la fecha de abajo es vieja, confírmala contra `git log` y `research/*.md`
 > antes de confiar. Fecha de corte: **2026-06-30** (HEAD: `ead6809`).
 >
+> **Añadido 2026-08-30 — E7 y E8 contestados.** Ver el bloque justo debajo de este
+> recuadro; es lo más fresco del fichero y lo que decide qué toca ahora.
+>
 > **Añadido 2026-08-17:** la línea de Polymarket se abrió y se CERRÓ en el mismo día, con
 > cuatro pasos medidos y cero capital (ver la sección al final de "Qué está vivo / dormido /
 > midiendo / pendiente"). El resto de esta foto sigue con corte de junio: los números vigentes
 > de agosto (track record n=12, motor paper −0.510R) están en `CLAUDE.md`, que es la fuente más
 > fresca. **El trabajo que toca ahora es `internal/BRIEF_INSTRUMENTO_2026-08.md`, E7 y E8.**
+
+---
+
+## E7 / E8 — CONTESTADOS (2026-08-30)
+
+> `internal/EXCURSION_2026-08.md` · `internal/E8_BRUTO_NETO_2026-08.md`
+> Muestra: las 13.429 señales canónicas, 13 símbolos, velas de OKX spot re-etiquetadas
+> con reproducción 1.0000 contra el cube original.
+
+**En una frase: hay señal, y no alcanza.**
+
+| pregunta | veredicto | número |
+|---|---|---|
+| ¿La ENTRADA distingue? | **SÍ** | +3.6 pp de WR sobre placebo emparejado, IC95% [+2.5, +4.7] |
+| ¿La TRAYECTORIA anticipa? | **NO** | 8 de 8 celdas con el IC de la diferencia cruzando cero |
+| ¿Sobrevive el bruto a los costes? | **NO** | neto −0.023R con fill imposible; −0.170R con fill realista (P=1.000) |
+| ¿Algún símbolo aguanta? | **NINGUNO** | AVAX era 1 de 13 a p=0.034; al fill realista, P=0.449 |
+
+**Lo que NO se sigue:** que el sistema no pueda funcionar. Se sigue que *esta*
+configuración no, y por cuánto. Las palancas que señala el dato (ninguna medida aún, y
+E6 prohíbe tocar TP/SL sin gate): stop más ancho —sube R y diluye el fee medido en R—,
+salida no-taker donde se pueda, o menos trades con más edge cada uno.
+
+**Efecto colateral que sí importa:** el fee pesa 0.215R **porque el stop es estrecho**,
+no porque sea alto. Apretar el stop encarece el trade en las unidades en las que se
+juzga. Eso invierte una intuición que el propio contrafactual de `geometry_report`
+empujaba (y que estaba sesgada: ver `CEMENTERIO.md` §Instrumento).
 
 ---
 

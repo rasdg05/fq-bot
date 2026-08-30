@@ -816,7 +816,94 @@ opinión con decimales).
 | Híbrido data/venue | TradFi: validar en Dukascopy, ejecutar en perp | `fetch_dukascopy.py`, #116/#122 | Cosecha XAU+NQ en marcha |
 | Deploy hygiene | docs no re-despliegan; blacklist = fallo seguro | `railway.toml`, #138 | VIVO |
 | Producto 2 tiers | UN SOLO canal: tier "free" de la BD recibe el firehose etiquetado; VIP el filtrado; candado VIP→FREE | `_free_broadcast`, `build_free_signal`, `free_leak_guard` | Cableado (dormido: `FQ_FREE_TIER` + `FQ_FREE_TO_VIP`) |
+| Excursión: vida ≠ ventana | el nombre es cableado; un cubo viejo se detecta por la AUSENCIA de `mfe_horizon_r` | `bt_labeler.py`, `test_cube_excursion_scope.py` | **CABLEADO** (ago-2026) |
+| Separación sin placebo no vale | AUC 0.69 del recorrido temprano = propiedad del camino, no de la señal | `tools/cube_fixed_window.py` | **CABLEADO**; la entrada sí gana (+3.6pp) |
+| El fill del stop se barre | rango 0–100% del sobrepaso, nunca un punto | `tools/cube_net_expectancy.py` | **CABLEADO**; E8 contestado |
 | Polymarket: cancha antes que estrategia | oferta ✓, horquilla ✓, señal ✗, arb ✗ — el venue es bueno y no tenemos qué venderle | `tools/polymarket_{supply,spread,brier,negrisk}.py`, `internal/POLYMARKET_*_2026-08.md` | **LÍNEA CERRADA**, 0 capital, 4 pasos medidos |
+
+---
+
+## 23. El nombre de una columna es cableado, no documentación (2026-08-30)
+
+**Decisión.** Cuando dos rutas de código producen cosas distintas, **no comparten
+nombre**. `label_event` (una señal) y `label_event_grid` (el cube) exportaban las dos
+`mfe_r`/`mae_r` y no eran lo mismo: la primera corta al tocar la barrera, la segunda
+recorría la ventana entera del horizonte. Ahora la del cube se llama `mfe_horizon_r` y
+`mfe_r` queda reservado a la excursión EN VIDA, que es la de `execution.PaperBroker` y la
+única comparable con el ledger.
+
+**Por qué.** Esto es la lección de julio con otra ropa. El fantasma fueron 23 filas
+escritas en 763 ms por un tracker sin horizonte; esto son tres columnas cuyo nombre no
+correspondía a lo que medían. En los dos casos el repo **ya lo sabía a medias**:
+`tools/trailing_backtest.py` explica en su docstring que la excursión del cube incluye el
+movimiento post-salida y por eso camina las velas. Era una nota, no una invariante — y
+mientras tanto `sl_noise_screen` seguía leyendo la columna contaminada y GHOST_MAP H5
+publicaba +6.66R.
+
+**Por qué renombrar y no "añadir al lado".** Se consideró dejar `mfe_r` como estaba y
+sumar `mfe_life_r`. Se descartó: el nombre ambiguo sobreviviría y el test sería la única
+barrera. Renombrar rompe lectores y obliga a mirarlos uno a uno, que es exactamente lo
+que hacía falta.
+
+**Cómo se hace cumplir.** Un cubo viejo NO se distingue por su contenido (mismas
+columnas, otro significado) sino por la AUSENCIA de `mfe_horizon_r`. De ahí
+`CUBE_SCHEMA` + `require_life_scoped()`, y un test que **barre `tools/`** exigiendo la
+guarda a quien lea la excursión de un cube. Ese barrido encontró `sl_noise_screen`; no lo
+encontró nadie leyendo código.
+
+**Evidencia.** `bt_labeler.py`, `tests/test_cube_excursion_scope.py`,
+`internal/EXCURSION_2026-08.md`. Commits `0ca910d`, `5bfa83e`.
+
+---
+
+## 24. Una lectura de separación no vale sin placebo (2026-08-30)
+
+**Decisión.** Ninguna afirmación de que "la señal distingue" se publica sin una **entrada
+de control** medida en el mismo dato. `tools/cube_fixed_window.py` no sabe imprimir el
+número solo: siempre sale contra su placebo y lo que se lee es la diferencia con su IC.
+
+**Por qué.** El recorrido temprano da **AUC 0.69** sobre las señales del motor, estable
+en k, con IC muy por encima de 0.50. Parece separación y no lo es: una entrada arbitraria
+sobre la misma cinta, mismo día, misma dirección y misma geometría relativa da lo mismo
+(diferencia +0.000 / −0.012). Lo que medía no era la señal, era que el precio que ya se
+movió hacia el TP lo tiene más cerca — una propiedad del camino que cumple cualquiera.
+
+**El corolario incómodo.** La lectura de separación que ya existía en `geometry_report`
+era **circular por construcción**: ganar ES tocar el TP, luego MFE ≥ rr (96.5% vs 0.0%).
+Su veredicto no podía no salir, y el brief la usaba como candado de E6.
+
+**Lo que sí sobrevivió al placebo.** La ENTRADA: +3.6 pp de WR, IC95% [+2.5, +4.7],
+P(diff≤0)=0.000 sobre 13.429 señales. El emparejamiento sesga en contra (el placebo
+hereda el régimen que disparó la señal), así que es un suelo.
+
+**Evidencia.** `tools/cube_fixed_window.py`, `tests/test_geometry_separacion.py`,
+`tests/test_cube_fixed_window.py`, `internal/EXCURSION_2026-08.md`. Commits `9d8f03d`,
+`a92708b`, `28c2a51`.
+
+---
+
+## 25. El fill del stop se barre, no se estima (2026-08-30)
+
+**Decisión.** El coste del stop se reporta como **rango**, no como punto. Una orden stop
+es market: se llena entre el nivel y el extremo de la vela, y ese punto **no está en el
+dato de velas**. `cube_net_expectancy --fill-overshoot` enseña 0% / 25% / 50% / 100% del
+sobrepaso y obliga a citar el supuesto junto al número.
+
+**Por qué.** El cube asume fill exacto en `stop_price`. Medido sobre 49.808 pérdidas, la
+vela que dispara el stop se pasa **+0.388R de media** (p90 +0.902R). Poner un punto ahí
+sería inventar microestructura que el backtest no tiene.
+
+**Lo que contestó.** La pregunta abierta 6 del GHOST_MAP: del bruto **no sobrevive nada**.
+Neto −0.023R con el fill imposible (P≤0 = 0.893) y −0.170R con medio sobrepaso (P=1.000),
+contra −0.510R del motor vivo. El barrido cubre la mayor parte del hueco; lo que queda es
+fill maker y selección adversa, ya medido por otra vía.
+
+**Asimetría que no se compensa.** El TP también se sobrepasa (+0.485R medido) pero es
+orden LÍMITE: se llena a tu precio y ese exceso ni se cobra ni se paga. El del stop sí se
+come. Va de un solo lado, y el test lo fija para que nadie los cruce.
+
+**Evidencia.** `tools/cube_net_expectancy.py`, `tests/test_cube_net_expectancy.py`,
+`internal/E8_BRUTO_NETO_2026-08.md`. Commit `85fc03f`.
 
 ---
 
@@ -830,5 +917,5 @@ opinión con decimales).
 6. **No hay veto sin dato**: `FQ_CVD_FILTER`, `FQ_PERSIST_BOOST`, etc. son flags con criterio de
    ON/OFF documentado en el plan.
 
-_Actualizado: 2026-06-30. Fuente de verdad: `git log`, `research/*.md`, `tools/validation_gate.py`,
+_Actualizado: 2026-08-30. Fuente de verdad: `git log`, `research/*.md`, `tools/validation_gate.py`,
 `motor_paper.py`, `launcher.py`, `tools/fetch_dukascopy.py`, `volume_profile.py`, `railway.toml`, `tests/`._
