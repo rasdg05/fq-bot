@@ -8,6 +8,10 @@
 > escribir código, no después. Lo que se decida aquí se cablea en invariantes
 > (§7), no en buenas intenciones.
 
+**Para el equipo:** `vault/liquidez-flujo.png` es esta decisión en una imagen —lo que
+corre hoy contra lo recomendado, con el argumento de ingreso encima. Se regenera con
+`vault/liquidez-flujo.html` (Chromium headless, ancho 1640, escala 2).
+
 ---
 
 ## 0. La ambigüedad que decide todo el resto

@@ -1,0 +1,232 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8">
+<style>
+@font-face{font-family:"Fraunces";src:url("file:///home/user/fq-bot/marea/public/fonts/fraunces-600.woff2") format("woff2");font-weight:600 700;}
+@font-face{font-family:"Hanken";src:url("file:///home/user/fq-bot/marea/public/fonts/hanken-400.woff2") format("woff2");font-weight:400;}
+@font-face{font-family:"Hanken";src:url("file:///home/user/fq-bot/marea/public/fonts/hanken-500.woff2") format("woff2");font-weight:500 600;}
+@font-face{font-family:"Hanken";src:url("file:///home/user/fq-bot/marea/public/fonts/hanken-700.woff2") format("woff2");font-weight:700 800;}
+:root{
+  --paper:#f5f3ec; --card:#ffffff; --card2:#ede8dc;
+  --ink:#12262a; --ink2:#3c5250; --muted:#697a78;
+  --teal:#0b6b6e; --teal-deep:#084f52; --teal-soft:#e2eeec;
+  --line:rgba(11,107,110,.22); --line2:rgba(18,38,42,.10);
+  --dn:#a8412b; --dn-soft:#f7e6e0; --up:#157048; --hot:#8a5a0b;
+  --display:"Fraunces",Georgia,serif; --sans:"Hanken",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:1640px;height:auto;background:var(--paper);color:var(--ink);
+  font-family:var(--sans);font-size:15px;line-height:1.45;padding:40px 44px 34px;
+  -webkit-font-smoothing:antialiased;display:flex;flex-direction:column;gap:22px}
+
+/* ---------- cabecera ---------- */
+.top,.cols,.levers,.foot{flex:none}
+.top{display:flex;justify-content:space-between;align-items:flex-end;
+  border-bottom:2px solid var(--ink);padding-bottom:18px}
+.eyebrow{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--teal);font-weight:700;margin-bottom:10px}
+h1{font-family:var(--display);font-weight:600;font-size:46px;line-height:1.02;letter-spacing:-.02em}
+h1 em{font-style:normal;color:var(--teal)}
+.sub{font-size:16.5px;color:var(--ink2);margin-top:9px;max-width:62ch}
+.stamp{border:1.5px solid var(--line);border-radius:11px;padding:12px 16px;background:var(--card);
+  text-align:right;min-width:270px}
+.stamp .k{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.stamp .v{font-family:var(--mono);font-size:14px;color:var(--ink);margin-top:5px}
+.stamp .v b{color:var(--dn)}
+
+/* ---------- columnas ---------- */
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:26px;flex:0 0 auto}
+.card{background:var(--card);border:1.5px solid var(--line2);border-radius:16px;
+  padding:20px 22px 18px;display:flex;flex-direction:column;gap:0}
+.card.reco{border-color:var(--teal);border-width:2px;box-shadow:0 2px 0 rgba(11,107,110,.10)}
+.chip{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;
+  padding:4px 11px;border-radius:999px;background:var(--card2);color:var(--muted);align-self:flex-start}
+.card.reco .chip{background:var(--teal);color:#fff}
+.card h2{font-family:var(--display);font-weight:600;font-size:24px;margin:11px 0 4px;letter-spacing:-.01em}
+.thesis{font-size:14px;color:var(--ink2);min-height:40px}
+.card.reco .thesis b{color:var(--teal-deep)}
+
+/* ---------- flujo ---------- */
+.flow{margin-top:14px;display:flex;flex-direction:column;align-items:stretch;gap:0}
+.node{border:1.4px solid var(--line2);background:var(--card2);border-radius:10px;padding:9px 13px}
+.node .t{font-size:14.5px;font-weight:700}
+.node .d{font-size:12.5px;color:var(--muted);font-family:var(--mono);margin-top:2px}
+.node.key{background:var(--teal-soft);border-color:var(--teal);border-width:1.6px}
+.node.key .t{color:var(--teal-deep)}
+.node.warn{background:var(--dn-soft);border-color:rgba(168,65,43,.4)}
+.node.warn .t{color:var(--dn)}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.arr{display:flex;align-items:center;gap:8px;padding:6px 0 6px 16px;color:var(--muted)}
+.arr .bar{width:1.6px;height:20px;background:var(--muted);position:relative}
+.arr .bar::after{content:"";position:absolute;bottom:-1px;left:-3.2px;border-left:4px solid transparent;
+  border-right:4px solid transparent;border-top:6px solid var(--muted)}
+.arr.key{color:var(--teal)}
+.arr.key .bar{background:var(--teal)}
+.arr.key .bar::after{border-top-color:var(--teal)}
+.arr .lb{font-size:12.5px;font-family:var(--mono)}
+.split{display:flex;gap:0;padding-left:16px}
+.side{display:flex;align-items:center;gap:8px;font-size:12.5px;font-family:var(--mono);color:var(--muted)}
+.money{margin-top:16px;border-top:1px dashed var(--line);padding-top:11px}
+.money .cap{font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:7px}
+.money .row{display:flex;justify-content:space-between;gap:14px;padding:3.5px 0;font-size:13.5px;border-bottom:1px solid rgba(18,38,42,.06)}
+.money .row:last-child{border-bottom:none}
+.money .row span:first-child{color:var(--ink2)}
+.money .row span:last-child{font-family:var(--mono);font-weight:700;text-align:right;white-space:nowrap}
+.money .bad{color:var(--dn)} .money .good{color:var(--up)} .money .eq{color:var(--ink)}
+.note{margin-top:auto;padding-top:14px;font-size:13px;display:flex;gap:9px;align-items:flex-start;color:var(--ink2)}
+.note .mk{font-weight:700;font-size:15px;line-height:1.2}
+.note.bad .mk{color:var(--dn)} .note.bad b{color:var(--dn)}
+.note.good .mk{color:var(--up)} .note.good b{color:var(--teal-deep)}
+
+/* ---------- marcador ---------- */
+.score{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line2);
+  border:1px solid var(--line2);border-radius:10px;overflow:hidden;margin-top:14px}
+.score div{background:var(--card);padding:9px 11px}
+.card.reco .score div{background:#fbfdfc}
+.score .k{font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.score .v{font-family:var(--mono);font-size:15px;font-weight:700;margin-top:3px}
+.score .v.bad{color:var(--dn)} .score .v.good{color:var(--up)} .score .v.eq{color:var(--ink2)}
+
+/* ---------- palancas ---------- */
+.levers{border-top:2px solid var(--ink);padding-top:18px;display:grid;
+  grid-template-columns:auto repeat(3,1fr);gap:22px;align-items:start}
+.levers .lead{max-width:190px}
+.levers .lead .h{font-family:var(--display);font-size:23px;font-weight:600;line-height:1.1}
+.levers .lead .p{font-size:12.5px;color:var(--muted);margin-top:6px}
+.lever{border-left:2.5px solid var(--teal);padding-left:14px}
+.lever .n{font-family:var(--mono);font-size:12px;color:var(--teal);font-weight:700}
+.lever .t{font-size:15px;font-weight:700;margin:3px 0 4px;line-height:1.25}
+.lever .d{font-size:12.8px;color:var(--ink2);line-height:1.42}
+.foot{display:flex;justify-content:space-between;align-items:center;gap:24px;
+  background:var(--card);border:1.5px solid rgba(168,65,43,.28);border-radius:12px;
+  padding:13px 18px;font-size:13.5px;color:var(--ink2)}
+.foot .warn{color:var(--dn);font-weight:700}
+.foot b{color:var(--dn)}
+.foot .src{font-family:var(--mono);font-size:11.5px}
+</style></head><body>
+
+<div class="top">
+  <div>
+    <div class="eyebrow">Marea · protocolo de liquidez</div>
+    <h1>El pozo deja de jugar<em>.</em> <em>Y por eso cobra.</em></h1>
+    <div class="sub">El flujo que corre hoy y el que recomendamos, lado a lado. El cambio no es
+    cosmético: mueve el capital de la casa fuera del riesgo y lo pone a abrir mercados.</div>
+  </div>
+  <div class="stamp">
+    <div class="k">Estado hoy</div>
+    <div class="v">facturación · <b>0</b></div>
+    <div class="v">se juega con <b>puntos</b></div>
+    <div class="v">elegibilidad · <b>pendiente</b></div>
+  </div>
+</div>
+
+<div class="cols">
+
+  <!-- ================= HOY ================= -->
+  <div class="card">
+    <span class="chip">Hoy · en producción</span>
+    <h2>Parimutuel con semilla</h2>
+    <div class="thesis">La casa siembra el pozo para que el mercado arranque. Esa semilla
+    <b>es una apuesta</b>: cae del lado que cae.</div>
+
+    <div class="flow">
+      <div class="pair">
+        <div class="node"><div class="t">Casa</div><div class="d">semilla 100 + 100</div></div>
+        <div class="node"><div class="t">Usuarios</div><div class="d">apuestan a un lado</div></div>
+      </div>
+      <div class="arr"><div class="bar"></div><span class="lb">todo entra al mismo pozo</span></div>
+      <div class="node"><div class="t">POZO parimutuel</div><div class="d">precio + custodia + reparto, todo junto</div></div>
+      <div class="arr"><div class="bar"></div><span class="lb">resuelve el oráculo</span></div>
+      <div class="node"><div class="t">Reparto a los ganadores</div><div class="d">− 300 bps → tesorería</div></div>
+      <div class="arr"><div class="bar"></div><span class="lb">y la semilla corre la misma suerte</span></div>
+      <div class="node warn"><div class="t">La semilla puede volver 0</div><div class="d">capital propio expuesto al resultado</div></div>
+    </div>
+
+    <div class="money">
+      <div class="cap">El dinero, en un mercado de 10,000</div>
+      <div class="row"><span>Comisión al resolver</span><span class="eq">300</span></div>
+      <div class="row"><span>Capital de la casa comprometido</span><span class="bad">200 · expuesto al resultado</span></div>
+      <div class="row"><span>Si el mercado se anula (R-059)</span><span class="bad">comisión 0</span></div>
+    </div>
+
+    <div class="note bad"><span class="mk">▲</span><div>Cada mercado nuevo <b>inmoviliza capital
+    que puede perderse</b>. El catálogo crece al ritmo del dinero que estamos dispuestos a arriesgar.</div></div>
+
+    <div class="score">
+      <div><div class="k">Capital propio</div><div class="v bad">en riesgo</div></div>
+      <div><div class="k">Comisión</div><div class="v eq">300 bps</div></div>
+      <div><div class="k">Descuadre</div><div class="v bad">se ve después</div></div>
+    </div>
+  </div>
+
+  <!-- ============== RECOMENDADO ============== -->
+  <div class="card reco">
+    <span class="chip">Recomendado · fases L1–L3</span>
+    <h2>Cámara de compensación</h2>
+    <div class="thesis">El colateral lo ponen las dos partes. La casa <b>no tiene lado</b>:
+    acuña conjuntos completos y cobra por operar la resolución.</div>
+
+    <div class="flow">
+      <div class="pair">
+        <div class="node"><div class="t">Taker</div><div class="d">paga 0.60 × 10,000</div></div>
+        <div class="node"><div class="t">Maker</div><div class="d">paga 0.40 × 10,000</div></div>
+      </div>
+      <div class="arr key"><div class="bar"></div><span class="lb">colateral de ambos = 10,000</span></div>
+      <div class="node key"><div class="t">CÁMARA · acuña conjuntos</div><div class="d">1 colateral = un contrato de cada resultado</div></div>
+      <div class="arr key"><div class="bar"></div><span class="lb">resuelve el oráculo · quema</span></div>
+      <div class="node"><div class="t">Paga 1 × contrato ganador</div><div class="d">− 300 bps → tesorería, mismo asiento</div></div>
+      <div class="arr key"><div class="bar"></div><span class="lb">y el libro se revisa solo</span></div>
+      <div class="node key"><div class="t">Capital propio: se movió 0</div><div class="d">con SÍ o con NO · exposición neta = 0</div></div>
+    </div>
+
+    <div class="money">
+      <div class="cap">El dinero, en el mismo mercado de 10,000</div>
+      <div class="row"><span>Comisión al resolver</span><span class="eq">300 · idéntica</span></div>
+      <div class="row"><span>Colateral que pone la casa</span><span class="good">0 · lo ponen las dos partes</span></div>
+      <div class="row"><span>Capital de la casa comprometido</span><span class="good">subsidio topado · coste conocido</span></div>
+    </div>
+
+    <div class="note good"><span class="mk">▲</span><div>Compensar <b>no cuesta capital</b>. El
+    presupuesto de la casa deja de ser semilla en riesgo y pasa a ser subsidio topado: coste
+    conocido antes de ponerlo.</div></div>
+
+    <div class="score">
+      <div><div class="k">Capital propio</div><div class="v good">0 en riesgo</div></div>
+      <div><div class="k">Comisión</div><div class="v eq">300 bps · igual</div></div>
+      <div><div class="k">Descuadre</div><div class="v good">para la creación</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="levers">
+  <div class="lead">
+    <div class="h">De dónde sale el dinero</div>
+    <div class="p">No se toca la comisión. Se cambia lo que hay debajo de ella.</div>
+  </div>
+  <div class="lever">
+    <div class="n">01</div>
+    <div class="t">El mismo peso abre más mercados</div>
+    <div class="d">Hoy cada mercado inmoviliza semilla que puede perderse. Con la cámara el
+    colateral lo ponen los usuarios y el capital de la casa sólo cubre el arranque. Más pozos
+    vivos con el mismo presupuesto = más pozos cobrando 300 bps.</div>
+  </div>
+  <div class="lever">
+    <div class="n">02</div>
+    <div class="t">Ninguna comisión se evapora</div>
+    <div class="d">Fee y colateral en cuentas distintas, asentados en el mismo movimiento. Ya
+    pasó una vez que se calculaba y desaparecía (R-064). Deja de depender de acordarse.</div>
+  </div>
+  <div class="lever">
+    <div class="n">03</div>
+    <div class="t">Es la versión que se puede llevar a un abogado</div>
+    <div class="d">Un pozo que demostrablemente no toma el lado contrario es una pregunta legal
+    respondible. Hoy facturamos 0 porque no hay dinero real: esto es lo que hace que pedirlo
+    tenga respuesta.</div>
+  </div>
+</div>
+
+<div class="foot">
+  <div><span class="warn">Lo que NO cambiamos todavía:</span> fees taker/maker a 10 bps.
+  Necesitan <b>50× la rotación de hoy</b> para igualar los 300 bps sobre el pozo. Eso se mide en L3, no se asume.</div>
+  <div class="src">marea/vault/LIQUIDEZ.md · rama claude/marea-liquidity-flow-8ybf5l · diseño, nada desplegado</div>
+</div>
+
+</body></html>
