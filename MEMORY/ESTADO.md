@@ -223,7 +223,9 @@ La app de `marea/`. **No es el bot** y no comparte motor, pero sí memoria y dis
 | Ciclo automático | **vivo**: `roll.mts` crea, `settle.mts` / `ciclo.mts` cierran, leen, disputan y pagan |
 | Contrato de custodia | interfaz **definida y declarada simulada** (`custodia/contrato.ts`) |
 | Cámara de compensación | **diseño** — ni una línea desplegada |
-| Arquitectura en cadena | **diseño** — Base propuesta, nada firmado |
+| Arquitectura en cadena | **diseño** — **Base decidida** (2026-09-01), nada desplegado |
+| Semilla | hoy **apuesta** (puede cobrar). **Decidido pasarla a subsidio**; sin cablear |
+| Reglas | **R-065 a R-068 escritas** — 68 en `RULINGS.md` |
 
 **Lo que bloquea el primer peso no es código**: es la opinión legal por país (paso 04 del
 camino). Todo el tramo A (compensador puro, asientos, funding con freno) se puede cablear

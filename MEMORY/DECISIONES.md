@@ -665,7 +665,8 @@ siguen sin ningún nivel, y los niveles siguen al `ANALISIS_ANCHOR_TF` si cambia
 | Deploy hygiene | docs no re-despliegan; blacklist = fallo seguro | `railway.toml`, #138 | VIVO |
 | **Marea: pozo = cámara** | El pozo sólo acuña/quema conjuntos completos ⇒ exposición neta 0 por construcción. La alternativa (creador de mercado) rompe R-057 | `MEMORY/marea/README.md`, `marea/vault/LIQUIDEZ.md`, `c1f936d` | Diseño, nada desplegado |
 | **Marea: fee base varianza** | `f·q·p·(1−p)` (forma Kalshi) es simétrica: cobra igual SÍ a 0.80 que NO a 0.20. Sobre la prima el taker pagaría 4× el maker por la misma operación | `MEMORY/marea/README.md` §3, `56d99b7` | Propuesta, pendiente de RasDG |
-| **Marea: Base para la cámara** | USDC nativo, gas en centavos, rampa Coinbase en Latam. Tron es el riel real de USDT pero sin CTF y con perfil legal pesado ⇒ sólo rampa de depósito | `MEMORY/marea/README.md` §4 | Propuesta |
+| **Marea: Base para la cámara** | USDC nativo, gas en centavos, rampa Coinbase en Latam. Tron es el riel real de USDT pero sin CTF y con perfil legal pesado ⇒ sólo rampa de depósito | `MEMORY/marea/README.md` §4, R-065 | **Decidido 2026-09-01** |
+| **Marea: semilla = subsidio** | La casa deja de cobrar del lado ganador: su semilla se reparte entre quienes acertaron. Cuesta S siempre — ese es el precio de "la casa nunca gana cuando tú pierdes" | `marea/vault/RULINGS.md` R-067, `LIQUIDEZ.md` §6.1 | **Decidido 2026-09-01**, sin cablear |
 | Producto 2 tiers | UN SOLO canal: tier "free" de la BD recibe el firehose etiquetado; VIP el filtrado; candado VIP→FREE | `_free_broadcast`, `build_free_signal`, `free_leak_guard` | Cableado (dormido: `FQ_FREE_TIER` + `FQ_FREE_TO_VIP`) |
 
 ---

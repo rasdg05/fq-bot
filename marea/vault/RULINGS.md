@@ -189,3 +189,17 @@ Se agrega una línea cuando un hallazgo de audit es recurrente o de producto.
 - **R-064** — Toda comisión que se resta del reparto tiene que llegar a algún
   lado, con asiento, fecha y mercado. Una comisión que se calcula y desaparece
   es la forma exacta de perderle la pista al dinero. (contabilidad)
+- **R-065** — El pozo es cámara de compensación, nunca creador de mercado. Sólo
+  acuña y quema conjuntos completos, y su exposición neta a cualquier resultado es
+  cero por construcción. Un pozo que puede ganar cuando el usuario pierde es la casa
+  disfrazada de infraestructura. (liquidez)
+- **R-066** — El colateral de terceros y el capital propio son cuentas distintas y
+  nunca se netean. Sentirse solvente con dinero ajeno en la misma caja es cómo
+  quiebra un intermediario. (contabilidad)
+- **R-067** — Toda liquidez que la casa aporta es subsidio declarado con tope, y
+  **nunca cobra**: cuando cae del lado ganador, su parte se reparte entre quienes
+  acertaron. Cuesta lo mismo gane quien gane, y ese coste se conoce antes de ponerlo.
+  Por eso el multiplicador que se muestra ya descuenta la semilla: el número que se
+  enseña sigue siendo el que se cobra (R-044). (liquidez)
+- **R-068** — Si el libro no cuadra, se dejan de crear mercados. Un descuadre con
+  mercados nuevos encima es un descuadre que ya no se puede rastrear. (contabilidad)

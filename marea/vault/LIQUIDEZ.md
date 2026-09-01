@@ -310,6 +310,9 @@ El capital hace falta para una sola cosa: que el mercado no esté vacío cuando
 llega el primer usuario. Y ahí choca de frente con R-057 — la casa **no puede**
 tomar el lado contrario para dar liquidez. Las salidas honestas son tres:
 
+**DECIDIDO (2026-09-01, RasDG): subsidio declarado, y la semilla de hoy se convierte
+en subsidio.** Lo que sigue queda como registro de las alternativas descartadas.
+
 | Opción | Cómo funciona | Varianza | Veredicto |
 |---|---|---|---|
 | **Subsidio declarado** | La casa pone S al mercado. S se reparte entre quienes acierten, pase lo que pase. Es un premio, no una posición: la casa nunca cobra de S | Coste **conocido y acotado** = S. Nunca gana | **Recomendada.** Es lo único que no puede ganarle al usuario |
@@ -324,6 +327,44 @@ semilla de hoy es una posición pequeña, no un subsidio. Si se adopta el modelo
 de subsidio, esa parte hay que cambiarla explícitamente: la porción de la
 semilla que le tocaría cobrar se redistribuye entre los usuarios ganadores en
 lugar de volver a tesorería.
+
+### 6.1 Qué cambia exactamente al convertir la semilla en subsidio
+
+Hoy la semilla entra al pozo como apuesta y `settle()` la incluye en el denominador
+del lado ganador, así que su parte del reparto **se queda en el pozo — la casa la
+cobra**:
+
+```
+hoy        winnerStake = Σ apuestas ganadoras + semilla_ganadora
+           payout_i    = stake_i / winnerStake × distributable
+
+subsidio   usuariosGanadores = winnerStake − semilla_ganadora
+           payout_i          = stake_i / usuariosGanadores × distributable
+```
+
+**El multiplicador tiene que moverse en el mismo commit.** `payoutMultiplier` divide
+hoy por `outcomeStake(id) + stake`; con subsidio divide por
+`outcomeStake(id) − semilla(id) + stake`. Si sólo cambia `settle()`, la app muestra
+**menos** de lo que paga — que sigue siendo mentir, aunque sea en la dirección
+generosa (R-023, R-044).
+
+*El test que lo fija:* para cualquier pozo y cualquier apuesta, `quote(...).toWin`
+es exactamente `settle(...).payouts[esa apuesta]` cuando ese lado gana. Es la versión
+ejecutable de R-044.
+
+*Casos borde:* si el lado ganador sólo tiene semilla —ningún usuario acertó— el
+denominador es cero: se devuelve todo sin comisión, como hoy (R-024), y la semilla
+vuelve a tesorería. R-059 sigue anulando el mercado de un solo apostador.
+
+*El coste que compra la frase:* hoy la semilla **vuelve** cuando cae del lado
+ganador. Como subsidio no vuelve nunca: **cuesta S en todos los mercados, gane quien
+gane.** Con puntos da igual; con dinero, es exactamente el número que el tope de L9
+tiene que acotar. Por eso el freno deja de ser opcional.
+
+*La trampa de migración:* **no se aplica a mercados ya abiertos.** Cambiaría el
+multiplicador que ya se le mostró a quien apostó. Va como campo de la semilla
+(`seedMode: "apuesta" | "subsidio"`), y cada mercado termina con las reglas con las
+que nació.
 
 **Presupuesto y freno**, en el espíritu del `FQ_MOTOR_MAX_DD` del bot:
 
@@ -415,29 +456,29 @@ construye contra la puerta cerrada, como manda `PROMPT_DINERO_REAL.md`.
    (`R ≥ f₀/f₁`) son aritmética; los peldaños 300 / 100-40 / 10-4 son una
    propuesta. Lo que no es negociable es el orden: primero se mide R, después
    se baja.
-2. **¿Subsidio o LPs?** El subsidio es coste conocido y limpio frente a R-057.
-   Los LPs escalan sin capital propio pero meten a un tercero con riesgo, y eso
-   reabre `COMPLIANCE.md` §2 entero.
-3. **¿La semilla actual se convierte en subsidio?** Hoy puede cobrar cuando
-   acierta. Cambiarlo cuesta ingreso y compra una frase que ningún competidor
-   puede decir.
-4. **¿El pozo vive en un contrato?** `custodia/contrato.ts` ya tiene la forma.
+2. ~~**¿Subsidio o LPs?**~~ **Decidido 2026-09-01: subsidio declarado.** Los LPs
+   quedan para después; reabren `COMPLIANCE.md` §2 entero.
+3. ~~**¿La semilla se convierte en subsidio?**~~ **Decidido 2026-09-01: sí.** Ver
+   §6.1 — cuesta S siempre, y el multiplicador se mueve con ella.
+4. ~~**¿Base o Polygon?**~~ **Decidido 2026-09-01: Base.** Tron entra sólo como
+   rampa de depósito, con conversión a USDC al entrar.
+5. **¿El pozo vive en un contrato?** `custodia/contrato.ts` ya tiene la forma.
    La respuesta no es técnica y sigue esperando opinión legal por país.
 
 ---
 
-## 11. Reglas propuestas para `RULINGS.md`
+## 11. Reglas escritas en `RULINGS.md` (2026-09-01)
 
-- **R-065** — El pozo es cámara de compensación, nunca creador de mercado. Sólo
+- **R-065** ✔ escrita — El pozo es cámara de compensación, nunca creador de mercado. Sólo
   acuña y quema conjuntos completos, y su exposición neta a cualquier resultado
   es cero por construcción. Un pozo que puede ganar cuando el usuario pierde es
   la casa disfrazada de infraestructura. *(liquidez)*
-- **R-066** — El colateral de terceros y el capital propio son cuentas
+- **R-066** ✔ escrita — El colateral de terceros y el capital propio son cuentas
   distintas y nunca se netean. Sentirse solvente con dinero ajeno en la misma
   caja es cómo quiebra un intermediario. *(contabilidad)*
-- **R-067** — Toda liquidez que la casa aporta es subsidio declarado con tope,
+- **R-067** ✔ escrita — Toda liquidez que la casa aporta es subsidio declarado con tope,
   y nunca cobra: se reparte entre quienes aciertan. El coste se conoce antes de
   ponerlo, no después. *(liquidez)*
-- **R-068** — Si el libro no cuadra, se dejan de crear mercados. Un descuadre
+- **R-068** ✔ escrita — Si el libro no cuadra, se dejan de crear mercados. Un descuadre
   con mercados nuevos encima es un descuadre que ya no se puede rastrear.
   *(contabilidad)*

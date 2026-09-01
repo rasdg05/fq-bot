@@ -185,12 +185,48 @@ estaba, y la puerta 04 sigue siendo la puerta 04.
 
 ---
 
-## 8. Lo que sigue abierto (decisión de RasDG, no de ingeniería)
+## 8. Decisiones de RasDG (2026-09-01)
 
-1. ¿Se acepta la escalera de §3? La base y la regla son aritmética; los peldaños son propuesta.
-2. ¿Subsidio declarado o LPs de terceros para arrancar la liquidez?
-3. ¿La semilla actual (`SEED = 100`, que hoy **puede ganar**) se convierte en subsidio?
-4. ¿Base o Polygon para la cámara?
+| Pregunta | Decisión |
+|---|---|
+| ¿Base o Polygon para la cámara? | **Base.** Tron entra sólo como rampa de depósito, con conversión a USDC al entrar |
+| ¿Subsidio declarado o LPs? | **Subsidio declarado.** Los LPs quedan para después; reabren COMPLIANCE §2 |
+| ¿La semilla se convierte en subsidio? | **Sí.** La casa deja de cobrar del lado ganador |
+
+Con eso quedan escritas **R-065 a R-068** en `marea/vault/RULINGS.md` (68 reglas).
+L0 del plan cierra: la decisión ya no es una nota, es una regla.
+
+### Qué implica la semilla → subsidio
+
+```
+hoy        winnerStake = Σ apuestas ganadoras + semilla_ganadora
+           payout_i    = stake_i / winnerStake × distributable      ← la casa cobra la parte de la semilla
+
+subsidio   payout_i    = stake_i / (winnerStake − semilla_ganadora) × distributable
+```
+
+Tres cosas que no se pueden separar de esa línea:
+
+1. **El multiplicador se mueve en el mismo commit.** `payoutMultiplier` tiene que
+   descontar la semilla del denominador, o la app muestra menos de lo que paga —
+   mentir en la dirección generosa sigue siendo mentir (R-023, R-044). *El test:*
+   `quote(...).toWin == settle(...).payouts[esa apuesta]` para cualquier pozo.
+2. **El coste sube, y es el precio de la frase.** Hoy la semilla vuelve cuando cae
+   del lado ganador; como subsidio **no vuelve nunca: cuesta S en todos los
+   mercados**. Con puntos da igual; con dinero es justo lo que el tope de L9 debe
+   acotar, así que el freno deja de ser opcional.
+3. **No se migran los mercados abiertos.** Cambiaría el multiplicador ya mostrado a
+   quien apostó. Va como campo de la semilla (`seedMode: "apuesta" | "subsidio"`) y
+   cada mercado termina con las reglas con las que nació.
+
+Detalle en `marea/vault/LIQUIDEZ.md` §6.1.
+
+## 8bis. Lo que sigue abierto
+
+1. **¿Se acepta la escalera de fees de §3?** La base (varianza) y la regla
+   (`R ≥ f₀/f₁`) son aritmética; los peldaños 12% / 4% / 0.24% son propuesta.
+2. **¿El pozo vive en un contrato?** No es una decisión técnica: espera la opinión
+   legal por país (paso 04).
 
 ---
 
@@ -212,4 +248,4 @@ commits `c1f936d`, `a16fa9c`, `56d99b7`.
 Referencias externas verificadas sep-2026: arquitectura de Polymarket (CLOB + CTF + UMA),
 esquema de fees de Kalshi (`0.07·C·P·(1−P)`).
 
-_Actualizado: 2026-09-01._
+_Actualizado: 2026-09-01 (decisiones de cadena, subsidio y semilla)._
