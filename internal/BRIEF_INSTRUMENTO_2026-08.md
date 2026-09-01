@@ -356,26 +356,31 @@ E5 (abarata el research). E6 no se toca.
 
 ## Cómo entregar
 
-Rama `claude/instrumento-2026-08`, **sacada de
-`claude/polymarket-trading-tools-grx05x`, NO de `main`**:
+**De dónde sacar la rama: ver "QUÉ TOCA AHORA" al principio de este documento.**
+No lo repito aquí a propósito — este bloque decía otra cosa hasta el 2026-08-30 y
+ese desacuerdo era exactamente la trampa que el arranque en frío existe para
+evitar.
 
-```bash
-git fetch origin claude/polymarket-trading-tools-grx05x
-git checkout -b claude/instrumento-2026-08 origin/claude/polymarket-trading-tools-grx05x
-```
+> **Histórico (ya no se sigue).** Hasta el 2026-08-30 esta sección mandaba sacar
+> la rama de `claude/polymarket-trading-tools-grx05x`. Era correcto cuando se
+> escribió y dejó de serlo en cuanto `claude/instrumento-2026-08` existió con E7,
+> E8 y las invariantes de excursión, venue y reloj encima. Quien siguiera esta
+> sección en vez del bloque de arriba se llevaría el cementerio de Polymarket
+> pero **perdería todo lo de E7/E8**, y volvería a leer la excursión del cube
+> como si fuera el recorrido del trade.
+>
+> Se deja escrito en vez de borrado por la misma razón que H5 y las 23 filas del
+> fantasma: el registro de por qué algo cambió vale más que un documento que
+> parece que siempre estuvo bien.
 
-Mientras esa rama no esté mergeada, es la única que tiene el cementerio de agosto
-(línea de Polymarket cerrada + triaje de los 10 repos) y las reglas E6 de abajo.
-Ramificar desde `main` las pierde y te haría re-proponer lo ya muerto. **Si para
-cuando leas esto ya está en `main`, sal de `main` y ya.** Compruébalo con:
+Sigue vigente, en cualquier rama:
 
-```bash
-git log origin/main --oneline | grep -i polymarket   # ¿vacío? entonces NO está mergeada
-```
-
-Un commit por entrega, cada uno con el test que hace fallar la regresión. Suite
-completa (~60 s) verde antes de cada commit. No mergees a `main` sin decirlo —
-`main` despliega a producción con suscriptores de pago.
+- Un commit por entrega, cada uno con el test que hace fallar la regresión.
+- Suite completa verde **antes** de cada commit (~45 s, 1385 passed / 6 skipped;
+  los 6 son dependencias opcionales ausentes — si ves más, algo se está saltando
+  y hay una invariante que lo prohíbe).
+- **No mergees a `main` sin decirlo** — `main` despliega a producción con
+  suscriptores de pago.
 
 **Si E7 o E8 salen en contra**, para y dilo antes de seguir con el resto. Un
 diagnóstico que mata una línea de trabajo es un buen resultado, no un fracaso; el

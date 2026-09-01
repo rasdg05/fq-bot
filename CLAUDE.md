@@ -57,6 +57,7 @@ vuelva — si la respuesta es "acordarse", no está cerrado.
 | Frescura de CVD | `tools/fetch_cvd.cvd_confirmation` | Un colector parado contestando como si midiera |
 | Sin relojes de pared | `tests/test_no_wallclock.py` | Que el replay herede la hora del click |
 | Ni la suite lee el reloj | `test_no_wallclock.py::test_ningun_test_se_salta_segun_la_hora` | Que un test desaparezca a ciertas horas y el resumen siga diciendo "passed" |
+| Los puntos de entrada no se contradicen | `tests/test_arranque_en_frio.py` | Que un doc mande sacar la rama de un sitio y otro de otro: se arranca sin el trabajo bueno |
 | Procedencia sellada | `bt_data.stamp_venue` + `require_same_venue` | Cruzar velas de un venue con un cube de otro: mueve el bar de la barrera y con él la vida del trade |
 | Alcance de la excursión | `bt_labeler.CUBE_SCHEMA` + `require_life_scoped` | Leer el recorrido de la VENTANA del horizonte como si fuera el del trade |
 | Una sola definición de MFE/MAE | `tests/test_cube_excursion_scope.py` | Que las dos rutas de etiquetado vuelvan a divergir bajo el mismo nombre; barre `tools/` exigiendo la guarda |
