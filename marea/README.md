@@ -44,7 +44,8 @@ src/
   styles/      tokens.css — la única fuente de color y tipografía
   lib/         strings (todo el copy), flags, formato
 vault/         PRODUCT · VOICE · PLAYBOOKS · RULINGS · COMPLIANCE · ESTRATEGIA
-               DATA_SOURCES · MODEL · HANDOFF · locks de tokens y calibración
+               DATA_SOURCES · MODEL · LIQUIDEZ · HANDOFF · locks de tokens
+               y calibración
 scripts/       validate.mjs · settle.mts · roll.mts · daily.mjs · perf.mjs · sondas
 ```
 
