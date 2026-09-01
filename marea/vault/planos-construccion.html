@@ -1,0 +1,538 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8">
+<style>
+@font-face{font-family:"Fraunces";src:url("file:///home/user/fq-bot/marea/public/fonts/fraunces-600.woff2") format("woff2");font-weight:600 700;}
+@font-face{font-family:"Hanken";src:url("file:///home/user/fq-bot/marea/public/fonts/hanken-400.woff2") format("woff2");font-weight:400;}
+@font-face{font-family:"Hanken";src:url("file:///home/user/fq-bot/marea/public/fonts/hanken-500.woff2") format("woff2");font-weight:500 600;}
+@font-face{font-family:"Hanken";src:url("file:///home/user/fq-bot/marea/public/fonts/hanken-700.woff2") format("woff2");font-weight:700 800;}
+@page{size:A3 landscape;margin:12mm}
+:root{
+  --paper:#f5f3ec;--card:#fff;--card2:#ede8dc;
+  --ink:#12262a;--ink2:#3c5250;--muted:#697a78;
+  --teal:#0b6b6e;--teal-deep:#084f52;--teal-soft:#e2eeec;
+  --line:rgba(11,107,110,.24);--line2:rgba(18,38,42,.11);
+  --dn:#a8412b;--dn-soft:#f9ece7;--up:#157048;--up-soft:#e6f0ea;
+  --hot:#8a5a0b;--hot-soft:#f7eeda;
+  --display:"Fraunces",Georgia,serif;--sans:"Hanken",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:13.5px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.page{width:396mm;height:273mm;page-break-after:always;display:flex;flex-direction:column;gap:12px;position:relative;overflow:hidden}
+.page:last-child{page-break-after:auto}
+.ph{display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid var(--ink);padding-bottom:9px}
+.ph .l{display:flex;align-items:baseline;gap:14px}
+.ph .num{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--teal);border:1.5px solid var(--teal);border-radius:6px;padding:1px 9px}
+.ph h2{font-family:var(--display);font-weight:600;font-size:29px;letter-spacing:-.01em}
+.ph .say{font-size:13px;color:var(--muted);text-align:right;max-width:74ch}
+.pf{margin-top:auto;border-top:1px solid var(--line2);padding-top:8px;display:flex;justify-content:space-between;font-size:11px;color:var(--muted);font-family:var(--mono)}
+svg{display:block;width:100%;height:auto}
+.board{background:var(--card);border:1.5px solid var(--line2);border-radius:14px;padding:16px 18px}
+
+/* portada */
+.cover{justify-content:center;gap:0}
+.cover .eyebrow{font-size:14px;letter-spacing:.24em;text-transform:uppercase;color:var(--teal);font-weight:700}
+.cover h1{font-family:var(--display);font-weight:600;font-size:82px;line-height:1;letter-spacing:-.02em;margin:16px 0 14px}
+.cover h1 em{font-style:normal;color:var(--teal)}
+.cover .deck{font-size:19px;color:var(--ink2);max-width:88ch}
+.cover .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:34px}
+.cover .cell{background:var(--card);border:1.5px solid var(--line2);border-radius:12px;padding:14px 16px}
+.cover .cell .k{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.cover .cell .v{font-family:var(--mono);font-size:15px;font-weight:700;color:var(--teal-deep);margin-top:5px}
+.cover .cell .d{font-size:12px;color:var(--ink2);margin-top:4px;line-height:1.4}
+.leyenda{display:flex;gap:26px;flex-wrap:wrap;margin-top:26px;padding-top:16px;border-top:1px solid var(--line2)}
+.lg{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink2)}
+.sw{width:26px;height:15px;border-radius:4px;border:1.5px solid var(--line2);background:var(--card2)}
+.sw.on{background:var(--teal-soft);border-color:var(--teal)}
+.sw.ext{background:var(--hot-soft);border-color:var(--hot)}
+.sw.new{background:var(--up-soft);border-color:var(--up)}
+.sw.no{background:var(--dn-soft);border-color:var(--dn)}
+
+/* svg */
+.bx{fill:var(--card2);stroke:var(--line2);stroke-width:1.3}
+.bx-on{fill:var(--teal-soft);stroke:var(--teal);stroke-width:1.6}
+.bx-ext{fill:var(--hot-soft);stroke:var(--hot);stroke-width:1.4}
+.bx-new{fill:var(--up-soft);stroke:var(--up);stroke-width:1.4}
+.bx-no{fill:var(--dn-soft);stroke:var(--dn);stroke-width:1.4}
+.band{fill:none;stroke:var(--line2);stroke-width:1.2;stroke-dasharray:7 5}
+.band-on{fill:none;stroke:var(--teal);stroke-width:1.4}
+.tt{fill:var(--ink);font-family:var(--sans);font-size:14px;font-weight:700}
+.tt-on{fill:var(--teal-deep);font-family:var(--sans);font-size:14px;font-weight:700}
+.ts{fill:var(--muted);font-family:var(--mono);font-size:11.5px}
+.tl{fill:var(--muted);font-family:var(--sans);font-size:11.5px;font-weight:700;letter-spacing:.15em}
+.tl-on{fill:var(--teal);font-family:var(--sans);font-size:11.5px;font-weight:700;letter-spacing:.15em}
+.ta{fill:var(--ink2);font-family:var(--mono);font-size:11.5px}
+.tw{fill:var(--dn);font-family:var(--sans);font-size:12.5px;font-weight:700}
+.ln{stroke:var(--ink2);stroke-width:1.4;fill:none}
+.lk{stroke:var(--teal);stroke-width:1.8;fill:none}
+.lw{stroke:var(--dn);stroke-width:1.6;fill:none}
+.ld{stroke:var(--muted);stroke-width:1.2;fill:none;stroke-dasharray:5 4}
+.hd{fill:var(--ink2)}.hk{fill:var(--teal)}.hw{fill:var(--dn)}
+
+/* tablas */
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:8px 11px;border-bottom:1px solid var(--line2);vertical-align:top}
+thead th{font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);font-weight:700;border-bottom:1.5px solid var(--line)}
+tbody tr:last-child td{border-bottom:none}
+td.n,th.n{text-align:right;font-family:var(--mono);white-space:nowrap}
+tr.re td{background:var(--up-soft)}
+tr.es td{background:var(--teal-soft)}
+.tag{font-family:var(--mono);font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px;white-space:nowrap}
+.tag.re{background:var(--up-soft);color:var(--up)}
+.tag.es{background:var(--teal-soft);color:var(--teal-deep)}
+.tag.ed{background:var(--hot-soft);color:var(--hot)}
+.tag.ex{background:var(--card2);color:var(--muted)}
+
+/* arbol de archivos */
+.tree{font-family:var(--mono);font-size:12.6px;line-height:1.62;white-space:pre;color:var(--ink2)}
+.tree b{color:var(--ink);font-weight:700}
+.tree .nu{color:var(--up);font-weight:700}
+.tree .edn{color:var(--hot);font-weight:700}
+.tree .exn{color:var(--muted)}
+.tree .cm{color:var(--muted)}
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.note{background:var(--card);border-left:3px solid var(--teal);border-radius:0 10px 10px 0;padding:12px 16px;font-size:13px;color:var(--ink2)}
+.note.w{border-left-color:var(--dn)}
+.note b{color:var(--ink)}
+.note .lb{font-size:11px;letter-spacing:.13em;text-transform:uppercase;font-weight:700;color:var(--teal);margin-bottom:4px}
+.note.w .lb{color:var(--dn)}
+</style></head><body>
+
+<!-- ======================= PORTADA ======================= -->
+<div class="page cover">
+  <div class="eyebrow">Marea · mercados de predicción</div>
+  <h1>Planos de <em>construcción</em></h1>
+  <div class="deck">La cámara de compensación en cadena: qué se construye, dónde vive cada
+  pieza, en qué orden se levanta y qué invariante cablea cada una. Seis planos. Nada de esto
+  está desplegado — es el plano, no la obra.</div>
+
+  <div class="grid">
+    <div class="cell"><div class="k">Cadena</div><div class="v">Base</div>
+      <div class="d">USDC nativo. Tron entra sólo como rampa de depósito, por integración.</div></div>
+    <div class="cell"><div class="k">Liquidez de la casa</div><div class="v">subsidio topado</div>
+      <div class="d">La semilla deja de cobrar: su parte se reparte entre quienes aciertan (R-067).</div></div>
+    <div class="cell"><div class="k">Base del fee</div><div class="v">f · q · p · (1−p)</div>
+      <div class="d">Varianza. Simétrica entre las dos partes del mismo cruce.</div></div>
+    <div class="cell"><div class="k">Custodia</div><div class="v">no custodial</div>
+      <div class="d">No existe función que mueva fondos de un usuario (L12).</div></div>
+  </div>
+
+  <div class="grid" style="margin-top:16px">
+    <div class="cell" style="grid-column:span 2"><div class="k">Los tres hitos</div>
+      <div class="v">M1 testnet 8–10 sem · M2 mainnet con tope 15–18 sem · M3 tope levantado 22–29 sem</div>
+      <div class="d">Construido y lanzado con rampa cripto: <b>~4 meses</b> (M2). El tope duro de
+      colateral acota la pérdida máxima de un bug por diseño, no por confianza.</div></div>
+    <div class="cell" style="grid-column:span 2"><div class="k">Lo que el plano no resuelve</div>
+      <div class="v">la puerta legal</div>
+      <div class="d">Operamos frontend, creación de mercados y oráculo: somos el operador. No
+      custodios, pero operador. Esa conversación corre en paralelo y no depende del código.</div></div>
+  </div>
+
+  <div class="leyenda">
+    <div class="lg"><span class="sw"></span> Fuera de cadena · lo opera Marea</div>
+    <div class="lg"><span class="sw on"></span> En cadena · lo custodia el protocolo</div>
+    <div class="lg"><span class="sw ext"></span> Tercero (puente, oráculo, auditoría)</div>
+    <div class="lg"><span class="sw new"></span> Reutilizado y ya auditado</div>
+    <div class="lg"><span class="sw no"></span> Prohibido / lo que rompe una invariante</div>
+  </div>
+
+  <div class="pf"><span>Marea · planos de construcción · 2026-09-01</span>
+    <span>rama claude/marea-liquidity-flow-8ybf5l · diseño, nada desplegado</span></div>
+</div>
+
+<!-- ======================= PLANO 1 ======================= -->
+<div class="page">
+  <div class="ph"><div class="l"><span class="num">01</span><h2>El sistema</h2></div>
+    <div class="say">Cuatro bandas. Sólo tres flechas cruzan hacia la cadena — liquidación,
+    resolución y raíz — y ninguna lleva fondos de usuario en nuestras manos.</div></div>
+
+  <div class="board" style="flex:1;display:flex;align-items:center">
+  <svg viewBox="0 0 1460 780" role="img" aria-label="Mapa del sistema en cuatro bandas: navegador, servidor Marea, Base en cadena y la rampa desde Tron.">
+    <defs>
+      <marker id="p1a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hd" d="M0,0 L10,5 L0,10 z"/></marker>
+      <marker id="p1k" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hk" d="M0,0 L10,5 L0,10 z"/></marker>
+    </defs>
+
+    <rect class="band" x="8" y="14" width="1444" height="132" rx="12"/>
+    <text class="tl" x="24" y="38">NAVEGADOR · EL USUARIO TIENE LA LLAVE</text>
+    <rect class="bx" x="30" y="52" width="300" height="76" rx="10"/>
+    <text class="tt" x="48" y="80">Wallet del usuario</text><text class="ts" x="48" y="102">conectada · firma EIP-712</text><text class="ts" x="48" y="119">la llave no sale del dispositivo</text>
+    <rect class="bx" x="360" y="52" width="300" height="76" rx="10"/>
+    <text class="tt" x="378" y="80">App Marea</text><text class="ts" x="378" y="102">React · pantallas y catálogo</text><text class="ts" x="378" y="119">muestra el multiplicador que se paga</text>
+    <rect class="bx" x="690" y="52" width="300" height="76" rx="10"/>
+    <text class="tt" x="708" y="80">Verificador de prueba</text><text class="ts" x="708" y="102">hoja + hermanos → recomputa raíz</text><text class="ts" x="708" y="119">compara contra la cadena</text>
+    <rect class="bx-ext" x="1020" y="52" width="410" height="76" rx="10"/>
+    <text class="tt" x="1038" y="80">Rampa · USDT-TRC20 → USDC-Base</text><text class="ts" x="1038" y="102">integración: usuario firma, fondos van</text><text class="ts" x="1038" y="119">usuario → puente → SU dirección en Base</text>
+
+    <rect class="band" x="8" y="186" width="1444" height="150" rx="12"/>
+    <text class="tl" x="24" y="210">SERVIDOR MAREA · OPERA · NO CUSTODIA NADA</text>
+    <rect class="bx" x="30" y="224" width="300" height="94" rx="10"/>
+    <text class="tt" x="48" y="252">Motor de cruce</text><text class="ts" x="48" y="274">empareja órdenes firmadas</text><text class="ts" x="48" y="291">no toca fondos jamás</text><text class="ts" x="48" y="308">server/cruce.mts</text>
+    <rect class="bx" x="360" y="224" width="300" height="94" rx="10"/>
+    <text class="tt" x="378" y="252">Oráculo commit / reveal</text><text class="ts" x="378" y="274">commit al crear el mercado</text><text class="ts" x="378" y="291">lee fuente + evidencia al vencer</text><text class="ts" x="378" y="308">adapters/oracles/*</text>
+    <rect class="bx" x="690" y="224" width="300" height="94" rx="10"/>
+    <text class="tt" x="708" y="252">Ledger + anclador</text><text class="ts" x="708" y="274">hash-chain SHA-256 · raíz por época</text><text class="ts" x="708" y="291">secuencia por usuario (L15)</text><text class="ts" x="708" y="308">server/anclador.mts</text>
+    <rect class="bx" x="1020" y="224" width="410" height="94" rx="10"/>
+    <text class="tt" x="1038" y="252">Vigilante externo</text><text class="ts" x="1038" y="274">compara supply(conjuntos) vs balance(USDC)</text><text class="ts" x="1038" y="291">cada bloque · grita si difieren (L14)</text><text class="ts" x="1038" y="308">server/vigilante.mts</text>
+
+    <path class="lk" d="M180,318 L180,392" marker-end="url(#p1k)"/><text class="ta" x="190" y="352">liquidación</text><text class="ta" x="190" y="368">atómica</text>
+    <path class="lk" d="M510,318 L510,392" marker-end="url(#p1k)"/><text class="ta" x="520" y="352">propone resolución</text><text class="ta" x="520" y="368">multisig + timelock</text>
+    <path class="lk" d="M840,318 L840,392" marker-end="url(#p1k)"/><text class="ta" x="850" y="352">ancla (época, raíz, n)</text><text class="ta" x="850" y="368">1 tx</text>
+    <path class="ld" d="M1225,392 L1225,322" marker-end="url(#p1a)"/><text class="ta" x="1235" y="360">lee, no escribe</text>
+
+    <rect class="band-on" x="8" y="392" width="1444" height="252" rx="12"/>
+    <text class="tl-on" x="24" y="416">BASE · EN CADENA · LO CUSTODIA EL PROTOCOLO · CUALQUIERA LO LEE</text>
+    <rect class="bx-new" x="30" y="430" width="300" height="92" rx="10"/>
+    <text class="tt" x="48" y="458">ConditionalTokens</text><text class="ts" x="48" y="480">ERC-1155 de Gnosis · YA AUDITADO</text><text class="ts" x="48" y="497">acuña / quema conjuntos completos</text><text class="ts" x="48" y="514">no se reescribe: se despliega</text>
+    <rect class="bx-on" x="360" y="430" width="300" height="92" rx="10"/>
+    <text class="tt-on" x="378" y="458">AdaptadorOraculo.sol</text><text class="ts" x="378" y="480">recibe la resolución, abre disputa</text><text class="ts" x="378" y="497">y resuelve la condición del CTF</text><text class="ts" x="378" y="514">~180 líneas propias</text>
+    <rect class="bx-on" x="690" y="430" width="300" height="92" rx="10"/>
+    <text class="tt-on" x="708" y="458">RegistroAnclas.sol</text><text class="ts" x="708" y="480">(época, raíz, nHojas) inmutable</text><text class="ts" x="708" y="497">append-only, sin borrado</text><text class="ts" x="708" y="514">~80 líneas propias</text>
+    <rect class="bx-on" x="1020" y="430" width="410" height="92" rx="10"/>
+    <text class="tt-on" x="1038" y="458">BovedaTopada.sol</text><text class="ts" x="1038" y="480">USDC · tope duro de colateral total</text><text class="ts" x="1038" y="497">pausa la CREACIÓN, nunca la redención</text><text class="ts" x="1038" y="514">~150 líneas propias</text>
+
+    <rect class="bx-on" x="30" y="546" width="960" height="76" rx="10"/>
+    <text class="tt-on" x="48" y="574">Invariante que cualquiera comprueba en cualquier bloque</text>
+    <text class="ts" x="48" y="600">supply(conjuntos) == balance(USDC)      ·      obligación máxima = colateral retenido      ·      P&amp;L del pozo = 0 ∀ resultado</text>
+    <rect class="bx" x="1020" y="546" width="410" height="76" rx="10"/>
+    <text class="tt" x="1038" y="574">Adaptador de rendimiento</text><text class="ts" x="1038" y="600">sólo excedente · colchón por vencimientos (L11)</text>
+
+    <path class="lk" d="M330,476 L356,476" marker-end="url(#p1k)"/>
+    <path class="lk" d="M180,522 L180,542" marker-end="url(#p1k)"/>
+
+    <rect class="bx-no" x="30" y="672" width="700" height="86" rx="10"/>
+    <text class="tw" x="48" y="700">✗ Lo que NO existe, y no se agrega</text>
+    <text class="ts" x="48" y="722">ninguna función que mueva fondos de un usuario · ninguna dirección de depósito nuestra</text>
+    <text class="ts" x="48" y="739">ninguna pausa que congele retiros · ninguna llave que resuelva sin timelock</text>
+    <rect class="bx" x="760" y="672" width="670" height="86" rx="10"/>
+    <text class="tt" x="778" y="700">La llave de Marea</text>
+    <text class="ts" x="778" y="722">sólo PROPONE resolución, detrás de multisig + timelock, y la ventana de disputa</text>
+    <text class="ts" x="778" y="739">puede tumbarla antes de que pague. Es lo único que la casa puede tocar.</text>
+  </svg>
+  </div>
+  <div class="pf"><span>Plano 01 · El sistema</span><span>Marea · planos de construcción · 2026-09-01</span></div>
+</div>
+
+<!-- ======================= PLANO 2 ======================= -->
+<div class="page">
+  <div class="ph"><div class="l"><span class="num">02</span><h2>El árbol de época</h2></div>
+    <div class="say">Corregido: separación de dominio, regla de hoja impar, y el conteo anclado
+    que convierte una omisión en algo detectable (L15).</div></div>
+
+  <div class="board" style="flex:1;display:flex;align-items:center">
+  <svg viewBox="0 0 1460 700" role="img" aria-label="Árbol de Merkle por época con separación de dominio, secuencia por usuario y conteo de hojas anclado.">
+    <defs>
+      <marker id="p2a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hd" d="M0,0 L10,5 L0,10 z"/></marker>
+      <marker id="p2k" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hk" d="M0,0 L10,5 L0,10 z"/></marker>
+    </defs>
+
+    <rect class="bx-on" x="500" y="20" width="460" height="82" rx="10"/>
+    <text class="tt-on" x="524" y="50">ANCLA EN BASE · 1 tx por época</text>
+    <text class="ts" x="524" y="74">RegistroAnclas.anclar(epoca, raiz, nHojas)</text>
+    <text class="ts" x="524" y="91">append-only · cualquiera la lee sin API de Marea</text>
+
+    <rect class="bx" x="600" y="146" width="260" height="60" rx="10"/>
+    <text class="tt" x="620" y="172">RAÍZ  R</text><text class="ts" x="620" y="192">0x7c91…a4f2</text>
+    <path class="lk" d="M730,146 L730,106" marker-end="url(#p2k)"/>
+
+    <rect class="bx" x="380" y="250" width="240" height="58" rx="10"/>
+    <text class="tt" x="400" y="275">N₀₁</text><text class="ts" x="400" y="295">0x3a1b…7e9d</text>
+    <rect class="bx" x="840" y="250" width="240" height="58" rx="10"/>
+    <text class="tt" x="860" y="275">N₂₃</text><text class="ts" x="860" y="295">0x8b7a…c3d9</text>
+    <path class="ln" d="M500,250 L680,210" marker-end="url(#p2a)"/>
+    <path class="ln" d="M960,250 L780,210" marker-end="url(#p2a)"/>
+
+    <rect class="bx" x="180" y="360" width="230" height="86" rx="10"/>
+    <text class="tt" x="198" y="386">L₀ · orden</text><text class="ts" x="198" y="407">usuario A · seq 12</text><text class="ts" x="198" y="426">0x1a2b…3c4d</text>
+    <rect class="bx-on" x="430" y="360" width="230" height="86" rx="10"/>
+    <text class="tt-on" x="448" y="386">L₁ · fee</text><text class="ts" x="448" y="407">usuario A · seq 13</text><text class="ts" x="448" y="426">0x3c4d…5e6f</text>
+    <rect class="bx" x="800" y="360" width="230" height="86" rx="10"/>
+    <text class="tt" x="818" y="386">L₂ · cruce</text><text class="ts" x="818" y="407">usuario B · seq 4</text><text class="ts" x="818" y="426">0x5e6f…7a8b</text>
+    <rect class="bx" x="1050" y="360" width="230" height="86" rx="10"/>
+    <text class="tt" x="1068" y="386">L₃ · asiento</text><text class="ts" x="1068" y="407">usuario B · seq 5</text><text class="ts" x="1068" y="426">0x6f7a…8b9c</text>
+    <path class="ln" d="M295,360 L455,312" marker-end="url(#p2a)"/>
+    <path class="lk" d="M545,360 L545,312" marker-end="url(#p2k)"/>
+    <path class="ln" d="M915,360 L935,312" marker-end="url(#p2a)"/>
+    <path class="ln" d="M1165,360 L1005,312" marker-end="url(#p2a)"/>
+
+    <rect class="bx" x="180" y="486" width="520" height="122" rx="10"/>
+    <text class="tt" x="200" y="514">Cómo se hashea — y por qué el prefijo</text>
+    <text class="ts" x="200" y="540">hoja  h = SHA256( 0x00 ‖ usuario ‖ seq ‖ hecho )</text>
+    <text class="ts" x="200" y="560">nodo  n = SHA256( 0x01 ‖ izq ‖ der )</text>
+    <text class="ts" x="200" y="586">sin los prefijos, un nodo interno se hace pasar por hoja</text>
+    <text class="ts" x="200" y="600">y el árbol deja de probar nada</text>
+
+    <rect class="bx" x="730" y="486" width="550" height="122" rx="10"/>
+    <text class="tt" x="750" y="514">Número impar de hojas</text>
+    <text class="ts" x="750" y="540">se promueve la última al nivel siguiente, sin duplicarla</text>
+    <text class="ts" x="750" y="560">(duplicar abre un segundo camino a la misma raíz)</text>
+    <text class="ts" x="750" y="586">La regla se escribe una vez y no se cambia: cambiarla</text>
+    <text class="ts" x="750" y="600">invalida todas las pruebas de las épocas ya ancladas.</text>
+
+    <rect class="bx-no" x="180" y="632" width="1100" height="56" rx="10"/>
+    <text class="tw" x="200" y="656">L15 · Inclusión no es completitud</text>
+    <text class="ts" x="200" y="678">La raíz prueba que TU hecho está. No prueba que el libro esté completo. Lo tapan: secuencia por usuario (un hueco lo ve el propio usuario) + nHojas en el ancla (no se encoge en silencio) + hojas publicadas.</text>
+
+    <rect class="bx-on" x="30" y="146" width="320" height="160" rx="10"/>
+    <text class="tt-on" x="50" y="174">La prueba del usuario</text>
+    <text class="ts" x="50" y="200">recibe: su hoja + 2 hermanos</text>
+    <text class="ts" x="50" y="220">recomputa: N₀₁ y luego R*</text>
+    <text class="ts" x="50" y="240">compara R* con la raíz anclada</text>
+    <text class="ts" x="50" y="266">O(log n) hashes · no ve el resto</text>
+    <text class="ts" x="50" y="286">del libro · Marea no firma nada</text>
+  </svg>
+  </div>
+  <div class="pf"><span>Plano 02 · El árbol de época</span><span>invariantes L13 · L15</span></div>
+</div>
+
+<!-- ======================= PLANO 3 ======================= -->
+<div class="page">
+  <div class="ph"><div class="l"><span class="num">03</span><h2>El ciclo de un mercado</h2></div>
+    <div class="say">Ninguna fase se salta y no se paga con la disputa abierta (L7). Lo marcado
+    ⛓ ocurre en cadena; el resto lo opera Marea y queda anclado en la raíz.</div></div>
+
+  <div class="board" style="flex:1;display:flex;align-items:center">
+  <svg viewBox="0 0 1460 620" role="img" aria-label="Ciclo de vida de un mercado desde su creación con commit hasta el pago, con las ramas de devolución y anulación.">
+    <defs><marker id="p3a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hd" d="M0,0 L10,5 L0,10 z"/></marker>
+    <marker id="p3k" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hk" d="M0,0 L10,5 L0,10 z"/></marker>
+    <marker id="p3w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hw" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+
+    <rect class="bx-on" x="20" y="60" width="200" height="108" rx="10"/>
+    <text class="tt-on" x="38" y="88">CREADO ⛓</text><text class="ts" x="38" y="110">roll.mts genera</text><text class="ts" x="38" y="128">commit = H(regla‖fuente‖sal)</text><text class="ts" x="38" y="146">subsidio ≤ tope (L9)</text>
+    <rect class="bx-on" x="252" y="60" width="200" height="108" rx="10"/>
+    <text class="tt-on" x="270" y="88">ABIERTO ⛓</text><text class="ts" x="270" y="110">cada cruce acuña</text><text class="ts" x="270" y="128">conjuntos completos</text><text class="ts" x="270" y="146">fee f·q·p·(1−p)</text>
+    <rect class="bx" x="484" y="60" width="200" height="108" rx="10"/>
+    <text class="tt" x="502" y="88">CERRADO</text><text class="ts" x="502" y="110">closesAt vencido</text><text class="ts" x="502" y="128">deja de aceptar</text>
+    <rect class="bx" x="716" y="60" width="200" height="108" rx="10"/>
+    <text class="tt" x="734" y="88">LEÍDO</text><text class="ts" x="734" y="110">reveal + evidencia</text><text class="ts" x="734" y="128">sin dato ⇒ reintenta</text><text class="ts" x="734" y="146">fuente vieja ⇒ no avanza (L8)</text>
+    <rect class="bx-on" x="948" y="60" width="200" height="108" rx="10"/>
+    <text class="tt-on" x="966" y="88">EN DISPUTA ⛓</text><text class="ts" x="966" y="110">ventana abierta</text><text class="ts" x="966" y="128">nadie cobra todavía</text><text class="ts" x="966" y="146">la promesa, no la demora</text>
+    <rect class="bx-on" x="1180" y="60" width="250" height="108" rx="10"/>
+    <text class="tt-on" x="1198" y="88">PAGADO ⛓</text><text class="ts" x="1198" y="110">quema conjuntos</text><text class="ts" x="1198" y="128">1 USDC por contrato ganador</text><text class="ts" x="1198" y="146">pozo:m ⟶ 0</text>
+
+    <path class="lk" d="M220,114 L248,114" marker-end="url(#p3k)"/>
+    <path class="ln" d="M452,114 L480,114" marker-end="url(#p3a)"/>
+    <path class="ln" d="M684,114 L712,114" marker-end="url(#p3a)"/>
+    <path class="lk" d="M916,114 L944,114" marker-end="url(#p3k)"/>
+    <path class="lk" d="M1148,114 L1176,114" marker-end="url(#p3k)"/>
+
+    <rect class="bx-ext" x="716" y="238" width="200" height="86" rx="10"/>
+    <text class="tt" x="734" y="266">ATORADO</text><text class="ts" x="734" y="288">la fuente necesita</text><text class="ts" x="734" y="306">a una persona</text>
+    <path class="ln" d="M816,168 L816,234" marker-end="url(#p3a)"/>
+    <path class="ld" d="M916,268 L1048,268 L1048,172" marker-end="url(#p3a)"/>
+    <text class="ta" x="930" y="258">resolución a mano + evidencia</text>
+
+    <rect class="bx" x="1180" y="238" width="250" height="86" rx="10"/>
+    <text class="tt" x="1198" y="266">DEVUELTO</text><text class="ts" x="1198" y="288">nadie acertó: se devuelve</text><text class="ts" x="1198" y="306">íntegro, sin comisión (R-024)</text>
+    <path class="lw" d="M1305,168 L1305,234" marker-end="url(#p3w)"/>
+
+    <rect class="bx" x="252" y="238" width="200" height="86" rx="10"/>
+    <text class="tt" x="270" y="266">ANULADO</text><text class="ts" x="270" y="288">&lt; 2 apostadores</text><text class="ts" x="270" y="306">se devuelve todo (R-059)</text>
+    <path class="lw" d="M352,168 L352,234" marker-end="url(#p3w)"/>
+
+    <rect class="bx" x="20" y="392" width="700" height="200" rx="10"/>
+    <text class="tt" x="40" y="420">Quién hace qué</text>
+    <text class="ts" x="40" y="450">Marea      crea, cruza, lee la fuente, propone la resolución, ancla la raíz</text>
+    <text class="ts" x="40" y="472">Protocolo  retiene el colateral, acuña, quema, paga, guarda las anclas</text>
+    <text class="ts" x="40" y="494">Usuario    firma sus órdenes, disputa si quiere, redime del contrato</text>
+    <text class="ts" x="40" y="516">Nadie      puede mover el saldo de otro. No hay función.</text>
+    <text class="ts" x="40" y="548">El subsidio entra al crear y vuelve a tesorería al liquidar —</text>
+    <text class="ts" x="40" y="568">menos su parte, que se reparte entre quienes acertaron (R-067).</text>
+
+    <rect class="bx-on" x="750" y="392" width="680" height="200" rx="10"/>
+    <text class="tt-on" x="770" y="420">Las puertas que no se saltan</text>
+    <text class="ts" x="770" y="450">L7   no se paga con la disputa abierta, aunque el resultado se sepa</text>
+    <text class="ts" x="770" y="472">L6   liquidar dos veces paga una: el ciclo es idempotente</text>
+    <text class="ts" x="770" y="494">L9   sin presupuesto de subsidio, roll.mts no crea mercados</text>
+    <text class="ts" x="770" y="516">L10  el saldo se bloquea antes de cruzar, no después</text>
+    <text class="ts" x="770" y="538">L14  un vigilante externo compara supply vs balance cada bloque</text>
+    <text class="ts" x="770" y="568">R-068  si el libro no cuadra, se dejan de crear mercados</text>
+  </svg>
+  </div>
+  <div class="pf"><span>Plano 03 · El ciclo de un mercado</span><span>invariantes L6 · L7 · L8 · L9 · L10 · L14</span></div>
+</div>
+
+<!-- ======================= PLANO 4 ======================= -->
+<div class="page">
+  <div class="ph"><div class="l"><span class="num">04</span><h2>Los contratos</h2></div>
+    <div class="say">La decisión que más ahorra: escribir la menos Solidity posible. Menos código
+    propio, auditoría más corta y más barata.</div></div>
+
+  <div class="board">
+    <table>
+      <thead><tr><th>Contrato</th><th>Origen</th><th class="n">Líneas propias</th><th>Qué hace</th><th>Invariante que cablea</th></tr></thead>
+      <tbody>
+        <tr class="re"><td><b>ConditionalTokens</b></td><td><span class="tag re">REUTILIZA</span> Gnosis, ya auditado y rodado</td><td class="n">0</td><td>Acuña y quema conjuntos completos ERC-1155. Es la pieza que hace que el pozo no tenga varianza</td><td>L1 · L5 · L14</td></tr>
+        <tr class="es"><td><b>BovedaTopada.sol</b></td><td><span class="tag es">ESCRIBE</span></td><td class="n">~150</td><td>Retiene el USDC. <b>Tope duro de colateral total</b>: se niega a aceptar más allá del límite. Pausa la creación de mercados, <b>nunca</b> la redención</td><td>L11 · L12 · L14</td></tr>
+        <tr class="es"><td><b>AdaptadorOraculo.sol</b></td><td><span class="tag es">ESCRIBE</span></td><td class="n">~180</td><td>Recibe la resolución propuesta tras multisig + timelock, abre la ventana de disputa y resuelve la condición del CTF</td><td>L7 · L12</td></tr>
+        <tr class="es"><td><b>RegistroAnclas.sol</b></td><td><span class="tag es">ESCRIBE</span></td><td class="n">~80</td><td>Guarda <code>(época, raíz, nHojas)</code>. Append-only, sin borrado ni edición</td><td>L13 · L15</td></tr>
+        <tr><td colspan="2" style="text-align:right;font-weight:700">Total de Solidity propia</td><td class="n"><b>~410</b></td><td colspan="2">Es el número que gobierna el coste y la duración de la auditoría</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="cols2" style="flex:1">
+    <div class="board">
+      <div class="tt" style="font-size:16px;margin-bottom:10px">Decisiones de contrato que faltan</div>
+      <table>
+        <tbody>
+          <tr><td><b>¿Actualizable o inmutable?</b></td><td>Si es proxy, quien puede actualizar puede robar. Con timelock largo + multisig, o inmutable y se despliega otro</td></tr>
+          <tr><td><b>La multisig real</b></td><td>Quiénes firman, cuántos de cuántos, llaves en hardware, qué pasa si alguien pierde la suya</td></tr>
+          <tr><td><b>Confirmaciones</b></td><td>Cuántos bloques en Base antes de dar por buena una liquidación</td></tr>
+          <tr><td><b>Economía de la disputa</b></td><td>Quién pone el bono, quién paga si se pierde, qué pasa si un resultado incorrecto no se disputa</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="note"><div class="lb">El tope es la pieza de calendario</div>
+      El tope duro de colateral es lo que permite lanzar en <b>M2 sin esperar la auditoría</b>: la
+      pérdida máxima de un bug queda acotada por diseño, no por confianza. Es el mismo principio
+      del tope de subsidio de L9, aplicado al riesgo de contrato. Se levanta en M3, cuando la
+      auditoría y su remediación están cerradas.</div>
+      <div class="note w"><div class="lb">Lo que no se hace</div>
+      No se escribe un CTF propio. No se escribe un AMM. No se escribe un puente. Cada línea de
+      Solidity propia es tiempo de auditoría, coste y superficie de ataque — y las tres cosas
+      escalan peor que lineal.</div>
+    </div>
+  </div>
+  <div class="pf"><span>Plano 04 · Los contratos</span><span>~410 líneas propias · Base</span></div>
+</div>
+
+<!-- ======================= PLANO 5 ======================= -->
+<div class="page">
+  <div class="ph"><div class="l"><span class="num">05</span><h2>El árbol de construcción</h2></div>
+    <div class="say">Qué archivo se crea, cuál se edita y cuál ya existe y no se toca. Es el plano
+    que se ejecuta.</div></div>
+
+  <div class="cols2" style="flex:1">
+    <div class="board">
+<div class="tree"><b>marea/</b>
+├── <b>src/domain/</b>          <span class="cm">la matemática, sin red ni estado</span>
+│   ├── <span class="nu">pozo.ts</span>            <span class="cm">NUEVO  acuñar · quemar · exposición</span>
+│   ├── <span class="nu">merkle.ts</span>          <span class="cm">NUEVO  hoja 0x00 · nodo 0x01 · prueba</span>
+│   ├── <span class="nu">epoca.ts</span>           <span class="cm">NUEVO  secuencia por usuario · conteo</span>
+│   ├── <span class="nu">presupuesto.ts</span>     <span class="cm">NUEVO  subsidio topado · exposición viva</span>
+│   ├── <span class="edn">parimutuel.ts</span>      <span class="cm">EDITA  settle y payoutMultiplier</span>
+│   │                        <span class="cm">       descuentan la semilla · seedMode</span>
+│   ├── <span class="edn">contabilidad.ts</span>    <span class="cm">EDITA  asiento "subsidio"</span>
+│   ├── <span class="edn">settlement.ts</span>      <span class="cm">EDITA  L8 frescura de la lectura</span>
+│   ├── <span class="edn">solicitudes.ts</span>     <span class="cm">EDITA  estados del depósito por puente</span>
+│   └── <span class="exn">edge · probability · resolution · geo</span>   <span class="cm">EXISTE</span>
+│
+├── <b>src/adapters/</b>
+│   ├── <span class="nu">cadena/base.ts</span>     <span class="cm">NUEVO  RPC · lee bóveda y supply</span>
+│   ├── <span class="nu">cadena/ctf.ts</span>      <span class="cm">NUEVO  acuña y quema vía CTF</span>
+│   ├── <span class="nu">cadena/ancla.ts</span>    <span class="cm">NUEVO  publica (época, raíz, n)</span>
+│   ├── <span class="nu">cadena/abis/</span>       <span class="cm">NUEVO</span>
+│   ├── <span class="nu">puente/tron.ts</span>     <span class="cm">NUEVO  cotiza y arma la tx</span>
+│   │                        <span class="cm">       el usuario firma · nunca custodia</span>
+│   ├── <span class="exn">wallet/injectedWallet.ts</span>  <span class="cm">EXISTE  EIP-1193 ya cableado</span>
+│   ├── <span class="exn">oracles/*</span>                 <span class="cm">EXISTE  9 fuentes ya vivas</span>
+│   └── <span class="exn">ownMarkets/*</span>              <span class="cm">EXISTE  catálogo y plantillas</span>
+│
+├── <b>src/screens/</b>
+│   ├── <span class="nu">VerificarPrueba.tsx</span>  <span class="cm">NUEVO  pega hoja + hermanos</span>
+│   └── <span class="edn">MarketDetail · PostTrade</span>  <span class="cm">EDITA  multiplicador nuevo</span>
+</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="board" style="flex:1">
+<div class="tree"><b>marea/server/</b>            <span class="cm">opera · no custodia</span>
+├── <span class="nu">cruce.mts</span>          <span class="cm">NUEVO  motor de cruce de órdenes firmadas</span>
+├── <span class="nu">anclador.mts</span>       <span class="cm">NUEVO  cierra época · raíz · ancla</span>
+├── <span class="nu">vigilante.mts</span>      <span class="cm">NUEVO  L14 cada bloque · grita</span>
+├── <span class="edn">ciclo.mts</span>          <span class="cm">EDITA  liquida contra el compensador</span>
+└── <span class="exn">api · auth · store · eventos · tarjeta</span>  <span class="cm">EXISTE</span>
+
+<b>marea/contratos/</b>        <span class="cm">NUEVO · Foundry</span>
+├── src/<span class="nu">BovedaTopada.sol</span>        <span class="cm">~150</span>
+├── src/<span class="nu">AdaptadorOraculo.sol</span>    <span class="cm">~180</span>
+├── src/<span class="nu">RegistroAnclas.sol</span>      <span class="cm">~80</span>
+├── lib/<span class="exn">conditional-tokens/</span>     <span class="cm">REUTILIZA (Gnosis)</span>
+└── test/                       <span class="cm">invariantes L1 · L5 · L14</span>
+
+<b>marea/tests/</b>
+├── <span class="nu">pozo.test.ts</span>       <span class="cm">NUEVO  1000 secuencias × cualquier ganador</span>
+│                       <span class="cm">       ⇒ capital propio idéntico</span>
+├── <span class="nu">merkle.test.ts</span>     <span class="cm">NUEVO  borrar una hoja rompe la prueba</span>
+├── <span class="nu">presupuesto.test.ts</span> <span class="cm">NUEVO  sin presupuesto no se crea</span>
+├── <span class="edn">parimutuel.test.ts</span> <span class="cm">EDITA  quote().toWin == settle().payouts</span>
+└── <span class="exn">las otras 269 pruebas</span>  <span class="cm">EXISTE · siguen verdes</span>
+</div>
+      </div>
+      <div class="note"><div class="lb">La regla de este árbol</div>
+      Todo <b>NUEVO</b> nace con su test en el mismo commit. Todo <b>EDITA</b> mueve
+      <code>quote()</code> y <code>settle()</code> juntos, o la app muestra un número distinto del
+      que paga. Y las 269 pruebas que ya existen tienen que seguir verdes <b>sin tocar sus
+      expectativas</b>: si hay que cambiarlas, el refactor está mal.</div>
+    </div>
+  </div>
+  <div class="pf"><span>Plano 05 · El árbol de construcción</span><span>13 archivos nuevos · 7 editados · el resto no se toca</span></div>
+</div>
+
+<!-- ======================= PLANO 6 ======================= -->
+<div class="page">
+  <div class="ph"><div class="l"><span class="num">06</span><h2>El orden de obra</h2></div>
+    <div class="say">Con rampa cripto y sin fiat. La auditoría no es trabajo, es calendario: por
+    eso los contratos se congelan pronto y pequeños.</div></div>
+
+  <div class="board" style="flex:1;display:flex;align-items:center">
+  <svg viewBox="0 0 1460 660" role="img" aria-label="Cronograma de construcción por bloques y semanas, con el punto de congelación del contrato, la ventana de auditoría y los tres hitos.">
+    <defs><marker id="p6w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hw" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+    <g>
+      <line class="ld" x1="300" y1="46" x2="300" y2="600"/><text class="ts" x="288" y="36">S0</text>
+      <line class="ld" x1="490" y1="46" x2="490" y2="600"/><text class="ts" x="478" y="36">S5</text>
+      <line class="ld" x1="680" y1="46" x2="680" y2="600"/><text class="ts" x="666" y="36">S10</text>
+      <line class="ld" x1="870" y1="46" x2="870" y2="600"/><text class="ts" x="856" y="36">S15</text>
+      <line class="ld" x1="1060" y1="46" x2="1060" y2="600"/><text class="ts" x="1046" y="36">S20</text>
+      <line class="ld" x1="1250" y1="46" x2="1250" y2="600"/><text class="ts" x="1236" y="36">S25</text>
+      <line class="ld" x1="1440" y1="46" x2="1440" y2="600"/><text class="ts" x="1426" y="36">S30</text>
+    </g>
+
+    <text class="tt" x="20" y="86">A · dominio TS</text><text class="ts" x="20" y="104">pozo · asientos · presupuesto · semilla</text>
+    <rect class="bx-on" x="300" y="66" width="190" height="46" rx="8"/><text class="ts" x="316" y="94">S1–S5 · desbloquea todo lo demás</text>
+
+    <text class="tt" x="20" y="156">B · contratos</text><text class="ts" x="20" y="174">~410 líneas propias + Foundry</text>
+    <rect class="bx-on" x="376" y="136" width="228" height="46" rx="8"/><text class="ts" x="392" y="164">S3–S8 · lo más chico posible</text>
+    <path class="lw" d="M604,136 L604,596" marker-end="url(#p6w)"/>
+    <text class="tw" x="612" y="128">CONGELA</text>
+
+    <text class="tt" x="20" y="226">C · wallet + liquidación</text><text class="ts" x="20" y="244">EIP-712 · sin paymaster</text>
+    <rect class="bx" x="490" y="206" width="152" height="46" rx="8"/><text class="ts" x="506" y="234">S6–S9</text>
+
+    <text class="tt" x="20" y="296">D · Merkle + ancla</text><text class="ts" x="20" y="314">L15 · verificador público</text>
+    <rect class="bx" x="566" y="276" width="114" height="46" rx="8"/><text class="ts" x="582" y="304">S8–S10</text>
+
+    <text class="tt" x="20" y="366">E · vigilante + runbook</text><text class="ts" x="20" y="384">L14 como servicio</text>
+    <rect class="bx" x="680" y="346" width="76" height="46" rx="8"/><text class="ts" x="690" y="374">S10–12</text>
+
+    <text class="tt" x="20" y="436">G · rampa cripto</text><text class="ts" x="20" y="454">el bloque paralelizable</text>
+    <rect class="bx-ext" x="718" y="416" width="114" height="46" rx="8"/><text class="ts" x="734" y="444">S11–S14</text>
+
+    <text class="tt" x="20" y="506">F · endurecimiento</text><text class="ts" x="20" y="524">bug bash · bounty · testnet</text>
+    <rect class="bx" x="794" y="486" width="114" height="46" rx="8"/><text class="ts" x="810" y="514">S13–S16</text>
+
+    <text class="tw" x="20" y="576">AUDITORÍA</text><text class="ts" x="20" y="594">cola + revisión + remediación</text>
+    <rect class="bx-ext" x="642" y="556" width="418" height="46" rx="8"/><text class="ts" x="658" y="584">S9–S20 · no es trabajo nuestro, es calendario</text>
+
+    <rect class="bx-on" x="646" y="620" width="112" height="34" rx="8"/><text class="tt-on" x="662" y="643">M1 testnet</text>
+    <rect class="bx-on" x="832" y="620" width="150" height="34" rx="8"/><text class="tt-on" x="848" y="643">M2 con tope</text>
+    <rect class="bx-on" x="1098" y="620" width="180" height="34" rx="8"/><text class="tt-on" x="1114" y="643">M3 tope levantado</text>
+  </svg>
+  </div>
+
+  <div class="cols2">
+    <div class="note"><div class="lb">Los tres hitos, en meses</div>
+    <b>M1 · testnet</b> completa en cadena, dinero de juguete: <b>8–10 semanas</b>.
+    <b>M2 · mainnet</b> con tope duro y bounty, rampa incluida: <b>15–18 semanas ≈ 4 meses</b>.
+    <b>M3 · tope levantado</b> tras auditoría: <b>22–29 semanas ≈ 5–6.5 meses</b>.</div>
+    <div class="note w"><div class="lb">Lo que puede correr el calendario</div>
+    La auditoría empieza cuando el contrato se congela: cada semana que B se alarga, M3 se
+    mueve una semana. Y la conversación legal <b>no está en este plano</b> porque no depende del
+    código — pero si no empieza ya, es ella la que fija la fecha real.</div>
+  </div>
+  <div class="pf"><span>Plano 06 · El orden de obra</span><span>ruta cripto-nativa con rampa · sin fiat</span></div>
+</div>
+
+</body></html>

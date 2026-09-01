@@ -13,7 +13,10 @@ plataforma activa en una imagen. Se regenera con `vault/liquidez-flujo.html`
 (Chromium headless, ancho 1720, escala 2). La arquitectura en cadena —las tres pruebas,
 el mapa de contratos y la cadena recomendada— está en `vault/cadena-arquitectura.png`.
 
-La memoria durable de esta decisión vive en `MEMORY/marea/README.md`.
+La memoria durable de esta decisión vive en `MEMORY/marea/README.md`, y los **planos de
+construcción** (7 páginas A3: sistema, árbol de época, ciclo, contratos, árbol de archivos
+y orden de obra) en `MEMORY/marea/planos-construccion.pdf` — fuente en
+`vault/planos-construccion.html`.
 
 ---
 

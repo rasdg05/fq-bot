@@ -273,8 +273,13 @@ confirmar.
 
 ---
 
-## Figuras
+## Obras
 
+- **`planos-construccion.pdf`** — *Planos de construcción* (7 páginas A3). Seis planos: el
+  sistema, el árbol de época corregido con L15, el ciclo de un mercado, los contratos
+  (~410 líneas propias), **el árbol de archivos a construir** y el orden de obra con los
+  tres hitos. Es el plano que se ejecuta. Fuente:
+  `marea/vault/planos-construccion.html`.
 - `fig-aritmetica-camino.png` — la aritmética, el camino de $0 a activa y la escalera de fees.
 - `fig-arquitectura-cadena.png` — las tres pruebas, el mapa de contratos, la cadena y los ingresos.
 
