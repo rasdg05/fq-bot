@@ -663,6 +663,9 @@ siguen sin ningún nivel, y los niveles siguen al `ANALISIS_ANCHOR_TF` si cambia
 | Producto 3 capas | cada edge documentado y gateado | `plan_evolucion_2026.md` | Cap.1 vivo; 2/3 midiendo |
 | Híbrido data/venue | TradFi: validar en Dukascopy, ejecutar en perp | `fetch_dukascopy.py`, #116/#122 | Cosecha XAU+NQ en marcha |
 | Deploy hygiene | docs no re-despliegan; blacklist = fallo seguro | `railway.toml`, #138 | VIVO |
+| **Marea: pozo = cámara** | El pozo sólo acuña/quema conjuntos completos ⇒ exposición neta 0 por construcción. La alternativa (creador de mercado) rompe R-057 | `MEMORY/marea/README.md`, `marea/vault/LIQUIDEZ.md`, `c1f936d` | Diseño, nada desplegado |
+| **Marea: fee base varianza** | `f·q·p·(1−p)` (forma Kalshi) es simétrica: cobra igual SÍ a 0.80 que NO a 0.20. Sobre la prima el taker pagaría 4× el maker por la misma operación | `MEMORY/marea/README.md` §3, `56d99b7` | Propuesta, pendiente de RasDG |
+| **Marea: Base para la cámara** | USDC nativo, gas en centavos, rampa Coinbase en Latam. Tron es el riel real de USDT pero sin CTF y con perfil legal pesado ⇒ sólo rampa de depósito | `MEMORY/marea/README.md` §4 | Propuesta |
 | Producto 2 tiers | UN SOLO canal: tier "free" de la BD recibe el firehose etiquetado; VIP el filtrado; candado VIP→FREE | `_free_broadcast`, `build_free_signal`, `free_leak_guard` | Cableado (dormido: `FQ_FREE_TIER` + `FQ_FREE_TO_VIP`) |
 
 ---
@@ -674,8 +677,11 @@ siguen sin ningún nivel, y los niveles siguen al `ANALISIS_ANCHOR_TF` si cambia
 3. **Ortogonalidad**: features nuevos suman DENTRO del CVD validado o van al cementerio.
 4. **Símbolo-específico**: coefs Y, memoria, basket, veto — se recalibran por símbolo.
 5. **Ledger como juez**: `/data/*.jsonl` es la fuente de verdad (fill-rate, R neto, regímenes).
-6. **No hay veto sin dato**: `FQ_CVD_FILTER`, `FQ_PERSIST_BOOST`, etc. son flags con criterio de
+6. **La escalera de fees no se salta** (Marea): bajar de `f₀` a `f₁` sólo si la rotación
+   medida cumple `R ≥ f₀/f₁`. De 300 a 60 bps hacen falta 5×; de 300 a 6, cincuenta.
+   Se baja con la medición de ocho semanas, no con ganas.
+7. **No hay veto sin dato**: `FQ_CVD_FILTER`, `FQ_PERSIST_BOOST`, etc. son flags con criterio de
    ON/OFF documentado en el plan.
 
-_Actualizado: 2026-06-30. Fuente de verdad: `git log`, `research/*.md`, `tools/validation_gate.py`,
+_Actualizado: 2026-09-01. Fuente de verdad: `git log`, `research/*.md`, `tools/validation_gate.py`,
 `motor_paper.py`, `launcher.py`, `tools/fetch_dukascopy.py`, `volume_profile.py`, `railway.toml`, `tests/`._

@@ -31,7 +31,7 @@ todas leen el MISMO registro — Marketing no puede afirmar lo que Ingeniería n
 La puerta. Qué es el proyecto, cómo se navega la memoria, las 3 reglas de oro y un
 resumen de cada archivo. Se lee en 60s y orienta a cualquiera desde cero. Si solo
 puedes leer una página antes de actuar, que sea esta — y luego la que aplique a tu
-tarea. Actualizado 2026-06-27.
+tarea. Actualizado 2026-09-01.
 
 ### `DECISIONES.md` — Decisiones clave y por qué
 Las 10 decisiones de arquitectura/producto con su razonamiento y la evidencia real
@@ -65,6 +65,11 @@ Fecha: 2026-06-27.
 Además de los 5 archivos núcleo, la memoria guarda las **obras** (PDF + texto):
 - `ingenieria/` — la ecuación del motor (P_master, de la vela al disparo).
 - `marketing/` — guías de marca y de cómo se construye una ventaja.
+- `marea/` — **Marea: protocolo de liquidez, cámara de compensación y arquitectura en
+  cadena.** La app de mercados de predicción de `marea/`. La decisión (el pozo es cámara,
+  no creador de mercado), la aritmética del ingreso, la escalera de fees con su regla de
+  bajada, la cadena recomendada (Base; Tron sólo rampa; Monero no) y las invariantes
+  L1–L14. **Estado: diseño, nada desplegado.**
 - `investigacion/` — **review científico (preview)** + **preprint EN (SSRN-ready)** +
   **presentación del perfil académico** (físico→quant, CDMX → Cornell/Oxford) +
   **`rutas-nuevas-2026.md`** (ideación estructura/motor/premios/investigación/vanguardia,

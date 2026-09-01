@@ -1,0 +1,322 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8">
+<style>
+@font-face{font-family:"Fraunces";src:url("file:///home/user/fq-bot/marea/public/fonts/fraunces-600.woff2") format("woff2");font-weight:600 700;}
+@font-face{font-family:"Hanken";src:url("file:///home/user/fq-bot/marea/public/fonts/hanken-400.woff2") format("woff2");font-weight:400;}
+@font-face{font-family:"Hanken";src:url("file:///home/user/fq-bot/marea/public/fonts/hanken-500.woff2") format("woff2");font-weight:500 600;}
+@font-face{font-family:"Hanken";src:url("file:///home/user/fq-bot/marea/public/fonts/hanken-700.woff2") format("woff2");font-weight:700 800;}
+:root{
+  --paper:#f5f3ec; --card:#ffffff; --card2:#ede8dc;
+  --ink:#12262a; --ink2:#3c5250; --muted:#697a78;
+  --teal:#0b6b6e; --teal-deep:#084f52; --teal-soft:#e2eeec;
+  --line:rgba(11,107,110,.22); --line2:rgba(18,38,42,.10);
+  --dn:#a8412b; --dn-soft:#f9ece7; --up:#157048; --hot:#8a5a0b; --hot-soft:#f7eeda;
+  --display:"Fraunces",Georgia,serif; --sans:"Hanken",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:1720px;height:auto;background:var(--paper);color:var(--ink);
+  font-family:var(--sans);font-size:15px;line-height:1.45;padding:40px 44px 34px;
+  -webkit-font-smoothing:antialiased;display:flex;flex-direction:column;gap:26px}
+.top,.band,.foot{flex:none}
+.top{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid var(--ink);padding-bottom:18px;gap:40px}
+.eyebrow{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--teal);font-weight:700;margin-bottom:10px}
+h1{font-family:var(--display);font-weight:600;font-size:47px;line-height:1.02;letter-spacing:-.02em}
+h1 em{font-style:normal;color:var(--teal)}
+.sub{font-size:16.5px;color:var(--ink2);margin-top:9px;max-width:74ch}
+.stamp{border:1.5px solid var(--line);border-radius:11px;padding:12px 16px;background:var(--card);text-align:right;min-width:300px}
+.stamp .k{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.stamp .v{font-family:var(--mono);font-size:13.5px;margin-top:5px}
+.stamp .v b{color:var(--teal-deep)}
+
+.band{display:flex;flex-direction:column;gap:14px}
+.band-h{display:flex;align-items:baseline;gap:14px}
+.band-h .n{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--teal);border:1.5px solid var(--teal);border-radius:6px;padding:1px 8px}
+.band-h h2{font-family:var(--display);font-weight:600;font-size:27px;letter-spacing:-.01em}
+.band-h .say{font-size:14px;color:var(--muted);margin-left:auto;text-align:right;max-width:60ch}
+
+.trio{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.card{background:var(--card);border:1.5px solid var(--line2);border-radius:14px;padding:18px 20px 16px}
+.card.key{border-color:var(--teal);background:#fbfdfc}
+.card .tag{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;font-weight:700;color:var(--teal)}
+.card h3{font-size:16px;font-weight:700;margin:5px 0 8px}
+.card p{font-size:13.6px;color:var(--ink2);line-height:1.5}
+.card p+p{margin-top:8px}
+.card b{color:var(--ink)}
+.code{font-family:var(--mono);font-size:12.6px;background:var(--card2);border-radius:8px;padding:9px 11px;margin-top:10px;line-height:1.65;color:var(--ink)}
+.code b{color:var(--teal-deep)}
+
+.mapa{background:var(--card);border:1.5px solid var(--line2);border-radius:16px;padding:18px 20px 14px}
+.mapa svg{display:block;width:100%;height:auto}
+.b-box{fill:var(--card2);stroke:var(--line2);stroke-width:1.3}
+.b-on{fill:var(--teal-soft);stroke:var(--teal);stroke-width:1.5}
+.b-band-off{fill:#faf8f2;stroke:var(--line2);stroke-width:1;stroke-dasharray:6 5}
+.b-band-on{fill:#f2f8f7;stroke:var(--teal);stroke-width:1.2}
+.t-b{fill:var(--ink);font-family:var(--sans);font-size:14.5px;font-weight:700}
+.t-on{fill:var(--teal-deep);font-family:var(--sans);font-size:14.5px;font-weight:700}
+.t-s{fill:var(--muted);font-family:var(--mono);font-size:11.5px}
+.t-lab{fill:var(--muted);font-family:var(--sans);font-size:11.5px;font-weight:700;letter-spacing:.14em}
+.t-lab-on{fill:var(--teal);font-family:var(--sans);font-size:11.5px;font-weight:700;letter-spacing:.14em}
+.t-arr{fill:var(--ink2);font-family:var(--mono);font-size:11.5px}
+.t-no{fill:var(--dn);font-family:var(--sans);font-size:13px;font-weight:700}
+.ln{stroke:var(--ink2);stroke-width:1.4;fill:none}
+.ln-k{stroke:var(--teal);stroke-width:1.8;fill:none}
+.hd{fill:var(--ink2)} .hd-k{fill:var(--teal)}
+
+.duo{display:grid;grid-template-columns:1.22fr 1fr;gap:20px;align-items:start}
+.panel{background:var(--card);border:1.5px solid var(--line2);border-radius:14px;padding:18px 20px 16px}
+.panel.key{border-color:var(--teal)}
+.panel h3{font-size:16px;font-weight:700;margin-bottom:3px}
+.panel .lede{font-size:13px;color:var(--muted);margin-bottom:12px}
+table{border-collapse:collapse;width:100%;font-size:13.8px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line2);vertical-align:top}
+thead th{font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);font-weight:700;border-bottom:1.5px solid var(--line)}
+tbody tr:last-child td{border-bottom:none}
+td.n,th.n{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+tr.yes td{background:var(--teal-soft)}
+tr.yes td:first-child{border-radius:7px 0 0 7px} tr.yes td:last-child{border-radius:0 7px 7px 0}
+tr.no td{background:var(--dn-soft)}
+tr.no td:first-child{border-radius:7px 0 0 7px} tr.no td:last-child{border-radius:0 7px 7px 0}
+.ch{font-family:var(--mono);font-weight:700;font-size:13.5px}
+.ch.si{color:var(--teal-deep)} .ch.tal{color:var(--hot)} .ch.nel{color:var(--dn)}
+.rev{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line2);font-size:13.8px}
+.rev:last-of-type{border-bottom:none}
+.rev .l b{color:var(--ink)} .rev .l{color:var(--ink2)}
+.rev .r{font-family:var(--mono);font-weight:700;white-space:nowrap;text-align:right}
+.rev .r.a{color:var(--up)} .rev .r.b{color:var(--teal-deep)} .rev .r.c{color:var(--muted)}
+.hint{font-size:12.6px;color:var(--ink2);margin-top:11px;padding-top:10px;border-top:1px dashed var(--line);line-height:1.5}
+.hint b{color:var(--dn)}
+
+.inv{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.icard{background:var(--card);border:1.5px solid var(--line2);border-radius:12px;padding:14px 16px}
+.icard .id{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--teal)}
+.icard .t{font-size:14.2px;font-weight:700;margin:3px 0 4px;line-height:1.3}
+.icard .d{font-size:12.6px;color:var(--ink2);line-height:1.45}
+.icard .d code{font-family:var(--mono);font-size:12px}
+
+.foot{display:flex;justify-content:space-between;align-items:center;gap:26px;background:var(--dn-soft);border:1.5px solid rgba(168,65,43,.32);border-radius:12px;padding:14px 20px;font-size:14px;color:var(--ink2)}
+.foot .lb{font-family:var(--mono);font-weight:700;color:var(--dn);white-space:nowrap}
+.foot .src{font-family:var(--mono);font-size:11.5px;color:var(--muted);text-align:right}
+</style></head><body>
+
+<div class="top">
+  <div>
+    <div class="eyebrow">Marea · arquitectura en cadena</div>
+    <h1>La cámara en cadena: <em>auditable en cualquier bloque</em></h1>
+    <div class="sub">No custodial: la llave es del usuario, el colateral vive en un contrato y Marea
+    sólo opera la resolución. Tres cosas cruzan a la cadena —la liquidación, la resolución y la raíz
+    del libro— y con esas tres cualquiera verifica el sistema entero sin pedirnos permiso.</div>
+  </div>
+  <div class="stamp">
+    <div class="k">La forma, en una línea</div>
+    <div class="v">libro <b>fuera</b> · liquidación <b>dentro</b></div>
+    <div class="v">colateral <b>USDC en contrato</b></div>
+    <div class="v">Marea <b>no puede mover fondos</b></div>
+  </div>
+</div>
+
+<!-- ① LAS TRES PRUEBAS -->
+<div class="band">
+  <div class="band-h"><span class="n">①</span><h2>Las tres pruebas</h2>
+    <span class="say">Cada una responde una pregunta distinta: ¿está el dinero? ¿pasó lo que dices?
+    ¿el resultado no se torció?</span></div>
+  <div class="trio">
+
+    <div class="card key">
+      <div class="tag">El dinero · en cadena</div>
+      <h3>Conjuntos completos, ERC-1155</h3>
+      <p>El colateral entra a una bóveda y salen contratos: uno de cada resultado. Nadie tiene que
+      confiar en nuestro balance — <b>se lee del contrato</b>, en cualquier bloque, sin API nuestra.</p>
+      <div class="code"><b>supply</b>(conjuntos) == <b>balance</b>(USDC)<br>
+      <span style="color:var(--muted)">si no cuadra, el contrato está roto</span></div>
+    </div>
+
+    <div class="card">
+      <div class="tag">La operación · anclada</div>
+      <h3>Hash-chain SHA-256 → raíz de Merkle</h3>
+      <p>Cada hecho —orden, cruce, fee, asiento— lleva dentro el hash del anterior. Por época se
+      calcula la raíz y <b>se ancla en una transacción</b>.</p>
+      <p>A un usuario le das su hoja y su prueba: verifica que su operación está en la raíz anclada
+      sin ver las de nadie más.</p>
+      <div class="code">hᵢ = SHA256(hᵢ₋₁ ‖ hecho)<br>raíz → 1 tx por época</div>
+    </div>
+
+    <div class="card">
+      <div class="tag">El resultado · comprometido antes</div>
+      <h3>Commit-reveal + ventana de disputa</h3>
+      <p>Al <b>crear</b> el mercado se publica el hash de la regla, la fuente y una sal. Al resolver
+      se revela: cualquiera comprueba que la regla no se cambió a mitad.</p>
+      <p>Es el <i>provably fair</i> de un casino cripto, aplicado a la resolución — más la disputa
+      on-chain de un oráculo optimista.</p>
+      <div class="code">crear&nbsp;&nbsp;&nbsp;commit = SHA256(regla ‖ fuente ‖ sal)<br>resolver reveal + evidencia</div>
+    </div>
+  </div>
+</div>
+
+<!-- ② EL MAPA -->
+<div class="band">
+  <div class="band-h"><span class="n">②</span><h2>El mapa</h2>
+    <span class="say">Arriba lo que opera la empresa; abajo lo que custodia el protocolo. Sólo bajan
+    tres flechas, y ninguna lleva fondos de usuario en nuestras manos.</span></div>
+  <div class="mapa">
+    <svg viewBox="0 0 1520 560" role="img" aria-label="Mapa de la arquitectura: fuera de cadena Marea opera la wallet del usuario, el motor de cruce, el oráculo commit-reveal y el ledger hash-chain con su raíz de Merkle; en cadena viven el CTFExchange con los ConditionalTokens, la bóveda de colateral USDC, el adaptador de rendimiento, el adaptador de oráculo y el ancla de la raíz. Sólo tres flechas cruzan: la liquidación, la resolución y el ancla.">
+      <defs>
+        <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hd" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hd-k" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+
+      <rect class="b-band-off" x="10" y="34" width="1500" height="150" rx="12"/>
+      <text class="t-lab" x="26" y="56">FUERA DE CADENA · LO OPERA LA EMPRESA · NO CUSTODIA NADA</text>
+
+      <rect class="b-box" x="30" y="76" width="330" height="80" rx="10"/>
+      <text class="t-b" x="48" y="106">Usuario · wallet propia</text>
+      <text class="t-s" x="48" y="128">firma EIP-712 · la llave</text>
+      <text class="t-s" x="48" y="145">nunca sale del dispositivo</text>
+
+      <rect class="b-box" x="400" y="76" width="330" height="80" rx="10"/>
+      <text class="t-b" x="418" y="106">Motor de cruce</text>
+      <text class="t-s" x="418" y="128">empareja órdenes firmadas</text>
+      <text class="t-s" x="418" y="145">no toca fondos en ningún momento</text>
+
+      <rect class="b-box" x="770" y="76" width="330" height="80" rx="10"/>
+      <text class="t-b" x="788" y="106">Oráculo · commit / reveal</text>
+      <text class="t-s" x="788" y="128">hash de regla+fuente al crear</text>
+      <text class="t-s" x="788" y="145">lectura + evidencia al resolver</text>
+
+      <rect class="b-box" x="1140" y="76" width="340" height="80" rx="10"/>
+      <text class="t-b" x="1158" y="106">Ledger SHA-256 → raíz</text>
+      <text class="t-s" x="1158" y="128">cada hecho encadena el anterior</text>
+      <text class="t-s" x="1158" y="145">una raíz de Merkle por época</text>
+
+      <path class="ln" d="M360,116 L396,116" marker-end="url(#a1)"/>
+
+      <path class="ln-k" d="M565,156 L565,236" marker-end="url(#a2)"/>
+      <text class="t-arr" x="575" y="184">liquidación</text>
+      <text class="t-arr" x="575" y="200">atómica</text>
+
+      <path class="ln-k" d="M935,156 L935,236" marker-end="url(#a2)"/>
+      <text class="t-arr" x="945" y="184">propone resolución</text>
+      <text class="t-arr" x="945" y="200">multisig + timelock</text>
+
+      <path class="ln-k" d="M1310,156 L1310,236" marker-end="url(#a2)"/>
+      <text class="t-arr" x="1320" y="192">ancla la raíz</text>
+
+      <rect class="b-band-on" x="10" y="236" width="1500" height="310" rx="12"/>
+      <text class="t-lab-on" x="26" y="258">EN CADENA · LO CUSTODIA EL PROTOCOLO · CUALQUIERA LO LEE</text>
+
+      <rect class="b-on" x="400" y="276" width="330" height="84" rx="10"/>
+      <text class="t-on" x="418" y="306">CTFExchange</text>
+      <text class="t-s" x="418" y="328">verifica firmas y liquida</text>
+      <text class="t-s" x="418" y="345">contra ConditionalTokens (1155)</text>
+
+      <rect class="b-on" x="770" y="276" width="330" height="84" rx="10"/>
+      <text class="t-on" x="788" y="306">Adaptador de oráculo</text>
+      <text class="t-s" x="788" y="328">oráculo optimista · disputa</text>
+      <text class="t-s" x="788" y="345">y autoriza el pago al vencerla</text>
+
+      <rect class="b-on" x="1140" y="276" width="340" height="84" rx="10"/>
+      <text class="t-on" x="1158" y="306">Ancla de la raíz</text>
+      <text class="t-s" x="1158" y="328">1 tx por época · cualquiera</text>
+      <text class="t-s" x="1158" y="345">prueba su hoja contra ella</text>
+
+      <rect class="b-on" x="30" y="276" width="330" height="84" rx="10"/>
+      <text class="t-on" x="48" y="306">Redención 1:1</text>
+      <text class="t-s" x="48" y="328">1 USDC por contrato ganador</text>
+      <text class="t-s" x="48" y="345">el usuario cobra del contrato</text>
+
+      <path class="ln-k" d="M396,318 L366,318" marker-end="url(#a2)"/>
+      <path class="ln-k" d="M766,318 L736,318" marker-end="url(#a2)"/>
+
+      <rect class="b-on" x="30" y="400" width="1030" height="76" rx="10"/>
+      <text class="t-on" x="48" y="428">Bóveda de colateral · USDC</text>
+      <text class="t-s" x="48" y="450">el invariante que cualquiera comprueba en cualquier bloque:  supply(conjuntos) == balance(colateral)</text>
+
+      <rect class="b-box" x="1100" y="400" width="380" height="76" rx="10"/>
+      <text class="t-b" x="1118" y="428">Adaptador de rendimiento</text>
+      <text class="t-s" x="1118" y="450">sólo el excedente · colchón por calendario de pagos</text>
+
+      <path class="ln-k" d="M565,360 L565,396" marker-end="url(#a2)"/>
+      <path class="ln" d="M1060,438 L1096,438" marker-end="url(#a1)"/>
+      <path class="ln" d="M1096,462 L1060,462" marker-end="url(#a1)"/>
+
+      <text class="t-no" x="30" y="512">✗ No existe función que mueva fondos de un usuario. Ni una.</text>
+      <text class="t-s" x="30" y="533">La llave de Marea sólo propone resolución, detrás de multisig y timelock — y la disputa puede tumbarla antes de que pague.</text>
+    </svg>
+  </div>
+</div>
+
+<!-- ③ DÓNDE VIVE + INGRESOS -->
+<div class="band">
+  <div class="band-h"><span class="n">③</span><h2>Dónde vive y de qué vive</h2>
+    <span class="say">La cadena se elige por rampa y por herramientas, no por moda. El ingreso deja
+    de ser una sola línea.</span></div>
+  <div class="duo">
+
+    <div class="panel key">
+      <h3>La cadena</h3>
+      <div class="lede">Recomendación: <b>Base</b> para la cámara, Tron sólo como rampa</div>
+      <table>
+        <thead><tr><th>Cadena</th><th>Por qué / por qué no</th><th>Papel</th></tr></thead>
+        <tbody>
+          <tr class="yes"><td><span class="ch si">Base</span></td><td>USDC nativo de Circle, gas en centavos, rampa Coinbase fuerte en Latam, OP Stack y ecosistema consumer</td><td><b>la cámara</b></td></tr>
+          <tr><td><span class="ch si">Polygon</span></td><td>Donde vive Polymarket: el CTF ya está probado ahí para exactamente este caso. Segunda opción, la más rodada</td><td>alternativa</td></tr>
+          <tr><td><span class="ch si">Arbitrum</span></td><td>DeFi profundo para el adaptador de rendimiento, pero rampa consumer más floja en la región</td><td>sólo rendimiento</td></tr>
+          <tr><td><span class="ch tal">Tron · USDT</span></td><td>Es <b>el riel real de USDT en Latam</b>. Pero sin CTF, con herramientas de contrato pobres y un perfil que complica la opinión legal</td><td><b>rampa de depósito</b>, se convierte a USDC al entrar</td></tr>
+          <tr><td><span class="ch tal">BNB · Cake</span></td><td>PancakeSwap es un AMM, no una capa de liquidación. Sirve para hacer el swap de la rampa, no para custodiar el pozo</td><td>swap, no cámara</td></tr>
+          <tr class="no"><td><span class="ch nel">Monero</span></td><td>No tiene contratos, y es privado por diseño: es <b>lo contrario de auditable</b>, que es justo tu argumento. Aceptarlo además cierra la puerta legal con casi cualquier rampa fiat</td><td><b>no</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <h3>Tres líneas de ingreso, no una</h3>
+      <div class="lede">La segunda es la que intuías: el pozo rinde mientras espera</div>
+      <div class="rev"><span class="l"><b>1 · Fee de operación</b><br>base varianza, estilo Kalshi</span><span class="r a">f · q · p · (1−p)</span></div>
+      <div class="rev"><span class="l"><b>2 · Float del colateral</b><br>el colateral vive días o semanas</span><span class="r b">C̄ · APY · días/365</span></div>
+      <div class="rev"><span class="l"><b>3 · Reparto de rebate</b><br>cuando entren makers de terceros</span><span class="r c">después</span></div>
+      <div class="hint" style="border-top-style:solid">
+        <b>Corrijo lo de ayer.</b> Había recomendado cobrar sobre la prima. Verificado el esquema de
+        Kalshi —<code>0.07 · C · P · (1−P)</code>— la base correcta es la <b>varianza</b>: cobra
+        igual comprar SÍ a 0.80 que NO a 0.20, que es <i>el mismo trato visto de los dos lados</i>.
+        Sobre la prima, el taker pagaría 4× lo del maker por la misma operación.
+      </div>
+      <div class="hint">La línea 2 es la que hace que esto se parezca a un índice y no a una acción:
+      <b>escala con el colateral vivo, no con la rotación</b> — que es justo lo que hoy no tenemos.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ④ INVARIANTES -->
+<div class="band">
+  <div class="band-h"><span class="n">④</span><h2>Lo que la cadena obliga</h2>
+    <span class="say">Cuatro invariantes nuevas. Sin ellas, "descentralizado" es una palabra en el
+    landing.</span></div>
+  <div class="inv">
+    <div class="icard"><div class="id">L11</div>
+      <div class="t">El rendimiento nunca retrasa un pago</div>
+      <div class="d">Sólo el excedente entra al adaptador, con colchón dimensionado al calendario de
+      vencimientos. <i>Test:</i> con el venue congelado, todos los pagos del mes salen igual.</div></div>
+    <div class="icard"><div class="id">L12</div>
+      <div class="t">Marea no puede mover fondos</div>
+      <div class="d">No existe la función. La llave sólo propone resolución, tras multisig y timelock.
+      <i>Test:</i> el ABI no expone ninguna ruta a los saldos de usuario.</div></div>
+    <div class="icard"><div class="id">L13</div>
+      <div class="t">Todo número publicado nombra su raíz</div>
+      <div class="d">Track record, volumen, comisión: cada cifra dice de qué raíz anclada sale.
+      <i>Test:</i> un número sin raíz no se publica.</div></div>
+    <div class="icard"><div class="id">L14</div>
+      <div class="t">Colateral = conjuntos, en todo bloque</div>
+      <div class="d">La versión on-chain de L1. <i>Test:</i> un vigilante externo compara los dos
+      valores cada bloque y grita si difieren.</div></div>
+  </div>
+</div>
+
+<div class="foot">
+  <span class="lb">La advertencia:</span>
+  <div style="flex:1">Descentralizar <b>no quita la obligación</b>. Si nosotros ponemos el frontend,
+  creamos los mercados y operamos el oráculo, somos el operador — no custodios, pero operador.
+  Ser no-custodial baja el riesgo de custodia y de hackeo; el riesgo regulatorio sigue donde estaba,
+  y la puerta 04 sigue siendo la puerta 04.</div>
+  <span class="src">Polymarket: CLOB fuera + CTF dentro + oráculo optimista<br>Kalshi: 0.07·C·P·(1−P) · verificado sep-2026</span>
+</div>
+
+</body></html>

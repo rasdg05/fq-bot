@@ -10,7 +10,10 @@
 
 **Para el equipo:** `vault/liquidez-flujo.png` es la aritmética y el camino de $0 a
 plataforma activa en una imagen. Se regenera con `vault/liquidez-flujo.html`
-(Chromium headless, ancho 1720, escala 2).
+(Chromium headless, ancho 1720, escala 2). La arquitectura en cadena —las tres pruebas,
+el mapa de contratos y la cadena recomendada— está en `vault/cadena-arquitectura.png`.
+
+La memoria durable de esta decisión vive en `MEMORY/marea/README.md`.
 
 ---
 
