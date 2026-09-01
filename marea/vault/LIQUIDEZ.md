@@ -467,6 +467,111 @@ construye contra la puerta cerrada, como manda `PROMPT_DINERO_REAL.md`.
 
 ---
 
+## 12. Lo que falta y cuánto tarda (2026-09-01)
+
+### 12.0 El agujero del árbol: inclusión ≠ completitud
+
+Una raíz de Merkle prueba que **tu** hecho está en el libro. **No prueba que el libro
+esté completo.** Si un hecho se omite entero, la raíz sigue verificando para todos los
+demás y nadie lo nota. Es el problema clásico de disponibilidad de datos, y el diseño
+actual no lo cubre.
+
+Se tapa con tres cosas baratas, y hay que decidirlas **antes** de escribir el anclaje:
+
+1. **Secuencia por usuario.** Cada hoja lleva `(usuarioId, n)` consecutivo. Un hueco
+   —falta el `n=7`— es detectable por el propio usuario sin ver el resto del libro.
+2. **Conteo anclado.** La tx de época publica también el número de hojas. No se puede
+   encoger el libro en silencio.
+3. **Hojas disponibles.** El conjunto completo de hojas de la época se publica (o se
+   sirve bajo demanda). Sin eso, "auditable" depende de que nosotros contestemos.
+
+Además, dos detalles de construcción que si se olvidan hacen el árbol falsificable:
+**separación de dominio** (prefijo distinto al hashear hoja `0x00` y nodo interno `0x01`,
+o un atacante hace pasar un nodo por hoja) y **regla explícita para número impar de
+hojas** (duplicar la última o promoverla — cualquiera, pero escrita).
+
+→ **L15 · una omisión es detectable.** Secuencia por usuario + conteo en el ancla.
+*Test:* borrar una hoja del libro rompe la verificación de alguien.
+
+### 12.1 Lo que falta, por bloque
+
+Marcado con **[$]** lo que sólo bloquea el día del dinero, y **[P]** lo que además
+bloquea el lanzamiento en puntos.
+
+**Contratos y seguridad**
+- **[$] Auditoría externa del contrato.** Un contrato que custodia dinero ajeno no se
+  lanza sin ella. Tiene cola: no es tiempo de trabajo, es tiempo de calendario.
+- **[$] ¿Actualizable o inmutable?** Si es proxy, quien puede actualizar puede robar.
+  Con timelock largo + multisig, o inmutable y se despliega otro. **Sin decidir.**
+- **[$] La multisig de verdad:** quiénes firman, cuántos, llaves en hardware, qué pasa
+  si uno pierde la suya. Sin esto, "multisig + timelock" es una palabra en un diagrama.
+- **[$] Pausa de emergencia.** Debe poder parar la **creación** de mercados, nunca la
+  **redención**: un botón que congela retiros contradice el no-custodial.
+- **[$] Confirmaciones y reorgs** en Base antes de dar por buena una liquidación.
+- **[$] Economía de la disputa:** quién pone el bono, quién paga si se pierde, qué pasa
+  si un resultado incorrecto **no** se disputa.
+
+**Producto y rampa**
+- **[$] Abstracción de gas.** Si el usuario necesita ETH en Base para firmar, se pierde
+  al neófito, que es justo nuestro público. Paymaster / cuenta abstracta es **un bloque
+  de trabajo entero que no estaba en el plan.**
+- **[$] Wallet embebida:** proveedor (Privy/Turnkey), coste, dependencia. Sin elegir.
+- **[$] On-ramp fiat** (MXN/COP/ARS → USDC) y **off-ramp**, que suele ser lo difícil.
+  La rampa TRC20 sirve a quien ya tiene cripto, no al que llega de cero.
+- **[$] Recuperación de cuenta con wallet propia.** El código de recuperación de hoy
+  cubre la cuenta, no la llave.
+
+**Legal — el camino crítico**
+- **[$] Opinión por país.** Empezar por **uno**. Semanas, no días, y no depende de
+  nosotros.
+- **[$] Estructura societaria:** qué entidad opera y dónde.
+- **[$] KYC/AML y screening de sanciones.** No aparece en ningún documento todavía y es
+  obligatorio en cuanto hay dinero.
+- **[$] Términos, privacidad, y disputa del usuario** (distinta de la del oráculo).
+
+**Operación**
+- **[P] Vigilante externo de L14:** un proceso fuera del sistema comparando
+  `supply(conjuntos)` contra `balance(colateral)` y gritando. Está como test; falta como
+  servicio.
+- **[P] Runbook:** qué se hace con un mercado `atorado` con dinero dentro, con la fuente
+  caída, con el formato del oráculo cambiado.
+- **[$] Soporte humano.** Alguien contesta "no me llegó mi pago" a las 3am.
+- **[$] Fondo de contingencia** para el día que haya un bug.
+
+### 12.2 Cuánto tarda
+
+Tres pistas que corren en paralelo. La de código es la única que controlamos.
+
+| Pista | Trabajo | Empieza |
+|---|---|---|
+| **Código** | Tramo A (L1–L3 + semilla→subsidio) ≈ 4–6 semanas · contratos + anclaje ≈ 4–6 · wallet/gas/rampa ≈ 3–5 · endurecimiento y vigilante ≈ 2 | hoy |
+| **Auditoría** | 6–11 semanas **desde que el contrato se congela** (cola + revisión + remediación) | tras congelar |
+| **Legal** | Opinión del primer país 4–12 semanas · sociedad 4–8 | **hoy, en paralelo** |
+
+**Lanzamiento en puntos con la cámara nueva: 6–8 semanas.** Sin bloqueo legal, sin
+auditoría, sin rampa. Es alcanzable y no depende de nadie externo.
+
+**Lanzamiento con dinero real: 7–9 meses realista** (5–6 optimista) — y el reloj no lo
+marca el código, lo marca la opinión legal más la auditoría. Si la conversación legal
+no empieza esta semana, el estimado corre día por día.
+
+**Bajar el fee (paso 09): +8 semanas después de tener volumen**, no después de lanzar.
+
+### 12.3 La jugada que acorta todo
+
+**Lanzar en puntos con la arquitectura nueva ya cableada, y medir R ahí.**
+
+La rotación no necesita dinero para medirse. Si la gente opera con puntos, en ocho
+semanas tenemos `R` y llegamos al día del dinero con el fee **elegido en vez de
+adivinado** — que es justo lo que hoy no podemos hacer.
+
+Con una salvedad honesta: con puntos la gente rota **más** que con dinero. La R medida
+en puntos es un techo optimista. Sirve para **descartar** (si ni con puntos rota, con
+dinero menos) y no para confirmar. Aun así, descartar barato es exactamente lo que este
+repo hace bien.
+
+---
+
 ## 11. Reglas escritas en `RULINGS.md` (2026-09-01)
 
 - **R-065** ✔ escrita — El pozo es cámara de compensación, nunca creador de mercado. Sólo

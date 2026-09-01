@@ -148,6 +148,7 @@ verificado sep-2026).
 | L12 | Marea no puede mover fondos: la función no existe | nueva · on-chain |
 | L13 | Todo número publicado nombra la raíz anclada de la que sale | nueva · on-chain |
 | L14 | `supply(conjuntos) == balance(colateral)` en todo bloque | nueva · on-chain |
+| L15 | Una omisión es detectable: secuencia por usuario + conteo de hojas en el ancla | nueva · on-chain |
 
 **L8 no la trae este diseño**: hoy `onRead` acepta una lectura sin comprobar cuán vieja
 es la fuente — el mismo fallo que en el bot obligó a cablear `cvd_confirmation`.
@@ -220,6 +221,32 @@ Tres cosas que no se pueden separar de esa línea:
    cada mercado termina con las reglas con las que nació.
 
 Detalle en `marea/vault/LIQUIDEZ.md` §6.1.
+
+## 7bis. Lo que falta y cuánto tarda
+
+**El agujero del árbol.** Una raíz de Merkle prueba que **tu** hecho está en el libro;
+**no** prueba que el libro esté completo. Una omisión entera pasa desapercibida. Se tapa
+con secuencia por usuario + conteo de hojas anclado + hojas disponibles (**L15**). Y dos
+detalles sin los cuales el árbol es falsificable: separación de dominio al hashear hoja
+(`0x00`) y nodo (`0x01`), y regla explícita para número impar de hojas.
+
+**Lo que falta**, resumido: auditoría externa del contrato · decidir si es actualizable ·
+la multisig real (firmantes, hardware, pérdida de llave) · pausa que frene la creación
+pero nunca la redención · economía de la disputa · **abstracción de gas** (bloque entero
+que no estaba en el plan: sin paymaster el neófito necesita ETH para firmar) · wallet
+embebida · on-ramp y off-ramp fiat · KYC/AML y sanciones · estructura societaria ·
+vigilante externo de L14 · runbook de mercado atorado con dinero dentro · soporte humano.
+Detalle en `marea/vault/LIQUIDEZ.md` §12.1.
+
+**Los tiempos** (§12.2): lanzamiento **en puntos** con la cámara nueva, **6–8 semanas**,
+sin bloqueo externo. Con **dinero real**, **7–9 meses realista** — y el reloj lo marcan la
+opinión legal y la auditoría, no el código.
+
+**La jugada que acorta todo** (§12.3): lanzar en puntos con la arquitectura cableada y
+**medir R ahí**. La rotación no necesita dinero para medirse; con ocho semanas de puntos
+llegamos al día del dinero con el fee elegido en vez de adivinado. Salvedad honesta: con
+puntos se rota más, así que esa R es un techo optimista — sirve para descartar, no para
+confirmar.
 
 ## 8bis. Lo que sigue abierto
 

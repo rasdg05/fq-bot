@@ -227,6 +227,11 @@ La app de `marea/`. **No es el bot** y no comparte motor, pero sí memoria y dis
 | Semilla | hoy **apuesta** (puede cobrar). **Decidido pasarla a subsidio**; sin cablear |
 | Reglas | **R-065 a R-068 escritas** — 68 en `RULINGS.md` |
 
+**Tiempos (2026-09-01):** lanzamiento en puntos con la cámara nueva **6–8 semanas**;
+con dinero real **7–9 meses realista**, y el reloj lo marcan la opinión legal y la
+auditoría del contrato, no el código. La rotación `R` se puede medir **con puntos**, así
+que el fee se puede elegir antes de que haya dinero.
+
 **Lo que bloquea el primer peso no es código**: es la opinión legal por país (paso 04 del
 camino). Todo el tramo A (compensador puro, asientos, funding con freno) se puede cablear
 hoy en modo puntos sin tocar esa puerta.
