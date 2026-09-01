@@ -242,6 +242,14 @@ Detalle en `marea/vault/LIQUIDEZ.md` §12.1.
 sin bloqueo externo. Con **dinero real**, **7–9 meses realista** — y el reloj lo marcan la
 opinión legal y la auditoría, no el código.
 
+**Ruta cripto-nativa, sin fiat** (§12.4): saltar rampa, wallet embebida, paymaster y KYC
+ahorra **10–17 semanas**. Tres hitos: **M1 testnet 8–10 semanas · M2 mainnet con tope duro
+de colateral + bounty 13–15 semanas · M3 tope levantado tras auditoría 20–26 semanas.**
+Dos cosas no se saltan: el **screening de sanciones** (2–3 días, no una pista, y es lo
+único de ese bloque que ha hundido equipos) y **seguir siendo el operador**. El coste
+comercial: el público pasa a ser quien ya tiene USDC en Base — otra audiencia, no la
+misma más rápido.
+
 **La jugada que acorta todo** (§12.3): lanzar en puntos con la arquitectura cableada y
 **medir R ahí**. La rotación no necesita dinero para medirse; con ocho semanas de puntos
 llegamos al día del dinero con el fee elegido en vez de adivinado. Salvedad honesta: con

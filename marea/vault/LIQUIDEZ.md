@@ -557,6 +557,69 @@ no empieza esta semana, el estimado corre día por día.
 
 **Bajar el fee (paso 09): +8 semanas después de tener volumen**, no después de lanzar.
 
+### 12.4 La ruta cripto-nativa (sin fiat) — 2026-09-01
+
+Saltar rampa fiat, KYC y screening cambia el calendario de verdad. El usuario llega con
+su USDC en Base y su wallet; nosotros no tocamos banco.
+
+**Lo que se ahorra, y por qué es tanto:**
+
+| Se salta | Semanas |
+|---|---|
+| On-ramp + off-ramp fiat | 3–5 |
+| Wallet embebida (el usuario trae la suya) | 2–3 |
+| **Abstracción de gas / paymaster** — el cripto-nativo ya tiene ETH en Base | 3–5 |
+| KYC | 2–4 |
+| **Total** | **10–17 semanas** |
+
+**Dos cosas que NO se saltan aunque se salte todo lo demás:**
+
+1. **El screening de sanciones.** No es KYC. Es una lista de direcciones bloqueadas en el
+   frontend, y es lo único de este bloque que ha hundido equipos cripto de verdad. Cuesta
+   **2–3 días**, no una pista de trabajo. Saltarlo no acorta el calendario; sólo compra
+   riesgo. Se queda.
+2. **Seguir siendo el operador.** Ponemos el frontend, creamos los mercados y operamos el
+   oráculo. Cripto-nativo y no custodial reduce exposición; no la vuelve cero, y en varias
+   jurisdicciones un mercado de predicción es lo que es sin importar el riel. La pregunta
+   legal cambia de forma, no desaparece.
+
+**Los bloques de construcción** (una persona con Claude):
+
+| Bloque | Semanas |
+|---|---|
+| A · Tramo A en TS: compensador, asientos, freno, semilla→subsidio | 3–5 |
+| B · Contratos: **CTF ya auditado** + adaptador de oráculo + registro de anclas + bóveda con tope | 3–5 |
+| C · Wallet conectada + EIP-712 + liquidación | 2–3 |
+| D · Anclaje Merkle + L15 + verificador público | 1.5–2 |
+| E · Vigilante externo de L14 + runbook + observabilidad | 1–1.5 |
+| F · Endurecimiento + testnet pública + bug bash | 2–3 |
+
+La decisión que más ahorra está en el bloque B: **escribir la menos Solidity posible.**
+Los Conditional Tokens de Gnosis ya están auditados y rodados; lo nuestro son 300–600
+líneas (adaptador de oráculo, registro de anclas, bóveda con tope). Cuanto menos código
+propio, más corta la auditoría y más barata.
+
+**Los tres hitos:**
+
+| Hito | Qué es | Cuándo |
+|---|---|---|
+| **M1 · testnet** | Todo el flujo en cadena sobre Base Sepolia, dinero de juguete. Auditable de punta a punta | **8–10 semanas** |
+| **M2 · mainnet con tope** | USDC real en Base, **tope duro de colateral en el contrato** + bug bounty público, auditoría corriendo en paralelo | **13–15 semanas** (~3–3.5 meses) |
+| **M3 · tope levantado** | Tras auditoría y remediación | **20–26 semanas** (~5–6 meses) |
+
+**M2 es la respuesta a "live sin fiat".** El tope duro es lo que la hace defendible: el
+contrato se niega a retener más de X USDC en total, así que la pérdida máxima de un bug
+está acotada por diseño y no por confianza. Es el mismo principio que el tope de subsidio
+de L9, aplicado al riesgo de contrato. Lanzar sin auditoría **y** sin tope no es rápido,
+es barato de otra manera.
+
+**El coste comercial, dicho una vez:** sin rampa, el público es "el que ya tiene USDC en
+Base". En Latam eso es mucho más chico que "el que tiene USDT en Tron", y muchísimo más
+chico que el neófito para el que se diseñó el producto (`README.md`: *nuestro público es
+justo el neófito*). La rampa TRC20→USDC decidida el 2026-09-01 lo tapa a medias y añade
+**1–2 semanas** más un puente con su propio riesgo en tránsito. Cripto-nativo es una vía
+legítima de lanzar; es otra audiencia, no la misma más rápido.
+
 ### 12.3 La jugada que acorta todo
 
 **Lanzar en puntos con la arquitectura nueva ya cableada, y medir R ahí.**
