@@ -620,6 +620,52 @@ justo el neófito*). La rampa TRC20→USDC decidida el 2026-09-01 lo tapa a medi
 **1–2 semanas** más un puente con su propio riesgo en tránsito. Cripto-nativo es una vía
 legítima de lanzar; es otra audiencia, no la misma más rápido.
 
+### 12.5 Con rampa cripto (USDT-TRC20 → USDC-Base), sin fiat — 2026-09-01
+
+Es el caso realista para Latam: el usuario no viene de un banco, viene con **USDT en
+Tron**, que es el riel que de verdad usa.
+
+**La decisión que hay que tomar antes de estimar nada**, porque cambia lo que somos:
+
+| Forma | Qué pasa | Veredicto |
+|---|---|---|
+| **Integración** — el usuario firma, los fondos van `usuario → puente → su dirección en Base`. Nunca pasan por nosotros | Seguimos no custodiales. L12 y R-065 intactos | **Ésta** |
+| **Dirección de depósito** — "manda a esta cuenta y te acreditamos" | **Nos vuelve custodios en la pata de Tron.** Tira abajo toda la historia no custodial, aunque la bóveda de Base siga siendo perfecta | **No** |
+
+La segunda es más fácil de construir y por eso es la trampa. Un producto no custodial con
+una rampa custodial es un producto custodial con un diagrama bonito.
+
+**Lo que cuesta** (integración, no dirección de depósito): **2–3 semanas**. Uno o dos días
+son el camino feliz; el resto son los caminos que fallan — puente caído, llegó menos de lo
+que mandó, se quedó a medias, slippage declarado antes de firmar. `domain/solicitudes.ts`
+ya modela depósitos como solicitudes con estado, que es exactamente la pieza que hace
+falta: el trabajo es el adaptador y el monitoreo, no la máquina de estados.
+
+La pata de vuelta (retirar a Tron) es **+1–2 semanas** y es la más delicada. Si no se
+construye, se sale como USDC en Base y hay que decirlo antes del primer depósito.
+
+**El calendario:**
+
+| Hito | Sin rampa | **Con rampa cripto** |
+|---|---|---|
+| M1 · testnet completa en cadena | 8–10 sem | **8–10 sem** (la rampa no entra en testnet) |
+| M2 · mainnet con tope + bounty | 13–15 sem | **15–18 sem ≈ 4 meses** |
+| M3 · tope levantado tras auditoría | 20–26 sem | **22–29 sem ≈ 5–6.5 meses** |
+
+**Construido y lanzado: ~4 meses** (M2, con tope duro y rampa de entrada). Con la pata de
+retiro a Tron, 4–4.5.
+
+**La rampa es el bloque más paralelizable de todo el plan.** No toca contrato, ni
+invariante, ni matemática de liquidación: es adaptador y monitoreo. Con una sola persona
+suma 2–3 semanas al calendario; con un segundo par de manos cuesta **cero**, porque cabe
+entera en la ventana en que la auditoría está corriendo. Si en algún momento hay
+presupuesto para una segunda persona, éste es el trabajo que hay que darle — no los
+contratos.
+
+**Dependencia declarada:** el puente es un tercero en el camino de entrada del dinero. Si
+se cae, los depósitos paran; el pozo y los pagos siguen. La app lo dice en vez de fingir
+(R-022).
+
 ### 12.3 La jugada que acorta todo
 
 **Lanzar en puntos con la arquitectura nueva ya cableada, y medir R ahí.**

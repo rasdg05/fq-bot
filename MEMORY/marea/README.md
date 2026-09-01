@@ -250,6 +250,14 @@ Dos cosas no se saltan: el **screening de sanciones** (2–3 días, no una pista
 comercial: el público pasa a ser quien ya tiene USDC en Base — otra audiencia, no la
 misma más rápido.
 
+**Con rampa cripto USDT-TRC20 → USDC-Base** (§12.5), que es el caso realista para Latam:
+**M2 a 15–18 semanas ≈ 4 meses construido y lanzado**, M3 a 22–29 ≈ 5–6.5 meses. La rampa
+va **como integración** (el usuario firma, los fondos nunca pasan por nosotros), nunca como
+dirección de depósito: eso último nos volvería custodios en la pata de Tron y tiraría L12 y
+R-065 aunque la bóveda de Base siguiera perfecta. Es además el bloque **más paralelizable**
+del plan — no toca contrato ni invariante ni liquidación — así que con un segundo par de
+manos cuesta cero calendario.
+
 **La jugada que acorta todo** (§12.3): lanzar en puntos con la arquitectura cableada y
 **medir R ahí**. La rotación no necesita dinero para medirse; con ocho semanas de puntos
 llegamos al día del dinero con el fee elegido en vez de adivinado. Salvedad honesta: con
