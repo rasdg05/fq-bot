@@ -8,9 +8,9 @@
 > escribir código, no después. Lo que se decida aquí se cablea en invariantes
 > (§7), no en buenas intenciones.
 
-**Para el equipo:** `vault/liquidez-flujo.png` es esta decisión en una imagen —lo que
-corre hoy contra lo recomendado, con el argumento de ingreso encima. Se regenera con
-`vault/liquidez-flujo.html` (Chromium headless, ancho 1640, escala 2).
+**Para el equipo:** `vault/liquidez-flujo.png` es la aritmética y el camino de $0 a
+plataforma activa en una imagen. Se regenera con `vault/liquidez-flujo.html`
+(Chromium headless, ancho 1720, escala 2).
 
 ---
 
@@ -199,38 +199,100 @@ la comisión que se restaba del reparto y no llegaba a ninguna parte.
 
 ---
 
-## 5. Fees: el cambio que el boceto esconde
+## 5. Fees: la base, la escalera y la regla de bajada
 
-Hoy Marea cobra **300 bps sobre el pozo, una vez, al resolver**
-(`catalog.ts:59`). Tu boceto cobra **10 bps sobre el nocional, en cada
-operación**, y le devuelve parte al maker.
+### 5.1 Sobre qué se cobra
 
-No son la misma cosa con otro número. Comparadas sobre el mismo mercado:
+Dos bases posibles, y no son equivalentes:
 
-| | Hoy (`FEE_BPS = 300`) | Boceto (taker 10 / maker −4) |
-|---|---|---|
-| Base | pozo total, al resolver | nocional, por operación |
-| Ingreso por 10,000 de pozo | **300** | **6** por vuelta |
-| Vueltas para igualar | 1 | **50** |
-| Quién paga | el ganador (sale del reparto) | los dos, ganen o pierdan |
-| Depende del resultado | sí | no |
+- **Sobre el nocional** (los contratos): un fee plano sobre `q`. Castiga los
+  precios extremos — a `p = 0.02`, 10 bps del nocional son **5% de la prima**
+  que el usuario puso.
+- **Sobre la prima** (lo que efectivamente entra): `f · q · p` al taker,
+  `r · q · (1−p)` de rebate al maker. Neutral al precio, y es lo que ya
+  describe el boceto: `10,000 → 9,990`.
 
-Cincuenta round-trips por mercado para igualar el ingreso de hoy. Con el
-catálogo actual —mercados semanales de inflación y Liga MX, donde la gente
-entra una vez y espera— eso no ocurre. **La estructura taker/maker no es un
-ajuste de comisión: es una apuesta a que el producto pasa de "apostar" a
-"operar".** Puede ser correcta, pero es una decisión de producto con un número
-detrás, y ese número es 50×.
+**Decidido: sobre la prima.** El compensador de §1 no depende de esta elección
+—cobra donde le digan— pero el copy y la incidencia sí.
 
-Consecuencia sobre el copy, que es lo que sostiene la promesa: hoy se dice
-"la casa no le gana al jugador: cobra comisión sobre el pozo". Con fees de
-taker eso sigue siendo cierto (la casa no toma el lado contrario) pero la frase
-deja de describir el mecanismo, y el copy tiene que cambiar con él (R-011).
+### 5.2 La aritmética del ingreso
 
-**Recomendación:** empezar con fee sobre el pozo (lo que ya funciona) y mover a
-taker/maker sólo cuando exista libro y se haya medido la rotación real. El
-compensador de §1 no depende de cuál de los dos se elija — cobra donde le
-digan.
+```
+V          volumen de prima cruzada en el periodo
+f          fee al taker (bps)        r   rebate al maker (bps)
+Ingreso  = V · (f − r)
+R        = V / colateral vivo        ← rotación: cuántas veces gira el capital
+```
+
+Y la ecuación de arriba abajo, para poner números propios:
+
+```
+V = U · t · k         U usuarios activos/mes · t ticket · k operaciones/usuario
+Ingreso   = V · f
+Equilibrio: V ≥ (M · S + G) / f      M mercados · S subsidio · G coste en cadena
+```
+
+Ejemplo aritmético (no un pronóstico): `U=5,000 · t=$25 · k=6` ⇒ `V=$750,000/mes`.
+A 300 bps son **$22,500/mes**; ese mismo volumen a 6 bps son **$450/mes**.
+
+### 5.3 La escalera
+
+| Fase | Cuándo | Taker | Rebate | Neto | Rotación que exige |
+|---|---|---|---|---|---|
+| **A · arranque** | hoy · sin libro, sin makers | 300 bps | — | 300 | ninguna |
+| B · libro joven | cuando exista libro con dos lados | 100 bps | 40 bps | 60 | R ≥ 5× |
+| C · líquido | el boceto · mercado que rota | 10 bps | 4 bps | 6 | R ≥ 50× |
+
+**La regla de bajada, que es el invariante de esta sección:**
+
+```
+bajar de f₀ a f₁  ⟺  R_medida ≥ f₀ / f₁
+```
+
+De 300 a 60 bps hacen falta 5×; de 300 a 6, cincuenta. La escalera no se salta
+y no se baja con ganas: se baja con la medición de ocho semanas (paso 08 de §5.4).
+
+### 5.4 Por qué la fase A no es un cambio de precio
+
+Hoy el 3% sale del pozo **antes de repartir**, así que cada apostador ya
+financia el 3% de su parte. Cobrarlo al cruzar es **la misma incidencia movida
+en el tiempo**: mismo quién, mismo cuánto. Lo que compra el cambio es que el
+ingreso deja de depender del resultado y del reparto — y eso es lo que hace
+continuo el salto a B y a C, en vez de una reescritura.
+
+Dos cosas que no cambia y hay que decir en el copy (R-011): en anulación
+(R-059) y cuando nadie acierta (R-024) **se devuelve todo, fee incluido**; y la
+casa sigue sin tomar el lado contrario, que es lo que sostiene la promesa.
+
+---
+
+## 5bis. El camino de $0 a plataforma activa
+
+Nueve pasos, tres tramos. El único que no depende de nosotros es el que separa
+el 0 del primer peso.
+
+**Tramo A · cablear** — se puede hacer hoy, en puntos, sin tocar la puerta de
+elegibilidad:
+
+1. Compensador puro (`domain/pozo.ts`) — *puerta:* mil secuencias aleatorias
+   dejan el capital propio idéntico.
+2. Asientos cableados — *puerta:* `cuadre() = 0` en toda operación.
+3. Funding con freno — *puerta:* sin presupuesto no se crea mercado.
+
+**Tramo B · abrir** — aquí está el bloqueo real:
+
+4. **Opinión legal por país.** No es código. Sin esto no hay dinero.
+5. Pozo en contrato · USDC en L2 — *puerta:* el colateral se lee en cadena.
+6. Depósito y retiro non-custodial (`COMPLIANCE.md` §1).
+
+**Tramo C · cobrar y medir** — el dinero empieza aquí:
+
+7. Fee al cruzar, 300 bps (fase A de §5.3). Primer peso facturado.
+8. Medir R durante ocho semanas.
+9. Bajar a taker/maker sólo si `R ≥ f₀/f₁`.
+
+La cifra que decide todo es `V`, y `V` hoy es 0. Por eso el trabajo está en el
+tramo B, no en afinar el fee.
 
 ---
 
@@ -346,10 +408,10 @@ construye contra la puerta cerrada, como manda `PROMPT_DINERO_REAL.md`.
 
 ## 10. Lo que no decido yo
 
-1. **¿Fee sobre el pozo o taker/maker?** §5 dice que taker/maker necesita 50×
-   la rotación actual. Si la apuesta de producto es "esto se va a operar, no a
-   apostar", el número es asumible; si no, es una pérdida de ingreso disfrazada
-   de modernización.
+1. **¿Se acepta la escalera de §5.3?** La base (sobre la prima) y la regla
+   (`R ≥ f₀/f₁`) son aritmética; los peldaños 300 / 100-40 / 10-4 son una
+   propuesta. Lo que no es negociable es el orden: primero se mide R, después
+   se baja.
 2. **¿Subsidio o LPs?** El subsidio es coste conocido y limpio frente a R-057.
    Los LPs escalan sin capital propio pero meten a un tercero con riesgo, y eso
    reabre `COMPLIANCE.md` §2 entero.
