@@ -264,6 +264,23 @@ llegamos al día del dinero con el fee elegido en vez de adivinado. Salvedad hon
 puntos se rota más, así que esa R es un techo optimista — sirve para descartar, no para
 confirmar.
 
+## 7ter. La mano legal (encargo escrito)
+
+`marea/vault/ENCARGO_LEGAL.md` es el documento que se le entrega a la persona. La idea que
+lo gobierna: **las horas de abogado son el recurso caro y lento; el trabajo de la mano es
+que cada una rinda.** Cuatro entregables —memo de hechos, diez preguntas con "qué haríamos
+según la respuesta", mapa de países más tres presupuestos, y la opinión contratada— y una
+última milla que es la que importa: traducir la opinión a **una línea** de
+`src/domain/eligibility.ts`, que `validate` ya vigila.
+
+Dos cosas que quedaron dichas ahí y no estaban en ningún lado:
+
+- El catálogo mezcla **fútbol con inflación**, y el deporte es lo que más rápido se
+  clasifica como apuesta en la región. Las preguntas van **por tema**, no en bloque.
+- **Si sólo alcanza para una mano, va a lo legal, no a la rampa.** La rampa suma 2–3
+  semanas al final; lo legal está en el camino crítico y su cola no se acelera con dinero.
+  Corrige la recomendación anterior, que se dio cuando lo legal no estaba sobre la mesa.
+
 ## 8bis. Lo que sigue abierto
 
 1. **¿Se acepta la escalera de fees de §3?** La base (varianza) y la regla
