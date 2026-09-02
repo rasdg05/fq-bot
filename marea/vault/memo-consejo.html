@@ -1,0 +1,278 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8">
+<style>
+@font-face{font-family:"Fraunces";src:url("file:///home/user/fq-bot/marea/public/fonts/fraunces-600.woff2") format("woff2");font-weight:600 700;}
+@font-face{font-family:"Hanken";src:url("file:///home/user/fq-bot/marea/public/fonts/hanken-400.woff2") format("woff2");font-weight:400;}
+@font-face{font-family:"Hanken";src:url("file:///home/user/fq-bot/marea/public/fonts/hanken-500.woff2") format("woff2");font-weight:500 600;}
+@font-face{font-family:"Hanken";src:url("file:///home/user/fq-bot/marea/public/fonts/hanken-700.woff2") format("woff2");font-weight:700 800;}
+@page{size:A4 portrait;margin:17mm 16mm}
+:root{
+  --paper:#fdfcf8;--card:#fff;--card2:#f0ece2;
+  --ink:#12262a;--ink2:#3c5250;--muted:#6b7c7a;
+  --teal:#0b6b6e;--teal-deep:#084f52;--teal-soft:#e4efed;
+  --line:rgba(11,107,110,.26);--line2:rgba(18,38,42,.12);
+  --dn:#a8412b;--dn-soft:#faeee9;--up:#157048;--hot:#8a5a0b;--hot-soft:#f8f0dc;
+  --display:"Fraunces",Georgia,serif;--sans:"Hanken",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:10.6pt;line-height:1.52}
+p{margin:0 0 8px}
+strong{font-weight:700}
+code{font-family:var(--mono);font-size:.88em;background:var(--card2);border-radius:4px;padding:1px 4px}
+.pb{break-before:page}
+.keep{break-inside:avoid}
+
+.cab{border-bottom:2.5px solid var(--ink);padding-bottom:12px;margin-bottom:16px}
+.eyebrow{font-size:8.5pt;letter-spacing:.22em;text-transform:uppercase;color:var(--teal);font-weight:700}
+h1{font-family:var(--display);font-weight:600;font-size:30pt;line-height:1.05;letter-spacing:-.015em;margin:9px 0 7px}
+.deck{font-size:11.5pt;color:var(--ink2);max-width:60em}
+.meta{display:flex;gap:22px;margin-top:11px;font-family:var(--mono);font-size:8.5pt;color:var(--muted)}
+
+h2{font-family:var(--display);font-weight:600;font-size:16.5pt;margin:22px 0 3px;letter-spacing:-.01em;break-after:avoid}
+h2 .n{font-family:var(--mono);font-size:10pt;color:var(--teal);font-weight:700;margin-right:9px}
+h3{font-size:11pt;font-weight:700;margin:14px 0 4px;break-after:avoid}
+.sub{font-size:9.5pt;color:var(--muted);margin-bottom:10px}
+
+.aviso{background:var(--dn-soft);border:1.5px solid rgba(168,65,43,.34);border-radius:9px;padding:11px 14px;margin:14px 0;font-size:10pt;color:var(--ink2)}
+.aviso b{color:var(--dn)}
+.nota{background:var(--card);border-left:3px solid var(--teal);border-radius:0 8px 8px 0;padding:10px 13px;margin:11px 0;font-size:10pt;color:var(--ink2)}
+.nota .lb{font-size:8pt;letter-spacing:.13em;text-transform:uppercase;font-weight:700;color:var(--teal);margin-bottom:3px}
+.nota b{color:var(--ink)}
+.nota.w{border-left-color:var(--dn)} .nota.w .lb{color:var(--dn)}
+
+.ent{border:1.5px solid var(--line2);border-radius:11px;padding:13px 16px;margin:12px 0;background:var(--card)}
+.ent .top{display:flex;justify-content:space-between;align-items:baseline;gap:14px;margin-bottom:6px}
+.ent .tit{font-size:12pt;font-weight:700}
+.ent .sem{font-family:var(--mono);font-size:9pt;color:var(--teal);font-weight:700;white-space:nowrap}
+.ent ul{margin:6px 0 0 16px} .ent li{margin-bottom:4px}
+.cierra{margin-top:9px;padding-top:8px;border-top:1px dashed var(--line);font-size:9.5pt;color:var(--ink2)}
+.cierra b{color:var(--teal-deep)}
+
+.q{border:1.5px solid var(--line2);border-radius:10px;padding:11px 14px;margin-bottom:9px;background:var(--card)}
+.q .h{display:flex;gap:10px;align-items:baseline}
+.q .num{font-family:var(--mono);font-weight:700;color:var(--teal);font-size:10pt}
+.q .tx{font-size:10.4pt;font-weight:700}
+.q .imp{margin-top:6px;padding-left:26px;font-size:9.6pt;color:var(--ink2)}
+.q .imp .lb{font-family:var(--mono);font-size:8pt;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700}
+
+ul.lista{margin:6px 0 8px 17px} ul.lista li{margin-bottom:5px}
+ol.hechos{margin:6px 0 8px 19px} ol.hechos li{margin-bottom:6px}
+
+table{border-collapse:collapse;width:100%;font-size:9.6pt;margin:9px 0}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line2);vertical-align:top}
+thead th{font-size:8pt;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700;border-bottom:1.5px solid var(--line)}
+tbody tr:last-child td{border-bottom:none}
+td.c{font-family:var(--mono);font-weight:700;color:var(--teal-deep);white-space:nowrap}
+tr.hit td{background:var(--hot-soft)}
+.vacio{color:var(--line2)}
+.pie{margin-top:26px;padding-top:10px;border-top:1px solid var(--line2);font-family:var(--mono);font-size:8pt;color:var(--muted);display:flex;justify-content:space-between}
+<style>
+.panel{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}
+.panel .c{background:var(--card);border:1.5px solid var(--line2);border-radius:10px;padding:10px 12px}
+.panel .k{font-size:7.8pt;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.panel .v{font-family:var(--mono);font-size:14pt;font-weight:700;margin-top:3px}
+.panel .v.cero{color:var(--dn)} .panel .v.ok{color:var(--up)} .panel .v.n{color:var(--teal-deep)}
+.panel .d{font-size:8.6pt;color:var(--muted);margin-top:2px;line-height:1.3}
+.frase{font-family:var(--display);font-size:15pt;line-height:1.3;color:var(--teal-deep);
+  border-left:3px solid var(--teal);padding:4px 0 4px 16px;margin:14px 0}
+.dos{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:10px 0}
+.caja{background:var(--card);border:1.5px solid var(--line2);border-radius:10px;padding:12px 14px}
+.caja h4{font-size:10.4pt;font-weight:700;margin-bottom:4px}
+.caja p{font-size:9.6pt;color:var(--ink2);margin:0}
+.caja.si{border-color:var(--teal);background:var(--teal-soft)}
+.caja.no{border-color:rgba(168,65,43,.34);background:var(--dn-soft)}
+.riesgo{border:1.5px solid var(--line2);border-radius:10px;padding:11px 14px;margin-bottom:8px;background:var(--card)}
+.riesgo .t{font-size:10.4pt;font-weight:700}
+.riesgo .t span{font-family:var(--mono);color:var(--dn);margin-right:8px}
+.riesgo .m{font-size:9.5pt;color:var(--ink2);margin-top:4px}
+.riesgo .m b{color:var(--teal-deep)}
+td.big{font-family:var(--mono);font-weight:700;font-size:10.5pt;color:var(--teal-deep)}
+tr.destacada td{background:var(--teal-soft)}
+</style></head><body>
+
+<div class="cab">
+  <div class="eyebrow">Marea · memo al consejo</div>
+  <h1>Cómo gana dinero</h1>
+  <div class="deck">Qué es el negocio, quién es la casa, qué volumen hace falta para que sea
+  grande, y en qué punto estamos hoy — sin adorno. Termina con las cuatro decisiones que le
+  tocan al consejo.</div>
+  <div class="meta"><span>2026-09-02</span><span>uso interno</span><span>los números medidos van marcados; los ilustrativos también</span></div>
+</div>
+
+<div class="panel">
+  <div class="c"><div class="k">Volumen hoy</div><div class="v cero">0</div><div class="d">se juega con puntos, no con dinero</div></div>
+  <div class="c"><div class="k">Facturación hoy</div><div class="v cero">0</div><div class="d">y no la habrá sin opinión legal</div></div>
+  <div class="c"><div class="k">Producto</div><div class="v ok">vivo</div><div class="d">ciclo automático de creación y resolución</div></div>
+  <div class="c"><div class="k">A lanzamiento</div><div class="v n">~4 meses</div><div class="d">mainnet con tope de colateral</div></div>
+</div>
+
+<h2><span class="n">01</span>Quién es la casa</h2>
+
+<div class="frase">La casa somos nosotros. Pero la casa no juega.</div>
+
+<p>Es la diferencia entre un casino y una bolsa. <strong>El casino gana cuando tú pierdes; la
+bolsa gana cuando tú operas</strong>, y le da igual quién gane. Marea es lo segundo, y no por
+promesa: por construcción.</p>
+
+<div class="dos">
+  <div class="caja si"><h4>Lo que sí somos</h4><p>El <strong>operador</strong>. Ponemos la
+  plataforma, creamos los mercados, leemos la fuente que los resuelve y cobramos comisión por
+  operar todo eso.</p></div>
+  <div class="caja no"><h4>Lo que no somos</h4><p>La <strong>contraparte</strong>. Nunca tomamos
+  el otro lado de un usuario. No existe la función en el código, y está escrito como regla
+  permanente del proyecto.</p></div>
+</div>
+
+<p>El dinero de los usuarios vive en un contrato en cadena, no en una cuenta nuestra. Nosotros no
+lo podemos mover ni queriendo, y cualquiera puede verificar en cualquier bloque que lo que el
+contrato guarda es <strong>exactamente</strong> lo que debe pagar. Esa verificación es pública y
+no depende de que nosotros contestemos.</p>
+
+<p>La consecuencia comercial de esto no es cosmética: <strong>es lo que permite pedir una opinión
+legal con respuesta</strong>, y lo que hace que el producto se pueda auditar sin confiar en
+nosotros.</p>
+
+<h2><span class="n">02</span>De dónde sale el dinero</h2>
+<p class="sub">Tres líneas. La primera es la conocida; la segunda es la que casi nadie ve.</p>
+
+<table>
+  <thead><tr><th>Línea</th><th>De qué depende</th><th>Fórmula</th></tr></thead>
+  <tbody>
+    <tr><td><strong>1 · Comisión por operación</strong></td><td>Del <strong>volumen</strong> que cruza, no de que alguien pierda</td><td class="c">ingreso = V × f</td></tr>
+    <tr><td><strong>2 · Rendimiento del colateral</strong></td><td>Del <strong>dinero parado</strong> esperando resolución. Escala con saldo, no con actividad</td><td class="c">colateral × tasa</td></tr>
+    <tr><td>3 · Reparto con creadores de liquidez</td><td>Cuando entren terceros a poner mercado</td><td class="c">después</td></tr>
+  </tbody>
+</table>
+
+<p>La línea 2 merece un párrafo porque cambia la forma del negocio: mientras un mercado está
+abierto —días o semanas— el colateral está quieto en el contrato. <strong>Por cada millón de
+dólares de colateral vivo, a 4% anual son 40 mil al año sin que nadie opere.</strong> Esa línea
+crece con el saldo bajo custodia del contrato, no con la rotación, y es la que hace que esto se
+parezca más a un índice que a una casa de apuestas.</p>
+
+<div class="nota"><div class="lb">La frase que resume el modelo</div>
+<b>No ganamos porque el usuario pierda. Ganamos porque el usuario opere.</b> Es el mismo negocio
+que un exchange: cobra por transacción, no por resultado. Y es la razón por la que el interés de
+la casa y el del usuario apuntan al mismo lado — nos conviene que le vaya bien y vuelva.</div>
+
+<div class="pb"></div>
+<h2><span class="n">03</span>Qué hace falta para que sea grande</h2>
+<p class="sub">La pregunta "¿de dónde salen los millones?" tiene respuesta aritmética. Aquí está,
+con la comisión de arranque de 3% y un supuesto explícito de actividad por usuario.</p>
+
+<table>
+  <thead><tr><th>Ingreso anual</th><th class="n">Volumen al año</th><th class="n">Volumen al mes</th><th class="n">Usuarios activos al mes</th></tr></thead>
+  <tbody>
+    <tr><td class="big">$250 k</td><td class="n">$8.3 M</td><td class="n">$694 k</td><td class="n">≈ 4,600</td></tr>
+    <tr class="destacada"><td class="big">$1 M</td><td class="n">$33 M</td><td class="n">$2.8 M</td><td class="n">≈ 18,500</td></tr>
+    <tr><td class="big">$5 M</td><td class="n">$167 M</td><td class="n">$13.9 M</td><td class="n">≈ 92,600</td></tr>
+    <tr><td class="big">$10 M</td><td class="n">$333 M</td><td class="n">$27.8 M</td><td class="n">≈ 185,000</td></tr>
+  </tbody>
+</table>
+<div class="fuente">Supuesto explícito: cada usuario activo mueve $150 de volumen al mes (ticket
+de $25 × 6 operaciones). Comisión 3% sobre el volumen cruzado. <strong>Es aritmética, no un
+pronóstico</strong> — cambia el supuesto y cambia la tabla.</div>
+
+<div class="hall" style="background:var(--teal-soft);border:1.5px solid var(--teal);border-radius:10px;padding:13px 16px;margin:14px 0">
+<div class="lb" style="font-size:8pt;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--teal);margin-bottom:4px">Lo que dice de verdad esta tabla</div>
+El millón de dólares al año no está a una distancia tecnológica. Está a
+<strong>≈18,500 usuarios activos mensuales</strong> — un problema de distribución en un mercado
+de cientos de millones de hispanohablantes, no un problema de ingeniería. <strong>Y ése es
+exactamente el riesgo: no sabemos todavía si esa gente opera con esta frecuencia.</strong></div>
+
+<p><strong>Ojo con bajar la comisión antes de tiempo.</strong> Si pasamos a comisiones de exchange
+maduro (0.06%) esos mismos ingresos exigen <strong>cincuenta veces</strong> el volumen. Por eso
+está escrita como regla: la comisión sólo baja cuando la rotación medida la paga, nunca antes.</p>
+
+<h2><span class="n">04</span>Cómo se entra a los mercados</h2>
+<p>Dos cosas que suelen ser el cuello de botella de un producto así, y que aquí ya están resueltas
+o acotadas:</p>
+<ul class="lista">
+  <li><strong>Los mercados se crean solos.</strong> Hay plantillas —inflación, tipo de cambio,
+    Liga MX— que citan una fuente pública desde que nacen, y un proceso automático la lee y los
+    resuelve sin que nadie escriba nada. <strong>Eso ya corre hoy</strong>, con nueve fuentes
+    conectadas.</li>
+  <li><strong>El arranque de liquidez está acotado.</strong> Para que un mercado nuevo no esté
+    vacío, la casa pone una semilla — <strong>declarada, con tope, y que nunca cobra</strong>: si
+    cae del lado ganador, su parte se reparte entre quienes acertaron. La casa no puede ganar
+    cuando el usuario pierde, ni siquiera por accidente.</li>
+</ul>
+<p>Y lo más contraintuitivo del diseño: <strong>compensar no cuesta capital.</strong> El colateral
+lo ponen siempre las dos partes de cada operación. El dinero de la casa sólo cubre el arranque, y
+ese coste se conoce por adelantado. Por eso el mismo presupuesto abre muchos más mercados que un
+modelo donde la casa arriesga en cada uno.</p>
+
+<div class="pb"></div>
+<h2><span class="n">05</span>Dónde estamos hoy, sin adorno</h2>
+
+<div class="dos">
+  <div class="caja si"><h4>Lo que existe y funciona</h4><p>App viva con <strong>289 pruebas en
+  verde</strong> · ciclo automático de creación, lectura de fuente, ventana de disputa y pago ·
+  contabilidad de partida doble que cuadra en cero · <strong>16 invariantes escritas</strong>, tres
+  ya vivas en código · el módulo de compensación con su prueba de mil secuencias aleatorias ·
+  68 reglas permanentes · planos de construcción completos.</p></div>
+  <div class="caja no"><h4>Lo que no existe</h4><p><strong>Volumen: cero.</strong> Facturación:
+  cero. Se juega con <strong>puntos</strong>, no con dinero. Ningún país habilitado — la tabla
+  arranca entera en «pendiente» y el código <strong>se niega a recibir dinero</strong> hasta que
+  haya opinión legal escrita. Nada de la parte en cadena está desplegado.</p></div>
+</div>
+
+<div class="nota"><div class="lb">Por qué se dice así</div>
+Este proyecto ya pagó caro publicar un número bonito que no aguantaba una auditoría. De ahí la
+regla que gobierna el repositorio: <b>un hallazgo sin una prueba que lo haga cumplir es una nota,
+no un arreglo.</b> El consejo va a recibir siempre la versión con la n al lado, aunque sea la
+incómoda.</div>
+
+<h2><span class="n">06</span>Los cuatro riesgos reales</h2>
+
+<div class="riesgo"><div class="t"><span>01</span>Que la gente no opere lo suficiente</div>
+<div class="m">Todo el modelo se apoya en el volumen, y hoy es cero. <b>Mitigación:</b> se mide
+primero <b>con puntos</b>, que cuesta casi nada. Si no rota ni jugando gratis, lo sabemos en ocho
+semanas y sin haber quemado capital.</div></div>
+
+<div class="riesgo"><div class="t"><span>02</span>Que la respuesta legal salga mal</div>
+<div class="m">Ni el mejor código abre esa puerta, y su cola no se acelera con dinero una vez que
+empezó. <b>Mitigación:</b> el trabajo legal arranca <b>en paralelo desde ya</b>, con un solo país,
+y el producto se construye entero contra la puerta cerrada.</div></div>
+
+<div class="riesgo"><div class="t"><span>03</span>Un fallo en el contrato con dinero dentro</div>
+<div class="m"><b>Mitigación:</b> reutilizamos contratos ya auditados y escribimos lo mínimo
+propio; se lanza con un <b>tope duro de colateral</b> que acota la pérdida máxima por diseño y no
+por confianza; y el tope sólo se levanta con la auditoría cerrada.</div></div>
+
+<div class="riesgo"><div class="t"><span>04</span>Bajar la comisión antes de tiempo</div>
+<div class="m">Es el error silencioso: se regala ingreso por parecer moderno. <b>Mitigación:</b>
+regla escrita — la comisión sólo baja cuando la rotación <b>medida</b> la paga.</div></div>
+
+<h2><span class="n">07</span>Calendario</h2>
+<table>
+  <thead><tr><th>Hito</th><th>Qué es</th><th class="n">Cuándo</th></tr></thead>
+  <tbody>
+    <tr><td class="c">M1</td><td>Todo el flujo en cadena, con dinero de prueba. Auditable de punta a punta</td><td class="n">2–2.5 meses</td></tr>
+    <tr class="destacada"><td class="c">M2</td><td>Dinero real, con tope duro de colateral y programa de recompensas por fallos. Auditoría corriendo en paralelo</td><td class="n">≈ 4 meses</td></tr>
+    <tr><td class="c">M3</td><td>Tope levantado, con la auditoría cerrada</td><td class="n">5–6.5 meses</td></tr>
+  </tbody>
+</table>
+<p class="sub" style="margin-top:8px">El reloj no lo marca el código: lo marcan la opinión legal y
+la auditoría del contrato. Ambas son cola de terceros y ambas empiezan cuanto antes.</p>
+
+<h2><span class="n">08</span>Lo que se le pide al consejo</h2>
+<ol class="hechos">
+  <li><strong>Aprobar o ajustar la escalera de comisiones.</strong> Arranque en 3%, con la regla de
+    bajada atada a rotación medida. La estructura es aritmética; los peldaños son propuesta.</li>
+  <li><strong>Elegir el primer país.</strong> Uno solo. El criterio propuesto no es el mercado más
+    grande, sino <strong>dónde la respuesta legal llega más rápido y más clara</strong>.</li>
+  <li><strong>Autorizar el presupuesto del trabajo legal.</strong> Es lo único del plan que no se
+    puede acelerar después con dinero, y hoy es el camino crítico.</li>
+  <li><strong>Fijar el tope de subsidio de liquidez</strong> por mercado y global — el coste
+    conocido de arrancar mercados que no estén vacíos.</li>
+</ol>
+
+<div class="nota w"><div class="lb">Lo que no se está pidiendo</div>
+No se está pidiendo levantar capital todavía. El diseño está hecho para llegar a facturar con la
+cámara de compensación y <b>decidir después</b>, con ingreso en la mano, si conviene levantar. Un
+número real cambia la conversación con un inversionista más que cualquier proyección.</div>
+
+<div class="pie"><span>Marea · Memo al consejo · 2026-09-02</span><span>uso interno</span></div>
+</body></html>

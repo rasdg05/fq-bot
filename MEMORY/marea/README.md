@@ -319,6 +319,11 @@ ningún punto. La reputación que gustaba de la idea se tiene sin el tablero.
 
 ## Obras
 
+- **`memo-consejo.pdf`** — *Cómo gana dinero Marea* (5 páginas A4). Memo para el consejo:
+  quién es la casa (operador, nunca contraparte), las tres líneas de ingreso, **la tabla de
+  escala** que convierte «millones» en usuarios activos —$1M/año ≈ 18,500 MAU al 3%—, dónde
+  estamos hoy sin adorno, los cuatro riesgos y las cuatro decisiones que se le piden al
+  consejo. Fuente: `marea/vault/memo-consejo.html`.
 - **`planos-construccion.pdf`** — *Planos de construcción* (7 páginas A3). Seis planos: el
   sistema, el árbol de época corregido con L15, el ciclo de un mercado, los contratos
   (~410 líneas propias), **el árbol de archivos a construir** y el orden de obra con los
