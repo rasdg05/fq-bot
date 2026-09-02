@@ -134,11 +134,11 @@ verificado sep-2026).
 
 | # | Invariante | Estado |
 |---|---|---|
-| L1 | Neutralidad: `colateral == conjuntos emitidos` | nueva |
-| L2 | El pozo nunca es contraparte; no existe API que le abra posición | nueva |
+| L1 | Neutralidad: `colateral == conjuntos emitidos` | **viva** en `domain/pozo.ts` |
+| L2 | El pozo nunca es contraparte; no existe API que le abra posición | **viva** en `domain/pozo.ts` |
 | L3 | Fee y colateral no comparten cuenta | nueva |
 | L4 | `cuadre(libro) == 0` antes y después de toda operación | **viva** (`contabilidad.test.ts`) |
-| L5 | Conservación: `Σ pagos + fees == Σ colateral` | nueva |
+| L5 | Conservación: `Σ pagos + fees == Σ colateral` | **viva** en `domain/pozo.ts` |
 | L6 | Idempotencia: liquidar dos veces paga una | nueva |
 | L7 | Ninguna fase se salta; no se paga con la disputa abierta | **viva** (`settlement.test.ts`) |
 | L8 | Frescura del oráculo: una fuente parada no resuelve | **deuda previa** |
@@ -158,7 +158,10 @@ es la fuente — el mismo fallo que en el bot obligó a cablear `cvd_confirmatio
 ## 6. El camino de $0 a plataforma activa
 
 **Tramo A · cablear** (hoy, en puntos, sin tocar la puerta de elegibilidad)
-1. Compensador puro — *puerta:* mil secuencias aleatorias, capital propio idéntico.
+1. ~~Compensador puro~~ — **hecho 2026-09-01**: `src/domain/pozo.ts` + `tests/pozo.test.ts`.
+   Mil secuencias aleatorias × cada ganador posible, auditando después de cada paso.
+   Verificado con tres mutaciones deliberadas (reparto sin validar, pago de más, fusión que
+   no quema) — las tres caen.
 2. Asientos cableados — *puerta:* `cuadre() = 0` en toda operación.
 3. Funding con freno — *puerta:* sin presupuesto no se crea mercado.
 

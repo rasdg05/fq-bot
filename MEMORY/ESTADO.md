@@ -222,7 +222,8 @@ La app de `marea/`. **No es el bot** y no comparte motor, pero sí memoria y dis
 | Elegibilidad por país | **todas `pendiente`**; `validate` falla si alguna pasa a `permitido` sin opinión escrita |
 | Ciclo automático | **vivo**: `roll.mts` crea, `settle.mts` / `ciclo.mts` cierran, leen, disputan y pagan |
 | Contrato de custodia | interfaz **definida y declarada simulada** (`custodia/contrato.ts`) |
-| Cámara de compensación | **diseño** — ni una línea desplegada |
+| Cámara de compensación | **primer módulo escrito**: `domain/pozo.ts` puro + prueba de propiedad (11 verdes). Invariantes L1, L2 y L5 vivas ahí. Falta cablearlo a la app |
+| Suite de Marea | 289 verdes + 11 nuevas · **4 rojas preexistentes**: el catálogo tiene fechas de julio/agosto y ya caducó (R-041). Se arreglan con `npm run roll`, no con código |
 | Arquitectura en cadena | **diseño** — **Base decidida** (2026-09-01), nada desplegado |
 | Semilla | hoy **apuesta** (puede cobrar). **Decidido pasarla a subsidio**; sin cablear |
 | Reglas | **R-065 a R-068 escritas** — 68 en `RULINGS.md` |
