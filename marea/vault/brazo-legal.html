@@ -1,0 +1,302 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8">
+<style>
+@font-face{font-family:"Fraunces";src:url("file:///home/user/fq-bot/marea/public/fonts/fraunces-600.woff2") format("woff2");font-weight:600 700;}
+@font-face{font-family:"Hanken";src:url("file:///home/user/fq-bot/marea/public/fonts/hanken-400.woff2") format("woff2");font-weight:400;}
+@font-face{font-family:"Hanken";src:url("file:///home/user/fq-bot/marea/public/fonts/hanken-500.woff2") format("woff2");font-weight:500 600;}
+@font-face{font-family:"Hanken";src:url("file:///home/user/fq-bot/marea/public/fonts/hanken-700.woff2") format("woff2");font-weight:700 800;}
+@page{size:A4 portrait;margin:17mm 16mm}
+:root{
+  --paper:#fdfcf8;--card:#fff;--card2:#f0ece2;
+  --ink:#12262a;--ink2:#3c5250;--muted:#6b7c7a;
+  --teal:#0b6b6e;--teal-deep:#084f52;--teal-soft:#e4efed;
+  --line:rgba(11,107,110,.26);--line2:rgba(18,38,42,.12);
+  --dn:#a8412b;--dn-soft:#faeee9;--up:#157048;--hot:#8a5a0b;--hot-soft:#f8f0dc;
+  --display:"Fraunces",Georgia,serif;--sans:"Hanken",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:10.6pt;line-height:1.52}
+p{margin:0 0 8px}
+strong{font-weight:700}
+code{font-family:var(--mono);font-size:.88em;background:var(--card2);border-radius:4px;padding:1px 4px}
+.pb{break-before:page}
+.keep{break-inside:avoid}
+
+.cab{border-bottom:2.5px solid var(--ink);padding-bottom:12px;margin-bottom:16px}
+.eyebrow{font-size:8.5pt;letter-spacing:.22em;text-transform:uppercase;color:var(--teal);font-weight:700}
+h1{font-family:var(--display);font-weight:600;font-size:30pt;line-height:1.05;letter-spacing:-.015em;margin:9px 0 7px}
+.deck{font-size:11.5pt;color:var(--ink2);max-width:60em}
+.meta{display:flex;gap:22px;margin-top:11px;font-family:var(--mono);font-size:8.5pt;color:var(--muted)}
+
+h2{font-family:var(--display);font-weight:600;font-size:16.5pt;margin:22px 0 3px;letter-spacing:-.01em;break-after:avoid}
+h2 .n{font-family:var(--mono);font-size:10pt;color:var(--teal);font-weight:700;margin-right:9px}
+h3{font-size:11pt;font-weight:700;margin:14px 0 4px;break-after:avoid}
+.sub{font-size:9.5pt;color:var(--muted);margin-bottom:10px}
+
+.aviso{background:var(--dn-soft);border:1.5px solid rgba(168,65,43,.34);border-radius:9px;padding:11px 14px;margin:14px 0;font-size:10pt;color:var(--ink2)}
+.aviso b{color:var(--dn)}
+.nota{background:var(--card);border-left:3px solid var(--teal);border-radius:0 8px 8px 0;padding:10px 13px;margin:11px 0;font-size:10pt;color:var(--ink2)}
+.nota .lb{font-size:8pt;letter-spacing:.13em;text-transform:uppercase;font-weight:700;color:var(--teal);margin-bottom:3px}
+.nota b{color:var(--ink)}
+.nota.w{border-left-color:var(--dn)} .nota.w .lb{color:var(--dn)}
+
+.ent{border:1.5px solid var(--line2);border-radius:11px;padding:13px 16px;margin:12px 0;background:var(--card)}
+.ent .top{display:flex;justify-content:space-between;align-items:baseline;gap:14px;margin-bottom:6px}
+.ent .tit{font-size:12pt;font-weight:700}
+.ent .sem{font-family:var(--mono);font-size:9pt;color:var(--teal);font-weight:700;white-space:nowrap}
+.ent ul{margin:6px 0 0 16px} .ent li{margin-bottom:4px}
+.cierra{margin-top:9px;padding-top:8px;border-top:1px dashed var(--line);font-size:9.5pt;color:var(--ink2)}
+.cierra b{color:var(--teal-deep)}
+
+.q{border:1.5px solid var(--line2);border-radius:10px;padding:11px 14px;margin-bottom:9px;background:var(--card)}
+.q .h{display:flex;gap:10px;align-items:baseline}
+.q .num{font-family:var(--mono);font-weight:700;color:var(--teal);font-size:10pt}
+.q .tx{font-size:10.4pt;font-weight:700}
+.q .imp{margin-top:6px;padding-left:26px;font-size:9.6pt;color:var(--ink2)}
+.q .imp .lb{font-family:var(--mono);font-size:8pt;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700}
+
+ul.lista{margin:6px 0 8px 17px} ul.lista li{margin-bottom:5px}
+ol.hechos{margin:6px 0 8px 19px} ol.hechos li{margin-bottom:6px}
+
+table{border-collapse:collapse;width:100%;font-size:9.6pt;margin:9px 0}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line2);vertical-align:top}
+thead th{font-size:8pt;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700;border-bottom:1.5px solid var(--line)}
+tbody tr:last-child td{border-bottom:none}
+td.c{font-family:var(--mono);font-weight:700;color:var(--teal-deep);white-space:nowrap}
+tr.hit td{background:var(--hot-soft)}
+.vacio{color:var(--line2)}
+.pie{margin-top:26px;padding-top:10px;border-top:1px solid var(--line2);font-family:var(--mono);font-size:8pt;color:var(--muted);display:flex;justify-content:space-between}
+</style></head><body>
+
+<div class="cab">
+  <div class="eyebrow">Marea · encargo de trabajo</div>
+  <h1>El brazo legal</h1>
+  <div class="deck">Qué tiene que atender la persona que prepara el terreno legal: cuatro
+  entregables, diez preguntas escritas para que se puedan contestar, y una última milla que
+  termina en una línea de código.</div>
+  <div class="meta"><span>2026-09-01</span><span>bloque paralelo · no toca código</span>
+  <span>fuente: marea/vault/ENCARGO_LEGAL.md</span></div>
+</div>
+
+<div class="aviso"><b>Esto no es asesoría legal ni la sustituye.</b> Este documento organiza el
+trabajo de preparación. La opinión la firma un abogado local con cédula, por escrito. Si el
+brazo legal termina opinando sobre legalidad, el encargo falló.</div>
+
+<h2><span class="n">00</span>Por qué existe este puesto</h2>
+<p>Las horas de abogado son el recurso <strong>caro y lento</strong> del proyecto. Un abogado
+que recibe <em>«¿es legal una app de apuestas?»</em> cobra por descubrir qué hacemos, y contesta
+despacio y en vago. Uno que recibe cinco páginas de hechos y diez preguntas cerradas contesta
+rápido y por escrito.</p>
+<p><strong>El trabajo de este puesto no es investigar la ley.</strong> Es hacer que cada hora de
+abogado rinda, y que la respuesta no se quede en un PDF guardado.</p>
+
+<div class="nota"><div class="lb">Dónde encaja</div>
+Es uno de los dos bloques que corren en paralelo a la construcción — el otro es la rampa
+cripto. <b>No valen lo mismo:</b> la rampa suma 2–3 semanas al final del calendario; esto está
+en el camino crítico entre el lanzamiento con tope y el primer peso, y <b>su cola no se
+acelera con dinero</b> una vez que empezó. Si sólo alcanza para una persona, va aquí.</div>
+
+<h2><span class="n">01</span>Los cuatro entregables</h2>
+
+<div class="ent keep">
+  <div class="top"><span class="tit">Memo de hechos</span><span class="sem">semana 1</span></div>
+  <p class="sub">Cinco páginas, sin adjetivos, describiendo el mecanismo. El Anexo A trae los
+  hechos ya redactados: el trabajo es ordenarlos y completarlos, no descubrirlos.</p>
+  <div class="cierra"><b>Cierra cuando:</b> se lee de principio a fin sin que haya que corregir
+  un solo hecho.</div>
+</div>
+
+<div class="ent keep">
+  <div class="top"><span class="tit">Las diez preguntas</span><span class="sem">semana 1–2</span></div>
+  <p class="sub">Con la regla del §02: cada pregunta lleva anotado qué haríamos con cada
+  respuesta posible. Una pregunta cuya respuesta no cambia nada de lo que hacemos no se
+  pregunta — se está pagando por curiosidad.</p>
+  <div class="cierra"><b>Cierra cuando:</b> las diez tienen su consecuencia escrita al lado.</div>
+</div>
+
+<div class="ent keep">
+  <div class="top"><span class="tit">El mapa y la terna</span><span class="sem">semana 2–3</span></div>
+  <ul class="lista">
+    <li>Tabla de los 15 países (Anexo B) con fuente citada y <strong>sin conclusión propia</strong>.</li>
+    <li>Recomendación de <strong>por cuál empezar — uno solo</strong>. El criterio no es el mercado
+      más grande: es dónde la respuesta llega más rápido y más clara. Un «sí» acotado en tres
+      meses vale más que un «quizá» en un mercado grande a los nueve.</li>
+    <li>Tres despachos, con presupuesto y plazo <strong>por escrito</strong>, con experiencia
+      demostrable en juego, fintech o cripto local. No el conocido que es abogado.</li>
+  </ul>
+  <div class="cierra"><b>Cierra cuando:</b> hay tres presupuestos comparables sobre la mesa.</div>
+</div>
+
+<div class="ent keep">
+  <div class="top"><span class="tit">La opinión, contratada y traducida</span><span class="sem">semana 4–12</span></div>
+  <ul class="lista">
+    <li>Contratar con <strong>alcance escrito</strong>: las diez preguntas, respuesta por escrito,
+      y cláusula de actualización si cambia la norma.</li>
+    <li>Cuando llegue: la <strong>última milla</strong>, que es la que importa — traducirla a una
+      línea de <code>src/domain/eligibility.ts</code> (<code>status</code>,
+      <code>depositCapUsd</code>, <code>note</code>) y archivar la opinión firmada con fecha y autor.</li>
+  </ul>
+  <div class="cierra"><b>Cierra cuando:</b> un país pasa de <code>pendiente</code> a
+  <code>permitido</code> con su tope de depósito, y la suite de pruebas pasa.</div>
+</div>
+
+<div class="nota"><div class="lb">Por qué termina en código y no en un PDF</div>
+El repositorio ya tiene la puerta puesta, y no se puede abrir «sólo para probar»: los 15 países
+arrancan en <code>pendiente</code>, y la validación <b>falla</b> si la build deja de ser simulada
+con la puerta apagada, y <b>falla</b> si el motor pasa a dinero sin encenderla. Una opinión que
+termina en un archivo guardado no cambió nada; ésta termina en una línea que una prueba
+verifica.</div>
+
+<div class="pb"></div>
+<h2><span class="n">02</span>Las diez preguntas</h2>
+<p class="sub">Escritas para que se puedan contestar sí / no / depende-de-esto. Debajo de cada
+una, qué haríamos con la respuesta.</p>
+
+<div class="q keep"><div class="h"><span class="num">01</span><span class="tx">¿Un mercado de predicción con resolución por oráculo y contraparte entre usuarios es juego, instrumento derivado, otra figura, o nada regulado? ¿Cambia <u>por tema</u>?</span></div>
+<div class="imp"><span class="lb">Consecuencia</span><br>Si el deporte cae en juego y la macro no, sacamos fútbol del catálogo del primer país y lanzamos sólo con inflación y precios. Es una línea de configuración, no un rediseño.</div></div>
+
+<div class="q keep"><div class="h"><span class="num">02</span><span class="tx">Si no custodiamos ni tomamos contraparte, pero operamos el frontend, creamos los mercados y operamos el oráculo — ¿somos operador de juego, intermediario financiero, proveedor de servicios de activos virtuales, o ninguno?</span></div>
+<div class="imp"><span class="lb">Consecuencia</span><br>Operador de juego ⇒ licencia (pregunta 04). Activos virtuales ⇒ registro y régimen AML, otro camino y otro calendario. Ninguno ⇒ se documenta por escrito y se avanza.</div></div>
+
+<div class="q keep"><div class="h"><span class="num">03</span><span class="tx">¿Cambia algo que sea con puntos <u>sin valor de rescate</u>, en vez de con dinero? ¿Y si los puntos nunca se pueden canjear por nada?</span></div>
+<div class="imp"><span class="lb">Consecuencia</span><br>Es la pregunta que más calendario mueve: si los puntos sin rescate quedan fuera del régimen, se puede lanzar el producto entero en ese país mientras lo demás se tramita. Es la diferencia entre esperar y operar.</div></div>
+
+<div class="q keep"><div class="h"><span class="num">04</span><span class="tx">Si hace falta licencia: ¿cuál, cuánto cuesta, cuánto tarda, qué capital mínimo exige, y se puede operar mientras se tramita?</span></div>
+<div class="imp"><span class="lb">Consecuencia</span><br>Si se puede operar durante el trámite, arrancamos. Si no, el país queda en <code>pendiente</code> con fecha de revisión y se prueba el siguiente de la terna.</div></div>
+
+<div class="q keep"><div class="h"><span class="num">05</span><span class="tx">¿Se puede promocionar el producto a residentes? ¿Qué exige el texto de la publicidad?</span></div>
+<div class="imp"><span class="lb">Consecuencia</span><br>Cambia el plan de crecimiento entero, no el código. Si no se puede promocionar, lanzar ahí es lanzar a nadie.</div></div>
+
+<div class="q keep"><div class="h"><span class="num">06</span><span class="tx">¿Basta el screening de sanciones o se exige KYC completo? ¿Desde qué monto? ¿Hay obligación de reporte, ante quién y con qué plazo?</span></div>
+<div class="imp"><span class="lb">Consecuencia</span><br>Screening solo ⇒ 2–3 días de trabajo. KYC completo ⇒ 2–4 semanas más un proveedor contratado. Mueve la fecha del lanzamiento con dinero.</div></div>
+
+<div class="q keep"><div class="h"><span class="num">07</span><span class="tx">¿Hay retención en la fuente sobre la ganancia del usuario? ¿La practicamos nosotros?</span></div>
+<div class="imp"><span class="lb">Consecuencia</span><br>Si la practicamos, es trabajo de producto: cálculo, comprobante y registro. Entra al plan de construcción como bloque nuevo.</div></div>
+
+<div class="q keep"><div class="h"><span class="num">08</span><span class="tx">¿Hace falta entidad local, o se puede operar desde el extranjero atendiendo residentes? ¿Cómo se trata aquí la iniciativa del propio usuario (<em>reverse solicitation</em>)?</span></div>
+<div class="imp"><span class="lb">Consecuencia</span><br>Entidad local ⇒ 4–8 semanas de constitución <u>antes</u> de lanzar, y va al calendario en paralelo desde ya.</div></div>
+
+<div class="q keep"><div class="h"><span class="num">09</span><span class="tx">Si la respuesta general es que no se puede: ¿qué nivel de bloqueo se considera suficiente para no estar operando ahí — IP, declaración del usuario, verificación de identidad?</span></div>
+<div class="imp"><span class="lb">Consecuencia</span><br>Define qué se cablea en la tabla de países y en la detección de origen. La tabla ya existe; lo que falta es saber qué nivel basta.</div></div>
+
+<div class="q keep"><div class="h"><span class="num">10</span><span class="tx">Operar la resolución de los mercados, ¿nos convierte en árbitro o fiduciario frente al usuario? ¿Qué obligación de proceso o de publicidad genera?</span></div>
+<div class="imp"><span class="lb">Consecuencia</span><br>Si genera obligación de proceso, hay que publicar el procedimiento y quizá alargar la ventana de disputa. Toca el ciclo de liquidación y el texto de la app.</div></div>
+
+<div class="pb"></div>
+<h2><span class="n">03</span>Trabajo que puede hacer solo, sin abogado</h2>
+<p class="sub">Nada de esto necesita cédula, y todo baja la factura del despacho que se contrate.</p>
+<ul class="lista">
+  <li><strong>Screening de sanciones:</strong> elegir la fuente de la lista, definir cada cuánto se
+    actualiza y escribir el procedimiento. Son 2–3 días suyos, no del abogado.</li>
+  <li><strong>Due diligence de proveedores</strong> (puente, RPC, hosting, auditor): quiénes son,
+    dónde están constituidos y —lo que se olvida— <strong>qué exigen ellos de nosotros</strong>.
+    Varios piden verificación de la empresa antes de dar acceso, y eso también es cola.</li>
+  <li><strong>Borrador de términos y política de privacidad</strong>, para que el abogado
+    <strong>revise</strong> en vez de redactar. La diferencia de coste es grande.</li>
+  <li><strong>Auditoría de declaraciones:</strong> recorrer el texto de la app y listar cada
+    afirmación que un regulador podría leer como promesa.</li>
+  <li><strong>Registro:</strong> cada respuesta del abogado se archiva con fecha, para que nadie la
+    vuelva a preguntar dentro de seis meses.</li>
+</ul>
+
+<h2><span class="n">04</span>Lo que no hace, nunca</h2>
+<ul class="lista">
+  <li><strong>No opina sobre legalidad.</strong> Ni siquiera «yo creo que sí se puede».</li>
+  <li><strong>No toca la tabla de países</strong> sin una opinión firmada detrás. Sólo traduce.</li>
+  <li>No negocia el alcance con el despacho sin autorización.</li>
+  <li>No contacta reguladores sin abogado.</li>
+  <li>No habla del producto en público como si estuviera aprobado.</li>
+</ul>
+
+<h2><span class="n">05</span>Cómo se sabe, pronto, si está funcionando</h2>
+<table>
+  <thead><tr><th>Semana</th><th>Señal que tiene que existir</th></tr></thead>
+  <tbody>
+    <tr><td class="c">1</td><td>Memo de hechos aprobado sin correcciones</td></tr>
+    <tr><td class="c">2</td><td>Las diez preguntas, cada una con su consecuencia escrita</td></tr>
+    <tr><td class="c">3</td><td>Tres presupuestos comparables</td></tr>
+    <tr class="hit"><td class="c">4</td><td><strong>Abogado contratado.</strong> Si en la semana 4 no lo hay, este puesto no está funcionando — y hay que verlo en la semana 4, no en el mes 6</td></tr>
+    <tr><td class="c">8–12</td><td>Opinión escrita → una línea en la tabla de países → pruebas en verde</td></tr>
+  </tbody>
+</table>
+
+<div class="pb"></div>
+<h2><span class="n">A</span>Anexo A · Los hechos, ya redactados</h2>
+<p class="sub">Base para el memo de la semana 1. Verificar cada uno contra el producto antes de
+entregarlo — y añadir lo que falte, no quitar precisión.</p>
+<ol class="hechos">
+  <li><strong>Qué es.</strong> Una aplicación móvil donde la gente responde preguntas de sí/no o de
+    varias opciones sobre hechos futuros verificables, y comparte el resultado con quienes
+    respondieron distinto.</li>
+  <li><strong>Cómo se resuelve.</strong> Cada mercado cita <u>una fuente pública concreta</u> desde
+    que se crea. Un proceso automático la lee y publica la lectura con su evidencia. Lo que no se
+    puede leer por programa queda marcado para que una persona lo confirme contra esa misma fuente.</li>
+  <li><strong>Ventana de disputa.</strong> Entre la lectura y el pago hay una ventana en la que el
+    resultado se puede impugnar. No se paga con la ventana abierta, aunque el resultado ya se sepa.</li>
+  <li><strong>Quién es contraparte de quién.</strong> Los usuarios entre sí. <strong>La casa no toma
+    nunca el lado contrario</strong> de un usuario, ni siquiera para dar liquidez.</li>
+  <li><strong>Cómo se reparte.</strong> Quienes acertaron se reparten lo aportado por quienes no,
+    en proporción a lo que pusieron, menos una comisión.</li>
+  <li><strong>De qué cobra la casa.</strong> Una comisión sobre cada operación y el rendimiento del
+    dinero mientras espera la resolución. La casa no gana por que el usuario pierda.</li>
+  <li><strong>La liquidez de arranque.</strong> Cuando la casa aporta liquidez para que un mercado
+    nuevo no esté vacío, esa aportación <strong>nunca cobra</strong>: si cae del lado ganador, su
+    parte se reparte entre quienes acertaron. Es un coste conocido de antemano, no una posición.</li>
+  <li><strong>Dónde está el dinero.</strong> En un contrato en una cadena pública. La empresa
+    <strong>no tiene la llave de los fondos de nadie</strong> y no existe ninguna función que le
+    permita moverlos. Sólo puede <em>proponer</em> el resultado de un mercado, con firma múltiple y
+    retardo, y esa propuesta puede impugnarse antes de que pague.</li>
+  <li><strong>Qué unidad.</strong> Hoy, puntos sin valor de rescate. Después, una moneda estable en
+    dólares. <strong>En ningún momento hay dinero de banco</strong>: no se reciben transferencias ni
+    tarjetas, y la empresa no tiene cuenta que reciba fondos de usuarios.</li>
+  <li><strong>De dónde llega el dinero del usuario.</strong> De su propia billetera. Si llega desde
+    otra red, lo hace por un servicio de terceros que el usuario firma; los fondos van de él a su
+    propia dirección, <strong>sin pasar por nosotros</strong> en ningún momento.</li>
+  <li><strong>Auditabilidad.</strong> Cualquiera puede comprobar en la cadena, en cualquier momento,
+    que el dinero retenido coincide exactamente con las obligaciones pendientes. Además, cada
+    operación queda encadenada criptográficamente y se publica un resumen en la cadena, de modo que
+    un usuario puede verificar su propia operación sin ver la de nadie más.</li>
+  <li><strong>Los temas del catálogo.</strong> <span style="background:#f8f0dc">Enumerarlos uno por
+    uno y pedir respuesta por tema, no en bloque</span>: inflación y precios oficiales, tipo de
+    cambio, precios de criptomonedas y <strong>partidos de fútbol de la liga local</strong>. El
+    deporte es el que más rápido se clasifica como apuesta en la región: si la respuesta difiere por
+    tema, se lanza sólo con los temas permitidos.</li>
+</ol>
+
+<div class="pb"></div>
+<h2><span class="n">B</span>Anexo B · La tabla que hay que llenar</h2>
+<p class="sub">Una fila por país, con la fuente citada en cada casilla. <strong>Sin conclusión
+propia:</strong> la columna de veredicto la llena el abogado, no este puesto.</p>
+<table>
+  <thead><tr><th>País</th><th>¿Régimen de juego?</th><th>¿Régimen de derivados?</th><th>¿Régimen de activos virtuales?</th><th>¿Pronunciamiento sobre mercados de predicción?</th><th>Fuente</th></tr></thead>
+  <tbody>
+    <tr><td class="c">MX</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td></tr>
+    <tr><td class="c">AR</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td></tr>
+    <tr><td class="c">BR</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td></tr>
+    <tr><td class="c">CL</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td></tr>
+    <tr><td class="c">CO</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td></tr>
+    <tr><td class="c">PE</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td></tr>
+    <tr><td class="c">UY</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td></tr>
+    <tr><td class="c">EC</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td></tr>
+    <tr><td class="c">BO</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td></tr>
+    <tr><td class="c">PY</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td></tr>
+    <tr><td class="c">VE</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td></tr>
+    <tr><td class="c">CR</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td></tr>
+    <tr><td class="c">PA</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td></tr>
+    <tr><td class="c">DO</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td></tr>
+    <tr><td class="c">GT</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td><td class="vacio">—</td></tr>
+  </tbody>
+</table>
+<div class="nota"><div class="lb">Dos países ya están decididos y no se investigan</div>
+<b>Estados Unidos</b> y <b>España</b> están bloqueados en el producto por decisión ya tomada. No
+gastar horas ahí salvo que cambie la estrategia.</div>
+
+<div class="nota w"><div class="lb">Lo primero de la semana 1</div>
+Antes que el memo, una tarea de una hora: <b>confirmar que el producto hoy no recibe dinero de
+nadie</b>. Si en algún punto de la app existe un camino que acepte fondos, eso cambia la urgencia
+de todo lo demás y hay que decirlo el mismo día.</div>
+
+<div class="pie"><span>Marea · El brazo legal · 2026-09-01</span><span>marea/vault/ENCARGO_LEGAL.md</span></div>
+
+</body></html>

@@ -169,4 +169,24 @@ Los dos bloques paralelizables son **la rampa Tron** y **esto**. No valen lo mis
 rampa era la respuesta cuando lo legal no estaba sobre la mesa; con las dos opciones
 delante, la rampa espera.
 
+---
+
+## 9. Anexos (en el PDF)
+
+`MEMORY/marea/brazo-legal.pdf` es este mismo encargo maquetado en A4 para entregar, y añade
+dos piezas de trabajo que aquí sólo se nombran:
+
+- **Anexo A · Los hechos ya redactados.** Doce hechos en lenguaje llano, listos para levantar
+  el memo de la semana 1: qué es, cómo se resuelve, la ventana de disputa, quién es
+  contraparte de quién, de qué cobra la casa, que la liquidez de arranque nunca cobra, dónde
+  está el dinero, que no hay dinero de banco en ningún punto, cómo llega el dinero del
+  usuario, la auditabilidad, y **los temas del catálogo enumerados uno por uno**.
+- **Anexo B · La tabla de los 15 países**, vacía, con las cuatro columnas que hay que llenar
+  con fuente citada y sin conclusión propia. US y ES no se investigan: ya están bloqueados
+  por decisión tomada.
+
+Y una tarea de la primera hora, antes que el memo: **confirmar que el producto hoy no recibe
+dinero de nadie.** Si existiera algún camino en la app que acepte fondos, eso cambia la
+urgencia de todo lo demás y hay que decirlo el mismo día.
+
 _Escrito 2026-09-01. Contexto: `LIQUIDEZ.md` §12 · `COMPLIANCE.md` · `MEMORY/marea/README.md`._
