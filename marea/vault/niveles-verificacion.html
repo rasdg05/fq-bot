@@ -1,0 +1,254 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8">
+<style>
+@font-face{font-family:"Fraunces";src:url("file:///home/user/fq-bot/marea/public/fonts/fraunces-600.woff2") format("woff2");font-weight:600 700;}
+@font-face{font-family:"Hanken";src:url("file:///home/user/fq-bot/marea/public/fonts/hanken-400.woff2") format("woff2");font-weight:400;}
+@font-face{font-family:"Hanken";src:url("file:///home/user/fq-bot/marea/public/fonts/hanken-500.woff2") format("woff2");font-weight:500 600;}
+@font-face{font-family:"Hanken";src:url("file:///home/user/fq-bot/marea/public/fonts/hanken-700.woff2") format("woff2");font-weight:700 800;}
+@page{size:A4 portrait;margin:17mm 16mm}
+:root{
+  --paper:#fdfcf8;--card:#fff;--card2:#f0ece2;
+  --ink:#12262a;--ink2:#3c5250;--muted:#6b7c7a;
+  --teal:#0b6b6e;--teal-deep:#084f52;--teal-soft:#e4efed;
+  --line:rgba(11,107,110,.26);--line2:rgba(18,38,42,.12);
+  --dn:#a8412b;--dn-soft:#faeee9;--up:#157048;--hot:#8a5a0b;--hot-soft:#f8f0dc;
+  --display:"Fraunces",Georgia,serif;--sans:"Hanken",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:10.6pt;line-height:1.52}
+p{margin:0 0 8px}
+strong{font-weight:700}
+code{font-family:var(--mono);font-size:.88em;background:var(--card2);border-radius:4px;padding:1px 4px}
+.pb{break-before:page}
+.keep{break-inside:avoid}
+
+.cab{border-bottom:2.5px solid var(--ink);padding-bottom:12px;margin-bottom:16px}
+.eyebrow{font-size:8.5pt;letter-spacing:.22em;text-transform:uppercase;color:var(--teal);font-weight:700}
+h1{font-family:var(--display);font-weight:600;font-size:30pt;line-height:1.05;letter-spacing:-.015em;margin:9px 0 7px}
+.deck{font-size:11.5pt;color:var(--ink2);max-width:60em}
+.meta{display:flex;gap:22px;margin-top:11px;font-family:var(--mono);font-size:8.5pt;color:var(--muted)}
+
+h2{font-family:var(--display);font-weight:600;font-size:16.5pt;margin:22px 0 3px;letter-spacing:-.01em;break-after:avoid}
+h2 .n{font-family:var(--mono);font-size:10pt;color:var(--teal);font-weight:700;margin-right:9px}
+h3{font-size:11pt;font-weight:700;margin:14px 0 4px;break-after:avoid}
+.sub{font-size:9.5pt;color:var(--muted);margin-bottom:10px}
+
+.aviso{background:var(--dn-soft);border:1.5px solid rgba(168,65,43,.34);border-radius:9px;padding:11px 14px;margin:14px 0;font-size:10pt;color:var(--ink2)}
+.aviso b{color:var(--dn)}
+.nota{background:var(--card);border-left:3px solid var(--teal);border-radius:0 8px 8px 0;padding:10px 13px;margin:11px 0;font-size:10pt;color:var(--ink2)}
+.nota .lb{font-size:8pt;letter-spacing:.13em;text-transform:uppercase;font-weight:700;color:var(--teal);margin-bottom:3px}
+.nota b{color:var(--ink)}
+.nota.w{border-left-color:var(--dn)} .nota.w .lb{color:var(--dn)}
+
+.ent{border:1.5px solid var(--line2);border-radius:11px;padding:13px 16px;margin:12px 0;background:var(--card)}
+.ent .top{display:flex;justify-content:space-between;align-items:baseline;gap:14px;margin-bottom:6px}
+.ent .tit{font-size:12pt;font-weight:700}
+.ent .sem{font-family:var(--mono);font-size:9pt;color:var(--teal);font-weight:700;white-space:nowrap}
+.ent ul{margin:6px 0 0 16px} .ent li{margin-bottom:4px}
+.cierra{margin-top:9px;padding-top:8px;border-top:1px dashed var(--line);font-size:9.5pt;color:var(--ink2)}
+.cierra b{color:var(--teal-deep)}
+
+.q{border:1.5px solid var(--line2);border-radius:10px;padding:11px 14px;margin-bottom:9px;background:var(--card)}
+.q .h{display:flex;gap:10px;align-items:baseline}
+.q .num{font-family:var(--mono);font-weight:700;color:var(--teal);font-size:10pt}
+.q .tx{font-size:10.4pt;font-weight:700}
+.q .imp{margin-top:6px;padding-left:26px;font-size:9.6pt;color:var(--ink2)}
+.q .imp .lb{font-family:var(--mono);font-size:8pt;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700}
+
+ul.lista{margin:6px 0 8px 17px} ul.lista li{margin-bottom:5px}
+ol.hechos{margin:6px 0 8px 19px} ol.hechos li{margin-bottom:6px}
+
+table{border-collapse:collapse;width:100%;font-size:9.6pt;margin:9px 0}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line2);vertical-align:top}
+thead th{font-size:8pt;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700;border-bottom:1.5px solid var(--line)}
+tbody tr:last-child td{border-bottom:none}
+td.c{font-family:var(--mono);font-weight:700;color:var(--teal-deep);white-space:nowrap}
+tr.hit td{background:var(--hot-soft)}
+.vacio{color:var(--line2)}
+.pie{margin-top:26px;padding-top:10px;border-top:1px solid var(--line2);font-family:var(--mono);font-size:8pt;color:var(--muted);display:flex;justify-content:space-between}
+</style>
+<style>
+.esc{border:1.5px solid var(--line2);border-radius:11px;padding:0;margin:12px 0;overflow:hidden;background:var(--card)}
+.esc .fila{display:grid;grid-template-columns:118px 1fr 150px;gap:0;border-bottom:1px solid var(--line2)}
+.esc .fila:last-child{border-bottom:none}
+.esc .niv{background:var(--card2);padding:11px 13px;border-right:1px solid var(--line2)}
+.esc .niv .n{font-family:var(--mono);font-size:11pt;font-weight:700;color:var(--teal-deep)}
+.esc .niv .q{font-size:9pt;color:var(--muted);margin-top:2px}
+.esc .cu{padding:11px 13px}
+.esc .cu .t{font-weight:700;font-size:10.2pt;margin-bottom:3px}
+.esc .cu .d{font-size:9.6pt;color:var(--ink2)}
+.esc .tope{padding:11px 13px;border-left:1px solid var(--line2);font-family:var(--mono);font-size:9.2pt;color:var(--ink2)}
+.esc .fila.n3 .niv{background:var(--teal-soft)}
+.fuente{font-size:8.6pt;color:var(--muted);font-family:var(--mono);margin-top:4px}
+.hall{background:var(--teal-soft);border:1.5px solid var(--teal);border-radius:10px;padding:13px 16px;margin:14px 0}
+.hall .lb{font-size:8pt;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--teal);margin-bottom:4px}
+.hall b{color:var(--teal-deep)}
+</style></head><body>
+
+<div class="cab">
+  <div class="eyebrow">Marea · investigación para el brazo legal</div>
+  <h1>Niveles de verificación</h1>
+  <div class="deck">Tu intuición era correcta y tiene nombre: <strong>KYC por niveles</strong>. Existe
+  en el marco internacional, está aterrizado en la ley mexicana con umbrales concretos, y se puede
+  construir antes de tener respuesta legal. Pero funciona por una razón distinta de la que
+  imaginabas.</div>
+  <div class="meta"><span>2026-09-01</span><span>fuentes verificadas sep-2026</span><span>no es asesoría legal</span></div>
+</div>
+
+<div class="aviso"><b>Esto no es asesoría legal.</b> Es investigación de campo para que el brazo
+legal llegue con las preguntas hechas. Los umbrales citados son de fuentes públicas con fecha y
+<b>cambian</b>: el abogado confirma cuál aplica y desde cuándo.</div>
+
+<h2><span class="n">00</span>El hallazgo, en una página</h2>
+
+<div class="hall"><div class="lb">Lo que cambia respecto a lo que pensabas</div>
+Tú lo planteaste como <b>premio</b>: el usuario verificado tiene más credibilidad. En el marco
+regulatorio la lógica corre <b>al revés</b>: lo que legitima el sistema no es el privilegio del
+verificado, sino <b>el tope del que no lo está</b>. El nivel bajo es aceptable <i>porque</i> está
+acotado — si el riesgo del usuario sin verificar está limitado por monto, el regulador tolera pedirle
+menos.<br><br>
+Las dos cosas son compatibles y el diseño debe llevar las dos: <b>el tope es lo que lo hace
+defendible; la insignia es lo que lo hace producto.</b> Pero si sólo hay insignia y no hay tope, no
+hay sistema de niveles: hay decoración.</div>
+
+<h3>Lo que sí quedó confirmado</h3>
+<ul class="lista">
+  <li><strong>Existe y es el estándar.</strong> El enfoque basado en riesgo del GAFI/FATF define
+    tres niveles: <strong>debida diligencia simplificada</strong> (riesgo bajo),
+    <strong>estándar</strong>, y <strong>reforzada</strong> (riesgo alto). El término técnico para lo
+    que describes es <strong>tiered KYC</strong>, y se promueve explícitamente como herramienta de
+    <em>inclusión financiera</em>: dar servicios básicos con identificación mínima y abrir más
+    servicios cuando la identidad se puede asegurar mejor.</li>
+  <li><strong>Está en la ley mexicana, con números.</strong> Las Disposiciones del artículo 115 de
+    la LIC manejan niveles de cuenta. El <strong>Nivel 2</strong> limita abonos a <strong>3,000
+    UDIs por cliente por mes</strong> con identificación simplificada. El <strong>Nivel 2 Bis</strong>
+    llega a <strong>12,000 UDIs</strong>, exige que los fondos vengan de medios de pago digitales,
+    permite <strong>apertura totalmente remota</strong> y no requiere RFC ni e.firma: se integra con
+    identificación oficial, CURP verificada ante RENAPO, comprobante de domicilio y manifestación de
+    actuar por cuenta propia. La CNBV publicó además una guía de <em>Régimen Simplificado de
+    Identificación</em> en octubre de 2025.</li>
+  <li><strong>En cripto los umbrales son otros y son de transferencia, no de usuario.</strong> La
+    Travel Rule del GAFI fija un umbral de referencia de <strong>USD/EUR 1,000</strong>; Estados
+    Unidos usa <strong>3,000 USD</strong>, la Unión Europea <strong>cero</strong> entre proveedores,
+    Canadá <strong>1,000 CAD</strong>, Reino Unido <strong>£1,000</strong> doméstico y
+    <strong>£0</strong> transfronterizo, Singapur <strong>1,500 SGD</strong>, Japón
+    <strong>100,000 JPY</strong>. <strong>Ojo:</strong> regulan el intercambio de datos entre
+    proveedores en una transferencia, no «cuánto puede operar un usuario». Sirven como
+    <em>referencia</em> para fijar nuestros topes, no como la regla que nos aplica.</li>
+</ul>
+<div class="fuente">FATF/GAFI · CGAP · Disposiciones art. 115 LIC (SIDOF/DOF) · Guía CNBV oct-2025 · resúmenes de Travel Rule por jurisdicción. Verificado sep-2026.</div>
+
+<div class="pb"></div>
+<h2><span class="n">01</span>La escalera propuesta para Marea</h2>
+<p class="sub">Construible hoy, en modo puntos, sin esperar al abogado. Los montos exactos del
+nivel 2 los fija él; la estructura no depende de eso.</p>
+
+<div class="esc">
+  <div class="fila"><div class="niv"><div class="n">N0</div><div class="q">visitante</div></div>
+    <div class="cu"><div class="t">No se le pide nada</div><div class="d">Explorar el catálogo, ver probabilidades, ver resultados y sus fuentes. <strong>Explorar nunca requiere permiso</strong> — ya es regla del producto.</div></div>
+    <div class="tope">sin tope<br>sin dinero</div></div>
+
+  <div class="fila"><div class="niv"><div class="n">N1</div><div class="q">jugador</div></div>
+    <div class="cu"><div class="t">Alias y código de recuperación</div><div class="d">Jugar con <strong>puntos</strong>, entrar a ligas, aparecer en la tabla. Es lo que ya existe hoy en la app.</div></div>
+    <div class="tope">sin tope<br>puntos, no dinero</div></div>
+
+  <div class="fila"><div class="niv"><div class="n">N2</div><div class="q">operador</div></div>
+    <div class="cu"><div class="t">Wallet propia + screening de sanciones + país declarado</div><div class="d">Operar con USDC bajo tope acumulado y tope por operación. <strong>Sin documento de identidad.</strong> Es el nivel que hace que el producto sea usable por alguien que llega de cero.</div></div>
+    <div class="tope">tope de nivel<br>+ tope por operación<br><span style="color:var(--dn)">lo fija el abogado</span></div></div>
+
+  <div class="fila n3"><div class="niv"><div class="n">N3</div><div class="q">verificado</div></div>
+    <div class="cu"><div class="t">Identidad verificada, voluntaria</div><div class="d">Sin el tope de nivel. Y aquí sí entra tu idea: <strong>insignia de verificado</strong>, y las funciones que exijan confianza entre personas quedan reservadas a este nivel.</div></div>
+    <div class="tope">sólo el tope del país</div></div>
+</div>
+
+<div class="nota"><div class="lb">Cómo encaja con lo que ya está construido</div>
+La tabla de países del producto <b>ya tiene un tope de depósito por país</b>. La escalera añade la
+otra dimensión, la del usuario, y el tope efectivo pasa a ser simplemente:
+<b>mínimo(tope del país, tope del nivel)</b>. No hay que inventar una arquitectura nueva — hay que
+añadir una columna.</div>
+
+<div class="nota w"><div class="lb">El tope se hace cumplir donde está el dinero</div>
+Un tope que sólo vive en la pantalla es decorativo: se salta con la consola del navegador. En una
+arquitectura no custodial el límite tiene que estar <b>en el contrato o en el motor de cruce</b>, que
+es donde ocurre la operación. <b>Invariante nueva:</b> <i>el tope de nivel se hace cumplir donde
+está el dinero, no en la interfaz.</i> La prueba que la fija: una operación que excede el tope se
+rechaza aunque se pida saltándose la app.</div>
+
+<h2><span class="n">02</span>Las dos cosas que NO tienen nivel</h2>
+<ul class="lista">
+  <li><strong>El screening de sanciones.</strong> No es KYC y no admite escalera: aplica a todos
+    desde N0, siempre. Es una lista de direcciones bloqueadas, cuesta 2–3 días de trabajo, y es lo
+    único de este bloque que ha hundido equipos cripto de verdad. Un usuario N2 sin documento es una
+    decisión de riesgo defendible; un usuario sancionado operando no lo es en ningún nivel.</li>
+  <li><strong>Explorar.</strong> Mirar el catálogo no cuesta ni pide permiso, en ningún país y en
+    ningún nivel. Ya es regla del producto y no se toca.</li>
+</ul>
+
+<div class="pb"></div>
+<h2><span class="n">03</span>El P2P: la advertencia grande</h2>
+<p>La idea viene de un tablero P2P estilo Binance, donde el verificado tiene reputación y por eso es
+mejor contraparte para intercambiar. La mecánica es buena. <strong>Pero hay que separar dos cosas
+que ahí van juntas y aquí no deben ir juntas.</strong></p>
+
+<table>
+  <thead><tr><th></th><th>Mercado de predicción (lo que somos)</th><th>Tablero P2P (lo que sería añadirlo)</th></tr></thead>
+  <tbody>
+    <tr><td class="c">Qué pasa</td><td>Los usuarios apuestan entre sí contra un resultado; el contrato retiene el colateral</td><td>Los usuarios <strong>cambian cripto por moneda local</strong> entre ellos, con transferencia bancaria de por medio</td></tr>
+    <tr><td class="c">Para qué sirve el nivel</td><td>Acotar el riesgo del que no se verifica</td><td>Reputación de contraparte: quién cumple, quién no</td></tr>
+    <tr><td class="c">Qué actividad es</td><td>Discutible: juego, derivado, u otra cosa. Es la pregunta abierta</td><td><strong>Cambio de divisas o transmisión de dinero.</strong> Es de lo más regulado que hay, y casi siempre exige licencia o registro</td></tr>
+    <tr><td class="c">Toca dinero de banco</td><td><strong>No.</strong> Todo el plan actual lo evita</td><td><strong>Sí</strong>, por definición: el otro lado del intercambio es una transferencia bancaria</td></tr>
+  </tbody>
+</table>
+
+<div class="aviso"><b>Si se añade el tablero P2P, deja de ser una función más: pasa a dominar todo el
+análisis legal.</b> El plan actual llega a lanzamiento sin tocar dinero de banco en ningún punto —
+ése es justamente el argumento más fuerte que tenemos. Un tablero donde la gente intercambia con
+transferencias lo desmonta entero, y probablemente mueve el calendario en meses, no en semanas.</div>
+
+<div class="hall"><div class="lb">La buena noticia</div>
+<b>La reputación se puede tener sin el tablero.</b> La insignia de verificado, el historial de
+cumplimiento y la confianza entre usuarios son mecánicas de producto que funcionan sobre la escalera
+de niveles sin que nosotros operemos ningún intercambio. Se queda lo que te gustaba de la idea y se
+deja fuera lo que la hace cara.</div>
+
+<div class="pb"></div>
+<h2><span class="n">04</span>Cuatro preguntas más para el abogado</h2>
+<p class="sub">Se suman a las diez del encargo, con la misma regla: cada una con su consecuencia
+escrita.</p>
+
+<div class="q keep"><div class="h"><span class="num">11</span><span class="tx">¿Se reconoce aquí un régimen simplificado o por niveles? ¿Con qué umbral y qué expediente mínimo para el nivel bajo?</span></div>
+<div class="imp"><span class="lb">Consecuencia</span><br>Nos da el número del tope de N2. Si no existe régimen simplificado, N2 desaparece y se salta directo de puntos a verificado — lo que cambia el producto entero, no un parámetro.</div></div>
+
+<div class="q keep"><div class="h"><span class="num">12</span><span class="tx">Sin custodia, sin fiat y sin tomar contraparte, ¿nos alcanza alguna obligación de identificación? ¿Cambia si el usuario llega desde otra red mediante un tercero que él mismo firma?</span></div>
+<div class="imp"><span class="lb">Consecuencia</span><br>Si no nos alcanza ninguna, la escalera es voluntaria: control de riesgo propio y funcionalidad de producto. Se construye igual, porque es barata y nos deja listos, pero deja de ser bloqueante.</div></div>
+
+<div class="q keep"><div class="h"><span class="num">13</span><span class="tx">¿Qué obligación genera el screening de sanciones por sí solo — listas aplicables, frecuencia de actualización, qué hacer ante una coincidencia, y a quién se reporta?</span></div>
+<div class="imp"><span class="lb">Consecuencia</span><br>Define el procedimiento escrito. Es trabajo del brazo legal, no del abogado, en cuanto tengamos la lista de fuentes confirmada.</div></div>
+
+<div class="q keep"><div class="h"><span class="num">14</span><span class="tx">Si en el futuro se añadiera un tablero donde usuarios intercambian cripto por moneda local entre ellos: ¿qué actividad sería y qué exigiría?</span></div>
+<div class="imp"><span class="lb">Consecuencia</span><br>Es la pregunta que decide si el P2P entra alguna vez al plan. Se pregunta ahora, aunque no se vaya a construir, porque la respuesta determina si vale la pena siquiera diseñarlo.</div></div>
+
+<h2><span class="n">05</span>Qué se puede construir ya, y qué espera</h2>
+<table>
+  <thead><tr><th>Pieza</th><th>Estado</th><th>Por qué</th></tr></thead>
+  <tbody>
+    <tr><td>La escalera N0–N3 como estructura</td><td class="c" style="color:var(--up)">YA</td><td>No depende de ningún umbral. Es una columna en la tabla de usuarios y una comprobación</td></tr>
+    <tr><td>Tope efectivo = mín(país, nivel)</td><td class="c" style="color:var(--up)">YA</td><td>El tope por país ya existe; falta cruzarlo con el del usuario</td></tr>
+    <tr><td>Screening de sanciones desde N0</td><td class="c" style="color:var(--up)">YA</td><td>2–3 días. No espera a nadie y no admite escalera</td></tr>
+    <tr><td>Insignia de verificado y sus funciones</td><td class="c" style="color:var(--up)">YA</td><td>Es producto, no cumplimiento</td></tr>
+    <tr><td>El número del tope de N2</td><td class="c" style="color:var(--hot)">ESPERA</td><td>Lo fija la respuesta a la pregunta 11</td></tr>
+    <tr><td>Proveedor de verificación de identidad (N3)</td><td class="c" style="color:var(--hot)">ESPERA</td><td>Depende de qué expediente exija la jurisdicción elegida</td></tr>
+    <tr><td>Tablero P2P</td><td class="c" style="color:var(--dn)">NO</td><td>Reabre y probablemente domina todo el análisis legal. Pregunta 14 antes de considerarlo</td></tr>
+  </tbody>
+</table>
+
+<div class="nota"><div class="lb">Lo honesto sobre este documento</div>
+Confirmé que <b>el concepto existe, tiene nombre y tiene números públicos</b>. Lo que <b>no</b> puedo
+decirte —y nadie puede sin abogado local— es cuál de esos regímenes nos aplica, si es que alguno.
+Por eso el diseño de arriba está hecho para <b>sostenerse pase lo que pase</b>: si no nos aplica
+nada, es control de riesgo propio y una buena función de producto; si nos aplica algo, ya estamos
+en la forma que el marco espera.</div>
+
+<div class="pie"><span>Marea · Niveles de verificación · 2026-09-01</span><span>marea/vault/NIVELES_VERIFICACION.md</span></div>
+</body></html>

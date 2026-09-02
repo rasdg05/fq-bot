@@ -75,6 +75,12 @@ no se pregunta — se está pagando por curiosidad.
 10. **El oráculo.** Operar la resolución, ¿nos convierte en árbitro o fiduciario frente al
     usuario? ¿Qué obligación de proceso o de publicidad genera?
 
+**P11 a P14 · verificación por niveles.** Se investigaron aparte y viven en
+`NIVELES_VERIFICACION.md` §5: régimen simplificado y su umbral · si nos alcanza alguna
+obligación de identificación sin custodia ni fiat · qué exige el screening de sanciones por sí
+solo · y qué sería un tablero P2P de cripto por moneda local. **Las catorce se contratan
+juntas.**
+
 ---
 
 ## 3. Entregable · El mapa y la terna (semana 2–3)

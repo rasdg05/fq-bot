@@ -281,6 +281,30 @@ Dos cosas que quedaron dichas ahí y no estaban en ningún lado:
   semanas al final; lo legal está en el camino crítico y su cola no se acelera con dinero.
   Corrige la recomendación anterior, que se dio cuando lo legal no estaba sobre la mesa.
 
+## 7quater. Verificación por niveles (investigado)
+
+`marea/vault/NIVELES_VERIFICACION.md` + `MEMORY/marea/niveles-verificacion.pdf`.
+
+El *tiered KYC* **existe y es estándar** (GAFI: simplificada / estándar / reforzada), está
+aterrizado en México con números (art. 115 LIC: Nivel 2 = 3,000 UDIs/mes; Nivel 2 Bis = 12,000
+UDIs con apertura remota y sin RFC; guía CNBV oct-2025), y los umbrales de Travel Rule
+(USD/EUR 1,000 de referencia, EE.UU. 3,000, UE cero) **son de transferencia entre proveedores,
+no de usuario**.
+
+**El giro:** la intuición era «verificado = premio»; la lógica regulatoria es al revés — lo que
+legitima el sistema es **el tope del que no se verifica**. El tope lo hace defendible; la
+insignia lo hace producto. Sin tope no hay niveles, hay decoración.
+
+Escalera N0 visitante · N1 jugador (puntos) · N2 operador con USDC bajo tope y **sin
+documento** · N3 verificado. Encaja con `eligibility.ts`, que ya tiene `depositCapUsd` por
+país: el tope efectivo es `min(cap_país, cap_nivel)`. **L16 (nueva):** el tope se hace cumplir
+donde está el dinero, no en la pantalla.
+
+**El P2P queda fuera.** Un tablero donde la gente cambia cripto por moneda local es cambio de
+divisas o transmisión de dinero, toca dinero de banco por definición y **dominaría todo el
+análisis legal** — desmontando el argumento más fuerte del plan actual, que es no tocarlo en
+ningún punto. La reputación que gustaba de la idea se tiene sin el tablero.
+
 ## 8bis. Lo que sigue abierto
 
 1. **¿Se acepta la escalera de fees de §3?** La base (varianza) y la regla
