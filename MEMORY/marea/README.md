@@ -319,6 +319,12 @@ ningún punto. La reputación que gustaba de la idea se tiene sin el tablero.
 
 ## Obras
 
+- **`manual-rampa-trx.pdf`** — *Manual del co-desarrollador* (12 páginas A4). Onboarding
+  completo del segundo desarrollador: misión y visión, cómo está armado el repo, las reglas
+  que no se rompen, **señales para su agente** (que rutean a `vault/AGENTE.md`), y el encargo
+  de la rampa con sus siete pasos, los siete caminos de fallo, la interfaz propuesta, L17 y la
+  agenda posterior. Breve en `marea/vault/ENCARGO_RAMPA.md`; fuente en
+  `marea/vault/manual-rampa.html`.
 - **`memo-consejo.pdf`** — *Cómo gana dinero Marea* (5 páginas A4). Memo para el consejo:
   quién es la casa (operador, nunca contraparte), las tres líneas de ingreso, **la tabla de
   escala** que convierte «millones» en usuarios activos —$1M/año ≈ 18,500 MAU al 3%—, dónde
