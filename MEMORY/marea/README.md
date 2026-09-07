@@ -319,6 +319,11 @@ ningún punto. La reputación que gustaba de la idea se tiene sin el tablero.
 
 ## Obras
 
+- **`memoria-y-trabajo.pdf`** — *La memoria y la forma de trabajar* (9 páginas A4). Documento 2
+  del manual del co-desarrollador: la memoria como grafo que se recorre a demanda, el reparto
+  de dueños por zona para no encimarse, ramas y fusiones, y la economía real de un turno
+  agéntico (caché de prefijo, cuándo reiniciar en frío y cuándo no). Cierra con el caso de
+  estudio de `pozo.ts`. Breve en `marea/vault/MEMORIA_Y_TRABAJO.md`.
 - **`manual-rampa-trx.pdf`** — *Manual del co-desarrollador* (12 páginas A4). Onboarding
   completo del segundo desarrollador: misión y visión, cómo está armado el repo, las reglas
   que no se rompen, **señales para su agente** (que rutean a `vault/AGENTE.md`), y el encargo

@@ -1,0 +1,414 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8">
+<style>
+@font-face{font-family:"Fraunces";src:url("file:///home/user/fq-bot/marea/public/fonts/fraunces-600.woff2") format("woff2");font-weight:600 700;}
+@font-face{font-family:"Hanken";src:url("file:///home/user/fq-bot/marea/public/fonts/hanken-400.woff2") format("woff2");font-weight:400;}
+@font-face{font-family:"Hanken";src:url("file:///home/user/fq-bot/marea/public/fonts/hanken-500.woff2") format("woff2");font-weight:500 600;}
+@font-face{font-family:"Hanken";src:url("file:///home/user/fq-bot/marea/public/fonts/hanken-700.woff2") format("woff2");font-weight:700 800;}
+@page{size:A4 portrait;margin:17mm 16mm}
+:root{
+  --paper:#fdfcf8;--card:#fff;--card2:#f0ece2;
+  --ink:#12262a;--ink2:#3c5250;--muted:#6b7c7a;
+  --teal:#0b6b6e;--teal-deep:#084f52;--teal-soft:#e4efed;
+  --line:rgba(11,107,110,.26);--line2:rgba(18,38,42,.12);
+  --dn:#a8412b;--dn-soft:#faeee9;--up:#157048;--hot:#8a5a0b;--hot-soft:#f8f0dc;
+  --display:"Fraunces",Georgia,serif;--sans:"Hanken",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:10.6pt;line-height:1.52}
+p{margin:0 0 8px}
+strong{font-weight:700}
+code{font-family:var(--mono);font-size:.88em;background:var(--card2);border-radius:4px;padding:1px 4px}
+.pb{break-before:page}
+.keep{break-inside:avoid}
+
+.cab{border-bottom:2.5px solid var(--ink);padding-bottom:12px;margin-bottom:16px}
+.eyebrow{font-size:8.5pt;letter-spacing:.22em;text-transform:uppercase;color:var(--teal);font-weight:700}
+h1{font-family:var(--display);font-weight:600;font-size:30pt;line-height:1.05;letter-spacing:-.015em;margin:9px 0 7px}
+.deck{font-size:11.5pt;color:var(--ink2);max-width:60em}
+.meta{display:flex;gap:22px;margin-top:11px;font-family:var(--mono);font-size:8.5pt;color:var(--muted)}
+
+h2{font-family:var(--display);font-weight:600;font-size:16.5pt;margin:22px 0 3px;letter-spacing:-.01em;break-after:avoid}
+h2 .n{font-family:var(--mono);font-size:10pt;color:var(--teal);font-weight:700;margin-right:9px}
+h3{font-size:11pt;font-weight:700;margin:14px 0 4px;break-after:avoid}
+.sub{font-size:9.5pt;color:var(--muted);margin-bottom:10px}
+
+.aviso{background:var(--dn-soft);border:1.5px solid rgba(168,65,43,.34);border-radius:9px;padding:11px 14px;margin:14px 0;font-size:10pt;color:var(--ink2)}
+.aviso b{color:var(--dn)}
+.nota{background:var(--card);border-left:3px solid var(--teal);border-radius:0 8px 8px 0;padding:10px 13px;margin:11px 0;font-size:10pt;color:var(--ink2)}
+.nota .lb{font-size:8pt;letter-spacing:.13em;text-transform:uppercase;font-weight:700;color:var(--teal);margin-bottom:3px}
+.nota b{color:var(--ink)}
+.nota.w{border-left-color:var(--dn)} .nota.w .lb{color:var(--dn)}
+
+.ent{border:1.5px solid var(--line2);border-radius:11px;padding:13px 16px;margin:12px 0;background:var(--card)}
+.ent .top{display:flex;justify-content:space-between;align-items:baseline;gap:14px;margin-bottom:6px}
+.ent .tit{font-size:12pt;font-weight:700}
+.ent .sem{font-family:var(--mono);font-size:9pt;color:var(--teal);font-weight:700;white-space:nowrap}
+.ent ul{margin:6px 0 0 16px} .ent li{margin-bottom:4px}
+.cierra{margin-top:9px;padding-top:8px;border-top:1px dashed var(--line);font-size:9.5pt;color:var(--ink2)}
+.cierra b{color:var(--teal-deep)}
+
+.q{border:1.5px solid var(--line2);border-radius:10px;padding:11px 14px;margin-bottom:9px;background:var(--card)}
+.q .h{display:flex;gap:10px;align-items:baseline}
+.q .num{font-family:var(--mono);font-weight:700;color:var(--teal);font-size:10pt}
+.q .tx{font-size:10.4pt;font-weight:700}
+.q .imp{margin-top:6px;padding-left:26px;font-size:9.6pt;color:var(--ink2)}
+.q .imp .lb{font-family:var(--mono);font-size:8pt;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700}
+
+ul.lista{margin:6px 0 8px 17px} ul.lista li{margin-bottom:5px}
+ol.hechos{margin:6px 0 8px 19px} ol.hechos li{margin-bottom:6px}
+
+table{border-collapse:collapse;width:100%;font-size:9.6pt;margin:9px 0}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line2);vertical-align:top}
+thead th{font-size:8pt;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700;border-bottom:1.5px solid var(--line)}
+tbody tr:last-child td{border-bottom:none}
+td.c{font-family:var(--mono);font-weight:700;color:var(--teal-deep);white-space:nowrap}
+tr.hit td{background:var(--hot-soft)}
+.vacio{color:var(--line2)}
+.pie{margin-top:26px;padding-top:10px;border-top:1px solid var(--line2);font-family:var(--mono);font-size:8pt;color:var(--muted);display:flex;justify-content:space-between}
+<style>
+.portada{min-height:243mm;display:flex;flex-direction:column;justify-content:center;break-after:page}
+.portada h1{font-size:44pt;margin:14px 0 10px;line-height:1.03}
+.portada .sello{margin-top:auto;border-top:2px solid var(--ink);padding-top:14px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.portada .sello .k{font-size:8pt;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.portada .sello .v{font-family:var(--mono);font-size:10pt;margin-top:3px;color:var(--teal-deep);font-weight:700}
+.parte{font-family:var(--display);font-size:21pt;font-weight:600;color:var(--teal);border-bottom:2px solid var(--teal);padding-bottom:6px;margin:0 0 4px;break-after:avoid}
+.parte-d{font-size:10pt;color:var(--muted);margin-bottom:12px}
+.regla{display:grid;grid-template-columns:30px 1fr;gap:10px;padding:7px 0;border-bottom:1px solid var(--line2);font-size:10pt;break-inside:avoid}
+.regla:last-child{border-bottom:none}
+.regla .i{font-family:var(--mono);font-weight:700;color:var(--teal);font-size:9.5pt;padding-top:1px}
+.regla b{color:var(--ink)}
+.svgbox{background:var(--card);border:1.5px solid var(--line2);border-radius:12px;padding:14px 16px;margin:12px 0;break-inside:avoid}
+.nodo{fill:var(--card2);stroke:var(--line2);stroke-width:1.3}
+.nodo-k{fill:var(--teal-soft);stroke:var(--teal);stroke-width:1.6}
+.nodo-x{fill:var(--dn-soft);stroke:var(--dn);stroke-width:1.3}
+.nodo-e{fill:var(--hot-soft);stroke:var(--hot);stroke-width:1.3}
+.n1{fill:var(--ink);font-family:var(--mono);font-size:11px;font-weight:700}
+.n1k{fill:var(--teal-deep);font-family:var(--mono);font-size:11px;font-weight:700}
+.n2{fill:var(--muted);font-family:var(--sans);font-size:9.5px}
+.ar{stroke:var(--ink2);stroke-width:1.2;fill:none}
+.ark{stroke:var(--teal);stroke-width:1.6;fill:none}
+.hd{fill:var(--ink2)}.hk{fill:var(--teal)}
+.zona{display:grid;grid-template-columns:1fr 1fr;gap:0;font-size:9.8pt;border-bottom:1px solid var(--line2)}
+.zona:last-of-type{border-bottom:none}
+.zona .a{padding:8px 12px 8px 0;font-family:var(--mono);font-size:9pt;font-weight:700}
+.zona .b{padding:8px 0 8px 12px;border-left:1px solid var(--line2);color:var(--ink2)}
+.zona.mia .a{color:var(--teal-deep)} .zona.tuya .a{color:var(--hot)} .zona.comp .a{color:var(--dn)}
+pre{font-family:var(--mono);font-size:8.8pt;line-height:1.5;background:var(--card2);border:1px solid var(--line2);
+  border-radius:8px;padding:11px 13px;margin:9px 0;white-space:pre-wrap;break-inside:avoid;color:var(--ink)}
+pre .c{color:var(--muted)}
+.costo{display:grid;grid-template-columns:1fr auto;gap:0;font-size:10pt;border-bottom:1px solid var(--line2);padding:7px 0}
+.costo:last-of-type{border-bottom:none}
+.costo .v{font-family:var(--mono);font-weight:700;color:var(--teal-deep);white-space:nowrap;padding-left:14px}
+.costo .v.mal{color:var(--dn)}
+.chk{display:grid;grid-template-columns:18px 1fr;gap:9px;font-size:10pt;padding:5px 0}
+.chk .b{font-family:var(--mono);color:var(--teal);font-weight:700}
+</style></head><body>
+
+<div class="portada">
+  <div class="eyebrow">Marea · manual del co-desarrollador · documento 2</div>
+  <h1>La memoria y<br>la forma de trabajar</h1>
+  <div class="deck" style="font-size:12.5pt">Cómo está organizada la memoria del repositorio, cómo
+  se reparte el trabajo para que dos personas y sus agentes no se encimen, y por qué trabajamos en
+  sesiones cortas con el estado en el repo y no en el chat.</div>
+  <div class="sello">
+    <div><div class="k">Para</div><div class="v">el segundo dev y su agente</div></div>
+    <div><div class="k">Complementa</div><div class="v">Manual · La rampa TRX</div></div>
+    <div><div class="k">Fecha</div><div class="v">2026-09-07 · v1</div></div>
+  </div>
+</div>
+
+<!-- ===================== PARTE I ===================== -->
+<div class="parte">Parte I · La memoria del repositorio</div>
+<div class="parte-d">Un grafo de documentos que se recorre a demanda, no un manual que se lee entero.</div>
+
+<h2><span class="n">01</span>Por qué existe</h2>
+<p>En julio, un documento interno ya decía que una racha de resultados del bot era un espejismo
+estadístico. El repositorio <strong>lo sabía</strong>. El código siguió publicando el número bonito
+durante un mes, hasta que se descubrió que casi dos tercios de esos cierres se habían escrito en
+763 milisegundos por un proceso mal configurado.</p>
+
+<div class="hall" style="background:var(--teal-soft);border:1.5px solid var(--teal);border-radius:10px;padding:13px 16px;margin:12px 0">
+<div class="lb" style="font-size:8pt;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--teal);margin-bottom:4px">La lección, y la regla que salió de ella</div>
+<b>El fallo no fue de conocimiento sino de cableado.</b> El saber estaba escrito y no cambió nada,
+porque nada lo hacía cumplir. De ahí la regla que gobierna todo lo demás:<br><br>
+<b>Un hallazgo sin un test que lo haga cumplir es una nota, no un arreglo.</b> Cuando cierres algo,
+pregúntate qué prueba impide que vuelva. Si la respuesta es «acordarse», no está cerrado.</div>
+
+<p>La memoria existe por el otro lado del mismo problema: <strong>los agentes no se descarrilan por
+falta de inteligencia, sino por falta de contexto.</strong> Olvidan por qué se decidió algo, qué
+está prohibido, qué ya se probó y murió. `MEMORY/` es la bitácora durable que cierra ese hueco.</p>
+
+<h2><span class="n">02</span>El mapa</h2>
+<div class="svgbox">
+<svg viewBox="0 0 1080 470" role="img" aria-label="Grafo de la memoria: CLAUDE.md es la entrada y rutea al índice de MEMORY, que lleva a constitución, decisiones, cementerio, estado y las carpetas por tema.">
+  <defs>
+    <marker id="ga" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hd" d="M0,0 L10,5 L0,10 z"/></marker>
+    <marker id="gk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hk" d="M0,0 L10,5 L0,10 z"/></marker>
+  </defs>
+
+  <rect class="nodo-k" x="20" y="20" width="200" height="62" rx="9"/>
+  <text class="n1k" x="36" y="44">CLAUDE.md</text>
+  <text class="n2" x="36" y="62">se carga en CADA sesión</text>
+  <text class="n2" x="36" y="76">corto a propósito: rutea</text>
+
+  <rect class="nodo-k" x="300" y="20" width="210" height="62" rx="9"/>
+  <text class="n1k" x="316" y="44">MEMORY/00-INDICE.md</text>
+  <text class="n2" x="316" y="62">la puerta · 60 segundos</text>
+  <text class="n2" x="316" y="76">orienta desde cero</text>
+
+  <rect class="nodo-e" x="590" y="20" width="210" height="62" rx="9"/>
+  <text class="n1" x="606" y="44">marea/vault/AGENTE.md</text>
+  <text class="n2" x="606" y="62">cómo se decide y se verifica</text>
+  <text class="n2" x="606" y="76">manda sobre ir rápido</text>
+
+  <rect class="nodo-e" x="850" y="20" width="210" height="62" rx="9"/>
+  <text class="n1" x="866" y="44">vault/RULINGS.md</text>
+  <text class="n2" x="866" y="62">68 reglas permanentes</text>
+  <text class="n2" x="866" y="76">violar una = crítico</text>
+
+  <path class="ark" d="M220,51 L296,51" marker-end="url(#gk)"/>
+
+  <rect class="nodo" x="20" y="150" width="200" height="70" rx="9"/>
+  <text class="n1" x="36" y="174">CONSTITUCION.md</text>
+  <text class="n2" x="36" y="192">lo que no se rompe</text>
+  <text class="n2" x="36" y="207">nunca, por conveniencia</text>
+
+  <rect class="nodo" x="250" y="150" width="200" height="70" rx="9"/>
+  <text class="n1" x="266" y="174">DECISIONES.md</text>
+  <text class="n2" x="266" y="192">por qué está así</text>
+  <text class="n2" x="266" y="207">con su evidencia</text>
+
+  <rect class="nodo-x" x="480" y="150" width="200" height="70" rx="9"/>
+  <text class="n1" x="496" y="174">CEMENTERIO.md</text>
+  <text class="n2" x="496" y="192">qué ya se mató</text>
+  <text class="n2" x="496" y="207">y por qué · NO revivir</text>
+
+  <rect class="nodo" x="710" y="150" width="200" height="70" rx="9"/>
+  <text class="n1" x="726" y="174">ESTADO.md</text>
+  <text class="n2" x="726" y="192">qué está vivo HOY</text>
+  <text class="n2" x="726" y="207">el que más caduca</text>
+
+  <path class="ar" d="M380,82 L120,146" marker-end="url(#ga)"/>
+  <path class="ar" d="M395,82 L350,146" marker-end="url(#ga)"/>
+  <path class="ar" d="M420,82 L570,146" marker-end="url(#ga)"/>
+  <path class="ar" d="M435,82 L790,146" marker-end="url(#ga)"/>
+
+  <rect class="nodo-k" x="250" y="290" width="230" height="70" rx="9"/>
+  <text class="n1k" x="266" y="314">MEMORY/marea/</text>
+  <text class="n2" x="266" y="332">todo lo de Marea · obras</text>
+  <text class="n2" x="266" y="347">y el estado del producto</text>
+
+  <rect class="nodo" x="520" y="290" width="200" height="70" rx="9"/>
+  <text class="n1" x="536" y="314">ingeniería · investigación</text>
+  <text class="n2" x="536" y="332">marketing · ROLES/</text>
+  <text class="n2" x="536" y="347">obras por tema</text>
+
+  <path class="ar" d="M400,220 L370,286" marker-end="url(#ga)"/>
+  <path class="ar" d="M430,220 L600,286" marker-end="url(#ga)"/>
+
+  <rect class="nodo" x="20" y="290" width="200" height="70" rx="9"/>
+  <text class="n1" x="36" y="314">el código</text>
+  <text class="n2" x="36" y="332">tests · invariantes</text>
+  <text class="n2" x="36" y="347">la verdad ejecutable</text>
+  <path class="ark" d="M180,220 L140,286" marker-end="url(#gk)"/>
+  <text class="n2" x="150" y="258">cablea</text>
+
+  <rect class="nodo" x="20" y="400" width="1040" height="52" rx="9"/>
+  <text class="n1" x="36" y="424">Regla del grafo: se rutea, no se repite.</text>
+  <text class="n2" x="36" y="442">Si dos nodos dicen lo mismo, uno de los dos va a mentir eventualmente — y no vas a saber cuál.</text>
+</svg>
+</div>
+
+<div class="pb"></div>
+<h2><span class="n">03</span>Cómo se lee: rutas de entrada</h2>
+<p class="sub">No se lee entero. Se entra por la ruta de tu tarea. Todo nodo se alcanza en dos
+saltos desde el índice.</p>
+<table>
+  <thead><tr><th>Si vas a…</th><th>Lees</th></tr></thead>
+  <tbody>
+    <tr><td>Empezar cualquier cosa</td><td><code>CLAUDE.md</code> → <code>MEMORY/00-INDICE.md</code></td></tr>
+    <tr><td>Tocar el motor, una config o una invariante</td><td><code>MEMORY/CONSTITUCION.md</code></td></tr>
+    <tr><td>Entender por qué algo está así</td><td><code>MEMORY/DECISIONES.md</code></td></tr>
+    <tr><td><b>Proponer una idea</b></td><td><code>MEMORY/CEMENTERIO.md</code> — <b>primero</b>, no después</td></tr>
+    <tr><td>Saber qué está vivo o pendiente hoy</td><td><code>MEMORY/ESTADO.md</code></td></tr>
+    <tr><td>Trabajar en Marea</td><td><code>marea/vault/AGENTE.md</code> + <code>RULINGS.md</code> + <code>MEMORY/marea/README.md</code></td></tr>
+    <tr><td>Tu encargo</td><td><code>marea/vault/ENCARGO_RAMPA.md</code></td></tr>
+  </tbody>
+</table>
+
+<h2><span class="n">04</span>Cómo se escribe</h2>
+<div class="regla"><span class="i">01</span><div><b>Un nodo, una responsabilidad.</b> Una decisión
+va a DECISIONES. Una idea muerta va al CEMENTERIO. El estado de hoy va a ESTADO. No se mezclan.</div></div>
+<div class="regla"><span class="i">02</span><div><b>Nada se duplica.</b> Si necesitas repetir algo,
+enlázalo por nombre de archivo para que un agente pueda abrirlo.</div></div>
+<div class="regla"><span class="i">03</span><div><b>Todo nodo lleva fecha.</b> ESTADO es el que más
+caduca: si la fecha es vieja, confírmalo contra `git log` antes de creerle.</div></div>
+<div class="regla"><span class="i">04</span><div><b>El cementerio es de primera clase.</b> Saber
+qué NO hacer vale tanto como saber qué hacer, y se escribe con la razón, no sólo el veredicto.</div></div>
+<div class="regla"><span class="i">05</span><div><b>Se escribe al cerrar, no al empezar.</b> Cuando
+termines algo que costó descubrir, déjalo en `MEMORY/marea/` con fecha. Ése es el momento en que
+sabes lo que aprendiste.</div></div>
+<div class="regla"><span class="i">06</span><div><b>Documentar no es entregar.</b> Un documento
+sólo cuenta si cambia una decisión de alguien. Si no, es ruido con formato.</div></div>
+
+<div class="pb"></div>
+<!-- ===================== PARTE II ===================== -->
+<div class="parte">Parte II · Cómo no encimarnos</div>
+<div class="parte-d">Dos personas y dos agentes sobre el mismo repositorio. El reparto es por
+archivo, no por buena voluntad.</div>
+
+<h2><span class="n">05</span>Dueños por zona</h2>
+<p class="sub">Durante tu encargo, cada archivo tiene un dueño. El dueño edita; el otro pregunta.</p>
+
+<div class="zona tuya"><div class="a">TUYA · adapters/puente/*</div><div class="b">La rampa entera. Nadie más la toca.</div></div>
+<div class="zona tuya"><div class="a">TUYA · domain/solicitudes.ts</div><div class="b">Se <b>extiende</b>, no se reescribe: la máquina de estados ya está probada.</div></div>
+<div class="zona tuya"><div class="a">TUYA · screens de depósito</div><div class="b">Pantallas y hojas del flujo de entrada de dinero.</div></div>
+<div class="zona mia"><div class="a">NUESTRA · domain/pozo.ts</div><div class="b">El compensador. Invariantes L1, L2 y L5.</div></div>
+<div class="zona mia"><div class="a">NUESTRA · domain/parimutuel.ts</div><div class="b">El reparto y el multiplicador. Cambio en curso: la semilla pasa a subsidio.</div></div>
+<div class="zona mia"><div class="a">NUESTRA · contratos/ · merkle · época</div><div class="b">La parte en cadena y el anclaje.</div></div>
+<div class="zona comp"><div class="a">COMPARTIDA · adapters/index.ts</div><div class="b">Donde se cablean todos los adapters. <b>Aquí chocamos.</b></div></div>
+<div class="zona comp"><div class="a">COMPARTIDA · lib/config.ts</div><div class="b">Variables de entorno de todas las integraciones.</div></div>
+<div class="zona comp"><div class="a">COMPARTIDA · lib/strings.ts</div><div class="b">Todo el texto de la app.</div></div>
+<div class="zona comp"><div class="a">COMPARTIDA · state/store.tsx</div><div class="b">El store único.</div></div>
+
+<div class="nota"><div class="lb">Protocolo de la zona compartida</div>
+Son cuatro archivos y son el 90% de los conflictos. Ahí: <b>commits pequeños</b> (una razón por
+commit) · <b>traer main a tu rama a diario</b>, no cada dos semanas · <b>añadir al final</b>, no
+reordenar bloques existentes · y <b>avisar antes</b> si vas a mover algo estructural. Un conflicto
+en `strings.ts` es trivial; uno en `store.tsx` cuesta media tarde.</div>
+
+<h2><span class="n">06</span>Ramas y fusiones</h2>
+<div class="regla"><span class="i">01</span><div><b>Una rama por encargo</b>, con nombre
+descriptivo. La tuya para esto: <code>claude/marea-rampa-tron</code>.</div></div>
+<div class="regla"><span class="i">02</span><div><b>Fusiona tus propias ramas cuando quieras.</b>
+Entre ramas tuyas haz lo que te sirva — merge, rebase, squash. Es tu espacio.</div></div>
+<div class="regla"><span class="i">03</span><div><b>Nunca reescribas historia de una rama
+compartida.</b> Si alguien ya la sacó, un rebase le rompe el checkout. En rama compartida, sólo
+merge.</div></div>
+<div class="regla"><span class="i">04</span><div><b>A `main` sólo por PR.</b> `main` redespliega
+producción del bot. No es una convención de estilo: es un despliegue.</div></div>
+<div class="regla"><span class="i">05</span><div><b>Trae `main` a tu rama, no al revés.</b> A
+diario. La divergencia se paga con interés compuesto.</div></div>
+<div class="regla"><span class="i">06</span><div><b>Antes de empezar el día:</b>
+<code>git fetch --all</code> y una mirada a las ramas activas. Treinta segundos que evitan reescribir
+lo que alguien ya hizo.</div></div>
+
+<div class="pb"></div>
+<!-- ===================== PARTE III ===================== -->
+<div class="parte">Parte III · Ingeniería agéntica</div>
+<div class="parte-d">Cómo se trabaja con un agente sin quemar presupuesto ni perder el hilo.</div>
+
+<h2><span class="n">07</span>Lo que de verdad cuesta un turno</h2>
+<p>Conviene entender el mecanismo antes que la receta, porque la receta ingenua está mal.</p>
+<p><strong>La API no tiene estado.</strong> Cada turno se reenvía la conversación entera. Así que
+el coste de un turno no es lo que escribes: es <strong>todo lo que arrastras</strong>.</p>
+<p>Contra eso existe el <strong>caché de prefijo</strong>, y sus reglas mandan sobre todo lo demás:</p>
+
+<div class="costo"><div>Leer del caché, contra pagar entrada completa</div><div class="v">≈ 10%</div></div>
+<div class="costo"><div>Escribir al caché, la primera vez</div><div class="v">≈ 1.25×</div></div>
+<div class="costo"><div>Vida del caché por defecto</div><div class="v">5 minutos</div></div>
+<div class="costo"><div>Vida ampliada, si se pide</div><div class="v">1 hora</div></div>
+<div class="costo"><div>Cualquier byte que cambie en el prefijo</div><div class="v mal">invalida todo lo que sigue</div></div>
+
+<div class="aviso"><b>De ahí sale la conclusión que contradice la intuición:</b> una sesión larga
+<b>no</b> es cara por ser larga. Si el prefijo se mantiene estable, continuar cuesta una décima
+parte. Lo caro son otras dos cosas — <b>invalidar el caché</b> (tocar algo del principio y hacer
+que todo se vuelva a pagar completo) y <b>arrastrar contexto irrelevante</b>, que se paga dos
+veces: en tokens y en que el modelo trabaja peor rodeado de ruido.</div>
+
+<h2><span class="n">08</span>Cuándo reiniciar en frío, y cuándo no</h2>
+
+<div class="hall" style="background:var(--teal-soft);border:1.5px solid var(--teal);border-radius:10px;padding:13px 16px;margin:12px 0">
+<div class="lb" style="font-size:8pt;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--teal);margin-bottom:4px">La regla</div>
+<b>Reinicia cuando el contexto acumulado dejó de ser relevante — no cuando es largo.</b><br><br>
+Si llevas dos horas en el mismo archivo y el hilo entero es útil, seguir es barato. Si cambiaste de
+tarea y arrastras cuarenta turnos de otra cosa, reinicia: estás pagando por transportar basura y
+además el modelo la está leyendo.</div>
+
+<p><strong>Y lo que hace barato reiniciar es la memoria.</strong> Un arranque en frío paga precio
+completo por lo que cargues — así que la pregunta es cuánto necesitas cargar. Con el estado en el
+repositorio, arrancar cuesta <strong>tres archivos</strong>: `CLAUDE.md`, el documento de tu
+encargo, y `ESTADO.md`. Sin eso, cuesta cuarenta turnos de historia que alguien tiene que
+reconstruir de memoria.</p>
+
+<div class="nota"><div class="lb">Por eso la Parte I y la Parte III son el mismo tema</div>
+La memoria del repositorio no es orden por gusto: <b>es lo que hace que una sesión desechable no
+pierda nada.</b> El repo es la memoria; la conversación es material de trabajo. Si una decisión
+sólo vive en el chat, se perdió — aunque el chat siga abierto.</div>
+
+<h3>Señales de que hay que reiniciar</h3>
+<div class="chk"><span class="b">▸</span><div>El agente vuelve a leer archivos que ya leyó en esa misma sesión.</div></div>
+<div class="chk"><span class="b">▸</span><div>Repite conclusiones a las que ya había llegado, o se contradice con algo de hace veinte turnos.</div></div>
+<div class="chk"><span class="b">▸</span><div>Cambiaste de tarea. Ésta es la más común y la más fácil de ignorar.</div></div>
+<div class="chk"><span class="b">▸</span><div>Vas a hacer algo largo y el hilo previo no aporta nada a ello.</div></div>
+<div class="chk"><span class="b">▸</span><div>Volviste después de un rato largo: con cinco minutos de vida por defecto, el caché ya está frío de todos modos.</div></div>
+
+<h3>Anti-patrones</h3>
+<div class="chk"><span class="b">✗</span><div><b>Usar el chat como memoria.</b> Es el error caro. Lo que importe va al repo.</div></div>
+<div class="chk"><span class="b">✗</span><div><b>Reiniciar cada quince minutos «por ahorrar».</b> Cada arranque paga precio completo por lo que cargues; si el contexto sigue siendo útil, reiniciar es más caro, no menos.</div></div>
+<div class="chk"><span class="b">✗</span><div><b>Meter la hora, un id aleatorio o un JSON desordenado al principio del contexto.</b> Cambia el prefijo en cada turno y mata el caché sin que se note.</div></div>
+
+<div class="pb"></div>
+<h2><span class="n">09</span>El ciclo de una sesión</h2>
+<pre>ARRANQUE   <span class="c">(en frío, tres lecturas)</span>
+  1  CLAUDE.md            <span class="c">rutea · 60 s</span>
+  2  el doc de tu encargo <span class="c">qué hay que hacer y su puerta de cierre</span>
+  3  ESTADO.md            <span class="c">qué está vivo hoy · git fetch</span>
+
+TRABAJO    <span class="c">(una unidad, con puerta de cierre)</span>
+  4  una sola cosa por sesión
+  5  el test se escribe en el mismo commit que el código
+  6  rómpelo a propósito y confirma que se pone rojo
+  7  npm run ci antes de commitear
+
+CIERRE     <span class="c">(lo que hace desechable la conversación)</span>
+  8  commit con el PORQUÉ en el mensaje
+  9  lo que costó descubrir → MEMORY/marea/ con fecha
+ 10  cierra la sesión. La siguiente arranca en frío y no pierde nada.</pre>
+
+<h2><span class="n">10</span>Las siete prácticas de la casa</h2>
+<div class="regla"><span class="i">01</span><div><b>Cierra el lazo:</b> hallazgo → test → invariante. Es la regla de la que salió todo el repositorio.</div></div>
+<div class="regla"><span class="i">02</span><div><b>Encargos con puerta, no tareas abiertas.</b> Cada unidad de trabajo define cómo se sabe que terminó, <i>antes</i> de empezarla.</div></div>
+<div class="regla"><span class="i">03</span><div><b>No le pidas al agente lo que un test puede verificar.</b> «Revisa que no rompí nada» es una prueba, no una petición.</div></div>
+<div class="regla"><span class="i">04</span><div><b>Rompe tu propia prueba a propósito.</b> Una prueba que nunca viste en rojo no sabes si prueba algo.</div></div>
+<div class="regla"><span class="i">05</span><div><b>Una métrica demasiado limpia es un bug.</b> Si todo pasa a la primera y cubre mucho, sospecha de la medición antes que celebrar el código.</div></div>
+<div class="regla"><span class="i">06</span><div><b>El porqué va en el commit.</b> El diff ya dice qué cambió; nadie puede reconstruir por qué.</div></div>
+<div class="regla"><span class="i">07</span><div><b>Prefiere editar a crear.</b> Duplicar es deuda, y en un grafo de documentos es peor: dos nodos que dicen lo mismo terminan contradiciéndose.</div></div>
+
+<h2><span class="n">11</span>Caso de estudio: cómo se hizo <code>pozo.ts</code></h2>
+<p class="sub">Un ejemplo real de esta semana, porque enseña más que las siete reglas juntas.</p>
+<div class="chk"><span class="b">1</span><div>Se escribió el módulo puro y su prueba de propiedad: mil secuencias aleatorias de operaciones, liquidando cada pozo con cada ganador posible. <b>Verde a la primera.</b></div></div>
+<div class="chk"><span class="b">2</span><div>Verde a la primera es sospechoso (práctica 05). Se rompió el código <b>a propósito tres veces</b> — quitar una validación, pagar 1% de más, no quemar contratos al fusionar. Las tres se pusieron rojas. La prueba tenía dientes.</div></div>
+<div class="chk"><span class="b">3</span><div>Se midió el perfil del generador para ver qué cubría de verdad. <b>Y ahí saltó:</b> cero mercados de tres resultados. El generador de números aleatorios, sembrado con valores consecutivos, daba primeras extracciones correlacionadas — y la primera extracción era justo la que decidía cuántos resultados tenía el mercado.</div></div>
+<div class="chk"><span class="b">4</span><div><b>Mil secuencias en verde que nunca probaron un caso entero.</b> Se corrigió, se volvió a medir (331 / 333 / 336), y el porqué quedó escrito en el código para que nadie lo «simplifique» de vuelta.</div></div>
+<div class="nota"><div class="lb">Lo que hay que llevarse</div>
+El bug no estaba en el código que se probaba: <b>estaba en la prueba.</b> Y no lo encontró el
+agente escribiendo más código — lo encontró <b>medir si la prueba cubría lo que decía cubrir</b>.
+Ésa es la práctica que más rinde de todas.</div>
+
+<h2><span class="n">A</span>Anexo · Las dos listas</h2>
+<div class="dos" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:10px">
+  <div class="caja" style="background:var(--card);border:1.5px solid var(--teal);border-radius:10px;padding:12px 14px">
+    <h4 style="font-size:10.5pt;font-weight:700;margin-bottom:6px">Al abrir sesión</h4>
+    <div class="chk"><span class="b">☐</span><div><code>git fetch --all</code> y mirar ramas activas</div></div>
+    <div class="chk"><span class="b">☐</span><div>Leer <code>CLAUDE.md</code></div></div>
+    <div class="chk"><span class="b">☐</span><div>Leer el doc del encargo</div></div>
+    <div class="chk"><span class="b">☐</span><div>Leer <code>ESTADO.md</code> y comprobar su fecha</div></div>
+    <div class="chk"><span class="b">☐</span><div>Si vas a proponer algo: <code>CEMENTERIO.md</code></div></div>
+    <div class="chk"><span class="b">☐</span><div>Elegir <b>una</b> unidad de trabajo y su puerta</div></div>
+  </div>
+  <div class="caja" style="background:var(--card);border:1.5px solid var(--line2);border-radius:10px;padding:12px 14px">
+    <h4 style="font-size:10.5pt;font-weight:700;margin-bottom:6px">Al cerrar sesión</h4>
+    <div class="chk"><span class="b">☐</span><div>La prueba existe y la viste en rojo una vez</div></div>
+    <div class="chk"><span class="b">☐</span><div><code>npm run ci</code> verde</div></div>
+    <div class="chk"><span class="b">☐</span><div>Commit con el porqué</div></div>
+    <div class="chk"><span class="b">☐</span><div>Lo aprendido → <code>MEMORY/marea/</code> con fecha</div></div>
+    <div class="chk"><span class="b">☐</span><div>Rama empujada</div></div>
+    <div class="chk"><span class="b">☐</span><div>Cerrar la conversación sin miedo</div></div>
+  </div>
+</div>
+
+<div class="pie"><span>Marea · La memoria y la forma de trabajar · 2026-09-07</span><span>uso interno</span></div>
+</body></html>
