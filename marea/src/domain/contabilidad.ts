@@ -17,14 +17,32 @@
  * opinión legal — ningún trabajo se tira.
  */
 
-/** Cuentas del sistema. Las de usuario y pozo se derivan por id. */
+/**
+ * Cuentas del sistema. Las de usuario y pozo se derivan por id.
+ *
+ * `tesoreria` y `capital` son **dos cuentas y nunca se netean** (R-066, L3). La
+ * distinción no es burocracia: `tesoreria` dice *cuánto hemos ganado* y
+ * `capital` dice *cuánto de lo nuestro está fuera o volvió*. Sumadas en una
+ * sola caja, la casa se sentiría solvente con el principal que puso ella misma
+ * — que es exactamente cómo quiebra un intermediario.
+ *
+ * Y ninguna de las dos comparte cuenta con `pozo:<id>`, que es colateral de
+ * terceros. Un pozo con saldo después de liquidar es dinero de gente que no
+ * llegó a su dueño.
+ */
 export const CUENTAS_SISTEMA = {
   /** Por dónde entra el dinero del mundo exterior. */
   entrada: "entrada",
   /** Por dónde sale. */
   salida: "salida",
-  /** Lo que se queda la casa, en comisiones. */
+  /** Lo que se queda la casa, en comisiones. Ingreso, no principal. */
   tesoreria: "tesoreria",
+  /**
+   * El capital propio de la casa. De aquí sale la semilla de cada mercado, y
+   * aquí vuelve el colateral que al liquidar no reclamó nadie. Nunca recibe
+   * comisiones: eso es `tesoreria`.
+   */
+  capital: "capital",
 } as const;
 
 export type CuentaSistema = (typeof CUENTAS_SISTEMA)[keyof typeof CUENTAS_SISTEMA];
@@ -45,7 +63,15 @@ export type TipoAsiento =
   | "liquidacion"
   | "devolucion"
   | "retiro"
+  /** Semilla que la casa puede recuperar: es una posición pequeña. */
   | "semilla"
+  /**
+   * Semilla que la casa **no** puede recuperar: es un coste, no una posición
+   * (R-067). Se distingue al escribir y no por un campo aparte porque es lo
+   * que permite sumar el subsidio comprometido leyendo el libro — que es
+   * justo lo que necesita el presupuesto de L9.
+   */
+  | "subsidio"
   | "prueba";
 
 /** Una pata del asiento: a qué cuenta y cuánto. Positivo entra, negativo sale. */
@@ -151,4 +177,123 @@ export function comisionDeMercado(libro: Asiento[], marketId: string): number {
     }
   }
   return total;
+}
+
+/* -------------------------------------------------------------------------
+ * Los asientos del ciclo de un mercado.
+ *
+ * Se construyen aquí, puros, y no a mano en el servidor. Un asiento escrito a
+ * mano en cada sitio es un asiento que en el tercer sitio se escribe distinto,
+ * y el día que se separan el descuadre no tiene autor.
+ * ---------------------------------------------------------------------- */
+
+/** Cómo se comporta la semilla de un mercado, visto desde el libro. */
+export type ModoSemilla = "apuesta" | "subsidio";
+
+/**
+ * La casa siembra un mercado. El dinero sale de **su capital**, no de
+ * `entrada`: una semilla no es dinero que llegó del mundo exterior, es
+ * principal propio que se pone a trabajar (R-066).
+ *
+ * El tipo del asiento dice si vuelve o no vuelve. Un `subsidio` es un coste
+ * comprometido desde el momento en que se escribe, y por eso se puede sumar
+ * leyendo el libro en vez de fiándose de un contador aparte.
+ */
+export function asientoSemilla(
+  marketId: string,
+  monto: number,
+  modo: ModoSemilla = "apuesta",
+  at?: string,
+): Asiento {
+  return asiento(
+    modo === "subsidio" ? "subsidio" : "semilla",
+    [
+      { cuenta: CUENTAS_SISTEMA.capital, monto: -monto },
+      { cuenta: cuentaPozo(marketId), monto },
+    ],
+    marketId,
+    at,
+  );
+}
+
+export interface CierreDeMercado {
+  marketId: string;
+  /** Lo que cobra cada usuario, por id de usuario. */
+  pagos: Record<string, number>;
+  /** La comisión de la casa. Va a `tesoreria`. */
+  fee: number;
+  /** El colateral que no reclamó nadie. Vuelve a `capital`. */
+  aCapital: number;
+  at?: string;
+}
+
+/**
+ * **Un solo asiento** para toda la liquidación: lo que sale del pozo, lo que
+ * cobra cada quien, la comisión y lo que vuelve al capital.
+ *
+ * Que sea uno y no cuatro es la parte importante. Antes el pago y la comisión
+ * eran asientos separados, y entre los dos existía un instante en que el libro
+ * decía que el pozo todavía tenía la comisión dentro. Si el proceso moría ahí,
+ * esa comisión se quedaba en el pozo **para siempre**: nadie la reclamaba,
+ * nadie la echaba de menos, y el saldo del mercado no volvía a cero nunca. Con
+ * un asiento, ese instante no existe.
+ *
+ * Y como `asiento()` se niega a construir lo que no cuadra, un cierre que no
+ * vacíe el pozo exacto no llega a escribirse (L3).
+ */
+export function asientoLiquidacion(cierre: CierreDeMercado): Asiento {
+  const patas: Pata[] = [];
+  let total = 0;
+  for (const [usuarioId, monto] of Object.entries(cierre.pagos)) {
+    if (monto === 0) continue;
+    patas.push({ cuenta: cuentaUsuario(usuarioId), monto });
+    total += monto;
+  }
+  if (cierre.fee > 0) {
+    patas.push({ cuenta: CUENTAS_SISTEMA.tesoreria, monto: cierre.fee });
+    total += cierre.fee;
+  }
+  if (cierre.aCapital > 0) {
+    patas.push({ cuenta: CUENTAS_SISTEMA.capital, monto: cierre.aCapital });
+    total += cierre.aCapital;
+  }
+  patas.unshift({ cuenta: cuentaPozo(cierre.marketId), monto: -total });
+  return asiento("liquidacion", patas, cierre.marketId, cierre.at);
+}
+
+/**
+ * El subsidio que la casa tiene comprometido en un mercado, leído del libro.
+ *
+ * Es la cifra que el presupuesto de L9 tiene que sumar, y se lee del registro
+ * auditable en vez de un contador aparte a propósito: un contador aparte es una
+ * segunda fuente de verdad, y el día que se separen no se sabe cuál miente.
+ */
+export function subsidioComprometido(libro: Asiento[], marketId?: string): number {
+  let total = 0;
+  for (const entrada of libro) {
+    if (entrada.tipo !== "subsidio") continue;
+    if (marketId !== undefined && entrada.ref !== marketId) continue;
+    for (const pata of entrada.patas) {
+      if (pata.cuenta === CUENTAS_SISTEMA.capital) total -= pata.monto;
+    }
+  }
+  return Math.abs(total) < 1e-9 ? 0 : total;
+}
+
+/**
+ * Los mercados que ya se liquidaron y **aún tienen saldo en su pozo**.
+ *
+ * Es el auditor de L3, y existe porque la regla escrita recuerda pero sólo la
+ * verificación impide: un saldo que se queda en `pozo:<id>` después de pagar es
+ * colateral de terceros que no llegó a nadie, y no lo detecta `cuadre()` —el
+ * libro sigue sumando cero, sólo que con dinero atrapado en la cuenta
+ * equivocada—. Vacío = sano.
+ */
+export function pozosSinVaciar(libro: Asiento[], marketIds: string[]): Record<string, number> {
+  const salida: Record<string, number> = {};
+  for (const marketId of marketIds) {
+    const saldo = saldoDe(libro, cuentaPozo(marketId));
+    if (saldo !== 0) salida[marketId] = saldo;
+  }
+  return salida;
 }

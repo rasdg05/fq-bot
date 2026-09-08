@@ -91,7 +91,7 @@ describe("Compensador — el reparto se mueve por la cámara", () => {
 
           // 3. y no se queda nada sin dueño: pagos + casa == colateral
           const aApuestas = Object.values(c.pagosDeApuestas).reduce((s, v) => s + v, 0);
-          expect(aApuestas + c.aTesoreria).toBeCloseTo(colateral, 6);
+          expect(aApuestas + c.aLaCasa).toBeCloseTo(colateral, 6);
         }
       }
     }
@@ -161,7 +161,7 @@ describe("Compensador — el reparto se mueve por la cámara", () => {
     });
     // el usuario cobra 900 × 100/500 = 180; los otros 720 son de la semilla
     expect(c.pagosDeApuestas.u).toBeCloseTo(180, 9);
-    expect(c.aTesoreria).toBeCloseTo(720, 9);
+    expect(c.aLaCasa).toBeCloseTo(720, 9);
   });
 
   it("con subsidio no le sobra nada a la casa: lo que la semilla no cobra se reparte", () => {
@@ -175,7 +175,7 @@ describe("Compensador — el reparto se mueve por la cámara", () => {
       ganador: "si",
     });
     expect(c.pagosDeApuestas.u).toBeCloseTo(900, 9);
-    expect(c.aTesoreria).toBe(0); // R-067: la casa nunca cobra de lo que puso
+    expect(c.aLaCasa).toBe(0); // R-067: la casa nunca cobra de lo que puso
   });
 
   it("la comisión aterriza en tesorería, no desaparece del reparto (R-064)", () => {

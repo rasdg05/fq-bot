@@ -86,14 +86,14 @@ export function asignacionDe(colateral: number, reparto: Reparto): Record<Tenedo
     salida[id] = (salida[id] ?? 0) + monto;
     repartido += monto;
   }
-  const aTesoreria = colateral - repartido - reparto.fee;
-  if (aTesoreria < -EPSILON) {
+  const resto = colateral - repartido - reparto.fee;
+  if (resto < -EPSILON) {
     // el reparto quiere pagar más de lo que hay: no se liquida, se para
     throw new PozoInconsistente(
       `el reparto entrega ${repartido + reparto.fee} con ${colateral} de colateral`,
     );
   }
-  const restoLimpio = Math.abs(aTesoreria) < EPSILON ? 0 : aTesoreria;
+  const restoLimpio = Math.abs(resto) < EPSILON ? 0 : resto;
   const casa = reparto.fee + restoLimpio;
   if (casa > 0) salida[TESORERIA] = (salida[TESORERIA] ?? 0) + casa;
   return salida;
@@ -106,8 +106,16 @@ export interface Compensacion {
   pagado: number;
   /** Sólo lo de las apuestas, listo para acreditar. Sin la casa. */
   pagosDeApuestas: Record<string, number>;
-  /** Lo que le toca a la casa: comisión más el colateral que nadie reclamó. */
-  aTesoreria: number;
+  /**
+   * Lo que se queda la casa: comisión **más** el colateral que nadie reclamó.
+   *
+   * Van juntos aquí porque la cámara sólo cuenta contratos y no sabe la
+   * diferencia — ni debe saberla (R-066). Quien la sabe es el libro, que los
+   * parte en `tesoreria` (ingreso) y `capital` (principal que vuelve). Sumarlos
+   * en una sola cuenta haría que la casa se sintiera solvente con su propio
+   * principal, que es cómo quiebra un intermediario.
+   */
+  aLaCasa: number;
   /** El pozo después de quemar: sin colateral y sin contratos. */
   pozo: Pozo;
 }
@@ -136,7 +144,7 @@ export function compensar(input: {
       pagos: {},
       pagado: 0,
       pagosDeApuestas: {},
-      aTesoreria: 0,
+      aLaCasa: 0,
       pozo: liquidar(vacio, ganador).pozo,
     };
   }
@@ -155,5 +163,5 @@ export function compensar(input: {
   for (const [tenedor, monto] of Object.entries(pagos)) {
     if (tenedor !== TESORERIA) pagosDeApuestas[tenedor] = monto;
   }
-  return { pagos, pagado, pagosDeApuestas, aTesoreria: pagos[TESORERIA] ?? 0, pozo };
+  return { pagos, pagado, pagosDeApuestas, aLaCasa: pagos[TESORERIA] ?? 0, pozo };
 }

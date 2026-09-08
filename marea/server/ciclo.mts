@@ -149,16 +149,29 @@ export async function correrCiclo(
             ganador: estado.outcome,
           });
 
-          // pagar primero, marcar después: si el proceso muere en medio, el
-          // dinero ya está acreditado y el estado se recalcula solo
-          resumen.acreditado += store.pagarMercado(seed.id, compensacion.pagosDeApuestas);
-          // y la comisión va a la tesorería con su asiento: si se resta del
-          // reparto tiene que llegar a algún lado (R-064)
-          const fee = repartoPorResultado[estado.outcome]?.fee ?? 0;
-          if (!sinMercado && fee > 0) {
-            resumen.comision += fee;
-            store.acumularComision(seed.id, fee);
-          }
+          /**
+           * Y el libro lo cierra de una vez: lo que cobra cada quien, la
+           * comisión a `tesoreria` y lo que nadie reclamó de vuelta a
+           * `capital`, en **un solo asiento** (L3). Antes eran dos, y entre los
+           * dos había un instante en que el pozo seguía teniendo la comisión
+           * dentro; morir ahí la dejaba atrapada para siempre.
+           *
+           * La cámara devuelve las dos juntas —sólo cuenta contratos, y no debe
+           * saber la diferencia— y es aquí donde se parten: ingreso contra
+           * principal que vuelve (R-066).
+           *
+           * Pagar primero y marcar después: si el proceso muere en medio, el
+           * dinero ya está acreditado y el estado se recalcula solo.
+           */
+          const fee = sinMercado ? 0 : (repartoPorResultado[estado.outcome]?.fee ?? 0);
+          const cierre = store.liquidarMercado({
+            marketId: seed.id,
+            pagos: compensacion.pagosDeApuestas,
+            fee,
+            aCapital: compensacion.aLaCasa - fee,
+          });
+          resumen.acreditado += cierre.acreditado;
+          resumen.comision += cierre.comision;
         }
 
         // "nadie acertó" es nadie **que cobre**: con subsidio, un lado ganador

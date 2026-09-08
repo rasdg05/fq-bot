@@ -216,3 +216,80 @@ comprobación al final.
 Los 45 tests que ya ejercitaban `correrCiclo` (servidor, contabilidad,
 liquidación) pasan igual. Línea base intacta: mismas 8 rojas, +9 verdes
 (294 → 303).
+
+---
+
+## U3 · El asiento del subsidio ✔
+
+**Qué se hizo.** Tipo de asiento `subsidio`, cuenta `capital` separada de
+`tesoreria`, y el cierre de un mercado en **un solo asiento** que deja
+`pozo:<id>` en cero exacto.
+
+**Lo que costó descubrir.**
+
+1. **`cuadre()` no ve el fallo que L3 previene.** Es lo primero que hay que
+   entender y no es obvio: el libro puede sumar cero con dinero atrapado en la
+   cuenta equivocada. Antes, pagar y cobrar comisión eran **dos asientos**, y
+   entre los dos existía un instante en que el libro decía que el pozo todavía
+   tenía la comisión dentro. Si el proceso moría ahí, esa comisión se quedaba en
+   `pozo:<id>` para siempre: nadie la reclamaba, nadie la echaba de menos, y
+   `cuadre()` seguía dando cero. Con un asiento, ese instante no existe — y para
+   lo que ya se escribió así está `pozosSinVaciar()`, que es lo que `cuadre` no
+   puede ver.
+
+2. **La separación que pide R-066 tiene un número que enseñar.** Medido en
+   proceso real tras liquidar el mercado de prueba:
+
+   ```
+   tesoreria (ingreso)      +24.0
+   capital   (principal)    −89.6
+   pozo:prueba-u2             0.0
+   ```
+
+   Son dos hechos distintos: *ganamos 24 de comisión* y *tenemos 89.6 de nuestro
+   propio principal fuera*. Netearlos en una caja daría −65.6 y no significaría
+   nada — la casa se sentiría solvente con el principal que puso ella misma, que
+   es cómo quiebra un intermediario. Y la semilla dejó de pasar por `entrada`:
+   no llegó del mundo exterior, es capital propio puesto a trabajar.
+
+3. **El tipo `subsidio` no es una etiqueta: es lo que hace posible L9.**
+   `subsidioComprometido(libro)` suma el compromiso **leyendo el libro
+   auditable**, no un contador aparte. Un contador aparte es una segunda fuente
+   de verdad, y el día que se separen no se sabe cuál miente. U4 lee de aquí.
+
+4. **Una mutación no se puso roja, y tenía razón.** «Liquidar dos veces paga dos
+   veces» dejó los 29 tests en verde. El test miraba el saldo del usuario — que
+   ya está protegido por la guarda de «esta apuesta ya cobró», nivel apuesta. Lo
+   que sólo protege la guarda del libro es el **segundo asiento**: uno más
+   sacaría otra vez la comisión y el resto, y el saldo del mercado se iría a
+   **negativo** con el libro cuadrado. Reforzado el test para contar asientos y
+   mirar el pozo *después* de la segunda llamada; ahora sí se pone rojo. Un test
+   que nunca se vio en rojo no prueba lo que uno cree que prueba, y éste probaba
+   una cosa distinta de la que decía su nombre.
+
+5. **Un pago a un usuario que ya no existe.** Al escribir el cierre en un solo
+   asiento apareció el caso: si una apuesta apunta a un usuario borrado, su pago
+   no se acredita a nadie y —con la fórmula ingenua— se quedaría en el pozo,
+   abriendo justo el hueco que L3 cierra. Lo prometido que no llegó a un usuario
+   vivo se suma a lo que vuelve al capital, y hay un test que lo fija.
+
+**Renombre en el camino.** `Compensacion.aTesoreria` pasó a `aLaCasa`. El nombre
+ya mentía: incluye el colateral que nadie reclamó, que **no** va a tesorería. La
+cámara sólo cuenta contratos y no debe saber la diferencia (R-066); quien la sabe
+es el libro, que los parte en ingreso y principal. Un nombre engañoso en el
+camino del dinero es exactamente lo que este repo castiga.
+
+**Las mutaciones (§0.5).**
+
+| Se rompió | Se puso rojo |
+|---|---|
+| la semilla vuelve a salir de `entrada` | 4 pruebas |
+| el subsidio no se distingue de la semilla | 1 prueba |
+| lo que nadie reclamó no vuelve al capital | 3 pruebas |
+| el auditor deja de ver el pozo con saldo | 1 prueba |
+| liquidar dos veces paga dos veces | **0 → 1** (tras reforzar el test) |
+
+**Puerta:** ✔ medido en proceso real, no en jsdom: el saldo de `pozo:prueba-u2`
+tras liquidar con comisión 24 pasó de **310.4 (U2) a 0**, `cuadre()` en cero
+antes y después, y `pozosConSaldoTrasLiquidar()` vacío. Línea base intacta:
+mismas 8 rojas, +7 verdes (303 → 310).

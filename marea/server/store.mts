@@ -10,10 +10,13 @@ import type { SettlementState } from "../src/domain/settlement";
 import {
   CUENTAS_SISTEMA,
   asiento,
+  asientoLiquidacion,
+  asientoSemilla,
   conciliarTesoreria,
   cuadre,
   cuentaPozo,
   cuentaUsuario,
+  pozosSinVaciar,
   saldos,
   type Asiento,
 } from "../src/domain/contabilidad";
@@ -350,21 +353,20 @@ export class Store {
     if (existente) return existente;
     return this.mutar((datos) => {
       datos.pozos.push(pozo);
-      // la semilla es dinero de la casa que corre la misma suerte que el
-      // usuario (R-057). Entra al pozo con su asiento, o el pozo terminaría
-      // repartiendo más de lo que registró haber recibido
+      /**
+       * La semilla es dinero de la casa que corre la misma suerte que el
+       * usuario (R-057). Entra al pozo con su asiento, o el pozo terminaría
+       * repartiendo más de lo que registró haber recibido.
+       *
+       * Sale de `capital`, no de `entrada`: no llegó del mundo exterior, es
+       * principal propio que se pone a trabajar (R-066). Y el **tipo** del
+       * asiento dice si vuelve — `semilla` — o si es un coste que no vuelve —
+       * `subsidio` (R-067). Esa distinción, escrita al sembrar, es lo que
+       * permite sumar el subsidio comprometido leyendo el libro.
+       */
       const semilla = Object.values(pozo.outcomes).reduce((s, v) => s + v, 0);
       if (semilla > 0) {
-        datos.libro.push(
-          asiento(
-            "semilla",
-            [
-              { cuenta: CUENTAS_SISTEMA.entrada, monto: -semilla },
-              { cuenta: cuentaPozo(pozo.marketId), monto: semilla },
-            ],
-            pozo.marketId,
-          ),
-        );
+        datos.libro.push(asientoSemilla(pozo.marketId, semilla, pozo.seedMode ?? "apuesta"));
       }
       return pozo;
     });
@@ -473,6 +475,17 @@ export class Store {
    * Idempotente por construcción — una apuesta ya pagada no se vuelve a pagar,
    * así que correr el ciclo dos veces no duplica dinero.
    */
+  /**
+   * El camino de pago **anterior a L3**: un asiento por pago, y la comisión en
+   * otro aparte por `acumularComision`. Deja la comisión dentro del pozo entre
+   * los dos, y si el proceso muere ahí el saldo del mercado no vuelve a cero
+   * nunca — `cuadre()` no se entera.
+   *
+   * Ya no lo usa el ciclo: lo sustituye `liquidarMercado`, que cierra en un
+   * solo asiento. Se conserva porque hay pruebas que lo ejercitan y porque el
+   * volumen ya escrito con él tiene que seguir leyéndose. **No lo uses en
+   * código nuevo.** Lo que deja atrás lo encuentra `pozosConSaldoTrasLiquidar`.
+   */
   pagarMercado(marketId: string, pagos: Record<string, number>): number {
     return this.mutar((datos) => {
       const at = new Date().toISOString();
@@ -506,6 +519,92 @@ export class Store {
   }
 
   /** Acredita la comisión de un mercado. Idempotente por mercado. */
+  /**
+   * Cierra un mercado entero: acredita a quien cobra, asienta la comisión y
+   * devuelve al capital el colateral que no reclamó nadie — **todo en un solo
+   * asiento** (L3).
+   *
+   * Que sea uno y no dos es el arreglo. Con `pagarMercado` + `acumularComision`
+   * existía un instante en que el libro decía que el pozo todavía tenía la
+   * comisión dentro; si el proceso moría ahí, esa comisión se quedaba en la
+   * cuenta del mercado para siempre —nadie la reclamaba, nadie la echaba de
+   * menos, `cuadre()` seguía dando cero— y el saldo del pozo no volvía a cero
+   * nunca. Con un asiento, ese instante no existe.
+   *
+   * Es idempotente (L6): el libro es la fuente de verdad de si ya se liquidó,
+   * no un contador aparte. Correr el ciclo dos veces paga una vez.
+   */
+  liquidarMercado(input: {
+    marketId: string;
+    /** Lo que cobra cada apuesta, por id de apuesta. */
+    pagos: Record<string, number>;
+    fee: number;
+    /** Colateral que nadie reclamó; vuelve al capital de la casa. */
+    aCapital: number;
+  }): { acreditado: number; comision: number } {
+    const yaLiquidado = this.datos.libro.some(
+      (a) => a.tipo === "liquidacion" && a.ref === input.marketId,
+    );
+    if (yaLiquidado) return { acreditado: 0, comision: 0 };
+
+    return this.mutar((datos) => {
+      const at = new Date().toISOString();
+      const porUsuario: Record<string, number> = {};
+      let acreditado = 0;
+      for (const apuesta of datos.apuestas) {
+        if (apuesta.marketId !== input.marketId) continue;
+        if (apuesta.pagado !== undefined) continue;
+        const monto = input.pagos[apuesta.id] ?? 0;
+        apuesta.pagado = monto;
+        apuesta.pagadoAt = at;
+        if (monto <= 0) continue;
+        const usuario = datos.usuarios.find((u) => u.id === apuesta.usuarioId);
+        if (!usuario) continue;
+        usuario.puntos += monto;
+        porUsuario[usuario.id] = (porUsuario[usuario.id] ?? 0) + monto;
+        acreditado += monto;
+      }
+
+      /**
+       * Lo que no llegó a un usuario vivo **no se evapora**: se suma a lo que
+       * vuelve al capital. Si una apuesta apunta a un usuario que ya no está,
+       * su pago se quedaría en el pozo y el saldo no cerraría — y ese hueco
+       * sería justo el que L3 existe para cerrar.
+       */
+      const repartido = Object.values(porUsuario).reduce((s, v) => s + v, 0);
+      const prometido = Object.values(input.pagos).reduce((s, v) => s + v, 0);
+      const aCapital = input.aCapital + (prometido - repartido);
+
+      datos.libro.push(
+        asientoLiquidacion({
+          marketId: input.marketId,
+          pagos: porUsuario,
+          fee: input.fee,
+          aCapital,
+          at,
+        }),
+      );
+      if (input.fee > 0 && !datos.comisiones.some((c) => c.marketId === input.marketId)) {
+        datos.comisiones.push({ marketId: input.marketId, monto: input.fee, at });
+      }
+      return { acreditado, comision: input.fee };
+    });
+  }
+
+  /**
+   * Mercados liquidados cuyo pozo todavía tiene saldo. Vacío = sano.
+   *
+   * La regla escrita recuerda; sólo la verificación impide. `cuadre()` no ve
+   * esto: el libro sigue sumando cero, con el dinero atrapado en la cuenta
+   * equivocada (L3).
+   */
+  pozosConSaldoTrasLiquidar(): Record<string, number> {
+    const liquidados = this.datos.libro
+      .filter((a) => a.tipo === "liquidacion" && a.ref)
+      .map((a) => a.ref as string);
+    return pozosSinVaciar(this.datos.libro, [...new Set(liquidados)]);
+  }
+
   acumularComision(marketId: string, monto: number): number {
     if (monto <= 0) return this.tesoreria();
     return this.mutar((datos) => {
