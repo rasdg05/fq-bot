@@ -293,3 +293,73 @@ camino del dinero es exactamente lo que este repo castiga.
 tras liquidar con comisión 24 pasó de **310.4 (U2) a 0**, `cuadre()` en cero
 antes y después, y `pozosConSaldoTrasLiquidar()` vacío. Línea base intacta:
 mismas 8 rojas, +7 verdes (303 → 310).
+
+---
+
+## U4 · Presupuesto y freno ✔
+
+**Qué se hizo.** `domain/presupuesto.ts` (nuevo, puro) y el freno en el camino de
+creación de `scripts/roll.mts`. El subsidio comprometido, la exposición viva y la
+decisión «¿se puede crear otro mercado?» con su motivo.
+
+**Lo que costó descubrir.**
+
+1. **P-003 tenía dos mitades y sólo una era un problema.** En U1 anoté que los 15
+   mercados sin semilla declarada harían que el presupuesto los contara como cero
+   y el freno se disparara tarde. Al escribirlo se ve que depende de contra qué:
+
+   | | ¿contar cero es correcto? |
+   |---|---|
+   | Presupuesto de **subsidio** | **Sí, exacto.** Un pozo sin `seed` tampoco tiene `seedMode`, luego es `"apuesta"` por definición y su subsidio es cero **de verdad** |
+   | Tope de **exposición** | **No.** Ahí sí es una cota inferior |
+
+   Así que se hace lo conservador sólo donde hace falta: con tope de exposición
+   configurado y mercados opacos, `puedeCrear` **se niega y los nombra**; sin
+   tope configurado no hay nada que hacer cumplir y no se estorba. La versión
+   ingenua —negarse siempre— habría roto `roll` para el segundo desarrollador
+   sin que nadie lo pidiera.
+
+2. **El error de lote, que es el que se cuela.** `puedeCrear` sobre una tanda
+   entera contra el estado inicial deja pasar N mercados que **juntos** cruzan el
+   tope aunque ninguno lo cruce solo. Por eso existe `filtrarPorPresupuesto`, que
+   va en orden y **cuenta los aceptados como vivos** para el siguiente. La
+   mutación «la tanda no se cuenta entre sí» pone rojo exactamente ese test.
+   Medido: tres candidatos de 400 contra un tope de 1000 ⇒ pasan dos, se rechaza
+   el tercero, subsidio vivo 800.
+
+3. **Un tope mal escrito es peor que no tener tope.** `MAREA_EXPOSICION_MAX="mucho"`
+   leído como `Number` da `NaN`, y **cualquier** comparación con `NaN` es falsa:
+   `1e9 > NaN` es `false`. Un freno que siempre dice que sí es el mismo que no
+   existe, y encima parece configurado. Se ignora, se avisa y se cae al default.
+
+4. **El freno nace armado y aun así no estorba.** Los dos topes de subsidio
+   nacen en cero autorizado. Hoy nada nace en modo subsidio (P-002), así que un
+   tope de cero no impide nada de lo que se hace — y el día que alguien encienda
+   el subsidio sin presupuesto, `roll` no crea **ninguno** y dice por qué. Ése es
+   el orden que R-067 exige: primero el tope, después el gasto. Verificado con
+   los candidatos reales de `rollingSeeds`: con el catálogo de hoy pasan todos;
+   con las mismas semillas en modo subsidio, cero aceptados.
+
+5. **El guardia se probó sin tocar la red, que es lo que la cola pide.** `roll`
+   sale a Kraken y a ESPN y reescribe producción. Lo que se corre en la suite es
+   exactamente lo que `roll` decide —los mismos candidatos de `rollingSeeds`, el
+   mismo `filtrarPorPresupuesto`, los mismos topes—; lo que queda en el script es
+   una llamada y un `console.warn`.
+
+**Las mutaciones (§0.5).** Seis, todas rojas:
+
+| Se rompió | Se puso rojo |
+|---|---|
+| el tope abierto deja de frenar | 2 pruebas |
+| el tope por mercado deja de frenar | 1 prueba |
+| la tanda no se cuenta entre sí | 1 prueba |
+| el freno nace desarmado | 3 pruebas |
+| los opacos se suman como cero contra el tope | 1 prueba |
+| un tope mal escrito se lee como `NaN` | 1 prueba |
+
+**Puerta:** ✔ con el presupuesto agotado, la creación se niega y dice por qué —
+con el número que lo causó, no con una opinión. Línea base intacta: mismas 8
+rojas, +18 verdes (310 → 328).
+
+**Queda pendiente de RasDG:** las tres cifras (`PREGUNTAS_ABIERTAS.md` P-004).
+Con puntos da igual; con dinero es el número.

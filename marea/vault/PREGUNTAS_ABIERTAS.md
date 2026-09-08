@@ -78,6 +78,45 @@
 - **Lo que necesitaría RasDG decidir:** si U4 debe **negarse a arrancar** mientras
   haya mercados vivos sin semilla declarada, o sólo avisar. Lo conservador es
   negarse; lo que no se puede es sumar cero y llamarlo presupuesto.
+- **RESUELTO en U4 (2026-09-08), y el susto era menor de lo que parecía.** La
+  pregunta tenía dos mitades y sólo una era un problema:
+  - Contra el **presupuesto de subsidio**, contar cero es **correcto**, no una
+    subestimación: un pozo sin `seed` tampoco tiene `seedMode`, así que es
+    `"apuesta"` por definición y su subsidio es cero de verdad. La suma es
+    exacta.
+  - Contra el **tope de exposición** —todo el dinero de la casa, vuelva o no—
+    sí es una cota inferior. Ahí se hace lo conservador: si hay un tope
+    configurado y hay mercados opacos, `puedeCrear` **se niega** y los nombra.
+    Si no hay tope configurado, no hay nada que hacer cumplir y no se estorba.
+  El tope de exposición nace sin configurar, así que hoy esto no frena nada y
+  el segundo desarrollador puede correr `roll` igual que siempre.
+
+---
+
+## P-004 · Los tres topes necesitan números, y no los pongo yo
+
+- **Fecha:** 2026-09-08 · **Unidad:** U4 · **Estado:** decidido, pendiente de RasDG
+- **El hueco:** `LIQUIDEZ.md` §6.1 nombra `MAREA_SUBSIDIO_MAX_MERCADO`,
+  `MAREA_SUBSIDIO_MAX_ABIERTO` y `MAREA_EXPOSICION_MAX`, pero ningún documento
+  dice **cuánto** vale cada uno. Es una decisión de producto con dinero detrás.
+- **Lo que se hizo (conservador), y por qué no es lo mismo para los tres:**
+  - Los dos de subsidio nacen en **cero autorizado**. Un tope de cero no impide
+    nada de lo que se hace hoy —nada nace en modo subsidio (P-002)— y en el
+    momento en que alguien lo encienda sin presupuesto, la creación se detiene.
+    El freno nace **armado**, que es el único orden que respeta R-067: primero
+    el tope, después el gasto.
+  - El de exposición nace **sin tope**. Acotar las semillas recuperables que ya
+    existen es una decisión con un número que sólo puede poner RasDG, y elegirlo
+    aquí sería inventar un límite que parece una decisión. Se dice en el
+    veredicto (`sinDeclarar`, `exposicionViva` se miden siempre) para que
+    «no hay tope» nunca pase por «pasó el tope».
+- **Lo que se descartó:** poner cifras plausibles. Un límite inventado es peor
+  que no tenerlo, porque el siguiente que lo lea creerá que alguien lo pensó.
+- **Un valor mal escrito no se lee como `NaN`.** `MAREA_EXPOSICION_MAX="mucho"`
+  se ignora, avisa y cae al default. Un `NaN` haría pasar cualquier comparación,
+  y un freno que siempre dice que sí es el mismo que no existe.
+- **Lo que necesitaría RasDG decidir:** las tres cifras, en puntos hoy y en
+  dinero cuando abra la puerta. Con puntos da igual; con dinero es el número.
 
 ---
 
