@@ -700,3 +700,43 @@ pone la suite en rojo, en vez de publicar un mercado que nadie podrá cobrar.
 **apretado**. Resulta que el apretado ya existía, en cinco mercados, desde antes.
 Las dos mitades de L8 son el mismo trabajo y ninguna se ve sin medir: leer el
 código me dio la mitad correcta y la mitad falsa, con la misma confianza.
+
+
+---
+
+## §3 · El arnés de mutaciones tuvo que aprender a no mentir
+
+Al ampliar el barrido al catálogo y a los oráculos, el propio arnés falló dos
+veces — y las dos son instructivas, porque son los dos modos de falla de
+cualquier detector.
+
+**Falso positivo.** Declaré un hueco que no existía: «un partido a medias cuenta
+como resultado» salía SOBREVIVE. Lo que estaba mal no era el código ni el test,
+sino **la lista de archivos de la entrada** — apunté a `fuentes.test.ts` y la
+cobertura estaba en `settlement.test.ts` y `multiples.test.ts`. Un arnés que da
+falsas alarmas se acaba ignorando, y entonces deja de servir justo cuando
+encuentre algo de verdad. Arreglado: si los tests declarados no ven la mutación,
+se reintenta con **la suite entera** antes de cantar un hueco, y el informe
+distingue «no lo ve nadie» de «corrige la lista».
+
+**Falso negativo, y peor.** El arreglo anterior, tal como lo escribí primero,
+daba por detectada **cualquier** mutación — porque la suite arrastra 6 rojas
+conocidas del catálogo caducado, y yo comparaba contra cero. Un arnés que siempre
+dice que sí es el mismo que no existe, sólo que además esconde los huecos de
+verdad. Se vio al instante: el mutante que sabía equivalente salió «6 rojas ·
+detectada».
+
+Arreglado midiendo **la línea base al arrancar** y contando detectada sólo si
+sube de ahí. Es la misma lección de U0 —comparar contra la línea base, no contra
+cero— aplicada al detector en vez de al trabajo. Que haya vuelto a aparecer en la
+misma sesión, en una herramienta que escribí precisamente para tener disciplina,
+dice bastante de lo fácil que es.
+
+**Estado final del barrido: 53 mutaciones, 52 detectadas, 1 equivalente
+documentada, 0 huecos.** `npm run mutaciones` sale con código distinto de cero si
+aparece un hueco.
+
+**Y una comprobación de ciclo de vida que ahora es permanente:** todo mercado del
+catálogo —serie, precio y partido— tiene que resolverse por programa cuando su
+fuente contesta lo que la regla pide. Es la forma general del agujero que atascó
+las cinco series, y estaba a un test de distancia de no encontrarse nunca.

@@ -156,6 +156,16 @@ const MUTACIONES = [
     de: '  if (reading.status === "sin_dato") {', a: "  if (false) {",
     tests: ["tests/frescura.test.ts", "tests/settlement.test.ts"] },
 
+  // --- §3 · ciclo de vida: que el mercado se pueda resolver ---
+  { nombre: "§3 las series pierden su margen de cadencia", archivo: "src/adapters/ownMarkets/catalog.ts",
+    de: "      frescuraDias: 100,", a: "", tests: ["tests/frescura.test.ts"] },
+  { nombre: "§3 el margen de la serie se vuelve una puerta abierta", archivo: "src/adapters/oracles/seriesOracle.ts",
+    de: "      if (ultima.fecha < settlesAt - margen) {", a: "      if (false) {",
+    tests: ["tests/frescura.test.ts"] },
+  { nombre: "§3 un partido a medias cuenta como resultado", archivo: "src/adapters/oracles/matchOracle.ts",
+    de: "      if (!terminado) {", a: "      if (false) {",
+    tests: ["tests/fuentes.test.ts"] },
+
   // --- U6 · el árbol de época ---
   { nombre: "U6 se quita la separación de dominio", archivo: `${D}merkle.ts`,
     de: "const PREFIJO_NODO = 0x01;", a: "const PREFIJO_NODO = 0x00;", tests: ["tests/merkle.test.ts"] },
@@ -206,6 +216,29 @@ if (aCorrer.length === 0) {
 const respaldos = mkdtempSync(join(tmpdir(), "mutaciones-"));
 const resultados = [];
 
+/** Corre vitest y devuelve cuántas pruebas quedaron rojas. */
+function correrTests(tests) {
+  try {
+    execFileSync("npx", ["vitest", "run", ...tests], { encoding: "utf8", stdio: "pipe" });
+    return 0;
+  } catch (error) {
+    const salida = `${error.stdout ?? ""}${error.stderr ?? ""}`;
+    const linea = salida.split("\n").find((l) => l.includes("Tests ") && l.includes("failed"));
+    return linea ? Number(linea.split("Tests")[1].trim().split(/\s+/)[0]) || -1 : -1;
+  }
+}
+
+/**
+ * La línea base: cuántas rojas hay **sin tocar nada**.
+ *
+ * Sin esto, el respaldo de «pruébalo contra la suite entera» daría por detectada
+ * **cualquier** mutación, porque la suite arrastra rojas conocidas (hoy 6, por
+ * el catálogo caducado — `marea/vault/LINEA_BASE.md`). Un arnés que siempre dice
+ * que sí es el mismo que no existe, y además esconde los huecos de verdad.
+ */
+const BASE = correrTests([]);
+console.log(`Línea base de la suite: ${BASE} rojas. Una mutación cuenta como detectada si sube de ahí.`);
+
 for (const m of aCorrer) {
   const respaldo = join(respaldos, basename(m.archivo));
   copyFileSync(m.archivo, respaldo);
@@ -215,25 +248,52 @@ for (const m of aCorrer) {
     continue;
   }
   writeFileSync(m.archivo, original.replace(m.de, m.a));
+
+  /**
+   * Se corren primero los tests que la mutación declara. Si no la ven, se
+   * **vuelve a intentar con la suite entera** antes de cantar un hueco.
+   *
+   * Esa segunda pasada no es por gusto: la primera versión de esto declaró un
+   * hueco que no existía —la mutación estaba cubierta, y lo que estaba mal era
+   * la lista de archivos de la entrada—. Un arnés que da falsas alarmas se
+   * acaba ignorando, y entonces deja de servir justo cuando encuentra algo de
+   * verdad. Distinguir «no lo ve nadie» de «apunté al archivo equivocado» es la
+   * diferencia entre un hallazgo y ruido.
+   */
   let rojas = 0;
+  let listaMal = false;
   try {
-    execFileSync("npx", ["vitest", "run", ...m.tests], { encoding: "utf8", stdio: "pipe" });
-  } catch (error) {
-    const salida = `${error.stdout ?? ""}${error.stderr ?? ""}`;
-    const linea = salida.split("\n").find((l) => l.includes("Tests ") && l.includes("failed"));
-    rojas = linea ? Number(linea.split("Tests")[1].trim().split(/\s+/)[0]) || -1 : -1;
+    rojas = correrTests(m.tests);
+    if (rojas === 0) {
+      // los tests declarados no la ven: ¿es un hueco, o apunté al archivo malo?
+      const enLaSuite = correrTests([]);
+      if (enLaSuite > BASE) {
+        listaMal = true;
+        rojas = enLaSuite - BASE;
+      }
+    }
   } finally {
     copyFileSync(respaldo, m.archivo);
   }
-  resultados.push({ ...m, estado: rojas > 0 ? "detectada" : "SOBREVIVE", rojas });
+  resultados.push({
+    ...m,
+    estado: rojas > 0 ? "detectada" : "SOBREVIVE",
+    rojas,
+    detalle: listaMal ? `la ve la suite, NO los tests declarados — corrige \`tests\`` : undefined,
+  });
 }
 
 console.log();
 for (const r of resultados) {
   const marca = r.estado === "detectada" ? "  ok" : r.equivalente ? "  ~ " : "  !!";
-  const detalle =
-    r.estado === "detectada" ? `${r.rojas} rojas` : r.equivalente ? "equivalente" : r.detalle ?? "SOBREVIVE";
-  console.log(`${marca} ${r.nombre.padEnd(52)} ${detalle}`);
+  const detalle = r.detalle
+    ? `${r.rojas} rojas · ${r.detalle}`
+    : r.estado === "detectada"
+      ? `${r.rojas} rojas`
+      : r.equivalente
+        ? "equivalente"
+        : "SOBREVIVE";
+  console.log(`${r.detalle ? "  ?" : marca} ${r.nombre.padEnd(52)} ${detalle}`);
 }
 
 const detectadas = resultados.filter((r) => r.estado === "detectada").length;

@@ -12,6 +12,8 @@ import {
 import type { ResolutionSpec } from "@/domain/resolution";
 import { OWN_MARKETS } from "@/adapters/ownMarkets/catalog";
 import { createSeriesOracle } from "@/adapters/oracles/seriesOracle";
+import { createPriceOracle } from "@/adapters/oracles/priceOracle";
+import { createMatchOracle } from "@/adapters/oracles/matchOracle";
 
 /**
  * L8 — frescura del oráculo. La deuda que arrastraba `onRead`: aceptaba una
@@ -228,5 +230,83 @@ describe("L8 al revés — un margen demasiado apretado atasca el mercado", () =
         expect(lectura.status).toBe("sin_dato");
         expect(lectura.evidence).toContain("último dato publicado");
       });
+  });
+});
+
+/**
+ * La forma general del agujero que apareció en las series: **todo mercado
+ * publicado tiene que poder resolverse por programa cuando su fuente contesta
+ * lo que se espera**.
+ *
+ * No se comprueba que el resultado sea uno u otro —eso depende del dato— sino
+ * que no salga `sin_dato` teniendo delante exactamente lo que la regla pide. Un
+ * mercado que acepta apuestas y contesta `sin_dato` para siempre es alguien que
+ * apostó y no cobra, que es el agujero que vence a todo lo demás (AGENTE §0.1).
+ */
+describe("Ciclo de vida — todo mercado publicado se puede resolver por programa", () => {
+  const DIA = 86_400_000;
+
+  function velas(desde: number, hasta: number, precio: number) {
+    const salida = [];
+    for (let t = Math.floor(desde / DIA) * DIA; t <= hasta; t += DIA) {
+      salida.push({ inicio: t, apertura: precio, alto: precio * 1.5, bajo: precio * 0.5, cierre: precio });
+    }
+    return salida;
+  }
+
+  it("los mercados de precio resuelven con las velas que su regla pide", async () => {
+    const precio = OWN_MARKETS.filter((seed) => seed.rule?.kind === "precio");
+    expect(precio.length).toBeGreaterThan(0);
+    for (const seed of precio) {
+      const settlesAt = Date.parse(seed.resolution.settlesAt);
+      const now = settlesAt + DIA;
+      const umbral = (seed.rule as { umbral: number }).umbral;
+      const oracle = createPriceOracle({
+        loadCandles: async (_par, desde) => velas(desde, now, umbral * 1.2),
+      });
+      const lectura = await oracle.read({
+        marketId: seed.id, spec: seed.resolution, rule: seed.rule, now,
+      });
+      expect(lectura.status, `${seed.id} no resuelve con sus propias velas`).toBe("resuelto");
+    }
+  });
+
+  it("los mercados de partido resuelven con el marcador final que su regla pide", async () => {
+    const partidos = OWN_MARKETS.filter((seed) => seed.rule?.kind.startsWith("partido"));
+    expect(partidos.length).toBeGreaterThan(0);
+    for (const seed of partidos) {
+      const settlesAt = Date.parse(seed.resolution.settlesAt);
+      const equipo = (seed.rule as { equipo: string }).equipo;
+      const oracle = createMatchOracle({
+        cargarPartidos: async () =>
+          [
+            {
+              date: new Date(settlesAt - 2 * 3_600_000).toISOString(),
+              name: `${equipo} vs Rival`,
+              competitions: [
+                {
+                  status: { type: { completed: true, name: "STATUS_FULL_TIME" } },
+                  competitors: [
+                    { homeAway: "home", score: "2", team: { displayName: equipo, abbreviation: "L", shortDisplayName: "L" } },
+                    { homeAway: "away", score: "1", team: { displayName: "Rival", abbreviation: "R", shortDisplayName: "R" } },
+                  ],
+                },
+              ],
+            },
+          ] as never,
+      });
+      const lectura = await oracle.read({
+        marketId: seed.id, spec: seed.resolution, rule: seed.rule, now: settlesAt + DIA,
+      });
+      expect(lectura.status, `${seed.id} no resuelve con su propio marcador`).toBe("resuelto");
+    }
+  });
+
+  it("no queda ningún mercado del catálogo sin regla que lo resuelva sola", () => {
+    // un mercado sin regla se resuelve con confirmación humana, y R-062 limita
+    // eso a tres a la vez: no es un fallo, pero tiene que ser una excepción
+    // contada, no el estado por omisión al que se llega sin querer
+    const sinRegla = OWN_MARKETS.filter((seed) => !seed.rule);
+    expect(sinRegla.map((s) => s.id)).toEqual([]);
   });
 });
