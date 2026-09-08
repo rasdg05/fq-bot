@@ -152,5 +152,40 @@
 
 ---
 
+## P-006 · U7 (contratos) saltada: `forge` no es alcanzable, pero Hardhat sí
+
+- **Fecha:** 2026-09-08 · **Unidad:** U7 · **Estado:** saltada, decisión de RasDG
+- **Lo que pasó, medido:** `forge` no está instalado. `foundryup` se descarga y
+  arranca, pero falla al buscar la release: los binarios de Foundry vienen de
+  **GitHub releases**, y en este entorno `api.github.com` responde **403**. La
+  política de red del entorno sólo deja pasar directo unos pocos registros
+  (npm, PyPI, crates.io, proxy.golang.org). No es un problema de instalación:
+  es la red, y no se arregla desde aquí. Dos intentos, como manda la cola.
+- **Pero la nota honesta no es «no hay herramientas».** `registry.npmjs.org` sí
+  es alcanzable, y desde ahí hay cadena de Solidity completa: `solc` 0.8.36 y
+  `hardhat` 3.16.0, los dos comprobados con `npm view`. Decir «no se puede»
+  sin mirar el registro habría sido pereza disfrazada de prudencia (AGENTE §2).
+- **Lo que se hizo (conservador): saltarla igual.** La puerta escrita es
+  `forge test` en verde, y meter Hardhat en el repo no es sustituir una
+  herramienta: es **añadir una segunda cadena de construcción** que heredan
+  RasDG y el segundo desarrollador, con su config, su lenguaje de pruebas y su
+  mantenimiento. Esa elección no es de una sesión autónoma.
+- **Lo que se descartó:** (a) escribir los tres contratos sin poder probarlos —
+  Solidity sin pruebas de invariante en el camino del dinero es peor que no
+  tenerlo, y la cola pide invariantes cableadas, no ficheros; (b) pelear más con
+  la instalación, que la cola limita a dos intentos.
+- **Lo que necesitaría RasDG decidir:** o (1) Hardhat como cadena de contratos
+  del repo, o (2) dejar U7 para una máquina con Foundry, o (3) permitir GitHub
+  releases en la política de red del entorno. Con cualquiera de las tres, U7 se
+  hace tal cual está escrita: `BovedaTopada.sol` (~150) · `AdaptadorOraculo.sol`
+  (~180) · `RegistroAnclas.sol` (~80) sobre los Conditional Tokens ya auditados,
+  con las invariantes L1 / L5 / L14.
+- **Lo que U7 ya no necesita inventar:** `domain/merkle.ts` y `domain/epoca.ts`
+  (U6) dejan la regla del ancla escrita y probada — prefijos de dominio, hoja
+  impar promovida, conteo y secuencia. `RegistroAnclas.sol` tiene que emitir
+  exactamente eso; la aritmética ya no está en discusión.
+
+---
+
 _Se abre esta bitácora el 2026-09-08. Formato: qué faltaba, qué se eligió, qué se
 descartó, qué costaría revertirlo._

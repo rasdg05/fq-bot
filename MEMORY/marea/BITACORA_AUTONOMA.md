@@ -532,3 +532,36 @@ del libro rompe la verificación de alguien (por dos caminos distintos); y un
 9, 11, 13, 21 y 33). La API está documentada en el encabezado de `merkle.ts` para
 la pantalla del verificador. Línea base intacta: mismas 8 rojas, +20 verdes
 (340 a 360).
+
+
+---
+
+## U7 · Los contratos — SALTADA (sin herramientas)
+
+**Qué pasó, medido en dos intentos.** `forge` no está instalado. `foundryup` se
+descarga y arranca bien, pero falla al buscar la release: los binarios de Foundry
+vienen de **GitHub releases**, y en este entorno `api.github.com` responde
+**403**. La política de red deja pasar directo sólo unos pocos registros (npm,
+PyPI, crates.io, proxy.golang.org). No es un problema de instalación — es la red,
+y no se arregla desde aquí.
+
+**Lo que costó descubrir, y que cambia la nota.** El reflejo era escribir «no hay
+herramientas» y seguir. Pero `registry.npmjs.org` **sí** es alcanzable, y desde
+ahí hay cadena de Solidity completa: `solc` 0.8.36 y `hardhat` 3.16.0, los dos
+comprobados. Decir «no se puede» sin haber mirado el registro habría sido pereza
+disfrazada de prudencia, que es literalmente lo que AGENTE §2 nombra.
+
+**Y aun así se salta, que es distinto de no poder.** La puerta escrita es
+`forge test` en verde. Meter Hardhat no es sustituir una herramienta: es añadir
+una **segunda cadena de construcción** al repo, que heredan RasDG y el segundo
+desarrollador con su config, su lenguaje de pruebas y su mantenimiento. Esa
+elección no es de una sesión autónoma. Y escribir los tres contratos sin poder
+probarlos sería peor que no tenerlos: Solidity sin pruebas de invariante en el
+camino del dinero es exactamente lo que este repo llama una nota, no un arreglo.
+
+**Lo que U7 ya no tendrá que inventar cuando se haga.** U6 deja la regla del
+ancla escrita y probada —prefijos de dominio, hoja impar promovida, conteo y
+secuencia—, así que `RegistroAnclas.sol` sólo tiene que emitir eso. La aritmética
+ya no está en discusión.
+
+`PREGUNTAS_ABIERTAS.md` P-006 deja las tres salidas posibles para RasDG.
