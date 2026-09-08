@@ -832,3 +832,61 @@ baratas, y saber cuál es la que sostiene el peso vale más que quitar una líne
 
 **Barrido final: 55 mutaciones, 53 detectadas, 2 equivalentes documentadas, 0
 huecos.**
+
+
+---
+
+## §3 · El barrido sobre lo que ya existía: la puerta de elegibilidad
+
+Ampliar el arnés al código anterior a esta sesión encontró **dos guardas viejas
+sin verificación**, y una de ellas es la que la cola nombra explícitamente como
+intocable.
+
+### 1. La puerta de elegibilidad aguantaba por casualidad
+
+Poner `allowed = true` en `eligibilityFor` —abrir la puerta para **todos** los
+países de golpe— dejaba **la suite entera y `npm run validate` en verde**.
+
+Por qué se escapó de las tres capas:
+
+| Capa | Qué comprueba | Por qué no lo vio |
+|---|---|---|
+| `validate.mjs` | que el archivo no contenga `status: "permitido"` | es una comprobación sobre el **texto de los datos**; la función que los lee puede cambiar sin tocarlos |
+| `eligibility.test.ts` | `canDeposit === false` en todos los países | sigue en `false` **por el tope**: `canDeposit = allowed && cap > 0`, y todos los topes valen 0 |
+| nadie | `canTrade` | no tiene consumidor todavía, así que podía volverse `true` para todo el mundo sin que nada fallara |
+
+**La puerta aguantaba por una coincidencia —el tope en cero— y no por el
+estado.** Con un tope distinto de cero en un país `pendiente`, se abría. Y
+`canTrade` era una bandera que decía «esta persona puede operar» esperando a su
+primer consumidor.
+
+Es exactamente la forma de fallo que el `CLAUDE.md` del repo llama la lección más
+cara: *el fallo no fue de conocimiento sino de cableado*. La política decía lo
+correcto; lo que la lee podía dejar de obedecerla en silencio.
+
+Arreglado atando el comportamiento al **estado**: para todo país cuyo `status` no
+sea `permitido`, `canDeposit` y `canTrade` son `false`. Y se mantiene la otra
+mitad —explorar nunca pide nada (R-002, I1)— que también estaba sin comprobar en
+todos los países.
+
+### 2. La recarga diaria se podía pedir dos veces
+
+El test que existía —«no se recarga dos veces el mismo día»— pedía la recarga con
+el saldo **intacto**, y ahí el tope de saldo ya devuelve 0 por su cuenta: la
+comprobación de «ya la pidió hoy» quedaba enmascarada. Medido: quitarla dejaba la
+suite en verde.
+
+El caso que la necesita es el que un usuario encuentra solo: recarga, apuesta los
+100, y vuelve a pedir. Sin la guarda, eso son **puntos infinitos**. Con test, y
+con el del día siguiente para que el arreglo no se pase de frenada.
+
+### Lo que enseña el patrón
+
+Las dos guardas llevaban meses puestas y las dos estaban sin verificar. **Una
+guarda vieja sin verificación es igual de frágil que una nueva; sólo lleva más
+tiempo siéndolo.** Y las dos fallaron por la misma razón: el test miraba un
+efecto que estaba tapado por **otra** condición —el tope en un caso, el saldo en
+el otro—, así que pasaba en verde por el motivo equivocado.
+
+**Barrido final: 67 mutaciones, 65 detectadas, 2 equivalentes documentadas, 0
+huecos.**

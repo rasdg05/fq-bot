@@ -156,6 +156,51 @@ const MUTACIONES = [
     de: '  if (reading.status === "sin_dato") {', a: "  if (false) {",
     tests: ["tests/frescura.test.ts", "tests/settlement.test.ts"] },
 
+  /**
+   * --- Lo que ya existía antes de esta sesión ---
+   *
+   * El barrido no se detiene en el código nuevo. Estas son las guardas que
+   * llevan más tiempo puestas —la puerta de elegibilidad, el «no hay crédito»,
+   * la neutralidad del pozo— y precisamente por llevar tiempo nadie las mira.
+   * Una guarda vieja sin verificación es igual de frágil que una nueva; sólo
+   * lleva más tiempo siéndolo.
+   */
+  { nombre: "viejo · la puerta de elegibilidad se abre sola", archivo: `${D}eligibility.ts`,
+    de: '  const allowed = policy.status === "permitido";', a: "  const allowed = true;",
+    tests: ["tests/eligibility.test.ts", "tests/compliance-ui.test.tsx"] },
+  { nombre: "viejo · el tope de depósito deja de aplicarse", archivo: `${D}eligibility.ts`,
+    de: "  if (limits.cooldownUntil !== undefined && limits.cooldownUntil > now) {", a: "  if (false) {",
+    tests: ["tests/eligibility.test.ts"] },
+  { nombre: "viejo · aparece el crédito: se puede apostar sin saldo", archivo: `${D}points.ts`,
+    de: "  return amount > 0 && ledger.balance >= amount;", a: "  return amount > 0;",
+    tests: ["tests/parimutuel.test.ts"] },
+  { nombre: "viejo · los puntos se pueden canjear", archivo: `${D}points.ts`,
+    de: "export function canCashOut(): false {\n  return false;\n}",
+    a: "export function canCashOut(): false {\n  return true as never;\n}",
+    tests: ["tests/parimutuel.test.ts"] },
+  { nombre: "viejo · la recarga diaria se vuelve un ingreso pasivo", archivo: `${D}points.ts`,
+    de: "  return ledger.balance < DAILY_GRANT ? DAILY_GRANT - ledger.balance : 0;",
+    a: "  return DAILY_GRANT;", tests: ["tests/parimutuel.test.ts"] },
+  { nombre: "viejo · la recarga se puede pedir dos veces el mismo día", archivo: `${D}points.ts`,
+    de: "  if (claimed) return 0;", a: "", tests: ["tests/parimutuel.test.ts"] },
+  { nombre: "viejo · el pozo puede acuñar sin repartir todo un resultado", archivo: `${D}pozo.ts`,
+    de: "    if (Math.abs(sumar(reparto) - q) > EPSILON) {", a: "    if (false) {",
+    tests: ["tests/pozo.test.ts"] },
+  { nombre: "viejo · se puede fusionar sin el conjunto completo", archivo: `${D}pozo.ts`,
+    de: "    if (tiene + EPSILON < q) {", a: "    if (false) {", tests: ["tests/pozo.test.ts"] },
+  { nombre: "viejo · se liquida un pozo torcido", archivo: `${D}pozo.ts`,
+    de: "  if (problemas.length > 0) {", a: "  if (false) {", tests: ["tests/pozo.test.ts"] },
+  { nombre: "viejo · se transfiere lo que no se tiene", archivo: `${D}pozo.ts`,
+    de: "  if (tiene + EPSILON < q) {", a: "  if (false) {", tests: ["tests/pozo.test.ts"] },
+  { nombre: "viejo · se paga con la ventana de disputa abierta", archivo: `${D}resolution.ts`,
+    de: '  if (state.status === "en_disputa") return new Date(state.until).getTime() <= now;',
+    a: '  if (state.status === "en_disputa") return true;',
+    tests: ["tests/parimutuel.test.ts", "tests/settlement.test.ts", "tests/servidor.test.ts"] },
+  { nombre: "viejo · un mercado sin fuente pública se publica", archivo: `${D}resolution.ts`,
+    de: "  if (problems.length > 0) throw new UnpublishableMarket(problems);", a: "",
+    tests: ["tests/parimutuel.test.ts"] },
+
+
   // --- §3 · ciclo de vida: resolver, y no pagar dos veces tras un redeploy ---
   { nombre: "§3 el redeploy vuelve a pagar el mercado", archivo: "server/store.mts",
     de: '      (a) => a.tipo === "liquidacion" && a.ref === input.marketId,',

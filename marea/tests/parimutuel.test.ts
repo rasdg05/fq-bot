@@ -462,3 +462,39 @@ describe("La semilla como subsidio — guardas que no se ven en el camino feliz"
     expect(bettorStake(original, "si")).toBe(0);
   });
 });
+
+/**
+ * Casos que el barrido de mutaciones encontró sin cubrir en el código **que ya
+ * existía antes**. Una guarda vieja sin verificación es igual de frágil que una
+ * nueva; sólo lleva más tiempo siéndolo.
+ */
+describe("Puntos — la recarga no es un ingreso pasivo", () => {
+  it("recargar, gastarlo todo y volver a recargar el mismo día NO da más puntos", () => {
+    /**
+     * El test que ya existía —«no se recarga dos veces el mismo día»— pedía la
+     * recarga con el saldo **intacto**, y ahí el tope de saldo ya devuelve 0 por
+     * su cuenta: la comprobación de «ya la pidió hoy» quedaba enmascarada.
+     * Medido: quitarla dejaba la suite en verde.
+     *
+     * El caso que la necesita es el que un usuario encuentra solo: recarga,
+     * apuesta los 100, y vuelve a pedir. Sin la guarda, eso son puntos
+     * infinitos.
+     */
+    const hoy = new Date("2026-07-27T10:00:00Z");
+    let ledger = emptyLedger();
+    ledger = apply(ledger, { id: "r1", amount: DAILY_GRANT, reason: "recarga_diaria", at: hoy.toISOString() });
+    ledger = apply(ledger, { id: "b1", amount: -DAILY_GRANT, reason: "apuesta", at: hoy.toISOString() });
+
+    expect(ledger.balance).toBe(0);
+    expect(dailyTopUp(ledger, hoy)).toBe(0); // ya la pidió hoy, aunque esté a cero
+  });
+
+  it("y al día siguiente sí se puede: es una recarga diaria, no una sola", () => {
+    const hoy = new Date("2026-07-27T10:00:00Z");
+    const manana = new Date("2026-07-28T10:00:00Z");
+    let ledger = emptyLedger();
+    ledger = apply(ledger, { id: "r1", amount: DAILY_GRANT, reason: "recarga_diaria", at: hoy.toISOString() });
+    ledger = apply(ledger, { id: "b1", amount: -DAILY_GRANT, reason: "apuesta", at: hoy.toISOString() });
+    expect(dailyTopUp(ledger, manana)).toBe(DAILY_GRANT);
+  });
+});
