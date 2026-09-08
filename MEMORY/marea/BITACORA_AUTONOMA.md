@@ -136,3 +136,83 @@ mercado sin nada que lo apague. `PREGUNTAS_ABIERTAS.md` P-002.
 sobre 400 escenarios aleatorios reproducibles × los dos modos; y los mercados en
 `"apuesta"` dan `toEqual` exacto contra un pozo escrito como se escribía antes.
 Línea base intacta: mismas 8 rojas, +7 verdes (287 → 294).
+
+---
+
+## U2 · Cablear el compensador ✔
+
+**Qué se hizo.** `settle()` deja de ser el que mueve dinero y pasa a ser lo que
+su nombre promete: **un productor de reparto**. Quien mueve saldos es el
+compensador. Entre la capa de precio y la cámara aparece un puente puro,
+`domain/compensacion.ts`, y `server/ciclo.mts` liquida a través de él.
+
+**La traducción, que resultó más literal de lo esperado.** El primer plan era
+inventar una correspondencia entre el parimutuel y los conjuntos completos de
+`pozo.ts`. No hizo falta inventar nada:
+
+```
+contratos del resultado o  =  quién cobraría si ganara o
+Σ contratos de o           =  T  (el pozo entero)          ∀ o
+```
+
+Si gana `o`, el pozo entero se va a alguien —quienes acertaron, la tesorería por
+la comisión, y lo que sobre— y eso suma `T`. Repetido para cada `o`, **eso es**
+la definición de conjunto completo. De ahí sale gratis lo que R-065 promete: la
+exposición neta es cero en todos los resultados, y es aritmética, no una
+comprobación al final.
+
+**Lo que costó descubrir.**
+
+1. **La versión útil de esto no es traducir: es pedir el reparto de TODOS los
+   resultados.** La tentación era compensar sólo el ganador —es el único que
+   paga— y habría sido decoración: un pozo que cuadra con el ganador que salió
+   no dice nada sobre neutralidad. Pidiendo los N repartos, el resto
+   (`T − Σ pagos − comisión`) se calcula N veces, y **si sale negativo en
+   cualquiera**, `acunar()` lo rechaza al escribir. Eso es L5 con dientes: no un
+   informe a fin de mes, sino una liquidación que no ocurre. La mutación
+   «sólo se comprueba el resultado que ganó» pone rojo exactamente ese test y
+   ningún otro, que es la prueba de que el test paga su sitio.
+
+2. **El resto tiene que tener dueño o el colateral se pierde de vista.** El
+   primer borrador mandaba a tesorería sólo el fee. Con eso, la asignación de
+   cada resultado sumaba menos que `T` y `acunar()` la rechazaba — el compensador
+   se negó antes de que yo entendiera por qué. Tenía razón: en modo `"apuesta"`
+   la parte de la semilla ganadora es colateral real y **alguien** lo tiene. Un
+   colateral sin dueño es colateral que se pierde de vista.
+
+3. **Lo que la suite no habría visto: que el cable fuera decorativo.** Se puede
+   llamar al compensador, ignorar su respuesta y pagar como antes; los 45 tests
+   del ciclo seguirían verdes. La verificación en proceso real fue hacerlo
+   **negarse** a propósito y mirar qué pasa con el dinero de verdad:
+
+   | | compensador normal | compensador que se niega |
+   |---|---|---|
+   | acreditado | 465.6 | **0** |
+   | comisión | 24 | **0** |
+   | cuadre del libro | 0 | 0 |
+   | fase | `pagado` | **`en_disputa`** |
+
+   Nadie cobra, la casa no cobra, el libro sigue cuadrado y el mercado **no
+   avanza de fase**: queda pendiente y reintentable, no medio pagado. El modo de
+   falla es seguro, y eso no se puede afirmar desde jsdom.
+
+4. **La medida que le deja el trabajo hecho a U3.** Tras liquidar el mercado de
+   prueba, la cuenta contable del pozo se queda con **310.4** — la parte de la
+   semilla ganadora, que hoy nadie mueve. Es exactamente la puerta de U3
+   (`saldoDe(libro, "pozo:<id>") === 0`). No se toca aquí a propósito: U2 es
+   refactor con red y mover ese saldo **sería** un cambio de comportamiento.
+
+**Las mutaciones (§0.5).**
+
+| Se rompió | Se puso rojo |
+|---|---|
+| el sobrepago ya no se rechaza | 1 prueba |
+| un pago negativo pasa | 1 prueba |
+| el resto no llega a tesorería | 4 pruebas |
+| sólo se comprueba el resultado que ganó | 1 prueba |
+
+**Puerta:** ✔ la suite pasa **sin tocar una sola expectativa existente** —
+`git diff` sobre `tests/` no devuelve nada; el único cambio es un archivo nuevo.
+Los 45 tests que ya ejercitaban `correrCiclo` (servidor, contabilidad,
+liquidación) pasan igual. Línea base intacta: mismas 8 rojas, +9 verdes
+(294 → 303).

@@ -3,8 +3,10 @@ import {
   bettorStake,
   normalizePool,
   settle,
+  totalPool,
   type Bet,
 } from "../src/domain/parimutuel";
+import { compensar, type Reparto } from "../src/domain/compensacion";
 import {
   authorizePayout,
   initialState,
@@ -110,17 +112,52 @@ export async function correrCiclo(
           // el pozo entra por `normalizePool`, no campo por campo: escribir
           // `{ outcomes, feeBps }` a mano tira la semilla y su modo, y un
           // mercado con subsidio liquidaría como los de antes sin avisar
-          const reparto = sinMercado
-            ? { payouts: Object.fromEntries(apuestas.map((a) => [a.id, a.stake])) }
-            : settle(normalizePool(pozo), apuestas, estado.outcome);
+          const pool = normalizePool(pozo);
+
+          /**
+           * `settle()` produce el reparto; **no** mueve saldos. Se le pide el
+           * de cada resultado, no sólo el del ganador: es lo que convierte «el
+           * pozo cuadra con este ganador» en «cuadra pase lo que pase», que es
+           * lo único que se puede llamar neutralidad (R-065).
+           *
+           * Un mercado anulado por falta de gente reparte lo apostado, íntegro
+           * y sin comisión, gane quien gane: es el mismo reparto para todos los
+           * resultados (R-059).
+           */
+          const devolucion: Reparto = {
+            payouts: Object.fromEntries(apuestas.map((a) => [a.id, a.stake])),
+            fee: 0,
+          };
+          const outcomes = Object.keys(pool.outcomes);
+          const repartoPorResultado: Record<string, Reparto> = {};
+          for (const id of outcomes) {
+            repartoPorResultado[id] = sinMercado ? devolucion : settle(pool, apuestas, id);
+          }
+
+          /**
+           * Y el compensador es quien mueve el dinero. Acuña el mercado entero,
+           * lo quema con el ganador, y lo que sale es lo que se acredita. Si el
+           * reparto quisiera pagar más colateral del que hay, esto lanza y la
+           * liquidación **no ocurre** — antes se habría acreditado y el
+           * descuadre aparecía semanas después (L5).
+           */
+          const compensacion = compensar({
+            marketId: seed.id,
+            outcomes,
+            colateral: totalPool(pool),
+            repartoPorResultado,
+            ganador: estado.outcome,
+          });
+
           // pagar primero, marcar después: si el proceso muere en medio, el
           // dinero ya está acreditado y el estado se recalcula solo
-          resumen.acreditado += store.pagarMercado(seed.id, reparto.payouts);
+          resumen.acreditado += store.pagarMercado(seed.id, compensacion.pagosDeApuestas);
           // y la comisión va a la tesorería con su asiento: si se resta del
           // reparto tiene que llegar a algún lado (R-064)
-          if (!sinMercado && "fee" in reparto && reparto.fee > 0) {
-            resumen.comision += reparto.fee;
-            store.acumularComision(seed.id, reparto.fee);
+          const fee = repartoPorResultado[estado.outcome]?.fee ?? 0;
+          if (!sinMercado && fee > 0) {
+            resumen.comision += fee;
+            store.acumularComision(seed.id, fee);
           }
         }
 
