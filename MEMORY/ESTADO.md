@@ -210,6 +210,41 @@ con outcome. El plan **cerebro** (`research/cerebro_arquitectura.md`, commit `f0
 
 ---
 
+## Marea — mercados de predicción (foto 2026-09-01)
+
+La app de `marea/`. **No es el bot** y no comparte motor, pero sí memoria y disciplina.
+
+| Cosa | Estado |
+|---|---|
+| Motor de mercado | `parimutuel_points` — se juega con **puntos** |
+| Volumen | **0** |
+| Facturación | **0** |
+| Elegibilidad por país | **todas `pendiente`**; `validate` falla si alguna pasa a `permitido` sin opinión escrita |
+| Ciclo automático | **vivo**: `roll.mts` crea, `settle.mts` / `ciclo.mts` cierran, leen, disputan y pagan |
+| Contrato de custodia | interfaz **definida y declarada simulada** (`custodia/contrato.ts`) |
+| Cámara de compensación | **primer módulo escrito**: `domain/pozo.ts` puro + prueba de propiedad (11 verdes). Invariantes L1, L2 y L5 vivas ahí. Falta cablearlo a la app |
+| Suite de Marea | 289 verdes + 11 nuevas · **4 rojas preexistentes**: el catálogo tiene fechas de julio/agosto y ya caducó (R-041). Se arreglan con `npm run roll`, no con código |
+| Arquitectura en cadena | **diseño** — **Base decidida** (2026-09-01), nada desplegado |
+| Semilla | hoy **apuesta** (puede cobrar). **Decidido pasarla a subsidio**; sin cablear |
+| Reglas | **R-065 a R-068 escritas** — 68 en `RULINGS.md` |
+
+**Tiempos (2026-09-01):** lanzamiento en puntos con la cámara nueva **6–8 semanas**;
+con dinero real **7–9 meses realista**, y el reloj lo marcan la opinión legal y la
+auditoría del contrato, no el código. La rotación `R` se puede medir **con puntos**, así
+que el fee se puede elegir antes de que haya dinero.
+
+**Lo que bloquea el primer peso no es código**: es la opinión legal por país (paso 04 del
+camino). Todo el tramo A (compensador puro, asientos, funding con freno) se puede cablear
+hoy en modo puntos sin tocar esa puerta.
+
+**Deuda conocida heredada:** L8 — `onRead` acepta una lectura del oráculo sin comprobar
+cuán vieja es la fuente. Es el mismo fallo que en el bot obligó a cablear
+`cvd_confirmation`, y conviene arreglarlo antes de que haya dinero detrás.
+
+Detalle completo: `MEMORY/marea/README.md`.
+
+---
+
 _Fuente de verdad: `git log`, `research/plan_evolucion_2026.md`, `research/cerebro_arquitectura.md`,
 `research/fisica_moderna_2026_resultados.md`, `research/carry_regime.md`, `motor_paper.py`,
-`fq_bot_v3_2.py`, `railway.toml`. Actualizado 2026-06-30._
+`fq_bot_v3_2.py`, `railway.toml`. Actualizado 2026-09-01._

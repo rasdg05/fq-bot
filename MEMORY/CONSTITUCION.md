@@ -156,5 +156,30 @@ cuarentena. `session_bias.py` / `signal_scorer.py` / `regime_detector.py` salier
 
 ---
 
+## VIII. Marea — invariantes de la cámara (diseño, 2026-09-01)
+
+Marea (`marea/`) no comparte motor con el bot, pero sí la regla que gobierna el repo:
+*un hallazgo sin invariante que lo haga cumplir es una nota, no un arreglo.* Catorce
+invariantes, de las cuales **dos ya están vivas** (L4 `cuadre()==0`, L7 el ciclo no se
+salta) y **una es deuda previa** (L8 frescura del oráculo).
+
+Las tres que no se negocian, por el mismo motivo por el que el gate DSR no se degrada:
+
+- **L2 — el pozo nunca es contraparte.** No existe función que le abra posición. Un pozo
+  que puede ganar cuando el usuario pierde es la casa disfrazada de infraestructura
+  (R-057).
+- **L12 — Marea no puede mover fondos de un usuario.** La función no existe; la llave
+  sólo *propone* resolución, tras multisig y timelock, y la disputa puede tumbarla.
+- **L14 / L1 — `supply(conjuntos) == balance(colateral)`**, verificable por cualquiera en
+  cualquier bloque. Es la versión on-chain de la neutralidad del pozo.
+
+Y una que hereda directamente de la Constitución del bot: el **hash-chain SHA-256** del
+§III se extiende a Marea con raíz de Merkle por época **anclada en cadena** (L13: todo
+número publicado nombra la raíz de la que sale).
+
+Detalle y estado de las catorce: `MEMORY/marea/README.md` §5.
+
+---
+
 _Fuente de verdad: `tools/validation_gate.py`, `execution.py`, `motor_paper.py`, `fq_bot_v3_2.py`,
-`launcher.py`, `ENGINEERING_PLAN.md`, `segment_veto.py`, `tests/`. Actualizado 2026-06-27._
+`launcher.py`, `ENGINEERING_PLAN.md`, `segment_veto.py`, `tests/`. Actualizado 2026-09-01._

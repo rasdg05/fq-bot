@@ -247,6 +247,32 @@ Pure stdlib + numpy, **sin scipy** (normal CDF vía `math.erf`, inverso por Ackl
 
 ---
 
+## Marea — muerto antes de construirse (2026-09-01)
+
+No pasó por el gate DSR (no es un edge de mercado), pero sí por el mismo criterio: se
+mató por medición o por incompatibilidad demostrada, y se registra para que nadie lo
+vuelva a proponer.
+
+- **Pozo como creador de mercado** (que la casa rellene el lado que ningún maker tomó).
+  **Muerto:** rompe R-057 — el día que la casa gana cuando el usuario pierde, dejamos de
+  ser lo que prometimos. Además destruye la única propiedad que hace cierto el boceto
+  (capital propio con varianza cero).
+- **Fee sobre la prima que entra.** **Muerto el mismo día que se propuso**, al verificar
+  el esquema de Kalshi: es asimétrico entre las dos partes del mismo cruce (el taker
+  pagaría 4× lo del maker). Sustituido por base varianza `f·q·p·(1−p)`.
+- **Fee sobre el nocional.** **Muerto:** castiga los precios extremos — a `p = 0.02`, 10
+  bps del nocional son el 5% de lo que el usuario puso.
+- **Taker/maker a 10 bps ahora.** **Muerto por aritmética, no por opinión:** exige 50× la
+  rotación actual para igualar los 300 bps de hoy, y la rotación actual es 0. Revive sólo
+  cuando `R ≥ 50` esté medido.
+- **Monero como riel de la cámara.** **Muerto:** no tiene contratos y es privado por
+  diseño — lo contrario de "auditable en cadena", que es el argumento de venta del
+  producto. Y cierra la puerta legal con casi cualquier rampa fiat.
+- **PancakeSwap / BNB como capa de liquidación.** **Muerto:** un AMM no es una cámara.
+  Sirve para el swap de la rampa, nada más.
+
+---
+
 ## Resumen de honestidad operacional
 - **Pasó el gate y se cabla:** CVD (DSR ✓, cableado); F2-persistencia (DSR ✓, cableado dormido).
 - **Pasó el gate pero es redundante:** F1 impacto (standalone fuerte, within-CVD negativo → no suma).
@@ -260,4 +286,4 @@ entras al motor. Fin.
 _Citas: `research/fisica_moderna_2026.md`, `research/fisica_moderna_2026_resultados.md` (run
 28287771057), `tools/validation_gate.py`, `tools/validate_*.py`, workflows `physics_confirm.yml` /
 `oi_validation.yml` / `global_ls_deepdive.yml` / `metrics_validation.yml`, `volume_profile.py`,
-`tools/measure_vp_tier.py`. Actualizado 2026-06-29._
+`tools/measure_vp_tier.py`. Actualizado 2026-09-01._
