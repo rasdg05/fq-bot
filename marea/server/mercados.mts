@@ -6,6 +6,7 @@ import {
   BINARY_OUTCOMES,
   impliedProbability,
   isBinary,
+  normalizePool,
   rankedOutcomes,
   outlook,
   quote,
@@ -85,19 +86,19 @@ export function todosLosSeeds(root: string): OwnMarketSeed[] {
 /** Siembra en el store los pozos de los mercados que aún no existían. */
 export function sembrarPozos(store: Store, seeds: OwnMarketSeed[]): void {
   for (const seed of seeds) {
-    store.asegurarPozo({
-      marketId: seed.id,
-      outcomes: { ...seed.pool.outcomes },
-      feeBps: seed.pool.feeBps,
-    });
+    // el pozo se siembra con la semilla y su modo tal como los declaró el
+    // catálogo: es el único momento en que se pueden saber, porque en cuanto
+    // entre la primera apuesta `outcomes` deja de ser sólo lo de la casa
+    store.asegurarPozo({ marketId: seed.id, ...normalizePool(seed.pool) });
   }
 }
 
 function poolDe(store: Store, seed: OwnMarketSeed): Pool {
   const guardado = store.pozo(seed.id);
-  return guardado
-    ? { outcomes: guardado.outcomes, feeBps: guardado.feeBps }
-    : { outcomes: { ...seed.pool.outcomes }, feeBps: seed.pool.feeBps };
+  // el pozo guardado manda: trae las apuestas de la gente además de la semilla.
+  // En los dos caminos se pasa por `normalizePool` para no perder `seedMode`
+  // por el camino — un mercado no cambia de reglas por reiniciar el proceso
+  return normalizePool(guardado ?? seed.pool);
 }
 
 export function construirMercado(

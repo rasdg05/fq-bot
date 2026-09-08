@@ -1,5 +1,5 @@
 import { assertPublishable } from "@/domain/resolution";
-import { SEED, binaryPool, type Pool } from "@/domain/parimutuel";
+import { SEED, binaryPool, declareSeed, type Pool } from "@/domain/parimutuel";
 import type { MatchRule, PriceRule } from "@/domain/oracleRule";
 import type { OwnMarketSeed } from "./catalog";
 
@@ -55,8 +55,22 @@ export function proximoCierreSemanal(now: number): number {
   return domingo.getTime();
 }
 
+/**
+ * Los mercados generados nacen con la semilla **declarada** y en modo
+ * `"apuesta"`, igual que el catálogo estático.
+ *
+ * R-067 pide que la liquidez de la casa sea subsidio, pero pide subsidio
+ * declarado **con tope**, y el tope todavía no existe (es `domain/presupuesto.ts`,
+ * fase L9). Encender el subsidio antes que el freno sería comprometer un coste
+ * por mercado sin nada que lo apague, que es la mitad de la regla y la mitad
+ * cara. Un tope que no apaga nada es un comentario.
+ *
+ * Lo que sí cambia hoy: la semilla queda **registrada**. Sin ese registro, media
+ * hora después de abrir el mercado ya no se puede saber cuánto del pozo es de la
+ * casa — y eso es justo lo que el presupuesto de L9 va a tener que sumar.
+ */
 function seedPool(si: number, no: number): Pool {
-  return binaryPool(si, no, FEE_BPS);
+  return declareSeed(binaryPool(si, no, FEE_BPS), "apuesta");
 }
 
 interface Plantilla {

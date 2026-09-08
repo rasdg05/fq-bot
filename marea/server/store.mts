@@ -1,6 +1,11 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { normalizePool, type OutcomeId, type Side } from "../src/domain/parimutuel";
+import {
+  normalizePool,
+  type OutcomeId,
+  type SeedMode,
+  type Side,
+} from "../src/domain/parimutuel";
 import type { SettlementState } from "../src/domain/settlement";
 import {
   CUENTAS_SISTEMA,
@@ -64,6 +69,14 @@ export interface PozoGuardado {
   /** Lo apostado a cada resultado, por id. El binario usa `si` y `no`. */
   outcomes: Record<OutcomeId, number>;
   feeBps: number;
+  /**
+   * Lo que puso la casa al abrir, y si cobra o no cuando gana. Se guardan
+   * porque `outcomes` crece con las apuestas y la semilla no: sin esto, el
+   * primer reinicio borra la diferencia entre el dinero de la casa y el de la
+   * gente. Ausentes = pozo de antes de que el campo existiera = `"apuesta"`.
+   */
+  seed?: Record<OutcomeId, number>;
+  seedMode?: SeedMode;
 }
 
 /**
@@ -137,8 +150,11 @@ function migrar(datos: Datos): Datos {
 
   const pozos = datos.pozos.map((guardado) => {
     const { marketId } = guardado;
+    // `normalizePool` arrastra `seed` y `seedMode` si están, y no los inventa
+    // si no. Reconstruir el pozo campo por campo aquí sería la forma callada de
+    // que un mercado con subsidio despertara cobrando como los de antes
     const pool = normalizePool(guardado);
-    return { marketId, outcomes: pool.outcomes, feeBps: pool.feeBps };
+    return { marketId, ...pool };
   });
   const migrado = { ...datos, version: VERSION_DATOS, pozos };
   return necesitaApertura(migrado) ? conApertura(migrado) : migrado;

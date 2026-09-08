@@ -1,6 +1,6 @@
 import { canPayout, disputeDeadline, type ResolutionSpec } from "./resolution";
 import {
-  outcomeStake,
+  bettorStake,
   settle,
   type Bet,
   type OutcomeId,
@@ -203,8 +203,11 @@ export function pay(
   }
   const outcome = state.outcome as OutcomeId;
   const settlement = settle(pool, bets, outcome);
-  // "nadie acertó" es que el lado ganador esté vacío del todo, semilla incluida
-  const nadieAcerto = outcomeStake(pool, outcome) <= 0;
+  // "nadie acertó" es que no haya nadie **que cobre** del lado ganador. En modo
+  // "apuesta" eso es el lado vacío del todo, semilla incluida, como siempre; con
+  // subsidio, un lado que sólo tiene semilla tampoco tiene ganadores. Es el
+  // mismo `bettorStake` que decide el reparto, y por eso no se pueden separar
+  const nadieAcerto = bettorStake(pool, outcome) <= 0;
 
   return {
     settlement,

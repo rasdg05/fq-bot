@@ -1,4 +1,10 @@
-import { MIN_APOSTADORES, settle, type Bet } from "../src/domain/parimutuel";
+import {
+  MIN_APOSTADORES,
+  bettorStake,
+  normalizePool,
+  settle,
+  type Bet,
+} from "../src/domain/parimutuel";
 import {
   authorizePayout,
   initialState,
@@ -101,13 +107,12 @@ export async function correrCiclo(
         const sinMercado = distintos > 0 && distintos < MIN_APOSTADORES;
 
         if (pozo && estado.outcome) {
+          // el pozo entra por `normalizePool`, no campo por campo: escribir
+          // `{ outcomes, feeBps }` a mano tira la semilla y su modo, y un
+          // mercado con subsidio liquidaría como los de antes sin avisar
           const reparto = sinMercado
             ? { payouts: Object.fromEntries(apuestas.map((a) => [a.id, a.stake])) }
-            : settle(
-                { outcomes: pozo.outcomes, feeBps: pozo.feeBps },
-                apuestas,
-                estado.outcome,
-              );
+            : settle(normalizePool(pozo), apuestas, estado.outcome);
           // pagar primero, marcar después: si el proceso muere en medio, el
           // dinero ya está acreditado y el estado se recalcula solo
           resumen.acreditado += store.pagarMercado(seed.id, reparto.payouts);
@@ -119,9 +124,12 @@ export async function correrCiclo(
           }
         }
 
+        // "nadie acertó" es nadie **que cobre**: con subsidio, un lado ganador
+        // que sólo tiene semilla no tiene ganadores, aunque el pozo no esté
+        // vacío. Se devuelve todo y el subsidio vuelve a tesorería (R-024)
         const nadieAcerto =
           pozo !== undefined &&
-          (pozo.outcomes[estado.outcome as string] ?? 0) <= 0;
+          bettorStake(normalizePool(pozo), estado.outcome as string) <= 0;
         estado = {
           ...authorizePayout(estado, ahora),
           phase: sinMercado || nadieAcerto ? "devuelto" : "pagado",

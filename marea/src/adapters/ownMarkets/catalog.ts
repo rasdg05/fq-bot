@@ -6,8 +6,10 @@ import {
   BINARY_OUTCOMES,
   SEED,
   binaryPool,
+  declareSeed,
   normalizePool,
   type Outcome,
+  type SeedMode,
 } from "@/domain/parimutuel";
 
 /**
@@ -58,13 +60,28 @@ export interface OwnMarketSeed {
 
 const FEE_BPS = 300;
 
+/**
+ * Cómo se comporta la semilla de los mercados de este catálogo.
+ *
+ * `"apuesta"` — lo que hubo siempre, y lo que estas trece preguntas prometieron
+ * el día que se publicaron. R-067 dice que la liquidez de la casa debe ser
+ * subsidio, y lo será para los mercados que nazcan de aquí en adelante; **estos
+ * no se migran.** Cambiarles el modo movería el multiplicador que ya se le
+ * mostró a quien apostó, y cada mercado termina con las reglas con las que
+ * nació (R-023, R-044).
+ *
+ * Se escribe explícito en vez de dejarlo ausente: el default silencioso hace lo
+ * mismo, pero no dice que alguien lo pensó.
+ */
+const SEED_MODE: SeedMode = "apuesta";
+
 function seedPool(si = SEED, no = SEED): Pool {
-  return binaryPool(si, no, FEE_BPS);
+  return declareSeed(binaryPool(si, no, FEE_BPS), SEED_MODE);
 }
 
 /** Semilla de un mercado de N resultados: cada id con lo suyo. */
 function seedOutcomes(outcomes: Record<string, number>): Pool {
-  return { outcomes: { ...outcomes }, feeBps: FEE_BPS };
+  return declareSeed({ outcomes: { ...outcomes }, feeBps: FEE_BPS }, SEED_MODE);
 }
 
 const SEEDS: OwnMarketSeed[] = [
