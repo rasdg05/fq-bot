@@ -156,6 +156,15 @@ const MUTACIONES = [
     de: '  if (reading.status === "sin_dato") {', a: "  if (false) {",
     tests: ["tests/frescura.test.ts", "tests/settlement.test.ts"] },
 
+  // --- §3 · ciclo de vida: resolver, y no pagar dos veces tras un redeploy ---
+  { nombre: "§3 el redeploy vuelve a pagar el mercado", archivo: "server/store.mts",
+    de: '      (a) => a.tipo === "liquidacion" && a.ref === input.marketId,',
+    a: "      () => false,", tests: ["tests/servidor.test.ts", "tests/contabilidad.test.ts"] },
+  { nombre: "§3 el ciclo no se salta un mercado ya pagado", archivo: "server/ciclo.mts",
+    de: '      if (estado.phase === "en_disputa" && isPayable(estado, ahora)) {',
+    a: '      if (estado.phase !== "atorado" && isPayable(estado, ahora)) {',
+    tests: ["tests/servidor.test.ts"],
+    equivalente: "`isPayable` ya comprueba `phase === \"en_disputa\"` por dentro, así que la condición de fuera es redundante. La protección de verdad contra un mercado ya pagado viene de ahí, no de esta línea" },
   // --- §3 · ciclo de vida: que el mercado se pueda resolver ---
   { nombre: "§3 las series pierden su margen de cadencia", archivo: "src/adapters/ownMarkets/catalog.ts",
     de: "      frescuraDias: 100,", a: "", tests: ["tests/frescura.test.ts"] },

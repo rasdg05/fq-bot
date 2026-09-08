@@ -740,3 +740,41 @@ aparece un hueco.
 catálogo —serie, precio y partido— tiene que resolverse por programa cuando su
 fuente contesta lo que la regla pide. Es la forma general del agujero que atascó
 las cinco series, y estaba a un test de distancia de no encontrarse nunca.
+
+
+---
+
+## §3 · La ventana entre pagar y marcar
+
+Verificado el ciclo entero en proceso real —crear, apostar, cerrar, resolver,
+esperar la disputa, pagar, reiniciar— no apareció ningún defecto. Pero al
+convertirlo en test permanente apareció otra cosa, y es la cuarta vez esta
+sesión.
+
+**El test que escribí para el redeploy no probaba lo que decía su nombre.**
+Corría el ciclo dos veces con un reinicio en medio y daba verde **aunque se
+desactivara la idempotencia del store**. La razón: `ciclo.mts` ve la fase
+`pagado` y se salta el bloque de liquidación entero, así que la guarda del store
+ni se llama. El test probaba la guarda de fuera y no la de dentro. Lo encontró
+el arnés de mutaciones, no yo.
+
+**Y la guarda de dentro protege un caso real que ningún test tocaba.**
+`ciclo.mts` **paga primero y marca después**, a propósito: si el proceso muere en
+medio, el dinero ya está acreditado y el estado se recalcula solo. Pero si muere
+justo ahí, al arrancar la fase sigue siendo `en_disputa`, `isPayable` sigue dando
+true, y el ciclo **vuelve a liquidar un mercado que ya se pagó**. En Railway, que
+redeploya en cada push, esa ventana es real.
+
+Medido con la idempotencia desactivada, el fallo es exactamente el que se teme:
+la casa cobra la comisión de 24 **dos veces**. Y pagar dos veces no descuadra el
+libro — lo deja cuadrado con el saldo del pozo en **negativo**, que es mucho peor
+de encontrar. Hay test, y se ve en rojo.
+
+**Un tercer hallazgo, más pequeño:** la condición `estado.phase === "en_disputa"`
+de `ciclo.mts` es **redundante** — `isPayable` ya la comprueba por dentro. La
+protección real contra un mercado ya pagado viene de ahí. Queda anotado como
+mutante equivalente en el arnés en vez de borrarse: dos guardas para lo mismo son
+baratas, y saber cuál es la que sostiene el peso vale más que quitar una línea.
+
+**Barrido final: 55 mutaciones, 53 detectadas, 2 equivalentes documentadas, 0
+huecos.**
