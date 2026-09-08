@@ -385,6 +385,27 @@ puerta medida y cada test nuevo roto a propósito una vez para verlo en rojo.
 | **U6** | El árbol de época | Prueba de inclusión que verifica; borrar una hoja rompe la de alguien por **dos** caminos; árbol impar correcto con 1…33 hojas |
 | **U7** | Contratos | **Saltada.** `forge` no es alcanzable (releases de GitHub → 403). Nota honesta: npm **sí** tiene `solc` y `hardhat`; se salta igual porque añadir una segunda cadena de construcción al repo no es decisión de una sesión autónoma (P-006) |
 | **U8** | Sincronizar la documentación | Esta sección y el estado de invariantes de `LIQUIDEZ.md` |
+| **§3** | Reforzar lo construido | `npm run mutaciones`: **55 mutaciones, 53 detectadas, 2 equivalentes documentadas, 0 huecos**. Encontró siete formas de romper el código que la suite no veía, más los dos defectos de producto de abajo |
+
+**Y dos defectos de producto que aparecieron al reforzar las pruebas (§3), que
+valen más que todo lo anterior porque eran agujeros de ciclo de vida:**
+
+1. **Cinco mercados no podían resolverse nunca por programa** — `mx-inpc-anual`,
+   `mx-banxico-tasa`, `br-ipca-5`, `br-selic-corte`, `pe-inflacion-lima`.
+   Descartaban su propio dato correcto por viejo: el margen por defecto era de
+   1.5 días y una serie mensual llega fechada ~35 días antes de resolver, porque
+   va fechada al **periodo** y no a la publicación. Arreglado con
+   `frescuraDias: 100` y un test que pone la suite en rojo si alguien escribe
+   otro mercado de serie sin margen. **Dos de los cinco estaban tapados por la
+   falta de token**: sin llave el oráculo contesta `requiere_humano` antes de
+   llegar a la comprobación, así que el defecto sólo habría aparecido el día en
+   que el mercado por fin iba a funcionar solo.
+2. **La ventana entre pagar y marcar.** `ciclo.mts` paga primero y marca después,
+   a propósito. Si el proceso muere ahí, al arrancar la fase sigue en
+   `en_disputa` y el ciclo vuelve a liquidar un mercado ya pagado. Medido con la
+   guarda desactivada: la casa cobra la comisión **dos veces**, y eso **no
+   descuadra el libro** — lo deja cuadrado con el saldo del pozo en negativo. En
+   Railway, que redeploya en cada push, la ventana es real. Ya tiene test.
 
 **Las tres cosas que costó descubrir y que no están en el diff:**
 

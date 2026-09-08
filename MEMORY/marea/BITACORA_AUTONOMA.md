@@ -9,6 +9,60 @@
 
 ---
 
+## Resumen: en qué quedó todo
+
+**Lo construido.** Ocho unidades de la cola, una por commit. De las invariantes
+de liquidez, **L1, L2, L3, L5, L6, L8, L9 y L15 pasaron de escritas a vivas**.
+U7 (contratos) se saltó: `forge` no es alcanzable en este entorno.
+
+**Lo que NO cambió, y hay que decirlo en la misma frase.** Nadie nace en modo
+subsidio, los topes no tienen cifras, los contratos no existen, las hojas de la
+época no se publican y nada está desplegado. El dominio está; el producto en
+cadena no.
+
+**Los dos defectos de producto que aparecieron midiendo**, y que valen más que
+todo lo demás porque eran agujeros de ciclo de vida:
+
+1. **Cinco mercados no podían resolverse nunca por programa** — `mx-inpc-anual`,
+   `mx-banxico-tasa`, `br-ipca-5`, `br-selic-corte`, `pe-inflacion-lima`.
+   Descartaban su propio dato correcto por viejo: el margen por defecto era de
+   1.5 días y una serie mensual llega fechada ~35 días antes de resolver, porque
+   va fechada al periodo y no a la publicación. **Dos de los cinco estaban
+   tapados por la falta de token**: sin llave el oráculo contesta
+   `requiere_humano` antes de llegar a la comprobación, así que el defecto sólo
+   habría aparecido el día en que el mercado por fin iba a funcionar solo.
+2. **La ventana entre pagar y marcar.** `ciclo.mts` paga primero y marca después,
+   a propósito. Si el proceso muere ahí, al arrancar la fase sigue en
+   `en_disputa` y el ciclo vuelve a liquidar. Medido con la guarda desactivada:
+   la casa cobra la comisión **dos veces**, y eso **no descuadra el libro** — lo
+   deja cuadrado con el saldo del pozo en negativo. En Railway, que redeploya en
+   cada push, la ventana es real.
+
+**La lección que se repitió cuatro veces.** Escribí **diez tests que pasaban en
+verde sin probar lo que decía su nombre**, y no estaban repartidos al azar: se
+concentran en guardas que nunca se disparan en el camino feliz y en propiedades
+adversarias — separación de dominio del árbol, codificación de las hojas,
+idempotencia del cierre, la guarda del store tras un redeploy. El camino feliz se
+prueba solo. Lo que un atacante rompería, o lo que sólo pasa con datos corruptos,
+hay que romperlo a propósito para saber que el test lo mira.
+
+Por eso `npm run mutaciones` está versionado: **55 mutaciones, 53 detectadas, 2
+equivalentes documentadas, 0 huecos**, y sale con código distinto de cero si
+aparece uno. El arnés falló él mismo de las dos formas posibles antes de ser
+fiable —falso positivo por una lista de archivos mal puesta, falso negativo por
+comparar contra cero en vez de contra la línea base— y las dos están escritas
+abajo.
+
+**Suite:** 8 rojas (todas de línea base, catálogo caducado, no son nuestras) ·
+**287 → 375 verdes**.
+
+**Lo que espera a RasDG** (`marea/vault/PREGUNTAS_ABIERTAS.md`): las tres cifras
+de los topes (P-004), encender el modo subsidio (P-002) y qué hacer con los
+contratos ahora que `forge` no llega pero npm sí trae Solidity (P-006). Ninguna
+bloquea lo construido.
+
+---
+
 ## U0 · Línea base de la suite ✔
 
 **Qué se hizo.** `npm ci` (277 paquetes, limpio) y se corrió todo: `tsc`, `vitest`,
