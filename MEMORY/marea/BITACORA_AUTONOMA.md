@@ -446,3 +446,89 @@ El mercado no avanza nunca de `cerrado`, nadie cobra, y la razón está escrita.
 **Puerta:** ✔ una lectura más vieja que el umbral no avanza de fase, se reintenta
 y lo declara — medido en proceso real. Línea base intacta: mismas 8 rojas,
 +12 verdes (328 → 340).
+
+
+---
+
+## U6 · El árbol de época ✔
+
+**Qué se hizo.** `domain/merkle.ts` y `domain/epoca.ts`, puros, con las tres
+correcciones ya decididas y L15 encima. Y `domain/sha256.ts`, que no estaba en el
+plan.
+
+**Lo que costó descubrir.**
+
+1. **Hizo falta escribir SHA-256 a mano, y por una razón de diseño.**
+   `node:crypto` no existe en el navegador, y la pantalla del verificador —de
+   quien comprueba **su propia** prueba— corre ahí. `crypto.subtle` existe en los
+   dos pero es **asíncrono**, y una API asíncrona se contagia hacia arriba: el
+   árbol entero, las pruebas y quien las verifique acabarían devolviendo promesas
+   por una decisión de plataforma, no de dominio. Sesenta líneas de aritmética
+   cuestan menos que eso. Contrastado contra `node:crypto` sobre 300 entradas
+   aleatorias en las longitudes que cruzan el borde de bloque (55, 56, 64, 119,
+   120): que una implementación sea consistente **consigo misma** no prueba nada.
+
+2. **Dos de mis tests pasaban en verde sin probar nada, y las mutaciones lo
+   destaparon.** Es el hallazgo de la unidad y merece el detalle:
+
+   - **Separación de dominio.** Mi test afirmaba `hashNodo(a,b) !== a`. Eso es
+     cierto por casualidad **aunque los dos prefijos sean idénticos**. Puse
+     `PREFIJO_NODO = 0x00` y los 20 tests siguieron verdes. La afirmación útil no
+     es «el nodo no es igual a la hoja», sino que **los dos prefijos existen y son
+     distintos**, y eso se comprueba contra los bytes: se reconstruye a mano lo
+     que debería hashearse y se exige que el nodo sea `SHA256(0x01 concat ...)` y
+     **no** `SHA256(0x00 concat ...)`.
+
+   - **Campos con longitud.** Mi test usaba `{usuario:"ab", hecho:"c"}` contra
+     `{usuario:"a", hecho:"bc"}`. **No colisionan** ni sin longitudes, porque el
+     `seq` de ancho fijo va **en medio** y separa los dos campos de texto. Otra
+     mutación en verde. Busqué la colisión de verdad y existe: con la
+     codificación sin longitudes, `{usuario:"ab", seq:1, hecho:""}` y
+     `{usuario:"a", seq:0x62000000, hecho:<byte 0x01>}` dan los mismos bytes
+     (`61 62 00 00 00 01`). Dos hechos de **usuarios distintos** con la misma
+     hoja. Ahora el test usa ése.
+
+   La lección no es «me equivoqué dos veces»: es que **los dos tests que
+   fallaron eran justo los de las propiedades adversarias**. El camino feliz se
+   prueba solo; lo que un atacante rompería hay que romperlo a propósito para
+   saber que el test lo mira. Sin §0.5, U6 se habría cerrado con dos invariantes
+   de seguridad sin verificación y nadie lo habría notado.
+
+3. **La hoja impar sí estaba bien probada, y se nota en qué falla.** Duplicar en
+   vez de promover puso rojas 4 pruebas, incluida la de propiedad. Es el fallo de
+   maleabilidad de Bitcoin (CVE-2012-2459): `[a,b,c]` y `[a,b,c,c]` darían la
+   misma raíz y la raíz dejaría de identificar el libro.
+
+4. **L15 necesita las tres comprobaciones porque ninguna implica a las otras.**
+   Se puede enseñar con dos ataques distintos:
+   - **borrar una hoja** produce que falle el **conteo** del ancla y que las
+     pruebas ya entregadas dejen de verificar;
+   - **borrar una hoja y reanclar** deja raíz y conteo cuadrando entre sí
+     perfectamente, y lo único que delata el robo es que a beto le falta su
+     hecho n.º 2 — que **él ve solo, mirando únicamente sus hojas**, sin ver el
+     resto del libro ni tener que creernos.
+
+   El segundo es el caso que importa, porque es el que haría alguien de dentro.
+
+**Lo que queda dicho y no hecho.** La tercera pata de L15 —**publicar las hojas**
+de la época— no es código de dominio: sin ella, «auditable» sigue dependiendo de
+que nosotros contestemos. Está anotado en el encabezado de `epoca.ts` para que
+nadie confunda «mi prueba verifica» con «el libro está entero».
+
+**Las mutaciones (§0.5).**
+
+| Se rompió | Se puso rojo |
+|---|---|
+| se quita la separación de dominio | **0 → 1** (tras reescribir el test) |
+| los campos se concatenan sin longitud | **0 → 2** (tras encontrar la colisión real) |
+| la hoja impar se duplica en vez de promoverse | 4 pruebas |
+| el ancla deja de anclar el conteo | 2 pruebas |
+| la secuencia por usuario deja de comprobarse | 2 pruebas |
+| una época vacía devuelve un hash en vez de lanzar | 1 prueba |
+
+**Puerta:** ✔ se genera una prueba de inclusión y se verifica; borrar una hoja
+del libro rompe la verificación de alguien (por dos caminos distintos); y un
+árbol con número impar de hojas verifica correctamente (probado con 1, 3, 5, 7,
+9, 11, 13, 21 y 33). La API está documentada en el encabezado de `merkle.ts` para
+la pantalla del verificador. Línea base intacta: mismas 8 rojas, +20 verdes
+(340 a 360).
