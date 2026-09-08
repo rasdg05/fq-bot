@@ -267,3 +267,32 @@ describe("L15 — una omisión es detectable", () => {
     expect(verificarAncla(mienteLaRaiz, hojas)[0]).toContain("la raíz no coincide");
   });
 });
+
+/**
+ * Casos borde que el barrido de mutaciones encontró sin cubrir. Los dos son
+ * sobre el índice, que es la parte de la prueba que **no** entra en el hash: el
+ * camino solo ya demuestra la inclusión, así que un índice absurdo no rompe la
+ * aritmética — y por eso hace falta comprobarlo aparte.
+ */
+describe("Árbol de época — el índice, que el hash no comprueba", () => {
+  it("una prueba con índice fuera de rango se rechaza aunque el camino sea correcto", () => {
+    const hojas = libro(["ana"], [4]);
+    const buena = pruebaDeInclusion(hojas, 1);
+    expect(verificar(hojas[1], buena, raiz(hojas))).toBe(true);
+
+    // el mismo camino, con un índice imposible: la aritmética seguiría cuadrando
+    expect(verificar(hojas[1], { ...buena, indice: 99 }, raiz(hojas))).toBe(false);
+    expect(verificar(hojas[1], { ...buena, indice: -1 }, raiz(hojas))).toBe(false);
+    // y un conteo de hojas que no admite ese índice tampoco
+    expect(verificar(hojas[1], { ...buena, hojas: 1 }, raiz(hojas))).toBe(false);
+  });
+
+  it("pedir la prueba de una hoja que no existe LANZA, no devuelve la de otra", () => {
+    // devolver la prueba de la hoja 0 en silencio sería peor que fallar: quien
+    // la pide se llevaría una prueba válida de un hecho que no es el suyo
+    const hojas = libro(["ana"], [4]);
+    expect(() => pruebaDeInclusion(hojas, 4)).toThrow(/fuera del árbol/);
+    expect(() => pruebaDeInclusion(hojas, -1)).toThrow(/fuera del árbol/);
+    expect(() => pruebaDeInclusion(hojas, 1.5)).toThrow(/fuera del árbol/);
+  });
+});

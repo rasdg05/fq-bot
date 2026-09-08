@@ -212,3 +212,52 @@ describe("Compensador — el reparto se mueve por la cámara", () => {
     expect(c.pagosDeApuestas).toEqual({});
   });
 });
+
+/**
+ * Casos borde que el barrido de mutaciones encontró sin cubrir.
+ */
+describe("Compensador — el polvo de coma flotante y los mensajes", () => {
+  it("un resto de polvo NO crea una pata de tesorería", () => {
+    // 1000 − 999.9999999999999 = 1.1e-13. Sin limpiarlo, cada liquidación que no
+    // divide exacta acreditaría a la casa una fracción de nada, y el libro se
+    // llenaría de asientos por polvo
+    const asignacion = asignacionDe(1000, { payouts: { a: 999.9999999999999 }, fee: 0 });
+    expect(asignacion[TESORERIA]).toBeUndefined();
+    expect(Object.keys(asignacion)).toEqual(["a"]);
+  });
+
+  it("un resto de verdad sí crea su pata, por pequeño que parezca", () => {
+    // la limpieza es de ruido, no de cantidades: 0.01 es dinero
+    const asignacion = asignacionDe(1000, { payouts: { a: 999.99 }, fee: 0 });
+    expect(asignacion[TESORERIA]).toBeCloseTo(0.01, 9);
+  });
+
+  it("un reparto que falta da un error de dominio que nombra el resultado, no un TypeError", () => {
+    /**
+     * Lo que hay que fijar aquí NO es que exista la comprobación temprana: si se
+     * cambia por un `continue`, `acunar` lo rechaza igual y con un mensaje que
+     * también nombra el resultado — medido, es un mutante equivalente.
+     *
+     * Lo que sí importa es que **borrar la guarda del todo** no es equivalente:
+     * `asignacionDe` recibiría `undefined` y saldría un
+     * `TypeError: Cannot read properties of undefined`. Un error de plataforma
+     * en el camino del dinero no dice qué arreglar y no se puede distinguir de
+     * un bug nuestro en otra parte.
+     */
+    let error: unknown;
+    try {
+      compensar({
+        marketId: "m",
+        outcomes: ["si", "no", "tal_vez"],
+        colateral: 300,
+        repartoPorResultado: { si: { payouts: { a: 300 }, fee: 0 }, no: { payouts: {}, fee: 0 } },
+        ganador: "si",
+      });
+    } catch (e) {
+      error = e;
+    }
+    expect(error).toBeInstanceOf(PozoInconsistente);
+    expect((error as Error).message).toMatch(/tal_vez/);
+    expect((error as Error).name).not.toBe("TypeError");
+  });
+});

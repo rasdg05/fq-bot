@@ -638,6 +638,20 @@ describe("L3 — separación de cuentas y pozo vacío", () => {
     }
   });
 
+  it("un pago de cero no crea una pata: el libro no se llena de ruido", () => {
+    // quien perdió cobra 0, y `settle` devuelve un 0 explícito por cada apuesta.
+    // Escribir esas patas dejaría un asiento con tantas líneas como apostadores
+    // y una sola con dinero — cuadra igual, y es ilegible
+    const asiento = asientoLiquidacion({
+      marketId: "m1",
+      pagos: { gano: 700, perdio: 0, tambienPerdio: 0 },
+      fee: 0,
+      aCapital: 0,
+    });
+    expect(asiento.patas.length).toBe(2); // el pozo y el que cobró
+    expect(asiento.patas.map((p) => p.cuenta)).toEqual([cuentaPozo("m1"), cuentaUsuario("gano")]);
+  });
+
   it("un pago a un usuario que ya no existe vuelve al capital, no se queda en el pozo", () => {
     const dir = mkdtempSync(join(tmpdir(), "marea-l3-fantasma-"));
     try {

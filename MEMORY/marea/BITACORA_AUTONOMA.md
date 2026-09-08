@@ -606,3 +606,52 @@ no vuelva a heredar el número equivocado.
 **Puerta:** ✔ alguien que lea sólo `MEMORY/marea/README.md` sabe en qué estado
 quedó todo — lo construido, lo que espera cifras de RasDG y lo que no existe.
 Línea base intacta: 8 rojas, 360 verdes.
+
+
+---
+
+## §3 · Reforzar lo construido: el barrido de mutaciones
+
+La cola dice que, al llegar al final, no se invente trabajo nuevo: se refuerzan
+las pruebas de lo ya construido con más casos borde y **más mutaciones
+deliberadas**. Eso es lo que se hizo, y automatizado.
+
+**Por qué automatizarlo.** §0.5 —«rompe cada test nuevo a propósito una vez»— es
+la regla más valiosa del repo y la más fácil de saltarse: hacerlo a mano son
+cinco minutos por test y nadie los echa de menos. Un proceso que depende de que
+alguien se acuerde no existe (AGENTE §2). Ahora es `npm run mutaciones`, con las
+**50 mutaciones versionadas** en `marea/scripts/mutaciones.mjs`, y sale con
+código 1 si alguna sobrevive sin estar marcada como equivalente.
+
+**Lo que encontró la primera pasada: 7 de 24 mutaciones SOBREVIVÍAN.** Es decir,
+siete formas de romper el código que la suite no veía, en código escrito **esta
+misma sesión** y con sus tests puestos a mano. Los siete huecos:
+
+| Hueco | Qué pasaba de verdad |
+|---|---|
+| `bettorStake` permite negativo | Un pozo corrupto (semilla > pozo) daría un multiplicador negativo: pagos negativos a quien acertó |
+| `normalizePool` comparte el mapa de semilla | Alias: mutar el pozo releído cambiaría el que ya estaba en memoria. `outcomes` se copiaba por esta razón; la semilla no |
+| El polvo de coma flotante crea una pata | `1000 − 999.9999999999999 = 1.1e-13` acreditaría a la casa una fracción de nada, en **cada** liquidación que no divide exacta |
+| Un pago de cero crea una pata | Un asiento con tantas líneas como apostadores y una sola con dinero. Cuadra igual, y es ilegible |
+| `verificar` no comprueba el rango del índice | El índice **no entra en el hash**: el camino solo ya prueba la inclusión, así que un índice absurdo no rompe la aritmética y hay que comprobarlo aparte |
+| `pruebaDeInclusion` acepta índice fuera del árbol | Devolvería en silencio la prueba de la hoja 0: quien la pide se llevaría una prueba **válida de un hecho que no es el suyo** |
+| Falta el reparto de un resultado | *(resultó equivalente, ver abajo)* |
+
+**Y un mutante equivalente, que es un resultado distinto de un hueco.** «Falta el
+reparto de un resultado» sobrevive porque `acunar()` lo rechaza igual, con un
+mensaje que también nombra el resultado — medido, no supuesto. Pero **borrar la
+guarda del todo no es equivalente**: `asignacionDe` recibiría `undefined` y
+saldría un `TypeError: Cannot read properties of undefined`, un error de
+plataforma en el camino del dinero que no dice qué arreglar. El test se cambió
+para fijar **eso** —error de dominio, no `TypeError`— en vez de forzar una
+comprobación sobre el texto de un mensaje. Una mutación que sobrevive no siempre
+es un test que falta, y decir cuál es cuál es parte del trabajo.
+
+**Resultado final: 49/50 detectadas, 1 equivalente documentada, 0 huecos.**
+
+**La lección, que ya van tres veces esta sesión.** Los huecos no estaban
+repartidos al azar: se concentran en **guardas que nunca se disparan en el camino
+feliz** y en **propiedades adversarias**. El camino feliz se prueba solo. Lo que
+un atacante rompería, o lo que sólo pasa con datos corruptos, hay que romperlo a
+propósito para saber que el test lo mira — y contando U3 y U6, esta sesión
+escribió **diez** tests que pasaban en verde sin probar lo que decía su nombre.

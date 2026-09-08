@@ -426,3 +426,39 @@ describe("La semilla como subsidio (R-067)", () => {
     }
   });
 });
+
+/**
+ * Casos borde que un barrido de mutaciones encontró sin cubrir. Los dos son
+ * guardas que nunca se disparan en el camino normal — y por eso mismo nadie las
+ * echaría de menos si desaparecieran.
+ */
+describe("La semilla como subsidio — guardas que no se ven en el camino feliz", () => {
+  it("un pozo corrupto no produce un denominador negativo", () => {
+    // una semilla mayor que el pozo no debería existir; si existe, la respuesta
+    // honesta es cero (nadie cobra), no un multiplicador con signo que pagaría
+    // cantidades negativas a quien acertó
+    const corrupto: Pool = {
+      outcomes: { si: 100, no: 100 },
+      seed: { si: 400, no: 100 },
+      seedMode: "subsidio",
+      feeBps: 0,
+    };
+    expect(bettorStake(corrupto, "si")).toBe(0);
+    expect(payoutMultiplier(corrupto, "si")).toBe(0);
+    expect(payoutMultiplier(corrupto, "si", 50)).toBeGreaterThan(0); // con apuesta ya hay a quién pagar
+    // y al liquidar no hay ganadores: se devuelve todo, sin comisión
+    const reparto = settle(corrupto, [{ id: "u", side: "no", stake: 100 }], "si");
+    expect(reparto.fee).toBe(0);
+    expect(reparto.payouts.u).toBe(100);
+  });
+
+  it("releer un pozo no comparte el mapa de semilla con el original", () => {
+    // `outcomes` se copia por esta misma razón; la semilla tiene que copiarse
+    // igual, o mutar el pozo releído cambiaría el que ya estaba en memoria
+    const original = declareSeed(binaryPool(300, 200, 300), "subsidio");
+    const releido = normalizePool(original);
+    releido.seed!.si = 999;
+    expect(original.seed!.si).toBe(300);
+    expect(bettorStake(original, "si")).toBe(0);
+  });
+});
