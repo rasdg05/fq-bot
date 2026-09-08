@@ -121,6 +121,10 @@ export function createPriceOracle(options: PriceOracleOptions = {}): Oracle {
           evidence: `Vela diaria de ${rule.par} en Kraken del ${dia}: cierre ${monto(
             vela.cierre,
           )} USD frente al umbral de ${monto(rule.umbral)}.`,
+          // de cuándo es el dato: el cierre de la vela, no el momento de la
+          // petición. Si Kraken deja de publicar, esta fecha se congela y la
+          // puerta de frescura lo ve; la de la petición seguiría avanzando
+          observedAt: new Date(vela.inicio + DIA_MS).toISOString(),
         };
       }
 
@@ -147,7 +151,14 @@ export function createPriceOracle(options: PriceOracleOptions = {}): Oracle {
       if (!toco && query.now < settlesAt) {
         return { status: "sin_dato", evidence: detalle };
       }
-      return { status: "resuelto", outcome: toco ? "si" : "no", evidence: detalle };
+      // la vela más reciente de la ventana: es lo último que la fuente sabe
+      const ultima = Math.max(...ventana.map((candle) => candle.inicio));
+      return {
+        status: "resuelto",
+        outcome: toco ? "si" : "no",
+        evidence: detalle,
+        observedAt: new Date(ultima + DIA_MS).toISOString(),
+      };
     },
   };
 }

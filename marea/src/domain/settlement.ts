@@ -50,11 +50,38 @@ export interface SettlementState {
   paidAt?: string;
   /** Por qué se atoró, si se atoró. */
   stuckReason?: string;
+  /**
+   * De cuándo era el dato con el que se resolvió, y si su antigüedad se pudo
+   * comprobar. `false` no es un fallo: es la diferencia entre «está fresco» y
+   * «no sé si está fresco», y confundirlas es cómo una fuente parada pasa por
+   * una viva.
+   */
+  observedAt?: string;
+  frescuraVerificada?: boolean;
 }
 
 /** Lo que devuelve un oráculo al consultar la fuente citada. */
 export type OracleReading =
-  | { status: "resuelto"; outcome: OutcomeId; evidence: string }
+  | {
+      status: "resuelto";
+      outcome: OutcomeId;
+      evidence: string;
+      /**
+       * De cuándo es el **dato**, no cuándo lo pedimos.
+       *
+       * Es la diferencia entera. Una fuente parada contesta al instante y con
+       * un 200: lo que delata que dejó de medir no es la latencia, es que el
+       * dato que devuelve sigue siendo el de anteayer. Sin este campo, un
+       * colector detenido resuelve mercados con la misma cara que uno vivo —
+       * que es exactamente el fallo que en el bot obligó a cablear
+       * `cvd_confirmation`.
+       *
+       * Opcional porque no todos los oráculos lo reportan todavía. Cuando
+       * falta, la frescura **no se puede verificar** y el estado lo dice; no
+       * se finge que sí.
+       */
+      observedAt?: string;
+    }
   /** La fuente aún no publicó el dato. Se reintenta. */
   | { status: "sin_dato"; evidence: string }
   /** La fuente no se puede leer por programa: necesita a una persona. */
@@ -121,8 +148,83 @@ export function onClose(state: SettlementState): SettlementState {
 }
 
 /**
+ * Umbral de referencia para las fuentes que laten a diario o más rápido —
+ * velas de Kraken, marcadores de ESPN. Dos días: holgado para una fuente que se
+ * retrasa, apretado para que un colector detenido no pase de la segunda corrida.
+ *
+ * **No es un default global**, y eso se decidió midiendo. De los 13 mercados del
+ * catálogo, **9 se resuelven con series mensuales** (INPC, IPCA, IMACEC, Selic).
+ * Su `observedAt` es la fecha del **periodo observado**, que por construcción
+ * tiene semanas cuando el dato se publica: un umbral de 48 horas no los
+ * protegería, los **atascaría a todos**. Y para ellos el reloj de pared es la
+ * herramienta equivocada de todos modos — que la serie esté al día ya lo
+ * comprueba la propia regla, que devuelve `sin_dato` cuando la última
+ * observación es anterior al periodo que el mercado pide.
+ *
+ * De ahí la forma que tiene esto: **la antigüedad se mide siempre; se hace
+ * cumplir sólo donde el reloj es la herramienta correcta**, y eso lo declara
+ * cada mercado en `maxAgeHours`. Medir siempre importa: aunque no bloquee, un
+ * `observedAt` congelado queda escrito en el estado y se puede ver.
+ */
+export const FRESCURA_MAX_HORAS = 48;
+
+export interface Frescura {
+  /** ¿Se pudo comprobar la antigüedad? `false` = la lectura no la declaró. */
+  verificable: boolean;
+  /** Horas de antigüedad del dato. `undefined` si no se pudo saber. */
+  horas?: number;
+  /** El umbral del mercado. `undefined` = no se hace cumplir en este mercado. */
+  umbralHoras?: number;
+  /**
+   * ¿Se puede usar? Sólo es `false` cuando el mercado puso umbral **y** la
+   * antigüedad se pudo medir **y** lo cruza. Sin umbral no se bloquea nada; sin
+   * fecha tampoco, porque no saber no es lo mismo que saber que está mal.
+   */
+  utilizable: boolean;
+}
+
+/**
+ * Cuán viejo es el dato de una lectura, **por parámetro**: la antigüedad sale
+ * de `now` menos `observedAt`, los dos entrando desde fuera. Ni un reloj de
+ * pared aquí dentro, o el replay heredaría la hora del click.
+ *
+ * Una fecha futura cuenta como antigüedad cero, no negativa: un reloj adelantado
+ * en la fuente no debe poder «rejuvenecer» nada, pero tampoco es motivo para
+ * bloquear un mercado.
+ */
+export function frescuraDe(
+  reading: OracleReading,
+  spec: ResolutionSpec,
+  now: number,
+): Frescura {
+  const umbralHoras = spec.maxAgeHours;
+  // sólo una lectura resuelta trae fecha; las otras no tienen dato que fechar
+  const declarado = "observedAt" in reading ? reading.observedAt : undefined;
+  const at = declarado ? Date.parse(declarado) : NaN;
+  if (!Number.isFinite(at)) {
+    // no se puede comprobar. No es lo mismo que estar fresca, y no se dice que
+    // sí — pero tampoco se bloquea por no saber: eso atascaría el catálogo
+    return { verificable: false, umbralHoras, utilizable: true };
+  }
+  const horas = Math.max(0, (now - at) / 3_600_000);
+  return {
+    verificable: true,
+    horas,
+    umbralHoras,
+    utilizable: umbralHoras === undefined || horas <= umbralHoras,
+  };
+}
+
+/**
  * Registra la lectura de la fuente y abre la ventana de disputa.
  * Una lectura sin dato no avanza el ciclo: se vuelve a intentar más tarde.
+ *
+ * **Y una lectura vieja tampoco.** Una fuente parada contesta al instante y con
+ * un 200; lo que la delata es que el dato que devuelve es el de anteayer. Sin
+ * esta puerta, un colector detenido resuelve mercados con la misma cara que uno
+ * vivo — el mismo fallo que en el bot obligó a cablear `cvd_confirmation`. No se
+ * atora el mercado: se **reintenta**, porque una fuente que se retrasó suele
+ * ponerse al día sola, y atorarla llamaría a una persona sin necesidad.
  */
 export function onRead(
   state: SettlementState,
@@ -150,6 +252,19 @@ export function onRead(
     };
   }
 
+  const frescura = frescuraDe(reading, spec, now);
+  if (!frescura.utilizable) {
+    // no avanza de fase, y lo declara: la próxima corrida lo vuelve a intentar.
+    // No se atora: una fuente que se retrasó suele ponerse al día sola, y
+    // atorarla llamaría a una persona sin necesidad
+    return {
+      ...state,
+      evidence: `${reading.evidence} — NO se usa: el dato es de hace ${frescura.horas!.toFixed(1)} h y el máximo de esta fuente son ${frescura.umbralHoras} h. Se reintenta.`,
+      observedAt: reading.observedAt,
+      frescuraVerificada: true,
+    };
+  }
+
   const at = new Date(now).toISOString();
   return {
     ...state,
@@ -158,7 +273,28 @@ export function onRead(
     readAt: at,
     evidence: reading.evidence,
     disputeUntil: disputeDeadline(at, spec),
+    ...(reading.observedAt ? { observedAt: reading.observedAt } : {}),
+    frescuraVerificada: frescura.verificable,
   };
+}
+
+/**
+ * Los mercados que se resolvieron **sin poder comprobar** la antigüedad de su
+ * fuente. Vacío = todas las resoluciones fueron auditables.
+ *
+ * Existe porque la regla escrita recuerda y sólo la verificación impide: un
+ * oráculo que no reporta `observedAt` no rompe nada hoy, y por eso mismo nadie
+ * se enteraría de que su fuente lleva una semana parada. Esto lo hace visible
+ * en vez de dejarlo a que alguien se acuerde de mirar.
+ */
+export function resueltosSinFrescura(estados: readonly SettlementState[]): string[] {
+  return estados
+    .filter(
+      (e) =>
+        (e.phase === "en_disputa" || e.phase === "pagado" || e.phase === "devuelto") &&
+        e.frescuraVerificada !== true,
+    )
+    .map((e) => e.marketId);
 }
 
 /** ¿Ya se puede pagar? Sólo con la ventana de disputa cerrada. */

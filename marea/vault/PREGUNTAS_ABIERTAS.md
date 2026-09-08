@@ -120,5 +120,37 @@
 
 ---
 
+## P-005 · La frescura de las series mensuales necesita una medición que nadie ha hecho
+
+- **Fecha:** 2026-09-08 · **Unidad:** U5 · **Estado:** decidido, medible después
+- **El hueco:** L8 pide que una lectura vieja no resuelva. Al implementarlo salió
+  un hecho que cambia el diseño: **9 de los 13 mercados del catálogo se resuelven
+  con series mensuales** (INPC, IPCA, IMACEC, Selic, TRM, Badlar). Su `observedAt`
+  es la fecha del **periodo observado**, que por construcción tiene semanas
+  cuando el dato se publica. Un umbral de reloj de 48 h no los protegería: los
+  **atascaría a los nueve**.
+- **Lo que se hizo (conservador):** la antigüedad se **mide siempre** y se guarda
+  en el estado; se **hace cumplir** sólo donde el mercado declara `maxAgeHours`,
+  y hoy lo declaran los 4 mercados de precio y de partido — las fuentes que laten
+  a diario, donde el reloj sí dice si el colector sigue vivo. Para las series, que
+  el dato esté al día ya lo comprueba la propia regla, que devuelve `sin_dato`
+  cuando la última observación es anterior al periodo que el mercado pide.
+- **Lo que se descartó:** un umbral global. Habría convertido una puerta de
+  seguridad en un atasco de producto, que es peor que el fallo que previene.
+- **Por qué no está cerrado del todo:** una serie mensual **parada** (el instituto
+  dejó de publicar) hoy se detecta sólo por la vía de la regla. Cerrarlo bien pide
+  saber la cadencia real de cada fuente —cuántos días tarda el INEGI, el IBGE, el
+  BCRP— y eso es una **medición** sobre el histórico de cada endpoint, no una
+  cifra que se pueda razonar desde aquí. Un umbral inventado por fuente sería
+  exactamente lo que P-004 dice que no se hace.
+- **Mientras tanto no es invisible:** `resueltosSinFrescura()` lista los mercados
+  que se resolvieron sin poder comprobar la antigüedad, y los tres oráculos de
+  producción ya reportan `observedAt`. La cifra existe aunque todavía no bloquee.
+- **Lo que necesitaría RasDG decidir:** si vale la pena medir la cadencia de las
+  seis fuentes institucionales para poner umbrales por serie, o si la puerta de
+  la regla basta hasta que haya dinero real.
+
+---
+
 _Se abre esta bitácora el 2026-09-08. Formato: qué faltaba, qué se eligió, qué se
 descartó, qué costaría revertirlo._

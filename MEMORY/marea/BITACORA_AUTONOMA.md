@@ -363,3 +363,86 @@ rojas, +18 verdes (310 → 328).
 
 **Queda pendiente de RasDG:** las tres cifras (`PREGUNTAS_ABIERTAS.md` P-004).
 Con puntos da igual; con dinero es el número.
+
+---
+
+## U5 · Frescura del oráculo ✔ (deuda previa, L8)
+
+**Qué se hizo.** `onRead` deja de aceptar una lectura sin mirar de cuándo es el
+dato. La antigüedad entra **por parámetro** (`now − observedAt`, los dos desde
+fuera): ni un reloj de pared dentro, o el replay heredaría la hora del click.
+Los tres oráculos de producción reportan ya `observedAt`.
+
+**El fallo que previene no se parece a una caída.** Una fuente parada contesta al
+instante y con un 200; lo que la delata no es la latencia, es que el dato que
+devuelve sigue siendo el de anteayer. Es el mismo fallo que en el bot obligó a
+cablear `cvd_confirmation`.
+
+**Lo que costó descubrir, y que cambió el diseño a mitad.**
+
+1. **El default obvio habría atascado el catálogo entero.** El primer diseño era
+   un umbral global de 48 h. Al ir a ponerlo, medí el catálogo: **9 de 13
+   mercados son series mensuales** (INPC, IPCA, IMACEC, Selic, TRM, Badlar). Su
+   `observedAt` es la fecha del **periodo observado**, que por construcción tiene
+   semanas cuando el dato se publica. Un umbral de 48 h no los protegería: los
+   atascaría a los nueve, y para siempre.
+
+   Convertir una puerta de seguridad en un atasco de producto es peor que el
+   fallo que previene. De ahí la forma final: **la antigüedad se mide siempre; se
+   hace cumplir donde el reloj es la herramienta correcta**, y eso lo declara
+   cada mercado. Hoy lo declaran los 4 de precio y de partido.
+
+2. **Para las series, el reloj era la herramienta equivocada desde el principio.**
+   Que la serie esté al día ya lo comprueba la propia regla: `seriesOracle`
+   devuelve `sin_dato` cuando la última observación es anterior al periodo que el
+   mercado pide. La puerta de reloj habría sido una segunda comprobación peor de
+   lo mismo. (`PREGUNTAS_ABIERTAS.md` P-005 deja escrito qué faltaría para
+   cerrarlo bien: medir la cadencia real de las seis fuentes institucionales.)
+
+3. **Tres estados distintos, no dos.** «Fresca», «vieja» y **«no sé»** no son lo
+   mismo, y colapsarlos es cómo una fuente parada pasa por una viva:
+   - vieja **con umbral** → no avanza, lo declara, se reintenta;
+   - sin fecha → **no se bloquea** (bloquear por no saber atascaría todo), pero
+     el estado queda marcado `frescuraVerificada: false` y `resueltosSinFrescura()`
+     lo lista;
+   - fresca → resuelve, y guarda de cuándo era el dato.
+
+4. **No se atora: se reintenta.** Una fuente retrasada suele ponerse al día sola,
+   y marcar `atorado` llamaría a una persona sin necesidad (R-062 limita a tres
+   los mercados que dependen de alguien). La evidencia dice la antigüedad, el
+   umbral y que se reintenta.
+
+5. **`tsc` atrapó lo que `vitest` no.** La suite pasaba en verde con un error de
+   tipos en el test: `vitest` no typechequea. Lo cazó `npm run ci`, que corre
+   `tsc` primero — razón por la que la puerta de cada unidad es `ci` y no sólo la
+   suite.
+
+**Verificado en proceso real** con un colector detenido que responde 200 y un
+resultado plausible en cada ciclo:
+
+```
+t+  2h (dato de hace 122h) → fase cerrado · pagados 0 · acreditado 0
+t+ 30h (dato de hace 150h) → fase cerrado · pagados 0 · acreditado 0
+t+ 60h (dato de hace 180h) → fase cerrado · pagados 0 · acreditado 0
+t+200h (dato de hace 320h) → fase cerrado · pagados 0 · acreditado 0
+
+evidencia: «… — NO se usa: el dato es de hace 320.0 h y el máximo de esta
+fuente son 48 h. Se reintenta.»
+saldo de ana: 700 — no cobró nada
+```
+
+El mercado no avanza nunca de `cerrado`, nadie cobra, y la razón está escrita.
+
+**Las mutaciones (§0.5).** Cinco, todas rojas:
+
+| Se rompió | Se puso rojo |
+|---|---|
+| la puerta de frescura deja de existir | 2 pruebas |
+| el umbral se vuelve estricto en el límite | 1 prueba |
+| sin fecha se declara frescura verificada | 3 pruebas |
+| una fecha futura da antigüedad negativa | 1 prueba |
+| el auditor mira al revés | 1 prueba |
+
+**Puerta:** ✔ una lectura más vieja que el umbral no avanza de fase, se reintenta
+y lo declara — medido en proceso real. Línea base intacta: mismas 8 rojas,
++12 verdes (328 → 340).

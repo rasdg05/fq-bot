@@ -1,4 +1,5 @@
 import { assertPublishable } from "@/domain/resolution";
+import { FRESCURA_MAX_HORAS } from "@/domain/settlement";
 import { SEED, binaryPool, declareSeed, type Pool } from "@/domain/parimutuel";
 import type { MatchRule, PriceRule } from "@/domain/oracleRule";
 import type { OwnMarketSeed } from "./catalog";
@@ -129,6 +130,9 @@ function cierreSemanal(
       )} dólares. Se lee del endpoint público de Kraken, que cualquiera puede consultar.`,
       settlesAt,
       disputeWindowHours: 12,
+      // vela diaria de Kraken / marcador de ESPN: fuentes que laten a diario,
+      // así que aquí el reloj SÍ dice si el colector sigue vivo (L8)
+      maxAgeHours: FRESCURA_MAX_HORAS,
     },
   };
 }
@@ -169,6 +173,9 @@ function tocaEnElMes(plantilla: Plantilla, spot: number, now: number): OwnMarket
       )}, medido sobre el máximo de las velas diarias públicas.`,
       settlesAt,
       disputeWindowHours: 12,
+      // vela diaria de Kraken / marcador de ESPN: fuentes que laten a diario,
+      // así que aquí el reloj SÍ dice si el colector sigue vivo (L8)
+      maxAgeHours: FRESCURA_MAX_HORAS,
     },
   };
 }
@@ -252,6 +259,9 @@ export function partidoSeed(partido: PartidoDeLaLiga): OwnMarketSeed {
       criterion: `Se resuelve Sí si ${partido.local} le gana a ${partido.visitante} en el partido del ${dia}, según el marcador final que publica ESPN. Un empate resuelve No.`,
       settlesAt,
       disputeWindowHours: 12,
+      // vela diaria de Kraken / marcador de ESPN: fuentes que laten a diario,
+      // así que aquí el reloj SÍ dice si el colector sigue vivo (L8)
+      maxAgeHours: FRESCURA_MAX_HORAS,
     },
   };
 }

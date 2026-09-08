@@ -23,6 +23,16 @@ export interface ResolutionSpec {
   settlesAt: string;
   /** Horas para disputar antes de pagar. */
   disputeWindowHours: number;
+  /**
+   * Cuánto puede haber envejecido el dato de la fuente y aun así servir para
+   * resolver. Ausente = `FRESCURA_MAX_HORAS`.
+   *
+   * Es por mercado porque las fuentes no laten igual: una vela diaria de Kraken
+   * es fresca a las 20 horas y un INPC mensual lo sigue siendo a los 20 días.
+   * Un umbral global apretado atoraría los mercados lentos; uno holgado dejaría
+   * pasar un colector de precios detenido dos días.
+   */
+  maxAgeHours?: number;
 }
 
 import type { OutcomeId } from "./parimutuel";
