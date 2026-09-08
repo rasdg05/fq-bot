@@ -97,6 +97,11 @@ const SEEDS: OwnMarketSeed[] = [
     // pide token, igual que Banxico; sin él el mercado lo declara (R-022)
     rule: {
       kind: "serie",
+      // el INPC es MENSUAL y el INEGI fecha la observación al periodo. Este
+      // mercado estaba atascado igual que los otros tres, sólo que la falta de
+      // INEGI_TOKEN lo tapaba: sin llave contestaba `requiere_humano` antes de
+      // llegar a la comprobación del margen
+      frescuraDias: 100,
       fuente: "inegi",
       serie: "628194",
       comparacion: "menor",
@@ -123,6 +128,9 @@ const SEEDS: OwnMarketSeed[] = [
     // SF61745: tasa objetivo. La API de Banxico es gratis pero pide token
     rule: {
       kind: "serie",
+      // la tasa objetivo sólo cambia en las reuniones de Banxico, ~8 al año.
+      // El último cambio puede tener seis semanas y sigue siendo el vigente
+      frescuraDias: 100,
       fuente: "banxico",
       serie: "SF61745",
       comparacion: "baja",
@@ -195,7 +203,18 @@ const SEEDS: OwnMarketSeed[] = [
     closesAt: "2026-09-16T21:00:00Z",
     pool: seedPool(510, 390),
     // serie 432 del BCB: meta Selic, pública y sin llave
-    rule: { kind: "serie", fuente: "bcb", serie: "432", comparacion: "baja", etiqueta: "Meta Selic" },
+    rule: {
+      kind: "serie",
+      fuente: "bcb",
+      serie: "432",
+      comparacion: "baja",
+      etiqueta: "Meta Selic",
+      // la meta Selic sólo cambia en las reuniones del COPOM, cada ~45 días, y
+      // la serie fecha el valor al día del cambio. Con 1.5 d de margen el
+      // último cambio siempre parecía viejo y el mercado no resolvía nunca.
+      // 100 cubre dos reuniones
+      frescuraDias: 100,
+    },
     resolution: {
       sourceName: "Banco Central do Brasil (serie 432 del SGS)",
       sourceUrl: "https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados/ultimos/6?formato=json",
@@ -215,6 +234,11 @@ const SEEDS: OwnMarketSeed[] = [
     // serie 13522 del BCB: IPCA acumulado 12 meses, pública y sin llave
     rule: {
       kind: "serie",
+      // IPCA es MENSUAL: el IBGE publica a mediados del mes siguiente y la
+      // observación va fechada al periodo, no al día de publicación. Con el
+      // margen por defecto (1.5 d) este mercado no resolvía NUNCA — medido.
+      // 100 días es el valor que ya usaba `cl-imacec`, otra serie mensual
+      frescuraDias: 100,
       fuente: "bcb",
       serie: "13522",
       comparacion: "menor",
@@ -349,6 +373,10 @@ const SEEDS: OwnMarketSeed[] = [
     // PN01279PM: variación anual del IPC de Lima. Pública y sin llave
     rule: {
       kind: "serie",
+      // inflación de Lima: MENSUAL, misma forma que el IPCA. Sin margen, el
+      // dato correcto llegaba fechado ~35 días antes de resolver y se
+      // descartaba por viejo — el mercado se quedaba en `sin_dato` para siempre
+      frescuraDias: 100,
       fuente: "bcrp",
       serie: "PN01279PM",
       comparacion: "menor",

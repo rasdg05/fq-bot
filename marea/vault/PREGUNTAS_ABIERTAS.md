@@ -150,6 +150,46 @@
   seis fuentes institucionales para poner umbrales por serie, o si la puerta de
   la regla basta hasta que haya dinero real.
 
+### Actualización (2026-09-08, §3): la afirmación era medio falsa, y costaba caro
+
+Al verificar la frase «para las series, que estén al día ya lo comprueba la
+propia regla» —que en U5 se dio por buena **leyendo el código**— salió que la
+regla existe pero **el margen estaba mal puesto en casi todas**. `seriesOracle`
+compara `ultima.fecha >= settlesAt − frescuraDias`, y **sólo `cl-imacec`
+declaraba `frescuraDias`**. Las otras ocho caían al defecto de **1.5 días**,
+mientras que el dato de una serie mensual llega fechado ~35 días antes de
+resolver, porque va fechado al **periodo**, no a la publicación.
+
+Medido inyectando las observaciones, sin red: **cinco mercados no podían
+resolverse nunca por programa** — `mx-inpc-anual`, `mx-banxico-tasa`,
+`br-ipca-5`, `br-selic-corte`, `pe-inflacion-lima`. Descartaban su propio dato
+correcto por viejo y se quedaban en `sin_dato` para siempre. Es un agujero de
+ciclo de vida: se apuesta y no se cobra.
+
+**Un detalle que importa para el futuro:** dos de los cinco estaban **tapados por
+la falta de token**. Sin `INEGI_TOKEN` / `BANXICO_TOKEN` el oráculo contesta
+`requiere_humano` **antes** de llegar a la comprobación del margen, así que el
+defecto sólo aparece cuando alguien configura las llaves — es decir, el día que
+el mercado por fin iba a funcionar solo. Una configuración que falta puede
+esconder un bug detrás.
+
+**Arreglado:** los cinco declaran `frescuraDias: 100`, con el porqué de cada uno
+escrito al lado. El 100 **no es medido**: es el valor que este repo ya había
+elegido para `cl-imacec`, otra serie mensual, aplicado con consistencia. Cubre el
+desfase de una serie mensual (~35 d) y de dos reuniones de COPOM / Banxico
+(~90 d) con holgura, y sigue rechazando una serie parada 200 días — hay test de
+las dos cosas.
+
+**Cerrado el lazo:** `tests/frescura.test.ts` comprueba ahora que **toda** serie
+del catálogo acepta un dato fechado a su cadencia real. Escribir un mercado de
+serie nuevo sin margen adecuado pone la suite en rojo, en vez de publicar un
+mercado que nadie podrá cobrar.
+
+**Lo que sigue pendiente de RasDG (más pequeño que antes):** si se mide la
+cadencia real de cada fuente, el 100 se puede afinar por serie. Hoy es holgado a
+propósito: prefiere no atascar antes que apurar el umbral, y la puerta contra la
+fuente parada de verdad sigue puesta.
+
 ---
 
 ## P-006 · U7 (contratos) saltada: `forge` no es alcanzable, pero Hardhat sí

@@ -655,3 +655,48 @@ feliz** y en **propiedades adversarias**. El camino feliz se prueba solo. Lo que
 un atacante rompería, o lo que sólo pasa con datos corruptos, hay que romperlo a
 propósito para saber que el test lo mira — y contando U3 y U6, esta sesión
 escribió **diez** tests que pasaban en verde sin probar lo que decía su nombre.
+
+
+---
+
+## §3 · La afirmación de U5 que no era del todo cierta
+
+En U5 escribí que «para las series, que estén al día ya lo comprueba la propia
+regla». Lo **leí** en el código; no lo medí. §3 pedía resolver lo que se pudiera
+sin RasDG, y verificar una afirmación propia entra ahí de lleno.
+
+**La regla existe, pero el margen estaba mal puesto en casi todas.**
+`seriesOracle` compara `ultima.fecha >= settlesAt − frescuraDias`, y **sólo
+`cl-imacec` declaraba `frescuraDias`**. Las otras ocho caían al defecto de **1.5
+días** — mientras que el dato de una serie mensual llega fechado ~35 días antes
+de resolver, porque va fechado al **periodo**, no a la publicación.
+
+**Medido, inyectando las observaciones y sin tocar la red: cinco mercados no
+podían resolverse nunca por programa.** `mx-inpc-anual`, `mx-banxico-tasa`,
+`br-ipca-5`, `br-selic-corte` y `pe-inflacion-lima` descartaban su propio dato
+correcto por viejo y se quedaban en `sin_dato` para siempre. Es un agujero de
+ciclo de vida —se apuesta y no se cobra— y por AGENTE §0.1 vence a cualquier
+otra cosa que hubiera podido hacer en ese rato.
+
+**El detalle que más me interesa de todo esto:** dos de los cinco estaban
+**tapados por la falta de token**. Sin `INEGI_TOKEN` / `BANXICO_TOKEN` el oráculo
+contesta `requiere_humano` **antes** de llegar a la comprobación del margen. El
+defecto sólo aparecía cuando alguien configurase las llaves — es decir, el día en
+que el mercado por fin iba a funcionar solo. Lo encontré porque el test pone
+tokens de mentira, no porque lo buscara. **Una configuración que falta puede
+esconder un bug detrás, y el bug espera justo al momento en que dejas de mirar.**
+
+**Arreglado y cerrado el lazo.** Los cinco declaran `frescuraDias: 100`, con su
+porqué al lado. El 100 no es medido: es el valor que el repo ya había elegido
+para `cl-imacec`, otra serie mensual, aplicado con consistencia — cubre el
+desfase mensual (~35 d) y dos reuniones de COPOM/Banxico (~90 d), y **sigue
+rechazando** una serie parada 200 días, con test de las dos cosas. Y
+`tests/frescura.test.ts` comprueba que **toda** serie del catálogo acepta un dato
+fechado a su cadencia real: escribir un mercado de serie sin margen adecuado
+pone la suite en rojo, en vez de publicar un mercado que nadie podrá cobrar.
+
+**La simetría que esta unidad enseña.** U5 evitó el umbral demasiado **holgado**
+—una fuente parada resolviendo— y estuvo a punto de crear el demasiado
+**apretado**. Resulta que el apretado ya existía, en cinco mercados, desde antes.
+Las dos mitades de L8 son el mismo trabajo y ninguna se ve sin medir: leer el
+código me dio la mitad correcta y la mitad falsa, con la misma confianza.

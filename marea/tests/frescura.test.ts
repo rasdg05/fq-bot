@@ -11,6 +11,7 @@ import {
 } from "@/domain/settlement";
 import type { ResolutionSpec } from "@/domain/resolution";
 import { OWN_MARKETS } from "@/adapters/ownMarkets/catalog";
+import { createSeriesOracle } from "@/adapters/oracles/seriesOracle";
 
 /**
  * L8 — frescura del oráculo. La deuda que arrastraba `onRead`: aceptaba una
@@ -146,5 +147,86 @@ describe("L8 — el catálogo declara umbral donde el reloj sirve", () => {
     for (const seed of series) {
       expect(seed.resolution.maxAgeHours, seed.id).toBeUndefined();
     }
+  });
+});
+
+/**
+ * El otro lado de L8: que el margen no sea tan APRETADO que atasque el mercado.
+ *
+ * Se descubrió midiendo, al verificar una afirmación que en U5 se dio por buena
+ * leyendo el código: «para las series, que estén al día ya lo comprueba la
+ * propia regla». La regla existe — pero **siete de las nueve series usaban el
+ * margen por defecto de 1.5 días**, y para una serie mensual el dato correcto
+ * llega fechado ~35 días antes de resolver. Tres mercados no podían resolverse
+ * **nunca** por programa: se apuesta y no se cobra, que es el agujero que vence
+ * a cualquier otra cosa (AGENTE §0.1).
+ *
+ * Esto es lo que impide que vuelva al escribir el siguiente mercado.
+ */
+describe("L8 al revés — un margen demasiado apretado atasca el mercado", () => {
+  const DIA = 86_400_000;
+
+  /** El desfase típico de la observación respecto al día en que resuelve. */
+  const DESFASE: Record<string, number> = {
+    // series mensuales: la observación va fechada al periodo, no a la
+    // publicación, así que llega con un mes largo de retraso
+    "br-ipca-5": 35,
+    "pe-inflacion-lima": 35,
+    "cl-imacec": 35,
+    // la meta Selic sólo cambia en las reuniones del COPOM, cada ~45 días
+    "br-selic-corte": 50,
+    // series diarias: el dato es de ayer
+    "mx-dolar-19": 1,
+    "co-dolar-trm": 1,
+    "ar-badlar-tasa": 1,
+    "mx-inpc-anual": 35,
+    "mx-banxico-tasa": 1,
+  };
+
+  it("toda serie del catálogo acepta un dato fechado a su cadencia real", async () => {
+    const series = OWN_MARKETS.filter((seed) => seed.rule?.kind === "serie");
+    expect(series.length).toBeGreaterThan(4);
+
+    for (const seed of series) {
+      const desfase = DESFASE[seed.id];
+      expect(desfase, `falta la cadencia de ${seed.id} en el test`).toBeDefined();
+      const settlesAt = Date.parse(seed.resolution.settlesAt);
+      const oracle = createSeriesOracle({
+        cargar: async () => [
+          { fecha: settlesAt - (desfase + 30) * DIA, valor: 3.5 },
+          { fecha: settlesAt - desfase * DIA, valor: 3.2 },
+        ],
+        banxicoToken: "prueba",
+        inegiToken: "prueba",
+      });
+      const lectura = await oracle.read({
+        marketId: seed.id,
+        spec: seed.resolution,
+        rule: seed.rule,
+        now: settlesAt + DIA,
+      });
+      // `requiere_humano` es legítimo (falta el token de INEGI/Banxico y el
+      // mercado lo declara, R-022). Lo que NO puede pasar es `sin_dato` con el
+      // dato correcto delante: eso es un mercado que no resuelve nunca
+      expect(lectura.status, `${seed.id} descarta su propio dato por viejo`).not.toBe("sin_dato");
+    }
+  });
+
+  it("y sigue rechazando un dato de verdad viejo: el margen no es una puerta abierta", () => {
+    // el margen se ensancha para la cadencia de la fuente, no para siempre.
+    // Una serie parada tres veces su periodo sigue sin resolver
+    const seed = OWN_MARKETS.find((s) => s.id === "br-ipca-5")!;
+    const settlesAt = Date.parse(seed.resolution.settlesAt);
+    const oracle = createSeriesOracle({
+      cargar: async () => [{ fecha: settlesAt - 200 * DIA, valor: 3.2 }],
+      banxicoToken: "prueba",
+      inegiToken: "prueba",
+    });
+    return oracle
+      .read({ marketId: seed.id, spec: seed.resolution, rule: seed.rule, now: settlesAt + DIA })
+      .then((lectura) => {
+        expect(lectura.status).toBe("sin_dato");
+        expect(lectura.evidence).toContain("último dato publicado");
+      });
   });
 });
