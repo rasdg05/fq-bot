@@ -565,3 +565,44 @@ secuencia—, así que `RegistroAnclas.sol` sólo tiene que emitir eso. La aritm
 ya no está en discusión.
 
 `PREGUNTAS_ABIERTAS.md` P-006 deja las tres salidas posibles para RasDG.
+
+
+---
+
+## U8 · Sincronizar la documentación ✔
+
+**Qué se hizo.** `LIQUIDEZ.md`, `MEMORY/marea/README.md` y `MEMORY/ESTADO.md`
+dicen ahora lo que hay, no lo que se planeó.
+
+- **`LIQUIDEZ.md`** — la tabla de invariantes pasa de «hay que cablear» a una
+  tabla de **estado con el archivo donde quedó cada una**: L1, L2, L3, L5, L6,
+  L8, L9 y L15 vivas; L14 pendiente de los contratos; la tercera pata de L15
+  (publicar las hojas) dicha como lo que es, que no es código. Las fases L1, L2 y
+  L3 quedan marcadas cerradas con **cómo cerraron**, no con un tic.
+- **`MEMORY/marea/README.md`** — sección 9 nueva: las ocho unidades con su puerta
+  **medida**, y las tres cosas que costó descubrir y no están en el diff.
+- **`MEMORY/ESTADO.md`** — la foto de Marea, con la deuda L8 marcada saldada y la
+  cifra de rojas corregida de 4 a 6.
+
+**Lo que costó decidir: qué NO decir.** La tentación de una unidad de
+documentación es contar lo hecho. Lo que hace útil la página es lo que sigue sin
+estar, y por eso va en la **misma frase** que el estado, no en un apéndice:
+
+> «Nadie nace en modo subsidio todavía, los topes no tienen cifras, los
+> contratos no existen y las hojas de la época no se publican. El dominio está;
+> el producto en cadena no.»
+
+Un lector que sólo abra `MEMORY/marea/README.md` tiene que salir sabiendo las dos
+mitades. Si sale creyendo que Marea tiene subsidio funcionando, la página hizo
+daño en vez de servir — y ésa es exactamente la forma de fallo que el `CLAUDE.md`
+del repo documenta como la lección más cara del proyecto: el repo sabía, y el
+código siguió publicando otra cosa.
+
+**Una corrección de dato, no de estilo.** `ESTADO.md` decía «4 rojas
+preexistentes». Son **6** de `vitest` más 2 de `validate`, con la misma causa
+raíz. Corregido, con la referencia a `LINEA_BASE.md` para que la próxima sesión
+no vuelva a heredar el número equivocado.
+
+**Puerta:** ✔ alguien que lea sólo `MEMORY/marea/README.md` sabe en qué estado
+quedó todo — lo construido, lo que espera cifras de RasDG y lo que no existe.
+Línea base intacta: 8 rojas, 360 verdes.

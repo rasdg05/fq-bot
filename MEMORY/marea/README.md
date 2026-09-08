@@ -6,8 +6,19 @@
 > —asientos, plan por fases, reglas propuestas— vive en `marea/vault/LIQUIDEZ.md`.
 > Aquí se rutea, no se repite.
 
-**Estado: diseño. Nada desplegado.** Volumen 0, facturación 0, se juega con puntos,
-elegibilidad `pendiente` en todos los países. Rama `claude/marea-liquidity-flow-8ybf5l`.
+**Estado: diseño, con el dominio construido. Nada desplegado.** Volumen 0,
+facturación 0, se juega con puntos, elegibilidad `pendiente` en todos los países.
+
+**Lo que cambió el 2026-09-08** (sesión autónoma, rama
+`claude/marea-autonomous-work-3sggb9`): de las invariantes de liquidez, **L1, L2,
+L3, L5, L6, L8, L9 y L15 pasaron de escritas a vivas**, cada una con su prueba y
+su mutación deliberada. Sigue sin desplegarse nada y sigue todo en puntos. La
+bitácora de qué costó descubrir cada una está en `BITACORA_AUTONOMA.md`; lo que
+quedó esperando decisión de RasDG, en `marea/vault/PREGUNTAS_ABIERTAS.md`.
+
+Lo que **no** cambió, y conviene decirlo en la misma frase: nadie nace en modo
+subsidio todavía, los topes no tienen cifras, los contratos no existen y las
+hojas de la época no se publican. El dominio está; el producto en cadena no.
 
 ---
 
@@ -356,4 +367,43 @@ commits `c1f936d`, `a16fa9c`, `56d99b7`.
 Referencias externas verificadas sep-2026: arquitectura de Polymarket (CLOB + CTF + UMA),
 esquema de fees de Kalshi (`0.07·C·P·(1−P)`).
 
-_Actualizado: 2026-09-01 (decisiones de cadena, subsidio y semilla)._
+---
+
+## 9. Lo construido el 2026-09-08 (sesión autónoma U0–U8)
+
+Ocho unidades de `marea/vault/COLA_TRABAJO.md`, una por commit, cada una con su
+puerta medida y cada test nuevo roto a propósito una vez para verlo en rojo.
+
+| U | Qué quedó | Puerta, medida |
+|---|---|---|
+| **U0** | Línea base | La cola decía 4 rojas; son **6** de `vitest` + 2 de `validate`, todas por el catálogo caducado (9 de 13 mercados vencidos). Comparar contra el 4 escrito habría hecho creer que se rompieron dos cosas antes de escribir una línea |
+| **U1** | La semilla se vuelve subsidio | `quote().toWin === settle().payouts[apuesta]` sobre 400 escenarios × los dos modos. Un mercado en modo `"apuesta"` da `toEqual` **exacto** contra un pozo escrito como antes |
+| **U2** | Cablear el compensador | La suite pasa **sin tocar una expectativa existente**. Con el compensador negándose: nadie cobra, libro cuadrado, fase `en_disputa` — pendiente, no medio pagado |
+| **U3** | El asiento del subsidio | `saldoDe(libro, "pozo:<id>")` tras liquidar con comisión pasó de **310.4 a 0**, en proceso real |
+| **U4** | Presupuesto y freno | Con el presupuesto agotado, la creación se niega **con el número que lo causó** |
+| **U5** | Frescura del oráculo | Un colector detenido que responde 200 en cada ciclo: t+2h, t+30h, t+60h, t+200h, el mercado **no avanza nunca** de `cerrado` y nadie cobra |
+| **U6** | El árbol de época | Prueba de inclusión que verifica; borrar una hoja rompe la de alguien por **dos** caminos; árbol impar correcto con 1…33 hojas |
+| **U7** | Contratos | **Saltada.** `forge` no es alcanzable (releases de GitHub → 403). Nota honesta: npm **sí** tiene `solc` y `hardhat`; se salta igual porque añadir una segunda cadena de construcción al repo no es decisión de una sesión autónoma (P-006) |
+| **U8** | Sincronizar la documentación | Esta sección y el estado de invariantes de `LIQUIDEZ.md` |
+
+**Las tres cosas que costó descubrir y que no están en el diff:**
+
+1. **Un campo nuevo en el dominio no basta.** Había **cuatro** sitios que
+   reconstruían el pozo a mano y tiraban `seedMode` en silencio. Con el campo
+   añadido y nada más, un mercado con subsidio habría liquidado cobrando la casa
+   sin un solo error en consola. Es lo que el `CLAUDE.md` del repo llama fallo de
+   cableado, y un test de dominio puro no lo ve.
+
+2. **Tres tests míos pasaban en verde sin probar lo que decían**, y los tres eran
+   de propiedades adversarias: la idempotencia del cierre (U3) y las dos del
+   árbol —separación de dominio y campos con longitud (U6)—. El camino feliz se
+   prueba solo; lo que un atacante rompería hay que romperlo a propósito para
+   saber que el test lo mira.
+
+3. **Medir cambió un diseño a mitad.** L8 iba a llevar un umbral de frescura
+   global de 48 h. Contando el catálogo salió que **9 de 13 mercados son series
+   mensuales** y ese umbral los habría atascado a todos — convirtiendo una puerta
+   de seguridad en un atasco de producto, que es peor que el fallo que previene.
+
+_Actualizado: 2026-09-08 (dominio de liquidez construido: L1-L3, L5, L6, L8, L9,
+L15). Antes: 2026-09-01 (decisiones de cadena, subsidio y semilla)._
