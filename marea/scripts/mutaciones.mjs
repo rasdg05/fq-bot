@@ -27,9 +27,9 @@
  * forzar una comprobación que sólo mira el texto de un mensaje.
  */
 import { execFileSync } from "node:child_process";
-import { copyFileSync, readFileSync, writeFileSync, mkdtempSync } from "node:fs";
-import { join, basename } from "node:path";
-import { tmpdir } from "node:os";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join, basename, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const D = "src/domain/";
 
@@ -225,6 +225,27 @@ const MUTACIONES = [
     a: "export function ruleProblems(rule: OracleRule, criterion: string): string[] {\n  if (criterion) return [];",
     tests: ["tests/parimutuel.test.ts", "tests/fuentes.test.ts", "tests/multiples.test.ts"] },
 
+  // --- El atasco silencioso (visto en producción) ---
+  { nombre: "prod · el plazo de atasco deja de existir", archivo: `${D}settlement.ts`,
+    de: "  if (dias >= plazoAtasco) return { estado: \"atascado\", dias };", a: "",
+    tests: ["tests/congelados.test.ts"] },
+  { nombre: "prod · lo incobrable nunca se declara", archivo: `${D}settlement.ts`,
+    de: '  if (dias >= plazoAnulacion) return { estado: "incobrable", dias };', a: "",
+    tests: ["tests/congelados.test.ts"] },
+  { nombre: "prod · un mercado ya leído cuenta como atascado", archivo: `${D}settlement.ts`,
+    de: "  if (yaLeyo) return { estado: \"ninguno\", dias: 0 };", a: "",
+    tests: ["tests/congelados.test.ts"] },
+  { nombre: "prod · `atorado` vuelve a ser un callejón sin salida", archivo: "server/ciclo.mts",
+    de: '  if (fase === "cerrado" || fase === "leido" || fase === "atorado") return true;',
+    a: '  if (fase === "cerrado" || fase === "leido") return true;',
+    tests: ["tests/congelados.test.ts"] },
+  { nombre: "prod · lo incobrable no se devuelve", archivo: "server/ciclo.mts",
+    de: "      if (estado.incobrable && estado.phase === \"atorado\") {", a: "      if (false) {",
+    tests: ["tests/congelados.test.ts"] },
+  { nombre: "prod · el motivo del atasco no se borra al resolverse", archivo: `${D}settlement.ts`,
+    de: "    // si venía atorado y la fuente volvió, el motivo se va con el atasco\n    stuckReason: undefined,",
+    a: "", tests: ["tests/congelados.test.ts"] },
+
   // --- §3 · ciclo de vida: resolver, y no pagar dos veces tras un redeploy ---
   { nombre: "§3 el redeploy vuelve a pagar el mercado", archivo: "server/store.mts",
     de: '      (a) => a.tipo === "liquidacion" && a.ref === input.marketId,',
@@ -291,7 +312,7 @@ if (aCorrer.length === 0) {
   process.exit(1);
 }
 
-const respaldos = mkdtempSync(join(tmpdir(), "mutaciones-"));
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const resultados = [];
 
 /**
@@ -317,6 +338,11 @@ function restaurarTodo() {
     }
   }
   enVuelo.clear();
+  try {
+    rmSync(CENTINELA, { force: true });
+  } catch {
+    /* si no se puede borrar el centinela, el próximo arranque restaura de más y no pasa nada */
+  }
 }
 
 for (const senal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
@@ -332,23 +358,40 @@ process.on("uncaughtException", (error) => {
 });
 
 /**
- * Y antes de empezar: si el árbol de trabajo ya trae cambios en un archivo que
- * vamos a mutar, no se arranca. Podría ser trabajo legítimo sin guardar —que se
- * perdería al restaurar— o el resto de un barrido anterior que murió a medias.
- * Las dos cosas se arreglan mirando, no siguiendo.
+ * El seguro contra un `SIGKILL`, que no ejecuta ningún manejador.
+ *
+ * Los respaldos viven en un sitio **fijo** —no en un temporal que se borra— y
+ * un archivo centinela dice cuáles están en vuelo. Si el barrido arranca y se
+ * encuentra un centinela viejo, es que el anterior murió sin restaurar: lo
+ * deshace antes de empezar y lo dice en voz alta.
+ *
+ * La primera versión de esto se limitaba a **negarse a arrancar** con el árbol
+ * sucio. Era seguro y era peor: impedía barrer trabajo sin guardar, que es
+ * justo cuando más quieres saber si tus tests nuevos ven algo. Y no hacía
+ * falta — el respaldo se toma del archivo tal como está, sucio incluido, y se
+ * devuelve igual. Lo único que había que resolver era la muerte súbita.
  */
-const aTocar = [...new Set(MUTACIONES.map((m) => m.archivo))];
-const sucios = execFileSync("git", ["status", "--porcelain", "--", ...aTocar], { encoding: "utf8" })
-  .split("\n")
-  .filter(Boolean);
-if (sucios.length > 0) {
-  console.error("No se arranca: hay cambios sin guardar en archivos que este barrido muta.\n");
-  for (const linea of sucios) console.error(`  ${linea}`);
+const REFUGIO = join(ROOT, ".mutaciones");
+const CENTINELA = join(REFUGIO, "en-vuelo.json");
+
+mkdirSync(REFUGIO, { recursive: true });
+if (existsSync(CENTINELA)) {
+  const previos = JSON.parse(readFileSync(CENTINELA, "utf8"));
   console.error(
-    "\nGuárdalos o descártalos primero. Si no reconoces alguno, puede ser el resto de un\n" +
-      "barrido anterior que murió a medias: `git checkout -- <archivo>` lo devuelve a su sitio.",
+    `\n⚠ El barrido anterior murió sin restaurar ${previos.length} archivo(s). Deshaciendo:\n`,
   );
-  process.exit(2);
+  for (const { archivo, respaldo } of previos) {
+    copyFileSync(respaldo, archivo);
+    console.error(`  restaurado ${archivo}`);
+  }
+  rmSync(CENTINELA, { force: true });
+  console.error("");
+}
+
+function anotarEnVuelo() {
+  const filas = [...enVuelo].map(([archivo, respaldo]) => ({ archivo, respaldo }));
+  if (filas.length === 0) rmSync(CENTINELA, { force: true });
+  else writeFileSync(CENTINELA, JSON.stringify(filas));
 }
 
 /** Corre vitest y devuelve cuántas pruebas quedaron rojas. */
@@ -375,12 +418,14 @@ const BASE = correrTests([]);
 console.log(`Línea base de la suite: ${BASE} rojas. Una mutación cuenta como detectada si sube de ahí.`);
 
 for (const m of aCorrer) {
-  const respaldo = join(respaldos, `${resultados.length}-${basename(m.archivo)}`);
+  const respaldo = join(REFUGIO, `${resultados.length}-${basename(m.archivo)}`);
   copyFileSync(m.archivo, respaldo);
   enVuelo.set(m.archivo, respaldo);
+  anotarEnVuelo();
   const original = readFileSync(m.archivo, "utf8");
   if (!original.includes(m.de)) {
     enVuelo.delete(m.archivo);
+    anotarEnVuelo();
     resultados.push({ ...m, estado: "NO APLICA", detalle: "el patrón ya no está en el archivo" });
     continue;
   }
@@ -412,6 +457,7 @@ for (const m of aCorrer) {
   } finally {
     copyFileSync(respaldo, m.archivo);
     enVuelo.delete(m.archivo);
+    anotarEnVuelo();
   }
   resultados.push({
     ...m,

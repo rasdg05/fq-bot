@@ -227,5 +227,33 @@ fuente parada de verdad sigue puesta.
 
 ---
 
+## P-007 · Los dos plazos del atasco los elegí yo
+
+- **Fecha:** 2026-09-10 · **Unidad:** arreglo de producción · **Estado:** decidido, pendiente de RasDG
+- **El hueco:** ningún documento dice cuánto puede tardar un mercado en
+  resolverse antes de que se dé por perdido. Hasta ahora la respuesta implícita
+  era **para siempre**, y eso es lo que congeló las apuestas de agosto.
+- **Lo que se hizo:** dos plazos, contados desde `settlesAt` de cada mercado.
+  - **7 días → `atorado`.** Se marca, aparece en el resumen del ciclo y en
+    `/salud`, y **se sigue intentando**. Sólo deja de ser invisible.
+  - **30 días → incobrable.** Se anula y **se devuelve todo, sin comisión**.
+- **Por qué esos números, y qué son:** no son medidos. 7 días es holgado para
+  cualquier fuente diaria y corto frente al mes que estuvo congelado esto sin
+  que nadie lo notara. 30 días cubre con margen la publicación más lenta del
+  catálogo (una serie mensual llega ~35 días fechada al periodo, pero eso lo
+  resuelve `frescuraDias`, no este plazo). Cada mercado puede alargar el suyo
+  con `maxStuckDays` — **pero no a infinito**, que era el estado anterior.
+- **La decisión de fondo que sí quiero que RasDG confirme:** que un mercado
+  incobrable **devuelva** en vez de quedarse congelado. Devolver mueve puntos de
+  gente sin que nadie haya acertado; congelar no mueve nada. Elegí devolver
+  porque quedarse con el pozo de un mercado que nadie pudo ganar es exactamente
+  lo que hace una casa (R-024), y porque congelar no es más prudente: es sólo
+  más callado. Con dinero real, esta decisión se revisa antes de abrir la puerta.
+- **Lo que se descartó:** dejarlo como estaba (invisible e infinito) y marcar
+  `atorado` sin devolver nunca —que deja el dinero quieto y le pasa el problema
+  a una persona que no está mirando.
+
+---
+
 _Se abre esta bitácora el 2026-09-08. Formato: qué faltaba, qué se eligió, qué se
 descartó, qué costaría revertirlo._

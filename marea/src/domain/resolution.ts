@@ -33,6 +33,15 @@ export interface ResolutionSpec {
    * pasar un colector de precios detenido dos días.
    */
   maxAgeHours?: number;
+  /**
+   * Días tras `settlesAt` antes de dar el mercado por incobrable y devolver lo
+   * apostado. Ausente = `PLAZO_ANULACION_DIAS`.
+   *
+   * Se puede alargar para una fuente que se sabe lenta, pero **no a infinito**:
+   * un mercado sin plazo es un mercado que se puede congelar para siempre, y
+   * eso ya pasó.
+   */
+  maxStuckDays?: number;
 }
 
 import type { OutcomeId } from "./parimutuel";

@@ -12,6 +12,7 @@ import {
   initialState,
   isPayable,
   onClose,
+  onDeadline,
   onRead,
   readWithOracles,
   type Oracle,
@@ -38,12 +39,16 @@ export interface ResumenCiclo {
   /** Comisión cobrada en esta corrida, ya asentada en tesorería. */
   comision: number;
   atorados: string[];
+  /** Los que ya pasaron el plazo largo: se anularon y se devolvió lo apostado. */
+  incobrables: string[];
   acreditado: number;
   errores: string[];
 }
 
 function debeLeerse(seed: OwnMarketSeed, fase: string, ahora: number): boolean {
-  if (fase === "cerrado" || fase === "leido") return true;
+  // `atorado` se sigue intentando: estar atorado es una señal para que alguien
+  // mire, no una condena. Un 403 pasajero de la fuente no congela un mercado
+  if (fase === "cerrado" || fase === "leido" || fase === "atorado") return true;
   if (fase !== "abierto") return false;
   // un mercado de toque puede resolver antes de su fecha: se consulta vivo
   if (seed.rule?.kind === "precio" && seed.rule.modo === "toca") {
@@ -65,6 +70,7 @@ export async function correrCiclo(
     anulados: 0,
     comision: 0,
     atorados: [],
+    incobrables: [],
     acreditado: 0,
     errores: [],
   };
@@ -90,7 +96,61 @@ export async function correrCiclo(
         estado = siguiente;
       }
 
-      if (estado.phase === "atorado") resumen.atorados.push(seed.id);
+      /**
+       * El plazo. Un mercado que cerró y no se resolvió no se queda callado
+       * para siempre: a los 7 días se marca `atorado` —y **aparece** en el
+       * resumen— y a los 30 se da por incobrable y se devuelve todo.
+       *
+       * Va **después** de intentar leer, no antes: si la fuente contestó en
+       * esta misma corrida, el mercado se resolvió y no hay atasco que marcar.
+       */
+      estado = onDeadline(estado, seed.resolution, ahora);
+      if (estado.phase === "atorado") {
+        resumen.atorados.push(seed.id);
+        if (estado.incobrable) resumen.incobrables.push(seed.id);
+      }
+
+      /**
+       * Y lo incobrable se devuelve, por el mismo camino que cualquier otra
+       * devolución. Quedarse con el pozo de un mercado que nadie pudo ganar es
+       * exactamente lo que hace una casa (R-024), y dejarlo congelado no es más
+       * prudente: es sólo más callado.
+       */
+      if (estado.incobrable && estado.phase === "atorado") {
+        const pozo = store.pozo(seed.id);
+        const apuestas = store.apuestasDeMercado(seed.id);
+        if (pozo && apuestas.length > 0) {
+          const pool = normalizePool(pozo);
+          const devolucion: Reparto = {
+            payouts: Object.fromEntries(apuestas.map((a) => [a.id, a.stake])),
+            fee: 0,
+          };
+          const outcomes = Object.keys(pool.outcomes);
+          const repartoPorResultado: Record<string, Reparto> = {};
+          for (const id of outcomes) repartoPorResultado[id] = devolucion;
+          const compensacion = compensar({
+            marketId: seed.id,
+            outcomes,
+            colateral: totalPool(pool),
+            repartoPorResultado,
+            ganador: outcomes[0],
+          });
+          const cierre = store.liquidarMercado({
+            marketId: seed.id,
+            pagos: compensacion.pagosDeApuestas,
+            fee: 0,
+            aCapital: compensacion.aLaCasa,
+          });
+          resumen.acreditado += cierre.acreditado;
+          if (cierre.acreditado > 0 || apuestas.every((a) => a.pagado !== undefined)) {
+            resumen.anulados += 1;
+            estado = { ...estado, phase: "devuelto" };
+          }
+        } else {
+          // sin apuestas no hay a quién devolver: se cierra y se deja dicho
+          estado = { ...estado, phase: "devuelto" };
+        }
+      }
 
       if (estado.phase === "en_disputa" && isPayable(estado, ahora)) {
         const pozo = store.pozo(seed.id);

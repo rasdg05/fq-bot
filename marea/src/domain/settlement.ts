@@ -58,6 +58,11 @@ export interface SettlementState {
    */
   observedAt?: string;
   frescuraVerificada?: boolean;
+  /**
+   * El mercado pasó su plazo sin resolverse y se da por incobrable: se anula y
+   * se devuelve todo. No es un resultado, es la ausencia de uno.
+   */
+  incobrable?: boolean;
 }
 
 /** Lo que devuelve un oráculo al consultar la fuente citada. */
@@ -232,11 +237,23 @@ export function onRead(
   spec: ResolutionSpec,
   now: number,
 ): SettlementState {
-  // `abierto` entra a propósito: un mercado de toque resuelve en cuanto el
-  // precio llega, y seguir aceptando apuestas después sería dejar apostar
-  // sobre un resultado que ya ocurrió.
+  /**
+   * `abierto` entra a propósito: un mercado de toque resuelve en cuanto el
+   * precio llega, y seguir aceptando apuestas después sería dejar apostar
+   * sobre un resultado que ya ocurrió.
+   *
+   * Y **`atorado` también entra**: estar atorado es una señal para que alguien
+   * mire, no una condena. Antes era un callejón sin salida —una vez dentro, el
+   * ciclo dejaba de intentarlo— así que un 403 pasajero de la fuente congelaba
+   * el mercado para siempre y sólo lo sacaba de ahí una resolución a mano.
+   * Ahora, si la fuente vuelve, el mercado se resuelve solo y el motivo del
+   * atasco se borra con él.
+   */
   const legible =
-    state.phase === "abierto" || state.phase === "cerrado" || state.phase === "leido";
+    state.phase === "abierto" ||
+    state.phase === "cerrado" ||
+    state.phase === "leido" ||
+    state.phase === "atorado";
   if (!legible) return state;
 
   if (reading.status === "sin_dato") {
@@ -275,6 +292,8 @@ export function onRead(
     disputeUntil: disputeDeadline(at, spec),
     ...(reading.observedAt ? { observedAt: reading.observedAt } : {}),
     frescuraVerificada: frescura.verificable,
+    // si venía atorado y la fuente volvió, el motivo se va con el atasco
+    stuckReason: undefined,
   };
 }
 
@@ -389,4 +408,138 @@ export function needsAttention(states: SettlementState[]): SettlementState[] {
   return states.filter(
     (state) => state.phase === "cerrado" || state.phase === "atorado",
   );
+}
+
+/* -------------------------------------------------------------------------
+ * El atasco silencioso
+ *
+ * El fallo que esto cierra se vio en producción, y es el peor de los que
+ * puede tener este producto: **un mercado se queda sin resolver para siempre y
+ * nadie se entera.**
+ *
+ * Pasa así. El oráculo no puede leer la fuente —un 403 pasajero, un endpoint
+ * que devuelve XML en vez de JSON, un partido que la fuente ya no lista— y
+ * contesta `sin_dato`. `onRead` hace lo correcto: no inventa un resultado, deja
+ * el mercado como está y lo reintenta en la corrida siguiente. Correcto una
+ * vez. Correcto mil veces seguidas **es un mercado congelado**: el usuario
+ * apostó, el mercado cerró, y su apuesta se queda en «si aciertas» para
+ * siempre.
+ *
+ * Y era invisible por construcción: `sin_dato` no es `atorado`, así que el
+ * resumen del ciclo decía `0 atorados · 0 errores` mientras el dinero estaba
+ * quieto. Medido en producción: 1008 corridas sin un solo error y varios
+ * mercados congelados desde hacía más de un mes.
+ *
+ * Se cierra con dos plazos, porque son dos problemas distintos:
+ *
+ *  - a los **7 días** de la fecha de resolución, el mercado se marca `atorado`
+ *    con su motivo. Sigue reintentándose —`atorado` ya no es un callejón sin
+ *    salida— pero **aparece** en el resumen y en `/salud`. Deja de ser
+ *    invisible, que es lo que permitió que durara un mes.
+ *  - a los **30 días**, se anula y **se devuelve todo, sin comisión**. Si en un
+ *    mes la fuente no ha contestado, no va a contestar; y quedarse con el pozo
+ *    de un mercado que nadie pudo ganar es exactamente lo que hace una casa
+ *    (R-024). La otra opción —dejarlo congelado— no es más prudente, es sólo
+ *    más callada.
+ *
+ * Los dos plazos son decisión de esta sesión, no un número medido, y están
+ * anotados en `PREGUNTAS_ABIERTAS.md`. Se pueden mover por mercado.
+ */
+
+/** Días tras la fecha de resolución antes de declarar el mercado atorado. */
+export const PLAZO_ATASCO_DIAS = 7;
+
+/** Días tras la fecha de resolución antes de anular y devolver. */
+export const PLAZO_ANULACION_DIAS = 30;
+
+const DIA_MS = 86_400_000;
+
+export type Atasco = "ninguno" | "atascado" | "incobrable";
+
+/**
+ * Cuánto lleva un mercado sin resolverse, contado **desde su propia fecha de
+ * resolución** y con `now` por parámetro. Sin relojes de pared aquí dentro.
+ *
+ * Sólo mira mercados que todavía no llegaron a `en_disputa`: uno que ya leyó su
+ * fuente no está atascado aunque tarde en pagarse — está esperando su ventana
+ * de disputa, que es la promesa (R-040).
+ */
+export function atascoDe(
+  state: SettlementState,
+  spec: ResolutionSpec,
+  now: number,
+): { estado: Atasco; dias: number } {
+  const yaLeyo =
+    state.phase === "en_disputa" ||
+    state.phase === "pagado" ||
+    state.phase === "devuelto";
+  if (yaLeyo) return { estado: "ninguno", dias: 0 };
+
+  const settlesAt = Date.parse(spec.settlesAt);
+  if (!Number.isFinite(settlesAt)) return { estado: "ninguno", dias: 0 };
+
+  const dias = (now - settlesAt) / DIA_MS;
+  const plazoAnulacion = spec.maxStuckDays ?? PLAZO_ANULACION_DIAS;
+  const plazoAtasco = Math.min(PLAZO_ATASCO_DIAS, plazoAnulacion);
+  if (dias >= plazoAnulacion) return { estado: "incobrable", dias };
+  if (dias >= plazoAtasco) return { estado: "atascado", dias };
+  return { estado: "ninguno", dias };
+}
+
+/**
+ * Aplica el plazo. Devuelve el estado sin tocar si el mercado va en hora.
+ *
+ * No decide el reparto: sólo mueve la fase y escribe el motivo. Quien devuelve
+ * el dinero es el ciclo, por el mismo camino que cualquier otra devolución —
+ * dos caminos para mover dinero serían dos matemáticas de dinero.
+ */
+export function onDeadline(
+  state: SettlementState,
+  spec: ResolutionSpec,
+  now: number,
+): SettlementState {
+  const { estado, dias } = atascoDe(state, spec, now);
+  if (estado === "ninguno") return state;
+
+  const redondeado = Math.floor(dias);
+  if (estado === "incobrable") {
+    return {
+      ...state,
+      phase: "atorado",
+      stuckReason:
+        `Sin resolver ${redondeado} días después de su fecha. La fuente no ha ` +
+        `contestado: se anula y se devuelve lo apostado, íntegro y sin comisión.`,
+      incobrable: true,
+    };
+  }
+  // atascado: se marca para que se vea, y se sigue intentando
+  return {
+    ...state,
+    phase: "atorado",
+    stuckReason:
+      `Sin resolver ${redondeado} días después de su fecha. Se sigue ` +
+      `intentando leer ${spec.sourceName}; si no contesta se anulará y se devolverá todo.`,
+  };
+}
+
+/**
+ * Mercados congelados: cerraron, no se resolvieron, y ya pasó su plazo. Vacío =
+ * sano.
+ *
+ * Es el auditor que faltaba. `cuadre()` no lo ve —no hay dinero descuadrado,
+ * hay dinero **quieto**— y el resumen del ciclo tampoco lo veía, porque
+ * `sin_dato` no cuenta como error.
+ */
+export function congelados(
+  estados: readonly { state: SettlementState; spec: ResolutionSpec }[],
+  now: number,
+): { marketId: string; dias: number; estado: Atasco }[] {
+  const salida: { marketId: string; dias: number; estado: Atasco }[] = [];
+  for (const { state, spec } of estados) {
+    const { estado, dias } = atascoDe(state, spec, now);
+    if (estado !== "ninguno") {
+      salida.push({ marketId: state.marketId, dias: Math.floor(dias), estado });
+    }
+  }
+  return salida.sort((a, b) => b.dias - a.dias);
 }
