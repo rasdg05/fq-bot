@@ -16,7 +16,7 @@ import {
   COOKIE,
 } from "./auth.mts";
 import { BINARY_OUTCOMES } from "../src/domain/parimutuel";
-import { cotizar, listarMercados, posicionesDe } from "./mercados.mts";
+import { cotizar, listarMercados, posicionesDe, todosLosMercados } from "./mercados.mts";
 import { calcularTabla } from "./tabla.mts";
 import type { Store } from "./store.mts";
 
@@ -241,7 +241,19 @@ export async function manejarApi(
 
   if (ruta.startsWith("/api/mercados/") && metodo === "GET") {
     const id = decodeURIComponent(ruta.slice("/api/mercados/".length));
-    const mercado = listarMercados(ctx.store, ctx.seeds()).find((m) => m.id === id);
+    /**
+     * Se busca en **todos** los mercados, no sólo en los que salen en el feed.
+     *
+     * El feed esconde los vencidos a propósito (R-041), pero esta ruta también
+     * la usa quien abre una posición desde su portafolio — y ahí sí están los
+     * viejos. Filtrando por el feed, una apuesta de hace un mes contestaba
+     * «Ese mercado ya no existe» a su propio dueño. Medido en producción con
+     * `mx-cruz-azul-atlante-2026-08-02`: la apuesta estaba viva en el
+     * portafolio y el mercado daba 404.
+     *
+     * Un mercado deja de mostrarse; no deja de existir para quien puso dinero.
+     */
+    const mercado = todosLosMercados(ctx.store, ctx.seeds()).find((m) => m.id === id);
     if (!mercado) return error(res, 404, "Ese mercado ya no existe."), true;
     json(res, 200, mercado);
     return true;

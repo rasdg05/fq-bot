@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { Store } from "../server/store.mts";
 import { correrCiclo } from "../server/ciclo.mts";
-import { listarMercados, sembrarPozos } from "../server/mercados.mts";
+import { listarMercados, sembrarPozos, todosLosMercados } from "../server/mercados.mts";
 import { validateSeed, type OwnMarketSeed } from "@/adapters/ownMarkets/catalog";
 import {
   atascoDe,
@@ -310,6 +310,36 @@ describe("Feed — un mercado cerrado no se enseña como si se pudiera entrar", 
       sembrarPozos(store, seeds);
       const feed = listarMercados(store, seeds, AHORA);
       expect(feed.map((m) => m.id)).toEqual(["grande", "chico"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+/**
+ * Un mercado deja de mostrarse; no deja de existir para quien puso dinero.
+ */
+describe("Portafolio — una apuesta vieja puede abrir su mercado", () => {
+  it("el mercado vencido sale del feed pero se sigue pudiendo consultar", () => {
+    const dir = mkdtempSync(join(tmpdir(), "marea-viejo-"));
+    try {
+      const store = new Store(dir);
+      const vencido = validateSeed({
+        ...seed,
+        id: "partido-de-agosto",
+        closesAt: new Date(AHORA - 40 * DIA).toISOString(),
+        resolution: { ...seed.resolution, settlesAt: new Date(AHORA - 39 * DIA).toISOString() },
+      });
+      sembrarPozos(store, [vencido]);
+
+      // el feed no lo enseña, que es lo correcto
+      expect(listarMercados(store, [vencido], AHORA).map((m) => m.id)).toEqual([]);
+      // pero quien tiene una apuesta dentro sí lo puede abrir
+      const todos = todosLosMercados(store, [vencido], AHORA);
+      expect(todos.map((m) => m.id)).toEqual(["partido-de-agosto"]);
+      expect(todos[0].title).toBe(vencido.title);
+      // y no se cuela como `hot` por la puerta de atrás
+      expect(todos[0].hot).toBe(false);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

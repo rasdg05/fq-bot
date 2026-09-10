@@ -184,6 +184,19 @@ export function listarMercados(
     });
 }
 
+/**
+ * Todos los mercados, vencidos incluidos. Es lo que necesita quien abre una
+ * posición vieja desde su portafolio: el feed los esconde (R-041), pero un
+ * mercado deja de **mostrarse**, no deja de existir para quien puso dinero.
+ */
+export function todosLosMercados(
+  store: Store,
+  seeds: OwnMarketSeed[],
+  ahora = Date.now(),
+): Market[] {
+  return seeds.map((seed) => construirMercado(store, seed, Infinity, ahora));
+}
+
 /** Cotiza sin mover nada: lo que se le muestra al usuario antes de decidir. */
 export function cotizar(store: Store, seed: OwnMarketSeed, side: OutcomeId, stake: number) {
   return quote(poolDe(store, seed), side, stake);

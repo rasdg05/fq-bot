@@ -256,6 +256,11 @@ const MUTACIONES = [
     de: "  const abiertos = vigentes.filter((seed) => new Date(seed.closesAt).getTime() > ahora);",
     a: "  const abiertos = vigentes;", tests: ["tests/congelados.test.ts"] },
 
+  { nombre: "prod · el detalle de un mercado vuelve a filtrar por el feed", archivo: "server/mercados.mts",
+    de: "  return seeds.map((seed) => construirMercado(store, seed, Infinity, ahora));",
+    a: "  return activeSeeds(ahora, seeds).map((seed) => construirMercado(store, seed, Infinity, ahora));",
+    tests: ["tests/congelados.test.ts"] },
+
   // --- §3 · ciclo de vida: resolver, y no pagar dos veces tras un redeploy ---
   { nombre: "§3 el redeploy vuelve a pagar el mercado", archivo: "server/store.mts",
     de: '      (a) => a.tipo === "liquidacion" && a.ref === input.marketId,',
