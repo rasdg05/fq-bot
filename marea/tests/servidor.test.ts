@@ -20,6 +20,7 @@ import { construirMercado } from "../server/mercados.mts";
 import { validateSeed, type OwnMarketSeed } from "@/adapters/ownMarkets/catalog";
 import type { Oracle } from "@/domain/settlement";
 import { binaryPool } from "@/domain/parimutuel";
+import { cuentaPozo, saldoDe } from "@/domain/contabilidad";
 
 /**
  * El servidor es lo que convierte a Marea en producto: sin él, la apuesta de
@@ -135,6 +136,27 @@ describe("Servidor · cuentas y persistencia", () => {
     expect(leerSesion(token)).toBe(usuario.id);
     expect(leerSesion(`${usuario.id}.9999999999999.firmainventada`)).toBeNull();
     expect(leerSesion(firmarSesion(usuario.id, 0))).toBeNull();
+
+    /**
+     * Una firma falsa **del largo correcto**, que es la que intentaría alguien.
+     *
+     * La línea de arriba —`firmainventada`— la rechaza el chequeo de
+     * **longitud**, no el de firma: son 15 caracteres contra los 64 de un
+     * HMAC-SHA256 en hexadecimal. Medido con un barrido de mutaciones: quitar
+     * `timingSafeEqual` de `leerSesion` dejaba la suite entera en verde, porque
+     * ningún caso llegaba a la comprobación criptográfica.
+     *
+     * Con 64 caracteres válidos, lo único que puede rechazarlo es la firma. Sin
+     * eso, cualquiera se autentica como cualquiera escribiendo su id.
+     */
+    const [, vence, firmaReal] = token.split(".");
+    const falsaDelMismoLargo = firmaReal.replace(/^./, (c) => (c === "a" ? "b" : "a"));
+    expect(falsaDelMismoLargo.length).toBe(firmaReal.length);
+    expect(falsaDelMismoLargo).not.toBe(firmaReal);
+    expect(leerSesion(`${usuario.id}.${vence}.${falsaDelMismoLargo}`)).toBeNull();
+
+    // y el id tampoco se puede cambiar conservando la firma de otro
+    expect(leerSesion(`otro-usuario.${vence}.${firmaReal}`)).toBeNull();
   });
 });
 
@@ -161,6 +183,113 @@ describe("Servidor · liquidación que paga a la gente", () => {
     // pozo de 800 menos 3 %, repartido entre los 400 del lado Sí
     expect(saldoAna).toBeCloseTo(700 + (800 * 0.97 * 300) / 400, 6);
     expect(saldoBeto).toBe(700);
+  });
+
+  it("un mercado ya pagado sobrevive al redeploy y NO se paga otra vez", async () => {
+    /**
+     * El escenario es literalmente el de producción: Railway redeploya en cada
+     * push, así que el proceso muere y arranca sobre el mismo disco, y el ciclo
+     * vuelve a correr sobre mercados que **ya** se pagaron.
+     *
+     * Lo que este test prueba es la guarda **de fuera**: `ciclo.mts` ve la fase
+     * `pagado` y se salta el bloque de liquidación entero. La guarda de dentro
+     * —la idempotencia del store— no se ejercita aquí, porque el ciclo ni
+     * siquiera llega a llamarla; eso lo cubre el test siguiente, con la ventana
+     * en la que el proceso muere entre pagar y marcar.
+     *
+     * Se dice explícito porque el nombre del test sugiere que cubre las dos, y
+     * no las cubre: medido, desactivar la idempotencia del store deja este test
+     * en verde.
+     */
+    const ana = alta("ana");
+    const beto = alta("beto");
+    store.apostar({ usuarioId: ana.id, marketId: seed.id, side: "si", stake: 300, precio: 0.5 });
+    store.apostar({ usuarioId: beto.id, marketId: seed.id, side: "no", stake: 300, precio: 0.5 });
+
+    await correrCiclo(store, [seed], [oraculoSi], AHORA);
+    await correrCiclo(store, [seed], [oraculoSi], AHORA + 2 * 86_400_000);
+    expect(store.liquidacion(seed.id)?.phase).toBe("pagado");
+
+    const antes = {
+      ana: store.usuarioPorId(ana.id)!.puntos,
+      beto: store.usuarioPorId(beto.id)!.puntos,
+      tesoreria: store.tesoreria(),
+      cuadre: store.cuadre(),
+      asientos: store.libro().length,
+      pozo: saldoDe(store.libro(), cuentaPozo(seed.id)),
+    };
+    expect(antes.pozo).toBe(0);
+
+    // el redeploy: proceso nuevo, mismo disco
+    const reiniciado = new Store(dir);
+    expect(reiniciado.usuarioPorId(ana.id)!.puntos).toBe(antes.ana);
+    expect(reiniciado.tesoreria()).toBe(antes.tesoreria);
+    expect(reiniciado.libro().length).toBe(antes.asientos);
+
+    // y el ciclo vuelve a correr, como corre en cada arranque
+    const resumen = await correrCiclo(reiniciado, [seed], [oraculoSi], AHORA + 5 * 86_400_000);
+    expect(resumen.acreditado).toBe(0);
+    expect(resumen.comision).toBe(0);
+    expect(reiniciado.usuarioPorId(ana.id)!.puntos).toBe(antes.ana);
+    expect(reiniciado.usuarioPorId(beto.id)!.puntos).toBe(antes.beto);
+    expect(reiniciado.tesoreria()).toBe(antes.tesoreria);
+    // ni un asiento de más, y el pozo sigue en cero — no en negativo
+    expect(reiniciado.libro().length).toBe(antes.asientos);
+    expect(saldoDe(reiniciado.libro(), cuentaPozo(seed.id))).toBe(0);
+    expect(reiniciado.cuadre()).toBe(0);
+    expect(reiniciado.pozosConSaldoTrasLiquidar()).toEqual({});
+  });
+
+  it("si el proceso muere entre pagar y marcar, el reinicio no paga dos veces", async () => {
+    /**
+     * La guarda que esto ejercita **no es** la de la fase.
+     *
+     * El primer intento de este test corría el ciclo dos veces con un reinicio
+     * en medio y daba verde aunque se desactivara la idempotencia del store —
+     * porque `ciclo.mts` ni siquiera llega a liquidar: ve la fase `pagado` y se
+     * salta el bloque entero. Probaba la guarda de fuera, no la de dentro.
+     *
+     * La de dentro existe para un caso concreto y real: `ciclo.mts` **paga
+     * primero y marca después** (a propósito, para que un proceso muerto en
+     * medio deje el dinero ya acreditado). Si muere justo ahí, al arrancar la
+     * fase sigue siendo `en_disputa`, `isPayable` sigue dando true, y el ciclo
+     * vuelve a liquidar un mercado que ya se pagó. En Railway, que redeploya en
+     * cada push, esa ventana es real.
+     *
+     * Pagar dos veces no descuadra el libro: lo deja cuadrado con el saldo del
+     * pozo en NEGATIVO, que es mucho peor de encontrar.
+     */
+    const ana = alta("ana");
+    const beto = alta("beto");
+    store.apostar({ usuarioId: ana.id, marketId: seed.id, side: "si", stake: 300, precio: 0.5 });
+    store.apostar({ usuarioId: beto.id, marketId: seed.id, side: "no", stake: 300, precio: 0.5 });
+
+    await correrCiclo(store, [seed], [oraculoSi], AHORA);
+    const enDisputa = store.liquidacion(seed.id)!;
+    await correrCiclo(store, [seed], [oraculoSi], AHORA + 2 * 86_400_000);
+    expect(store.liquidacion(seed.id)?.phase).toBe("pagado");
+
+    const antes = {
+      ana: store.usuarioPorId(ana.id)!.puntos,
+      tesoreria: store.tesoreria(),
+      asientos: store.libro().length,
+    };
+
+    // el proceso murió antes de guardar la fase: en disco sigue `en_disputa`
+    store.guardarLiquidacion(enDisputa);
+    const reiniciado = new Store(dir);
+    expect(reiniciado.liquidacion(seed.id)?.phase).toBe("en_disputa");
+
+    // y el ciclo, al arrancar, vuelve a intentar pagarlo
+    const resumen = await correrCiclo(reiniciado, [seed], [oraculoSi], AHORA + 5 * 86_400_000);
+    expect(resumen.acreditado).toBe(0);
+    expect(resumen.comision).toBe(0);
+    expect(reiniciado.usuarioPorId(ana.id)!.puntos).toBe(antes.ana);
+    expect(reiniciado.tesoreria()).toBe(antes.tesoreria);
+    expect(reiniciado.libro().length).toBe(antes.asientos);
+    // el saldo del pozo sigue en cero, no en negativo
+    expect(saldoDe(reiniciado.libro(), cuentaPozo(seed.id))).toBe(0);
+    expect(reiniciado.cuadre()).toBe(0);
   });
 
   it("V62 un mercado con un solo apostador se anula y se devuelve todo", async () => {

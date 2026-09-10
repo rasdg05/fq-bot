@@ -92,15 +92,38 @@ def confirms_direction(feat, direction, imb_min=0.55):
     return False
 
 
-def cvd_confirmation(cvd_path, ccy, ts_ms, direction, lookback=48, win=24, imb_min=0.50):
+# Antigüedad máxima de la última barra CVD respecto al ts consultado. Si el
+# colector lleva más de esto sin escribir, la "confirmación" ya no describe el
+# flujo del momento del fire.
+#
+# Por qué existe este guard
+# -------------------------
+# La ventana es causal (ts < ts_ms) y luego .tail(lookback) — correcto mientras
+# el parquet se actualice. Cuando el colector se para, `tail` devuelve SIEMPRE
+# las mismas últimas barras, así que cvd_confirmation sigue contestando: mismo
+# imbalance, para siempre, con cara de medición viva. En el ledger del motor
+# (jul-2026) eso se ve crudo: ADA registró UN solo valor de imbalance en 45
+# eventos a lo largo de un mes, DOGE/LTC/XRP/BNB igual, y cvd_confirmed salió
+# True en 78 de 86 aperturas. Un filtro de order-flow que nunca rechaza no está
+# filtrando: está decorando. Preferimos ausencia (None -> la feature no entra
+# en el ledger ni en la decisión) antes que un dato rancio indistinguible de
+# uno fresco.
+CVD_MAX_STALENESS_MS = int(os.environ.get("FQ_CVD_MAX_STALENESS_MIN", "180")) * 60_000
+
+
+def cvd_confirmation(cvd_path, ccy, ts_ms, direction, lookback=48, win=24,
+                     imb_min=0.50, max_staleness_ms=None):
     """¿El order-flow firmado confirma la dirección EN ts_ms? Lee el CVD del colector
     (FQ_CVD_COLLECT), toma la ventana CAUSAL (barras con ts < ts_ms, sin look-ahead),
     agrega venues y confirma. imb_min default 0.50 = el umbral VALIDADO con DSR (SOL/BTC,
-    5 años). Devuelve dict {confirmed, imbalance, cvd_slope, n} o None si no hay data
-    suficiente. Defensivo: jamás lanza (si falta el parquet/ccy/ventana -> None)."""
-    import os
-    if not cvd_path or not os.path.exists(cvd_path):
+    5 años). Devuelve dict {confirmed, imbalance, cvd_slope, n, staleness_min} o None si
+    no hay data suficiente O si la data es RANCIA (ver CVD_MAX_STALENESS_MS).
+    Defensivo: jamás lanza (si falta el parquet/ccy/ventana -> None)."""
+    import os as _os
+    if not cvd_path or not _os.path.exists(cvd_path):
         return None
+    if max_staleness_ms is None:
+        max_staleness_ms = CVD_MAX_STALENESS_MS
     try:
         df = pd.read_parquet(cvd_path)
         d = df[df["ccy"] == ccy]
@@ -111,9 +134,17 @@ def cvd_confirmation(cvd_path, ccy, ts_ms, direction, lookback=48, win=24, imb_m
         w = agg.sort_values("ts").tail(lookback)
         if len(w) < win:
             return None
+        # Guard de rancidez: la última barra debe estar razonablemente cerca del
+        # ts consultado. Sin esto un colector parado produce una confirmación
+        # constante e indistinguible de una medición viva.
+        last_ts = int(w["ts"].iloc[-1])
+        staleness_ms = int(ts_ms) - last_ts
+        if max_staleness_ms and staleness_ms > max_staleness_ms:
+            return None
         f = cvd_features(w, win=win)
         return {"confirmed": bool(confirms_direction(f, direction, imb_min=imb_min)),
-                "imbalance": f["imbalance"], "cvd_slope": f["cvd_slope"], "n": f["n"]}
+                "imbalance": f["imbalance"], "cvd_slope": f["cvd_slope"], "n": f["n"],
+                "staleness_min": round(staleness_ms / 60_000.0, 1)}
     except Exception:
         return None
 

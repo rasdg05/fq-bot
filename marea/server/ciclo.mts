@@ -1,9 +1,18 @@
-import { MIN_APOSTADORES, settle, type Bet } from "../src/domain/parimutuel";
+import {
+  MIN_APOSTADORES,
+  bettorStake,
+  normalizePool,
+  settle,
+  totalPool,
+  type Bet,
+} from "../src/domain/parimutuel";
+import { compensar, type Reparto } from "../src/domain/compensacion";
 import {
   authorizePayout,
   initialState,
   isPayable,
   onClose,
+  onDeadline,
   onRead,
   readWithOracles,
   type Oracle,
@@ -30,12 +39,16 @@ export interface ResumenCiclo {
   /** Comisión cobrada en esta corrida, ya asentada en tesorería. */
   comision: number;
   atorados: string[];
+  /** Los que ya pasaron el plazo largo: se anularon y se devolvió lo apostado. */
+  incobrables: string[];
   acreditado: number;
   errores: string[];
 }
 
 function debeLeerse(seed: OwnMarketSeed, fase: string, ahora: number): boolean {
-  if (fase === "cerrado" || fase === "leido") return true;
+  // `atorado` se sigue intentando: estar atorado es una señal para que alguien
+  // mire, no una condena. Un 403 pasajero de la fuente no congela un mercado
+  if (fase === "cerrado" || fase === "leido" || fase === "atorado") return true;
   if (fase !== "abierto") return false;
   // un mercado de toque puede resolver antes de su fecha: se consulta vivo
   if (seed.rule?.kind === "precio" && seed.rule.modo === "toca") {
@@ -57,6 +70,7 @@ export async function correrCiclo(
     anulados: 0,
     comision: 0,
     atorados: [],
+    incobrables: [],
     acreditado: 0,
     errores: [],
   };
@@ -82,7 +96,61 @@ export async function correrCiclo(
         estado = siguiente;
       }
 
-      if (estado.phase === "atorado") resumen.atorados.push(seed.id);
+      /**
+       * El plazo. Un mercado que cerró y no se resolvió no se queda callado
+       * para siempre: a los 7 días se marca `atorado` —y **aparece** en el
+       * resumen— y a los 30 se da por incobrable y se devuelve todo.
+       *
+       * Va **después** de intentar leer, no antes: si la fuente contestó en
+       * esta misma corrida, el mercado se resolvió y no hay atasco que marcar.
+       */
+      estado = onDeadline(estado, seed.resolution, ahora);
+      if (estado.phase === "atorado") {
+        resumen.atorados.push(seed.id);
+        if (estado.incobrable) resumen.incobrables.push(seed.id);
+      }
+
+      /**
+       * Y lo incobrable se devuelve, por el mismo camino que cualquier otra
+       * devolución. Quedarse con el pozo de un mercado que nadie pudo ganar es
+       * exactamente lo que hace una casa (R-024), y dejarlo congelado no es más
+       * prudente: es sólo más callado.
+       */
+      if (estado.incobrable && estado.phase === "atorado") {
+        const pozo = store.pozo(seed.id);
+        const apuestas = store.apuestasDeMercado(seed.id);
+        if (pozo && apuestas.length > 0) {
+          const pool = normalizePool(pozo);
+          const devolucion: Reparto = {
+            payouts: Object.fromEntries(apuestas.map((a) => [a.id, a.stake])),
+            fee: 0,
+          };
+          const outcomes = Object.keys(pool.outcomes);
+          const repartoPorResultado: Record<string, Reparto> = {};
+          for (const id of outcomes) repartoPorResultado[id] = devolucion;
+          const compensacion = compensar({
+            marketId: seed.id,
+            outcomes,
+            colateral: totalPool(pool),
+            repartoPorResultado,
+            ganador: outcomes[0],
+          });
+          const cierre = store.liquidarMercado({
+            marketId: seed.id,
+            pagos: compensacion.pagosDeApuestas,
+            fee: 0,
+            aCapital: compensacion.aLaCasa,
+          });
+          resumen.acreditado += cierre.acreditado;
+          if (cierre.acreditado > 0 || apuestas.every((a) => a.pagado !== undefined)) {
+            resumen.anulados += 1;
+            estado = { ...estado, phase: "devuelto" };
+          }
+        } else {
+          // sin apuestas no hay a quién devolver: se cierra y se deja dicho
+          estado = { ...estado, phase: "devuelto" };
+        }
+      }
 
       if (estado.phase === "en_disputa" && isPayable(estado, ahora)) {
         const pozo = store.pozo(seed.id);
@@ -101,27 +169,77 @@ export async function correrCiclo(
         const sinMercado = distintos > 0 && distintos < MIN_APOSTADORES;
 
         if (pozo && estado.outcome) {
-          const reparto = sinMercado
-            ? { payouts: Object.fromEntries(apuestas.map((a) => [a.id, a.stake])) }
-            : settle(
-                { outcomes: pozo.outcomes, feeBps: pozo.feeBps },
-                apuestas,
-                estado.outcome,
-              );
-          // pagar primero, marcar después: si el proceso muere en medio, el
-          // dinero ya está acreditado y el estado se recalcula solo
-          resumen.acreditado += store.pagarMercado(seed.id, reparto.payouts);
-          // y la comisión va a la tesorería con su asiento: si se resta del
-          // reparto tiene que llegar a algún lado (R-064)
-          if (!sinMercado && "fee" in reparto && reparto.fee > 0) {
-            resumen.comision += reparto.fee;
-            store.acumularComision(seed.id, reparto.fee);
+          // el pozo entra por `normalizePool`, no campo por campo: escribir
+          // `{ outcomes, feeBps }` a mano tira la semilla y su modo, y un
+          // mercado con subsidio liquidaría como los de antes sin avisar
+          const pool = normalizePool(pozo);
+
+          /**
+           * `settle()` produce el reparto; **no** mueve saldos. Se le pide el
+           * de cada resultado, no sólo el del ganador: es lo que convierte «el
+           * pozo cuadra con este ganador» en «cuadra pase lo que pase», que es
+           * lo único que se puede llamar neutralidad (R-065).
+           *
+           * Un mercado anulado por falta de gente reparte lo apostado, íntegro
+           * y sin comisión, gane quien gane: es el mismo reparto para todos los
+           * resultados (R-059).
+           */
+          const devolucion: Reparto = {
+            payouts: Object.fromEntries(apuestas.map((a) => [a.id, a.stake])),
+            fee: 0,
+          };
+          const outcomes = Object.keys(pool.outcomes);
+          const repartoPorResultado: Record<string, Reparto> = {};
+          for (const id of outcomes) {
+            repartoPorResultado[id] = sinMercado ? devolucion : settle(pool, apuestas, id);
           }
+
+          /**
+           * Y el compensador es quien mueve el dinero. Acuña el mercado entero,
+           * lo quema con el ganador, y lo que sale es lo que se acredita. Si el
+           * reparto quisiera pagar más colateral del que hay, esto lanza y la
+           * liquidación **no ocurre** — antes se habría acreditado y el
+           * descuadre aparecía semanas después (L5).
+           */
+          const compensacion = compensar({
+            marketId: seed.id,
+            outcomes,
+            colateral: totalPool(pool),
+            repartoPorResultado,
+            ganador: estado.outcome,
+          });
+
+          /**
+           * Y el libro lo cierra de una vez: lo que cobra cada quien, la
+           * comisión a `tesoreria` y lo que nadie reclamó de vuelta a
+           * `capital`, en **un solo asiento** (L3). Antes eran dos, y entre los
+           * dos había un instante en que el pozo seguía teniendo la comisión
+           * dentro; morir ahí la dejaba atrapada para siempre.
+           *
+           * La cámara devuelve las dos juntas —sólo cuenta contratos, y no debe
+           * saber la diferencia— y es aquí donde se parten: ingreso contra
+           * principal que vuelve (R-066).
+           *
+           * Pagar primero y marcar después: si el proceso muere en medio, el
+           * dinero ya está acreditado y el estado se recalcula solo.
+           */
+          const fee = sinMercado ? 0 : (repartoPorResultado[estado.outcome]?.fee ?? 0);
+          const cierre = store.liquidarMercado({
+            marketId: seed.id,
+            pagos: compensacion.pagosDeApuestas,
+            fee,
+            aCapital: compensacion.aLaCasa - fee,
+          });
+          resumen.acreditado += cierre.acreditado;
+          resumen.comision += cierre.comision;
         }
 
+        // "nadie acertó" es nadie **que cobre**: con subsidio, un lado ganador
+        // que sólo tiene semilla no tiene ganadores, aunque el pozo no esté
+        // vacío. Se devuelve todo y el subsidio vuelve a tesorería (R-024)
         const nadieAcerto =
           pozo !== undefined &&
-          (pozo.outcomes[estado.outcome as string] ?? 0) <= 0;
+          bettorStake(normalizePool(pozo), estado.outcome as string) <= 0;
         estado = {
           ...authorizePayout(estado, ahora),
           phase: sinMercado || nadieAcerto ? "devuelto" : "pagado",

@@ -308,6 +308,38 @@ FIELD_TIMEFRAMES = _resolve_field_timeframes()
 
 TIMEFRAMES = _resolve_timeframes()
 
+# --- Auditoria del ledger de senales ---------------------------------------
+# Baseline contra el que se mide la expectancy VIVA del ledger de senales.
+#
+# Default 0.0 = "avisame cuando el track record publicado sea negativo con
+# confianza estadistica". No es un numero inventado ni ajustado a la data: es el
+# umbral de que el sistema pierde dinero. El Reconciler solo alerta si la
+# expectancy viva cae por DEBAJO del baseline Y FUERA del IC bootstrap, asi que
+# con 0.0 no salta por ruido -- salta cuando la perdida es defendible.
+#
+# Deliberadamente NO se usa la expectancy del motor (-0.51R) como baseline: eso
+# convertiria "pierde menos que el motor" en aprobado, que es un list0n bajisimo.
+# Con menos de min_trades cierres auditables no se evalua nada (hoy n=12).
+# Vacio explicito ("") apaga la deteccion de drift y deja solo la de integridad.
+def _resolve_signal_ledger_baseline():
+    raw = os.environ.get("FQ_SIGNAL_LEDGER_BASELINE_R", "0.0").strip()
+    if not raw:
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        # sys.stderr, no log: esto corre a nivel de modulo y `log` aun no existe
+        # (se define mas abajo). Un log.warning aqui seria un NameError.
+        sys.stderr.write(
+            "[WARN] FQ_SIGNAL_LEDGER_BASELINE_R invalido (%r) -> drift OFF\n" % raw)
+        return None
+
+SIGNAL_LEDGER_BASELINE_R = _resolve_signal_ledger_baseline()
+
+# Estado de alerta del audit: evita spamear en cada cierre de vela; solo avisa
+# en la transicion sano->roto y roto->sano (mismo patron que ops/maintenance).
+_LEDGER_ALERT_STATE = {"alerted": False, "drift": False}
+
 # Aliases legacy: comandos manuales y paths admin siguen usando 15m por default.
 TIMEFRAME             = "15m"
 INTRA_CANDLE_MINUTES  = TF_PROFILES["15m"]["INTRA_CANDLE_MINUTES"]
@@ -6316,6 +6348,33 @@ def evolution_periodic_hook(exchange):
                 closed.extend(ev.reconcile_outcomes(fetch_ohlcv, exchange, SYMBOL, tf_id))
             except Exception as e:
                 log.error("reconcile [{}] error: {}".format(tf_id, e))
+
+        # AUDITORIA DEL LEDGER DE SENALES (justo DESPUES de escribir cierres).
+        # El Reconciler se conecta ahora a lo que realmente se publica: si el
+        # tracker vuelve a producir cierres imposibles (vida > horizonte), el
+        # track record se suspende solo y avisa a admin. Antes esto no existia
+        # para fq_ledger.db y por ahi entro el bloque del 10-jun-2026.
+        try:
+            health = ev.audit_signal_ledger(
+                symbol="SOL", baseline_r=SIGNAL_LEDGER_BASELINE_R)
+            if not health["ok"] and not _LEDGER_ALERT_STATE.get("alerted"):
+                _LEDGER_ALERT_STATE["alerted"] = True
+                telegram_send(
+                    "🛑 <b>LEDGER DE SENALES NO FIABLE</b>\n"
+                    "El track record queda SUSPENDIDO (no se publica).\n\n"
+                    "{}\n\n"
+                    "Revisar el tracker de outcomes antes de volver a exponer "
+                    "numeros.".format("\n".join(health["reasons"])))
+            elif health["ok"] and _LEDGER_ALERT_STATE.get("alerted"):
+                _LEDGER_ALERT_STATE["alerted"] = False
+                telegram_send("✅ Ledger de senales vuelve a ser auditable.")
+            for r in health.get("reasons", []):
+                if "DRIFT" in r and not _LEDGER_ALERT_STATE.get("drift"):
+                    _LEDGER_ALERT_STATE["drift"] = True
+                    telegram_send("⚠️ <b>Drift de expectancy</b>\n{}".format(r))
+        except Exception as e:
+            log.error("audit_signal_ledger error: {}".format(e))
+
         for c in closed:
             outcome = c["outcome"]
             relevant = (
@@ -6363,14 +6422,41 @@ def evolution_periodic_hook(exchange):
                     )
                     prompt = ev.build_audit_prompt_v3() if hasattr(ev, "build_audit_prompt_v3") else ev.build_audit_prompt()
                     if prompt:
-                        opus_response = ev_claude.self_audit(prompt)
+                        # Veredicto ESTRUCTURADO primero: es un dato sobre el que
+                        # el bot puede actuar. Si no sale, cae a la prosa de
+                        # siempre y no se pierde nada.
+                        verdict = None
+                        if hasattr(ev_claude, "self_audit_structured"):
+                            verdict = ev_claude.self_audit_structured(prompt)
+                        if verdict:
+                            opus_response = verdict.get("resumen", "")
+                            # Consecuencia real: si el auditor ve una distribucion
+                            # imposible, eso es un bug de medicion, no un hallazgo
+                            # -> se suspende el track record igual que con el
+                            # invariante de auditabilidad. Un numero que el propio
+                            # auditor no defiende no se publica.
+                            if verdict.get("fallo_de_medicion"):
+                                ev._ledger_health.update({
+                                    "ok": False,
+                                    "reasons": ["el self-audit reporta una distribucion "
+                                                "imposible (posible fallo de medicion)"],
+                                })
+                                telegram_send(
+                                    "🛑 <b>El auditor reporta FALLO DE MEDICION</b>\n"
+                                    "Track record suspendido hasta revisarlo.\n\n{}".format(
+                                        verdict.get("accion_urgente", "")))
+                            cab = "<b>FQ · Auditoria evolutiva</b>\n{}\n[{}] confianza {} · n minima {}".format(
+                                G["thin"], verdict.get("verdict", "?"),
+                                verdict.get("confianza", "?"), verdict.get("min_n_usada", "?"))
+                        else:
+                            opus_response = ev_claude.self_audit(prompt)
+                            cab = "<b>FQ · Auditoria evolutiva</b>\n{}".format(G["thin"])
                         audit_msg = (
-                            "<b>FQ · Auditoria evolutiva</b>\n"
-                            "{thin}\n\n{r}\n\n"
+                            "{cab}\n\n{r}\n\n"
                             "{thin}\n"
                             "Estas son SUGERENCIAS. RasDG decide.\n"
                             "#FQ #SelfAudit"
-                        ).format(thin=G["thin"], r=opus_response)
+                        ).format(cab=cab, thin=G["thin"], r=opus_response)
                         for p in split_telegram_message(audit_msg):
                             broadcast_to_subscribers(p)
                 except Exception as e:

@@ -7,13 +7,31 @@ Mismo invariante que BTC/ETH/BCH: con FQ_MOTOR_PAPER_LINK / _BNB sin setear
 el env. A DIFERENCIA de BCH (sin KL), LINK/BNB van con kl_gated=True -> el
 broadcast SOLO sale en régimen KL-bajo (tier Calidad, honra FQ_KL_FILTER).
 """
+import importlib
+
 import fq_bot_v3_2 as b
 
 
-def test_link_bnb_off_by_default():
-    """Default OFF en ambos flags."""
-    assert b.LINK_MOTOR_PAPER_ENABLED is False
-    assert b.BNB_MOTOR_PAPER_ENABLED is False
+def test_link_bnb_off_by_default(monkeypatch):
+    """Default OFF en ambos flags.
+
+    Recarga el modulo con el entorno LIMPIO en vez de leer la constante que
+    quedo en memoria: LINK_MOTOR_PAPER_ENABLED se evalua en tiempo de import, y
+    otros tests de la suite recargan fq_bot_v3_2 (p.ej. _reload_with_flag en
+    test_tactical_alert) con su propio entorno. Sin este reload el test afirma
+    'el default es OFF' leyendo el valor que dejo el ultimo reload ajeno, asi
+    que pasaba o fallaba segun el ORDEN de la suite -- verde en aislado, rojo
+    en la corrida completa. Ahora el default se establece aqui.
+    """
+    monkeypatch.delenv("FQ_MOTOR_PAPER_LINK", raising=False)
+    monkeypatch.delenv("FQ_MOTOR_PAPER_BNB", raising=False)
+    mod = importlib.reload(b)
+    try:
+        assert mod.LINK_MOTOR_PAPER_ENABLED is False
+        assert mod.BNB_MOTOR_PAPER_ENABLED is False
+    finally:
+        # Deja el modulo consistente con el entorno para los tests que siguen.
+        importlib.reload(b)
 
 
 def test_xsym_scan_noop_when_disabled():

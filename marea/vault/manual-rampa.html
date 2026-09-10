@@ -1,0 +1,616 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8">
+<style>
+@font-face{font-family:"Fraunces";src:url("file:///home/user/fq-bot/marea/public/fonts/fraunces-600.woff2") format("woff2");font-weight:600 700;}
+@font-face{font-family:"Hanken";src:url("file:///home/user/fq-bot/marea/public/fonts/hanken-400.woff2") format("woff2");font-weight:400;}
+@font-face{font-family:"Hanken";src:url("file:///home/user/fq-bot/marea/public/fonts/hanken-500.woff2") format("woff2");font-weight:500 600;}
+@font-face{font-family:"Hanken";src:url("file:///home/user/fq-bot/marea/public/fonts/hanken-700.woff2") format("woff2");font-weight:700 800;}
+@page{size:A4 portrait;margin:17mm 16mm}
+:root{
+  --paper:#fdfcf8;--card:#fff;--card2:#f0ece2;
+  --ink:#12262a;--ink2:#3c5250;--muted:#6b7c7a;
+  --teal:#0b6b6e;--teal-deep:#084f52;--teal-soft:#e4efed;
+  --line:rgba(11,107,110,.26);--line2:rgba(18,38,42,.12);
+  --dn:#a8412b;--dn-soft:#faeee9;--up:#157048;--hot:#8a5a0b;--hot-soft:#f8f0dc;
+  --display:"Fraunces",Georgia,serif;--sans:"Hanken",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:10.6pt;line-height:1.52}
+p{margin:0 0 8px}
+strong{font-weight:700}
+code{font-family:var(--mono);font-size:.88em;background:var(--card2);border-radius:4px;padding:1px 4px}
+.pb{break-before:page}
+.keep{break-inside:avoid}
+
+.cab{border-bottom:2.5px solid var(--ink);padding-bottom:12px;margin-bottom:16px}
+.eyebrow{font-size:8.5pt;letter-spacing:.22em;text-transform:uppercase;color:var(--teal);font-weight:700}
+h1{font-family:var(--display);font-weight:600;font-size:30pt;line-height:1.05;letter-spacing:-.015em;margin:9px 0 7px}
+.deck{font-size:11.5pt;color:var(--ink2);max-width:60em}
+.meta{display:flex;gap:22px;margin-top:11px;font-family:var(--mono);font-size:8.5pt;color:var(--muted)}
+
+h2{font-family:var(--display);font-weight:600;font-size:16.5pt;margin:22px 0 3px;letter-spacing:-.01em;break-after:avoid}
+h2 .n{font-family:var(--mono);font-size:10pt;color:var(--teal);font-weight:700;margin-right:9px}
+h3{font-size:11pt;font-weight:700;margin:14px 0 4px;break-after:avoid}
+.sub{font-size:9.5pt;color:var(--muted);margin-bottom:10px}
+
+.aviso{background:var(--dn-soft);border:1.5px solid rgba(168,65,43,.34);border-radius:9px;padding:11px 14px;margin:14px 0;font-size:10pt;color:var(--ink2)}
+.aviso b{color:var(--dn)}
+.nota{background:var(--card);border-left:3px solid var(--teal);border-radius:0 8px 8px 0;padding:10px 13px;margin:11px 0;font-size:10pt;color:var(--ink2)}
+.nota .lb{font-size:8pt;letter-spacing:.13em;text-transform:uppercase;font-weight:700;color:var(--teal);margin-bottom:3px}
+.nota b{color:var(--ink)}
+.nota.w{border-left-color:var(--dn)} .nota.w .lb{color:var(--dn)}
+
+.ent{border:1.5px solid var(--line2);border-radius:11px;padding:13px 16px;margin:12px 0;background:var(--card)}
+.ent .top{display:flex;justify-content:space-between;align-items:baseline;gap:14px;margin-bottom:6px}
+.ent .tit{font-size:12pt;font-weight:700}
+.ent .sem{font-family:var(--mono);font-size:9pt;color:var(--teal);font-weight:700;white-space:nowrap}
+.ent ul{margin:6px 0 0 16px} .ent li{margin-bottom:4px}
+.cierra{margin-top:9px;padding-top:8px;border-top:1px dashed var(--line);font-size:9.5pt;color:var(--ink2)}
+.cierra b{color:var(--teal-deep)}
+
+.q{border:1.5px solid var(--line2);border-radius:10px;padding:11px 14px;margin-bottom:9px;background:var(--card)}
+.q .h{display:flex;gap:10px;align-items:baseline}
+.q .num{font-family:var(--mono);font-weight:700;color:var(--teal);font-size:10pt}
+.q .tx{font-size:10.4pt;font-weight:700}
+.q .imp{margin-top:6px;padding-left:26px;font-size:9.6pt;color:var(--ink2)}
+.q .imp .lb{font-family:var(--mono);font-size:8pt;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700}
+
+ul.lista{margin:6px 0 8px 17px} ul.lista li{margin-bottom:5px}
+ol.hechos{margin:6px 0 8px 19px} ol.hechos li{margin-bottom:6px}
+
+table{border-collapse:collapse;width:100%;font-size:9.6pt;margin:9px 0}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line2);vertical-align:top}
+thead th{font-size:8pt;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700;border-bottom:1.5px solid var(--line)}
+tbody tr:last-child td{border-bottom:none}
+td.c{font-family:var(--mono);font-weight:700;color:var(--teal-deep);white-space:nowrap}
+tr.hit td{background:var(--hot-soft)}
+.vacio{color:var(--line2)}
+.pie{margin-top:26px;padding-top:10px;border-top:1px solid var(--line2);font-family:var(--mono);font-size:8pt;color:var(--muted);display:flex;justify-content:space-between}
+<style>
+.portada{min-height:245mm;display:flex;flex-direction:column;justify-content:center;break-after:page}
+.portada h1{font-size:46pt;margin:14px 0 10px}
+.portada .sello{margin-top:auto;border-top:2px solid var(--ink);padding-top:14px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.portada .sello .k{font-size:8pt;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.portada .sello .v{font-family:var(--mono);font-size:10.5pt;margin-top:3px;color:var(--teal-deep);font-weight:700}
+.indice{background:var(--card);border:1.5px solid var(--line2);border-radius:11px;padding:16px 20px;margin:18px 0}
+.indice ol{margin:0;padding-left:20px;columns:2;column-gap:28px;font-size:10pt}
+.indice li{margin-bottom:5px;break-inside:avoid}
+.indice li b{color:var(--teal-deep)}
+.parte{font-family:var(--display);font-size:22pt;font-weight:600;color:var(--teal);border-bottom:2px solid var(--teal);padding-bottom:6px;margin:0 0 4px;break-after:avoid}
+.parte-d{font-size:10pt;color:var(--muted);margin-bottom:12px}
+.regla{display:grid;grid-template-columns:26px 1fr;gap:10px;padding:7px 0;border-bottom:1px solid var(--line2);font-size:10pt;break-inside:avoid}
+.regla:last-child{border-bottom:none}
+.regla .i{font-family:var(--mono);font-weight:700;color:var(--teal);font-size:9.5pt;padding-top:1px}
+.regla b{color:var(--ink)}
+.paso{border:1.5px solid var(--line2);border-radius:10px;padding:12px 15px;margin-bottom:9px;background:var(--card);break-inside:avoid}
+.paso .h{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.paso .n2{font-family:var(--mono);font-weight:700;color:var(--teal);font-size:10pt}
+.paso .t{font-size:11pt;font-weight:700;flex:1;margin-left:10px}
+.paso .est{font-family:var(--mono);font-size:8.5pt;color:var(--muted);white-space:nowrap}
+.paso .d{font-size:9.8pt;color:var(--ink2);margin-top:5px}
+.paso .g{margin-top:7px;padding-top:6px;border-top:1px dashed var(--line);font-size:9.4pt}
+.paso .g b{color:var(--teal-deep)}
+pre{font-family:var(--mono);font-size:9pt;line-height:1.5;background:var(--card2);border:1px solid var(--line2);
+  border-radius:8px;padding:11px 13px;margin:9px 0;white-space:pre-wrap;break-inside:avoid;color:var(--ink)}
+pre .c{color:var(--muted)}
+.fallo{display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid var(--line2);font-size:9.8pt}
+.fallo:last-of-type{border-bottom:none}
+.fallo .q{padding:8px 12px 8px 0;font-weight:700}
+.fallo .r{padding:8px 0 8px 12px;border-left:1px solid var(--line2);color:var(--ink2)}
+.glos{display:grid;grid-template-columns:150px 1fr;gap:0;font-size:9.8pt;border-bottom:1px solid var(--line2)}
+.glos:last-child{border-bottom:none}
+.glos .t{padding:7px 10px 7px 0;font-weight:700;font-family:var(--mono);font-size:9.2pt;color:var(--teal-deep)}
+.glos .d{padding:7px 0;color:var(--ink2)}
+.svgbox{background:var(--card);border:1.5px solid var(--line2);border-radius:12px;padding:14px 16px;margin:12px 0;break-inside:avoid}
+.bx{fill:var(--card2);stroke:var(--line2);stroke-width:1.3}
+.bx-k{fill:var(--teal-soft);stroke:var(--teal);stroke-width:1.5}
+.bx-x{fill:var(--dn-soft);stroke:var(--dn);stroke-width:1.4}
+.bx-e{fill:var(--hot-soft);stroke:var(--hot);stroke-width:1.3}
+.t1{fill:var(--ink);font-family:var(--sans);font-size:11.5px;font-weight:700}
+.t1k{fill:var(--teal-deep);font-family:var(--sans);font-size:11.5px;font-weight:700}
+.t2{fill:var(--muted);font-family:var(--mono);font-size:9.5px}
+.t3{fill:var(--ink2);font-family:var(--mono);font-size:9.5px}
+.tx{fill:var(--dn);font-family:var(--sans);font-size:11px;font-weight:700}
+.l1{stroke:var(--ink2);stroke-width:1.3;fill:none}
+.lk{stroke:var(--teal);stroke-width:1.7;fill:none}
+.lx{stroke:var(--dn);stroke-width:1.5;fill:none;stroke-dasharray:5 4}
+.hd{fill:var(--ink2)}.hk{fill:var(--teal)}.hx{fill:var(--dn)}
+</style></head><body>
+
+<!-- ================= PORTADA ================= -->
+<div class="portada">
+  <div class="eyebrow">Marea · manual del co-desarrollador</div>
+  <h1>La rampa TRX</h1>
+  <div class="deck" style="font-size:13pt">Encargo completo para el segundo desarrollador:
+  misión, arquitectura, planos, pasos hasta la implementación, cómo se trabaja con este
+  repositorio y qué sigue después.</div>
+
+  <div class="indice">
+    <ol>
+      <li><b>Parte I</b> — El proyecto y cómo se trabaja aquí</li>
+      <li>Misión, visión y tu papel</li>
+      <li>Qué es Marea y dónde está hoy</li>
+      <li>Cómo está armado</li>
+      <li>Las reglas que no se rompen</li>
+      <li><b>Señales para tu agente</b></li>
+      <li><b>Parte II</b> — Tu encargo</li>
+      <li>La decisión que lo define todo</li>
+      <li>Arquitectura de la rampa</li>
+      <li>Los caminos que fallan</li>
+      <li>El contrato de código</li>
+      <li>Los siete pasos</li>
+      <li>Recomendaciones y definición de terminado</li>
+      <li><b>Parte III</b> — Tu agenda</li>
+      <li>Anexos: comandos y glosario</li>
+    </ol>
+  </div>
+
+  <div class="sello">
+    <div><div class="k">Encargo</div><div class="v">Rampa USDT-TRC20 → USDC-Base</div></div>
+    <div><div class="k">Duración estimada</div><div class="v">2–3 semanas · +1–2 la vuelta</div></div>
+    <div><div class="k">Bloquea a</div><div class="v">nadie — es paralelo</div></div>
+    <div><div class="k">Repositorio</div><div class="v">rasdg05/fq-bot · marea/</div></div>
+    <div><div class="k">Tu rama</div><div class="v">claude/marea-rampa-tron</div></div>
+    <div><div class="k">Documento</div><div class="v">2026-09-07 · v1</div></div>
+  </div>
+</div>
+
+<!-- ================= PARTE I ================= -->
+<div class="parte">Parte I · El proyecto y cómo se trabaja aquí</div>
+<div class="parte-d">Léelo entero antes de escribir una línea. Son veinte minutos que ahorran una
+semana.</div>
+
+<h2><span class="n">01</span>Misión, visión y tu papel</h2>
+
+<div class="hall" style="background:var(--teal-soft);border:1.5px solid var(--teal);border-radius:10px;padding:13px 16px;margin:12px 0">
+<div class="lb" style="font-size:8pt;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--teal);margin-bottom:4px">Misión de Marea</div>
+Que cualquiera en Latinoamérica pueda opinar sobre un hecho futuro con dinero de verdad,
+<b>y comprobar por su cuenta que el resultado y el pago fueron honestos</b> — sin tener que
+confiar en nosotros.</div>
+
+<p><strong>Visión.</strong> Ser la cámara de compensación de los mercados de predicción en
+español: la capa aburrida y verificable donde se cruzan las dos partes, con el dinero en un
+contrato público y la casa cobrando por operar, nunca por ganarle a nadie.</p>
+
+<p><strong>Tu papel.</strong> Eres el segundo desarrollador y tu primer encargo es la
+<strong>puerta de entrada del dinero</strong>. Es el bloque más paralelizable del plan: no toca
+el contrato, ni la matemática de liquidación, ni ninguna invariante del pozo. Puedes trabajar de
+principio a fin sin bloquear a nadie y sin que nadie te bloquee.</p>
+
+<p>Pero que sea paralelo no lo hace menor: <strong>es lo primero que toca un usuario real</strong>,
+y es donde una decisión de arquitectura equivocada puede tirar abajo la propiedad más importante
+del producto. Eso está en la sección 06 y es lo único de este documento que no se negocia.</p>
+
+<h2><span class="n">02</span>Qué es Marea y dónde está hoy</h2>
+<p>App móvil, español latino, donde la gente responde preguntas sobre hechos futuros verificables
+—inflación, tipo de cambio, precios, Liga MX— y comparte el resultado. Cada mercado cita una
+fuente pública desde que nace, y un proceso automático la lee, abre una ventana de disputa y paga.</p>
+
+<div class="dos" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:10px 0">
+  <div class="caja si" style="background:var(--teal-soft);border:1.5px solid var(--teal);border-radius:10px;padding:11px 13px">
+    <h4 style="font-size:10.4pt;font-weight:700;margin-bottom:4px">Lo que ya funciona</h4>
+    <p style="font-size:9.5pt;color:var(--ink2);margin:0">289 pruebas en verde · ciclo automático
+    de creación, lectura, disputa y pago con nueve fuentes de oráculo · contabilidad de partida
+    doble que cuadra en cero · cuentas con código de recuperación · el compensador puro con su
+    prueba de mil secuencias.</p></div>
+  <div class="caja no" style="background:var(--dn-soft);border:1.5px solid rgba(168,65,43,.34);border-radius:10px;padding:11px 13px">
+    <h4 style="font-size:10.4pt;font-weight:700;margin-bottom:4px">Lo que no existe</h4>
+    <p style="font-size:9.5pt;color:var(--ink2);margin:0"><b>Volumen: cero.</b> Se juega con
+    <b>puntos</b>, no con dinero. Ningún país habilitado: la tabla arranca entera en «pendiente» y
+    el código se niega a recibir dinero sin opinión legal. Nada de la parte en cadena está
+    desplegado.</p></div>
+</div>
+
+<div class="nota w"><div class="lb">Lo que esto significa para tu trabajo</div>
+<b>Vas a construir la rampa contra la puerta cerrada.</b> Con la elegibilidad en «pendiente»,
+`crearSolicitud` lanza excepción — y así debe seguir. Tu trabajo se prueba con el proveedor
+simulado y con pruebas, no moviendo dinero. Si en algún momento la forma más rápida de avanzar
+parece ser abrir la puerta «sólo para probar», la respuesta es no.</div>
+
+<h2><span class="n">03</span>Cómo está armado</h2>
+<pre>marea/
+  src/domain/      contratos y reglas puras: pozo, parimutuel, contabilidad,
+                   liquidación, elegibilidad, <b>solicitudes</b> ← lo tuyo
+  src/adapters/    puertos e implementaciones: mock, venues, oráculos, wallet
+                   <b>puente/</b> ← lo tuyo, no existe todavía
+  src/state/       store único (reducer + acciones) con adapters inyectables
+  src/screens/     una pantalla por destino + hojas
+  src/lib/         strings (todo el copy), flags, config
+  server/*.mts     servidor propio, persistencia JSON atómica
+  vault/           la documentación viva del producto
+  tests/           vitest</pre>
+
+<div class="regla"><span class="i">1</span><div><b>UI ≠ datos ≠ wallet ≠ analítica ≠ errores.</b>
+Las pantallas sólo hablan con el store; el store sólo habla con los adapters. Si una pantalla
+importa un adapter, está mal.</div></div>
+<div class="regla"><span class="i">2</span><div><b>El dominio es puro.</b> `src/domain/` no hace
+red, no lee reloj y no tiene estado. Todo lo que entra, entra por parámetro. Es lo que permite
+probarlo en microsegundos.</div></div>
+<div class="regla"><span class="i">3</span><div><b>Los adapters son puertos.</b> Cada integración
+tiene su interfaz y al menos dos implementaciones: la simulada y la real. La simulada
+<b>declara que lo es</b>.</div></div>
+<div class="regla"><span class="i">4</span><div><b>Todo el texto vive en `lib/strings.ts`.</b> No
+se escriben cadenas visibles dentro de un componente.</div></div>
+
+<div class="pb"></div>
+<h2><span class="n">04</span>Las reglas que no se rompen</h2>
+<p class="sub">El repositorio tiene 68 reglas permanentes en `vault/RULINGS.md`. Éstas son las que
+te van a tocar a ti. Violar una es hallazgo crítico automático, no una discusión de estilo.</p>
+
+<div class="regla"><span class="i">R-022</span><div><b>Nunca fingir que se habló con un
+proveedor.</b> Si la integración no está configurada, la app degrada a su camino simulado
+<b>y lo dice en la interfaz</b>. Éste es el que más te va a aplicar.</div></div>
+<div class="regla"><span class="i">R-011</span><div><b>El copy se deriva de las flags</b>, no de
+suposiciones. Lo que la app afirma tiene que ser verdad según la configuración real.</div></div>
+<div class="regla"><span class="i">R-045</span><div><b>La puerta de elegibilidad se aplica al
+crear</b>, no al ejecutar. Una solicitud creada en un país sin permiso ya es un camino de dinero
+abierto, aunque nunca avance.</div></div>
+<div class="regla"><span class="i">R-016</span><div><b>Un reintento no duplica un movimiento de
+dinero.</b> `avanzar()` al estado en que ya se está no hace nada. Tu integración tiene que ser
+idempotente por la referencia del proveedor.</div></div>
+<div class="regla"><span class="i">R-065</span><div><b>El pozo es cámara, nunca creador de
+mercado.</b> No te toca directamente, pero explica por qué el diseño es como es.</div></div>
+<div class="regla"><span class="i">L12</span><div><b>Marea no puede mover fondos de un
+usuario.</b> No existe la función, y tu encargo es justo donde alguien podría introducirla sin
+querer. Ver sección 06.</div></div>
+
+<h2><span class="n">05</span>Señales para tu agente</h2>
+<p class="sub">Si trabajas con un asistente de código, dale esto. Es la cultura del repositorio
+comprimida, y es lo que separa un PR que entra de uno que hay que rehacer.</p>
+
+<div class="nota"><div class="lb">Lo primero que tiene que leer tu agente</div>
+Esta lista es un resumen para que puedas leerlo en papel. <b>La especificación real y autoritativa
+vive en el repositorio</b>, y tu agente debe leerla directamente:
+<b>`marea/vault/AGENTE.md`</b> — función objetivo, jerarquía de la verdad, invariantes del
+producto, presupuestos que no se negocian, protocolo de verificación de seis peldaños y qué no se
+hace. Si algo de este resumen contradice ese documento, <b>gana el documento</b>.</div>
+
+<div class="regla"><span class="i">01</span><div>Antes de tocar nada: <b>`CLAUDE.md`</b> en la
+raíz y <b>`MEMORY/00-INDICE.md`</b>. Sesenta segundos. El contexto largo vive en `MEMORY/` y se
+lee bajo demanda, no se re-deriva.</div></div>
+<div class="regla"><span class="i">02</span><div>La regla que gobierna el repo: <b>un hallazgo sin
+un test que lo haga cumplir es una nota, no un arreglo.</b> Cuando cierres algo, pregúntate qué
+prueba impide que vuelva. Si la respuesta es «acordarse», no está cerrado.</div></div>
+<div class="regla"><span class="i">03</span><div><b>Prefiere editar a crear.</b> Este repo ya
+tiene mucho. Antes de escribir un archivo nuevo, busca si ya existe la pieza. Duplicar es
+deuda.</div></div>
+<div class="regla"><span class="i">04</span><div><b>Antes de proponer algo, mira
+`MEMORY/CEMENTERIO.md`.</b> Hay ideas que ya se mataron con razón escrita — incluida la de hacer
+la rampa con una dirección de depósito nuestra.</div></div>
+<div class="regla"><span class="i">05</span><div><b>Sin relojes de pared en las pruebas.</b> Las
+fechas y el «ahora» entran por parámetro. Una prueba que depende de la hora a la que corrió es
+una prueba que va a fallar sola un martes.</div></div>
+<div class="regla"><span class="i">06</span><div><b>Una métrica demasiado limpia es un bug</b>,
+no un hallazgo. Si tu prueba pasa a la primera y cubre mucho, sospecha de la prueba antes que
+celebrar el código. Rómpela a propósito y confirma que se pone roja.</div></div>
+<div class="regla"><span class="i">07</span><div><b>Comentarios en español y explican por qué</b>,
+no qué. El código ya dice qué hace; el comentario dice por qué está así y qué pasa si se
+cambia.</div></div>
+<div class="regla"><span class="i">08</span><div><b>Nunca a `main` directo.</b> `main` redespliega
+producción. Trabajas en tu rama y se revisa por PR.</div></div>
+<div class="regla"><span class="i">09</span><div><b>`npm run ci` antes de cada commit</b>: tipos +
+validación + build. Y `npm run test` para la suite.</div></div>
+<div class="regla"><span class="i">10</span><div><b>No inventes números.</b> Si citas una cifra,
+cita de dónde sale. Este proyecto ya pagó caro publicar un número que no aguantaba una
+auditoría.</div></div>
+
+<div class="nota"><div class="lb">Las cuatro pruebas rojas que vas a encontrar</div>
+Al correr la suite vas a ver <b>4 fallos</b> en `ownmarkets` y `settlement`. <b>No son tuyos y no
+son un bug de código:</b> el catálogo tiene fechas de julio y agosto y ya caducó. Se arreglan
+corriendo `npm run roll`, que sale a buscar precios reales y repuebla el catálogo.
+<b>Ése es tu primer día</b> — ver la sección 14.</div>
+
+<div class="pb"></div>
+<!-- ================= PARTE II ================= -->
+<div class="parte">Parte II · Tu encargo</div>
+<div class="parte-d">La rampa: cómo entra el dinero del usuario, sin que pase nunca por nosotros.</div>
+
+<h2><span class="n">06</span>La decisión que lo define todo</h2>
+<p>El usuario latinoamericano no llega de un banco: llega con <strong>USDT en Tron</strong>, que es
+el riel que de verdad usa. Tu encargo es que pueda entrar con eso y terminar con USDC en Base,
+listo para operar.</p>
+<p><strong>Hay dos maneras de construirlo y sólo una es compatible con el proyecto.</strong></p>
+
+<table>
+  <thead><tr><th>Forma</th><th>Qué pasa</th><th>Veredicto</th></tr></thead>
+  <tbody>
+    <tr style="background:var(--teal-soft)"><td><b>Integración</b></td><td>El usuario firma. Los fondos van <b>de él → al puente → a su propia dirección</b> en Base. Nunca pasan por nosotros</td><td><b>Ésta</b></td></tr>
+    <tr style="background:var(--dn-soft)"><td><b>Dirección de depósito</b></td><td>«Manda a esta cuenta y te acreditamos». Nos vuelve <b>custodios</b> en la pata de Tron</td><td><b>Prohibida</b></td></tr>
+  </tbody>
+</table>
+
+<div class="aviso"><b>La segunda es más fácil de construir, y por eso es la trampa.</b> Un producto
+no custodial con una rampa custodial es un producto custodial con un diagrama bonito: tira abajo
+L12, R-065, el argumento legal entero y la propiedad que hace posible pedir una opinión con
+respuesta. Si en algún momento el camino más corto parece ser «que nos manden a una dirección
+nuestra», <b>para y pregunta</b>. No es una optimización, es un cambio de qué somos.</div>
+
+<div class="nota"><div class="lb">El patrón ya existe en el repo — cópialo</div>
+Mira `src/adapters/custodia/contrato.ts`. Es la interfaz del contrato de custodia, y
+<b>deliberadamente no expone `firmar()` ni `retirar()`</b>, con el motivo escrito en el
+encabezado. Tu `Puente` se diseña igual: <b>no tiene un método que ejecute una transferencia con
+llaves nuestras</b>, porque no tenemos ninguna. Cotiza, arma la transacción para que la firme el
+usuario, y consulta el estado. Nada más.</div>
+
+<h2><span class="n">07</span>Arquitectura de la rampa</h2>
+<div class="svgbox">
+<svg viewBox="0 0 1080 400" role="img" aria-label="Flujo de la rampa: el usuario cotiza, Marea arma la transacción, el usuario la firma, el puente mueve los fondos a la propia dirección del usuario en Base.">
+  <defs>
+    <marker id="ra" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hd" d="M0,0 L10,5 L0,10 z"/></marker>
+    <marker id="rk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hk" d="M0,0 L10,5 L0,10 z"/></marker>
+    <marker id="rx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hx" d="M0,0 L10,5 L0,10 z"/></marker>
+  </defs>
+
+  <rect class="bx" x="10" y="30" width="200" height="74" rx="9"/>
+  <text class="t1" x="26" y="56">Usuario · wallet Tron</text>
+  <text class="t2" x="26" y="76">tiene USDT-TRC20</text>
+  <text class="t2" x="26" y="93">la llave es suya</text>
+
+  <rect class="bx-e" x="250" y="30" width="200" height="74" rx="9"/>
+  <text class="t1" x="266" y="56">Marea · servidor</text>
+  <text class="t2" x="266" y="76">cotiza y ARMA la tx</text>
+  <text class="t2" x="266" y="93">no firma · no custodia</text>
+
+  <rect class="bx" x="490" y="30" width="200" height="74" rx="9"/>
+  <text class="t1" x="506" y="56">Usuario firma</text>
+  <text class="t2" x="506" y="76">en su wallet</text>
+  <text class="t2" x="506" y="93">es el único que puede</text>
+
+  <rect class="bx-e" x="730" y="30" width="180" height="74" rx="9"/>
+  <text class="t1" x="746" y="56">Puente · tercero</text>
+  <text class="t2" x="746" y="76">swap + bridge</text>
+  <text class="t2" x="746" y="93">TRC20 → Base</text>
+
+  <rect class="bx-k" x="730" y="180" width="180" height="74" rx="9"/>
+  <text class="t1k" x="746" y="206">Dirección DEL usuario</text>
+  <text class="t3" x="746" y="226">USDC en Base</text>
+  <text class="t3" x="746" y="243">nunca una nuestra</text>
+
+  <rect class="bx-k" x="490" y="180" width="200" height="74" rx="9"/>
+  <text class="t1k" x="506" y="206">Ya puede operar</text>
+  <text class="t3" x="506" y="226">el pozo lo recibe</text>
+  <text class="t3" x="506" y="243">como cualquier wallet</text>
+
+  <rect class="bx" x="250" y="180" width="200" height="74" rx="9"/>
+  <text class="t1" x="266" y="206">Solicitud con estado</text>
+  <text class="t2" x="266" y="226">domain/solicitudes.ts</text>
+  <text class="t2" x="266" y="243">pendiente → confirmando</text>
+
+  <path class="l1" d="M210,67 L246,67" marker-end="url(#ra)"/>
+  <text class="t3" x="212" y="24">cotiza</text>
+  <path class="l1" d="M450,67 L486,67" marker-end="url(#ra)"/>
+  <text class="t3" x="452" y="24">tx sin firmar</text>
+  <path class="lk" d="M690,67 L726,67" marker-end="url(#rk)"/>
+  <text class="t3" x="686" y="24">firmada</text>
+  <path class="lk" d="M820,104 L820,176" marker-end="url(#rk)"/>
+  <path class="lk" d="M726,217 L694,217" marker-end="url(#rk)"/>
+  <path class="l1" d="M350,104 L350,176" marker-end="url(#ra)"/>
+  <text class="t3" x="358" y="145">se registra</text>
+  <path class="l1" d="M450,217 L486,217" marker-end="url(#ra)"/>
+
+  <rect class="bx-x" x="10" y="300" width="900" height="74" rx="9"/>
+  <text class="tx" x="30" y="326">✗ Lo que NO existe en este diagrama, y no se agrega</text>
+  <text class="t2" x="30" y="348">ninguna dirección nuestra que reciba fondos · ninguna llave nuestra que firme por el usuario</text>
+  <text class="t2" x="30" y="364">ningún saldo que nosotros «acreditemos» a mano · si aparece cualquiera de las tres, el diseño se rompió</text>
+</svg>
+</div>
+
+<div class="pb"></div>
+<h2><span class="n">08</span>Los caminos que fallan</h2>
+<p class="sub">El camino feliz es un día de trabajo. <strong>El resto del encargo son éstos</strong>
+— y es donde se gana o se pierde la confianza del usuario.</p>
+
+<div class="fallo"><div class="q">El puente está caído</div><div class="r">`cotizar()` falla. La
+app <b>lo declara</b> (R-022) y deja abierto el camino directo: el que ya tiene USDC en Base entra
+sin rampa. El pozo y los pagos siguen funcionando.</div></div>
+<div class="fallo"><div class="q">Llegó menos de lo cotizado</div><div class="r">Slippage o
+comisión del puente. <b>Se acredita lo que llegó, nunca lo cotizado.</b> Y la cotización se le
+muestra al usuario con su margen <b>antes</b> de que firme.</div></div>
+<div class="fallo"><div class="q">Se quedó a medias</div><div class="r">La solicitud se queda en
+`confirmando` y <b>no avanza sola</b>. Tiene que seguir siendo consultable días después: el estado
+vive en el servidor, no en el navegador.</div></div>
+<div class="fallo"><div class="q">El usuario cerró la app</div><div class="r">No pasa nada. Al
+volver, ve su solicitud en el estado en que esté. Si el estado sólo vivía en el cliente, está
+mal.</div></div>
+<div class="fallo"><div class="q">El proveedor reintenta</div><div class="r">Idempotencia por la
+referencia del puente: el mismo aviso tres veces produce <b>un</b> movimiento. `avanzar()` ya es
+idempotente por estado; tú tienes que serlo por referencia.</div></div>
+<div class="fallo"><div class="q">Llegó dos veces</div><div class="r">Dos transferencias distintas
+con la misma referencia lógica. Se detecta y se registra; nunca se acredita dos veces.</div></div>
+<div class="fallo"><div class="q">Confirmaciones insuficientes</div><div class="r">Define cuántos
+bloques antes de dar por buena la llegada, y déjalo <b>configurable</b>, no incrustado en el
+código.</div></div>
+
+<h2><span class="n">09</span>El contrato de código</h2>
+<p>Propuesta de interfaz. Ajústala si al integrar el proveedor descubres que sobra o falta algo —
+pero <strong>la ausencia de un método que ejecute con llaves nuestras no se toca</strong>.</p>
+
+<pre><span class="c">// src/adapters/puente/contrato.ts</span>
+export interface Cotizacion {
+  montoOrigen: number;        <span class="c">// USDT que pone el usuario</span>
+  montoEstimado: number;      <span class="c">// USDC que estima recibir</span>
+  comisionPuente: number;
+  margenSlippage: number;     <span class="c">// se le MUESTRA antes de firmar</span>
+  expiraEn: string;
+  referencia: string;         <span class="c">// la clave de idempotencia</span>
+}
+
+export interface TxParaFirmar {
+  cadena: "tron";
+  destino: string;            <span class="c">// contrato del puente</span>
+  datos: string;
+  <span class="c">// A dónde llegan los fondos al final. SIEMPRE una dirección</span>
+  <span class="c">// del propio usuario. Es lo que fija la invariante L17.</span>
+  beneficiarioFinal: string;
+}
+
+export type EstadoPuente =
+  | { estado: "pendiente" }
+  | { estado: "en_transito"; confirmaciones: number }
+  | { estado: "completado"; montoRecibido: number; txDestino: string }
+  | { estado: "fallido"; motivo: string };
+
+export interface Puente {
+  readonly id: string;
+  <span class="c">// Si es true, nada de lo que devuelve viene de un proveedor real.</span>
+  <span class="c">// Se expone para que la interfaz pueda decirlo (R-022).</span>
+  readonly esSimulado: boolean;
+  readonly descripcion: string;
+
+  cotizar(i: { montoUsdt: number; beneficiario: string }): Promise&lt;Cotizacion&gt;;
+  armar(c: Cotizacion): Promise&lt;TxParaFirmar&gt;;
+  estado(referencia: string): Promise&lt;EstadoPuente&gt;;
+
+  <span class="c">// NO existe enviar(), ni firmar(), ni retirar(). No es un olvido:</span>
+  <span class="c">// no tenemos llaves de nadie y no vamos a tenerlas (L12).</span>
+}</pre>
+
+<div class="nota"><div class="lb">La invariante que tienes que cablear</div>
+<b>L17 · el beneficiario final de una transacción de rampa es siempre una dirección del propio
+usuario.</b> <i>Test que la fija:</i> armar una transacción cuyo `beneficiarioFinal` no sea la
+dirección conectada del usuario <b>lanza excepción</b>. Si algún día alguien mete una dirección
+nuestra ahí, la suite se pone roja antes de que llegue a producción. Ésa es tu contribución más
+importante a este proyecto, más que el código feliz.</div>
+
+<div class="pb"></div>
+<h2><span class="n">10</span>Los siete pasos</h2>
+
+<div class="paso"><div class="h"><span class="n2">01</span><span class="t">Interfaz y proveedor simulado</span><span class="est">2 días</span></div>
+<div class="d">`adapters/puente/contrato.ts` con la interfaz, y `puente/simulado.ts` que la
+implementa declarando `esSimulado: true`. Cablearlo en `adapters/index.ts` con el patrón que ya
+usan los demás: sin configuración, cae en el simulado.</div>
+<div class="g"><b>Puerta:</b> `npm run ci` verde y la app dice en pantalla que la rampa es
+simulada. Nunca finge.</div></div>
+
+<div class="paso"><div class="h"><span class="n2">02</span><span class="t">La máquina de estados, enchufada</span><span class="est">2 días</span></div>
+<div class="d">Conectar con `domain/solicitudes.ts`, que ya existe y ya tiene las transiciones
+legales. Añadir la referencia del puente a la solicitud. <b>No reescribas la máquina</b>: se
+extiende.</div>
+<div class="g"><b>Puerta:</b> test de idempotencia — el mismo aviso del proveedor tres veces
+produce un solo movimiento.</div></div>
+
+<div class="paso"><div class="h"><span class="n2">03</span><span class="t">Cotizar y armar</span><span class="est">3 días</span></div>
+<div class="d">La cotización con su margen visible, y el armado de la transacción sin firmar.
+Aquí vive L17.</div>
+<div class="g"><b>Puerta:</b> el test de L17 en rojo si el beneficiario no es del usuario. Rómpelo
+a propósito una vez y confirma que se pone rojo.</div></div>
+
+<div class="paso"><div class="h"><span class="n2">04</span><span class="t">Monitoreo del estado</span><span class="est">3 días</span></div>
+<div class="d">Consulta periódica del estado por referencia, avance de la solicitud, y persistencia
+en el servidor.</div>
+<div class="g"><b>Puerta:</b> con el puente sin responder, la solicitud queda consultable — no
+perdida y no acreditada.</div></div>
+
+<div class="paso"><div class="h"><span class="n2">05</span><span class="t">Montos parciales y slippage</span><span class="est">2 días</span></div>
+<div class="d">Acreditar lo recibido, no lo cotizado. Registrar la diferencia.</div>
+<div class="g"><b>Puerta:</b> test de «llegó menos» — se acredita el monto real y el usuario ve por
+qué difiere.</div></div>
+
+<div class="paso"><div class="h"><span class="n2">06</span><span class="t">La pantalla</span><span class="est">3 días</span></div>
+<div class="d">Estado del depósito, con texto en `lib/strings.ts`. Cada estado dice la verdad,
+incluida la caída del proveedor.</div>
+<div class="g"><b>Puerta:</b> los siete caminos de la sección 08 tienen su texto, y ninguno miente.</div></div>
+
+<div class="paso"><div class="h"><span class="n2">07</span><span class="t">Proveedor real, endurecimiento y documentación</span><span class="est">3–4 días</span></div>
+<div class="d">La implementación contra el puente elegido, detrás de configuración. Y un documento
+en `vault/` que explique cómo operarla.</div>
+<div class="g"><b>Puerta:</b> otra persona puede operar la rampa leyendo tu documento, sin
+preguntarte.</div></div>
+
+<h2><span class="n">11</span>Recomendaciones de implementación</h2>
+<div class="regla"><span class="i">01</span><div><b>Elige el puente al final, no al principio.</b>
+Construye contra tu interfaz con el simulado. Cuando llegues al paso 07 vas a saber qué necesitas
+de verdad, y la comparación entre proveedores será de treinta minutos en vez de una semana de
+prueba y error.</div></div>
+<div class="regla"><span class="i">02</span><div><b>Los criterios para elegirlo</b>, en este orden:
+que soporte TRC20 → Base con USDC nativo · que la transacción la firme el usuario y no exija
+custodia · que exponga consulta de estado por referencia · comisión y slippage declarados antes de
+firmar · y qué te exige a ti (varios piden verificación de la empresa: <b>eso es cola, avísalo
+pronto</b>).</div></div>
+<div class="regla"><span class="i">03</span><div><b>No confíes en el cliente.</b> El monto, el
+beneficiario y el estado se verifican en el servidor contra el proveedor. Lo que manda el
+navegador es una intención, no un hecho.</div></div>
+<div class="regla"><span class="i">04</span><div><b>Idempotencia por referencia, desde el primer
+commit.</b> Meterla después es reescribir. La referencia del puente es la clave, no un id
+nuestro.</div></div>
+<div class="regla"><span class="i">05</span><div><b>Degrada declarando.</b> Sin proveedor
+configurado, la rampa no desaparece de la interfaz: aparece diciendo que está simulada. Es la
+diferencia entre un producto honesto y uno que aparenta.</div></div>
+<div class="regla"><span class="i">06</span><div><b>Prueba sin dinero.</b> Todo el encargo se puede
+completar con el simulado y con pruebas. Cuando toque probar contra el proveedor real, hazlo en su
+red de prueba y con montos mínimos, y coordínalo antes.</div></div>
+<div class="regla"><span class="i">07</span><div><b>Escribe el texto de los errores tú.</b> «Error
+502» no es un mensaje. «El puente no responde; tu dinero no se movió y puedes intentar en unos
+minutos» sí. Y va en `lib/strings.ts`.</div></div>
+
+<div class="nota"><div class="lb">Definición de terminado</div>
+El encargo está terminado cuando: <b>(1)</b> los siete caminos de fallo tienen prueba y texto ·
+<b>(2)</b> el test de L17 existe y se pone rojo si alguien mete otra dirección · <b>(3)</b> la
+suite completa pasa sin tocar expectativas de pruebas ajenas · <b>(4)</b> `npm run ci` verde ·
+<b>(5)</b> hay un documento en `vault/` con el que otra persona opera la rampa · y <b>(6)</b> con
+el proveedor sin configurar, la app lo declara y sigue usable.</div>
+
+<div class="pb"></div>
+<!-- ================= PARTE III ================= -->
+<div class="parte">Parte III · Tu agenda</div>
+<div class="parte-d">Qué haces el primer día, y qué sigue cuando la rampa esté cerrada.</div>
+
+<h2><span class="n">12</span>Día 1 — antes de la rampa</h2>
+<p>Una tarea pequeña y real para entrar al repositorio con las manos, no leyendo:</p>
+<div class="paso"><div class="h"><span class="n2">D1</span><span class="t">Repoblar el catálogo y poner la suite entera en verde</span><span class="est">medio día</span></div>
+<div class="d">Hay 4 pruebas rojas porque el catálogo tiene fechas caducadas. Corre `npm run roll`,
+verifica que el feed vuelve a tener mercados vigentes, y deja la suite en 293 verdes.</div>
+<div class="g"><b>Por qué es buen primer día:</b> tocas el ciclo automático, ves cómo se generan y
+resuelven los mercados, y entiendes por qué existe la regla de que un catálogo con fechas fijas
+caduca — sin arriesgar nada.</div></div>
+
+<h2><span class="n">13</span>Después de la rampa, en orden</h2>
+<table>
+  <thead><tr><th>#</th><th>Trabajo</th><th>Por qué en ese orden</th><th class="n">Est.</th></tr></thead>
+  <tbody>
+    <tr><td class="c">1</td><td><b>La pata de vuelta</b> — retirar de Base a Tron</td><td>Es la mitad que falta de tu propio encargo. Más delicada que la entrada: aquí el usuario saca</td><td class="n">1–2 sem</td></tr>
+    <tr><td class="c">2</td><td><b>Screening de sanciones</b></td><td>No es KYC y no admite niveles: aplica a todos. Son 2–3 días y desbloquea el lanzamiento. Se coordina con el brazo legal</td><td class="n">3 días</td></tr>
+    <tr><td class="c">3</td><td><b>Verificador de prueba</b> — pantalla donde el usuario comprueba su operación contra la raíz anclada</td><td>Independiente, no toca dinero, y es la cara visible de la auditabilidad</td><td class="n">1 sem</td></tr>
+    <tr><td class="c">4</td><td><b>Vigilante externo</b> — proceso que compara el colateral del contrato contra los conjuntos emitidos, cada bloque</td><td>Es una invariante que hoy es sólo un test; falta como servicio que grite</td><td class="n">1 sem</td></tr>
+    <tr><td class="c">5</td><td><b>Niveles de verificación</b> N0–N3 con tope efectivo</td><td>La estructura se puede construir ya; el número del tope espera la respuesta legal</td><td class="n">1–2 sem</td></tr>
+  </tbody>
+</table>
+<p class="sub" style="margin-top:8px">Los puntos 1 y 2 son los que están en el camino crítico del
+lanzamiento. Del 3 al 5 se pueden reordenar según lo que haga falta.</p>
+
+<h2><span class="n">14</span>Cómo trabajamos</h2>
+<div class="regla"><span class="i">Ramas</span><div>Una por encargo, con nombre descriptivo.
+Nunca a `main`: `main` redespliega producción.</div></div>
+<div class="regla"><span class="i">PRs</span><div>Pequeños y con el porqué en la descripción. Un PR
+que sólo dice qué hace obliga a leer el diff para entenderlo.</div></div>
+<div class="regla"><span class="i">Decisiones</span><div>Lo que cambia una regla, una invariante o
+la forma del dinero <b>se pregunta</b>. Lo que es implementación dentro de tu encargo, lo decides
+tú. Ante la duda, la sección 06 es el ejemplo de lo que se pregunta.</div></div>
+<div class="regla"><span class="i">Memoria</span><div>Cuando cierres algo que costó descubrir,
+déjalo en `MEMORY/marea/` con fecha. La memoria es lo que evita que el proyecto vuelva a discutir
+lo mismo en seis meses.</div></div>
+
+<div class="pb"></div>
+<h2><span class="n">A</span>Anexo · Comandos</h2>
+<pre>npm install          instalar
+npm run dev          desarrollo
+npm run test         suite (vitest)
+npm run ci           tipos + validación + build  <span class="c">← antes de cada commit</span>
+npm run validate     el reporte de validación del producto
+npm run roll         repuebla el catálogo con los mercados de la semana
+npm run settle       liquida los mercados que ya resolvieron
+npm run daily        las tres tareas de mantenimiento, en orden</pre>
+
+<h2><span class="n">B</span>Anexo · Glosario</h2>
+<div class="glos"><div class="t">cámara</div><div class="d">La pieza que guarda el colateral de las dos partes y paga al que acertó. No toma lado nunca.</div></div>
+<div class="glos"><div class="t">conjunto completo</div><div class="d">Una unidad de colateral equivale a un contrato de cada resultado. Es lo que hace que el pozo no tenga varianza.</div></div>
+<div class="glos"><div class="t">taker / maker</div><div class="d">Quien toma un precio que ya estaba / quien lo pone. Hoy no hay libro; es vocabulario del diseño futuro.</div></div>
+<div class="glos"><div class="t">subsidio</div><div class="d">Liquidez que pone la casa para que un mercado nuevo no esté vacío. Tiene tope y <b>nunca cobra</b>.</div></div>
+<div class="glos"><div class="t">época / ancla</div><div class="d">El libro se encadena con hashes y cada cierto tiempo su raíz se publica en la cadena. Eso permite a un usuario verificar su operación sin ver la de nadie.</div></div>
+<div class="glos"><div class="t">oráculo</div><div class="d">El proceso que lee la fuente pública citada por el mercado y publica el resultado con su evidencia.</div></div>
+<div class="glos"><div class="t">ventana de disputa</div><div class="d">El tiempo entre que se lee el resultado y se paga. No se paga con la ventana abierta, aunque el resultado se sepa.</div></div>
+<div class="glos"><div class="t">elegibilidad</div><div class="d">La tabla por país que decide si se puede depositar y operar. Hoy está entera en «pendiente» y el código lo hace cumplir.</div></div>
+
+<div class="pie"><span>Marea · Manual del co-desarrollador · La rampa TRX · 2026-09-07</span><span>uso interno</span></div>
+</body></html>

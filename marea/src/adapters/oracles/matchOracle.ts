@@ -117,6 +117,15 @@ export function createMatchOracle(options: MatchOracleOptions = {}): Oracle {
         };
       }
 
+      /**
+       * De cuándo es el dato: la fecha del propio partido según ESPN, no el
+       * momento en que preguntamos. Un scoreboard congelado seguiría
+       * devolviendo el marcador de la semana pasada con un 200 impecable.
+       */
+      const observedAt = Number.isFinite(Date.parse(evento.date))
+        ? new Date(evento.date).toISOString()
+        : undefined;
+
       const nuestros = Number(nuestro.score ?? NaN);
       const suyos = Number(rival.score ?? NaN);
       if (!Number.isFinite(nuestros) || !Number.isFinite(suyos)) {
@@ -133,7 +142,7 @@ export function createMatchOracle(options: MatchOracleOptions = {}): Oracle {
       if (rule.kind === "partido_multiple") {
         if (rule.mercado === "1x2") {
           const outcome = gano ? "gana" : empato ? "empata" : "pierde";
-          return { status: "resuelto", outcome, evidence: evidencia };
+          return { status: "resuelto", outcome, evidence: evidencia, observedAt };
         }
         const totales = nuestros + suyos;
         const tramos = idsDeTramos(rule.cortes ?? []);
@@ -144,6 +153,7 @@ export function createMatchOracle(options: MatchOracleOptions = {}): Oracle {
           status: "resuelto",
           outcome: tramos[indice].id,
           evidence: `${evidencia} Goles totales: ${totales}.`,
+          observedAt,
         };
       }
 
@@ -153,6 +163,7 @@ export function createMatchOracle(options: MatchOracleOptions = {}): Oracle {
         status: "resuelto",
         outcome: cumple ? "si" : "no",
         evidence: evidencia,
+        observedAt,
       };
     },
   };

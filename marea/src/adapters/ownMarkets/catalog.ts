@@ -1,13 +1,16 @@
 import type { EventoReciente, MarcadorVivo, MarketCategory } from "@/domain/types";
 import { assertPublishable, type ResolutionSpec } from "@/domain/resolution";
+import { FRESCURA_MAX_HORAS } from "@/domain/settlement";
 import { ruleProblems, type OracleRule } from "@/domain/oracleRule";
 import type { Pool } from "@/domain/parimutuel";
 import {
   BINARY_OUTCOMES,
   SEED,
   binaryPool,
+  declareSeed,
   normalizePool,
   type Outcome,
+  type SeedMode,
 } from "@/domain/parimutuel";
 
 /**
@@ -82,13 +85,28 @@ export interface OwnMarketSeed {
 
 const FEE_BPS = 300;
 
+/**
+ * Cómo se comporta la semilla de los mercados de este catálogo.
+ *
+ * `"apuesta"` — lo que hubo siempre, y lo que estas trece preguntas prometieron
+ * el día que se publicaron. R-067 dice que la liquidez de la casa debe ser
+ * subsidio, y lo será para los mercados que nazcan de aquí en adelante; **estos
+ * no se migran.** Cambiarles el modo movería el multiplicador que ya se le
+ * mostró a quien apostó, y cada mercado termina con las reglas con las que
+ * nació (R-023, R-044).
+ *
+ * Se escribe explícito en vez de dejarlo ausente: el default silencioso hace lo
+ * mismo, pero no dice que alguien lo pensó.
+ */
+const SEED_MODE: SeedMode = "apuesta";
+
 function seedPool(si = SEED, no = SEED): Pool {
-  return binaryPool(si, no, FEE_BPS);
+  return declareSeed(binaryPool(si, no, FEE_BPS), SEED_MODE);
 }
 
 /** Semilla de un mercado de N resultados: cada id con lo suyo. */
 function seedOutcomes(outcomes: Record<string, number>): Pool {
-  return { outcomes: { ...outcomes }, feeBps: FEE_BPS };
+  return declareSeed({ outcomes: { ...outcomes }, feeBps: FEE_BPS }, SEED_MODE);
 }
 
 const SEEDS: OwnMarketSeed[] = [
@@ -108,6 +126,11 @@ const SEEDS: OwnMarketSeed[] = [
     // pide token, igual que Banxico; sin él el mercado lo declara (R-022)
     rule: {
       kind: "serie",
+      // el INPC es MENSUAL y el INEGI fecha la observación al periodo. Este
+      // mercado estaba atascado igual que los otros tres, sólo que la falta de
+      // INEGI_TOKEN lo tapaba: sin llave contestaba `requiere_humano` antes de
+      // llegar a la comprobación del margen
+      frescuraDias: 100,
       fuente: "inegi",
       serie: "628194",
       comparacion: "menor",
@@ -139,6 +162,9 @@ const SEEDS: OwnMarketSeed[] = [
     // SF61745: tasa objetivo. La API de Banxico es gratis pero pide token
     rule: {
       kind: "serie",
+      // la tasa objetivo sólo cambia en las reuniones de Banxico, ~8 al año.
+      // El último cambio puede tener seis semanas y sigue siendo el vigente
+      frescuraDias: 100,
       fuente: "banxico",
       serie: "SF61745",
       comparacion: "baja",
@@ -226,7 +252,18 @@ const SEEDS: OwnMarketSeed[] = [
       { id: "no", label: "La mantiene" },
     ],
     // serie 432 del BCB: meta Selic, pública y sin llave
-    rule: { kind: "serie", fuente: "bcb", serie: "432", comparacion: "baja", etiqueta: "Meta Selic" },
+    rule: {
+      kind: "serie",
+      fuente: "bcb",
+      serie: "432",
+      comparacion: "baja",
+      etiqueta: "Meta Selic",
+      // la meta Selic sólo cambia en las reuniones del COPOM, cada ~45 días, y
+      // la serie fecha el valor al día del cambio. Con 1.5 d de margen el
+      // último cambio siempre parecía viejo y el mercado no resolvía nunca.
+      // 100 cubre dos reuniones
+      frescuraDias: 100,
+    },
     resolution: {
       sourceName: "Banco Central do Brasil (serie 432 del SGS)",
       sourceUrl: "https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados/ultimos/6?formato=json",
@@ -251,6 +288,11 @@ const SEEDS: OwnMarketSeed[] = [
     // serie 13522 del BCB: IPCA acumulado 12 meses, pública y sin llave
     rule: {
       kind: "serie",
+      // IPCA es MENSUAL: el IBGE publica a mediados del mes siguiente y la
+      // observación va fechada al periodo, no al día de publicación. Con el
+      // margen por defecto (1.5 d) este mercado no resolvía NUNCA — medido.
+      // 100 días es el valor que ya usaba `cl-imacec`, otra serie mensual
+      frescuraDias: 100,
       fuente: "bcb",
       serie: "13522",
       comparacion: "menor",
@@ -357,6 +399,9 @@ const SEEDS: OwnMarketSeed[] = [
         "Se resuelve Sí si la vela diaria de BTC/USD en Kraken correspondiente al domingo 2026-08-02 cierra por encima de 71,000 dólares. Se lee del endpoint público de Kraken, que cualquiera puede consultar.",
       settlesAt: "2026-08-02T23:59:00Z",
       disputeWindowHours: 12,
+      // fuente que late a diario o más rápido: aquí el reloj SÍ es la
+      // herramienta correcta para saber si el colector sigue vivo (L8)
+      maxAgeHours: FRESCURA_MAX_HORAS,
     },
   },
   {
@@ -387,6 +432,9 @@ const SEEDS: OwnMarketSeed[] = [
         "Se resuelve Sí si el precio de ETH/USD en Kraken alcanza o supera 4,500 dólares en cualquier momento entre el 1 de julio y el 1 de octubre de 2026, medido sobre el máximo de las velas diarias públicas.",
       settlesAt: "2026-10-01T00:00:00Z",
       disputeWindowHours: 12,
+      // fuente que late a diario o más rápido: aquí el reloj SÍ es la
+      // herramienta correcta para saber si el colector sigue vivo (L8)
+      maxAgeHours: FRESCURA_MAX_HORAS,
     },
   },
   {
@@ -404,6 +452,10 @@ const SEEDS: OwnMarketSeed[] = [
     // PN01279PM: variación anual del IPC de Lima. Pública y sin llave
     rule: {
       kind: "serie",
+      // inflación de Lima: MENSUAL, misma forma que el IPCA. Sin margen, el
+      // dato correcto llegaba fechado ~35 días antes de resolver y se
+      // descartaba por viejo — el mercado se quedaba en `sin_dato` para siempre
+      frescuraDias: 100,
       fuente: "bcrp",
       serie: "PN01279PM",
       comparacion: "menor",
@@ -471,6 +523,9 @@ const SEEDS: OwnMarketSeed[] = [
         "Se resuelve con el marcador final del América contra Santos del 2 de agosto de 2026, tal como lo publica ESPN: Gana el América si anota más goles, Empatan si terminan iguales, y Gana Santos si el América anota menos. Sólo cuenta el marcador al final del tiempo reglamentario que publica la fuente.",
       settlesAt: "2026-08-03T04:00:00Z",
       disputeWindowHours: 12,
+      // fuente que late a diario o más rápido: aquí el reloj SÍ es la
+      // herramienta correcta para saber si el colector sigue vivo (L8)
+      maxAgeHours: FRESCURA_MAX_HORAS,
     },
   },
   {
@@ -502,6 +557,9 @@ const SEEDS: OwnMarketSeed[] = [
         "Se resuelve con los goles totales del Toluca contra Necaxa del 3 de agosto de 2026, sumando los de los dos equipos según el marcador final que publica ESPN: 0-1 goles, 2-3 goles, o 4 o más goles. Sólo cuenta el marcador al final del tiempo reglamentario que publica la fuente.",
       settlesAt: "2026-08-03T06:00:00Z",
       disputeWindowHours: 12,
+      // fuente que late a diario o más rápido: aquí el reloj SÍ es la
+      // herramienta correcta para saber si el colector sigue vivo (L8)
+      maxAgeHours: FRESCURA_MAX_HORAS,
     },
   },
 ];

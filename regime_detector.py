@@ -77,7 +77,7 @@ def _wr_trend_flag():
             conn = ev._connect()
             try:
                 rows = conn.execute(
-                    "SELECT outcome FROM signals WHERE outcome IS NOT NULL "
+                    "SELECT outcome FROM signals WHERE " + ev.AUDITABLE_SQL +
                     "ORDER BY ts_closed DESC LIMIT 20"
                 ).fetchall()
             finally:

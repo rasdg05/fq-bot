@@ -45,6 +45,80 @@ def extract_closed_r(ledger):
     return out
 
 
+class SignalLedgerView:
+    """Adaptador: expone el ledger de SENALES (SQLite, fq_ledger.db) con la
+    misma interfaz que HashLedger (.records / .verify()) para que Reconciler
+    pueda auditarlo SIN cambios.
+
+    Por que existe
+    --------------
+    El Reconciler estaba conectado solo a los HashLedger de gold/funding paper
+    — y ademas apagado por defecto (sin baseline en env). El numero que se
+    publica a clientes sale de OTRA base, fq_ledger.db, que nadie auditaba. El
+    10-jun-2026 esa base acumulo 23 cierres imposibles y el track record se fue
+    a E[R]=+1.84R mientras el motor real marcaba -0.51R, sin que saltara nada.
+    Este adaptador cierra ese lazo: el detector se conecta a lo que realmente
+    se publica.
+
+    Mapeo de las dos comprobaciones
+    -------------------------------
+    - `verify()`  <- integridad. En el HashLedger es la cadena SHA-256; aqui es
+      el INVARIANTE DE AUDITABILIDAD: ninguna senal cerrada RECIENTEMENTE puede
+      tener una vida registrada mayor que su horizonte de timeout. Si aparece
+      una, el tracker volvio a romperse y las metricas son indefendibles ->
+      mismo tratamiento que una cadena corrupta (kill + cortocircuito).
+      El chequeo se limita a `lookback_days` a proposito: la corrupcion
+      historica ya esta excluida de las stats por ledger_stats; lo que hay que
+      detectar es una RECAIDA, no volver a castigar lo ya contenido.
+    - `records`   <- expectancy viva. Solo filas AUDITABLES, en el formato de
+      evento CLOSE que espera extract_closed_r.
+    """
+
+    def __init__(self, fetch_rows, lookback_days=7):
+        """fetch_rows: callable -> secuencia de filas con outcome, pnl_r,
+        ts_closed y minutes_open (inyectado para no acoplar a sqlite ni
+        obligar a un import circular con entropy_cognition)."""
+        self._fetch_rows = fetch_rows
+        self.lookback_days = lookback_days
+
+    def _rows(self):
+        try:
+            return list(self._fetch_rows() or [])
+        except Exception as e:
+            log.warning("SignalLedgerView: fetch fallo (%s)", e)
+            return []
+
+    @property
+    def records(self):
+        import ledger_stats
+        auditable, _ = ledger_stats.filter_auditable(self._rows())
+        return [{"payload": {"event": CLOSE, "pnl_r": float(r["pnl_r"])}}
+                for r in auditable if r["pnl_r"] is not None]
+
+    def verify(self):
+        """False si una senal cerrada dentro de la ventana de lookback viola el
+        invariante de auditabilidad (= el tracker esta produciendo desenlaces
+        imposibles otra vez)."""
+        import ledger_stats
+        from datetime import datetime, timedelta, timezone
+        cutoff = (datetime.now(timezone.utc)
+                  - timedelta(days=self.lookback_days)).isoformat()
+        for r in self._rows():
+            try:
+                ts_closed = r["ts_closed"]
+            except (KeyError, IndexError, TypeError):
+                continue
+            if not ts_closed or ts_closed < cutoff:
+                continue
+            if not ledger_stats.is_auditable(r):
+                log.error(
+                    "ledger de senales: cierre NO auditable en los ultimos %dd "
+                    "(outcome=%s minutes_open=%s) -> tracker roto",
+                    self.lookback_days, r["outcome"], r["minutes_open"])
+                return False
+        return True
+
+
 class Reconciler:
     """Compara el track record vivo (HashLedger) contra el baseline del backtest
     y, ante drift / DD / cadena rota, activa el kill-switch del gobernador. Es el

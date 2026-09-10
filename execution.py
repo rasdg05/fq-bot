@@ -53,10 +53,44 @@ class Position:
     entry_fill_type: str = None   # 'maker'|'taker' por-trade (lo fija el ejecutor
                                   # maker); None -> _settle usa el flag global del
                                   # cost model. No afecta el sizing.
+    # --- RECORRIDO (MFE/MAE) --------------------------------------------
+    # Precio mas favorable y mas adverso VISTOS mientras la posicion estuvo
+    # abierta. None hasta que se observa la primera vela. Son el dato que falta
+    # para juzgar la GEOMETRIA del trade: el ledger sella donde SALIO, no hasta
+    # donde LLEGO, y sin eso no se puede saber si el TP esta demasiado lejos, el
+    # SL demasiado cerca, o si la senal simplemente no separa.
+    mfe_price: float = None
+    mae_price: float = None
+    bars_held: int = 0
+    # Barra (1-indexada) en la que ocurrio cada extremo. Sin esto, MFE y MAE no
+    # bastan para repreciar otra geometria: un trade que llego a +2R y luego
+    # murio en el stop se contaria como perdedor bajo un TP de +1R, cuando en
+    # realidad habria salido en TP ANTES de que el stop existiera. El orden ENTRE
+    # barras es lo que desambigua; dentro de una barra sigue sin conocerse.
+    mfe_bar: int = None
+    mae_bar: int = None
 
     @property
     def risk_dist(self):
         return abs(self.entry - self.stop)
+
+    def excursion_r(self):
+        """(mfe_r, mae_r) en multiplos de R de PRECIO (distancia al stop).
+
+        mfe_r >= 0 (a favor), mae_r <= 0 (en contra). (None, None) si no se
+        observo ninguna vela: mejor ausencia que un cero que se leeria como
+        'no se movio'. Se normaliza por risk_dist -- la distancia de precio al
+        stop -- para que sean directamente comparables con donde estan puestos
+        el TP y el SL, que es justo la pregunta que responden.
+        """
+        if self.mfe_price is None or self.mae_price is None:
+            return None, None
+        rd = self.risk_dist
+        if rd <= 0:
+            return None, None
+        d = self.direction
+        return (d * (self.mfe_price - self.entry) / rd,
+                d * (self.mae_price - self.entry) / rd)
 
 
 @dataclass
@@ -294,6 +328,54 @@ def _symbol_from_jsonl(jsonl_path):
     return base.replace("_", "/", 1)
 
 
+def resume_equity_from_ledger(ledger, default_equity):
+    """Reconstruye (equity, peak_equity) desde el ledger durable.
+
+    Por que
+    -------
+    La cuenta paper se creaba SIEMPRE con FQ_MOTOR_PAPER_EQUITY (10000) en cada
+    arranque del proceso, aunque el ledger fuese durable. En el ledger de
+    jul-2026 eso se ve directamente: `equity_at_open == 10000.0` exacto en 87 de
+    114 aperturas. Consecuencias, en orden de gravedad:
+
+      1. No hay curva de equity — hay N arranques desde cero. El drawdown real
+         del sistema nunca se midio.
+      2. El gate de supervivencia FQ_MOTOR_MAX_DD estaba MUERTO: compara contra
+         peak_equity, y el pico se reseteaba junto con la equity en cada
+         restart. Un sistema que perdio 45R nunca disparo su propio halt.
+      3. El sizing (risk_frac sobre equity) se calculaba sobre un capital
+         ficticio constante, no sobre el que quedaba.
+
+    El pico se reconstruye recorriendo la serie, no tomando el maximo de
+    `equity_after`: el maximo historico de la cuenta es lo que define el
+    drawdown, y hay que verlo en orden para respetar los reinicios previos.
+    Devuelve (default_equity, default_equity) si el ledger no tiene cierres.
+    """
+    equity = float(default_equity)
+    peak = float(default_equity)
+    try:
+        records = list(getattr(ledger, "records", None) or [])
+    except Exception:
+        return equity, peak
+    seen_close = False
+    for rec in records:
+        p = rec.get("payload", {}) if isinstance(rec, dict) else {}
+        if p.get("event") != "CLOSE":
+            continue
+        eq = p.get("equity_after")
+        if eq is None:
+            continue
+        try:
+            equity = float(eq)
+        except (TypeError, ValueError):
+            continue
+        seen_close = True
+        peak = max(peak, equity)
+    if not seen_close:
+        return float(default_equity), float(default_equity)
+    return equity, peak
+
+
 def open_motor_ledger(jsonl_path, symbol):
     """Ledger del motor (CARGADO) según FQ_LEDGER_SQLITE: SQLite multi-símbolo (1
     archivo, consultable) o el JSONL legacy por símbolo. Reversible (default OFF=JSONL,
@@ -331,12 +413,56 @@ class PaperBroker:
         #            del A/B taker-vs-maker (FQ_EXEC_MODE). Funding: commit 2.
         self.cost = cost
 
+    def net_unit_loss(self, entry, stop, direction, entry_maker=None):
+        """Perdida NETA por unidad si salta el stop, incluyendo fees y slippage.
+
+        Sin cost model devuelve la distancia bruta al stop (compat exacta).
+        Replica el mismo modelo que _settle: la pierna de salida por stop SIEMPRE
+        cruza el book (taker), la de entrada depende del fill.
+        """
+        c = self.cost
+        rdist = abs(entry - stop)
+        if c is None:
+            return rdist
+        d = int(direction)
+        if entry_maker is None:
+            entry_maker = bool(getattr(c, "maker_entry", False))
+        eff_entry = entry if entry_maker else entry * (1 + d * c.slippage_frac)
+        eff_exit = stop * (1 - d * c.slippage_frac)          # el stop cruza -> taker
+        gross_per_unit = d * (eff_exit - eff_entry)          # negativo
+        fees_per_unit = ((c.maker_fee if entry_maker else c.taker_fee) * entry
+                         + c.taker_fee * stop)
+        loss = -(gross_per_unit - fees_per_unit)
+        return loss if loss > 0 else rdist                   # defensivo
+
     def open(self, account: Account, signal: dict, risk_frac: float, ts=None):
         entry, stop = float(signal["entry"]), float(signal["stop"])
         rdist = abs(entry - stop)
         if rdist <= 0:
             raise ValueError("riesgo nulo (entry == stop)")
-        size = account.equity * risk_frac / rdist
+        # SIZING CONSCIENTE DE COSTES.
+        #
+        # `size = equity * risk_frac / rdist` dimensiona para que la perdida
+        # BRUTA al stop sea exactamente risk_frac del equity -- pero _settle
+        # resta despues fees y slippage, asi que la perdida REALIZADA es mayor.
+        # En el ledger del motor (jul-2026) el stop medio costo -1.191R en vez
+        # de -1.0R: un 19% de sobrecoste sistematico. Consecuencia: risk_frac no
+        # significa lo que dice, y con el se desfasan TODOS los topes del
+        # gobernador (max_total_risk_frac, max_daily_loss_frac, max_drawdown_frac),
+        # que quedan un 19% mas laxos de lo configurado.
+        #
+        # Ahora se dimensiona desde la perdida NETA: arriesgar 0.25% significa
+        # perder 0.25% cuando salta el stop. OJO: esto corrige el PRESUPUESTO DE
+        # RIESGO, no la expectancy -- R es una unidad, reescalarla no crea edge.
+        # FQ_COST_AWARE_SIZING=0 restaura el dimensionado bruto historico.
+        if (self.cost is not None
+                and os.environ.get("FQ_COST_AWARE_SIZING", "1").strip()
+                not in ("0", "false", "no")):
+            denom = self.net_unit_loss(entry, stop, int(signal["direction"]),
+                                       signal.get("entry_fill_type"))
+        else:
+            denom = rdist
+        size = account.equity * risk_frac / denom
         self._pid += 1
         pos = Position(account_id=account.account_id, symbol=signal["symbol"],
                        direction=int(signal["direction"]), entry=entry, stop=stop,
@@ -366,6 +492,17 @@ class PaperBroker:
                  "pid": pos.pid, "exit": exit_price, "reason": reason,
                  "pnl_quote": pnl_quote, "pnl_r": pnl_r,
                  "equity_after": account.equity}
+        # RECORRIDO: hasta donde llego el trade, no solo donde salio. Es lo que
+        # permite juzgar la geometria TP/SL offline (tools/geometry_report.py).
+        # Ausente si no se observo ninguna vela (cierres directos sin barra):
+        # preferimos que falte a sellar un 0.0 que se leeria como "no se movio".
+        mfe_r, mae_r = pos.excursion_r()
+        if mfe_r is not None:
+            close["mfe_r"] = round(mfe_r, 4)
+            close["mae_r"] = round(mae_r, 4)
+            close["bars_held"] = pos.bars_held
+            close["mfe_bar"] = pos.mfe_bar
+            close["mae_bar"] = pos.mae_bar
         if self.cost is not None:
             close["fees_quote"] = fees_quote
             close["fill_type"] = fill_type     # pierna de ENTRADA: 'maker'|'taker'
@@ -400,10 +537,38 @@ class PaperBroker:
                 + (c.maker_fee if exit_maker else c.taker_fee) * pos.size * exit_price)
         return gross - fees, fees, ("maker" if entry_maker else "taker")
 
+    @staticmethod
+    def track_excursion(pos: Position, high: float, low: float):
+        """Actualiza el recorrido maximo favorable/adverso de una posicion con
+        una vela. Idempotente por vela y sin efectos: solo mueve extremos.
+
+        Se contabiliza TAMBIEN la vela que resuelve la posicion, que es la
+        convencion estandar de MFE/MAE. Dentro de una vela no se conoce el orden
+        de los extremos, asi que en la vela de salida el recorrido puede incluir
+        movimiento posterior al toque -- misma ambiguedad intra-vela que ya
+        asume el desempate pesimista de resolve_on_bar, y por eso el MFE debe
+        leerse como cota superior, no como 'lo que se podia haber capturado'.
+        """
+        high, low = float(high), float(low)
+        fav, adv = (high, low) if pos.direction == LONG else (low, high)
+        pos.bars_held += 1
+        bar = pos.bars_held
+        better = (lambda a, b: a > b) if pos.direction == LONG else (lambda a, b: a < b)
+        worse = (lambda a, b: a < b) if pos.direction == LONG else (lambda a, b: a > b)
+        if pos.mfe_price is None:
+            pos.mfe_price, pos.mae_price = fav, adv
+            pos.mfe_bar = pos.mae_bar = bar
+            return
+        if better(fav, pos.mfe_price):
+            pos.mfe_price, pos.mfe_bar = fav, bar
+        if worse(adv, pos.mae_price):
+            pos.mae_price, pos.mae_bar = adv, bar
+
     def resolve_on_bar(self, account: Account, pos: Position, high: float,
                        low: float, pessimistic: bool = True, ts=None):
         """Resuelve contra una vela: si toca TP y/o SL. Empate intra-vela ->
         pesimista (stop primero), igual que el etiquetado de research."""
+        self.track_excursion(pos, high, low)
         if pos.direction == LONG:
             hit_tp, hit_sl = high >= pos.tp, low <= pos.stop
         else:

@@ -9,6 +9,7 @@ import {
   BINARY_OUTCOMES,
   impliedProbability,
   isBinary,
+  normalizePool,
   rankedOutcomes,
   outlook,
   quote,
@@ -89,19 +90,19 @@ export function todosLosSeeds(root: string): OwnMarketSeed[] {
 /** Siembra en el store los pozos de los mercados que aún no existían. */
 export function sembrarPozos(store: Store, seeds: OwnMarketSeed[]): void {
   for (const seed of seeds) {
-    store.asegurarPozo({
-      marketId: seed.id,
-      outcomes: { ...seed.pool.outcomes },
-      feeBps: seed.pool.feeBps,
-    });
+    // el pozo se siembra con la semilla y su modo tal como los declaró el
+    // catálogo: es el único momento en que se pueden saber, porque en cuanto
+    // entre la primera apuesta `outcomes` deja de ser sólo lo de la casa
+    store.asegurarPozo({ marketId: seed.id, ...normalizePool(seed.pool) });
   }
 }
 
 function poolDe(store: Store, seed: OwnMarketSeed): Pool {
   const guardado = store.pozo(seed.id);
-  return guardado
-    ? { outcomes: guardado.outcomes, feeBps: guardado.feeBps }
-    : { outcomes: { ...seed.pool.outcomes }, feeBps: seed.pool.feeBps };
+  // el pozo guardado manda: trae las apuestas de la gente además de la semilla.
+  // En los dos caminos se pasa por `normalizePool` para no perder `seedMode`
+  // por el camino — un mercado no cambia de reglas por reiniciar el proceso
+  return normalizePool(guardado ?? seed.pool);
 }
 
 /**
@@ -198,7 +199,11 @@ export function construirMercado(
     equipos: seed.equipos,
     region: "latam",
     country: seed.country,
-    hot: totalPool(pool) >= umbralHot,
+    // `hot` es una invitación a apostar, así que un mercado cerrado nunca lo
+    // es por grande que sea su pozo. Antes competía por el hueco con los
+    // abiertos y salía arriba del feed diciendo «Cerrado», que es enseñar una
+    // puerta con el candado puesto
+    hot: !cerrado && totalPool(pool) >= umbralHot,
     closesAt: seed.closesAt,
     venue: { id: "marea", label: "Marea" },
   });
@@ -225,10 +230,18 @@ export function listarMercados(
     if (new Date(seed.closesAt).getTime() > ahora) return true;
     return store.pozo(seed.id) !== undefined;
   });
-  const totales = vigentes
-    .map((seed) => totalPool(poolDe(store, seed)))
-    .sort((a, b) => b - a);
+
+  /**
+   * El umbral de `hot` se calcula **sólo entre los que siguen aceptando
+   * apuestas**. Si un mercado cerrado con un pozo grande entra en la cuenta se
+   * lleva uno de los tres huecos y, peor, sube el listón para los que sí se
+   * pueden jugar: los pozos viejos son siempre los más grandes, así que los
+   * mercados nuevos —que nacen chicos— no llegaban nunca.
+   */
+  const abiertos = vigentes.filter((seed) => new Date(seed.closesAt).getTime() > ahora);
+  const totales = abiertos.map((seed) => totalPool(poolDe(store, seed))).sort((a, b) => b - a);
   const umbral = totales[Math.min(HOT_TOP_N, totales.length) - 1] ?? Infinity;
+
   return (
     vigentes
       .map((seed) => construirMercado(store, seed, umbral, ahora, contexto))
@@ -238,9 +251,7 @@ export function listarMercados(
        * Ordenar por pozo dejaba las velas al final del feed: nacen cada cinco
        * minutos y nunca acumulan lo que lleva un mercado de una semana, así que
        * lo único que pasa ahora mismo quedaba enterrado bajo lo que pasa en
-       * septiembre. Éste es el orden mínimo para que se vean; el score completo
-       * de `nivel_live` —con deportes y eventos recientes— es el bloque
-       * siguiente.
+       * septiembre.
        */
       .sort((a, b) => {
         // lo que manda es que esté **corriendo**, no que sea de tipo vela: una
@@ -248,9 +259,31 @@ export function listarMercados(
         const viva = (m: Market) => m.status === "live" && m.live !== undefined;
         if (viva(a) !== viva(b)) return viva(a) ? -1 : 1;
         if (viva(a) && viva(b)) return a.live!.cierraAt.localeCompare(b.live!.cierraAt);
+        /**
+         * Y los resueltos al final, por grandes que sean. Se dejan visibles un
+         * par de días para que quien apostó vea cómo quedó (R-041), pero
+         * mezclarlos por tamaño hace que lo primero que ve quien llega sea un
+         * mercado en el que ya no puede entrar.
+         */
+        const cerrado = (m: Market) => m.status === "resolved";
+        if (cerrado(a) !== cerrado(b)) return cerrado(a) ? 1 : -1;
         return b.volume - a.volume;
       })
   );
+}
+
+/**
+ * Todos los mercados, vencidos incluidos. Es lo que necesita quien abre una
+ * posición vieja desde su portafolio: el feed los esconde (R-041), pero un
+ * mercado deja de **mostrarse**, no deja de existir para quien puso dinero.
+ */
+export function todosLosMercados(
+  store: Store,
+  seeds: OwnMarketSeed[],
+  ahora = Date.now(),
+  contexto?: ContextoVivo,
+): Market[] {
+  return seeds.map((seed) => construirMercado(store, seed, Infinity, ahora, contexto));
 }
 
 /** Cotiza sin mover nada: lo que se le muestra al usuario antes de decidir. */

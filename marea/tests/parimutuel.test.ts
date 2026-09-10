@@ -2,16 +2,21 @@ import { describe, expect, it } from "vitest";
 import {
   binaryPool,
   addStake,
+  bettorStake,
+  declareSeed,
   formatMultiplier,
   impliedProbability,
+  normalizePool,
   payoutMultiplier,
   quote,
   settle,
   totalPool,
+  totalSeed,
   outlook,
   MAX_FEE_BPS,
   type Bet,
   type Pool,
+  type SeedMode,
 } from "@/domain/parimutuel";
 import {
   assertPublishable,
@@ -252,5 +257,244 @@ describe("Puntos", () => {
     expect(canStake(ledger, WELCOME_GRANT)).toBe(true);
     expect(canStake(ledger, WELCOME_GRANT + 1)).toBe(false);
     expect(canStake(ledger, 0)).toBe(false);
+  });
+});
+
+/**
+ * La semilla como subsidio (R-067, U1).
+ *
+ * Lo que se prueba aquí no es que la fórmula nueva dé un número bonito, sino
+ * dos cosas que se pueden romper por separado y que **no se pueden separar**:
+ *
+ *  1. Lo que promete la cotización es lo que paga la liquidación. Si sólo se
+ *     mueve `settle()`, la app muestra menos de lo que paga — y mentir en la
+ *     dirección generosa sigue siendo mentir (R-023, R-044).
+ *  2. Un mercado nacido en modo `"apuesta"` paga **exactamente** lo de antes.
+ *     No parecido: idéntico. Es lo que sostiene que no haya que migrar nada.
+ */
+
+/** Generador reproducible. Sin `Math.random`: un fallo que no se repite no se arregla. */
+function aleatorio(semilla: number): () => number {
+  let estado = semilla >>> 0;
+  return () => {
+    estado = (estado + 0x6d2b79f5) >>> 0;
+    let t = estado;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+interface Escenario {
+  pool: Pool;
+  bets: Bet[];
+  apuesta: Bet;
+}
+
+/**
+ * Un mercado cualquiera: entre 2 y 4 resultados, semilla propia por resultado,
+ * unas cuantas apuestas de gente encima, y una apuesta más que es la que se
+ * examina. El pozo se construye **apostando**, no escribiéndolo a mano, para
+ * que sea un estado alcanzable de verdad.
+ */
+function escenario(rnd: () => number, seedMode: SeedMode): Escenario {
+  const nResultados = 2 + Math.floor(rnd() * 3);
+  const ids = Array.from({ length: nResultados }, (_, i) => `r${i}`);
+  const feeBps = [0, 100, 300, 500][Math.floor(rnd() * 4)];
+
+  const semilla: Record<string, number> = {};
+  for (const id of ids) semilla[id] = Math.floor(rnd() * 500);
+  let pool = declareSeed({ outcomes: { ...semilla }, feeBps }, seedMode);
+
+  const bets: Bet[] = [];
+  const nApuestas = Math.floor(rnd() * 7);
+  for (let i = 0; i < nApuestas; i += 1) {
+    const side = ids[Math.floor(rnd() * ids.length)];
+    const stake = 1 + Math.floor(rnd() * 900);
+    bets.push({ id: `b${i}`, side, stake });
+    pool = addStake(pool, side, stake);
+  }
+
+  const side = ids[Math.floor(rnd() * ids.length)];
+  const stake = 1 + Math.floor(rnd() * 900);
+  return { pool, bets, apuesta: { id: "examinada", side, stake } };
+}
+
+describe("La semilla como subsidio (R-067)", () => {
+  it("propiedad: lo que promete la cotización es lo que paga la liquidación", () => {
+    const rnd = aleatorio(20260908);
+    for (const seedMode of ["apuesta", "subsidio"] as SeedMode[]) {
+      for (let caso = 0; caso < 400; caso += 1) {
+        const { pool, bets, apuesta } = escenario(rnd, seedMode);
+
+        // lo que se le enseña al usuario ANTES de confirmar
+        const cotizado = quote(pool, apuesta.side, apuesta.stake);
+
+        // y lo que cobra cuando su lado gana
+        const despues = addStake(pool, apuesta.side, apuesta.stake);
+        const reparto = settle(despues, [...bets, apuesta], apuesta.side);
+
+        expect(reparto.payouts[apuesta.id]).toBeCloseTo(cotizado.toWin, 6);
+      }
+    }
+  });
+
+  it("el reparto nunca entrega más colateral del que hay en el pozo", () => {
+    const rnd = aleatorio(777);
+    for (const seedMode of ["apuesta", "subsidio"] as SeedMode[]) {
+      for (let caso = 0; caso < 200; caso += 1) {
+        const { pool, bets, apuesta } = escenario(rnd, seedMode);
+        const despues = addStake(pool, apuesta.side, apuesta.stake);
+        const todas = [...bets, apuesta];
+        const reparto = settle(despues, todas, apuesta.side);
+        const repartido = Object.values(reparto.payouts).reduce((s, v) => s + v, 0);
+        // pagos + comisión ≤ colateral. Con subsidio se reparte el pozo entero;
+        // en modo "apuesta" sobra justo la parte de la semilla ganadora (L5)
+        expect(repartido + reparto.fee).toBeLessThanOrEqual(totalPool(despues) + 1e-6);
+      }
+    }
+  });
+
+  it("un mercado en modo apuesta paga exactamente lo que pagaba antes de que el campo existiera", () => {
+    const rnd = aleatorio(31415);
+    for (let caso = 0; caso < 200; caso += 1) {
+      const { pool, bets, apuesta } = escenario(rnd, "apuesta");
+      // el mismo pozo tal como se escribía antes: sin semilla y sin modo
+      const comoAntes: Pool = { outcomes: { ...pool.outcomes }, feeBps: pool.feeBps };
+
+      expect(payoutMultiplier(pool, apuesta.side, apuesta.stake)).toBe(
+        payoutMultiplier(comoAntes, apuesta.side, apuesta.stake),
+      );
+      const todas = [...bets, apuesta];
+      const conCampo = settle(addStake(pool, apuesta.side, apuesta.stake), todas, apuesta.side);
+      const sinCampo = settle(addStake(comoAntes, apuesta.side, apuesta.stake), todas, apuesta.side);
+      // idénticos, no parecidos: es lo que sostiene que no haya que migrar nada
+      expect(conCampo).toEqual(sinCampo);
+    }
+  });
+
+  it("con subsidio el multiplicador sube, y sube exactamente lo que la semilla deja de cobrar", () => {
+    const base = declareSeed(binaryPool(400, 400, 0), "apuesta");
+    const conSubsidio = declareSeed(binaryPool(400, 400, 0), "subsidio");
+
+    // 100 de un usuario contra un pozo de 400/400 sembrado entero por la casa
+    const apostado = addStake(base, "si", 100);
+    const apostadoSub = addStake(conSubsidio, "si", 100);
+
+    // modo apuesta: 900 repartidos entre 500 del lado "si" ⇒ 1.8× por unidad
+    expect(payoutMultiplier(base, "si", 100)).toBeCloseTo(900 / 500, 9);
+    // subsidio: el mismo pozo de 900, pero sólo cobran los 100 del usuario ⇒ 9×
+    expect(payoutMultiplier(conSubsidio, "si", 100)).toBeCloseTo(900 / 100, 9);
+
+    expect(settle(apostado, [{ id: "u", side: "si", stake: 100 }], "si").payouts.u).toBeCloseTo(180, 9);
+    expect(settle(apostadoSub, [{ id: "u", side: "si", stake: 100 }], "si").payouts.u).toBeCloseTo(900, 9);
+  });
+
+  it("si del lado ganador sólo queda semilla, se devuelve todo y la casa no cobra", () => {
+    // la casa sembró los dos lados; el único usuario apostó al lado que pierde
+    const pool = addStake(declareSeed(binaryPool(300, 300, 300), "subsidio"), "no", 200);
+    const bets: Bet[] = [{ id: "u", side: "no", stake: 200 }];
+
+    const reparto = settle(pool, bets, "si");
+    expect(reparto.fee).toBe(0); // R-024: la casa no cobra de un mercado que nadie ganó
+    expect(reparto.payouts.u).toBe(200); // le vuelve lo suyo, íntegro
+    // y el subsidio que nadie reclamó se queda en el pozo, camino a tesorería
+    expect(totalPool(pool) - reparto.distributed).toBe(600);
+  });
+
+  it("el modo sobrevive a releer el pozo, y un pozo viejo no gana semilla al pasar por ahí", () => {
+    const conSubsidio = declareSeed(binaryPool(300, 200, 300), "subsidio");
+    const releido = normalizePool(JSON.parse(JSON.stringify(conSubsidio)));
+    expect(releido.seedMode).toBe("subsidio");
+    expect(releido.seed).toEqual({ si: 300, no: 200 });
+    // idempotente: releer lo que acabamos de escribir no lo vuelve a tocar
+    expect(normalizePool(releido)).toEqual(releido);
+
+    // el formato viejo de producción: sin semilla, y sigue sin ella
+    const viejo = normalizePool({ si: 300, no: 200, feeBps: 300 });
+    expect(viejo.seed).toBeUndefined();
+    expect(viejo.seedMode).toBeUndefined();
+    expect(bettorStake(viejo, "si")).toBe(300);
+  });
+
+  it("la semilla del catálogo está declarada, y estos mercados no se migran", () => {
+    for (const seed of OWN_MARKETS) {
+      // sin semilla declarada no hay presupuesto que sumar (L9)
+      expect(totalSeed(seed.pool)).toBeGreaterThan(0);
+      // nacieron cobrando y terminan cobrando: R-067 aplica a los que vengan
+      expect(seed.pool.seedMode).toBe("apuesta");
+    }
+  });
+});
+
+/**
+ * Casos borde que un barrido de mutaciones encontró sin cubrir. Los dos son
+ * guardas que nunca se disparan en el camino normal — y por eso mismo nadie las
+ * echaría de menos si desaparecieran.
+ */
+describe("La semilla como subsidio — guardas que no se ven en el camino feliz", () => {
+  it("un pozo corrupto no produce un denominador negativo", () => {
+    // una semilla mayor que el pozo no debería existir; si existe, la respuesta
+    // honesta es cero (nadie cobra), no un multiplicador con signo que pagaría
+    // cantidades negativas a quien acertó
+    const corrupto: Pool = {
+      outcomes: { si: 100, no: 100 },
+      seed: { si: 400, no: 100 },
+      seedMode: "subsidio",
+      feeBps: 0,
+    };
+    expect(bettorStake(corrupto, "si")).toBe(0);
+    expect(payoutMultiplier(corrupto, "si")).toBe(0);
+    expect(payoutMultiplier(corrupto, "si", 50)).toBeGreaterThan(0); // con apuesta ya hay a quién pagar
+    // y al liquidar no hay ganadores: se devuelve todo, sin comisión
+    const reparto = settle(corrupto, [{ id: "u", side: "no", stake: 100 }], "si");
+    expect(reparto.fee).toBe(0);
+    expect(reparto.payouts.u).toBe(100);
+  });
+
+  it("releer un pozo no comparte el mapa de semilla con el original", () => {
+    // `outcomes` se copia por esta misma razón; la semilla tiene que copiarse
+    // igual, o mutar el pozo releído cambiaría el que ya estaba en memoria
+    const original = declareSeed(binaryPool(300, 200, 300), "subsidio");
+    const releido = normalizePool(original);
+    releido.seed!.si = 999;
+    expect(original.seed!.si).toBe(300);
+    expect(bettorStake(original, "si")).toBe(0);
+  });
+});
+
+/**
+ * Casos que el barrido de mutaciones encontró sin cubrir en el código **que ya
+ * existía antes**. Una guarda vieja sin verificación es igual de frágil que una
+ * nueva; sólo lleva más tiempo siéndolo.
+ */
+describe("Puntos — la recarga no es un ingreso pasivo", () => {
+  it("recargar, gastarlo todo y volver a recargar el mismo día NO da más puntos", () => {
+    /**
+     * El test que ya existía —«no se recarga dos veces el mismo día»— pedía la
+     * recarga con el saldo **intacto**, y ahí el tope de saldo ya devuelve 0 por
+     * su cuenta: la comprobación de «ya la pidió hoy» quedaba enmascarada.
+     * Medido: quitarla dejaba la suite en verde.
+     *
+     * El caso que la necesita es el que un usuario encuentra solo: recarga,
+     * apuesta los 100, y vuelve a pedir. Sin la guarda, eso son puntos
+     * infinitos.
+     */
+    const hoy = new Date("2026-07-27T10:00:00Z");
+    let ledger = emptyLedger();
+    ledger = apply(ledger, { id: "r1", amount: DAILY_GRANT, reason: "recarga_diaria", at: hoy.toISOString() });
+    ledger = apply(ledger, { id: "b1", amount: -DAILY_GRANT, reason: "apuesta", at: hoy.toISOString() });
+
+    expect(ledger.balance).toBe(0);
+    expect(dailyTopUp(ledger, hoy)).toBe(0); // ya la pidió hoy, aunque esté a cero
+  });
+
+  it("y al día siguiente sí se puede: es una recarga diaria, no una sola", () => {
+    const hoy = new Date("2026-07-27T10:00:00Z");
+    const manana = new Date("2026-07-28T10:00:00Z");
+    let ledger = emptyLedger();
+    ledger = apply(ledger, { id: "r1", amount: DAILY_GRANT, reason: "recarga_diaria", at: hoy.toISOString() });
+    ledger = apply(ledger, { id: "b1", amount: -DAILY_GRANT, reason: "apuesta", at: hoy.toISOString() });
+    expect(dailyTopUp(ledger, manana)).toBe(DAILY_GRANT);
   });
 });
