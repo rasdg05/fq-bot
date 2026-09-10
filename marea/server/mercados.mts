@@ -142,7 +142,11 @@ export function construirMercado(
     equipos: seed.equipos,
     region: "latam",
     country: seed.country,
-    hot: totalPool(pool) >= umbralHot,
+    // `hot` es una invitación a apostar, así que un mercado cerrado nunca lo
+    // es por grande que sea su pozo. Antes competía por el hueco con los
+    // abiertos y salía arriba del feed diciendo «Cerrado», que es enseñar una
+    // puerta con el candado puesto
+    hot: !cerrado && totalPool(pool) >= umbralHot,
     closesAt: seed.closesAt,
     venue: { id: "marea", label: "Marea" },
   });
@@ -154,13 +158,30 @@ export function listarMercados(
   ahora = Date.now(),
 ): Market[] {
   const vigentes = activeSeeds(ahora, seeds);
-  const totales = vigentes
-    .map((seed) => totalPool(poolDe(store, seed)))
-    .sort((a, b) => b - a);
+
+  /**
+   * El umbral de `hot` se calcula **sólo entre los abiertos**. Si un mercado
+   * cerrado con un pozo grande entra en la cuenta, se lleva uno de los tres
+   * huecos y además sube el listón para los que sí aceptan apuestas.
+   */
+  const abiertos = vigentes.filter((seed) => new Date(seed.closesAt).getTime() > ahora);
+  const totales = abiertos.map((seed) => totalPool(poolDe(store, seed))).sort((a, b) => b - a);
   const umbral = totales[Math.min(HOT_TOP_N, totales.length) - 1] ?? Infinity;
+
   return vigentes
     .map((seed) => construirMercado(store, seed, umbral, ahora))
-    .sort((a, b) => b.volume - a.volume);
+    /**
+     * Y los cerrados van al final, siempre, por grandes que sean. Se dejan
+     * visibles un par de días para que quien apostó vea cómo quedó (R-041),
+     * pero mezclarlos por tamaño con los abiertos hace que lo primero que ve
+     * alguien que llega sea un mercado en el que ya no puede entrar.
+     */
+    .sort((a, b) => {
+      const aCerrado = a.status !== "open";
+      const bCerrado = b.status !== "open";
+      if (aCerrado !== bCerrado) return aCerrado ? 1 : -1;
+      return b.volume - a.volume;
+    });
 }
 
 /** Cotiza sin mover nada: lo que se le muestra al usuario antes de decidir. */

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { Store } from "../server/store.mts";
 import { correrCiclo } from "../server/ciclo.mts";
-import { sembrarPozos } from "../server/mercados.mts";
+import { listarMercados, sembrarPozos } from "../server/mercados.mts";
 import { validateSeed, type OwnMarketSeed } from "@/adapters/ownMarkets/catalog";
 import {
   atascoDe,
@@ -212,5 +212,106 @@ describe("El atasco silencioso deja de ser silencioso", () => {
     const cerrado = onClose(initialState("lento"));
     expect(atascoDe(cerrado, lento, AHORA + 40 * DIA).estado).toBe("atascado");
     expect(atascoDe(cerrado, lento, AHORA + 130 * DIA).estado).toBe("incobrable");
+  });
+});
+
+/**
+ * Lo que se ve en el feed. La queja que lo destapó fue literal: «el de Brasil
+ * que ya está cerrado sigue saliendo en mercados con los demás abiertos».
+ */
+describe("Feed — un mercado cerrado no se enseña como si se pudiera entrar", () => {
+  const abierto = (id: string, si: number, no: number): OwnMarketSeed =>
+    validateSeed({
+      ...seed,
+      id,
+      closesAt: new Date(AHORA + 30 * DIA).toISOString(),
+      pool: binaryPool(si, no, 300),
+      resolution: { ...seed.resolution, settlesAt: new Date(AHORA + 31 * DIA).toISOString() },
+    });
+
+  const cerrado = (id: string, si: number, no: number): OwnMarketSeed =>
+    validateSeed({
+      ...seed,
+      id,
+      closesAt: new Date(AHORA - DIA).toISOString(),
+      pool: binaryPool(si, no, 300),
+      resolution: { ...seed.resolution, settlesAt: new Date(AHORA - DIA + 3_600_000).toISOString() },
+    });
+
+  it("un mercado cerrado nunca es `hot`, por grande que sea su pozo", () => {
+    const dir = mkdtempSync(join(tmpdir(), "marea-feed-"));
+    try {
+      const store = new Store(dir);
+      const seeds = [cerrado("gordo-cerrado", 5_000, 5_000), abierto("chico-abierto", 100, 100)];
+      sembrarPozos(store, seeds);
+      const feed = listarMercados(store, seeds, AHORA);
+
+      const gordo = feed.find((m) => m.id === "gordo-cerrado")!;
+      const chico = feed.find((m) => m.id === "chico-abierto")!;
+      expect(gordo.status).not.toBe("open");
+      expect(gordo.hot).toBe(false); // enseñar una puerta con el candado puesto
+      // y el hueco de `hot` se lo queda el que sí acepta apuestas
+      expect(chico.hot).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("los cerrados van al final aunque tengan más pozo", () => {
+    const dir = mkdtempSync(join(tmpdir(), "marea-orden-"));
+    try {
+      const store = new Store(dir);
+      const seeds = [cerrado("gordo-cerrado", 5_000, 5_000), abierto("chico-abierto", 100, 100)];
+      sembrarPozos(store, seeds);
+      const feed = listarMercados(store, seeds, AHORA);
+      // lo primero que ve quien llega tiene que ser algo en lo que pueda entrar
+      expect(feed.map((m) => m.id)).toEqual(["chico-abierto", "gordo-cerrado"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("el umbral de `hot` se mide sólo entre los abiertos, o los cerrados lo suben", () => {
+    /**
+     * Con dos mercados no se nota: `HOT_TOP_N` es 3 y caben los dos. Hace falta
+     * que los cerrados **desplacen** a los abiertos del top para que se vea —
+     * que es exactamente lo que pasaba en producción, donde los pozos viejos
+     * eran los más grandes y los mercados nuevos nacían chicos.
+     */
+    const dir = mkdtempSync(join(tmpdir(), "marea-umbral-"));
+    try {
+      const store = new Store(dir);
+      const seeds = [
+        cerrado("viejo-1", 5_000, 5_000),
+        cerrado("viejo-2", 4_000, 4_000),
+        cerrado("viejo-3", 3_000, 3_000),
+        abierto("nuevo-1", 200, 200),
+        abierto("nuevo-2", 100, 100),
+      ];
+      sembrarPozos(store, seeds);
+      const feed = listarMercados(store, seeds, AHORA);
+
+      // los tres huecos de `hot` son para los abiertos, que son los que
+      // aceptan apuestas — aunque sus pozos sean diez veces menores
+      expect(feed.filter((m) => m.hot).map((m) => m.id).sort()).toEqual(["nuevo-1", "nuevo-2"]);
+      for (const id of ["viejo-1", "viejo-2", "viejo-3"]) {
+        expect(feed.find((m) => m.id === id)!.hot, id).toBe(false);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("entre abiertos sigue mandando el pozo", () => {
+    const dir = mkdtempSync(join(tmpdir(), "marea-orden2-"));
+    try {
+      const store = new Store(dir);
+      const seeds = [abierto("chico", 100, 100), abierto("grande", 900, 900)];
+      sembrarPozos(store, seeds);
+      const feed = listarMercados(store, seeds, AHORA);
+      expect(feed.map((m) => m.id)).toEqual(["grande", "chico"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

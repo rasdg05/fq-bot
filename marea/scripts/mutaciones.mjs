@@ -246,6 +246,16 @@ const MUTACIONES = [
     de: "    // si venía atorado y la fuente volvió, el motivo se va con el atasco\n    stuckReason: undefined,",
     a: "", tests: ["tests/congelados.test.ts"] },
 
+  { nombre: "prod · un mercado cerrado vuelve a poder ser `hot`", archivo: "server/mercados.mts",
+    de: "    hot: !cerrado && totalPool(pool) >= umbralHot,", a: "    hot: totalPool(pool) >= umbralHot,",
+    tests: ["tests/congelados.test.ts"] },
+  { nombre: "prod · los cerrados vuelven a mezclarse por tamaño", archivo: "server/mercados.mts",
+    de: "      if (aCerrado !== bCerrado) return aCerrado ? 1 : -1;", a: "",
+    tests: ["tests/congelados.test.ts"] },
+  { nombre: "prod · el umbral de `hot` vuelve a contar los cerrados", archivo: "server/mercados.mts",
+    de: "  const abiertos = vigentes.filter((seed) => new Date(seed.closesAt).getTime() > ahora);",
+    a: "  const abiertos = vigentes;", tests: ["tests/congelados.test.ts"] },
+
   // --- §3 · ciclo de vida: resolver, y no pagar dos veces tras un redeploy ---
   { nombre: "§3 el redeploy vuelve a pagar el mercado", archivo: "server/store.mts",
     de: '      (a) => a.tipo === "liquidacion" && a.ref === input.marketId,',
