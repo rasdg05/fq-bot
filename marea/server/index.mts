@@ -15,6 +15,9 @@ import {
 import { correrCiclo, type ResumenCiclo } from "./ciclo.mts";
 import { crearTicker } from "./precios.mts";
 import { MercadosVivos } from "./vivos.mts";
+import { MINIMO_ABIERTOS, reponer, type ResumenReposicion } from "./reposicion.mts";
+import { cargarEspn } from "../src/adapters/oracles/matchOracle";
+import type { PartidoDeLaLiga } from "../src/adapters/ownMarkets/templates";
 import { metaDeLogro, metaDeMercado } from "./compartir.mts";
 import { logroDe, tarjetaPng } from "./tarjeta.mts";
 import { createRegistroDeEventos } from "./eventos.mts";
@@ -96,9 +99,16 @@ const ticker = crearTicker({
 });
 const vivos = new MercadosVivos(store, ticker);
 
-/** El catálogo completo de este instante: lo publicado más lo que está vivo. */
+/**
+ * El catálogo completo de este instante: lo publicado en el repo, lo que el
+ * servidor repuso solo, y lo que está corriendo ahora mismo.
+ *
+ * Los tres tienen que estar. Un mercado que se cae de esta lista se cae también
+ * del ciclo de liquidación —que itera sobre semillas— y las apuestas que tenga
+ * dentro no se resuelven nunca.
+ */
 function catalogo(): OwnMarketSeed[] {
-  return [...seeds, ...vivos.seeds()];
+  return [...seeds, ...store.seedsGeneradas(), ...vivos.seeds()];
 }
 
 const bitacora = {
@@ -106,7 +116,39 @@ const bitacora = {
   ultimoCiclo: null as ResumenCiclo | null,
   corridas: 0,
   vivos: { abiertos: 0, conApuestas: 0, pagados: 0, errores: 0 },
+  ultimaReposicion: null as ResumenReposicion | null,
 };
+
+/**
+ * Los partidos de Liga MX de los próximos días, leídos de ESPN.
+ *
+ * Un día que no contesta no cancela la semana: se pierde ese día y se sigue.
+ * Es la misma tolerancia que tiene `roll`, y por la misma razón — una fuente
+ * caída puede dejar el feed más corto, no vacío.
+ */
+async function partidosDeLaSemana(dias = 7): Promise<PartidoDeLaLiga[]> {
+  const partidos: PartidoDeLaLiga[] = [];
+  const hoy = Date.now();
+  for (let i = 0; i < dias; i += 1) {
+    const dia = new Date(hoy + i * 86_400_000).toISOString().slice(0, 10);
+    try {
+      for (const evento of await cargarEspn(fetch, "mex.1", dia)) {
+        const competidores = evento.competitions[0]?.competitors ?? [];
+        const local = competidores.find((c) => c.homeAway === "home");
+        const visitante = competidores.find((c) => c.homeAway === "away");
+        if (!local || !visitante) continue;
+        partidos.push({
+          inicio: evento.date,
+          local: local.team.displayName,
+          visitante: visitante.team.displayName,
+        });
+      }
+    } catch {
+      // un día que no responde no cancela la semana entera
+    }
+  }
+  return partidos;
+}
 
 function log(linea: string) {
   console.log(`${new Date().toISOString()} ${linea}`);
@@ -117,12 +159,60 @@ async function ciclo() {
   try {
     // el catálogo puede haber crecido: se relee antes de liquidar
     seeds = todosLosSeeds(ROOT);
-    sembrarPozos(store, seeds);
-    const resumen = await correrCiclo(store, seeds);
+
+    /**
+     * Y se repone **antes** de liquidar, no después: si el feed está corto, lo
+     * que menos ayuda es esperar un cuarto de hora más.
+     *
+     * Esto vive aquí y no en un cron porque el cron vivía en la máquina de
+     * alguien. Nadie lo corrió desde agosto y la app llegó a septiembre con
+     * cuatro mercados. Un proceso que depende de que alguien se acuerde no
+     * existe (AGENTE §2).
+     */
+    try {
+      const repuesto = await reponer(store, [...seeds, ...vivos.seeds()], Date.now(), {
+        spot: () => ({
+          "BTC/USD": ticker.precio("BTC/USD")?.precio,
+          "ETH/USD": ticker.precio("ETH/USD")?.precio,
+        }),
+        partidos: (dias) => partidosDeLaSemana(dias),
+        env: process.env,
+        avisar: (mensaje) => log(`reposición: ${mensaje}`),
+      });
+      bitacora.ultimaReposicion = repuesto;
+      /**
+       * Se registra también cuando **quiso** reponer y no pudo. Callarse ahí es
+       * exactamente el fallo que dejó la app vacía un mes: nada estaba roto,
+       * nada aparecía, y nadie tenía cómo enterarse.
+       */
+      if (repuesto.creados.length > 0) {
+        log(
+          `reposición: ${repuesto.creados.length} mercados nuevos ` +
+            `(había ${repuesto.abiertosAntes} duraderos abiertos)`,
+        );
+      } else if (repuesto.abiertosAntes < MINIMO_ABIERTOS) {
+        log(
+          `reposición: el feed está corto (${repuesto.abiertosAntes} de ${MINIMO_ABIERTOS}) ` +
+            `y no se creó nada — ${repuesto.frenados.length} frenados, ` +
+            `${repuesto.errores.length} errores`,
+        );
+      }
+      for (const frenado of repuesto.frenados) {
+        log(`  ⛔ ${frenado.id} no se creó: ${frenado.motivo}`);
+      }
+      for (const error of repuesto.errores) log(`  ⚠ reposición: ${error}`);
+    } catch (error) {
+      log(`reposición falló entera: ${String(error)}`);
+    }
+
+    const conRepuestos = [...seeds, ...store.seedsGeneradas()];
+    sembrarPozos(store, conRepuestos);
+    const resumen = await correrCiclo(store, conRepuestos);
     bitacora.ultimoCiclo = resumen;
     log(
       `ciclo ${bitacora.corridas}: ${resumen.leidos} leídos · ${resumen.pagados} pagados · ` +
-        `${resumen.acreditado} puntos acreditados · ${resumen.atorados.length} atorados`,
+        `${resumen.acreditado} puntos acreditados · ${resumen.atorados.length} atorados` +
+        (resumen.huerfanos.length > 0 ? ` · ${resumen.huerfanos.length} huérfanas devueltas` : ""),
     );
     for (const error of resumen.errores) log(`  ⚠ ${error}`);
   } catch (error) {

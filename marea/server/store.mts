@@ -135,6 +135,13 @@ interface Datos {
    * Se guardan sólo ésos, y se olvidan en cuanto se pagan.
    */
   vivos: OwnMarketSeed[];
+  /**
+   * Mercados **duraderos** generados por el propio servidor al reponer el
+   * catálogo. Van aparte de `vivos` porque el planificador de velas filtra por
+   * `esVelaViva` y éstos no lo son: un semanal de BTC o un partido de Liga MX
+   * dura días, no cinco minutos.
+   */
+  generados: OwnMarketSeed[];
 }
 
 const VACIO: Datos = {
@@ -146,6 +153,7 @@ const VACIO: Datos = {
   comisiones: [],
   libro: [],
   vivos: [],
+  generados: [],
 };
 
 /**
@@ -487,6 +495,29 @@ export class Store {
         ),
       );
       return apuesta;
+    });
+  }
+
+  /* ---------------------- catálogo repuesto solo -------------------------- */
+
+  /**
+   * Los mercados duraderos que generó el servidor al reponer el catálogo.
+   *
+   * Viven en disco por la misma razón que los vivos, y su comentario vale
+   * igual: **una apuesta cuyo mercado desapareció del catálogo no se resolvería
+   * nunca, y eso es dinero atorado sin aviso.** Ese cuidado ya existía para las
+   * velas; el catálogo duradero nunca lo tuvo, y por eso se pudo vaciar entero
+   * mientras había apuestas dentro.
+   */
+  seedsGeneradas(): OwnMarketSeed[] {
+    return this.datos.generados ?? [];
+  }
+
+  /** Guarda un mercado generado. Idempotente: un id ya conocido no se repite. */
+  guardarSeedGenerada(seed: OwnMarketSeed): void {
+    if ((this.datos.generados ?? []).some((v) => v.id === seed.id)) return;
+    this.mutar((datos) => {
+      datos.generados = [...(datos.generados ?? []), seed];
     });
   }
 

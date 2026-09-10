@@ -250,15 +250,15 @@ const MUTACIONES = [
     de: "    hot: !cerrado && totalPool(pool) >= umbralHot,", a: "    hot: totalPool(pool) >= umbralHot,",
     tests: ["tests/congelados.test.ts"] },
   { nombre: "prod · los cerrados vuelven a mezclarse por tamaño", archivo: "server/mercados.mts",
-    de: "      if (aCerrado !== bCerrado) return aCerrado ? 1 : -1;", a: "",
+    de: "        if (cerrado(a) !== cerrado(b)) return cerrado(a) ? 1 : -1;", a: "",
     tests: ["tests/congelados.test.ts"] },
   { nombre: "prod · el umbral de `hot` vuelve a contar los cerrados", archivo: "server/mercados.mts",
     de: "  const abiertos = vigentes.filter((seed) => new Date(seed.closesAt).getTime() > ahora);",
     a: "  const abiertos = vigentes;", tests: ["tests/congelados.test.ts"] },
 
   { nombre: "prod · el detalle de un mercado vuelve a filtrar por el feed", archivo: "server/mercados.mts",
-    de: "  return seeds.map((seed) => construirMercado(store, seed, Infinity, ahora));",
-    a: "  return activeSeeds(ahora, seeds).map((seed) => construirMercado(store, seed, Infinity, ahora));",
+    de: "  return seeds.map((seed) => construirMercado(store, seed, Infinity, ahora, contexto));",
+    a: "  return activeSeeds(ahora, seeds).map((seed) => construirMercado(store, seed, Infinity, ahora, contexto));",
     tests: ["tests/congelados.test.ts"] },
 
   { nombre: "prod · las huérfanas dejan de detectarse", archivo: "server/store.mts",
@@ -270,6 +270,23 @@ const MUTACIONES = [
   { nombre: "prod · las huérfanas no se devuelven", archivo: "server/ciclo.mts",
     de: "      if (apuestas.length === 0) continue;", a: "      continue;",
     tests: ["tests/congelados.test.ts"] },
+
+  { nombre: "prod · la reposición crea aunque el feed esté sano", archivo: "server/reposicion.mts",
+    de: "  if (resumen.abiertosAntes >= MINIMO_ABIERTOS) return resumen;", a: "",
+    tests: ["tests/reposicion.test.ts"] },
+  { nombre: "prod · la reposición deja de ser idempotente", archivo: "server/reposicion.mts",
+    de: "  const nuevos = candidatos.filter((seed) => !conocidos.has(seed.id));",
+    a: "  const nuevos = candidatos;", tests: ["tests/reposicion.test.ts"] },
+  { nombre: "prod · la reposición se salta el freno de presupuesto", archivo: "server/reposicion.mts",
+    de: "    if (!permitidos.has(seed.id)) continue;", a: "",
+    tests: ["tests/reposicion.test.ts"] },
+  { nombre: "prod · ESPN caído tumba la reposición entera", archivo: "server/reposicion.mts",
+    de: "      resumen.errores.push(`partidos: ${error instanceof Error ? error.message : String(error)}`);",
+    a: "      throw error;", tests: ["tests/reposicion.test.ts"] },
+  { nombre: "prod · el catálogo generado no entra al ciclo", archivo: "server/index.mts",
+    de: "  return [...seeds, ...store.seedsGeneradas(), ...vivos.seeds()];",
+    a: "  return [...seeds, ...vivos.seeds()];", tests: ["tests/reposicion.test.ts"],
+    equivalente: "`catalogo()` sólo alimenta las rutas HTTP; el ciclo recibe `conRepuestos` por su cuenta, así que quitarlo de aquí no impide que los repuestos se liquiden. Lo que sí rompería —y no tiene test porque necesitaría levantar el servidor— es que dejaran de salir en el feed" },
 
   // --- §3 · ciclo de vida: resolver, y no pagar dos veces tras un redeploy ---
   { nombre: "§3 el redeploy vuelve a pagar el mercado", archivo: "server/store.mts",
@@ -507,9 +524,24 @@ for (const r of resultados) {
 
 const detectadas = resultados.filter((r) => r.estado === "detectada").length;
 const equivalentes = resultados.filter((r) => r.estado !== "detectada" && r.equivalente);
-const huecos = resultados.filter((r) => r.estado !== "detectada" && !r.equivalente);
+/**
+ * «El patrón ya no está en el archivo» **no es un hueco**: es una mutación
+ * caduca, casi siempre porque el código que apuntaba se reescribió. Contarla
+ * como hueco es la tercera vez que este arnés da una falsa alarma, y las tres
+ * han sido lo mismo: no distinguir entre las maneras de no detectar algo. Un
+ * arnés que grita por lo que no es se deja de leer.
+ */
+const caducas = resultados.filter((r) => r.estado === "NO APLICA");
+const huecos = resultados.filter(
+  (r) => r.estado === "SOBREVIVE" && !r.equivalente,
+);
 
-console.log(`\n${detectadas}/${resultados.length} detectadas · ${equivalentes.length} equivalentes conocidas · ${huecos.length} huecos`);
+console.log(
+  `\n${detectadas}/${resultados.length} detectadas · ${equivalentes.length} equivalentes conocidas` +
+    ` · ${caducas.length} caducas · ${huecos.length} huecos`,
+);
 for (const r of equivalentes) console.log(`  ~ ${r.nombre}: ${r.equivalente}`);
+for (const r of caducas) console.log(`  ? ${r.nombre} — el patrón ya no existe: actualiza la entrada`);
 for (const r of huecos) console.log(`  !! ${r.nombre} — falta un test que lo vea`);
+// una mutación caduca no rompe el barrido, pero se dice: es deuda, no fallo
 process.exit(huecos.length === 0 ? 0 : 1);
