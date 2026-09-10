@@ -41,6 +41,8 @@ export interface ResumenCiclo {
   atorados: string[];
   /** Los que ya pasaron el plazo largo: se anularon y se devolvió lo apostado. */
   incobrables: string[];
+  /** Mercados que desaparecieron del catálogo con apuestas dentro. Se devolvió. */
+  huerfanos: string[];
   acreditado: number;
   errores: string[];
 }
@@ -71,6 +73,7 @@ export async function correrCiclo(
     comision: 0,
     atorados: [],
     incobrables: [],
+    huerfanos: [],
     acreditado: 0,
     errores: [],
   };
@@ -256,6 +259,47 @@ export async function correrCiclo(
       if (JSON.stringify(estado) !== antes) store.guardarLiquidacion(estado);
     } catch (error) {
       resumen.errores.push(`${seed.id}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
+   * Y al final, las **huérfanas**: apuestas sin pagar cuyo mercado ya no está
+   * en el catálogo.
+   *
+   * El bucle de arriba no puede verlas — itera sobre las semillas, y la semilla
+   * es justo lo que falta. Se vio en producción: el portafolio de alguien
+   * mostraba `latam-libertadores-br` con su apuesta dentro, sin título siquiera,
+   * y ninguna corrida del ciclo iba a mirarla nunca.
+   *
+   * Si el mercado desapareció, nadie puede acertar: se devuelve íntegro y sin
+   * comisión, que es lo mismo que se hace con un mercado que nadie ganó
+   * (R-024). Quedarse con esos puntos porque el mercado se perdió por el camino
+   * sería cobrar por nuestro propio error.
+   */
+  for (const [marketId, _total] of Object.entries(store.apuestasHuerfanas(seeds.map((s) => s.id)))) {
+    try {
+      const apuestas = store.apuestasDeMercado(marketId);
+      if (apuestas.length === 0) continue;
+      const pozo = store.pozo(marketId);
+      const pool = pozo ? normalizePool(pozo) : undefined;
+      const cierre = store.liquidarMercado({
+        marketId,
+        pagos: Object.fromEntries(apuestas.map((a) => [a.id, a.stake])),
+        fee: 0,
+        // lo que quede del pozo después de devolver era semilla nuestra
+        aCapital: pool
+          ? Math.max(0, totalPool(pool) - apuestas.reduce((t, a) => t + a.stake, 0))
+          : 0,
+      });
+      if (cierre.acreditado > 0) {
+        resumen.acreditado += cierre.acreditado;
+        resumen.anulados += 1;
+        resumen.huerfanos.push(marketId);
+      }
+    } catch (error) {
+      resumen.errores.push(
+        `huérfana ${marketId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 

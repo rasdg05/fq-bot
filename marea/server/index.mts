@@ -19,6 +19,7 @@ import { metaDeLogro, metaDeMercado } from "./compartir.mts";
 import { logroDe, tarjetaPng } from "./tarjeta.mts";
 import { createRegistroDeEventos } from "./eventos.mts";
 import type { OwnMarketSeed } from "../src/adapters/ownMarkets/catalog";
+import { congelados, type SettlementState } from "../src/domain/settlement";
 
 /**
  * Marea, servidor completo: sirve la app, guarda las cuentas y corre el ciclo
@@ -178,6 +179,22 @@ async function servir(req: IncomingMessage, res: ServerResponse) {
           ...bitacora,
           datos: store.resumen(),
           mercados: seeds.length,
+          /**
+           * Lo que estaba pasando y no se veía.
+           *
+           * Durante más de un mes el resumen del ciclo dijo «0 atorados · 0
+           * errores» mientras varios mercados llevaban semanas sin resolverse y
+           * había apuestas cuyo mercado ya no existía. Ninguna de las dos cosas
+           * era un error —el oráculo contestaba `sin_dato` y el ciclo itera
+           * sobre las semillas— y por eso ninguna aparecía. Aparecen aquí.
+           */
+          congelados: congelados(
+            seeds
+              .map((seed) => ({ state: store.liquidacion(seed.id), spec: seed.resolution }))
+              .filter((x): x is { state: SettlementState; spec: typeof x.spec } => !!x.state),
+            Date.now(),
+          ),
+          huerfanas: store.apuestasHuerfanas(seeds.map((seed) => seed.id)),
           // de dónde sale el precio que se está enseñando, y si el motor está
           // degradado. Es lo primero que se mira cuando una card se queda sin
           // número

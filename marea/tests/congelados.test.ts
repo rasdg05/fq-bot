@@ -18,6 +18,7 @@ import {
   type Oracle,
 } from "@/domain/settlement";
 import { binaryPool } from "@/domain/parimutuel";
+import { cuentaPozo, saldoDe } from "@/domain/contabilidad";
 
 /**
  * El atasco silencioso, que es el peor fallo que ha tenido este producto y se
@@ -40,6 +41,12 @@ const seed: OwnMarketSeed = validateSeed({
   id: "congelado",
   title: "¿Un mercado cuya fuente dejó de contestar?",
   shortTitle: "Fuente caída",
+  // esta rama exige nombres de verdad: "Sí" y "No" no dicen de qué lado estás
+  // cuando la pregunta ya no está a la vista (§3.3 del rediseño)
+  outcomes: [
+    { id: "si", label: "Abajo de 5 %" },
+    { id: "no", label: "5 % o más" },
+  ],
   category: "economia",
   country: "BR",
   closesAt: new Date(AHORA).toISOString(),
@@ -341,6 +348,97 @@ describe("Portafolio — una apuesta vieja puede abrir su mercado", () => {
       expect(todos[0].title).toBe(vencido.title);
       // y no se cuela como `hot` por la puerta de atrás
       expect(todos[0].hot).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+/**
+ * Apuestas huérfanas: el mercado desapareció del catálogo y la apuesta se
+ * quedó dentro.
+ *
+ * Es el caso que peor se ve de todos, y se vio en producción: el portafolio de
+ * alguien mostraba `latam-libertadores-br` —el id crudo, porque ni el título se
+ * podía resolver— con su apuesta sin cobrar. El ciclo itera sobre las semillas,
+ * y la semilla es justo lo que falta: ninguna corrida iba a mirarla nunca.
+ */
+describe("Apuestas huérfanas — el mercado se perdió, el dinero no", () => {
+  function conApuestaHuerfana() {
+    const dir = mkdtempSync(join(tmpdir(), "marea-huerfana-"));
+    const store = new Store(dir);
+    sembrarPozos(store, [seed]);
+    store.crearUsuario({
+      id: "ana", usuario: "ana", hash: "x", salt: "y",
+      creado: new Date(AHORA).toISOString(), puntos: 1_000,
+    } as never);
+    store.apostar({ usuarioId: "ana", marketId: seed.id, side: "si", stake: 300, precio: 0.5 });
+    return { dir, store };
+  }
+
+  it("el auditor las encuentra: es lo único que conoce todas las apuestas", () => {
+    const { dir, store } = conApuestaHuerfana();
+    try {
+      // con su mercado en el catálogo no hay nada que reportar
+      expect(store.apuestasHuerfanas([seed.id])).toEqual({});
+      // sin él, aparece con lo que hay dentro
+      expect(store.apuestasHuerfanas([])).toEqual({ [seed.id]: 300 });
+      expect(store.apuestasHuerfanas(["otro-mercado"])).toEqual({ [seed.id]: 300 });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("el ciclo las devuelve íntegras y sin comisión", async () => {
+    const { dir, store } = conApuestaHuerfana();
+    try {
+      expect(store.usuarioPorId("ana")!.puntos).toBe(700);
+
+      // el catálogo ya no lo trae: es exactamente lo que pasó en producción
+      const r = await correrCiclo(store, [], [fuenteViva], AHORA + 5 * DIA);
+
+      expect(r.huerfanos).toEqual([seed.id]);
+      expect(r.anulados).toBe(1);
+      expect(store.usuarioPorId("ana")!.puntos).toBe(1_000); // le vuelve lo suyo
+      expect(store.tesoreria()).toBe(0); // y la casa no cobra por su propio error
+      expect(store.cuadre()).toBe(0);
+      expect(saldoDe(store.libro(), cuentaPozo(seed.id))).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("y no las devuelve dos veces", async () => {
+    const { dir, store } = conApuestaHuerfana();
+    try {
+      await correrCiclo(store, [], [fuenteViva], AHORA + 5 * DIA);
+      const asientos = store.libro().length;
+      const r = await correrCiclo(store, [], [fuenteViva], AHORA + 6 * DIA);
+      expect(r.huerfanos).toEqual([]);
+      expect(r.acreditado).toBe(0);
+      expect(store.usuarioPorId("ana")!.puntos).toBe(1_000);
+      expect(store.libro().length).toBe(asientos);
+      /**
+       * Y el auditor deja de reportarla. El dinero ya lo protege la guarda de
+       * `liquidarMercado`, así que esto no es sobre pagar dos veces: es sobre
+       * que el informe no mienta. Un auditor que sigue gritando por algo que ya
+       * se arregló es un auditor que se deja de leer, y entonces no sirve el
+       * día que grite por algo de verdad.
+       */
+      expect(store.apuestasHuerfanas([])).toEqual({});
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("un mercado que SÍ está en el catálogo no se toca por esta vía", async () => {
+    const { dir, store } = conApuestaHuerfana();
+    try {
+      const r = await correrCiclo(store, [seed], [fuenteViva], AHORA + 2 * DIA);
+      expect(r.huerfanos).toEqual([]);
+      // sigue su ciclo normal: leído y esperando la ventana de disputa
+      expect(store.liquidacion(seed.id)?.phase).toBe("en_disputa");
+      expect(store.usuarioPorId("ana")!.puntos).toBe(700);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

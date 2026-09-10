@@ -407,6 +407,31 @@ export class Store {
     return gente.size;
   }
 
+  /**
+   * Mercados con apuestas sin pagar cuyo id **ya no está en el catálogo**.
+   *
+   * Es el caso más feo que puede tener este producto y se vio en producción:
+   * el portafolio de alguien mostraba `latam-libertadores-br` —el id crudo,
+   * porque ni el título se podía resolver— con su apuesta dentro y sin cobrar.
+   * Un mercado que desaparece del catálogo desaparece también del ciclo, que
+   * itera sobre las semillas: nadie vuelve a mirarlo nunca, y esos puntos se
+   * quedan quietos para siempre.
+   *
+   * `cuadre()` no lo ve, `congelados()` tampoco —no hay estado de liquidación
+   * que mirar— y el propio ciclo es ciego a esto por construcción. Por eso el
+   * auditor va aquí, en el único sitio que conoce **todas** las apuestas.
+   */
+  apuestasHuerfanas(idsDelCatalogo: readonly string[]): Record<string, number> {
+    const conocidos = new Set(idsDelCatalogo);
+    const salida: Record<string, number> = {};
+    for (const apuesta of this.datos.apuestas) {
+      if (apuesta.pagado !== undefined) continue;
+      if (conocidos.has(apuesta.marketId)) continue;
+      salida[apuesta.marketId] = (salida[apuesta.marketId] ?? 0) + apuesta.stake;
+    }
+    return salida;
+  }
+
   apuestasDeMercado(marketId: string): Apuesta[] {
     return this.datos.apuestas.filter((a) => a.marketId === marketId);
   }

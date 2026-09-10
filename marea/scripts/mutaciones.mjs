@@ -261,6 +261,16 @@ const MUTACIONES = [
     a: "  return activeSeeds(ahora, seeds).map((seed) => construirMercado(store, seed, Infinity, ahora));",
     tests: ["tests/congelados.test.ts"] },
 
+  { nombre: "prod · las huérfanas dejan de detectarse", archivo: "server/store.mts",
+    de: "      if (conocidos.has(apuesta.marketId)) continue;", a: "      continue;",
+    tests: ["tests/congelados.test.ts"] },
+  { nombre: "prod · una huérfana ya pagada se vuelve a devolver", archivo: "server/store.mts",
+    de: "      if (apuesta.pagado !== undefined) continue;", a: "",
+    tests: ["tests/congelados.test.ts"] },
+  { nombre: "prod · las huérfanas no se devuelven", archivo: "server/ciclo.mts",
+    de: "      if (apuestas.length === 0) continue;", a: "      continue;",
+    tests: ["tests/congelados.test.ts"] },
+
   // --- §3 · ciclo de vida: resolver, y no pagar dos veces tras un redeploy ---
   { nombre: "§3 el redeploy vuelve a pagar el mercado", archivo: "server/store.mts",
     de: '      (a) => a.tipo === "liquidacion" && a.ref === input.marketId,',
