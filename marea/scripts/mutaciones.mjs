@@ -201,6 +201,30 @@ const MUTACIONES = [
     tests: ["tests/parimutuel.test.ts"] },
 
 
+  // --- Invariantes de producto: honestidad, sesión y detección de país ---
+  { nombre: "viejo · hay Edge sin lectura independiente (I2)", archivo: `${D}edge.ts`,
+    de: "  if (mareaProbability === undefined || Number.isNaN(mareaProbability)) {\n    return null;\n  }",
+    a: "  if (mareaProbability === undefined) {\n    mareaProbability = marketProbability + 0.1;\n  }",
+    tests: ["tests/domain.test.ts", "tests/ownmarkets.test.tsx", "tests/fase1.test.tsx"] },
+  { nombre: "viejo · el umbral de Edge deja de aplicarse (R-001)", archivo: `${D}edge.ts`,
+    de: "  return Math.abs(rounded) >= EDGE_MIN_PP ? rounded : null;", a: "  return rounded;",
+    tests: ["tests/domain.test.ts"] },
+  { nombre: "viejo · el proveedor sin lectura empieza a inventar", archivo: `${D}probability.ts`,
+    de: '  id: "sin-lectura",\n  read: () => null,', a: '  id: "sin-lectura",\n  read: () => 0.5,',
+    tests: ["tests/pricemodel.test.ts", "tests/domain.test.ts", "tests/ownmarkets.test.tsx"] },
+  { nombre: "viejo · una sesión caducada sigue valiendo", archivo: "server/auth.mts",
+    de: "  if (Number(vence) <= ahora) return null;", a: "", tests: ["tests/servidor.test.ts"] },
+  { nombre: "viejo · una firma de sesión falsa se acepta", archivo: "server/auth.mts",
+    de: "  if (!timingSafeEqual(Buffer.from(firma), Buffer.from(esperada))) return null;", a: "",
+    tests: ["tests/servidor.test.ts"] },
+  { nombre: "viejo · una contraseña incorrecta entra", archivo: "server/auth.mts",
+    de: "  return timingSafeEqual(intento, guardado);", a: "  return true;",
+    tests: ["tests/servidor.test.ts"] },
+  { nombre: "viejo · la regla de máquina puede contradecir al criterio", archivo: `${D}oracleRule.ts`,
+    de: "export function ruleProblems(rule: OracleRule, criterion: string): string[] {",
+    a: "export function ruleProblems(rule: OracleRule, criterion: string): string[] {\n  if (criterion) return [];",
+    tests: ["tests/parimutuel.test.ts", "tests/fuentes.test.ts", "tests/multiples.test.ts"] },
+
   // --- §3 · ciclo de vida: resolver, y no pagar dos veces tras un redeploy ---
   { nombre: "§3 el redeploy vuelve a pagar el mercado", archivo: "server/store.mts",
     de: '      (a) => a.tipo === "liquidacion" && a.ref === input.marketId,',
@@ -270,6 +294,63 @@ if (aCorrer.length === 0) {
 const respaldos = mkdtempSync(join(tmpdir(), "mutaciones-"));
 const resultados = [];
 
+/**
+ * Los archivos que hay mutados ahora mismo, con su copia sana.
+ *
+ * Existe porque este arnés **rompe el repo a propósito** y lo arregla justo
+ * después. Si lo matan en medio —Ctrl-C, un timeout, una sesión que se corta—
+ * el archivo se queda mutado en el árbol de trabajo, y la siguiente persona se
+ * encuentra un `git diff` que no escribió nadie. Pasó una vez en la sesión que
+ * escribió esto: quedó un `Math.max(0, ...)` menos en `settlement.ts` y sólo se
+ * vio porque `git status` mostraba un archivo que yo no había tocado.
+ *
+ * Un `finally` no basta: no corre si el proceso muere por señal.
+ */
+const enVuelo = new Map();
+
+function restaurarTodo() {
+  for (const [archivo, respaldo] of enVuelo) {
+    try {
+      copyFileSync(respaldo, archivo);
+    } catch {
+      console.error(`\n!! NO se pudo restaurar ${archivo} desde ${respaldo} — revísalo a mano`);
+    }
+  }
+  enVuelo.clear();
+}
+
+for (const senal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+  process.on(senal, () => {
+    console.error(`\n\n${senal}: restaurando ${enVuelo.size} archivo(s) mutado(s) antes de salir...`);
+    restaurarTodo();
+    process.exit(130);
+  });
+}
+process.on("uncaughtException", (error) => {
+  restaurarTodo();
+  throw error;
+});
+
+/**
+ * Y antes de empezar: si el árbol de trabajo ya trae cambios en un archivo que
+ * vamos a mutar, no se arranca. Podría ser trabajo legítimo sin guardar —que se
+ * perdería al restaurar— o el resto de un barrido anterior que murió a medias.
+ * Las dos cosas se arreglan mirando, no siguiendo.
+ */
+const aTocar = [...new Set(MUTACIONES.map((m) => m.archivo))];
+const sucios = execFileSync("git", ["status", "--porcelain", "--", ...aTocar], { encoding: "utf8" })
+  .split("\n")
+  .filter(Boolean);
+if (sucios.length > 0) {
+  console.error("No se arranca: hay cambios sin guardar en archivos que este barrido muta.\n");
+  for (const linea of sucios) console.error(`  ${linea}`);
+  console.error(
+    "\nGuárdalos o descártalos primero. Si no reconoces alguno, puede ser el resto de un\n" +
+      "barrido anterior que murió a medias: `git checkout -- <archivo>` lo devuelve a su sitio.",
+  );
+  process.exit(2);
+}
+
 /** Corre vitest y devuelve cuántas pruebas quedaron rojas. */
 function correrTests(tests) {
   try {
@@ -294,10 +375,12 @@ const BASE = correrTests([]);
 console.log(`Línea base de la suite: ${BASE} rojas. Una mutación cuenta como detectada si sube de ahí.`);
 
 for (const m of aCorrer) {
-  const respaldo = join(respaldos, basename(m.archivo));
+  const respaldo = join(respaldos, `${resultados.length}-${basename(m.archivo)}`);
   copyFileSync(m.archivo, respaldo);
+  enVuelo.set(m.archivo, respaldo);
   const original = readFileSync(m.archivo, "utf8");
   if (!original.includes(m.de)) {
+    enVuelo.delete(m.archivo);
     resultados.push({ ...m, estado: "NO APLICA", detalle: "el patrón ya no está en el archivo" });
     continue;
   }
@@ -328,6 +411,7 @@ for (const m of aCorrer) {
     }
   } finally {
     copyFileSync(respaldo, m.archivo);
+    enVuelo.delete(m.archivo);
   }
   resultados.push({
     ...m,

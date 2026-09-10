@@ -890,3 +890,35 @@ el otro—, así que pasaba en verde por el motivo equivocado.
 
 **Barrido final: 67 mutaciones, 65 detectadas, 2 equivalentes documentadas, 0
 huecos.**
+
+
+---
+
+## §3 · El arnés rompía el repo y se le podía morir a medias
+
+Al retomar la sesión, `git status` mostraba `settlement.ts` modificado — y yo no
+lo había tocado. Era un **resto de mutación**: el barrido se interrumpió a mitad
+y el archivo se quedó roto en el árbol de trabajo, con un `Math.max(0, ...)`
+menos. El `finally` que restaura cada mutación **no corre si el proceso muere
+por señal**.
+
+Es el peor fallo posible en esta herramienta: rompe el repo a propósito, y si la
+matan deja el daño puesto y en silencio. Alguien podría commitear una mutación.
+
+Blindado con tres cosas:
+
+1. **Restaura ante señal.** `SIGINT`, `SIGTERM`, `SIGHUP` y `uncaughtException`
+   devuelven a su sitio todos los archivos en vuelo antes de salir.
+2. **No arranca con el árbol sucio** en un archivo que vaya a mutar. Podría ser
+   trabajo legítimo sin guardar —que se perdería al restaurar— o el resto de un
+   barrido anterior. Las dos cosas se arreglan mirando, no siguiendo.
+3. **Respaldos con nombre único** por posición, para que dos mutaciones sobre el
+   mismo archivo no se pisen el respaldo.
+
+**Y el guardia funcionó a la primera:** al probarlo encontró un **segundo** resto
+que yo no sabía que estaba ahí — un `if (false)` en la comprobación de frescura
+de `seriesOracle.ts`, de la misma interrupción. Dos archivos rotos en el árbol,
+uno de ellos sin que nadie lo hubiera notado.
+
+La lección se parece a la de siempre en esta sesión: la herramienta que existe
+para tener disciplina también necesita que alguien la mire.

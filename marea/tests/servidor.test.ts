@@ -131,6 +131,27 @@ describe("Servidor · cuentas y persistencia", () => {
     expect(leerSesion(token)).toBe(usuario.id);
     expect(leerSesion(`${usuario.id}.9999999999999.firmainventada`)).toBeNull();
     expect(leerSesion(firmarSesion(usuario.id, 0))).toBeNull();
+
+    /**
+     * Una firma falsa **del largo correcto**, que es la que intentaría alguien.
+     *
+     * La línea de arriba —`firmainventada`— la rechaza el chequeo de
+     * **longitud**, no el de firma: son 15 caracteres contra los 64 de un
+     * HMAC-SHA256 en hexadecimal. Medido con un barrido de mutaciones: quitar
+     * `timingSafeEqual` de `leerSesion` dejaba la suite entera en verde, porque
+     * ningún caso llegaba a la comprobación criptográfica.
+     *
+     * Con 64 caracteres válidos, lo único que puede rechazarlo es la firma. Sin
+     * eso, cualquiera se autentica como cualquiera escribiendo su id.
+     */
+    const [, vence, firmaReal] = token.split(".");
+    const falsaDelMismoLargo = firmaReal.replace(/^./, (c) => (c === "a" ? "b" : "a"));
+    expect(falsaDelMismoLargo.length).toBe(firmaReal.length);
+    expect(falsaDelMismoLargo).not.toBe(firmaReal);
+    expect(leerSesion(`${usuario.id}.${vence}.${falsaDelMismoLargo}`)).toBeNull();
+
+    // y el id tampoco se puede cambiar conservando la firma de otro
+    expect(leerSesion(`otro-usuario.${vence}.${firmaReal}`)).toBeNull();
   });
 });
 
