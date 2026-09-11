@@ -1035,3 +1035,43 @@ Es la misma lección de toda la sesión, una vez más: **el arreglo no está
 terminado hasta que se mide lo que hizo.** Si me hubiera quedado en «los
 mercados ya se resuelven», habría dejado a la tabla mintiendo en contra del
 usuario.
+
+
+---
+
+## El deploy que falló, y el agujero que destapó en nuestra propia puerta
+
+El commit de la tabla falló al construir en Railway. El diagnóstico automático
+decía «problema transitorio de infraestructura, no tu código». **No se aceptó de
+palabra**, porque ese es exactamente el tipo de afirmación que este repo castiga.
+
+Se comprobaron las dos hipótesis:
+
+| Hipótesis | Medida |
+|---|---|
+| Mi merge engordó el build | El contexto de `marea/` sin `node_modules` son **5.6 MB**; el merge añadió 1.9 MB de PNGs del vault. El snapshot de 102.7 MB es la capa de caché de nixpacks. No es el tamaño |
+| Mi código no compila | `npm run build` → **verde**, 1923 módulos, 4.5 s |
+
+Así que sí era la caché de snapshots de Railway. Producción no se cayó: siguió
+sirviendo el deploy anterior —el del merge— con los arreglos funcionando (45
+corridas, `congelados: 0`, `huerfanas: {}`).
+
+### Pero comprobarlo destapó algo peor
+
+`npm run ci` era `tsc && validate && build`. Y `validate` **siempre** falla, por
+el catálogo caducado. Es decir: **`build` no llegaba a correr nunca.**
+
+Llevo toda la sesión citando `npm run ci` como la puerta de cada unidad, y esa
+puerta no ejercitaba lo único que Railway ejecuta. Una rotura de build habría
+pasado limpia por toda mi verificación local y habría aparecido sólo en el
+deploy — que es justo lo que temí durante diez minutos esta noche.
+
+Sólo se vio porque un deploy falló y fui a comprobar si era culpa mía. Si no
+hubiera fallado nunca, el agujero seguiría abierto.
+
+**Arreglado invirtiendo el orden: `tsc && build && validate`.** `validate` no lee
+`dist/`, así que el orden es libre, y de este modo el build se ejercita en cada
+corrida aunque `validate` siga roja por el catálogo.
+
+Es la misma forma de fallo que todo lo demás de esta sesión: nada estaba roto,
+nada gritaba, y la comprobación que creía tener no comprobaba lo que yo creía.

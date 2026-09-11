@@ -41,6 +41,13 @@ npx vitest run               # la suite
 npm run mutaciones           # rompe el código a propósito y comprueba que la suite grita
 ```
 
+**`npm run ci` es `tsc && build && validate`, en ese orden y a propósito.** Estuvo
+seis semanas como `tsc && validate && build`, y como `validate` **siempre** falla
+por el catálogo caducado, **`build` no llegaba a correr nunca**. Railway sí lo
+corre, y directo: una rotura de build habría pasado toda la puerta local y
+aparecido sólo en el deploy. Se descubrió cuando un deploy falló y fui a
+comprobar si era mi código — y resultó que no lo había comprobado nunca.
+
 **La línea base no es «verde».** `npm run ci` sale **FAIL con 8 fallos** y eso es
 lo esperado: 6 pruebas de `vitest` más 2 verificaciones de `validate`, todas por
 el catálogo estático caducado (R-041), ninguna de código. Comparar contra cero
