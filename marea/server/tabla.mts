@@ -33,9 +33,28 @@ export function calcularTabla(store: Store, usuarioId?: string, limite = 20): Ta
   const filas: FilaTabla[] = [];
 
   for (const usuario of store.usuarios()) {
+    /**
+     * Las **devueltas no cuentan**, ni a favor ni en contra.
+     *
+     * Un mercado anulado —porque hizo falta gente (R-059), porque nadie acertó
+     * (R-024), o porque la fuente no contestó nunca y se dio por incobrable—
+     * no dice nada sobre si alguien atina. El dinero volvió íntegro: no hubo
+     * acierto ni fallo, no hubo pregunta.
+     *
+     * Contarlas hundía la precisión de quien no había hecho nada mal. Medido en
+     * producción el día que se arregló el atasco: `rasdg05` pasó de 1/10 a
+     * **1/13** en cuanto se anularon tres mercados congelados desde agosto —
+     * castigado por un fallo nuestro, dos veces: primero esperando un mes, y
+     * después en la tabla.
+     *
+     * Se mira la **fase de la liquidación**, no `pagado === stake`: una apuesta
+     * puede pagar exactamente lo apostado y ser un acierto legítimo cuando el
+     * multiplicador da 1.
+     */
     const liquidadas = store
       .apuestasDe(usuario.id)
       .filter((apuesta) => apuesta.pagado !== undefined)
+      .filter((apuesta) => store.liquidacion(apuesta.marketId)?.phase !== "devuelto")
       .sort((a, b) => (a.pagadoAt ?? "").localeCompare(b.pagadoAt ?? ""));
 
     if (liquidadas.length === 0) continue;

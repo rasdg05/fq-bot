@@ -995,3 +995,43 @@ mutación caduca —deuda—, no un test que falta. Ahora se reportan aparte.
 
 **Barrido final sobre la rama de producción: 92 mutaciones, 89 detectadas, 3
 equivalentes documentadas, 0 huecos.**
+
+
+---
+
+## Lo que enseñó el deploy (2026-09-11)
+
+El merge salió a producción y la **primera corrida** del ciclo hizo el trabajo
+que llevaba un mes sin hacerse:
+
+```
+atorados    : 9   (mx-inpc-anual, mx-toluca-necaxa-goles y los 7 partidos de agosto)
+incobrables : 9   (los mismos: pasaron los 30 días)
+huerfanos   : 1   (latam-libertadores-br)
+acreditado  : 350 puntos devueltos · anulados 3 · comisión 0
+congelados  : 0   · huerfanas: {} · cuadre: 0
+```
+
+Los nombres son exactamente los que RasDG veía colgados en su portafolio, y
+`latam-libertadores-br` es el que salía con el id crudo por título. El dinero
+volvió.
+
+### Y el deploy destapó un defecto más, que sólo se ve midiendo
+
+La tabla pasó de decir «1/10» a decir **«1/13»**. Los tres mercados que se
+acababan de anular entraron a contar como **fallos**.
+
+`resueltas` filtraba por `pagado !== undefined`, y una devolución tiene
+`pagado === stake`: cuenta como resuelta y no como acierto. Así que a RasDG se
+le castigaba **dos veces por un fallo nuestro** — primero esperando un mes a que
+sus mercados resolvieran, y después en la tabla, por haberlos anulado.
+
+Una devolución no dice nada sobre si alguien atina: el dinero volvió íntegro, no
+hubo acierto ni fallo, no hubo pregunta. Ahora se excluyen, y se detectan **por
+la fase de la liquidación** y no por `pagado === stake` — una apuesta puede pagar
+exactamente lo apostado y ser un acierto legítimo cuando el multiplicador da 1.
+
+Es la misma lección de toda la sesión, una vez más: **el arreglo no está
+terminado hasta que se mide lo que hizo.** Si me hubiera quedado en «los
+mercados ya se resuelven», habría dejado a la tabla mintiendo en contra del
+usuario.

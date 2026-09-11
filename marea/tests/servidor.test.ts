@@ -417,6 +417,30 @@ describe("Servidor · tabla y compartir", () => {
     expect(calcularTabla(store).filas).toHaveLength(0);
   });
 
+  it("un mercado anulado no cuenta en la precisión, ni a favor ni en contra", async () => {
+    /**
+     * Medido en producción el día que se arregló el atasco: `rasdg05` pasó de
+     * 1/10 a **1/13** en cuanto se anularon tres mercados que llevaban
+     * congelados desde agosto. Quedaba castigado dos veces por un fallo
+     * nuestro: primero esperando un mes, y después en la tabla.
+     *
+     * Una devolución no dice nada sobre si alguien atina. El dinero volvió
+     * íntegro: no hubo acierto, no hubo fallo, no hubo pregunta.
+     */
+    const ana = alta("ana");
+    store.apostar({ usuarioId: ana.id, marketId: seed.id, side: "si", stake: 300, precio: 0.5 });
+
+    await correrCiclo(store, [seed], [oraculoSi], AHORA);
+    await correrCiclo(store, [seed], [oraculoSi], AHORA + 2 * 86_400_000);
+
+    // un solo apostador: se anula y se devuelve todo (R-059)
+    expect(store.liquidacion(seed.id)?.phase).toBe("devuelto");
+    expect(store.usuarioPorId(ana.id)!.puntos).toBe(1_000);
+
+    // y la tabla no la cuenta: sin apuestas que digan algo, no hay fila
+    expect(calcularTabla(store).filas).toHaveLength(0);
+  });
+
   it("V56 la liga compartida lleva la pregunta y la probabilidad en la vista previa", () => {
     const mercado = construirMercado(store, seed, Infinity, AHORA);
     const html = `<!doctype html><html><head>

@@ -288,6 +288,10 @@ const MUTACIONES = [
     a: "  return [...seeds, ...vivos.seeds()];", tests: ["tests/reposicion.test.ts"],
     equivalente: "`catalogo()` sólo alimenta las rutas HTTP; el ciclo recibe `conRepuestos` por su cuenta, así que quitarlo de aquí no impide que los repuestos se liquiden. Lo que sí rompería —y no tiene test porque necesitaría levantar el servidor— es que dejaran de salir en el feed" },
 
+  { nombre: "prod · los anulados vuelven a contar como fallo en la tabla", archivo: "server/tabla.mts",
+    de: '      .filter((apuesta) => store.liquidacion(apuesta.marketId)?.phase !== "devuelto")',
+    a: "", tests: ["tests/servidor.test.ts"] },
+
   // --- §3 · ciclo de vida: resolver, y no pagar dos veces tras un redeploy ---
   { nombre: "§3 el redeploy vuelve a pagar el mercado", archivo: "server/store.mts",
     de: '      (a) => a.tipo === "liquidacion" && a.ref === input.marketId,',
