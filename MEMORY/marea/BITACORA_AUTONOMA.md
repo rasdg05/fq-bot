@@ -1075,3 +1075,46 @@ corrida aunque `validate` siga roja por el catálogo.
 
 Es la misma forma de fallo que todo lo demás de esta sesión: nada estaba roto,
 nada gritaba, y la comprobación que creía tener no comprobaba lo que yo creía.
+
+
+---
+
+## «Este mercado sigue apareciendo cuando ya está cerrado» (2026-09-11)
+
+RasDG mandó una captura de `br-ipca-5`: cerrado, en el feed, entre los abiertos.
+
+**La primera comprobación dio una buena noticia.** El mercado **sí resolvió** —
+`outcome: si`, evidencia «IPCA acumulado 12 meses del 2026-07-01: 4.44 frente al
+umbral de 5». Era uno de los cinco que `frescuraDias` desatascó. Y el arreglo del
+feed funcionaba: posición **18 de 18**, `hot: false`.
+
+**Y una equivocación mía de diagnóstico.** Al principio leí la captura como «la
+pantalla de detalle no enseña el resultado», y no era eso: sí lo enseña, sólo que
+más abajo — la captura cortaba antes. La queja era la que decía literalmente: no
+debería estar en el feed.
+
+**Tenía razón, y el propio código ya lo decía.** El comentario de
+`VENTANA_POST_RESOLUCION_MS` justifica dejar un mercado resuelto un par de días
+«para que **quien apostó** vea el resultado»… y luego se lo enseñaba a todo el
+mundo. Para quien no entró es ruido: la primera pantalla del producto ocupada por
+preguntas que ya no se pueden contestar, que es justo lo que ese mismo comentario
+llama «peor que un feed corto». No hizo falta cambiar ninguna regla: R-041 va de
+la cadencia de reposición, no de esto.
+
+**El primer intento estuvo mal y lo dijo un test que ya existía.** Metí el filtro
+dentro de `listarMercados`, con el usuario como parámetro. Rompió cuatro pruebas,
+y una no era mía: *«pero si alguien apostó se queda hasta que se vea el
+resultado»*, el contrato de las velas en vivo. El problema de fondo era de
+diseño: `usuarioId?: string` confunde «no hay sesión» con «no me importa», y las
+pruebas unitarias caen en el segundo caso.
+
+La separación correcta: **el catálogo arma la lista; a quién se le enseña cada
+mercado lo decide la API**, que es donde se sabe quién está mirando. Quedó como
+`visiblesPara(mercados, apostados)`, pura y probada por los dos lados — sin
+sesión se ve todo lo que acepta apuestas y ningún resultado; con sesión, además
+el resultado de lo tuyo y sólo lo tuyo. Explorar sigue sin pedir cuenta (I1,
+R-002): lo que se quita no es el feed, es el resultado de una apuesta ajena.
+
+Extraerla a función pura no fue estética: `manejarApi` **no tiene ni un test** en
+este repo, así que el filtro habría quedado sin cubrir — el mismo patrón que
+llevo toda la sesión persiguiendo.

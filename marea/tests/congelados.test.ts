@@ -4,7 +4,12 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { Store } from "../server/store.mts";
 import { correrCiclo } from "../server/ciclo.mts";
-import { listarMercados, sembrarPozos, todosLosMercados } from "../server/mercados.mts";
+import {
+  listarMercados,
+  sembrarPozos,
+  todosLosMercados,
+  visiblesPara,
+} from "../server/mercados.mts";
 import { validateSeed, type OwnMarketSeed } from "@/adapters/ownMarkets/catalog";
 import {
   atascoDe,
@@ -18,6 +23,7 @@ import {
   type Oracle,
 } from "@/domain/settlement";
 import { binaryPool } from "@/domain/parimutuel";
+import type { Market } from "@/domain/types";
 import { cuentaPozo, saldoDe } from "@/domain/contabilidad";
 
 /**
@@ -442,5 +448,55 @@ describe("Apuestas huérfanas — el mercado se perdió, el dinero no", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+/**
+ * Un resultado ajeno no es feed de nadie.
+ *
+ * La queja, literal: «este mercado sigue apareciendo cuando ya está cerrado».
+ * Tenía razón, y el propio código lo decía: el comentario de
+ * `VENTANA_POST_RESOLUCION_MS` justifica dejarlo visible «para que **quien
+ * apostó** vea el resultado» — y luego se lo enseñaba a todo el mundo.
+ */
+describe("Feed — un mercado resuelto sólo lo ve quien apostó en él", () => {
+  const mercado = (id: string, status: "open" | "resolved" | "live"): Market =>
+    ({ id, status }) as Market;
+
+  const feed = [
+    mercado("abierto", "open"),
+    mercado("vela", "live"),
+    mercado("resuelto-mio", "resolved"),
+    mercado("resuelto-ajeno", "resolved"),
+  ];
+
+  it("sin sesión se ve todo lo que acepta apuestas, y ningún resultado", () => {
+    // explorar no pide cuenta (I1, R-002): lo que se quita no es el feed, es
+    // el resultado de una apuesta que no es tuya
+    expect(visiblesPara(feed, new Set()).map((m) => m.id)).toEqual(["abierto", "vela"]);
+  });
+
+  it("con sesión se ve además el resultado de lo tuyo, y sólo lo tuyo", () => {
+    expect(visiblesPara(feed, new Set(["resuelto-mio"])).map((m) => m.id)).toEqual([
+      "abierto",
+      "vela",
+      "resuelto-mio",
+    ]);
+  });
+
+  it("una apuesta en un mercado que sigue abierto no cambia nada", () => {
+    // el filtro mira el estado, no la apuesta: un mercado abierto se ve igual
+    expect(visiblesPara(feed, new Set(["abierto"])).map((m) => m.id)).toEqual([
+      "abierto",
+      "vela",
+    ]);
+  });
+
+  it("una vela en curso nunca se esconde, se haya apostado o no", () => {
+    // las velas son el latido del feed: si se escondieran, la pantalla de quien
+    // llega se quedaría sin lo único que pasa ahora mismo
+    expect(visiblesPara([mercado("vela", "live")], new Set()).map((m) => m.id)).toEqual([
+      "vela",
+    ]);
   });
 });

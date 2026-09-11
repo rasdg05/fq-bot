@@ -231,6 +231,8 @@ export function listarMercados(
     return store.pozo(seed.id) !== undefined;
   });
 
+
+
   /**
    * El umbral de `hot` se calcula **sólo entre los que siguen aceptando
    * apuestas**. Si un mercado cerrado con un pozo grande entra en la cuenta se
@@ -269,6 +271,30 @@ export function listarMercados(
         if (cerrado(a) !== cerrado(b)) return cerrado(a) ? 1 : -1;
         return b.volume - a.volume;
       })
+  );
+}
+
+/**
+ * Lo que este visitante concreto puede ver: el feed **menos los resultados
+ * ajenos**.
+ *
+ * Un mercado que ya resolvió se queda un par de días en el catálogo «para que
+ * quien apostó vea el resultado». El catálogo hace bien en dejarlo; lo que no
+ * hacía nadie era preguntar **a quién** se le enseña. A quien no entró, un
+ * mercado resuelto es ruido: la primera pantalla del producto ocupada por
+ * preguntas que ya no se pueden contestar, que es justo lo que el comentario de
+ * `VENTANA_POST_RESOLUCION_MS` llama «peor que un feed corto».
+ *
+ * Explorar sigue sin pedir cuenta (I1, R-002). Sin sesión se ve todo lo que
+ * acepta apuestas, que es el feed de verdad; lo único que no se ve es el
+ * resultado de una apuesta que no es tuya.
+ */
+export function visiblesPara(
+  mercados: readonly Market[],
+  apostados: ReadonlySet<string>,
+): Market[] {
+  return mercados.filter(
+    (mercado) => mercado.status !== "resolved" || apostados.has(mercado.id),
   );
 }
 

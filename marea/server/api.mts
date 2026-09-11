@@ -21,6 +21,7 @@ import {
   listarMercados,
   posicionesDe,
   todosLosMercados,
+  visiblesPara,
   type ContextoVivo,
 } from "./mercados.mts";
 import { calcularTabla } from "./tabla.mts";
@@ -246,7 +247,20 @@ export async function manejarApi(
 
   // sin sesión: explorar el catálogo entero nunca cuesta ni pide nada (R-002)
   if (ruta === "/api/mercados" && metodo === "GET") {
-    json(res, 200, { mercados: listarMercados(ctx.store, ctx.seeds(), Date.now(), ctx.precios) });
+    /**
+     * El catálogo lo arma `listarMercados`; **a quién** se le enseña cada
+     * mercado se decide aquí, que es donde se sabe quién está mirando. Un
+     * resultado ajeno no es feed de nadie.
+     */
+    const mios = new Set(
+      sesion ? ctx.store.apuestasDe(sesion.id).map((apuesta) => apuesta.marketId) : [],
+    );
+    json(res, 200, {
+      mercados: visiblesPara(
+        listarMercados(ctx.store, ctx.seeds(), Date.now(), ctx.precios),
+        mios,
+      ),
+    });
     return true;
   }
 

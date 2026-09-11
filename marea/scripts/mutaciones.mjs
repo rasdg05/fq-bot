@@ -292,6 +292,13 @@ const MUTACIONES = [
     de: '      .filter((apuesta) => store.liquidacion(apuesta.marketId)?.phase !== "devuelto")',
     a: "", tests: ["tests/servidor.test.ts"] },
 
+  { nombre: "prod · los resultados ajenos vuelven al feed de todos", archivo: "server/mercados.mts",
+    de: '    (mercado) => mercado.status !== "resolved" || apostados.has(mercado.id),',
+    a: "    () => true,", tests: ["tests/congelados.test.ts"] },
+  { nombre: "prod · el feed esconde también las velas en curso", archivo: "server/mercados.mts",
+    de: '    (mercado) => mercado.status !== "resolved" || apostados.has(mercado.id),',
+    a: "    (mercado) => apostados.has(mercado.id),", tests: ["tests/congelados.test.ts"] },
+
   // --- §3 · ciclo de vida: resolver, y no pagar dos veces tras un redeploy ---
   { nombre: "§3 el redeploy vuelve a pagar el mercado", archivo: "server/store.mts",
     de: '      (a) => a.tipo === "liquidacion" && a.ref === input.marketId,',
