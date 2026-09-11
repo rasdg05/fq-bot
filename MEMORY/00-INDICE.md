@@ -66,7 +66,9 @@ Además de los 5 archivos núcleo, la memoria guarda las **obras** (PDF + texto)
 - `ingenieria/` — la ecuación del motor (P_master, de la vela al disparo).
 - `marketing/` — guías de marca y de cómo se construye una ventaja.
 - `marea/` — **Marea: protocolo de liquidez, cámara de compensación y arquitectura en
-  cadena.** La app de mercados de predicción de `marea/`. La decisión (el pozo es cámara,
+  cadena.** ⚠ **Si vas a tocar Marea, lee antes `marea/vault/RETOMAR.md`:**
+  producción corre `claude/marea-redesign-v6-b0240n`, **no `main`**, y trabajar
+  sobre `main` significa que tu código no llega a la app. La app de mercados de predicción de `marea/`. La decisión (el pozo es cámara,
   no creador de mercado), la aritmética del ingreso, la escalera de fees con su regla de
   bajada, la cadena recomendada (Base; Tron sólo rampa; Monero no) y las invariantes
   L1–L14. **Estado: diseño, nada desplegado.**

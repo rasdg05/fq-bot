@@ -9,6 +9,10 @@
 **Estado: diseño, con el dominio construido. Nada desplegado.** Volumen 0,
 facturación 0, se juega con puntos, elegibilidad `pendiente` en todos los países.
 
+> **Para retomar:** `marea/vault/RETOMAR.md` es la página de arranque en frío.
+> Lo primero que dice, y lo que más cuesta si no se sabe: **producción corre
+> `claude/marea-redesign-v6-b0240n`, no `main`.**
+
 **Lo que cambió el 2026-09-08** (sesión autónoma, rama
 `claude/marea-autonomous-work-3sggb9`): de las invariantes de liquidez, **L1, L2,
 L3, L5, L6, L8, L9 y L15 pasaron de escritas a vivas**, cada una con su prueba y

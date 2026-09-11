@@ -210,9 +210,13 @@ con outcome. El plan **cerebro** (`research/cerebro_arquitectura.md`, commit `f0
 
 ---
 
-## Marea — mercados de predicción (foto 2026-09-08)
+## Marea — mercados de predicción (foto 2026-09-11)
 
 La app de `marea/`. **No es el bot** y no comparte motor, pero sí memoria y disciplina.
+
+> ⚠ **Producción corre `claude/marea-redesign-v6-b0240n`, no `main`.** Esa rama
+> tiene el rediseño v6 y la cripto en vivo, y nunca se fusionó. Reconciliar `main`
+> está pendiente y no es trivial. Página de arranque: `marea/vault/RETOMAR.md`.
 
 | Cosa | Estado |
 |---|---|
@@ -220,7 +224,9 @@ La app de `marea/`. **No es el bot** y no comparte motor, pero sí memoria y dis
 | Volumen | **0** |
 | Facturación | **0** |
 | Elegibilidad por país | **todas `pendiente`**; `validate` falla si alguna pasa a `permitido` sin opinión escrita |
-| Ciclo automático | **vivo**: `roll.mts` crea, `settle.mts` / `ciclo.mts` cierran, leen, disputan y pagan |
+| Ciclo automático | **vivo y dentro del servidor**: liquida y **repone el catálogo** cada cuarto de hora en el mismo proceso (`server/ciclo.mts`, `server/reposicion.mts`). Antes la reposición dependía de un cron en la laptop de alguien; nadie lo corrió en un mes y la app se quedó con 4 mercados |
+| Mercados congelados | **cerrado (2026-09-11)**: a los 7 días sin resolver el mercado se marca `atorado` y **aparece** en `/salud`; a los 30 se anula y se devuelve todo sin comisión. `atorado` ya no es callejón sin salida. Antes: 1008 corridas con «0 errores» y apuestas de agosto sin concluir |
+| Apuestas huérfanas | **cerrado**: si el mercado desaparece del catálogo, el ciclo las detecta y devuelve íntegro (R-024). Antes quedaban invisibles para siempre |
 | Contrato de custodia | interfaz **definida y declarada simulada** (`custodia/contrato.ts`) |
 | Cámara de compensación | **cableada** (2026-09-08). `domain/pozo.ts` puro + `domain/compensacion.ts` que traduce el reparto parimutuel a conjuntos completos, y `ciclo.mts` liquida por ahí. Se acuña el reparto de **todos** los resultados: un sobrepago en cualquiera detiene la liquidación al escribir |
 | Contabilidad | **L3 viva**: cuenta `capital` separada de `tesoreria` (R-066), cierre de mercado en **un solo asiento**, y el saldo del pozo vuelve a **cero exacto** tras liquidar |

@@ -1,5 +1,9 @@
 # AGENTE — especificación operativa
 
+> **¿Vienes de una conversación en frío?** Esta página dice *cómo* se trabaja.
+> Dónde está todo hoy lo dice [`RETOMAR.md`](RETOMAR.md) — empieza por ahí y
+> vuelve, que trae la trampa de que **producción no corre `main`**.
+
 Auto-prompt. No describe la app: describe **cómo se decide y cómo se verifica**
 al trabajar sobre ella. Se lee antes de tocar código y manda sobre cualquier
 impulso de ir rápido. Si algo aquí contradice una instrucción puntual, gana la

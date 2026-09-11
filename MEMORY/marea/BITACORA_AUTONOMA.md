@@ -922,3 +922,76 @@ uno de ellos sin que nadie lo hubiera notado.
 
 La lección se parece a la de siempre en esta sesión: la herramienta que existe
 para tener disciplina también necesita que alguien la mire.
+
+
+---
+
+## El arreglo de producción (2026-09-10/11)
+
+Fuera de la cola. RasDG mandó capturas de la app: la pantalla casi vacía, su
+portafolio lleno de apuestas que no concluían, la tabla diciendo «precisión 10 %
+· 1/10», y un mercado cerrado de Brasil saliendo entre los abiertos.
+
+**El hallazgo que cambia cómo se trabaja este repo.** `/api/mercados` de
+producción sirve campos —`shortTitle`, y los mercados `live` de velas de 5 y 15
+min— que **no existen en `main` ni en nada que `main` contenga**. Producción no
+corre `main`: corre `claude/marea-redesign-v6-b0240n`, una rama sin fusionar, 15
+commits por delante, del 7 de agosto. Mis 19 commits de la cola estaban sobre
+`main`, así que no habrían llegado a la app; peor, fusionarlos a `main` y
+desplegar habría podido pisar el rediseño y la cripto en vivo.
+
+Se portaron con un merge (4 conflictos, resueltos conservando los dos lados) y
+**se fusionaron a la rama de producción** con permiso explícito de RasDG.
+
+### Lo que estaba roto, medido contra producción y no razonado
+
+| Síntoma | Causa, con su evidencia |
+|---|---|
+| Mercados congelados sin resultado | `/salud`: **1008 corridas, 0 errores, 0 atorados** mientras había apuestas de agosto sin concluir. El oráculo contesta `sin_dato`, `onRead` hace lo correcto y reintenta — y mil veces seguidas eso es un mercado congelado. `sin_dato` no es `atorado`, así que era invisible por construcción. El propio mercado `br-ipca-5` guardaba la evidencia: «No se pudo leer Banco Central do Brasil: Unexpected token '<', "<?xml vers"… is not valid JSON» |
+| Precisión 1/10 en la tabla | Consecuencia: nueve apuestas nunca concluyeron |
+| `latam-libertadores-br` con el id crudo por título | El ciclo itera sobre **semillas**; si el mercado sale del catálogo, nadie vuelve a mirarlo jamás y el dinero se queda quieto |
+| Abrir una apuesta vieja daba «ese mercado ya no existe» | La ruta de detalle filtraba por `activeSeeds`, que es el filtro del **feed** |
+| Brasil cerrado entre los abiertos | `hot` se calculaba por pozo sin mirar si aceptaba apuestas — y los pozos viejos, que son los más grandes, **subían el listón** a los mercados nuevos |
+| La plataforma vacía | `roll` lo dispara un cron instalado **en la máquina de alguien**. Nadie lo corrió desde principios de agosto |
+
+### Lo que se cableó
+
+- **Dos plazos** desde `settlesAt`: a los 7 días el mercado se marca `atorado` y
+  **aparece**; a los 30 se da por incobrable, se anula y **se devuelve todo sin
+  comisión**. `atorado` deja de ser un callejón sin salida: si la fuente vuelve,
+  el mercado se resuelve solo y el motivo se borra con él.
+- **`congelados()` y `apuestasHuerfanas()`**, los dos auditores que faltaban, y
+  los dos expuestos en `/salud`. `cuadre()` no puede ver esto: no hay dinero
+  descuadrado, hay dinero **quieto**.
+- **Las huérfanas se devuelven** íntegras y sin comisión. Si el mercado
+  desapareció nadie puede acertar, y quedarnos con esos puntos porque el mercado
+  se perdió por el camino sería cobrar por nuestro propio error (R-024).
+- **El feed** no enseña puertas con candado: un cerrado nunca es `hot`, va al
+  final, y el umbral se mide sólo entre los que aceptan apuestas.
+- **`server/reposicion.mts`**: el catálogo se repone **dentro del servidor**, por
+  el mismo reloj que el liquidador y al mismo volumen persistente, pasando por el
+  freno de presupuesto de L9.
+
+### Las dos cosas que encontró el proceso real y no la suite
+
+1. **Conté las velas de 5 min como feed sano.** Arrancando contra un disco limpio
+   no repuso **nada** —cuatro velas más tres duraderos daban siete, por encima
+   del mínimo de seis— con la pantalla igual de vacía. Ahora sólo cuentan los
+   duraderos, y hay test con ese caso exacto.
+2. **La reposición se callaba cuando no podía.** El mismo fallo de invisibilidad
+   que llevo toda la sesión cerrando, cometido por mí. Ahora registra también el
+   intento fallido.
+
+Medido en proceso real, disco limpio: primer ciclo «el feed está corto (3 de 6) y
+no se creó nada» —el ticker aún no tenía precios—; segundo ciclo, «4 mercados
+nuevos». El feed pasó de **4 a 8 mercados duraderos, solo**.
+
+### El arnés, por tercera vez
+
+Volvió a dar una falsa alarma, y la causa es la misma que las dos anteriores: **no
+distinguía las maneras de no detectar algo**. Tres patrones quedaron obsoletos
+tras el merge y el resumen los contó como huecos. «El patrón ya no existe» es una
+mutación caduca —deuda—, no un test que falta. Ahora se reportan aparte.
+
+**Barrido final sobre la rama de producción: 92 mutaciones, 89 detectadas, 3
+equivalentes documentadas, 0 huecos.**
