@@ -54,7 +54,7 @@ el catálogo estático caducado (R-041), ninguna de código. Comparar contra cer
 en vez de contra la línea base es el error que `marea/vault/LINEA_BASE.md` existe
 para evitar. **La regla es que el número de rojas no crece.**
 
-Hoy: **8 rojas · 492 verdes**. Mutaciones: **92 · 89 detectadas · 3 equivalentes
+Hoy: **8 rojas · 497 verdes**. Mutaciones: **95 · 92 detectadas · 3 equivalentes
 documentadas · 0 huecos**.
 
 ## 3. Qué se construyó y dónde quedó
@@ -73,6 +73,9 @@ escritas a vivas**. U7 (contratos Solidity) se saltó: `forge` no es alcanzable.
 | Apuestas huérfanas devueltas íntegras | `server/ciclo.mts` |
 | El feed no enseña puertas con candado | `server/mercados.mts` |
 | El catálogo se repone **dentro del servidor** | `server/reposicion.mts` |
+| Un mercado anulado no cuenta como fallo en la tabla | `server/tabla.mts` |
+| Un mercado resuelto sólo lo ve quien apostó en él | `server/mercados.mts` (`visiblesPara`) |
+| `npm run ci` sí corre el build | `package.json` |
 
 ## 4. Lo que NO está hecho, dicho en la misma frase
 
@@ -112,6 +115,17 @@ Tres cosas costaron caro y están escritas largo en `MEMORY/marea/BITACORA_AUTON
 3. **`cuadre()` no ve el peor fallo.** No hay dinero descuadrado; hay dinero
    **quieto**. El resumen del ciclo dijo «0 atorados · 0 errores» durante 1008
    corridas mientras las apuestas de alguien llevaban un mes congeladas.
+
+## 6bis. Lo que ya se verificó en producción
+
+No es teoría: el 2026-09-11 el deploy entró y la primera corrida del ciclo anuló
+9 mercados congelados desde agosto, devolvió **350 puntos** sin comisión y cerró
+la huérfana `latam-libertadores-br`. `congelados: 0`, `huerfanas: {}`,
+`cuadre: 0`. El catálogo se repuso solo y el feed pasó de **4 a 14 mercados
+duraderos**, con partidos de Liga MX incluidos —ESPN responde desde Railway
+aunque dé 403 desde un sandbox—. Y `br-ipca-5`, el mercado que llevaba semanas
+colgado, resolvió con su evidencia: «IPCA acumulado 12 meses del 2026-07-01:
+4.44 frente al umbral de 5».
 
 ## 7. Lo primero que haría al retomar
 
