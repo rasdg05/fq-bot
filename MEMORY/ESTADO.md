@@ -243,8 +243,8 @@ cuán vieja es la fuente. Es el mismo fallo que en el bot obligó a cablear
 `cvd_confirmation`, y conviene arreglarlo antes de que haya dinero detrás.
 
 **Giro 2026-09-24 (DECISIONES §22):** Marea pasa a **proyecto principal** — `main` = Marea, el
-bot a su propia rama (planificado, se ejecuta en conversación en frío con runbook en
-`MEMORY/marea/CONTEXTO_SESION_2026-09-24.md`). Y **regla nueva: redeploy a producción libre para
+bot a su propia rama **`bot-senales`** (ejecutado el 2026-09-24: el servicio del bot en Railway rastrea
+`bot-senales`, el de Marea rastrea `main`; runbook en `MEMORY/marea/CONTEXTO_SESION_2026-09-24.md`). Y **regla nueva: redeploy a producción libre para
 Marea** mientras no haya soft launch ni >10 usuarios activos (no toca el bot ni su gate). Suite y
 typecheck se corren igual.
 

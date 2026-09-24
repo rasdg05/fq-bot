@@ -692,7 +692,9 @@ iteración del proyecto principal.
 de señales y pasa a representar **Marea**; el bot se mueve a **su propia rama**. Objetivo:
 escalar más rápido el proyecto principal.
 
-**Estado.** *Planificada, no ejecutada.* Se hace en una **conversación en frío** dedicada.
+**Estado.** *Ejecutada 2026-09-24* con RasDG presente: rama `bot-senales` creada desde
+`main@857a125`, servicio del bot re-apuntado a ella en Railway, rama de verificación fusionada a
+`main`. Plan original (en frío):
 El runbook con los pasos e implicaciones de infra (los dos servicios de Railway ya son
 separados; el del bot debe quedar apuntando a su rama nueva para no cortarle el deploy a los
 suscriptores de pago) vive en `MEMORY/marea/CONTEXTO_SESION_2026-09-24.md`.

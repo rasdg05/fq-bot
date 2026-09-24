@@ -7,8 +7,16 @@
 
 ## Qué es esto
 
-Bot de señales cripto de order-flow, **vivo en producción** (Railway, rama `main`)
-con suscriptores de pago. SOL (pilar), BTC, ETH. Cada push a `main` redeploya.
+Monorepo con dos productos y **dos servicios de Railway**, cada uno en su rama
+(giro del 2026-09-24, `MEMORY/DECISIONES.md §22`):
+
+| Producto | Rama de despliegue | Servicio Railway | Regla de deploy |
+|---|---|---|---|
+| **Marea** (proyecto principal, `marea/`) | `main` | Root Directory `marea`, `marea/railway.toml` | Redeploy libre mientras no haya soft launch ni >10 usuarios activos; suite y typecheck igual |
+| **Bot de señales** (raíz) | `bot-senales` | raíz, `railway.toml`, `python launcher.py` | **Vivo con suscriptores de pago.** Gate measure-first intacto |
+
+Un cambio al bot va a `bot-senales`, **no** a `main`: un push a `main` ya no
+redeploya el bot. Lo de abajo (lección, invariantes, números) es del bot.
 
 ## Antes de tocar nada
 
@@ -88,5 +96,6 @@ ledger_stats.py          ÚNICO punto por el que sale el track record público
 - CI: GitHub Actions, Python 3.12, `pytest tests/` + `requirements.lock`.
   Local: `python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt pytest`.
 - Suite completa ~40 s. **Córrela antes de cada commit.**
-- Despliegue: merge a `main` → Railway. `railway.toml` excluye `marea/**`,
+- Despliegue del bot: push a `bot-senales` → Railway. `railway.toml` excluye `marea/**`,
   `MEMORY/**` y `tools/` (salvo excepciones listadas) de los watchPatterns.
+- Despliegue de Marea: push a `main` → Railway (`marea/railway.toml`). Suite: `cd marea && npm test`.
