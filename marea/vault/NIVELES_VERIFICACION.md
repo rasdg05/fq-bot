@@ -46,10 +46,27 @@ añade la dimensión del usuario y el tope efectivo pasa a ser
 **L16 (nueva) · el tope de nivel se hace cumplir donde está el dinero, no en la pantalla.**
 Un tope que sólo vive en el frontend se salta con la consola. En arquitectura no custodial va
 en el contrato o en el motor de cruce. *Test:* una operación que excede el tope se rechaza
-aunque se pida saltándose la app.
+aunque se pida saltándose la app. Cableado en **R-069**.
 
-**Lo que no tiene nivel:** el **screening de sanciones** (aplica a todos desde N0, siempre) y
-**explorar** (R-002).
+**N2 admite dos orígenes, mismo trato.** Dentro de N2 conviven el usuario que llega con USDC que
+ya vivía en su wallet (cripto nativo) y el que lo trae de una rampa/proveedor que ya le hizo KYC
+(Bitso y similares). Se pensó premiar el KYC heredado con un tope más alto, pero **detectar la
+procedencia automáticamente no es viable**: los exchanges rotan cientos de wallets, no publican
+sus direcciones vigentes, y el USDC suele pasar por una wallet intermedia que borra el rastro por
+hopping. Conclusión: **mismo tope y misma experiencia para ambos**. El KYC heredado queda como
+argumento de riesgo interno, no como una función que dependa de adivinar de dónde vino el dinero;
+si tiene reconocimiento legal para topes más altos lo dice **P18**, no nosotros.
+
+**Anti-structuring (R-070).** El tope de nivel no basta si se puede fragmentar. Varios retiros que
+individualmente quedan bajo el umbral pero acumulados lo cruzan disparan verificación **como una
+sola operación**, sobre una **ventana móvil** (30 días como valor de trabajo hasta P15); el cambio
+recurrente de dirección destino en ventana corta también la dispara. Se detecta el patrón, no la
+operación aislada.
+
+**Lo que no tiene nivel:** el **screening de sanciones** (aplica a todos desde N0, siempre; rechaza
+en ambos sentidos y rechazar no es confiscar — **R-071**) y **explorar** (R-002). El KYC nunca
+aparece de forma arbitraria: sólo lo disparan tope acumulado, anti-structuring o subir de nivel
+voluntariamente — lista cerrada (**R-072**).
 
 ## 4. El P2P: la advertencia
 
@@ -70,7 +87,7 @@ argumento más fuerte que tenemos.
 confianza entre usuarios son mecánicas de producto sobre la escalera. Se queda lo que gustaba
 de la idea y se deja fuera lo que la hace cara.
 
-## 5. Preguntas P11–P14 (se suman a las diez del encargo)
+## 5. Preguntas P11–P18 (se suman a las diez del encargo)
 
 11. ¿Se reconoce aquí un régimen simplificado o por niveles? ¿Umbral y expediente mínimo?
     → *Da el número del tope de N2. Si no existe, N2 desaparece y se salta de puntos a
@@ -83,6 +100,20 @@ de la idea y se deja fuera lo que la hace cara.
     hacer ante coincidencia, a quién se reporta? → *Define el procedimiento escrito.*
 14. Si se añadiera un tablero P2P de cripto por moneda local: ¿qué actividad sería y qué
     exigiría? → *Decide si el P2P entra alguna vez. Se pregunta ahora aunque no se construya.*
+15. ¿Cuál es la ventana móvil correcta para el anti-structuring bajo régimen mexicano? *30 días
+    es nuestro valor de trabajo (R-070); confírmalo o corrígelo.* → *Fija el parámetro de la
+    ventana acumulada. Sin número del abogado, R-070 corre con 30 días como provisional.*
+16. Un retiro a wallet cripto propia del usuario, ¿cae **fuera** del régimen de identificación de
+    la LIC y de la Ley Antilavado (LFPIORPI), o hay algún matiz que se nos escape? → *Si cae
+    fuera, la escalera es control de riesgo propio; si hay matiz, define qué obligación entra y
+    desde qué monto.*
+17. Siendo **no custodiales**, ¿qué obligación de reporte tiene Marea ante **SAT o UIF** sobre las
+    operaciones de sus usuarios? → *Define si generamos avisos/reportes, cuáles, con qué
+    periodicidad y qué disparadores automatizar.*
+18. El **KYC heredado del proveedor de rampa** (ej. Bitso), ¿tiene reconocimiento legal explícito
+    para justificar **topes propios más altos**, o es sólo un argumento de riesgo interno que no
+    cambia obligaciones legales? → *Decide si N2 puede diferenciar topes por origen. Si no, se
+    queda como está: mismo tope para ambos orígenes (§3).*
 
 ## 6. Qué se puede construir ya
 
@@ -91,6 +122,10 @@ de la idea y se deja fuera lo que la hace cara.
 | La escalera N0–N3 como estructura | **ya** — no depende de ningún umbral |
 | Tope efectivo `min(país, nivel)` | **ya** |
 | Screening de sanciones desde N0 | **ya** — 2–3 días |
+| Screening bidireccional (R-071) | **ya** — es política de firma, no umbral |
+| Lista cerrada de disparadores de KYC (R-072) | **ya** |
+| Anti-structuring por ventana móvil (R-070) | **ya** la estructura — el número de ventana espera P15 |
+| Recordatorio fiscal en el retiro (VOICE) | **ya** el copy — el monto que lo dispara espera P16/P18 |
 | Insignia de verificado y sus funciones | **ya** — es producto, no cumplimiento |
 | El número del tope de N2 | espera P11 |
 | Proveedor de verificación de identidad (N3) | espera la jurisdicción elegida |
@@ -103,3 +138,10 @@ buena función de producto; si aplica algo, ya estamos en la forma que el marco 
 
 _Escrito 2026-09-01. Fuentes: FATF/GAFI · CGAP · Disposiciones art. 115 LIC (SIDOF/DOF) ·
 Guía CNBV oct-2025 · resúmenes de Travel Rule por jurisdicción._
+
+_Actualizado 2026-09-24 tras revisión de un colaborador: se cablearon R-069 (tope en contrato),
+R-070 (anti-structuring), R-071 (screening bidireccional) y R-072 (lista cerrada de KYC) en
+`RULINGS.md`; se resolvió el doble origen de N2 (mismo tope, la detección de procedencia no es
+viable); se sumó el recordatorio fiscal a `VOICE.md`; y se agregaron P15–P18 al encargo. Nota de
+unidades para el abogado: el régimen de cuentas por niveles del art. 115 LIC va en **UDIs**, y el
+de actividades vulnerables (LFPIORPI) va en **UMA** — no mezclar; cuál aplica es P11/P16._

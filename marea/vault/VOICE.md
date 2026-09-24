@@ -44,6 +44,21 @@ Si `trade_execution_mode = "aggregated"`, el copy dice que la operación se
 completa en el mercado con más liquidez y que Marea no es la contraparte.
 Nunca "operamos tu orden" ni "nuestro libro".
 
+## Responsabilidad fiscal (recordatorio, no amenaza)
+
+En cada retiro que cruce cierto monto, la app **recuerda** —no advierte ni
+regaña— que las ganancias retiradas pueden estar sujetas a impuestos según la
+residencia fiscal del usuario. La responsabilidad es del usuario, no de Marea:
+en un modelo no custodial es su dinero y él decide cómo declararlo. El tono es
+informativo y breve; nunca da a entender que retirar sus fondos sea un error ni
+insinúa vigilancia. Coherente con el principio 2 (honesto) y con que Marea no es
+intermediario financiero (COMPLIANCE §2).
+
+Copy propuesto (cerrar por AUDIT antes de fijarlo): `Las ganancias que retiras
+pueden estar sujetas a impuestos según tu país de residencia fiscal. Tú decides
+cómo declararlas.` El monto que dispara el recordatorio y la redacción final los
+afina el brazo legal (P16, P18).
+
 ## Errores
 
 Siempre en español, sin stack trace, sin código técnico visible como mensaje

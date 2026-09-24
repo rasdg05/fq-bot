@@ -203,3 +203,22 @@ Se agrega una línea cuando un hallazgo de audit es recurrente o de producto.
   enseña sigue siendo el que se cobra (R-044). (liquidez)
 - **R-068** — Si el libro no cuadra, se dejan de crear mercados. Un descuadre con
   mercados nuevos encima es un descuadre que ya no se puede rastrear. (contabilidad)
+- **R-069** — El tope por nivel se hace cumplir **donde vive el dinero** (contrato o motor de
+  cruce), nunca sólo en la pantalla. El tope efectivo es `min(cap_país, cap_nivel)` (invariante
+  **L16**). Una operación que lo excede se rechaza aunque se pida saltándose la app. Un tope que
+  sólo vive en el frontend se salta con la consola. (cumplimiento)
+- **R-070** — **Anti-structuring.** Los retiros se evalúan sobre una **ventana móvil acumulada**
+  (30 días como valor de trabajo hasta que P15 lo confirme), no sólo por operación aislada. Varios
+  retiros que individualmente quedan bajo el umbral pero acumulados lo cruzan disparan verificación
+  **como una sola operación**; el cambio recurrente de dirección destino en ventana corta también
+  la dispara. Se detecta el patrón, no la operación suelta — de otra forma la fragmentación
+  (smurfing) es una evasión trivial. (cumplimiento)
+- **R-071** — El **screening de sanciones rechaza en ambos sentidos** y sin excepción por nivel:
+  Marea no firma una transacción hacia una dirección bloqueada aunque el usuario esté retirando lo
+  suyo. **Rechazar no es confiscar:** el saldo sigue siendo del usuario y puede retirar a otra
+  dirección que sí pase el screening. La fricción es elegir un destino válido, nunca retener fondos
+  (COMPLIANCE §1, modelo no custodial). (cumplimiento)
+- **R-072** — El KYC **no aparece de forma arbitraria** durante la experiencia. Sólo lo disparan
+  tres condiciones **cerradas**: cruzar el tope de operación acumulada mensual, un patrón de
+  anti-structuring (R-070), o subir de nivel voluntariamente. Fuera de esas, la app no pide papeles
+  (R-002). La lista es cerrada por diseño: no crece salvo que se agregue una condición aquí. (cumplimiento)

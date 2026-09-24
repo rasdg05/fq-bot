@@ -103,7 +103,8 @@ tr.es td{background:var(--teal-soft)}
   <div class="eyebrow">Marea · mercados de predicción</div>
   <h1>Planos de <em>construcción</em></h1>
   <div class="deck">La cámara de compensación en cadena: qué se construye, dónde vive cada
-  pieza, en qué orden se levanta y qué invariante cablea cada una. Seis planos. Nada de esto
+  pieza, en qué orden se levanta y qué invariante cablea cada una — más la escalera de
+  verificación y la compuerta de cumplimiento que la protege. Siete planos. Nada de esto
   está desplegado — es el plano, no la obra.</div>
 
   <div class="grid">
@@ -363,7 +364,7 @@ tr.es td{background:var(--teal-soft)}
       <thead><tr><th>Contrato</th><th>Origen</th><th class="n">Líneas propias</th><th>Qué hace</th><th>Invariante que cablea</th></tr></thead>
       <tbody>
         <tr class="re"><td><b>ConditionalTokens</b></td><td><span class="tag re">REUTILIZA</span> Gnosis, ya auditado y rodado</td><td class="n">0</td><td>Acuña y quema conjuntos completos ERC-1155. Es la pieza que hace que el pozo no tenga varianza</td><td>L1 · L5 · L14</td></tr>
-        <tr class="es"><td><b>BovedaTopada.sol</b></td><td><span class="tag es">ESCRIBE</span></td><td class="n">~150</td><td>Retiene el USDC. <b>Tope duro de colateral total</b>: se niega a aceptar más allá del límite. Pausa la creación de mercados, <b>nunca</b> la redención</td><td>L11 · L12 · L14</td></tr>
+        <tr class="es"><td><b>BovedaTopada.sol</b></td><td><span class="tag es">ESCRIBE</span></td><td class="n">~150</td><td>Retiene el USDC. <b>Tope duro de colateral total</b>: se niega a aceptar más allá del límite. Pausa la creación de mercados, <b>nunca</b> la redención. <b>Tope por nivel</b> <code>min(país,nivel)</code> donde vive el dinero</td><td>L11 · L12 · L14 · L16</td></tr>
         <tr class="es"><td><b>AdaptadorOraculo.sol</b></td><td><span class="tag es">ESCRIBE</span></td><td class="n">~180</td><td>Recibe la resolución propuesta tras multisig + timelock, abre la ventana de disputa y resuelve la condición del CTF</td><td>L7 · L12</td></tr>
         <tr class="es"><td><b>RegistroAnclas.sol</b></td><td><span class="tag es">ESCRIBE</span></td><td class="n">~80</td><td>Guarda <code>(época, raíz, nHojas)</code>. Append-only, sin borrado ni edición</td><td>L13 · L15</td></tr>
         <tr><td colspan="2" style="text-align:right;font-weight:700">Total de Solidity propia</td><td class="n"><b>~410</b></td><td colspan="2">Es el número que gobierna el coste y la duración de la auditoría</td></tr>
@@ -533,6 +534,54 @@ tr.es td{background:var(--teal-soft)}
     código — pero si no empieza ya, es ella la que fija la fecha real.</div>
   </div>
   <div class="pf"><span>Plano 06 · El orden de obra</span><span>ruta cripto-nativa con rampa · sin fiat</span></div>
+</div>
+
+<!-- ======================= PLANO 7 ======================= -->
+<div class="page">
+  <div class="ph"><div class="l"><span class="num">07</span><h2>La escalera y la compuerta</h2></div>
+    <div class="say">Verificación por niveles (tiered KYC). Lo que legitima el sistema no es el
+    privilegio del verificado, sino el <b>tope</b> del que no lo está: sin tope no hay niveles, hay
+    decoración.</div></div>
+
+  <div class="board">
+    <table>
+      <thead><tr><th>Nivel</th><th>Se le pide</th><th>Puede</th><th>Tope</th></tr></thead>
+      <tbody>
+        <tr><td><b>N0</b> visitante</td><td>nada</td><td>explorar catálogo, precios, resultados</td><td>— (explorar nunca pide permiso · R-002)</td></tr>
+        <tr><td><b>N1</b> jugador</td><td>alias + código de recuperación</td><td>jugar con <b>puntos</b></td><td>sin dinero</td></tr>
+        <tr class="es"><td><b>N2</b> operador</td><td>wallet propia + <b>screening</b> + país declarado</td><td>operar con USDC, <b>sin documento</b>. Admite dos orígenes (cripto nativo y KYC heredado de rampa), <b>mismo trato</b></td><td><code>min(país,nivel)</code> · el número lo fija P11</td></tr>
+        <tr class="re"><td><b>N3</b> verificado</td><td>identidad verificada, voluntaria</td><td>sin tope de nivel + <b>insignia</b> y funciones que exijan confianza</td><td>sólo el tope del país</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="cols2" style="flex:1">
+    <div class="board">
+      <div class="tt" style="font-size:16px;margin-bottom:10px">La compuerta de cumplimiento</div>
+      <table>
+        <thead><tr><th>Regla</th><th>Qué hace</th><th>Invariante</th></tr></thead>
+        <tbody>
+          <tr><td><b>Tope por nivel</b></td><td>Se hace cumplir donde vive el dinero (contrato/motor de cruce), no en la pantalla. <code>min(país,nivel)</code></td><td>R-069 · L16</td></tr>
+          <tr><td><b>Anti-structuring</b></td><td>Ventana móvil acumulada (30 días, valor de trabajo). Varios retiros bajo umbral que sumados lo cruzan disparan verificación como uno solo</td><td>R-070</td></tr>
+          <tr><td><b>Screening bidireccional</b></td><td>Rechaza en ambos sentidos, sin excepción por nivel. <b>Rechazar no es confiscar</b>: el saldo sigue siendo del usuario, puede retirar a otro destino válido</td><td>R-071</td></tr>
+          <tr><td><b>Lista cerrada de KYC</b></td><td>KYC sólo lo disparan tope acumulado, anti-structuring o subir de nivel. Fuera de eso, no pide papeles</td><td>R-072</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="note"><div class="lb">N2 · dos orígenes, mismo trato</div>
+      Se pensó premiar el KYC heredado (rampa tipo Bitso) con un tope más alto, pero detectar la
+      procedencia automáticamente <b>no es viable</b>: los exchanges rotan cientos de wallets, no
+      publican direcciones vigentes, y el hopping por wallet intermedia borra el rastro. Mismo tope
+      para cripto nativo y KYC heredado; si merece topes más altos lo dice P18, no nosotros.</div>
+      <div class="note w"><div class="lb">Lo que espera al abogado</div>
+      Las <b>dieciocho</b> preguntas (P11–P18) se contratan juntas. Nota de unidades: el régimen por
+      niveles del art. 115 LIC va en <b>UDIs</b>; el de actividades vulnerables (LFPIORPI) en
+      <b>UMA</b> — regímenes distintos, no se mezclan. Los números de los topes esperan la opinión
+      firmada; la estructura no.</div>
+    </div>
+  </div>
+  <div class="pf"><span>Plano 07 · La escalera y la compuerta</span><span>invariantes R-069 · R-070 · R-071 · R-072 · L16</span></div>
 </div>
 
 </body></html>
