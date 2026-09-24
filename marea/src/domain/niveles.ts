@@ -114,3 +114,90 @@ export function effectiveCapUsd(countryCapUsd: number, nivelCapUsd: number | nul
 export function effectiveCapForUser(countryCapUsd: number, nivel: Nivel): number {
   return effectiveCapUsd(countryCapUsd, capNivel(nivel));
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Anti-structuring (R-070)
+//
+// El tope no sirve si se puede fragmentar. Se evalúan los retiros sobre una
+// ventana móvil acumulada, no operación por operación: varios retiros que
+// individualmente quedan bajo el umbral pero sumados lo cruzan disparan
+// verificación como si fueran uno solo (smurfing). El cambio recurrente de
+// dirección destino en ventana corta también dispara.
+//
+// Sin relojes de pared: `now` entra por parámetro (como todo el repo). La
+// ventana de 30 días es valor de trabajo hasta que P15 la confirme, y va como
+// default parametrizable, no como constante mágica.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const DIA_MS = 24 * 60 * 60 * 1000;
+
+/** Ventana móvil por defecto, en días. Valor de trabajo hasta P15. */
+export const VENTANA_STRUCTURING_DIAS = 30;
+
+/** Nº de destinos distintos en la ventana que se lee como rotación sospechosa. */
+export const MAX_DESTINOS_VENTANA = 3;
+
+export interface Retiro {
+  /** Monto del retiro, en USD (se asume > 0). */
+  usd: number;
+  /** Marca de tiempo del retiro, epoch ms. */
+  ts: number;
+  /** Dirección destino, para la heurística de rotación. */
+  destino: string;
+}
+
+export interface AntiStructuringConfig {
+  /** Umbral acumulado, en USD, que dispara verificación. Lo fija el abogado (P15/P16). */
+  thresholdUsd: number;
+  /** Ventana móvil en días. Default `VENTANA_STRUCTURING_DIAS` (30, valor de trabajo). */
+  windowDays?: number;
+  /** Destinos distintos en la ventana que cuentan como rotación. Default `MAX_DESTINOS_VENTANA`. */
+  maxDestinos?: number;
+}
+
+export type StructuringMotivo = "acumulado" | "rotacion" | null;
+
+export interface StructuringResult {
+  /** Si el patrón dispara verificación. */
+  triggered: boolean;
+  /** Suma de retiros dentro de la ventana, en USD. */
+  acumuladoUsd: number;
+  /** Nº de direcciones destino distintas dentro de la ventana. */
+  destinosDistintos: number;
+  /** Qué disparó, o null si nada. */
+  motivo: StructuringMotivo;
+}
+
+/**
+ * R-070 — evalúa la ventana móvil que termina en `now`. Dispara si el acumulado
+ * cruza el umbral (aunque cada retiro quede debajo) o si hay rotación de destinos.
+ * Los retiros anteriores a la ventana no cuentan.
+ */
+export function detectStructuring(
+  retiros: readonly Retiro[],
+  config: AntiStructuringConfig,
+  now: number,
+): StructuringResult {
+  const windowDays = config.windowDays ?? VENTANA_STRUCTURING_DIAS;
+  const maxDestinos = config.maxDestinos ?? MAX_DESTINOS_VENTANA;
+  const desde = now - windowDays * DIA_MS;
+
+  const enVentana = retiros.filter((r) => r.ts > desde && r.ts <= now);
+  const acumuladoUsd = enVentana.reduce((suma, r) => suma + r.usd, 0);
+  const destinosDistintos = new Set(enVentana.map((r) => r.destino)).size;
+
+  const cruzaAcumulado = acumuladoUsd > config.thresholdUsd;
+  const rotacion = destinosDistintos >= maxDestinos;
+  const motivo: StructuringMotivo = cruzaAcumulado
+    ? "acumulado"
+    : rotacion
+      ? "rotacion"
+      : null;
+
+  return {
+    triggered: cruzaAcumulado || rotacion,
+    acumuladoUsd,
+    destinosDistintos,
+    motivo,
+  };
+}
