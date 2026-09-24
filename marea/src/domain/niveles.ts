@@ -273,3 +273,107 @@ export function screenDestino(
   }
   return { firmar: true, motivo: "ok" };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// La compuerta de cumplimiento (composición de R-069…R-072)
+//
+// Un único punto de entrada que la app llama para una operación con dinero. No
+// hornea política contestada (si cruzar el tope bloquea o sólo pide subir de
+// nivel lo decide el llamador con estos datos); compone las cuatro reglas y
+// deja el resultado explícito. Puro: `now` y el predicado de sanciones entran
+// por parámetro.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface OperacionCtx {
+  nivel: Nivel;
+  /** Tope del país (de `eligibility.ts`), USD. Con la puerta cerrada es 0. */
+  countryCapUsd: number;
+  /** Monto de esta operación, USD. */
+  montoUsd: number;
+  /** Ya operado en el periodo vigente, USD. */
+  acumuladoPeriodoUsd: number;
+  /** Dirección destino del retiro, para el screening. */
+  destino?: string;
+  /** Predicado de sanciones inyectado. Sin él, no se evalúa screening. */
+  isSanctioned?: (dir: string) => boolean;
+  /** Sentido de la transferencia para el mensaje de screening. */
+  sentido?: SentidoTransferencia;
+  /** Historial de retiros para el anti-structuring. */
+  retiros?: readonly Retiro[];
+  /** Config del anti-structuring; sin ella no se evalúa. */
+  antiStructuring?: AntiStructuringConfig;
+  /** El usuario pidió subir de nivel voluntariamente. */
+  subeVoluntario?: boolean;
+  /** Reloj, epoch ms. Requerido si se pasa historial de retiros. */
+  now?: number;
+}
+
+export interface CompuertaResult {
+  /** R-071 — ¿se puede firmar? Si es false, nada procede. */
+  firmable: boolean;
+  /** R-069/L16 — tope efectivo aplicable, USD. */
+  capEfectivoUsd: number;
+  /** R-069 — ¿la operación (acumulado + monto) cabe en el tope? */
+  dentroDelTope: boolean;
+  /** R-070 — resultado del anti-structuring, o null si no se evaluó. */
+  structuring: StructuringResult | null;
+  /** R-072 — qué KYC exige la operación, o null. */
+  requiereKyc: KycTrigger | null;
+  /** Conveniencia: firmable, dentro del tope y sin KYC pendiente. */
+  puedeProcederSinKyc: boolean;
+  /** Motivo mostrable si algo bloquea o exige acción; "ok" si nada. */
+  mensaje: string;
+}
+
+/**
+ * Evalúa una operación con dinero contra la compuerta completa. El screening es
+ * el único bloqueo duro; el tope y el anti-structuring se traducen en un
+ * disparador de KYC (R-072), no en un rechazo silencioso.
+ */
+export function evaluarOperacion(ctx: OperacionCtx): CompuertaResult {
+  // R-071 — screening (bloqueo duro). Sin destino/predicado, no bloquea.
+  const screening =
+    ctx.destino !== undefined && ctx.isSanctioned !== undefined
+      ? screenDestino(ctx.destino, ctx.isSanctioned, ctx.sentido ?? "retiro")
+      : { firmar: true, motivo: "ok" };
+
+  // R-069/L16 — tope efectivo.
+  const capEfectivoUsd = effectiveCapForUser(ctx.countryCapUsd, ctx.nivel);
+  const dentroDelTope = ctx.acumuladoPeriodoUsd + ctx.montoUsd <= capEfectivoUsd;
+
+  // R-070 — anti-structuring (si hay datos).
+  const structuring =
+    ctx.retiros !== undefined && ctx.antiStructuring !== undefined && ctx.now !== undefined
+      ? detectStructuring(ctx.retiros, ctx.antiStructuring, ctx.now)
+      : null;
+
+  // R-072 — lista cerrada de KYC.
+  const requiereKyc = kycTrigger({
+    cruzoTope: !dentroDelTope,
+    structuringDetectado: structuring?.triggered ?? false,
+    subeVoluntario: ctx.subeVoluntario ?? false,
+  });
+
+  const firmable = screening.firmar;
+  const puedeProcederSinKyc = firmable && dentroDelTope && requiereKyc === null;
+
+  const mensaje = !firmable
+    ? screening.motivo
+    : requiereKyc === "tope"
+      ? "Esta operación supera tu tope actual. Sube de nivel para continuar."
+      : requiereKyc === "structuring"
+        ? "Necesitamos verificar tu identidad antes de continuar."
+        : requiereKyc === "voluntario"
+          ? "Verificación voluntaria en curso."
+          : "ok";
+
+  return {
+    firmable,
+    capEfectivoUsd,
+    dentroDelTope,
+    structuring,
+    requiereKyc,
+    puedeProcederSinKyc,
+    mensaje,
+  };
+}

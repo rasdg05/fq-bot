@@ -7,6 +7,7 @@ import {
   detectStructuring,
   effectiveCapForUser,
   effectiveCapUsd,
+  evaluarOperacion,
   kycTrigger,
   screenDestino,
   type Retiro,
@@ -183,5 +184,87 @@ describe("Screening de sanciones bidireccional (R-071)", () => {
     const r = screenDestino("0xBAD", isSanctioned, "retiro");
     expect(r.firmar).toBe(false);
     expect(r.motivo).toMatch(/tuyo|otra dirección/i);
+  });
+});
+
+describe("La compuerta de cumplimiento (composición R-069…R-072)", () => {
+  const isSanctioned = (dir: string) => dir === "0xBAD";
+
+  it("operación limpia, dentro del tope, sin patrón: procede sin KYC", () => {
+    const r = evaluarOperacion({
+      nivel: "N3",
+      countryCapUsd: 1_000,
+      montoUsd: 50,
+      acumuladoPeriodoUsd: 100,
+      destino: "0xGOOD",
+      isSanctioned,
+    });
+    expect(r.firmable).toBe(true);
+    expect(r.dentroDelTope).toBe(true);
+    expect(r.requiereKyc).toBeNull();
+    expect(r.puedeProcederSinKyc).toBe(true);
+  });
+
+  it("el screening es bloqueo duro: una dirección sancionada no es firmable", () => {
+    const r = evaluarOperacion({
+      nivel: "N3",
+      countryCapUsd: 1_000,
+      montoUsd: 10,
+      acumuladoPeriodoUsd: 0,
+      destino: "0xBAD",
+      isSanctioned,
+    });
+    expect(r.firmable).toBe(false);
+    expect(r.puedeProcederSinKyc).toBe(false);
+    expect(r.mensaje).toMatch(/bloqueada/i);
+  });
+
+  it("cruzar el tope exige KYC por 'tope'", () => {
+    const r = evaluarOperacion({
+      nivel: "N3",
+      countryCapUsd: 100,
+      montoUsd: 20,
+      acumuladoPeriodoUsd: 90, // 90 + 20 = 110 > 100
+      destino: "0xGOOD",
+      isSanctioned,
+    });
+    expect(r.dentroDelTope).toBe(false);
+    expect(r.requiereKyc).toBe("tope");
+    expect(r.puedeProcederSinKyc).toBe(false);
+  });
+
+  it("un patrón de anti-structuring dentro del tope exige KYC por 'structuring'", () => {
+    const retiros: Retiro[] = [
+      { usd: 30, ts: AHORA - 1 * DIA, destino: "0xA" },
+      { usd: 30, ts: AHORA - 2 * DIA, destino: "0xA" },
+      { usd: 30, ts: AHORA - 3 * DIA, destino: "0xA" },
+      { usd: 30, ts: AHORA - 4 * DIA, destino: "0xA" },
+    ];
+    const r = evaluarOperacion({
+      nivel: "N3",
+      countryCapUsd: 1_000_000, // holgado: no cruza tope
+      montoUsd: 10,
+      acumuladoPeriodoUsd: 0,
+      destino: "0xGOOD",
+      isSanctioned,
+      retiros,
+      antiStructuring: { thresholdUsd: 100 },
+      now: AHORA,
+    });
+    expect(r.dentroDelTope).toBe(true);
+    expect(r.structuring?.triggered).toBe(true);
+    expect(r.requiereKyc).toBe("structuring");
+    expect(r.puedeProcederSinKyc).toBe(false);
+  });
+
+  it("el tope efectivo compuesto respeta el nivel: N0 nunca habilita dinero", () => {
+    const r = evaluarOperacion({
+      nivel: "N0",
+      countryCapUsd: 1_000,
+      montoUsd: 1,
+      acumuladoPeriodoUsd: 0,
+    });
+    expect(r.capEfectivoUsd).toBe(0);
+    expect(r.dentroDelTope).toBe(false);
   });
 });
