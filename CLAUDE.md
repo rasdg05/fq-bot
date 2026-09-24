@@ -7,8 +7,10 @@
 
 ## Qué es esto
 
-Bot de señales cripto de order-flow, **vivo en producción** (Railway, rama `main`)
-con suscriptores de pago. SOL (pilar), BTC, ETH. Cada push a `main` redeploya.
+Bot de señales cripto de order-flow, **vivo en producción** (Railway, rama
+`bot-senales`) con suscriptores de pago. SOL (pilar), BTC, ETH. Cada push a
+`bot-senales` redeploya el bot. Desde el giro del 2026-09-24 `main` es de Marea
+(otro servicio de Railway): un cambio al bot **no** va a `main`.
 
 ## Antes de tocar nada
 
@@ -88,5 +90,5 @@ ledger_stats.py          ÚNICO punto por el que sale el track record público
 - CI: GitHub Actions, Python 3.12, `pytest tests/` + `requirements.lock`.
   Local: `python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt pytest`.
 - Suite completa ~40 s. **Córrela antes de cada commit.**
-- Despliegue: merge a `main` → Railway. `railway.toml` excluye `marea/**`,
+- Despliegue: push a `bot-senales` → Railway. `railway.toml` excluye `marea/**`,
   `MEMORY/**` y `tools/` (salvo excepciones listadas) de los watchPatterns.
