@@ -242,7 +242,14 @@ hoy en modo puntos sin tocar esa puerta.
 cuán vieja es la fuente. Es el mismo fallo que en el bot obligó a cablear
 `cvd_confirmation`, y conviene arreglarlo antes de que haya dinero detrás.
 
-Detalle completo: `MEMORY/marea/README.md`.
+**Giro 2026-09-24 (DECISIONES §22):** Marea pasa a **proyecto principal** — `main` = Marea, el
+bot a su propia rama (planificado, se ejecuta en conversación en frío con runbook en
+`MEMORY/marea/CONTEXTO_SESION_2026-09-24.md`). Y **regla nueva: redeploy a producción libre para
+Marea** mientras no haya soft launch ni >10 usuarios activos (no toca el bot ni su gate). Suite y
+typecheck se corren igual.
+
+**Retomar en frío:** `MEMORY/marea/CONTEXTO_SESION_2026-09-24.md` guarda todo el contexto de la
+sesión de verificación y el runbook del giro. Detalle de Marea: `MEMORY/marea/README.md`.
 
 ---
 

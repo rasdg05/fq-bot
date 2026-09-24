@@ -35,9 +35,18 @@
 
 - **Tocar la zona del segundo desarrollador** (§1).
 - **Abrir la puerta de elegibilidad**, ni «para probar». Todos los países siguen en `pendiente`.
-- **Empujar a `main`** ni abrir PR sin que RasDG lo pida.
+- **Empujar a `main`** ni abrir PR sin que RasDG lo pida. *(Ojo, en transición: por DECISIONES
+  §22 `main` pasará a ser Marea y el redeploy de Marea será libre; hasta que ese giro se ejecute
+  en la conversación en frío —runbook en `MEMORY/marea/CONTEXTO_SESION_2026-09-24.md`—, `main`
+  sigue siendo el bot con suscriptores de pago y esta regla se mantiene tal cual.)*
 - **Correr `npm run roll` / `settle` / `deploy` contra la red.** Reescriben catálogo de
   producción y salen a APIs reales. El catálogo caducado es del segundo dev (su día 1).
+
+**Regla de despliegue de Marea (DECISIONES §22, 2026-09-24):** el redeploy a producción de Marea
+es **libre y testeable** mientras no haya soft launch ni >10 usuarios activos, hasta que la
+plataforma o un dev diga lo contrario. "Libre" no exime de correr la suite y el typecheck antes:
+sólo quita la espera de aprobación, porque el coste de un fallo con <10 usuarios es ~0. **No aplica
+al bot de señales.**
 - Tocar llaves, secretos, o cualquier cosa que mueva dinero.
 - Cambiar una regla de `RULINGS.md` o una invariante sin que lo pida RasDG.
 - **Inventar números de ley.** Los topes de nivel, la ventana de anti-structuring y los

@@ -671,6 +671,39 @@ siguen sin ningún nivel, y los niveles siguen al `ANALISIS_ANCHOR_TF` si cambia
 
 ---
 
+## 22. Marea al frente: rama principal y despliegue libre (2026-09-24)
+
+**Decisión A — Redeploy libre a producción para Marea.** Mientras Marea no tenga soft
+launch ni más de **10 usuarios activos**, el redeploy a producción es **libre y testeable**:
+se puede desplegar para probar sin ceremonia. Vigente **hasta que la plataforma o un dev
+indique lo contrario**.
+
+**Alcance — importa.** Esta regla es de **Marea**, la plataforma en construcción. **No toca
+al bot de señales**, que es un producto vivo con **suscriptores de pago** y cuyo gate
+measure-first (DSR/CPCV/PBO, §1 y CONSTITUCIÓN) **no se degrada jamás**. "Redeploy libre" no
+significa "sin pruebas": la suite y el typecheck se corren igual; significa que un despliegue
+de Marea no espera aprobación porque el coste de un fallo es ~0 usuarios.
+
+**Por qué.** Con <10 usuarios el riesgo de un mal deploy es despreciable y la fricción de
+pedir permiso por cada push cuesta más que el fallo que evita. Se prioriza velocidad de
+iteración del proyecto principal.
+
+**Decisión B — Marea pasa a ser el proyecto principal.** `main` deja de ser la rama del bot
+de señales y pasa a representar **Marea**; el bot se mueve a **su propia rama**. Objetivo:
+escalar más rápido el proyecto principal.
+
+**Estado.** *Planificada, no ejecutada.* Se hace en una **conversación en frío** dedicada.
+El runbook con los pasos e implicaciones de infra (los dos servicios de Railway ya son
+separados; el del bot debe quedar apuntando a su rama nueva para no cortarle el deploy a los
+suscriptores de pago) vive en `MEMORY/marea/CONTEXTO_SESION_2026-09-24.md`.
+
+**Caveat de infra.** Hoy el servicio de Railway del bot y el de Marea (`marea/railway.toml`,
+Root Directory = `marea`) coexisten. Cambiar qué es `main` **no** debe dejar al bot sin su
+rama de despliegue: antes de mover `main`, el servicio del bot se re-apunta a la rama del bot.
+Este paso es del runbook y lo confirma RasDG en la sesión en frío.
+
+---
+
 ## Disciplinas inegociables
 
 1. **Sin data especulativa**: OFI se paga solo si el CVD gratis lo justifica.
@@ -684,5 +717,6 @@ siguen sin ningún nivel, y los niveles siguen al `ANALISIS_ANCHOR_TF` si cambia
 7. **No hay veto sin dato**: `FQ_CVD_FILTER`, `FQ_PERSIST_BOOST`, etc. son flags con criterio de
    ON/OFF documentado en el plan.
 
-_Actualizado: 2026-09-01. Fuente de verdad: `git log`, `research/*.md`, `tools/validation_gate.py`,
-`motor_paper.py`, `launcher.py`, `tools/fetch_dukascopy.py`, `volume_profile.py`, `railway.toml`, `tests/`._
+_Actualizado: 2026-09-24 (§22 Marea al frente). Fuente de verdad: `git log`, `research/*.md`,
+`tools/validation_gate.py`, `motor_paper.py`, `launcher.py`, `tools/fetch_dukascopy.py`,
+`volume_profile.py`, `railway.toml`, `tests/`._

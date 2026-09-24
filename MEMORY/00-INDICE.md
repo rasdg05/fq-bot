@@ -68,8 +68,12 @@ Además de los 5 archivos núcleo, la memoria guarda las **obras** (PDF + texto)
 - `marea/` — **Marea: protocolo de liquidez, cámara de compensación y arquitectura en
   cadena.** La app de mercados de predicción de `marea/`. La decisión (el pozo es cámara,
   no creador de mercado), la aritmética del ingreso, la escalera de fees con su regla de
-  bajada, la cadena recomendada (Base; Tron sólo rampa; Monero no) y las invariantes
-  L1–L14. **Estado: diseño, nada desplegado.**
+  bajada, la cadena recomendada (Base; Tron sólo rampa; Monero no), las invariantes
+  L1–L16 y la **verificación por niveles** (escalera N0–N3 + compuerta R-069…R-072, viva en
+  `marea/src/domain/niveles.ts`). **Giro 2026-09-24 (DECISIONES §22): Marea pasa a proyecto
+  principal — `main` = Marea, el bot a su rama; y el redeploy de Marea es libre (<10 usuarios).**
+  Para retomar en frío: `marea/CONTEXTO_SESION_2026-09-24.md`. Estado: diseño; puntos, nada
+  con dinero desplegado.
 - `investigacion/` — **review científico (preview)** + **preprint EN (SSRN-ready)** +
   **presentación del perfil académico** (físico→quant, CDMX → Cornell/Oxford) +
   **`rutas-nuevas-2026.md`** (ideación estructura/motor/premios/investigación/vanguardia,
