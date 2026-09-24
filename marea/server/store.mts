@@ -1,14 +1,23 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { normalizePool, type OutcomeId, type Side } from "../src/domain/parimutuel";
+import {
+  normalizePool,
+  type OutcomeId,
+  type SeedMode,
+  type Side,
+} from "../src/domain/parimutuel";
 import type { SettlementState } from "../src/domain/settlement";
+import type { OwnMarketSeed } from "../src/adapters/ownMarkets/catalog";
 import {
   CUENTAS_SISTEMA,
   asiento,
+  asientoLiquidacion,
+  asientoSemilla,
   conciliarTesoreria,
   cuadre,
   cuentaPozo,
   cuentaUsuario,
+  pozosSinVaciar,
   saldos,
   type Asiento,
 } from "../src/domain/contabilidad";
@@ -64,6 +73,14 @@ export interface PozoGuardado {
   /** Lo apostado a cada resultado, por id. El binario usa `si` y `no`. */
   outcomes: Record<OutcomeId, number>;
   feeBps: number;
+  /**
+   * Lo que puso la casa al abrir, y si cobra o no cuando gana. Se guardan
+   * porque `outcomes` crece con las apuestas y la semilla no: sin esto, el
+   * primer reinicio borra la diferencia entre el dinero de la casa y el de la
+   * gente. Ausentes = pozo de antes de que el campo existiera = `"apuesta"`.
+   */
+  seed?: Record<OutcomeId, number>;
+  seedMode?: SeedMode;
 }
 
 /**
@@ -87,12 +104,14 @@ export interface AsientoComision {
  *  - 1: el pozo era `{ marketId, si, no, feeBps }`, dos columnas fijas.
  *  - 2: el pozo es `{ marketId, outcomes, feeBps }`, un mapa por resultado.
  *  - 3: aparece el libro de partida doble, con su asiento de apertura.
+ *  - 4: se guardan los mercados vivos que tienen apuestas, para que un reinicio
+ *       a mitad de una vela no deje esa apuesta sin mercado que la resuelva.
  *
  * Se lee cualquiera de las dos y se escribe siempre la nueva. Un pozo que no
  * se sepa leer sería dinero de gente que desaparece, así que la migración
  * corre al abrir el archivo y no depende de que nadie se acuerde.
  */
-export const VERSION_DATOS = 3;
+export const VERSION_DATOS = 4;
 
 interface Datos {
   version: number;
@@ -107,6 +126,22 @@ interface Datos {
    * si los dos dejan de coincidir.
    */
   libro: Asiento[];
+  /**
+   * Mercados vivos con dinero adentro. Los de cripto de 5 y 15 minutos nacen y
+   * mueren en memoria —son cientos al día y guardarlos todos engordaría el
+   * archivo sin que nadie los mire—, pero en cuanto alguien apuesta en uno hay
+   * que poder resolverlo aunque el proceso se reinicie a mitad de la vela.
+   *
+   * Se guardan sólo ésos, y se olvidan en cuanto se pagan.
+   */
+  vivos: OwnMarketSeed[];
+  /**
+   * Mercados **duraderos** generados por el propio servidor al reponer el
+   * catálogo. Van aparte de `vivos` porque el planificador de velas filtra por
+   * `esVelaViva` y éstos no lo son: un semanal de BTC o un partido de Liga MX
+   * dura días, no cinco minutos.
+   */
+  generados: OwnMarketSeed[];
 }
 
 const VACIO: Datos = {
@@ -117,6 +152,8 @@ const VACIO: Datos = {
   liquidaciones: [],
   comisiones: [],
   libro: [],
+  vivos: [],
+  generados: [],
 };
 
 /**
@@ -137,8 +174,11 @@ function migrar(datos: Datos): Datos {
 
   const pozos = datos.pozos.map((guardado) => {
     const { marketId } = guardado;
+    // `normalizePool` arrastra `seed` y `seedMode` si están, y no los inventa
+    // si no. Reconstruir el pozo campo por campo aquí sería la forma callada de
+    // que un mercado con subsidio despertara cobrando como los de antes
     const pool = normalizePool(guardado);
-    return { marketId, outcomes: pool.outcomes, feeBps: pool.feeBps };
+    return { marketId, ...pool };
   });
   const migrado = { ...datos, version: VERSION_DATOS, pozos };
   return necesitaApertura(migrado) ? conApertura(migrado) : migrado;
@@ -334,21 +374,20 @@ export class Store {
     if (existente) return existente;
     return this.mutar((datos) => {
       datos.pozos.push(pozo);
-      // la semilla es dinero de la casa que corre la misma suerte que el
-      // usuario (R-057). Entra al pozo con su asiento, o el pozo terminaría
-      // repartiendo más de lo que registró haber recibido
+      /**
+       * La semilla es dinero de la casa que corre la misma suerte que el
+       * usuario (R-057). Entra al pozo con su asiento, o el pozo terminaría
+       * repartiendo más de lo que registró haber recibido.
+       *
+       * Sale de `capital`, no de `entrada`: no llegó del mundo exterior, es
+       * principal propio que se pone a trabajar (R-066). Y el **tipo** del
+       * asiento dice si vuelve — `semilla` — o si es un coste que no vuelve —
+       * `subsidio` (R-067). Esa distinción, escrita al sembrar, es lo que
+       * permite sumar el subsidio comprometido leyendo el libro.
+       */
       const semilla = Object.values(pozo.outcomes).reduce((s, v) => s + v, 0);
       if (semilla > 0) {
-        datos.libro.push(
-          asiento(
-            "semilla",
-            [
-              { cuenta: CUENTAS_SISTEMA.entrada, monto: -semilla },
-              { cuenta: cuentaPozo(pozo.marketId), monto: semilla },
-            ],
-            pozo.marketId,
-          ),
-        );
+        datos.libro.push(asientoSemilla(pozo.marketId, semilla, pozo.seedMode ?? "apuesta"));
       }
       return pozo;
     });
@@ -374,6 +413,31 @@ export class Store {
       if (apuesta.marketId === marketId) gente.add(apuesta.usuarioId);
     }
     return gente.size;
+  }
+
+  /**
+   * Mercados con apuestas sin pagar cuyo id **ya no está en el catálogo**.
+   *
+   * Es el caso más feo que puede tener este producto y se vio en producción:
+   * el portafolio de alguien mostraba `latam-libertadores-br` —el id crudo,
+   * porque ni el título se podía resolver— con su apuesta dentro y sin cobrar.
+   * Un mercado que desaparece del catálogo desaparece también del ciclo, que
+   * itera sobre las semillas: nadie vuelve a mirarlo nunca, y esos puntos se
+   * quedan quietos para siempre.
+   *
+   * `cuadre()` no lo ve, `congelados()` tampoco —no hay estado de liquidación
+   * que mirar— y el propio ciclo es ciego a esto por construcción. Por eso el
+   * auditor va aquí, en el único sitio que conoce **todas** las apuestas.
+   */
+  apuestasHuerfanas(idsDelCatalogo: readonly string[]): Record<string, number> {
+    const conocidos = new Set(idsDelCatalogo);
+    const salida: Record<string, number> = {};
+    for (const apuesta of this.datos.apuestas) {
+      if (apuesta.pagado !== undefined) continue;
+      if (conocidos.has(apuesta.marketId)) continue;
+      salida[apuesta.marketId] = (salida[apuesta.marketId] ?? 0) + apuesta.stake;
+    }
+    return salida;
   }
 
   apuestasDeMercado(marketId: string): Apuesta[] {
@@ -434,6 +498,57 @@ export class Store {
     });
   }
 
+  /* ---------------------- catálogo repuesto solo -------------------------- */
+
+  /**
+   * Los mercados duraderos que generó el servidor al reponer el catálogo.
+   *
+   * Viven en disco por la misma razón que los vivos, y su comentario vale
+   * igual: **una apuesta cuyo mercado desapareció del catálogo no se resolvería
+   * nunca, y eso es dinero atorado sin aviso.** Ese cuidado ya existía para las
+   * velas; el catálogo duradero nunca lo tuvo, y por eso se pudo vaciar entero
+   * mientras había apuestas dentro.
+   */
+  seedsGeneradas(): OwnMarketSeed[] {
+    return this.datos.generados ?? [];
+  }
+
+  /** Guarda un mercado generado. Idempotente: un id ya conocido no se repite. */
+  guardarSeedGenerada(seed: OwnMarketSeed): void {
+    if ((this.datos.generados ?? []).some((v) => v.id === seed.id)) return;
+    this.mutar((datos) => {
+      datos.generados = [...(datos.generados ?? []), seed];
+    });
+  }
+
+  /* ------------------------- mercados vivos ------------------------------ */
+
+  /**
+   * Los mercados vivos que sobrevivieron a un reinicio. Se vuelven a meter en
+   * el planificador al arrancar: una apuesta cuyo mercado desapareció del
+   * catálogo no se resolvería nunca, y eso es dinero atorado sin aviso.
+   */
+  seedsVivas(): OwnMarketSeed[] {
+    return this.datos.vivos;
+  }
+
+  /** Guarda un mercado vivo. Se llama al aceptar la primera apuesta, no antes. */
+  guardarSeedViva(seed: OwnMarketSeed): void {
+    if (this.datos.vivos.some((v) => v.id === seed.id)) return;
+    this.mutar((datos) => {
+      datos.vivos.push(seed);
+    });
+  }
+
+  /** Lo olvida cuando ya no hay nada que resolver. */
+  olvidarSeedViva(id: string): void {
+    const indice = this.datos.vivos.findIndex((v) => v.id === id);
+    if (indice < 0) return;
+    this.mutar((datos) => {
+      datos.vivos.splice(indice, 1);
+    });
+  }
+
   /* ---------------------------- liquidaciones ---------------------------- */
 
   liquidacion(marketId: string): SettlementState | undefined {
@@ -456,6 +571,17 @@ export class Store {
    * Paga un mercado entero: acredita a cada ganador y marca las apuestas.
    * Idempotente por construcción — una apuesta ya pagada no se vuelve a pagar,
    * así que correr el ciclo dos veces no duplica dinero.
+   */
+  /**
+   * El camino de pago **anterior a L3**: un asiento por pago, y la comisión en
+   * otro aparte por `acumularComision`. Deja la comisión dentro del pozo entre
+   * los dos, y si el proceso muere ahí el saldo del mercado no vuelve a cero
+   * nunca — `cuadre()` no se entera.
+   *
+   * Ya no lo usa el ciclo: lo sustituye `liquidarMercado`, que cierra en un
+   * solo asiento. Se conserva porque hay pruebas que lo ejercitan y porque el
+   * volumen ya escrito con él tiene que seguir leyéndose. **No lo uses en
+   * código nuevo.** Lo que deja atrás lo encuentra `pozosConSaldoTrasLiquidar`.
    */
   pagarMercado(marketId: string, pagos: Record<string, number>): number {
     return this.mutar((datos) => {
@@ -490,6 +616,92 @@ export class Store {
   }
 
   /** Acredita la comisión de un mercado. Idempotente por mercado. */
+  /**
+   * Cierra un mercado entero: acredita a quien cobra, asienta la comisión y
+   * devuelve al capital el colateral que no reclamó nadie — **todo en un solo
+   * asiento** (L3).
+   *
+   * Que sea uno y no dos es el arreglo. Con `pagarMercado` + `acumularComision`
+   * existía un instante en que el libro decía que el pozo todavía tenía la
+   * comisión dentro; si el proceso moría ahí, esa comisión se quedaba en la
+   * cuenta del mercado para siempre —nadie la reclamaba, nadie la echaba de
+   * menos, `cuadre()` seguía dando cero— y el saldo del pozo no volvía a cero
+   * nunca. Con un asiento, ese instante no existe.
+   *
+   * Es idempotente (L6): el libro es la fuente de verdad de si ya se liquidó,
+   * no un contador aparte. Correr el ciclo dos veces paga una vez.
+   */
+  liquidarMercado(input: {
+    marketId: string;
+    /** Lo que cobra cada apuesta, por id de apuesta. */
+    pagos: Record<string, number>;
+    fee: number;
+    /** Colateral que nadie reclamó; vuelve al capital de la casa. */
+    aCapital: number;
+  }): { acreditado: number; comision: number } {
+    const yaLiquidado = this.datos.libro.some(
+      (a) => a.tipo === "liquidacion" && a.ref === input.marketId,
+    );
+    if (yaLiquidado) return { acreditado: 0, comision: 0 };
+
+    return this.mutar((datos) => {
+      const at = new Date().toISOString();
+      const porUsuario: Record<string, number> = {};
+      let acreditado = 0;
+      for (const apuesta of datos.apuestas) {
+        if (apuesta.marketId !== input.marketId) continue;
+        if (apuesta.pagado !== undefined) continue;
+        const monto = input.pagos[apuesta.id] ?? 0;
+        apuesta.pagado = monto;
+        apuesta.pagadoAt = at;
+        if (monto <= 0) continue;
+        const usuario = datos.usuarios.find((u) => u.id === apuesta.usuarioId);
+        if (!usuario) continue;
+        usuario.puntos += monto;
+        porUsuario[usuario.id] = (porUsuario[usuario.id] ?? 0) + monto;
+        acreditado += monto;
+      }
+
+      /**
+       * Lo que no llegó a un usuario vivo **no se evapora**: se suma a lo que
+       * vuelve al capital. Si una apuesta apunta a un usuario que ya no está,
+       * su pago se quedaría en el pozo y el saldo no cerraría — y ese hueco
+       * sería justo el que L3 existe para cerrar.
+       */
+      const repartido = Object.values(porUsuario).reduce((s, v) => s + v, 0);
+      const prometido = Object.values(input.pagos).reduce((s, v) => s + v, 0);
+      const aCapital = input.aCapital + (prometido - repartido);
+
+      datos.libro.push(
+        asientoLiquidacion({
+          marketId: input.marketId,
+          pagos: porUsuario,
+          fee: input.fee,
+          aCapital,
+          at,
+        }),
+      );
+      if (input.fee > 0 && !datos.comisiones.some((c) => c.marketId === input.marketId)) {
+        datos.comisiones.push({ marketId: input.marketId, monto: input.fee, at });
+      }
+      return { acreditado, comision: input.fee };
+    });
+  }
+
+  /**
+   * Mercados liquidados cuyo pozo todavía tiene saldo. Vacío = sano.
+   *
+   * La regla escrita recuerda; sólo la verificación impide. `cuadre()` no ve
+   * esto: el libro sigue sumando cero, con el dinero atrapado en la cuenta
+   * equivocada (L3).
+   */
+  pozosConSaldoTrasLiquidar(): Record<string, number> {
+    const liquidados = this.datos.libro
+      .filter((a) => a.tipo === "liquidacion" && a.ref)
+      .map((a) => a.ref as string);
+    return pozosSinVaciar(this.datos.libro, [...new Set(liquidados)]);
+  }
+
   acumularComision(marketId: string, monto: number): number {
     if (monto <= 0) return this.tesoreria();
     return this.mutar((datos) => {

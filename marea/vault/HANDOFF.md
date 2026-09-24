@@ -1,11 +1,33 @@
 # HANDOFF — estado de soft launch
 
-> **Estado actual: SOFT_LAUNCH_READY en modalidad de puntos.** Ver
-> [`SOFT_LAUNCH.md`](SOFT_LAUNCH.md), que manda sobre este documento. Los dos
-> agujeros de ciclo de vida —los mercados cerraban sin liquidarse y el catálogo
-> se vaciaba solo— están cerrados y **automatizados**: `npm run settle` liquida
-> contra la fuente citada y `npm run roll` repone el catálogo, las dos cada hora
-> con `npm run cron:install`.
+> ## ⚠ Lo primero, antes de tocar nada (2026-09-11)
+>
+> **Producción NO corre `main`.** Corre `claude/marea-redesign-v6-b0240n`. Esa
+> rama tiene el rediseño v6 y la cripto en vivo (velas de 5 y 15 min), que nunca
+> se fusionaron a `main`. Si trabajas sobre `main`, tu código **no llega a la
+> app**; y si fusionas `main` a producción sin reconciliar, te llevas el
+> rediseño por delante.
+>
+> Se comprobó así: `curl https://fq-bot-production.up.railway.app/api/mercados`
+> sirve `shortTitle` y mercados `live`, y ninguno de los dos existe en `main`.
+>
+> Retomar desde cero: **`RETOMAR.md`**.
+
+> **Estado: en puntos, con el ciclo de vida cerrado de verdad (2026-09-11).**
+> Ver [`SOFT_LAUNCH.md`](SOFT_LAUNCH.md).
+>
+> **Corrección de lo que decía este documento.** Hasta el 2026-09-10 aquí ponía
+> que los dos agujeros de ciclo de vida estaban «cerrados y **automatizados**»
+> con `npm run settle`, `npm run roll` y `npm run cron:install`. Era falso en la
+> mitad que importa: `cron:install` escribe un launchd o un crontab **en la
+> máquina de quien lo corre**. Nadie lo corrió desde principios de agosto, y el
+> 10 de septiembre la app tenía **cuatro** mercados duraderos y apuestas de hace
+> un mes sin resolver.
+>
+> Ahora sí es automático **y dentro del servidor**: el liquidador ya vivía ahí y
+> la reposición se le unió (`server/reposicion.mts`), por el mismo reloj y al
+> mismo volumen persistente. `roll` y `settle` siguen existiendo para hacerlo a
+> mano; ya no son de lo que depende el producto.
 
 ## Veredicto anterior (superficie construida)
 

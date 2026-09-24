@@ -61,6 +61,28 @@
   --dn: #e5795e;
   --hot: #e8a33d;
   --live: #ff6b5a;
+  --pill-ring: color-mix(in srgb, var(--teal) 80%, transparent);
+  --pill-line: color-mix(in srgb, var(--text2) 60%, transparent);
+  --pill-wash: color-mix(in srgb, var(--text) 4%, transparent);
+  --flash-up: color-mix(in srgb, var(--up) 16%, transparent);
+  --flash-dn: color-mix(in srgb, var(--dn) 16%, transparent);
+  /* Color por categoría. Un feed donde las seis se ven igual obliga a leer
+     seis veces por pantalla para saber de qué va cada mercado; antes reusaban
+     los acentos del sistema y cultura y deportes casi no se separaban.
+     Ninguno baja de 3:1 contra bg/panel/panel2 en los dos temas, y eso lo
+     sostiene `tests/contrast.test.ts`, no la buena memoria. El color nunca va
+     solo: lo acompañan el glifo, la forma y la palabra (R-005). */
+  --cat-cripto: #4cbab2;
+  --cat-economia: #888bdd;
+  --cat-deportes: #31aa64;
+  --cat-politica: #c079d8;
+  --cat-cultura: #d775a6;
+  --cat-otros: #829290;
+  /* Todavía sin catálogo. Existen para que el día que lleguen no se improvise
+     un color a las prisas; no salen como pestaña porque una que filtra a cero
+     mercados es un callejón. */
+  --cat-materias-primas: #c08a39;
+  --cat-clima: #559bce;
   --shadow-1: rgba(0, 0, 0, 0.4);
   --shadow-2: rgba(0, 0, 0, 0.35);
   color-scheme: dark;
@@ -85,6 +107,19 @@
     --dn: #a8412b;
     --hot: #8a5a0b;
     --live: #b03a22;
+    --pill-ring: color-mix(in srgb, var(--teal) 80%, transparent);
+    --pill-line: color-mix(in srgb, var(--text2) 70%, transparent);
+    --pill-wash: color-mix(in srgb, var(--text) 4%, transparent);
+    --flash-up: color-mix(in srgb, var(--up) 16%, transparent);
+    --flash-dn: color-mix(in srgb, var(--dn) 16%, transparent);
+    --cat-cripto: #0b6b6e;
+    --cat-economia: #494eda;
+    --cat-deportes: #17723d;
+    --cat-politica: #9927be;
+    --cat-cultura: #b6256e;
+    --cat-otros: #596a69;
+    --cat-materias-primas: #83591b;
+    --cat-clima: #1f6698;
     --shadow-1: rgba(18, 38, 42, 0.06);
     --shadow-2: rgba(18, 38, 42, 0.08);
     color-scheme: light;
@@ -108,6 +143,19 @@
   --dn: #a8412b;
   --hot: #8a5a0b;
   --live: #b03a22;
+  --pill-ring: color-mix(in srgb, var(--teal) 80%, transparent);
+  --pill-line: color-mix(in srgb, var(--text2) 70%, transparent);
+  --pill-wash: color-mix(in srgb, var(--text) 4%, transparent);
+  --flash-up: color-mix(in srgb, var(--up) 16%, transparent);
+  --flash-dn: color-mix(in srgb, var(--dn) 16%, transparent);
+  --cat-cripto: #0b6b6e;
+  --cat-economia: #494eda;
+  --cat-deportes: #17723d;
+  --cat-politica: #9927be;
+  --cat-cultura: #b6256e;
+  --cat-otros: #596a69;
+  --cat-materias-primas: #83591b;
+  --cat-clima: #1f6698;
   --shadow-1: rgba(18, 38, 42, 0.06);
   --shadow-2: rgba(18, 38, 42, 0.08);
   color-scheme: light;
@@ -130,6 +178,19 @@
   --dn: #e5795e;
   --hot: #e8a33d;
   --live: #ff6b5a;
+  --pill-ring: color-mix(in srgb, var(--teal) 80%, transparent);
+  --pill-line: color-mix(in srgb, var(--text2) 60%, transparent);
+  --pill-wash: color-mix(in srgb, var(--text) 4%, transparent);
+  --flash-up: color-mix(in srgb, var(--up) 16%, transparent);
+  --flash-dn: color-mix(in srgb, var(--dn) 16%, transparent);
+  --cat-cripto: #4cbab2;
+  --cat-economia: #888bdd;
+  --cat-deportes: #31aa64;
+  --cat-politica: #c079d8;
+  --cat-cultura: #d775a6;
+  --cat-otros: #829290;
+  --cat-materias-primas: #c08a39;
+  --cat-clima: #559bce;
   --shadow-1: rgba(0, 0, 0, 0.4);
   --shadow-2: rgba(0, 0, 0, 0.35);
   color-scheme: dark;
@@ -160,12 +221,28 @@ body {
   border-radius: 6px;
 }
 
+/* Movimiento reducido: se apaga todo el movimiento —pulso LIVE, destellos,
+   fades, `scale` de las pills, la transición de la barra y la subida de la
+   hoja— y nada se pierde por el camino. El dato nuevo aparece de golpe, la
+   barra salta a su ancho y el estado presionado se ve por color, no por
+   movimiento: la tarjeta sigue siendo legible y operable entera.
+
+   `animation` se anula con `none`, no con duración cero: una animación de
+   0.01 ms igual pinta su primer fotograma, y en el destello ese fotograma es
+   un fondo de color que aparece y desaparece. Con `none` el elemento se queda
+   en su estado de reposo, que es lo que se pidió. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
+    animation: none !important;
     transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* el estado presionado deja de encoger y se anuncia sólo con el relleno */
+  [data-role="pill"]:active {
+    transform: none !important;
   }
 }

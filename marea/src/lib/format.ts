@@ -56,3 +56,45 @@ export function fechaCorta(iso?: string, ahora = new Date()): string | null {
     timeZone: "UTC",
   }).format(fecha);
 }
+
+/**
+ * Vocabulario cerrado del evento reciente. No se traduce en la vista ni se
+ * arma concatenando lo que mande la fuente: son estas palabras y ninguna otra.
+ * Todas caben en 9 caracteres salvo la excepción declarada, así que la frase
+ * completa nunca pasa de 22 — el tope que hace que el pie no envuelva.
+ */
+const EVENTO: Record<string, string> = {
+  quiebre: "Quiebre",
+  set: "Set",
+  gol: "Gol",
+  roja: "Roja",
+  penal: "Penal",
+  carrera: "Carrera",
+  jonron: "Jonrón",
+  ponche: "Ponche",
+};
+
+/** El único evento sin tiempo: dura lo que dura el cambio. */
+const CAMBIO_PITCHER = "Cambio de pitcher";
+
+/** Tope duro del segmento. Medido: más de esto y el pie cae en dos líneas. */
+export const EVENTO_MAX = 22;
+
+/**
+ * `Quiebre hace 2 min`. Devuelve `null` cuando el evento dejó de ser reciente
+ * (10 minutos) o cuando no está en el vocabulario: preferimos no decir nada a
+ * decir algo que no cabe. No hay elipsis aquí a propósito — un "Quiebre hace…"
+ * no informa de nada.
+ */
+export function eventoTexto(
+  evento?: { tipo: string; hace: number } | null,
+): string | null {
+  if (!evento) return null;
+  if (evento.tipo === "cambio_pitcher") return CAMBIO_PITCHER;
+  const palabra = EVENTO[evento.tipo];
+  if (!palabra) return null;
+  const minutos = Math.floor(evento.hace);
+  if (!Number.isFinite(minutos) || minutos < 1 || minutos > 9) return null;
+  const texto = `${palabra} hace ${minutos} min`;
+  return texto.length <= EVENTO_MAX ? texto : null;
+}

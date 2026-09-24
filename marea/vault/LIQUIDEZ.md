@@ -400,10 +400,29 @@ no un arreglo*. Estas son las que hay que cablear, con el test que las fija.
 | **L9** | El subsidio vivo nunca excede el presupuesto; cruzarlo **detiene la creación** | `roll.mts` | Test: presupuesto agotado ⇒ `roll` no escribe mercados nuevos |
 | **L10** | `saldo(usuario) ≥ 0` siempre. Se bloquea el monto antes de cruzar, no después | `store.mts` | Test: dos apuestas concurrentes con saldo para una sola |
 
-L4 y L7 ya están vivas. L1, L2, L3, L5 son el trabajo nuevo. **L8 es una deuda
-existente** que no depende de nada de esto: hoy `onRead` acepta una lectura sin
-comprobar cuán vieja es la fuente, que es el mismo fallo que en el bot obligó a
-`cvd_confirmation`.
+### Estado de las invariantes (2026-09-08, sesión autónoma U0-U8)
+
+| | Estado | Dónde quedó |
+|---|---|---|
+| **L1 · L2** | **vivas** | `domain/pozo.ts` (compensador puro) + `domain/compensacion.ts`, que traduce el reparto parimutuel a conjuntos completos. Se acuña el reparto de **todos** los resultados, no sólo el del ganador: es lo que convierte «cuadra con este ganador» en «cuadra pase lo que pase» |
+| **L3** | **viva** | `contabilidad.ts`: cuenta `capital` separada de `tesoreria`, y el cierre de mercado en **un solo asiento** que deja `pozo:<id>` en cero exacto. `pozosSinVaciar()` audita lo escrito con el camino viejo |
+| **L4 · L7** | vivas (ya estaban) | — |
+| **L5** | **viva** | El resto (`T − Σ pagos − comisión`) se calcula por resultado; si sale negativo, `acunar()` lo rechaza **al escribir** y la liquidación no ocurre |
+| **L6** | **viva** | `store.liquidarMercado`: la guarda es el propio libro, no un contador aparte |
+| **L8** | **viva** (era deuda) | `settlement.ts`: la antigüedad entra por parámetro y una lectura vieja no avanza de fase, se reintenta y lo declara. Los tres oráculos reportan `observedAt` tomado del **dato**, no de la petición |
+| **L9** | **viva** | `domain/presupuesto.ts` + el guardia en `roll.mts`, **antes** de escribir el catálogo |
+| **L10** | ya estaba | `store.mts` |
+| **L14** | pendiente | Vigilante externo. Necesita los contratos (U7) |
+| **L15** | **viva en dominio** | `domain/merkle.ts` + `domain/epoca.ts`: secuencia por usuario y conteo en el ancla. Falta la tercera pata, que no es código: **publicar las hojas** de la época |
+
+**Un matiz de L8 que cambió el diseño al medirlo.** El plan era un umbral global
+de 48 h. Al ir a ponerlo salió que **9 de los 13 mercados del catálogo son series
+mensuales**, cuyo `observedAt` es la fecha del periodo observado y tiene semanas
+por construcción: un umbral de reloj no los protegería, los atascaría a los
+nueve. Forma final: la antigüedad se **mide siempre** y se **hace cumplir** donde
+el reloj es la herramienta correcta —las 4 fuentes que laten a diario, que lo
+declaran en `maxAgeHours`—. Para las series, que estén al día ya lo comprueba la
+propia regla con `sin_dato`. (`PREGUNTAS_ABIERTAS.md` P-005.)
 
 ---
 
@@ -428,20 +447,28 @@ Cada fase termina en un test, no en un documento.
 **L0 · Decidir (a) por escrito.** Este documento + la regla nueva en `RULINGS.md`.
 Sin código. *Cierra cuando:* R-065 está escrita y `validate` la cuenta.
 
-**L1 · El compensador puro.** `src/domain/pozo.ts`: acuñar, quemar, exposición.
+**L1 · El compensador puro. ✔ CERRADA.** `src/domain/pozo.ts`: acuñar, quemar, exposición.
 Funciones puras, sin estado, sin red. Test de propiedad de L1/L2/L5 con
 secuencias aleatorias de cruces y ganadores.
 *Cierra cuando:* mil secuencias aleatorias × cualquier ganador dejan el capital
 propio idéntico al centavo.
 
-**L2 · Cablear los asientos.** El parimutuel de hoy pasa a mover saldos **a
-través** del compensador. Cero cambios de comportamiento visible: los pagos
-salen idénticos a los de hoy. Es refactor con red, no producto.
-*Cierra cuando:* la suite de 269 pruebas pasa sin tocar sus expectativas.
+**L2 · Cablear los asientos. ✔ CERRADA (2026-09-08).** El parimutuel pasa a mover
+saldos **a través** del compensador. Cero cambios de comportamiento visible.
+*Cerró:* la suite pasó **sin tocar una sola expectativa existente** — el único
+cambio en `tests/` fue un archivo nuevo. Verificado además en proceso real
+haciendo que el compensador **se negara**: nadie cobra, la casa no cobra, el
+libro sigue cuadrado y el mercado se queda en `en_disputa` — pendiente y
+reintentable, no medio pagado.
 
-**L3 · Funding con freno.** Subsidio, presupuesto, tope, y `roll.mts` que se
-detiene solo. Sigue en puntos.
-*Cierra cuando:* con el presupuesto agotado, `roll` no crea y lo dice.
+**L3 · Funding con freno. ✔ CERRADA (2026-09-08).** Subsidio, presupuesto, tope
+y el guardia en el camino de creación. Sigue en puntos.
+*Cerró:* con el presupuesto agotado, la creación se niega y dice **con qué
+número**. Los dos topes de subsidio nacen en **cero autorizado**: hoy nada nace
+en modo subsidio, así que no estorban, y el día que alguien lo encienda sin
+presupuesto la creación se para sola. Primero el tope, después el gasto.
+*Lo que falta para gastarlo de verdad:* las tres cifras (P-004) y encender el
+modo `"subsidio"` en `templates.ts` (P-002), que es una línea y espera al tope.
 
 **L4 · Libro maker/taker (opcional, y sólo si L3 mide rotación).** Aquí y sólo
 aquí entra el agregador de tu boceto, como capa ① encima del mismo compensador.

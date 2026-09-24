@@ -23,7 +23,7 @@ describe("Elegibilidad en la interfaz", () => {
     await screen.findByTestId("home-screen");
     const cards = await screen.findAllByTestId("market-card");
     expect(cards.length).toBeGreaterThan(0);
-    await user.click(within(cards[0]).getByRole("button"));
+    await user.click(within(cards[0]).getByTestId("card-open"));
     expect(await screen.findByTestId("resolution-summary")).toBeInTheDocument();
 
     // el depósito sí se detiene, con motivo en español y salida a explorar

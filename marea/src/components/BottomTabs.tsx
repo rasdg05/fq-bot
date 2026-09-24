@@ -1,29 +1,26 @@
-import { LayoutGrid, Search, PieChart, Trophy, Wallet, User } from "lucide-react";
+import { LayoutGrid, Search, PieChart, User } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { S } from "@/lib/strings";
 import { useApp, type TabId } from "@/state/store";
-import { isPointsMode } from "@/lib/flags";
 
 /**
- * En modo puntos la cartera no existe —no hay dinero que guardar— y su lugar lo
- * toma la tabla, que es lo que hace que la gente vuelva mañana a defender su
- * racha. Con dinero real vuelve la cartera.
+ * Exactamente cuatro destinos, siempre los mismos.
+ *
+ * La tabla y la cartera salieron de la barra: no son destinos de navegación,
+ * son cosas que se consultan. Viven dentro de Perfil, que es donde uno va a
+ * ver lo suyo. Cuatro pestañas dejan cada target en 97 px de ancho a 390 px,
+ * y sobre todo dejan de convertir la barra en un menú.
  */
-function tabsDe(puntos: boolean): { id: TabId; label: string; Icon: LucideIcon }[] {
-  return [
-    { id: "markets", label: S.tabs.markets, Icon: LayoutGrid },
-    { id: "search", label: S.tabs.search, Icon: Search },
-    { id: "portfolio", label: S.tabs.portfolio, Icon: PieChart },
-    puntos
-      ? { id: "tabla" as TabId, label: S.tabla.title, Icon: Trophy }
-      : { id: "wallet" as TabId, label: S.tabs.wallet, Icon: Wallet },
-    { id: "profile", label: S.tabs.profile, Icon: User },
-  ];
-}
+const TABS: { id: TabId; label: string; Icon: LucideIcon }[] = [
+  { id: "markets", label: S.tabs.markets, Icon: LayoutGrid },
+  { id: "search", label: S.tabs.search, Icon: Search },
+  { id: "portfolio", label: S.tabs.portfolio, Icon: PieChart },
+  { id: "profile", label: S.tabs.profile, Icon: User },
+];
 
 /**
- * Navegación inferior: 5 destinos, `Mercados` por defecto. Vive abajo porque
+ * Navegación inferior: 4 destinos, `Mercados` por defecto. Vive abajo porque
  * es donde llega el pulgar; ninguna acción crítica queda en una esquina
  * superior (R-010). Cada target mide 44 px de alto como mínimo.
  *
@@ -33,7 +30,13 @@ function tabsDe(puntos: boolean): { id: TabId; label: string; Icon: LucideIcon }
  */
 export function BottomTabs() {
   const { state, actions } = useApp();
-  const TABS = tabsDe(isPointsMode());
+  // cuántos mercados están corriendo ahora mismo. Va sobre Mercados y no como
+  // quinto destino: la barra son cuatro y eso no se toca — lo que hace falta
+  // saber es que hay algo pasando, no un sitio nuevo al que ir
+  const vivos =
+    state.markets.status === "data"
+      ? state.markets.data.filter((m) => m.status === "live").length
+      : 0;
 
   return (
     <nav
@@ -68,11 +71,25 @@ export function BottomTabs() {
                   active ? "text-teal" : "text-muted",
                 )}
               >
-                <Icon
-                  aria-hidden
-                  className="h-[22px] w-[22px]"
-                  strokeWidth={active ? 2.4 : 1.8}
-                />
+                <span className="relative">
+                  <Icon
+                    aria-hidden
+                    className="h-[22px] w-[22px]"
+                    strokeWidth={active ? 2.4 : 1.8}
+                  />
+                  {id === "markets" && vivos > 0 ? (
+                    <span
+                      // el número no entra en el nombre accesible de la pestaña:
+                      // "4 Mercados" no es un destino. Quien no ve la insignia se
+                      // entera igual — cada card viva se anuncia con su badge LIVE
+                      aria-hidden
+                      data-testid="tab-vivos"
+                      className="absolute -right-2.5 -top-1 rounded-pill bg-live px-1 font-mono text-[10px] font-bold leading-[14px] text-bg"
+                    >
+                      {vivos}
+                    </span>
+                  ) : null}
+                </span>
                 {/* el estado activo también cambia el peso: no depende del color (R-005) */}
                 <span
                   className={cn(
@@ -91,5 +108,5 @@ export function BottomTabs() {
   );
 }
 
-/** Los destinos vigentes según el motor. Lo usan las pruebas de navegación. */
-export const tabIds = (puntos: boolean): TabId[] => tabsDe(puntos).map((tab) => tab.id);
+/** Los destinos de la barra. Lo usan las pruebas de navegación. */
+export const tabIds = (): TabId[] => TABS.map((tab) => tab.id);

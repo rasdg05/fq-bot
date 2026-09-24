@@ -1,5 +1,20 @@
 # COLA DE TRABAJO — sesión autónoma
 
+> ## ✔ EJECUTADA (2026-09-08 → 11). Esta página es el registro, no la tarea.
+>
+> U0–U8 hechas, una por commit, salvo **U7 (contratos)**, saltada porque `forge`
+> no es alcanzable en el entorno (P-006). Después se hizo el §3 —reforzar lo
+> construido— y, fuera de la cola y a petición de RasDG, el **arreglo de
+> producción**: mercados congelados, apuestas huérfanas, feed y reposición.
+>
+> **Si abres una conversación nueva, no empieces por aquí: empieza por
+> [`RETOMAR.md`](RETOMAR.md).** Trae la trampa que cuesta un día (producción no
+> corre `main`), cómo se verifica, qué falta y qué espera decisión.
+>
+> El relato de qué costó descubrir cada unidad está en
+> `MEMORY/marea/BITACORA_AUTONOMA.md`. Lo que quedó abierto, en
+> `PREGUNTAS_ABIERTAS.md`.
+
 > **Este documento manda sobre cualquier impulso de ir más rápido o de ampliar el alcance.**
 > Se lee entero antes de tocar nada. Complementa `AGENTE.md` (especificación operativa), que
 > gana si hay contradicción.

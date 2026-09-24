@@ -23,6 +23,41 @@ export interface ResolutionSpec {
   settlesAt: string;
   /** Horas para disputar antes de pagar. */
   disputeWindowHours: number;
+  /**
+   * El resultado se lee de un dato que ya está publicado y que cualquiera
+   * re-verifica con **una** consulta: el cierre de una vela concreta en un
+   * endpoint público. Sólo estos mercados pueden bajar de las 12 h de disputa.
+   *
+   * La ventana de 12 h existe porque un dato institucional se corrige: el INEGI
+   * revisa, el BCRA republica, y pagar antes de que el dato se asiente sería
+   * pagar sobre algo que puede cambiar. El cierre de una vela de cinco minutos
+   * no se revisa: o está en la respuesta de Kraken o no está. Bajar la ventana
+   * ahí no afloja la promesa, la ajusta al tipo de dato — y por eso la excepción
+   * es explícita y por mercado, no un mínimo global más bajo (R-025).
+   *
+   * Un mercado de cinco minutos con 12 h de disputa no es más honesto: es un
+   * mercado que no se puede pagar.
+   */
+  liveVerification?: boolean;
+  /**
+   * Cuánto puede haber envejecido el dato de la fuente y aun así servir para
+   * resolver. Ausente = `FRESCURA_MAX_HORAS`.
+   *
+   * Es por mercado porque las fuentes no laten igual: una vela diaria de Kraken
+   * es fresca a las 20 horas y un INPC mensual lo sigue siendo a los 20 días.
+   * Un umbral global apretado atoraría los mercados lentos; uno holgado dejaría
+   * pasar un colector de precios detenido dos días.
+   */
+  maxAgeHours?: number;
+  /**
+   * Días tras `settlesAt` antes de dar el mercado por incobrable y devolver lo
+   * apostado. Ausente = `PLAZO_ANULACION_DIAS`.
+   *
+   * Se puede alargar para una fuente que se sabe lenta, pero **no a infinito**:
+   * un mercado sin plazo es un mercado que se puede congelar para siempre, y
+   * eso ya pasó.
+   */
+  maxStuckDays?: number;
 }
 
 import type { OutcomeId } from "./parimutuel";
@@ -34,6 +69,14 @@ export type ResolutionState =
   | { status: "resuelto"; outcome: OutcomeId; at: string };
 
 export const MIN_DISPUTE_HOURS = 12;
+
+/**
+ * Piso de la ventana de disputa para los mercados de verificación inmediata.
+ * Sesenta segundos son suficientes para abrir la URL citada y mirar la vela; por
+ * debajo de eso la ventana sería decorativa, y una ventana decorativa es peor
+ * que no tenerla porque la nombra el copy.
+ */
+export const MIN_DISPUTE_SECONDS_LIVE = 60;
 
 export class UnpublishableMarket extends Error {
   constructor(readonly reasons: string[]) {
@@ -62,10 +105,23 @@ export function publishProblems(spec: Partial<ResolutionSpec>): string[] {
     problems.push("la fecha de resolución no es válida");
   }
   if (spec.disputeWindowHours === undefined) problems.push("falta la ventana de disputa");
-  else if (spec.disputeWindowHours < MIN_DISPUTE_HOURS) {
+  else if (spec.liveVerification) {
+    const segundos = spec.disputeWindowHours * 3_600;
+    if (segundos < MIN_DISPUTE_SECONDS_LIVE) {
+      problems.push(
+        `la ventana de disputa de un mercado vivo no puede bajar de ${MIN_DISPUTE_SECONDS_LIVE} s`,
+      );
+    }
+  } else if (spec.disputeWindowHours < MIN_DISPUTE_HOURS) {
     problems.push(`la ventana de disputa no puede bajar de ${MIN_DISPUTE_HOURS} h`);
   }
   return problems;
+}
+
+/** La ventana de disputa dicha en la unidad en que se entiende. */
+export function ventanaDeDisputa(spec: ResolutionSpec): string {
+  if (!spec.liveVerification) return `${spec.disputeWindowHours} h`;
+  return `${Math.round(spec.disputeWindowHours * 3_600)} s`;
 }
 
 export function assertPublishable(spec: Partial<ResolutionSpec>): ResolutionSpec {
@@ -76,7 +132,9 @@ export function assertPublishable(spec: Partial<ResolutionSpec>): ResolutionSpec
 
 /** La frase que lee el usuario antes de apostar. Nunca se genera sola. */
 export function resolutionSummary(spec: ResolutionSpec): string {
-  return `${spec.criterion} Fuente: ${spec.sourceName}. Puedes disputar el resultado durante ${spec.disputeWindowHours} h antes de que se pague.`;
+  return `${spec.criterion} Fuente: ${spec.sourceName}. Puedes disputar el resultado durante ${ventanaDeDisputa(
+    spec,
+  )} antes de que se pague.`;
 }
 
 export function disputeDeadline(settledAt: string, spec: ResolutionSpec): string {

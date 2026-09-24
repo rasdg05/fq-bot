@@ -210,9 +210,13 @@ con outcome. El plan **cerebro** (`research/cerebro_arquitectura.md`, commit `f0
 
 ---
 
-## Marea — mercados de predicción (foto 2026-09-01)
+## Marea — mercados de predicción (foto 2026-09-11)
 
 La app de `marea/`. **No es el bot** y no comparte motor, pero sí memoria y disciplina.
+
+> ⚠ **Producción corre `claude/marea-redesign-v6-b0240n`, no `main`.** Esa rama
+> tiene el rediseño v6 y la cripto en vivo, y nunca se fusionó. Reconciliar `main`
+> está pendiente y no es trivial. Página de arranque: `marea/vault/RETOMAR.md`.
 
 | Cosa | Estado |
 |---|---|
@@ -220,13 +224,19 @@ La app de `marea/`. **No es el bot** y no comparte motor, pero sí memoria y dis
 | Volumen | **0** |
 | Facturación | **0** |
 | Elegibilidad por país | **todas `pendiente`**; `validate` falla si alguna pasa a `permitido` sin opinión escrita |
-| Ciclo automático | **vivo**: `roll.mts` crea, `settle.mts` / `ciclo.mts` cierran, leen, disputan y pagan |
+| Ciclo automático | **vivo y dentro del servidor**: liquida y **repone el catálogo** cada cuarto de hora en el mismo proceso (`server/ciclo.mts`, `server/reposicion.mts`). Antes la reposición dependía de un cron en la laptop de alguien; nadie lo corrió en un mes y la app se quedó con 4 mercados |
+| Mercados congelados | **cerrado (2026-09-11)**: a los 7 días sin resolver el mercado se marca `atorado` y **aparece** en `/salud`; a los 30 se anula y se devuelve todo sin comisión. `atorado` ya no es callejón sin salida. Antes: 1008 corridas con «0 errores» y apuestas de agosto sin concluir |
+| Apuestas huérfanas | **cerrado**: si el mercado desaparece del catálogo, el ciclo las detecta y devuelve íntegro (R-024). Antes quedaban invisibles para siempre |
 | Contrato de custodia | interfaz **definida y declarada simulada** (`custodia/contrato.ts`) |
-| Cámara de compensación | **primer módulo escrito**: `domain/pozo.ts` puro + prueba de propiedad (11 verdes). Invariantes L1, L2 y L5 vivas ahí. Falta cablearlo a la app |
-| Suite de Marea | 289 verdes + 11 nuevas · **4 rojas preexistentes**: el catálogo tiene fechas de julio/agosto y ya caducó (R-041). Se arreglan con `npm run roll`, no con código |
-| Arquitectura en cadena | **diseño** — **Base decidida** (2026-09-01), nada desplegado |
-| Semilla | hoy **apuesta** (puede cobrar). **Decidido pasarla a subsidio**; sin cablear |
-| Reglas | **R-069 a R-072 escritas** (verificación/cumplimiento) — **72** en `RULINGS.md` |
+| Cámara de compensación | **cableada** (2026-09-08). `domain/pozo.ts` puro + `domain/compensacion.ts` que traduce el reparto parimutuel a conjuntos completos, y `ciclo.mts` liquida por ahí. Se acuña el reparto de **todos** los resultados: un sobrepago en cualquiera detiene la liquidación al escribir |
+| Contabilidad | **L3 viva**: cuenta `capital` separada de `tesoreria` (R-066), cierre de mercado en **un solo asiento**, y el saldo del pozo vuelve a **cero exacto** tras liquidar |
+| Presupuesto de subsidio | **L9 viva**: `domain/presupuesto.ts` + guardia en `roll.mts`, **antes** de escribir el catálogo. Topes en cero autorizado: no estorban hoy y frenan el día que se encienda el subsidio sin presupuesto |
+| Frescura del oráculo | **L8 viva** — era la deuda heredada. Una lectura vieja no avanza de fase, se reintenta y lo declara. Los tres oráculos reportan de cuándo es el **dato**, no de cuándo se pidió |
+| Árbol de época | **L15 viva en dominio**: `domain/merkle.ts` + `domain/epoca.ts`, con separación de dominio, hoja impar promovida, conteo y secuencia por usuario. Falta publicar las hojas (no es código) |
+| Suite de Marea | **360 verdes** · **6 rojas preexistentes** (+2 fallos de `validate`): el catálogo tiene fechas de julio/agosto y ya caducó (R-041). Se arreglan con `npm run roll`, no con código. **Ojo:** la cifra que circulaba era «4 rojas»; medidas son 6 (`marea/vault/LINEA_BASE.md`) |
+| Arquitectura en cadena | **diseño** — **Base decidida** (2026-09-01), nada desplegado. Los contratos no se escribieron: `forge` no es alcanzable en el entorno (P-006) |
+| Semilla | **mecanismo cableado, interruptor apagado.** `seedMode: "apuesta" \| "subsidio"` existe y está probado; **nadie nace en subsidio todavía** porque R-067 pide subsidio *con tope* y las cifras del tope las decide RasDG (P-002, P-004) |
+| Reglas | **R-065 a R-072 escritas** (R-069…R-072: verificación/cumplimiento) — 72 en `RULINGS.md` |
 | Verificación por niveles | escalera N0–N3 + compuerta **vivas en `domain/niveles.ts`** (2026-09-24): `effectiveCapUsd` (R-069/L16), `detectStructuring` (R-070), `kycTrigger` (R-072), `screenDestino` (R-071), 18 pruebas. Falta cablearlo a la app y la pantalla del verificador (2º dev); los topes/ventana esperan la opinión legal (P11/P15–P18) |
 
 **Tiempos (2026-09-01):** lanzamiento en puntos con la cámara nueva **6–8 semanas**;
@@ -238,13 +248,24 @@ que el fee se puede elegir antes de que haya dinero.
 camino). Todo el tramo A (compensador puro, asientos, funding con freno) se puede cablear
 hoy en modo puntos sin tocar esa puerta.
 
-**Deuda conocida heredada:** L8 — `onRead` acepta una lectura del oráculo sin comprobar
-cuán vieja es la fuente. Es el mismo fallo que en el bot obligó a cablear
-`cvd_confirmation`, y conviene arreglarlo antes de que haya dinero detrás.
+**La deuda heredada L8 está saldada** (2026-09-08). `onRead` ya no acepta una lectura sin
+mirar de cuándo es el dato. Al implementarla salió un hecho que cambió el diseño: **9 de
+los 13 mercados son series mensuales**, cuyo dato tiene semanas por construcción, así que
+un umbral de reloj global los habría atascado a todos. Forma final: la antigüedad se
+**mide siempre** y se **hace cumplir** en las 4 fuentes que laten a diario. Para las
+series, que estén al día ya lo comprueba la propia regla (P-005).
+
+**Lo que espera decisión de RasDG** (`marea/vault/PREGUNTAS_ABIERTAS.md`): las tres cifras
+de los topes de subsidio (P-004), encender el modo `"subsidio"` en los mercados nuevos
+(P-002), y qué hacer con los contratos ahora que `forge` no es alcanzable pero npm sí
+tiene cadena de Solidity (P-006). Ninguna bloquea nada de lo construido.
+
+Detalle completo: `MEMORY/marea/README.md` §9 · bitácora de la sesión:
+`MEMORY/marea/BITACORA_AUTONOMA.md`.
 
 **Giro 2026-09-24 (DECISIONES §22):** Marea pasa a **proyecto principal** — `main` = Marea, el
 bot a su propia rama **`bot-senales`** (ejecutado el 2026-09-24: el servicio del bot en Railway rastrea
-`bot-senales`, el de Marea rastrea `main`; runbook en `MEMORY/marea/CONTEXTO_SESION_2026-09-24.md`). Y **regla nueva: redeploy a producción libre para
+`bot-senales`, el de Marea rastrea `main`, al que se fusionó la rama que producción desplegaba hasta entonces, `claude/marea-redesign-v6-b0240n`; runbook en `MEMORY/marea/CONTEXTO_SESION_2026-09-24.md`). Y **regla nueva: redeploy a producción libre para
 Marea** mientras no haya soft launch ni >10 usuarios activos (no toca el bot ni su gate). Suite y
 typecheck se corren igual.
 
@@ -255,4 +276,4 @@ sesión de verificación y el runbook del giro. Detalle de Marea: `MEMORY/marea/
 
 _Fuente de verdad: `git log`, `research/plan_evolucion_2026.md`, `research/cerebro_arquitectura.md`,
 `research/fisica_moderna_2026_resultados.md`, `research/carry_regime.md`, `motor_paper.py`,
-`fq_bot_v3_2.py`, `railway.toml`. Actualizado 2026-09-01._
+`fq_bot_v3_2.py`, `railway.toml`. Actualizado 2026-09-08 (sección Marea; el resto sigue de 2026-09-01)._

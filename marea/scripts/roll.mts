@@ -26,6 +26,11 @@ import {
 } from "../src/adapters/ownMarkets/templates";
 import { cargarEspn } from "../src/adapters/oracles/matchOracle";
 import { activeSeeds, OWN_MARKETS, validateSeed, type OwnMarketSeed } from "../src/adapters/ownMarkets/catalog";
+import {
+  filtrarPorPresupuesto,
+  mercadoVivoDe,
+  topesDelEntorno,
+} from "../src/domain/presupuesto";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const DESTINO = join(ROOT, "public", "mercados.json");
@@ -109,7 +114,36 @@ const nuevos = [
 // los vigentes de antes se conservan; los vencidos se van solos
 const vigentes = activeSeeds(now, publicados());
 const porId = new Map(vigentes.map((seed) => [seed.id, seed]));
+
+/**
+ * El freno de L9, **antes** de escribir el catálogo.
+ *
+ * R-067 pide subsidio con tope, y un tope que se consulta después de haber
+ * creado los mercados no es un tope: es un informe. La decisión vive en
+ * `domain/presupuesto.ts` —pura, probada aparte— y aquí sólo se aplica.
+ *
+ * Los candidatos se filtran **en orden y contándose entre sí**: aprobar la
+ * tanda entera contra el estado inicial dejaría pasar N mercados que juntos
+ * cruzan el tope aunque ninguno lo cruce solo.
+ *
+ * Hoy no estorba: nada nace en modo subsidio, así que el subsidio de cada
+ * candidato es cero y todos pasan. El día que alguien encienda el subsidio sin
+ * presupuesto, esto se para solo — que es el orden que la regla exige.
+ */
+const topes = topesDelEntorno(process.env, (aviso) => console.warn(`⚠ ${aviso}`));
+const { aceptados, rechazados } = filtrarPorPresupuesto({
+  vivos: [...porId.values(), ...OWN_MARKETS].map(mercadoVivoDe),
+  candidatos: nuevos.map(mercadoVivoDe),
+  topes,
+});
+if (rechazados.length > 0) {
+  console.warn(`\n⛔ ${rechazados.length} mercados NO se crean por presupuesto (L9):`);
+  for (const { mercado, motivo } of rechazados) console.warn(`  · ${mercado.id} — ${motivo}`);
+}
+const permitidos = new Set(aceptados.map((m) => m.id));
+
 for (const seed of nuevos) {
+  if (!permitidos.has(seed.id)) continue;
   if (!porId.has(seed.id)) porId.set(seed.id, seed);
 }
 

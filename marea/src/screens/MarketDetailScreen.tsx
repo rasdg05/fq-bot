@@ -12,6 +12,7 @@ import { compactUsd, pct, closesIn, fechaCorta } from "@/lib/format";
 import { useApp } from "@/state/store";
 import { formatStake, stakePresets } from "@/lib/units";
 import { isPointsMode } from "@/lib/flags";
+import { saldoVisible } from "@/domain/saldo";
 import {
   BINARY_OUTCOMES,
   formatMultiplier,
@@ -43,7 +44,7 @@ export function MarketDetailScreen({ market }: { market: Market }) {
     : "";
 
   const points = isPointsMode();
-  const balance = points ? state.points.balance : (state.wallet?.balance ?? 0);
+  const balance = saldoVisible(state, points);
   const needsFunds = balance < amount;
   const [compartido, setCompartido] = React.useState(false);
   const closed = market.status === "resolved";

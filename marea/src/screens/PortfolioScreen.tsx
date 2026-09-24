@@ -5,6 +5,8 @@ import { S } from "@/lib/strings";
 import { formatStake } from "@/lib/units";
 import { useApp } from "@/state/store";
 import { cn } from "@/lib/cn";
+import { isPointsMode } from "@/lib/flags";
+import { FRESCURA_SALDO_MS, saldoVisible } from "@/domain/saldo";
 
 /**
  * Portafolio. Vacío no es un callejón: siempre ofrece volver al feed (R-006).
@@ -15,6 +17,10 @@ export function PortfolioScreen() {
 
   React.useEffect(() => {
     if (positions.status === "loading") void actions.loadPositions();
+    // el saldo se muestra aquí y en el header, así que esta pantalla también
+    // tiene que partir de un dato fresco. Con la guarda de frescura no cuesta
+    // una petición por visita: si se supo hace nada, se reusa
+    void actions.cargarCuenta(FRESCURA_SALDO_MS);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -38,6 +44,7 @@ export function PortfolioScreen() {
     );
   }
 
+  const saldo = saldoVisible(state, isPointsMode());
   const open = positions.data.filter((p) => p.status === "open");
   const settled = positions.data.filter((p) => p.status !== "open");
 
@@ -46,6 +53,28 @@ export function PortfolioScreen() {
       <h1 className="px-4 pb-1 pt-5 font-display text-[24px] font-semibold text-text">
         {S.portfolio.title}
       </h1>
+
+      {/* el saldo vive con las posiciones: es lo tuyo, junto a lo que hiciste
+          con ello. Salió del header cuando el header pasó a llevar identidad
+          (Entrar / Crear cuenta sin sesión, saldo + avatar con sesión) */}
+      <Card className="mx-4 mt-3 flex items-center justify-between p-4" data-testid="portfolio-saldo">
+        <div className="leading-tight">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-muted">
+            {S.header.balance}
+          </p>
+          <p className="mt-0.5 font-mono text-[22px] font-semibold tabular-nums text-text">
+            {formatStake(saldo)}
+          </p>
+        </div>
+        <button
+          type="button"
+          data-testid="portfolio-recargar"
+          onClick={() => actions.openDeposit("portfolio")}
+          className="min-h-touch px-2 text-[14px] font-semibold text-teal"
+        >
+          {isPointsMode() ? S.points.topUp : S.header.deposit}
+        </button>
+      </Card>
 
       {positions.data.length === 0 ? (
         <div className="pt-5">
@@ -85,7 +114,16 @@ function Section({
       </h2>
       <div className="space-y-3 px-4">
         {items.map((position) => (
-          <Card key={position.id} className="p-4" data-testid="position-row">
+          <Card
+            key={position.id}
+            /* atenuada mientras el servidor no la acusa. Sin spinner y sin
+               bloquear nada: la pantalla se sigue usando, y quien no perciba
+               la opacidad tiene la palabra al lado del lado apostado (R-005).
+               No entra ninguna fila nueva, así que la altura no cambia */
+            className={cn("p-4", position.pendiente && "opacity-60")}
+            data-testid="position-row"
+            data-pendiente={position.pendiente || undefined}
+          >
             <p className="font-display text-[16px] font-semibold leading-snug text-text">
               {position.marketTitle ?? position.market_id}
             </p>
@@ -99,6 +137,13 @@ function Section({
                   <span className="ml-2 font-mono text-[13px] font-medium text-text2 tabular-nums">
                     {formatStake(position.size)}
                   </span>
+                  {/* la palabra, no sólo la atenuación: el color y la opacidad
+                      nunca cargan solos con el significado */}
+                  {position.pendiente ? (
+                    <span className="ml-2 text-[12px] font-semibold text-muted">
+                      {S.portfolio.pendiente}
+                    </span>
+                  ) : null}
                 </p>
               </div>
               <div className="text-right">

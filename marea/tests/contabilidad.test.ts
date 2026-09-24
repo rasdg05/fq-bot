@@ -6,11 +6,15 @@ import { Store } from "../server/store.mts";
 import {
   CUENTAS_SISTEMA,
   asiento,
+  asientoLiquidacion,
+  asientoSemilla,
   cuadre,
   cuentaPozo,
   cuentaUsuario,
+  pozosSinVaciar,
   saldoDe,
   saldos,
+  subsidioComprometido,
   LibroDesbalanceado,
   type Asiento,
 } from "@/domain/contabilidad";
@@ -498,6 +502,177 @@ describe("Varias apuestas: todas se ven y todas cuadran", () => {
       const otro = new Store(dir);
       expect(otro.apuestasDe("u1")).toHaveLength(apuestas.length);
       expect(new Set(otro.apuestasDe("u1").map((a) => a.id)).size).toBe(ids.length);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+/**
+ * L3 — el fee y el colateral no comparten cuenta, y el pozo se vacía.
+ *
+ * `cuadre()` no ve lo que se prueba aquí: el libro puede sumar cero con dinero
+ * atrapado en la cuenta equivocada. Un pozo con saldo después de liquidar es
+ * colateral de terceros que no llegó a su dueño, y el libro cuadrado no se
+ * queja.
+ */
+describe("L3 — separación de cuentas y pozo vacío", () => {
+  it("la semilla sale del capital, no de `entrada`: no llegó del mundo exterior", () => {
+    const libro = [asientoSemilla("m1", 400, "apuesta")];
+    expect(saldoDe(libro, CUENTAS_SISTEMA.capital)).toBe(-400);
+    expect(saldoDe(libro, CUENTAS_SISTEMA.entrada)).toBe(0);
+    expect(saldoDe(libro, cuentaPozo("m1"))).toBe(400);
+    expect(cuadre(libro)).toBe(0);
+  });
+
+  it("un subsidio se distingue de una semilla al escribir, y por eso se puede sumar", () => {
+    const libro = [
+      asientoSemilla("m1", 400, "apuesta"),
+      asientoSemilla("m2", 300, "subsidio"),
+      asientoSemilla("m3", 250, "subsidio"),
+    ];
+    expect(libro[0].tipo).toBe("semilla");
+    expect(libro[1].tipo).toBe("subsidio");
+    // lo que el presupuesto de L9 tiene que leer, y lo lee del libro auditable
+    expect(subsidioComprometido(libro)).toBe(550);
+    expect(subsidioComprometido(libro, "m2")).toBe(300);
+    expect(subsidioComprometido(libro, "m1")).toBe(0);
+  });
+
+  it("el cierre va en UN asiento y deja el pozo exactamente en cero", () => {
+    const libro = [
+      asientoSemilla("m1", 400, "apuesta"),
+      asiento("apuesta", [
+        { cuenta: cuentaUsuario("u1"), monto: -300 },
+        { cuenta: cuentaPozo("m1"), monto: 300 },
+      ]),
+      // pozo 700, comisión 21, u1 cobra 300/700 × 679 ... aquí a mano:
+      asientoLiquidacion({ marketId: "m1", pagos: { u1: 291 }, fee: 21, aCapital: 388 }),
+    ];
+    expect(cuadre(libro)).toBe(0);
+    expect(saldoDe(libro, cuentaPozo("m1"))).toBe(0);
+    // el ingreso y el principal que vuelve NO se netean (R-066)
+    expect(saldoDe(libro, CUENTAS_SISTEMA.tesoreria)).toBe(21);
+    expect(saldoDe(libro, CUENTAS_SISTEMA.capital)).toBe(-12); // −400 + 388
+    // y todo en un solo asiento: no hay instante con la comisión dentro del pozo
+    expect(libro[2].patas.length).toBe(4);
+  });
+
+  it("un cierre que no vacía el pozo no llega a escribirse", () => {
+    // el asiento se niega a existir si no cuadra: la validación va al escribir
+    expect(() => asiento("liquidacion", [{ cuenta: cuentaPozo("m1"), monto: -700 }, { cuenta: cuentaUsuario("u1"), monto: 291 }])).toThrow(
+      LibroDesbalanceado,
+    );
+  });
+
+  it("el auditor encuentra el pozo con saldo que `cuadre` no ve", () => {
+    // un cierre escrito como se escribía antes: pago y comisión por separado,
+    // y el proceso muere entre los dos. El libro cuadra; el dinero no llegó
+    const libro = [
+      asientoSemilla("m1", 400, "apuesta"),
+      asiento("liquidacion", [
+        { cuenta: cuentaPozo("m1"), monto: -379 },
+        { cuenta: cuentaUsuario("u1"), monto: 379 },
+      ]),
+    ];
+    expect(cuadre(libro)).toBe(0); // el libro no se queja
+    expect(pozosSinVaciar(libro, ["m1"])).toEqual({ m1: 21 }); // el auditor sí
+  });
+
+  it("de punta a punta contra el store: liquidar deja el pozo en cero y no paga dos veces", () => {
+    const dir = mkdtempSync(join(tmpdir(), "marea-l3-"));
+    try {
+      const store = new Store(dir);
+      store.asegurarPozo({
+        marketId: "m1",
+        outcomes: { si: 200, no: 200 },
+        feeBps: 300,
+        seed: { si: 200, no: 200 },
+        seedMode: "apuesta",
+      });
+      store.crearUsuario({
+        id: "u1", usuario: "u1", hash: "x", salt: "y",
+        creado: new Date().toISOString(), puntos: 1000,
+      });
+      store.apostar({ usuarioId: "u1", marketId: "m1", side: "si", stake: 300, precio: 0.5 });
+      expect(store.cuadre()).toBe(0); // antes
+
+      // pozo 700, fee 3 % = 21, el lado "si" tiene 500 (200 semilla + 300 u1)
+      const apuesta = store.apuestasDeMercado("m1")[0];
+      const pago = (300 / 500) * (700 - 21);
+      const cierre = store.liquidarMercado({
+        marketId: "m1",
+        pagos: { [apuesta.id]: pago },
+        fee: 21,
+        aCapital: 700 - 21 - pago,
+      });
+
+      expect(cierre.acreditado).toBeCloseTo(pago, 9);
+      expect(store.cuadre()).toBe(0); // y después
+      expect(saldoDe(store.libro(), cuentaPozo("m1"))).toBe(0); // la puerta de U3
+      expect(store.pozosConSaldoTrasLiquidar()).toEqual({});
+      expect(store.conciliar().cuadra).toBe(true);
+
+      /**
+       * L6: correrlo dos veces paga una vez. Y no basta con mirar el saldo del
+       * usuario — la guarda de «esta apuesta ya cobró» ya lo protege. Lo que
+       * sólo protege la guarda del libro es el **segundo asiento**: uno más
+       * sacaría otra vez la comisión y el resto del pozo, y el saldo del
+       * mercado se iría a NEGATIVO con el libro cuadrado. Se mide eso.
+       */
+      const asientosAntes = store.libro().length;
+      const otra = store.liquidarMercado({
+        marketId: "m1",
+        pagos: { [apuesta.id]: pago },
+        fee: 21,
+        aCapital: 700 - 21 - pago,
+      });
+      expect(otra.acreditado).toBe(0);
+      expect(store.usuarioPorId("u1")!.puntos).toBeCloseTo(700 + pago, 9);
+      expect(store.libro().length).toBe(asientosAntes);
+      expect(saldoDe(store.libro(), cuentaPozo("m1"))).toBe(0);
+      expect(saldoDe(store.libro(), CUENTAS_SISTEMA.tesoreria)).toBe(21);
+      expect(store.pozosConSaldoTrasLiquidar()).toEqual({});
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("un pago de cero no crea una pata: el libro no se llena de ruido", () => {
+    // quien perdió cobra 0, y `settle` devuelve un 0 explícito por cada apuesta.
+    // Escribir esas patas dejaría un asiento con tantas líneas como apostadores
+    // y una sola con dinero — cuadra igual, y es ilegible
+    const asiento = asientoLiquidacion({
+      marketId: "m1",
+      pagos: { gano: 700, perdio: 0, tambienPerdio: 0 },
+      fee: 0,
+      aCapital: 0,
+    });
+    expect(asiento.patas.length).toBe(2); // el pozo y el que cobró
+    expect(asiento.patas.map((p) => p.cuenta)).toEqual([cuentaPozo("m1"), cuentaUsuario("gano")]);
+  });
+
+  it("un pago a un usuario que ya no existe vuelve al capital, no se queda en el pozo", () => {
+    const dir = mkdtempSync(join(tmpdir(), "marea-l3-fantasma-"));
+    try {
+      const store = new Store(dir);
+      store.asegurarPozo({ marketId: "m1", outcomes: { si: 100, no: 100 }, feeBps: 0 });
+      store.crearUsuario({
+        id: "u1", usuario: "u1", hash: "x", salt: "y",
+        creado: new Date().toISOString(), puntos: 500,
+      });
+      store.apostar({ usuarioId: "u1", marketId: "m1", side: "si", stake: 200, precio: 0.5 });
+
+      // se promete un pago a una apuesta que no existe: no hay a quién acreditar
+      store.liquidarMercado({
+        marketId: "m1",
+        pagos: { "apuesta-fantasma": 400 },
+        fee: 0,
+        aCapital: 0,
+      });
+      expect(store.cuadre()).toBe(0);
+      expect(saldoDe(store.libro(), cuentaPozo("m1"))).toBe(0);
+      expect(saldoDe(store.libro(), CUENTAS_SISTEMA.capital)).toBe(200); // −200 sembrado, +400 de vuelta
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

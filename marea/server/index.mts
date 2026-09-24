@@ -13,10 +13,16 @@ import {
   todosLosSeeds,
 } from "./mercados.mts";
 import { correrCiclo, type ResumenCiclo } from "./ciclo.mts";
+import { crearTicker } from "./precios.mts";
+import { MercadosVivos } from "./vivos.mts";
+import { MINIMO_ABIERTOS, reponer, type ResumenReposicion } from "./reposicion.mts";
+import { cargarEspn } from "../src/adapters/oracles/matchOracle";
+import type { PartidoDeLaLiga } from "../src/adapters/ownMarkets/templates";
 import { metaDeLogro, metaDeMercado } from "./compartir.mts";
 import { logroDe, tarjetaPng } from "./tarjeta.mts";
 import { createRegistroDeEventos } from "./eventos.mts";
 import type { OwnMarketSeed } from "../src/adapters/ownMarkets/catalog";
+import { congelados, type SettlementState } from "../src/domain/settlement";
 
 /**
  * Marea, servidor completo: sirve la app, guarda las cuentas y corre el ciclo
@@ -32,6 +38,16 @@ const DIST = join(ROOT, "dist");
 const DATOS = process.env.MAREA_DATA_DIR ?? join(ROOT, "data", "servidor");
 const PORT = Number(process.env.PORT ?? 8080);
 const CICLO_MS = Number(process.env.MAREA_CICLO_MS ?? 900_000);
+/**
+ * Los mercados vivos corren en su propio reloj. Un cuarto de hora es una
+ * cadencia sana para un mercado que cierra el domingo y absurda para uno que
+ * dura cinco minutos: con el ciclo lento, una vela se pagaría diez minutos
+ * después de haberse resuelto.
+ */
+const CICLO_VIVO_MS = Number(process.env.MAREA_CICLO_VIVO_MS ?? 10_000);
+/** Cada cuánto se planifica la siguiente vela. Barato: es aritmética de reloj. */
+const PLAN_VIVO_MS = Number(process.env.MAREA_PLAN_VIVO_MS ?? 1_000);
+const PRECIO_MS = Number(process.env.MAREA_PRECIO_MS ?? 3_000);
 
 const TIPOS: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -68,11 +84,71 @@ const registrarEventos = createRegistroDeEventos(join(DATOS, "eventos"));
 let seeds: OwnMarketSeed[] = todosLosSeeds(ROOT);
 sembrarPozos(store, seeds);
 
+/**
+ * Cripto en vivo. El ticker lee el precio una vez para todos —el motor FQ si
+ * está configurado, Kraken si no— y el planificador mantiene siempre abierta
+ * una vela de 5 min y una de 15 por activo.
+ *
+ * Los mercados vivos **no** se siembran en disco al nacer: el pozo se crea con
+ * la primera apuesta. Por eso no pasan por `sembrarPozos`.
+ */
+const ticker = crearTicker({
+  urlFq: process.env.MAREA_FQ_PRECIOS_URL,
+  intervaloMs: PRECIO_MS,
+  onError: (mensaje) => log(`precios: ${mensaje}`),
+});
+const vivos = new MercadosVivos(store, ticker);
+
+/**
+ * El catálogo completo de este instante: lo publicado en el repo, lo que el
+ * servidor repuso solo, y lo que está corriendo ahora mismo.
+ *
+ * Los tres tienen que estar. Un mercado que se cae de esta lista se cae también
+ * del ciclo de liquidación —que itera sobre semillas— y las apuestas que tenga
+ * dentro no se resuelven nunca.
+ */
+function catalogo(): OwnMarketSeed[] {
+  return [...seeds, ...store.seedsGeneradas(), ...vivos.seeds()];
+}
+
 const bitacora = {
   arranque: new Date().toISOString(),
   ultimoCiclo: null as ResumenCiclo | null,
   corridas: 0,
+  vivos: { abiertos: 0, conApuestas: 0, pagados: 0, errores: 0 },
+  ultimaReposicion: null as ResumenReposicion | null,
 };
+
+/**
+ * Los partidos de Liga MX de los próximos días, leídos de ESPN.
+ *
+ * Un día que no contesta no cancela la semana: se pierde ese día y se sigue.
+ * Es la misma tolerancia que tiene `roll`, y por la misma razón — una fuente
+ * caída puede dejar el feed más corto, no vacío.
+ */
+async function partidosDeLaSemana(dias = 7): Promise<PartidoDeLaLiga[]> {
+  const partidos: PartidoDeLaLiga[] = [];
+  const hoy = Date.now();
+  for (let i = 0; i < dias; i += 1) {
+    const dia = new Date(hoy + i * 86_400_000).toISOString().slice(0, 10);
+    try {
+      for (const evento of await cargarEspn(fetch, "mex.1", dia)) {
+        const competidores = evento.competitions[0]?.competitors ?? [];
+        const local = competidores.find((c) => c.homeAway === "home");
+        const visitante = competidores.find((c) => c.homeAway === "away");
+        if (!local || !visitante) continue;
+        partidos.push({
+          inicio: evento.date,
+          local: local.team.displayName,
+          visitante: visitante.team.displayName,
+        });
+      }
+    } catch {
+      // un día que no responde no cancela la semana entera
+    }
+  }
+  return partidos;
+}
 
 function log(linea: string) {
   console.log(`${new Date().toISOString()} ${linea}`);
@@ -83,16 +159,101 @@ async function ciclo() {
   try {
     // el catálogo puede haber crecido: se relee antes de liquidar
     seeds = todosLosSeeds(ROOT);
-    sembrarPozos(store, seeds);
-    const resumen = await correrCiclo(store, seeds);
+
+    /**
+     * Y se repone **antes** de liquidar, no después: si el feed está corto, lo
+     * que menos ayuda es esperar un cuarto de hora más.
+     *
+     * Esto vive aquí y no en un cron porque el cron vivía en la máquina de
+     * alguien. Nadie lo corrió desde agosto y la app llegó a septiembre con
+     * cuatro mercados. Un proceso que depende de que alguien se acuerde no
+     * existe (AGENTE §2).
+     */
+    try {
+      const repuesto = await reponer(store, [...seeds, ...vivos.seeds()], Date.now(), {
+        spot: () => ({
+          "BTC/USD": ticker.precio("BTC/USD")?.precio,
+          "ETH/USD": ticker.precio("ETH/USD")?.precio,
+        }),
+        partidos: (dias) => partidosDeLaSemana(dias),
+        env: process.env,
+        avisar: (mensaje) => log(`reposición: ${mensaje}`),
+      });
+      bitacora.ultimaReposicion = repuesto;
+      /**
+       * Se registra también cuando **quiso** reponer y no pudo. Callarse ahí es
+       * exactamente el fallo que dejó la app vacía un mes: nada estaba roto,
+       * nada aparecía, y nadie tenía cómo enterarse.
+       */
+      if (repuesto.creados.length > 0) {
+        log(
+          `reposición: ${repuesto.creados.length} mercados nuevos ` +
+            `(había ${repuesto.abiertosAntes} duraderos abiertos)`,
+        );
+      } else if (repuesto.abiertosAntes < MINIMO_ABIERTOS) {
+        log(
+          `reposición: el feed está corto (${repuesto.abiertosAntes} de ${MINIMO_ABIERTOS}) ` +
+            `y no se creó nada — ${repuesto.frenados.length} frenados, ` +
+            `${repuesto.errores.length} errores`,
+        );
+      }
+      for (const frenado of repuesto.frenados) {
+        log(`  ⛔ ${frenado.id} no se creó: ${frenado.motivo}`);
+      }
+      for (const error of repuesto.errores) log(`  ⚠ reposición: ${error}`);
+    } catch (error) {
+      log(`reposición falló entera: ${String(error)}`);
+    }
+
+    const conRepuestos = [...seeds, ...store.seedsGeneradas()];
+    sembrarPozos(store, conRepuestos);
+    const resumen = await correrCiclo(store, conRepuestos);
     bitacora.ultimoCiclo = resumen;
     log(
       `ciclo ${bitacora.corridas}: ${resumen.leidos} leídos · ${resumen.pagados} pagados · ` +
-        `${resumen.acreditado} puntos acreditados · ${resumen.atorados.length} atorados`,
+        `${resumen.acreditado} puntos acreditados · ${resumen.atorados.length} atorados` +
+        (resumen.huerfanos.length > 0 ? ` · ${resumen.huerfanos.length} huérfanas devueltas` : ""),
     );
     for (const error of resumen.errores) log(`  ⚠ ${error}`);
   } catch (error) {
     log(`ciclo falló entero: ${String(error)}`);
+  }
+}
+
+/**
+ * El ciclo de las velas. Corre cada pocos segundos y **sólo** sobre los
+ * mercados vivos que tienen apuestas: los demás no tienen nada que liquidar, y
+ * escribirles un estado de liquidación sería llenar el archivo de mercados que
+ * nadie tocó.
+ *
+ * Es el mismo `correrCiclo` del catálogo normal, con los mismos oráculos y la
+ * misma matemática. Lo único distinto es cada cuánto se llama.
+ */
+let cicloVivoEnVuelo = false;
+async function cicloVivo() {
+  if (cicloVivoEnVuelo) return;
+  cicloVivoEnVuelo = true;
+  try {
+    vivos.tick();
+    const pendientes = vivos.seedsConApuestas();
+    bitacora.vivos.abiertos = vivos.seeds().length;
+    bitacora.vivos.conApuestas = pendientes.length;
+    if (pendientes.length === 0) return;
+
+    const resumen = await correrCiclo(store, pendientes);
+    bitacora.vivos.pagados += resumen.pagados + resumen.anulados;
+    bitacora.vivos.errores += resumen.errores.length;
+    if (resumen.pagados + resumen.anulados > 0) {
+      log(
+        `vela: ${resumen.pagados} pagadas · ${resumen.anulados} anuladas · ` +
+          `${Math.round(resumen.acreditado)} puntos acreditados`,
+      );
+    }
+    for (const error of resumen.errores) log(`  ⚠ vela ${error}`);
+  } catch (error) {
+    log(`ciclo vivo falló: ${String(error)}`);
+  } finally {
+    cicloVivoEnVuelo = false;
   }
 }
 
@@ -102,7 +263,37 @@ async function servir(req: IncomingMessage, res: ServerResponse) {
 
   if (ruta === "/salud") {
     res.writeHead(200, { "content-type": TIPOS[".json"], "cache-control": "no-store" });
-    res.end(JSON.stringify({ ...bitacora, datos: store.resumen(), mercados: seeds.length }, null, 2));
+    res.end(
+      JSON.stringify(
+        {
+          ...bitacora,
+          datos: store.resumen(),
+          mercados: seeds.length,
+          /**
+           * Lo que estaba pasando y no se veía.
+           *
+           * Durante más de un mes el resumen del ciclo dijo «0 atorados · 0
+           * errores» mientras varios mercados llevaban semanas sin resolverse y
+           * había apuestas cuyo mercado ya no existía. Ninguna de las dos cosas
+           * era un error —el oráculo contestaba `sin_dato` y el ciclo itera
+           * sobre las semillas— y por eso ninguna aparecía. Aparecen aquí.
+           */
+          congelados: congelados(
+            seeds
+              .map((seed) => ({ state: store.liquidacion(seed.id), spec: seed.resolution }))
+              .filter((x): x is { state: SettlementState; spec: typeof x.spec } => !!x.state),
+            Date.now(),
+          ),
+          huerfanas: store.apuestasHuerfanas(seeds.map((seed) => seed.id)),
+          // de dónde sale el precio que se está enseñando, y si el motor está
+          // degradado. Es lo primero que se mira cuando una card se queda sin
+          // número
+          precios: ticker.estado(),
+        },
+        null,
+        2,
+      ),
+    );
     return;
   }
 
@@ -112,9 +303,11 @@ async function servir(req: IncomingMessage, res: ServerResponse) {
     try {
       const atendido = await manejarApi(req, res, ruta, {
         store,
-        seeds: () => seeds,
+        seeds: catalogo,
         seguro: (req.headers["x-forwarded-proto"] ?? "http") === "https",
         registrarEventos,
+        vivos,
+        precios: ticker,
       });
       if (!atendido) {
         res.writeHead(404, { "content-type": TIPOS[".json"] });
@@ -186,7 +379,9 @@ async function servir(req: IncomingMessage, res: ServerResponse) {
    */
   if (ruta.startsWith("/m/")) {
     const id = ruta.slice(3);
-    const mercado = listarMercados(store, seeds).find((m) => m.id === id);
+    const mercado = listarMercados(store, catalogo(), Date.now(), ticker).find(
+      (m) => m.id === id,
+    );
     const html = await readFile(join(DIST, "index.html"), "utf8");
     const salida = mercado ? metaDeMercado(html, mercado, url.origin) : html;
     const gzip = aceptaGzip(req);
@@ -276,3 +471,19 @@ createServer((req, res) => {
 void ciclo();
 setInterval(() => void ciclo(), CICLO_MS);
 void listarMercados(store, seeds);
+
+/**
+ * Cripto en vivo, en tres relojes distintos porque son tres trabajos distintos:
+ * leer el precio, planificar la vela siguiente y liquidar la que cerró.
+ */
+ticker.arrancar();
+// la primera vela se planifica en cuanto haya precio; sin él no se inventa un
+// strike y el planificador simplemente no crea nada esta vuelta
+setTimeout(() => vivos.tick(), 500).unref?.();
+setInterval(() => vivos.tick(), PLAN_VIVO_MS).unref?.();
+setInterval(() => void cicloVivo(), CICLO_VIVO_MS).unref?.();
+log(
+  `cripto en vivo: precio cada ${PRECIO_MS} ms desde ` +
+    `${process.env.MAREA_FQ_PRECIOS_URL ? "el motor FQ (respaldo Kraken)" : "Kraken"} · ` +
+    `liquidación cada ${CICLO_VIVO_MS} ms`,
+);

@@ -21,7 +21,11 @@ import {
   loadPublishedSeeds,
   loadPublishedSettlements,
 } from "./ownMarkets/published";
-import { createApiClient, createApiMarketDataAdapter } from "./http/apiAdapter";
+import {
+  createApiClient,
+  createApiMarketDataAdapter,
+  type Cuenta,
+} from "./http/apiAdapter";
 import { FLAGS, isOwnMarketMode } from "@/lib/flags";
 import type { Adapters } from "@/state/store";
 
@@ -69,8 +73,17 @@ export function resolveAdapters(): Adapters {
    */
   const api = CONFIG.apiBase ? createApiClient({ base: CONFIG.apiBase }) : undefined;
 
+  /**
+   * El servidor manda la cuenta —y con ella el saldo— dentro de cada respuesta
+   * de posiciones y de apuesta. Ese dato se estaba tirando: `onCuenta` existía
+   * desde el principio y nadie lo pasaba, así que el store se quedaba con un
+   * saldo viejo hasta la siguiente carga y había que pedir `api.yo()` de más.
+   * La caja permite cablearlo cuando el store ya existe.
+   */
+  let avisarCuenta: ((cuenta: Cuenta) => void) | undefined;
+
   const marketData = api
-    ? createApiMarketDataAdapter(api)
+    ? createApiMarketDataAdapter(api, (cuenta) => avisarCuenta?.(cuenta))
     : isOwnMarketMode(FLAGS)
     ? // mercados propios de Latam: Marea crea la pregunta y corre el pozo
       createOwnMarketsAdapter({
@@ -129,5 +142,8 @@ export function resolveAdapters(): Adapters {
     wallet,
     analytics: safeAnalytics(analytics),
     errors: safeErrorReporter(errors),
+    alRecibirCuenta: (fn) => {
+      avisarCuenta = fn;
+    },
   };
 }

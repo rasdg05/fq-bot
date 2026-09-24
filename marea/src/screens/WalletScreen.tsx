@@ -8,6 +8,7 @@ import { shortAddress } from "@/lib/format";
 import { formatStake } from "@/lib/units";
 import { isPointsMode } from "@/lib/flags";
 import { useApp } from "@/state/store";
+import { saldoVisible } from "@/domain/saldo";
 
 /**
  * Cartera. Saldo 0 no bloquea nada: el copy lo dice explícito (R-002).
@@ -17,6 +18,7 @@ export function WalletScreen() {
   const [copied, setCopied] = React.useState(false);
   const wallet = state.wallet;
   const points = isPointsMode();
+  const saldo = saldoVisible(state, points);
 
   const copy = React.useCallback(async () => {
     if (!wallet) return;
@@ -42,10 +44,10 @@ export function WalletScreen() {
               {S.header.balance}
             </p>
             <p className="mt-1 font-display text-prob font-semibold text-text tabular-nums">
-              {formatStake(state.points.balance)}
+              {formatStake(saldo)}
             </p>
             <p className="mt-2 text-[14px] leading-relaxed text-text2">
-              {state.points.balance <= 0
+              {saldo <= 0
                 ? S.points.balanceZeroBody
                 : S.points.disclaimer}
             </p>

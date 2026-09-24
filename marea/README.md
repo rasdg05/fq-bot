@@ -44,8 +44,8 @@ src/
   styles/      tokens.css — la única fuente de color y tipografía
   lib/         strings (todo el copy), flags, formato
 vault/         PRODUCT · VOICE · PLAYBOOKS · RULINGS · COMPLIANCE · ESTRATEGIA
-               DATA_SOURCES · MODEL · LIQUIDEZ · HANDOFF · locks de tokens
-               y calibración
+               DATA_SOURCES · MODEL · CRYPTO_LIVE · LIQUIDEZ · HANDOFF
+               locks de tokens y calibración
 scripts/       validate.mjs · settle.mts · roll.mts · daily.mjs · perf.mjs · sondas
 ```
 
@@ -81,6 +81,17 @@ Declarado en `src/lib/flags.ts`:
 | `error_reporting` | `false` | El reporter está desconectado; nada sale del dispositivo |
 
 No hay order book propio, ni market maker, ni custodia propia en esta build.
+
+## Cripto en vivo
+
+Velas de 5 y 15 minutos de BTC y ETH, alineadas al reloj, que nacen y se pagan
+solas dentro del servidor. Siempre hay una de cada horizonte abierta por activo.
+
+El spot se lee cada 3 s (motor propio si `MAREA_FQ_PRECIOS_URL` está puesta,
+Kraken si no) y **la liquidación siempre lee el cierre de la vela pública de
+Kraken**, que es la fuente que cita el criterio. Las decisiones —cierre exacto
+en vez de promedio, ventana de disputa de 60 s, y qué pasa con el empate— están
+escritas en [`vault/CRYPTO_LIVE.md`](vault/CRYPTO_LIVE.md).
 
 ## Validación
 

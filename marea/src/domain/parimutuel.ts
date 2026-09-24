@@ -43,11 +43,39 @@ export const BINARY_OUTCOMES: readonly Outcome[] = [
   { id: NO, label: "No" },
 ];
 
+/**
+ * Qué es la semilla que la casa puso para que el mercado no naciera vacío.
+ *
+ * - `"apuesta"` — es una posición pequeña: si cae del lado ganador, su parte del
+ *   reparto se queda en el pozo y la cobra la casa. Es lo que hubo siempre.
+ * - `"subsidio"` — es un premio: la casa **nunca** cobra de ella, y su parte se
+ *   reparte entre los usuarios que acertaron. Cuesta S gane quien gane (R-067).
+ *
+ * Ausente significa `"apuesta"`, y ese default no es pereza: un pozo escrito en
+ * disco antes de que este campo existiera tiene que seguir pagando exactamente
+ * lo mismo que prometió el día que alguien apostó en él.
+ */
+export type SeedMode = "apuesta" | "subsidio";
+
 export interface Pool {
   /** Lo apostado a cada resultado, por id, en la unidad vigente. */
   outcomes: Record<OutcomeId, number>;
   /** Comisión de Marea sobre el pozo, en puntos base (200 = 2 %). */
   feeBps: number;
+  /**
+   * Lo que puso la casa en cada resultado al abrir el mercado. Va aparte de
+   * `outcomes` porque `outcomes` crece con las apuestas y la semilla no: sin
+   * este registro, media hora después de abrir ya no se puede saber cuánto del
+   * pozo es de la casa. Ausente = no declarada = cero.
+   */
+  seed?: Record<OutcomeId, number>;
+  /**
+   * Cómo se comporta la semilla al liquidar. **No se migra sobre un mercado
+   * abierto**: cambiarlo movería el multiplicador que ya se le mostró a quien
+   * apostó, y el número que se enseña es el que se cobra (R-023, R-044). Cada
+   * mercado termina con las reglas con las que nació.
+   */
+  seedMode?: SeedMode;
 }
 
 /**
@@ -107,12 +135,67 @@ export function normalizePool(raw: unknown): Pool {
     return binaryPool(raw.si, raw.no, raw.feeBps);
   }
   const pool = raw as Pool;
-  return { outcomes: { ...pool.outcomes }, feeBps: pool.feeBps };
+  return {
+    outcomes: { ...pool.outcomes },
+    feeBps: pool.feeBps,
+    // se copian sólo si existen: un pozo viejo no gana una semilla por pasar
+    // por aquí, y uno con subsidio no la pierde por releerse (I6)
+    ...(pool.seed ? { seed: { ...pool.seed } } : {}),
+    ...(pool.seedMode ? { seedMode: pool.seedMode } : {}),
+  };
 }
 
 /** Lo apostado a un resultado. Un id que no existe vale cero, no `undefined`. */
 export function outcomeStake(pool: Pool, id: OutcomeId): number {
   return pool.outcomes[id] ?? 0;
+}
+
+/** Lo que puso la casa en ese resultado. Sin semilla declarada, cero. */
+export function seedStake(pool: Pool, id: OutcomeId): number {
+  return pool.seed?.[id] ?? 0;
+}
+
+/** La semilla entera del mercado, sumando todos los resultados. Es el coste. */
+export function totalSeed(pool: Pool): number {
+  if (!pool.seed) return 0;
+  let total = 0;
+  for (const valor of Object.values(pool.seed)) total += valor;
+  return total;
+}
+
+/**
+ * La parte de un resultado que **no cobra** cuando gana: la semilla, y sólo si
+ * es subsidio. En modo `"apuesta"` es cero y toda la aritmética de abajo se
+ * reduce a la de siempre, término por término.
+ */
+export function subsidyStake(pool: Pool, id: OutcomeId): number {
+  return pool.seedMode === "subsidio" ? seedStake(pool, id) : 0;
+}
+
+/**
+ * El denominador del reparto: lo apostado a un resultado descontando lo que no
+ * va a cobrar. Es el **único** lugar donde se decide qué entra al reparto, y
+ * por eso `payoutMultiplier` y `settle` lo llaman los dos. Si cada uno hiciera
+ * su propia resta, el día que se separen la app mostraría un número y pagaría
+ * otro — que es exactamente lo que R-044 prohíbe.
+ *
+ * Nunca sale negativo: una semilla mayor que el pozo sería un pozo corrupto, y
+ * la respuesta honesta a eso es cero (nadie cobra), no un multiplicador con
+ * signo.
+ */
+export function bettorStake(pool: Pool, id: OutcomeId): number {
+  return Math.max(0, outcomeStake(pool, id) - subsidyStake(pool, id));
+}
+
+/**
+ * Estampa la semilla de un mercado que nace: todo lo que hay en el pozo ahora
+ * mismo es de la casa, porque todavía no ha apostado nadie.
+ *
+ * Se llama **al crear**, nunca sobre un mercado vivo: hacerlo después contaría
+ * como semilla apuestas de usuarios, y esas sí cobran.
+ */
+export function declareSeed(pool: Pool, seedMode: SeedMode = "apuesta"): Pool {
+  return { ...pool, seed: { ...pool.outcomes }, seedMode };
 }
 
 export function outcomeIds(pool: Pool): OutcomeId[] {
@@ -159,13 +242,18 @@ export function probabilities(pool: Pool): Record<OutcomeId, number> {
  * Cuánto paga un resultado por cada unidad apostada, **incluyendo** la apuesta
  * que se está por hacer. Se calcula así a propósito: el usuario tiene que ver
  * el pago que va a recibir él, no el que había antes de entrar (R-023).
+ *
+ * El denominador es `bettorStake`, no el pozo del lado: con subsidio, la parte
+ * de la semilla se reparte entre quienes acertaron, así que el multiplicador
+ * **sube**. Mover `settle()` sin mover esto dejaría a la app mostrando menos de
+ * lo que paga — mentir en la dirección generosa sigue siendo mentir (R-067).
  */
 export function payoutMultiplier(
   pool: Pool,
   id: OutcomeId,
   stake: number = 0,
 ): number {
-  const sameSide = outcomeStake(pool, id) + stake;
+  const sameSide = bettorStake(pool, id) + stake;
   const total = totalPool(pool) + stake;
   if (sameSide <= 0) return 0;
   const afterFee = total * (1 - clampFee(pool.feeBps) / 10_000);
@@ -193,7 +281,15 @@ export interface Quote {
   fee: number;
 }
 
-/** Cotización completa de una apuesta antes de confirmarla. */
+/**
+ * Cotización completa de una apuesta antes de confirmarla.
+ *
+ * La probabilidad se calcula sobre el pozo **entero**, semilla incluida: el
+ * subsidio es colateral de verdad y mueve el precio como cualquier otro. Lo que
+ * el subsidio cambia es quién cobra, no cuánto se apostó — por eso sale del
+ * denominador del multiplicador y no del de la probabilidad. Con subsidio,
+ * `multiplier > 1 / probability`, y esa diferencia **es** el premio.
+ */
 export function quote(pool: Pool, id: OutcomeId, stake: number): Quote {
   const multiplier = payoutMultiplier(pool, id, stake);
   const total = totalPool(pool) + stake;
@@ -235,17 +331,25 @@ export interface Settlement {
  * con siete la cuenta es la misma: cambia cuántos pozos pierden, no cómo se
  * reparte el que gana.
  *
- * El denominador es **todo** el lado ganador, incluida la semilla que pusimos
- * nosotros para que el mercado arrancara. Repartir sólo entre las apuestas de
- * usuarios pagaría más de lo que dice el multiplicador que se mostró antes de
- * entrar, y el número que se enseña tiene que ser el que se cobra (R-044).
+ * El denominador es `bettorStake(ganador)`: el lado ganador menos lo que no
+ * cobra. En un mercado nacido en modo `"apuesta"` eso es el lado entero, semilla
+ * incluida, y la cuenta es idéntica a la de siempre. En modo `"subsidio"` la
+ * semilla sale del denominador y su parte del reparto se va a los usuarios que
+ * acertaron: la casa nunca cobra de lo que puso (R-067).
  *
- * Caso borde que importa: si **nadie** —ni la semilla— está del lado ganador,
- * no hay a quién repartir. Devolvemos todo, sin comisión: quedarnos con el pozo
- * de un mercado que nadie ganó sería exactamente lo que hace una casa (R-024).
+ * El mismo `bettorStake` que usa `payoutMultiplier`, a propósito. Ésa es la
+ * forma ejecutable de R-044: lo que reparte la liquidación es exactamente lo
+ * que prometió la cotización, y no porque alguien se acuerde de mantener las
+ * dos fórmulas iguales, sino porque son la misma función.
+ *
+ * Caso borde que importa: si **nadie que cobre** está del lado ganador —ni un
+ * usuario, y la semilla no cuenta si es subsidio— no hay a quién repartir.
+ * Devolvemos todo, sin comisión: quedarnos con el pozo de un mercado que nadie
+ * ganó sería exactamente lo que hace una casa (R-024). El subsidio, que no lo
+ * reclamó nadie, se queda en el pozo y vuelve a tesorería.
  */
 export function settle(pool: Pool, bets: Bet[], winner: OutcomeId): Settlement {
-  const winnerStake = outcomeStake(pool, winner);
+  const winnerStake = bettorStake(pool, winner);
   const total = totalPool(pool);
 
   if (winnerStake <= 0) {

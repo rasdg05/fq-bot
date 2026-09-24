@@ -5,6 +5,7 @@ import { renderApp, READY_NO_FUNDS, READY_WITH_FUNDS } from "./helpers";
 import { S } from "@/lib/strings";
 import { SPLASH_MAX_MS } from "@/screens/OnboardingFlow";
 import { MOCK_MARKETS } from "@/adapters/mock/markets";
+import { CATEGORIAS_VISIBLES } from "@/lib/categoria";
 import { appError } from "@/domain/errors";
 
 const waitForP1 = () =>
@@ -33,8 +34,14 @@ describe("Red-team UX", () => {
     renderApp({ overrides: READY_NO_FUNDS });
     await screen.findByTestId("home-screen");
 
-    for (const label of Object.values(S.categories)) {
-      expect(screen.getByRole("tab", { name: label })).toBeInTheDocument();
+    // sólo las que tienen catálogo: `materias-primas` y `clima` existen en el
+    // tipo, con color y glifo, pero una pestaña que filtra a cero mercados
+    // manda a un callejón, así que todavía no salen (R-006)
+    for (const id of CATEGORIAS_VISIBLES) {
+      expect(screen.getByRole("tab", { name: S.categories[id] })).toBeInTheDocument();
+    }
+    for (const id of ["materias-primas", "clima"] as const) {
+      expect(screen.queryByRole("tab", { name: S.categories[id] })).toBeNull();
     }
     const cards = await screen.findAllByTestId("market-card");
     for (const card of cards.slice(0, 5)) {
@@ -46,15 +53,30 @@ describe("Red-team UX", () => {
     }
   });
 
-  it("RT/3 — un Edge de 4 pp o más siempre se ve", async () => {
+  it("RT/3 — un Edge de 4 pp o más siempre se ve, y se ve en el detalle", async () => {
+    const user = userEvent.setup();
     renderApp({ overrides: READY_NO_FUNDS });
     await screen.findByTestId("home-screen");
-    const cards = await screen.findAllByTestId("market-card");
-    const withEdgeInData = MOCK_MARKETS.filter((m) => m.edge !== null).map((m) => m.id);
-    const shown = cards
-      .filter((card) => within(card).queryByTestId("edge-badge"))
-      .map((card) => card.getAttribute("data-market-id"));
-    expect(shown.sort()).toEqual(withEdgeInData.sort());
+    await screen.findAllByTestId("market-card");
+    // el feed no lo enseña por decisión de producto (§4.7 del rediseño v6):
+    // hojear no es decidir. Lo que la prueba defiende es que no se pierda
+    const conEdge = MOCK_MARKETS.filter((m) => m.edge !== null);
+    expect(conEdge.length).toBeGreaterThan(0);
+    for (const market of conEdge) {
+      // se re-consulta el feed en cada vuelta: volver del detalle re-monta la
+      // lista y el nodo de la vuelta anterior ya no está en el documento
+      const vivas = await screen.findAllByTestId("market-card");
+      const card = vivas.find((c) => c.getAttribute("data-market-id") === market.id)!;
+      expect(within(card).queryByTestId("edge-badge")).toBeNull();
+      await user.click(within(card).getByTestId("card-open"));
+      const detalle = await screen.findByTestId("market-detail");
+      expect(
+        within(detalle).getByTestId("edge-badge-detail"),
+        `${market.id} debe enseñar su Edge en el detalle`,
+      ).toBeInTheDocument();
+      await user.click(within(detalle).getByRole("button", { name: S.common.back }));
+      await screen.findByTestId("home-screen");
+    }
   });
 
   it("RT/4 — intentar operar sin saldo abre el depósito en contexto, nunca un muro previo", async () => {
@@ -62,7 +84,7 @@ describe("Red-team UX", () => {
     renderApp({ overrides: READY_NO_FUNDS });
     await screen.findByTestId("home-screen");
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
     const detail = await screen.findByTestId("market-detail");
     // el detalle se ve completo ANTES de pedir dinero
@@ -136,7 +158,7 @@ describe("Red-team UX", () => {
     });
     await screen.findByTestId("home-screen");
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
     await user.dblClick(await screen.findByTestId("detail-trade-cta"));
     await screen.findByTestId("post-trade");
@@ -232,7 +254,7 @@ describe("Red-team UX", () => {
     await screen.findByTestId("home-screen");
     surfaces.push(container.textContent ?? "");
 
-    for (const tab of [S.tabs.search, S.tabs.portfolio, S.tabs.wallet, S.tabs.profile]) {
+    for (const tab of [S.tabs.search, S.tabs.portfolio, S.tabs.profile]) {
       await user.click(screen.getByRole("tab", { name: tab }));
       await waitFor(() => expect(container.textContent).toBeTruthy());
       surfaces.push(container.textContent ?? "");
@@ -240,7 +262,7 @@ describe("Red-team UX", () => {
 
     await user.click(screen.getByRole("tab", { name: S.tabs.markets }));
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
     surfaces.push((await screen.findByTestId("market-detail")).textContent ?? "");
 
@@ -256,7 +278,7 @@ describe("Red-team UX", () => {
     renderApp({ overrides: READY_WITH_FUNDS });
     await screen.findByTestId("home-screen");
     await user.click(
-      within((await screen.findAllByTestId("market-card"))[0]).getByRole("button"),
+      within((await screen.findAllByTestId("market-card"))[0]).getByTestId("card-open"),
     );
     const notice = await screen.findByTestId("aggregation-notice");
     expect(notice).toHaveTextContent(/Marea no es tu contraparte/i);

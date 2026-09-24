@@ -12,6 +12,7 @@ import { formatStake } from "@/lib/units";
 import { shortAddress } from "@/lib/format";
 import { useApp } from "@/state/store";
 import { cn } from "@/lib/cn";
+import { saldoVisible } from "@/domain/saldo";
 
 function Option({
   icon: Icon,
@@ -115,7 +116,7 @@ export function DepositSheet() {
               {S.points.title}
             </p>
             <p className="mt-1 font-display text-prob font-semibold text-text tabular-nums">
-              {formatStake(state.points.balance)}
+              {formatStake(saldoVisible(state, true))}
             </p>
           </div>
 
@@ -148,7 +149,10 @@ export function DepositSheet() {
           <Button
             size="lg"
             data-testid="points-topup"
-            onClick={() => setToppedUp(actions.topUpPoints())}
+            /* con servidor la recarga es una petición, así que puede devolver
+               una promesa. El saldo ya se movió de forma optimista antes de
+               que resuelva: aquí sólo se espera para decir si se logró */
+            onClick={() => void Promise.resolve(actions.topUpPoints()).then(setToppedUp)}
           >
             {S.points.topUp}
           </Button>

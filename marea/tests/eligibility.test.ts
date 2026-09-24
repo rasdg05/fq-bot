@@ -79,3 +79,44 @@ describe("Elegibilidad por país", () => {
     expect(FLAGS.mock_data).toBe(true);
   });
 });
+
+/**
+ * La puerta cerrada, comprobada por **comportamiento** y no por el texto del
+ * archivo de políticas.
+ *
+ * Lo encontró un barrido de mutaciones: poner `allowed = true` en
+ * `eligibilityFor` —abriendo la puerta para todos los países de golpe— dejaba
+ * **la suite entera y `npm run validate` en verde**. `validate` comprueba que
+ * el archivo no contenga `status: "permitido"`, que es una comprobación sobre
+ * los **datos**; y el test que ya existía miraba `canDeposit`, que hoy sigue
+ * en `false` sólo porque todos los topes valen 0.
+ *
+ * Es decir: la puerta aguantaba por una coincidencia —el tope— y no por el
+ * estado. Con un tope distinto de cero en un país `pendiente`, se abría. Esto
+ * ata el comportamiento al estado, que es donde tiene que estar.
+ */
+describe("La puerta de elegibilidad, atada al estado y no al tope", () => {
+  it("ningún país sin opinión legal puede depositar NI operar", () => {
+    for (const [country, policy] of Object.entries(COUNTRY_POLICY)) {
+      if (policy.status === "permitido") continue;
+      const e = eligibilityFor(country as CountryCode);
+      expect(e.canDeposit, `${country} no debe poder depositar (${policy.status})`).toBe(false);
+      expect(e.canTrade, `${country} no debe poder operar (${policy.status})`).toBe(false);
+    }
+  });
+
+  it("hoy no hay ningún país permitido, y el estado lo dice", () => {
+    // si esto se pone rojo es porque alguien abrió un país: tiene que venir con
+    // su opinión legal escrita, y entonces se cambia el test a propósito
+    const permitidos = Object.entries(COUNTRY_POLICY)
+      .filter(([, policy]) => policy.status === "permitido")
+      .map(([country]) => country);
+    expect(permitidos).toEqual([]);
+  });
+
+  it("y explorar sigue sin pedir nada, que es la otra mitad (R-002, I1)", () => {
+    for (const country of Object.keys(COUNTRY_POLICY)) {
+      expect(eligibilityFor(country as CountryCode).canExplore).toBe(true);
+    }
+  });
+});

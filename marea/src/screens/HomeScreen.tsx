@@ -1,20 +1,14 @@
 import * as React from "react";
-import type { Market, MarketCategory } from "@/domain/types";
+import type { Market } from "@/domain/types";
 import { MarketCard } from "@/components/MarketCard";
+import { CarruselDestacados } from "@/components/CarruselDestacados";
 import { Chip, ChipRow } from "@/components/ui/chip";
 import { EmptyState, ErrorState, ListSkeleton } from "@/components/StateViews";
 import { S } from "@/lib/strings";
 import { useApp } from "@/state/store";
 import { hasEdge } from "@/domain/edge";
-
-const CATEGORIES: MarketCategory[] = [
-  "cripto",
-  "economia",
-  "deportes",
-  "politica",
-  "cultura",
-  "otros",
-];
+import { CATEGORIAS_VISIBLES, COLOR_CATEGORIA } from "@/lib/categoria";
+import { FRESCURA_SALDO_MS } from "@/domain/saldo";
 
 function isHot(market: Market): boolean {
   return Boolean(market.hot) || market.status === "live" || hasEdge(market);
@@ -32,7 +26,7 @@ export function HomeScreen() {
   React.useEffect(() => {
     if (markets.status === "loading") void actions.loadMarkets();
     // ¿hay sesión viva? Si la hay, el saldo y las posiciones vuelven solos
-    void actions.cargarCuenta();
+    void actions.cargarCuenta(FRESCURA_SALDO_MS);
     // sólo al montar: el feed no se recarga solo al cambiar de filtro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -44,6 +38,18 @@ export function HomeScreen() {
   );
   const hot = React.useMemo(() => filtered.filter(isHot), [filtered]);
   const rest = React.useMemo(() => filtered.filter((m) => !isHot(m)), [filtered]);
+
+  /**
+   * El pulso de las velas sólo corre si hay velas en pantalla, y se apaga al
+   * salir. Un reloj de tres segundos que sigue latiendo en una pantalla sin
+   * nada vivo es batería de alguien gastada en nada.
+   */
+  const hayVelas = all.some((market) => market.live);
+  React.useEffect(() => {
+    if (!hayVelas) return;
+    return actions.seguirVivos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hayVelas]);
 
   if (markets.status === "loading") {
     return (
@@ -92,10 +98,11 @@ export function HomeScreen() {
         >
           {S.feed.allCategories}
         </Chip>
-        {CATEGORIES.map((id) => (
+        {CATEGORIAS_VISIBLES.map((id) => (
           <Chip
             key={id}
             active={category === id}
+            color={COLOR_CATEGORIA[id]}
             onClick={() => actions.setCategory(id)}
           >
             {S.categories[id]}
@@ -123,15 +130,14 @@ export function HomeScreen() {
               <h2 id="hot-heading" className="sr-only">
                 {S.feed.hotNow}
               </h2>
-              <div className="space-y-2 px-4">
-                {hot.map((market) => (
-                  <MarketCard
-                    key={market.id}
-                    market={market}
-                    onOpen={actions.openMarket}
-                  />
-                ))}
-              </div>
+              {/* en horizontal: los mismos mercados calientes, sin empujar el
+                  resto del catálogo fuera de la primera pantalla */}
+              <CarruselDestacados
+                markets={hot}
+                vivos={state.vivos}
+                onOpen={actions.openMarket}
+                etiqueta={S.feed.hotNow}
+              />
             </section>
           ) : null}
 
@@ -148,6 +154,7 @@ export function HomeScreen() {
                   <MarketCard
                     key={market.id}
                     market={market}
+                    pulso={state.vivos[market.id]}
                     onOpen={actions.openMarket}
                   />
                 ))}

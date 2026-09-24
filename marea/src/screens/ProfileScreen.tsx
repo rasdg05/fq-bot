@@ -1,7 +1,9 @@
 import * as React from "react";
+import { ChevronRight, Trophy, Wallet } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { S } from "@/lib/strings";
+import { isPointsMode } from "@/lib/flags";
 import { cn } from "@/lib/cn";
 import { useApp } from "@/state/store";
 
@@ -72,6 +74,37 @@ export function ProfileScreen() {
             </div>
           )}
         </div>
+      </Card>
+
+      {/* la tabla y la cartera salieron de la barra inferior: no son destinos,
+          son cosas que se consultan, y se consultan desde aquí */}
+      <Card className="divide-y divide-line2 p-0" data-testid="profile-destinos">
+        <button
+          type="button"
+          data-testid="profile-tabla"
+          onClick={() => actions.setTab("tabla")}
+          className="flex min-h-touch w-full items-center justify-between px-5 py-3.5 text-left"
+        >
+          <span className="flex items-center gap-3">
+            <Trophy aria-hidden className="h-[18px] w-[18px] text-teal" />
+            <span className="text-[15px] font-semibold text-text">{S.tabla.title}</span>
+          </span>
+          <ChevronRight aria-hidden className="h-4 w-4 text-muted" />
+        </button>
+        {!isPointsMode() ? (
+          <button
+            type="button"
+            data-testid="profile-cartera"
+            onClick={() => actions.setTab("wallet")}
+            className="flex min-h-touch w-full items-center justify-between px-5 py-3.5 text-left"
+          >
+            <span className="flex items-center gap-3">
+              <Wallet aria-hidden className="h-[18px] w-[18px] text-teal" />
+              <span className="text-[15px] font-semibold text-text">{S.tabs.wallet}</span>
+            </span>
+            <ChevronRight aria-hidden className="h-4 w-4 text-muted" />
+          </button>
+        ) : null}
       </Card>
 
       {/* la tarjeta: una racha contada con palabras no se comparte, una imagen

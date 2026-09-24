@@ -333,6 +333,12 @@ export function createSeriesOracle(options: SeriesOracleOptions = {}): Oracle {
       }
 
       const fecha = new Date(ultima.fecha).toISOString().slice(0, 10);
+      /**
+       * De cuándo es el dato: la fecha de la **observación**, no la de la
+       * consulta. Es la que se congela si el instituto deja de publicar, y por
+       * eso es la única que sirve para saber si la serie sigue viva.
+       */
+      const observedAt = new Date(ultima.fecha).toISOString();
 
       if (rule.comparacion === "menor" || rule.comparacion === "mayor") {
         const umbral = rule.umbral as number;
@@ -342,6 +348,7 @@ export function createSeriesOracle(options: SeriesOracleOptions = {}): Oracle {
           status: "resuelto",
           outcome: cumple ? "si" : "no",
           evidence: `${rule.etiqueta} del ${fecha}: ${ultima.valor} frente al umbral de ${umbral} (serie ${rule.serie}).`,
+          observedAt,
         };
       }
 
@@ -355,6 +362,7 @@ export function createSeriesOracle(options: SeriesOracleOptions = {}): Oracle {
           status: "resuelto",
           outcome: "no",
           evidence: `${rule.etiqueta} del ${fecha}: ${ultima.valor}, sin cambio frente a las observaciones previas (serie ${rule.serie}).`,
+          observedAt,
         };
       }
 
@@ -367,6 +375,7 @@ export function createSeriesOracle(options: SeriesOracleOptions = {}): Oracle {
           `${rule.etiqueta}: pasó de ${anterior.valor} (${new Date(anterior.fecha)
             .toISOString()
             .slice(0, 10)}) a ${ultima.valor} (${fecha}), serie ${rule.serie}.`,
+        observedAt,
       };
     },
   };

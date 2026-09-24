@@ -1,5 +1,6 @@
 import { assertPublishable } from "@/domain/resolution";
-import { SEED, binaryPool, type Pool } from "@/domain/parimutuel";
+import { FRESCURA_MAX_HORAS } from "@/domain/settlement";
+import { SEED, binaryPool, declareSeed, type Pool } from "@/domain/parimutuel";
 import type { MatchRule, PriceRule } from "@/domain/oracleRule";
 import type { OwnMarketSeed } from "./catalog";
 
@@ -38,6 +39,20 @@ function conSeparador(valor: number): string {
   return valor.toLocaleString("en-US");
 }
 
+/**
+ * El umbral como se dice en voz alta y como cabe en la etiqueta de un
+ * resultado: `71k`, no `71,000`. La tarjeta le da unos 13 caracteres a cada
+ * lado, y "Arriba de 71,000" no entra — se recortaba justo en el número, que
+ * es lo único que no se puede recortar.
+ */
+function nivelCorto(valor: number): string {
+  if (valor >= 1000) {
+    const miles = valor / 1000;
+    return `${Number.isInteger(miles) ? miles : miles.toFixed(1)}k`;
+  }
+  return conSeparador(valor);
+}
+
 /** Próximo domingo a las 23:59 UTC, en cuya vela diaria se lee el cierre. */
 export function proximoCierreSemanal(now: number): number {
   const fecha = new Date(now);
@@ -55,8 +70,22 @@ export function proximoCierreSemanal(now: number): number {
   return domingo.getTime();
 }
 
+/**
+ * Los mercados generados nacen con la semilla **declarada** y en modo
+ * `"apuesta"`, igual que el catálogo estático.
+ *
+ * R-067 pide que la liquidez de la casa sea subsidio, pero pide subsidio
+ * declarado **con tope**, y el tope todavía no existe (es `domain/presupuesto.ts`,
+ * fase L9). Encender el subsidio antes que el freno sería comprometer un coste
+ * por mercado sin nada que lo apague, que es la mitad de la regla y la mitad
+ * cara. Un tope que no apaga nada es un comentario.
+ *
+ * Lo que sí cambia hoy: la semilla queda **registrada**. Sin ese registro, media
+ * hora después de abrir el mercado ya no se puede saber cuánto del pozo es de la
+ * casa — y eso es justo lo que el presupuesto de L9 va a tener que sumar.
+ */
 function seedPool(si: number, no: number): Pool {
-  return binaryPool(si, no, FEE_BPS);
+  return declareSeed(binaryPool(si, no, FEE_BPS), "apuesta");
 }
 
 interface Plantilla {
@@ -101,6 +130,13 @@ function cierreSemanal(
   return {
     id: `${plantilla.id}-cierre-${semana}`,
     title: `¿${plantilla.nombre} cierra la semana arriba de ${conSeparador(umbral)} dólares?`,
+    shortTitle: `${plantilla.nombre} arriba de ${conSeparador(umbral)} el domingo`,
+    // los dos lados se llaman por lo que son. "Sí" y "No" no dicen de qué lado
+    // está uno cuando la pregunta ya no está a la vista (§3.3 del rediseño)
+    outcomes: [
+      { id: "si", label: `Arriba de ${nivelCorto(umbral)}` },
+      { id: "no", label: `Abajo de ${nivelCorto(umbral)}` },
+    ],
     category: "cripto",
     country: "LATAM",
     closesAt: new Date(settlesAtMs - CIERRE_ANTES_MS).toISOString(),
@@ -115,6 +151,9 @@ function cierreSemanal(
       )} dólares. Se lee del endpoint público de Kraken, que cualquiera puede consultar.`,
       settlesAt,
       disputeWindowHours: 12,
+      // vela diaria de Kraken / marcador de ESPN: fuentes que laten a diario,
+      // así que aquí el reloj SÍ dice si el colector sigue vivo (L8)
+      maxAgeHours: FRESCURA_MAX_HORAS,
     },
   };
 }
@@ -138,6 +177,11 @@ function tocaEnElMes(plantilla: Plantilla, spot: number, now: number): OwnMarket
   return {
     id: `${plantilla.id}-toca-${desde.slice(0, 10)}`,
     title: `¿${plantilla.nombre} toca ${conSeparador(umbral)} dólares en 30 días?`,
+    shortTitle: `${plantilla.nombre} toca ${conSeparador(umbral)} en 30 días`,
+    outcomes: [
+      { id: "si", label: `Toca ${nivelCorto(umbral)}` },
+      { id: "no", label: "No lo toca" },
+    ],
     category: "cripto",
     country: "LATAM",
     // el mercado deja de aceptar apuestas cuando resuelve, y puede resolver antes
@@ -155,6 +199,9 @@ function tocaEnElMes(plantilla: Plantilla, spot: number, now: number): OwnMarket
       )}, medido sobre el máximo de las velas diarias públicas.`,
       settlesAt,
       disputeWindowHours: 12,
+      // vela diaria de Kraken / marcador de ESPN: fuentes que laten a diario,
+      // así que aquí el reloj SÍ dice si el colector sigue vivo (L8)
+      maxAgeHours: FRESCURA_MAX_HORAS,
     },
   };
 }
@@ -225,6 +272,11 @@ export function partidoSeed(partido: PartidoDeLaLiga): OwnMarketSeed {
   return {
     id: `mx-${clave}-${dia}`,
     title: `¿${partido.local} le gana a ${partido.visitante}?`,
+    shortTitle: `${partido.local} le gana a ${partido.visitante}`,
+    outcomes: [
+      { id: "si", label: `Gana ${partido.local}` },
+      { id: "no", label: "Empata o pierde" },
+    ],
     category: "deportes",
     country: "MX",
     // se cierra al arrancar el partido: con el marcador a la vista ya no es
@@ -238,6 +290,9 @@ export function partidoSeed(partido: PartidoDeLaLiga): OwnMarketSeed {
       criterion: `Se resuelve Sí si ${partido.local} le gana a ${partido.visitante} en el partido del ${dia}, según el marcador final que publica ESPN. Un empate resuelve No.`,
       settlesAt,
       disputeWindowHours: 12,
+      // vela diaria de Kraken / marcador de ESPN: fuentes que laten a diario,
+      // así que aquí el reloj SÍ dice si el colector sigue vivo (L8)
+      maxAgeHours: FRESCURA_MAX_HORAS,
     },
   };
 }
