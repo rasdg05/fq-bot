@@ -7,6 +7,8 @@ import {
   detectStructuring,
   effectiveCapForUser,
   effectiveCapUsd,
+  kycTrigger,
+  screenDestino,
   type Retiro,
 } from "@/domain/niveles";
 
@@ -137,5 +139,49 @@ describe("Anti-structuring por ventana móvil (R-070)", () => {
       AHORA,
     ).acumuladoUsd;
     expect(despues).toBeGreaterThanOrEqual(antes);
+  });
+});
+
+describe("Lista cerrada de disparadores de KYC (R-072)", () => {
+  const nada = { cruzoTope: false, structuringDetectado: false, subeVoluntario: false };
+
+  it("sin ninguna condición no pide papeles (null)", () => {
+    expect(kycTrigger(nada)).toBeNull();
+  });
+
+  it("cada condición cerrada dispara su motivo", () => {
+    expect(kycTrigger({ ...nada, cruzoTope: true })).toBe("tope");
+    expect(kycTrigger({ ...nada, structuringDetectado: true })).toBe("structuring");
+    expect(kycTrigger({ ...nada, subeVoluntario: true })).toBe("voluntario");
+  });
+
+  it("precedencia estable: tope > structuring > voluntario", () => {
+    expect(
+      kycTrigger({ cruzoTope: true, structuringDetectado: true, subeVoluntario: true }),
+    ).toBe("tope");
+    expect(
+      kycTrigger({ cruzoTope: false, structuringDetectado: true, subeVoluntario: true }),
+    ).toBe("structuring");
+  });
+});
+
+describe("Screening de sanciones bidireccional (R-071)", () => {
+  const bloqueadas = new Set(["0xBAD"]);
+  const isSanctioned = (dir: string) => bloqueadas.has(dir);
+
+  it("rechaza una dirección bloqueada en ambos sentidos, sin excepción", () => {
+    expect(screenDestino("0xBAD", isSanctioned, "retiro").firmar).toBe(false);
+    expect(screenDestino("0xBAD", isSanctioned, "deposito").firmar).toBe(false);
+  });
+
+  it("deja pasar una dirección limpia", () => {
+    expect(screenDestino("0xGOOD", isSanctioned, "retiro").firmar).toBe(true);
+    expect(screenDestino("0xGOOD", isSanctioned, "deposito").firmar).toBe(true);
+  });
+
+  it("rechazar no es confiscar: el motivo de retiro dice que el saldo sigue siendo del usuario", () => {
+    const r = screenDestino("0xBAD", isSanctioned, "retiro");
+    expect(r.firmar).toBe(false);
+    expect(r.motivo).toMatch(/tuyo|otra dirección/i);
   });
 });

@@ -201,3 +201,75 @@ export function detectStructuring(
     motivo,
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Lista cerrada de disparadores de KYC (R-072)
+//
+// El KYC no aparece de forma arbitraria durante la experiencia. La lista es
+// cerrada por el tipo de retorno: sólo estas tres condiciones lo disparan.
+// Fuera de ellas, null — no se piden papeles (R-002).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type KycTrigger = "tope" | "structuring" | "voluntario";
+
+export interface KycContext {
+  /** El usuario cruzó (o cruzaría con esta operación) el tope de operación acumulada. */
+  cruzoTope: boolean;
+  /** El patrón de anti-structuring se disparó (R-070). */
+  structuringDetectado: boolean;
+  /** El usuario pidió subir de nivel voluntariamente. */
+  subeVoluntario: boolean;
+}
+
+/**
+ * R-072 — devuelve qué condición cerrada dispara el KYC, o null si ninguna.
+ * Precedencia estable para el motivo que se muestra: tope > structuring >
+ * voluntario. Añadir un disparador nuevo exige tocar este tipo y esta función,
+ * a propósito: la lista no crece sola.
+ */
+export function kycTrigger(ctx: KycContext): KycTrigger | null {
+  if (ctx.cruzoTope) return "tope";
+  if (ctx.structuringDetectado) return "structuring";
+  if (ctx.subeVoluntario) return "voluntario";
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Screening de sanciones bidireccional (R-071)
+//
+// Rechaza en ambos sentidos (depósito y retiro), sin excepción por nivel — por
+// eso esta función ni siquiera recibe el nivel: no hay forma de conceder una
+// excepción. Rechazar es NO firmar, nunca retener: no toca saldo. El saldo sigue
+// siendo del usuario, que puede reintentar hacia otra dirección que sí pase.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type SentidoTransferencia = "deposito" | "retiro";
+
+export interface ScreeningResult {
+  /** Si Marea firma esta transferencia. */
+  firmar: boolean;
+  /** Motivo mostrable, en español. */
+  motivo: string;
+}
+
+/**
+ * R-071 — decide si se firma una transferencia contra una dirección. El screening
+ * (la fuente de la lista de sanciones) entra como predicado inyectado, para no
+ * acoplar el dominio a ninguna fuente concreta.
+ */
+export function screenDestino(
+  direccion: string,
+  isSanctioned: (dir: string) => boolean,
+  sentido: SentidoTransferencia = "retiro",
+): ScreeningResult {
+  if (isSanctioned(direccion)) {
+    return {
+      firmar: false,
+      motivo:
+        sentido === "retiro"
+          ? "No podemos firmar un retiro hacia una dirección bloqueada. Tu saldo sigue siendo tuyo: puedes retirar a otra dirección."
+          : "No podemos aceptar fondos desde una dirección bloqueada.",
+    };
+  }
+  return { firmar: true, motivo: "ok" };
+}
