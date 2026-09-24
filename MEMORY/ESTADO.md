@@ -226,7 +226,8 @@ La app de `marea/`. **No es el bot** y no comparte motor, pero sí memoria y dis
 | Suite de Marea | 289 verdes + 11 nuevas · **4 rojas preexistentes**: el catálogo tiene fechas de julio/agosto y ya caducó (R-041). Se arreglan con `npm run roll`, no con código |
 | Arquitectura en cadena | **diseño** — **Base decidida** (2026-09-01), nada desplegado |
 | Semilla | hoy **apuesta** (puede cobrar). **Decidido pasarla a subsidio**; sin cablear |
-| Reglas | **R-065 a R-068 escritas** — 68 en `RULINGS.md` |
+| Reglas | **R-069 a R-072 escritas** (verificación/cumplimiento) — **72** en `RULINGS.md` |
+| Verificación por niveles | escalera N0–N3 + compuerta (R-069 tope en contrato, R-070 anti-structuring, R-071 screening bidireccional, R-072 lista cerrada KYC) **cableadas como reglas** (2026-09-24). Falta el dominio puro `domain/niveles.ts`; los topes esperan la opinión legal (P11/P15–P18) |
 
 **Tiempos (2026-09-01):** lanzamiento en puntos con la cámara nueva **6–8 semanas**;
 con dinero real **7–9 meses realista**, y el reloj lo marcan la opinión legal y la

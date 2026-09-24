@@ -303,6 +303,16 @@ documento** · N3 verificado. Encaja con `eligibility.ts`, que ya tiene `deposit
 país: el tope efectivo es `min(cap_país, cap_nivel)`. **L16 (nueva):** el tope se hace cumplir
 donde está el dinero, no en la pantalla.
 
+**Rev. 2026-09-24 (revisión de un colaborador).** Se cablearon cuatro reglas de cumplimiento en
+`RULINGS.md`: **R-069** tope por nivel donde vive el dinero (ata L16) · **R-070** anti-structuring
+por ventana móvil acumulada (30 días, valor de trabajo) · **R-071** screening de sanciones
+bidireccional, *rechazar no es confiscar* · **R-072** lista cerrada de disparadores de KYC. Se
+resolvió el doble origen de N2 (cripto nativo vs KYC heredado de rampa): **mismo tope**, porque
+detectar la procedencia no es viable. Se sumó recordatorio fiscal a `VOICE.md` y las preguntas
+**P15–P18** al encargo (dieciocho en total). Nota de unidades: art. 115 LIC va en **UDIs**,
+LFPIORPI en **UMA** — no mezclar. La estructura (escalera + compuerta) es construible ya como
+dominio puro; los números de topes esperan la opinión legal.
+
 **El P2P queda fuera.** Un tablero donde la gente cambia cripto por moneda local es cambio de
 divisas o transmisión de dinero, toca dinero de banco por definición y **dominaría todo el
 análisis legal** — desmontando el argumento más fuerte del plan actual, que es no tocarlo en
@@ -335,10 +345,11 @@ ningún punto. La reputación que gustaba de la idea se tiene sin el tablero.
   escala** que convierte «millones» en usuarios activos —$1M/año ≈ 18,500 MAU al 3%—, dónde
   estamos hoy sin adorno, los cuatro riesgos y las cuatro decisiones que se le piden al
   consejo. Fuente: `marea/vault/memo-consejo.html`.
-- **`planos-construccion.pdf`** — *Planos de construcción* (7 páginas A3). Seis planos: el
+- **`planos-construccion.pdf`** — *Planos de construcción* (8 páginas A3). Siete planos: el
   sistema, el árbol de época corregido con L15, el ciclo de un mercado, los contratos
-  (~410 líneas propias), **el árbol de archivos a construir** y el orden de obra con los
-  tres hitos. Es el plano que se ejecuta. Fuente:
+  (~410 líneas propias), **el árbol de archivos a construir**, el orden de obra con los
+  tres hitos, y **el plano 07 "La escalera y la compuerta"** (verificación por niveles N0–N3 +
+  la compuerta de cumplimiento R-069…R-072). Es el plano que se ejecuta. Fuente:
   `marea/vault/planos-construccion.html`.
 - `fig-aritmetica-camino.png` — la aritmética, el camino de $0 a activa y la escalera de fees.
 - `fig-arquitectura-cadena.png` — las tres pruebas, el mapa de contratos, la cadena y los ingresos.

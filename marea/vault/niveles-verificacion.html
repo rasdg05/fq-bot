@@ -154,7 +154,7 @@ nivel 2 los fija él; la estructura no depende de eso.</p>
     <div class="tope">sin tope<br>puntos, no dinero</div></div>
 
   <div class="fila"><div class="niv"><div class="n">N2</div><div class="q">operador</div></div>
-    <div class="cu"><div class="t">Wallet propia + screening de sanciones + país declarado</div><div class="d">Operar con USDC bajo tope acumulado y tope por operación. <strong>Sin documento de identidad.</strong> Es el nivel que hace que el producto sea usable por alguien que llega de cero.</div></div>
+    <div class="cu"><div class="t">Wallet propia + screening de sanciones + país declarado</div><div class="d">Operar con USDC bajo tope acumulado y tope por operación. <strong>Sin documento de identidad.</strong> Es el nivel que hace que el producto sea usable por alguien que llega de cero. Admite <strong>dos orígenes</strong> —USDC cripto nativo y USDC de una rampa que ya hizo KYC (tipo Bitso)— con <strong>el mismo trato</strong>: detectar la procedencia no es viable (los exchanges rotan wallets y el hopping borra el rastro), así que el KYC heredado es argumento de riesgo interno, no un tope más alto.</div></div>
     <div class="tope">tope de nivel<br>+ tope por operación<br><span style="color:var(--dn)">lo fija el abogado</span></div></div>
 
   <div class="fila n3"><div class="niv"><div class="n">N3</div><div class="q">verificado</div></div>
@@ -171,16 +171,28 @@ añadir una columna.</div>
 <div class="nota w"><div class="lb">El tope se hace cumplir donde está el dinero</div>
 Un tope que sólo vive en la pantalla es decorativo: se salta con la consola del navegador. En una
 arquitectura no custodial el límite tiene que estar <b>en el contrato o en el motor de cruce</b>, que
-es donde ocurre la operación. <b>Invariante nueva:</b> <i>el tope de nivel se hace cumplir donde
-está el dinero, no en la interfaz.</i> La prueba que la fija: una operación que excede el tope se
-rechaza aunque se pida saltándose la app.</div>
+es donde ocurre la operación. <b>Invariante:</b> <i>el tope de nivel se hace cumplir donde
+está el dinero, no en la interfaz</i> (L16, cableada en <b>R-069</b>). La prueba que la fija: una
+operación que excede el tope se rechaza aunque se pida saltándose la app.</div>
+
+<div class="nota"><div class="lb">Dos reglas que protegen el tope</div>
+<b>Anti-structuring (R-070):</b> el tope no sirve si se puede fragmentar. Los retiros se evalúan sobre
+una <b>ventana móvil acumulada</b> (30 días como valor de trabajo hasta que el abogado lo confirme, P15):
+varios retiros bajo el umbral que sumados lo cruzan disparan verificación como una sola operación, y el
+cambio recurrente de dirección destino en ventana corta también. Se detecta el patrón, no la operación
+suelta. <b>Lista cerrada de KYC (R-072):</b> el KYC no aparece de forma arbitraria — sólo lo disparan
+cruzar el tope acumulado, un patrón de anti-structuring, o subir de nivel voluntariamente. Fuera de esas
+tres, la app no pide papeles.</div>
 
 <h2><span class="n">02</span>Las dos cosas que NO tienen nivel</h2>
 <ul class="lista">
   <li><strong>El screening de sanciones.</strong> No es KYC y no admite escalera: aplica a todos
     desde N0, siempre. Es una lista de direcciones bloqueadas, cuesta 2–3 días de trabajo, y es lo
     único de este bloque que ha hundido equipos cripto de verdad. Un usuario N2 sin documento es una
-    decisión de riesgo defendible; un usuario sancionado operando no lo es en ningún nivel.</li>
+    decisión de riesgo defendible; un usuario sancionado operando no lo es en ningún nivel.
+    <strong>Rechaza en ambos sentidos</strong> (R-071): Marea no firma una transacción hacia una
+    dirección bloqueada aunque el usuario retire lo suyo. Y <strong>rechazar no es confiscar</strong>:
+    el saldo sigue siendo del usuario, que puede retirar a otra dirección que sí pase el screening.</li>
   <li><strong>Explorar.</strong> Mirar el catálogo no cuesta ni pide permiso, en ningún país y en
     ningún nivel. Ya es regla del producto y no se toca.</li>
 </ul>
@@ -213,7 +225,7 @@ de niveles sin que nosotros operemos ningún intercambio. Se queda lo que te gus
 deja fuera lo que la hace cara.</div>
 
 <div class="pb"></div>
-<h2><span class="n">04</span>Cuatro preguntas más para el abogado</h2>
+<h2><span class="n">04</span>Ocho preguntas más para el abogado</h2>
 <p class="sub">Se suman a las diez del encargo, con la misma regla: cada una con su consecuencia
 escrita.</p>
 
@@ -229,6 +241,23 @@ escrita.</p>
 <div class="q keep"><div class="h"><span class="num">14</span><span class="tx">Si en el futuro se añadiera un tablero donde usuarios intercambian cripto por moneda local entre ellos: ¿qué actividad sería y qué exigiría?</span></div>
 <div class="imp"><span class="lb">Consecuencia</span><br>Es la pregunta que decide si el P2P entra alguna vez al plan. Se pregunta ahora, aunque no se vaya a construir, porque la respuesta determina si vale la pena siquiera diseñarlo.</div></div>
 
+<div class="q keep"><div class="h"><span class="num">15</span><span class="tx">¿Cuál es la ventana móvil correcta para el anti-structuring bajo régimen mexicano? Usamos 30 días como valor de trabajo.</span></div>
+<div class="imp"><span class="lb">Consecuencia</span><br>Fija el parámetro de la ventana acumulada de R-070. Sin el número del abogado, la regla corre con 30 días como provisional.</div></div>
+
+<div class="q keep"><div class="h"><span class="num">16</span><span class="tx">Un retiro a wallet cripto propia del usuario, ¿cae fuera del régimen de identificación de la LIC y de la Ley Antilavado (LFPIORPI), o hay algún matiz que se nos escape?</span></div>
+<div class="imp"><span class="lb">Consecuencia</span><br>Si cae fuera, la escalera es control de riesgo propio. Si hay matiz, define qué obligación entra y desde qué monto — y de ahí sale el umbral del recordatorio fiscal.</div></div>
+
+<div class="q keep"><div class="h"><span class="num">17</span><span class="tx">Siendo no custodiales, ¿qué obligación de reporte tiene Marea ante el SAT o la UIF sobre las operaciones de sus usuarios?</span></div>
+<div class="imp"><span class="lb">Consecuencia</span><br>Define si generamos avisos o reportes, cuáles, con qué periodicidad, y qué disparadores conviene automatizar desde el principio.</div></div>
+
+<div class="q keep"><div class="h"><span class="num">18</span><span class="tx">El KYC heredado del proveedor de rampa (Bitso y similares), ¿tiene reconocimiento legal explícito para justificar topes propios más altos, o es sólo un argumento de riesgo interno?</span></div>
+<div class="imp"><span class="lb">Consecuencia</span><br>Decide si N2 puede diferenciar topes por origen. Si no, se queda como está: mismo tope para el cripto nativo y para el KYC heredado.</div></div>
+
+<div class="nota"><div class="lb">Nota de unidades para el abogado</div>
+El régimen de cuentas por niveles del <b>art. 115 LIC</b> se expresa en <b>UDIs</b>; el de actividades
+vulnerables (<b>LFPIORPI</b>) en <b>UMA</b>. Son regímenes distintos y no se mezclan — cuál nos aplica,
+si alguno, es parte de las preguntas 11 y 16.</div>
+
 <h2><span class="n">05</span>Qué se puede construir ya, y qué espera</h2>
 <table>
   <thead><tr><th>Pieza</th><th>Estado</th><th>Por qué</th></tr></thead>
@@ -236,6 +265,10 @@ escrita.</p>
     <tr><td>La escalera N0–N3 como estructura</td><td class="c" style="color:var(--up)">YA</td><td>No depende de ningún umbral. Es una columna en la tabla de usuarios y una comprobación</td></tr>
     <tr><td>Tope efectivo = mín(país, nivel)</td><td class="c" style="color:var(--up)">YA</td><td>El tope por país ya existe; falta cruzarlo con el del usuario</td></tr>
     <tr><td>Screening de sanciones desde N0</td><td class="c" style="color:var(--up)">YA</td><td>2–3 días. No espera a nadie y no admite escalera</td></tr>
+    <tr><td>Screening bidireccional (R-071)</td><td class="c" style="color:var(--up)">YA</td><td>Es política de firma, no un umbral. Rechazar no es confiscar</td></tr>
+    <tr><td>Lista cerrada de disparadores de KYC (R-072)</td><td class="c" style="color:var(--up)">YA</td><td>El KYC no aparece de forma arbitraria</td></tr>
+    <tr><td>Anti-structuring por ventana móvil (R-070)</td><td class="c" style="color:var(--up)">YA</td><td>La estructura no depende del número; la ventana exacta espera la pregunta 15</td></tr>
+    <tr><td>Recordatorio fiscal en el retiro</td><td class="c" style="color:var(--up)">YA</td><td>El copy ya está; el monto que lo dispara espera 16/18</td></tr>
     <tr><td>Insignia de verificado y sus funciones</td><td class="c" style="color:var(--up)">YA</td><td>Es producto, no cumplimiento</td></tr>
     <tr><td>El número del tope de N2</td><td class="c" style="color:var(--hot)">ESPERA</td><td>Lo fija la respuesta a la pregunta 11</td></tr>
     <tr><td>Proveedor de verificación de identidad (N3)</td><td class="c" style="color:var(--hot)">ESPERA</td><td>Depende de qué expediente exija la jurisdicción elegida</td></tr>
@@ -250,5 +283,5 @@ Por eso el diseño de arriba está hecho para <b>sostenerse pase lo que pase</b>
 nada, es control de riesgo propio y una buena función de producto; si nos aplica algo, ya estamos
 en la forma que el marco espera.</div>
 
-<div class="pie"><span>Marea · Niveles de verificación · 2026-09-01</span><span>marea/vault/NIVELES_VERIFICACION.md</span></div>
+<div class="pie"><span>Marea · Niveles de verificación · 2026-09-01 · rev. 2026-09-24</span><span>marea/vault/NIVELES_VERIFICACION.md</span></div>
 </body></html>
