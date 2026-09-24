@@ -313,6 +313,13 @@ detectar la procedencia no es viable. Se sumó recordatorio fiscal a `VOICE.md` 
 LFPIORPI en **UMA** — no mezclar. La estructura (escalera + compuerta) es construible ya como
 dominio puro; los números de topes esperan la opinión legal.
 
+**Cableado 2026-09-24 · `src/domain/niveles.ts` (dominio puro, 18 pruebas).** La escalera N0–N3
+como estructura, `effectiveCapUsd = min(cap_país, cap_nivel)` (R-069/L16), `detectStructuring`
+sobre ventana móvil (R-070), `kycTrigger` como lista cerrada (R-072) y `screenDestino`
+bidireccional (R-071). No importa `eligibility.ts` ni abre la puerta; recibe el tope de país por
+parámetro. Falta cablearlo a la app y la pantalla del verificador (zona del 2º dev), y los
+números (topes, ventana) que fija el abogado.
+
 **El P2P queda fuera.** Un tablero donde la gente cambia cripto por moneda local es cambio de
 divisas o transmisión de dinero, toca dinero de banco por definición y **dominaría todo el
 análisis legal** — desmontando el argumento más fuerte del plan actual, que es no tocarlo en

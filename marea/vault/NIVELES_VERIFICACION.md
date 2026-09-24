@@ -119,12 +119,12 @@ de la idea y se deja fuera lo que la hace cara.
 
 | Pieza | Estado |
 |---|---|
-| La escalera N0–N3 como estructura | **ya** — no depende de ningún umbral |
-| Tope efectivo `min(país, nivel)` | **ya** |
-| Screening de sanciones desde N0 | **ya** — 2–3 días |
-| Screening bidireccional (R-071) | **ya** — es política de firma, no umbral |
-| Lista cerrada de disparadores de KYC (R-072) | **ya** |
-| Anti-structuring por ventana móvil (R-070) | **ya** la estructura — el número de ventana espera P15 |
+| La escalera N0–N3 como estructura | **hecho** · `domain/niveles.ts` (`ESCALERA`) |
+| Tope efectivo `min(país, nivel)` | **hecho** · `effectiveCapUsd` (R-069/L16) |
+| Screening de sanciones desde N0 | **ya** — 2–3 días (fuente de la lista, pendiente) |
+| Screening bidireccional (R-071) | **hecho** · `screenDestino` — política de firma, no umbral |
+| Lista cerrada de disparadores de KYC (R-072) | **hecho** · `kycTrigger` |
+| Anti-structuring por ventana móvil (R-070) | **hecho** la estructura · `detectStructuring` — el número de ventana espera P15 |
 | Recordatorio fiscal en el retiro (VOICE) | **ya** el copy — el monto que lo dispara espera P16/P18 |
 | Insignia de verificado y sus funciones | **ya** — es producto, no cumplimiento |
 | El número del tope de N2 | espera P11 |

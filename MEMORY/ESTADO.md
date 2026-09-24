@@ -227,7 +227,7 @@ La app de `marea/`. **No es el bot** y no comparte motor, pero sí memoria y dis
 | Arquitectura en cadena | **diseño** — **Base decidida** (2026-09-01), nada desplegado |
 | Semilla | hoy **apuesta** (puede cobrar). **Decidido pasarla a subsidio**; sin cablear |
 | Reglas | **R-069 a R-072 escritas** (verificación/cumplimiento) — **72** en `RULINGS.md` |
-| Verificación por niveles | escalera N0–N3 + compuerta (R-069 tope en contrato, R-070 anti-structuring, R-071 screening bidireccional, R-072 lista cerrada KYC) **cableadas como reglas** (2026-09-24). Falta el dominio puro `domain/niveles.ts`; los topes esperan la opinión legal (P11/P15–P18) |
+| Verificación por niveles | escalera N0–N3 + compuerta **vivas en `domain/niveles.ts`** (2026-09-24): `effectiveCapUsd` (R-069/L16), `detectStructuring` (R-070), `kycTrigger` (R-072), `screenDestino` (R-071), 18 pruebas. Falta cablearlo a la app y la pantalla del verificador (2º dev); los topes/ventana esperan la opinión legal (P11/P15–P18) |
 
 **Tiempos (2026-09-01):** lanzamiento en puntos con la cámara nueva **6–8 semanas**;
 con dinero real **7–9 meses realista**, y el reloj lo marcan la opinión legal y la
