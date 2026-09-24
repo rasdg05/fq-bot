@@ -64,7 +64,7 @@ export function MarketDetailScreen({ market }: { market: Market }) {
           type="button"
           onClick={actions.closeMarket}
           aria-label={S.common.back}
-          className="grid h-touch w-touch place-items-center rounded-full text-text2 hover:text-text"
+          className="grid h-touch w-touch place-items-center rounded-full text-text2 transition-colors hover:bg-panel2 hover:text-text"
         >
           <ArrowLeft aria-hidden className="h-5 w-5" />
         </button>
@@ -88,7 +88,7 @@ export function MarketDetailScreen({ market }: { market: Market }) {
           </span>
         </div>
 
-        <h1 className="mt-3 font-display text-[24px] font-semibold leading-snug text-text">
+        <h1 className="mt-3 font-display text-[25px] font-semibold leading-[1.2] tracking-[-0.015em] text-text">
           {market.title}
         </h1>
 
@@ -104,7 +104,7 @@ export function MarketDetailScreen({ market }: { market: Market }) {
                 %
               </span>
             </div>
-            <div className="mt-1 text-[12px] font-medium uppercase tracking-wide text-muted">
+            <div className="mt-1 text-[13px] font-medium text-muted">
               {market.pool ? S.market.hereLabel : S.market.probability}
             </div>
           </div>
@@ -144,9 +144,9 @@ export function MarketDetailScreen({ market }: { market: Market }) {
           </div>
         ) : null}
 
-        <dl className="mt-4 grid grid-cols-2 gap-3">
-          <div className="rounded-card border border-line2 bg-panel px-4 py-3">
-            <dt className="text-[12px] uppercase tracking-wide text-muted">
+        <dl className="mt-5 grid grid-cols-2 divide-x divide-line2 rounded-card border border-line2 bg-panel">
+          <div className="px-4 py-3.5">
+            <dt className="text-[13px] text-muted">
               {/* en mercado propio no es volumen operado: es el pozo */}
               {market.pool ? S.market.pot : S.market.volume}
             </dt>
@@ -154,8 +154,8 @@ export function MarketDetailScreen({ market }: { market: Market }) {
               {market.pool ? formatStake(market.volume) : compactUsd(market.volume)}
             </dd>
           </div>
-          <div className="rounded-card border border-line2 bg-panel px-4 py-3">
-            <dt className="text-[12px] uppercase tracking-wide text-muted">
+          <div className="px-4 py-3.5">
+            <dt className="text-[13px] text-muted">
               {S.market.closes}
             </dt>
             <dd className="mt-0.5 font-mono text-[15px] font-semibold text-text tabular-nums">
@@ -179,7 +179,7 @@ export function MarketDetailScreen({ market }: { market: Market }) {
             data-testid="pool-breakdown"
             className="mt-4 rounded-card border border-line2 bg-panel px-4 py-3"
           >
-            <h2 className="text-[12px] font-bold uppercase tracking-wide text-muted">
+            <h2 className="text-[13px] font-medium text-muted">
               {S.market.poolTitle}
             </h2>
             <p className="mt-1.5 text-[14px] leading-relaxed text-text2">
@@ -205,7 +205,7 @@ export function MarketDetailScreen({ market }: { market: Market }) {
           type="button"
           data-testid="market-share"
           onClick={() => void compartirMercado(market, setCompartido)}
-          className="mt-4 min-h-[44px] w-full rounded-card border border-line2 bg-panel text-[14px] font-semibold text-teal"
+          className="mt-4 min-h-[44px] w-full rounded-ctl border border-line bg-panel text-[14px] font-semibold text-text transition-colors hover:bg-panel2"
         >
           {compartido ? S.market.compartido : S.market.compartir}
         </button>
@@ -215,7 +215,7 @@ export function MarketDetailScreen({ market }: { market: Market }) {
           data-testid="resolution-summary"
           className="mt-4 rounded-card border border-line2 bg-panel px-4 py-3"
         >
-          <h2 className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-wide text-muted">
+          <h2 className="flex items-center gap-2 text-[13px] font-medium text-muted">
             <ShieldCheck aria-hidden className="h-4 w-4" />
             {S.market.resolution}
           </h2>
@@ -289,7 +289,7 @@ export function MarketDetailScreen({ market }: { market: Market }) {
                     data-testid={`outcome-${outcome.id}`}
                     onClick={() => setSide(outcome.id)}
                     className={cn(
-                      "flex min-h-touch w-full items-center justify-between gap-3 rounded-card border px-4 py-3 text-left transition-colors",
+                      "flex min-h-touch w-full items-center justify-between gap-3 rounded-ctl border px-4 py-3 text-left transition-colors",
                       elegido
                         ? "border-teal bg-teal-soft"
                         : "border-line2 bg-panel",
@@ -319,7 +319,7 @@ export function MarketDetailScreen({ market }: { market: Market }) {
         )}
 
         <div className="mt-4">
-          <p className="mb-2 text-[12px] font-bold uppercase tracking-wide text-muted">
+          <p className="mb-2 text-[13px] font-medium text-muted">
             {S.market.amount}
           </p>
           <div className="flex gap-2">
@@ -330,10 +330,10 @@ export function MarketDetailScreen({ market }: { market: Market }) {
                 aria-pressed={amount === value}
                 onClick={() => setAmount(value)}
                 className={cn(
-                  "min-h-touch flex-1 rounded-pill border text-[15px] tabular-nums transition-colors",
+                  "min-h-touch flex-1 rounded-ctl border text-[15px] tabular-nums transition-colors",
                   amount === value
                     ? "border-teal bg-teal-soft font-bold text-teal"
-                    : "border-line2 font-medium text-text2",
+                    : "border-line bg-panel font-medium text-text2",
                 )}
               >
                 {formatStake(value)}

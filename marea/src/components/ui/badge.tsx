@@ -8,15 +8,15 @@ import { cn } from "@/lib/cn";
  * refuerzo, no el portador del significado.
  */
 const badgeVariants = cva(
-  "inline-flex items-center gap-1.5 rounded-pill border px-2 py-0.5 font-sans text-[11px] font-bold tracking-[0.06em]",
+  "inline-flex items-center gap-1.5 rounded-pill border border-transparent px-2 py-0.5 font-sans text-[11px] font-semibold tracking-[0.02em]",
   {
     variants: {
       tone: {
-        live: "border-[color:var(--live)] text-[color:var(--live)]",
-        hot: "border-[color:var(--hot)] text-[color:var(--hot)]",
-        latam: "border-line text-text2",
-        neutral: "border-line2 text-muted",
-        edge: "border-teal bg-teal-soft text-teal",
+        live: "bg-[color:color-mix(in_srgb,var(--live)_14%,transparent)] text-[color:var(--live)]",
+        hot: "bg-[color:color-mix(in_srgb,var(--hot)_14%,transparent)] text-[color:var(--hot)]",
+        latam: "bg-panel2 text-text2",
+        neutral: "bg-panel2 text-muted",
+        edge: "bg-teal-soft text-teal",
       },
     },
     defaultVariants: { tone: "neutral" },

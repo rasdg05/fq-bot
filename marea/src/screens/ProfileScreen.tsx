@@ -30,14 +30,14 @@ export function ProfileScreen() {
 
   return (
     <div data-testid="profile-screen" className="space-y-4 px-4 pb-6">
-      <h1 className="pb-1 pt-5 font-display text-[24px] font-semibold text-text">
+      <h1 className="pb-1 pt-5 font-display text-[26px] font-semibold tracking-[-0.015em] text-text">
         {S.profile.title}
       </h1>
 
       {/* la cuenta es lo primero del perfil: es lo que hace que tu saldo
           y tus posiciones sigan aquí mañana */}
       <Card className="p-5" data-testid="profile-account">
-        <p className="text-[12px] font-bold uppercase tracking-wide text-muted">
+        <p className="text-[13px] font-medium text-muted">
           {state.cuenta ? S.cuenta.sesionDe(state.cuenta.usuario) : S.cuenta.sinCuenta}
         </p>
         <div className="mt-3">
@@ -111,7 +111,7 @@ export function ProfileScreen() {
           sí. Sólo sale con cuenta, porque sin cuenta no hay nada que contar */}
       {state.cuenta ? (
         <Card className="mt-3 p-5" data-testid="profile-logro">
-          <p className="text-[12px] font-bold uppercase tracking-wide text-muted">
+          <p className="text-[13px] font-medium text-muted">
             {S.logro.titulo}
           </p>
           <p className="mt-1.5 text-[14px] leading-relaxed text-text2">
@@ -129,10 +129,11 @@ export function ProfileScreen() {
       ) : null}
 
       <Card className="p-5">
-        <p className="text-[12px] font-bold uppercase tracking-wide text-muted">
+        <p className="text-[13px] font-medium text-muted">
           {S.profile.theme}
         </p>
-        <div className="mt-3 flex gap-2">
+        {/* control segmentado: un riel y la opción elegida levantada encima */}
+        <div className="mt-3 flex gap-1 rounded-ctl bg-panel2 p-1">
           {(["dark", "light"] as Theme[]).map((option) => (
             <button
               key={option}
@@ -140,10 +141,10 @@ export function ProfileScreen() {
               aria-pressed={theme === option}
               onClick={() => apply(option)}
               className={cn(
-                "min-h-touch flex-1 rounded-pill border text-[15px] transition-colors",
+                "min-h-touch flex-1 rounded-[9px] text-[15px] transition-colors",
                 theme === option
-                  ? "border-teal bg-teal-soft font-bold text-teal"
-                  : "border-line2 font-medium text-text2",
+                  ? "bg-panel font-semibold text-text shadow-card"
+                  : "font-medium text-muted hover:text-text2",
               )}
             >
               {option === "dark" ? S.profile.themeDark : S.profile.themeLight}
@@ -153,7 +154,7 @@ export function ProfileScreen() {
       </Card>
 
       <Card className="p-5">
-        <p className="text-[12px] font-bold uppercase tracking-wide text-muted">
+        <p className="text-[13px] font-medium text-muted">
           {S.profile.honesty}
         </p>
         <p className="mt-2 text-[14px] leading-relaxed text-text2">
@@ -162,7 +163,7 @@ export function ProfileScreen() {
       </Card>
 
       <Card className="p-5">
-        <p className="text-[12px] font-bold uppercase tracking-wide text-muted">
+        <p className="text-[13px] font-medium text-muted">
           {S.profile.responsible}
         </p>
         <p className="mt-2 text-[14px] leading-relaxed text-text2">

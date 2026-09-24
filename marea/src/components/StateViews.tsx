@@ -79,7 +79,7 @@ export function ErrorState({
       role="alert"
       data-testid={testId}
       data-error-code={error.code}
-      className="mx-4 rounded-card border border-line bg-panel2 px-5 py-8 text-center"
+      className="mx-4 rounded-card border border-line2 bg-panel px-5 py-8 text-center"
     >
       <AlertTriangle
         aria-hidden

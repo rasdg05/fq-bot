@@ -109,7 +109,7 @@ function StepPromise() {
     <>
       <div className="flex flex-1 flex-col justify-center gap-5">
         <div>
-          <h1 className="font-display text-[26px] font-semibold leading-[1.15] tracking-tight text-text">
+          <h1 className="font-display text-[28px] font-semibold leading-[1.1] tracking-[-0.02em] text-text">
             {S.onboarding.p1Title}
           </h1>
           <p className="mt-2 text-[15px] leading-relaxed text-text2">
@@ -122,7 +122,7 @@ function StepPromise() {
             algo que dé ganas de tocar, no un párrafo que leer */}
         {muestra ? (
           <div data-testid="onboarding-muestra">
-            <p className="mb-1.5 text-[12px] font-bold uppercase tracking-wide text-muted">
+            <p className="mb-1.5 text-[13px] font-medium text-muted">
               {S.onboarding.p1Muestra}
             </p>
             <MarketCard market={muestra} onOpen={entrar} />
@@ -132,7 +132,7 @@ function StepPromise() {
         {points ? (
           <p
             data-testid="onboarding-points-note"
-            className="rounded-card border border-line bg-panel px-4 py-2.5 text-[13px] leading-relaxed text-text2"
+            className="rounded-ctl bg-panel2 px-4 py-3 text-[13px] leading-relaxed text-text2"
           >
             {S.points.welcome(formatStake(WELCOME_GRANT))} {S.points.disclaimer}
           </p>
@@ -159,7 +159,7 @@ function StepWallet() {
   return (
     <>
       <div className="flex flex-1 flex-col justify-center">
-        <h1 className="font-display text-[30px] font-semibold leading-[1.15] tracking-tight text-text">
+        <h1 className="font-display text-[32px] font-semibold leading-[1.1] tracking-[-0.02em] text-text">
           {S.onboarding.p2Title}
         </h1>
         <p className="mt-4 text-[16px] leading-relaxed text-text2">
@@ -206,7 +206,7 @@ function StepReady() {
   return (
     <>
       <div className="flex flex-1 flex-col justify-center">
-        <h1 className="font-display text-[30px] font-semibold leading-[1.15] tracking-tight text-text">
+        <h1 className="font-display text-[32px] font-semibold leading-[1.1] tracking-[-0.02em] text-text">
           {S.onboarding.p3Title}
         </h1>
         <p className="mt-4 text-[16px] leading-relaxed text-text2">

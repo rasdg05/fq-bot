@@ -24,9 +24,10 @@ const TABS: { id: TabId; label: string; Icon: LucideIcon }[] = [
  * es donde llega el pulgar; ninguna acción crítica queda en una esquina
  * superior (R-010). Cada target mide 44 px de alto como mínimo.
  *
- * El fondo es sólido a propósito: un color declarado como `var(--token)` no
- * admite modificador de opacidad en Tailwind: la declaración se descarta, no
- * se pinta fondo y la barra queda transparente sobre el contenido (R-017).
+ * El fondo es esmerilado: `color-mix` sobre `--bg` más `backdrop-blur`. No se
+ * usa el modificador de opacidad de Tailwind, porque sobre un color declarado
+ * como `var(--token)` la declaración se descarta y la barra queda transparente
+ * sobre el contenido (R-017); `color-mix` sí se pinta.
  */
 export function BottomTabs() {
   const { state, actions } = useApp();
@@ -42,7 +43,7 @@ export function BottomTabs() {
     <nav
       aria-label={S.tabs.navegacion}
       data-testid="bottom-tabs"
-      className="fixed inset-x-0 bottom-0 z-30 border-t border-line2 bg-bg"
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-line2 bg-[color:color-mix(in_srgb,var(--bg)_82%,transparent)] backdrop-blur-xl backdrop-saturate-150"
       style={{ paddingBottom: "var(--safe-b)" }}
     >
       {/* un `role="tab"` sin `tablist` que lo contenga deja al lector de
@@ -67,15 +68,15 @@ export function BottomTabs() {
                 data-tab={id}
                 onClick={() => actions.setTab(id)}
                 className={cn(
-                  "flex min-h-touch w-full flex-col items-center justify-center gap-0.5 py-2",
-                  active ? "text-teal" : "text-muted",
+                  "flex min-h-touch w-full flex-col items-center justify-center gap-1 pb-1.5 pt-2 transition-colors",
+                  active ? "text-text" : "text-muted hover:text-text2",
                 )}
               >
                 <span className="relative">
                   <Icon
                     aria-hidden
-                    className="h-[22px] w-[22px]"
-                    strokeWidth={active ? 2.4 : 1.8}
+                    className="h-[21px] w-[21px]"
+                    strokeWidth={active ? 2.1 : 1.6}
                   />
                   {id === "markets" && vivos > 0 ? (
                     <span
@@ -93,8 +94,8 @@ export function BottomTabs() {
                 {/* el estado activo también cambia el peso: no depende del color (R-005) */}
                 <span
                   className={cn(
-                    "text-[11px]",
-                    active ? "font-bold" : "font-medium",
+                    "text-[11px] tracking-[-0.005em]",
+                    active ? "font-semibold" : "font-medium",
                   )}
                 >
                   {label}

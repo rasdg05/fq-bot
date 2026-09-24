@@ -24,9 +24,9 @@ export function Brandmark({ className }: { className?: string }) {
       aria-hidden
       className={cn("shrink-0", className)}
     >
-      <rect width="32" height="32" rx="9.5" className="fill-teal" />
+      <rect width="32" height="32" rx="9" className="fill-teal-soft" />
       <g
-        className="stroke-teal-ink"
+        className="stroke-teal"
         fill="none"
         strokeWidth="2.4"
         strokeLinecap="round"

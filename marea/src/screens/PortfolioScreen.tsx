@@ -50,7 +50,7 @@ export function PortfolioScreen() {
 
   return (
     <div data-testid="portfolio-screen" className="pb-6">
-      <h1 className="px-4 pb-1 pt-5 font-display text-[24px] font-semibold text-text">
+      <h1 className="px-4 pb-1 pt-5 font-display text-[26px] font-semibold tracking-[-0.015em] text-text">
         {S.portfolio.title}
       </h1>
 
@@ -59,7 +59,7 @@ export function PortfolioScreen() {
           (Entrar / Crear cuenta sin sesión, saldo + avatar con sesión) */}
       <Card className="mx-4 mt-3 flex items-center justify-between p-4" data-testid="portfolio-saldo">
         <div className="leading-tight">
-          <p className="text-[11px] font-bold uppercase tracking-wide text-muted">
+          <p className="text-[12px] font-medium text-muted">
             {S.header.balance}
           </p>
           <p className="mt-0.5 font-mono text-[22px] font-semibold tabular-nums text-text">
@@ -109,7 +109,7 @@ function Section({
 }) {
   return (
     <section>
-      <h2 className="px-4 pb-2 text-[12px] font-bold uppercase tracking-wide text-muted">
+      <h2 className="px-4 pb-2 text-[13px] font-medium text-muted">
         {title}
       </h2>
       <div className="space-y-3 px-4">
@@ -129,7 +129,7 @@ function Section({
             </p>
             <div className="mt-3 flex items-end justify-between gap-3">
               <div>
-                <p className="text-[12px] uppercase tracking-wide text-muted">
+                <p className="text-[13px] text-muted">
                   {S.portfolio.side}
                 </p>
                 <p className="mt-0.5 text-[15px] font-bold text-text">
@@ -151,7 +151,7 @@ function Section({
                   <>
                     {/* en parimutuel lo honesto es el pago potencial, no un
                         resultado que no existe hasta que resuelve (R-029) */}
-                    <p className="text-[12px] uppercase tracking-wide text-muted">
+                    <p className="text-[13px] text-muted">
                       {S.portfolio.toWin}
                     </p>
                     <p
@@ -163,7 +163,7 @@ function Section({
                   </>
                 ) : (
                   <>
-                    <p className="text-[12px] uppercase tracking-wide text-muted">
+                    <p className="text-[13px] text-muted">
                       {S.portfolio.pnl}
                     </p>
                     {/* el signo acompaña al color: se lee sin él (R-005) */}
@@ -186,12 +186,12 @@ function Section({
             {position.evidence ? (
               <div className="mt-3 border-t border-line pt-3">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-[12px] uppercase tracking-wide text-muted">
+                  <p className="text-[13px] text-muted">
                     {S.portfolio.evidence}
                   </p>
                   <span
                     data-testid="position-outcome"
-                    className="text-[12px] font-bold uppercase tracking-wide text-text2"
+                    className="text-[13px] font-medium text-text2"
                   >
                     {position.status === "won"
                       ? S.portfolio.won

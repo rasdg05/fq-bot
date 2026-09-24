@@ -132,7 +132,7 @@ function Opcion({
           lider
             ? ({
                 "--pill-cat": color
-                  ? `color-mix(in srgb, ${color} 55%, transparent)`
+                  ? `color-mix(in srgb, ${color} 50%, transparent)`
                   : "var(--pill-ring)",
               } as React.CSSProperties)
             : undefined
@@ -197,7 +197,7 @@ function ProbBar({ lider, rival }: { lider: number; rival: number }) {
         style={{ width: ancho(lider) }}
       />
       <span
-        className="h-full rounded-pill bg-muted transition-[width] duration-[240ms] ease-[cubic-bezier(.22,1,.36,1)]"
+        className="h-full rounded-pill bg-[color:var(--pill-line)] transition-[width] duration-[240ms] ease-[cubic-bezier(.22,1,.36,1)]"
         style={{ width: ancho(rival) }}
       />
       <span className="h-full flex-1 rounded-pill bg-line2" />
@@ -259,7 +259,7 @@ function FilaResultado({
             primera
               ? ({
                   "--pill-cat": color
-                    ? `color-mix(in srgb, ${color} 55%, transparent)`
+                    ? `color-mix(in srgb, ${color} 50%, transparent)`
                     : "var(--pill-ring)",
                 } as React.CSSProperties)
               : undefined
@@ -460,7 +460,7 @@ export function MarketCard({ market, variant, pulso, onOpen }: MarketCardProps) 
             Los badges de estado se van a la derecha, donde no compiten */}
         <div className="flex h-4 items-center gap-1.5">
           <CategoriaIcono categoria={vista.category} />
-          <span className="mr-auto shrink-0 text-[10px] font-bold uppercase tracking-[0.06em] text-muted">
+          <span className="mr-auto shrink-0 text-[12px] font-medium text-muted">
             {S.categories[vista.category]}
           </span>
           {vivo ? (

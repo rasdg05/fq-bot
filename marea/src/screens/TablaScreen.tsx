@@ -58,7 +58,7 @@ export function TablaScreen() {
 
   return (
     <div data-testid="tabla-screen" className="pb-6">
-      <h1 className="px-4 pb-1 pt-5 font-display text-[24px] font-semibold text-text">
+      <h1 className="px-4 pb-1 pt-5 font-display text-[26px] font-semibold tracking-[-0.015em] text-text">
         {S.tabla.title}
       </h1>
       <p className="px-4 pb-3 text-[14px] text-text2">{S.tabla.subtitle}</p>

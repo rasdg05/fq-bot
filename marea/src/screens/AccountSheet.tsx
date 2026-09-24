@@ -19,7 +19,7 @@ import { useApp } from "@/state/store";
 type Modo = "registro" | "entrar" | "recuperar";
 
 const campo =
-  "mt-1 h-12 w-full rounded-card border border-line2 bg-panel px-3 text-[16px] text-text outline-none focus:border-teal";
+  "mt-1.5 h-12 w-full rounded-ctl border border-line bg-panel px-3.5 text-[16px] text-text outline-none transition-[border-color,box-shadow] placeholder:text-muted focus:border-teal focus:shadow-[0_0_0_3px_var(--teal-soft)]";
 
 export function AccountSheet() {
   const { state, actions } = useApp();
@@ -118,7 +118,7 @@ export function AccountSheet() {
 
           <form className="mt-4 space-y-3" onSubmit={enviar}>
             <label className="block">
-              <span className="text-[12px] uppercase tracking-wide text-muted">
+              <span className="text-[13px] text-muted">
                 {S.cuenta.usuario}
               </span>
               <input
@@ -139,7 +139,7 @@ export function AccountSheet() {
 
             {modo === "recuperar" ? (
               <label className="block">
-                <span className="text-[12px] uppercase tracking-wide text-muted">
+                <span className="text-[13px] text-muted">
                   {S.cuenta.codigo}
                 </span>
                 <input
@@ -155,7 +155,7 @@ export function AccountSheet() {
             ) : null}
 
             <label className="block">
-              <span className="text-[12px] uppercase tracking-wide text-muted">
+              <span className="text-[13px] text-muted">
                 {modo === "recuperar" ? S.cuenta.passwordNueva : S.cuenta.password}
               </span>
               <input

@@ -42,7 +42,7 @@ export function PostTradeSheet() {
               data-testid="post-trade-cobras"
               className="rounded-card border border-teal bg-teal-soft px-4 py-4 text-center"
             >
-              <p className="text-[12px] font-bold uppercase tracking-wide text-teal">
+              <p className="text-[13px] font-medium text-teal">
                 {S.postTrade.cobras}
               </p>
               <p
@@ -76,7 +76,7 @@ export function PostTradeSheet() {
               type="button"
               data-testid="post-trade-share"
               onClick={() => void compartir(post, lado, setCompartido)}
-              className="min-h-touch w-full rounded-card border border-line2 bg-panel text-[14px] font-semibold text-teal"
+              className="min-h-touch w-full rounded-ctl border border-line bg-panel text-[14px] font-semibold text-text transition-colors hover:bg-panel2"
             >
               {compartido ? S.postTrade.compartido : S.postTrade.compartir}
             </button>

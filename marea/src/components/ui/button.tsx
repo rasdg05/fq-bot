@@ -9,22 +9,22 @@ import { cn } from "@/lib/cn";
  * (R-006). El alto mínimo nunca baja de 44 px (R-010).
  */
 const buttonVariants = cva(
-  "relative inline-flex select-none items-center justify-center gap-2 rounded-pill font-sans font-semibold " +
-    "transition-[transform,background-color,border-color,opacity] duration-150 active:scale-[.985] " +
+  "relative inline-flex select-none items-center justify-center gap-2 rounded-ctl font-sans font-semibold tracking-[-0.01em] " +
+    "transition-[transform,background-color,border-color,color,opacity] duration-150 active:scale-[.985] " +
     "disabled:pointer-events-none disabled:opacity-45",
   {
     variants: {
       variant: {
         primary: "bg-teal text-[color:var(--teal-ink)] hover:bg-teal-deep",
-        secondary: "bg-panel2 text-text border border-line hover:border-teal",
-        ghost: "bg-transparent text-text2 hover:text-text",
+        secondary: "bg-panel text-text border border-line hover:bg-panel2",
+        ghost: "bg-transparent text-text2 hover:bg-panel2 hover:text-text",
         yes: "bg-[color:var(--up)] text-[color:var(--bg)] hover:opacity-90",
         no: "bg-[color:var(--dn)] text-[color:var(--bg)] hover:opacity-90",
       },
       size: {
         // 44 px es el piso; los CTA de pantalla usan 52 px (zona de pulgar)
         md: "min-h-touch px-5 text-[15px]",
-        lg: "min-h-[52px] w-full px-6 text-[16px]",
+        lg: "min-h-[52px] w-full px-6 text-[15px]",
         sm: "min-h-touch px-4 text-[14px]",
         icon: "h-touch w-touch p-0",
       },

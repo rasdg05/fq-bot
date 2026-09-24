@@ -55,12 +55,12 @@ export function SearchScreen() {
 
   return (
     <div data-testid="search-screen" className="pb-6">
-      <h1 className="px-4 pb-3 pt-5 font-display text-[24px] font-semibold text-text">
+      <h1 className="px-4 pb-3 pt-5 font-display text-[26px] font-semibold tracking-[-0.015em] text-text">
         {S.search.title}
       </h1>
 
       <div className="px-4">
-        <div className="flex min-h-touch items-center gap-2 rounded-pill border border-line2 bg-panel px-4">
+        <div className="flex min-h-touch items-center gap-2.5 rounded-ctl border border-line bg-panel px-3.5 transition-[border-color,box-shadow] focus-within:border-teal focus-within:shadow-[0_0_0_3px_var(--teal-soft)]">
           <SearchIcon aria-hidden className="h-4 w-4 shrink-0 text-muted" />
           <input
             value={query}

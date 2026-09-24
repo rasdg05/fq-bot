@@ -31,13 +31,13 @@ export const Chip = React.forwardRef<HTMLButtonElement, ChipProps>(
       aria-selected={active}
       data-active={active || undefined}
       className={cn(
-        "relative min-h-touch shrink-0 whitespace-nowrap px-1 text-[17px] transition-colors",
-        "after:absolute after:inset-x-1 after:bottom-1.5 after:h-[2px] after:rounded-pill",
+        "relative min-h-touch shrink-0 whitespace-nowrap px-0.5 text-[15px] tracking-[-0.01em] transition-colors",
+        "after:absolute after:inset-x-0.5 after:bottom-1 after:h-[2px] after:rounded-pill",
         // un `::after` no se puede pintar desde `style`, así que el color viaja
         // como custom property y la clase la consume
         active
           ? "font-bold text-text after:bg-[color:var(--chip-raya)]"
-          : "font-semibold text-muted after:bg-transparent",
+          : "font-medium text-muted hover:text-text2 after:bg-transparent",
         className,
       )}
       /* La raya toma el color de la categoría, pero el color no anuncia nada

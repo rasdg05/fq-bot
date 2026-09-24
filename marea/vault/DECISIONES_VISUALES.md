@@ -15,7 +15,7 @@ presupuesto.
 
 | | Kalshi | Marea |
 |---|---|---|
-| Color base | azul institucional | verde azulado profundo (`#0c1a1c`) |
+| Color base | azul institucional | neutros cálidos (marfil `#faf9f5` / carbón `#1b1a18`) con el teal de acento |
 | Tipografía de titular | grotesca neutra | serif de display |
 | Número dominante | grande, neutro | grande, **serif**, con el `%` en superíndice |
 | Tono | mercado financiero | quiniela |
@@ -47,6 +47,42 @@ gente a la que le hablamos, y no hay que enseñárselo.
 
 `vault/tokens.lock.json` congela los valores. Un cambio sin justificación
 escrita es una regresión silenciosa, así que aquí queda cada uno.
+
+### 2026-09-24 · Rediseño «limpio»: neutros cálidos, teal de acento
+
+Encargo de RasDG: más moderna y más limpia, «desde los moldes hasta los botones».
+
+**Qué cambió.**
+
+| | antes | ahora |
+|---|---|---|
+| Superficies | verde azulado (`#0c1a1c` / `#102528` / `#15292b`) | carbón cálido (`#1b1a18` / `#232220` / `#2b2a27`); de día marfil (`#faf9f5` / `#ffffff` / `#f1efe8`) |
+| Filetes (`--line`, `--line2`) | teñidos de teal | el color del texto al 12 % y al 7 %: separan sin colorear |
+| Teal | fondo de marca + bordes + tab activa | **sólo acento**: CTA, selección, raya de pestaña, barra del líder |
+| Cifras (`--font-mono`) | monospace del sistema | la misma grotesca con dígitos tabulares (`.font-mono`) |
+| Botones y controles | cápsula (`rounded-pill`) | rectángulo de 12 px (`rounded-ctl`); cápsula sólo en badges |
+| Etiquetas | MAYÚSCULAS espaciadas en negrita | tipo oración, 13 px, peso medio |
+| Badges | contorno de color | lavado del color al 14 %, sin contorno |
+| Header y barra | fondo sólido | esmerilado: `color-mix` sobre `--bg` + `backdrop-blur` (R-017 intacta) |
+| `--pill-line` | `--text2` al 60 % / 70 % | 38 % / 42 %: el rival se lee sin pelear con el líder |
+
+**Por qué.** El teal en todo (fondos, bordes, pestaña activa) hacía que nada
+destacara. Con las superficies neutras, el acento vuelve a significar «aquí se
+actúa». La serif en el número y el vocabulario de quiniela no se tocan: siguen
+siendo lo que nos separa de Kalshi.
+
+**Medido.** `tests/contrast.test.ts` en verde en los dos temas (texto dominante
+≥ 8:1, `--muted` sobre `--panel2` ≥ 4.5:1, categorías ≥ 3:1). Densidad (`npm run
+densidad` contra el servidor propio): card 116 / 121 px, sin cambio; cromo
+previo 123 → **119 px**. Los colores de categoría no cambian.
+
+**Qué se descartó.** Llevar el acento al terracota de otras apps: Marea es agua y
+su acento es el teal. Tampoco se apagó el tema oscuro por defecto: se entra de
+noche y desde WhatsApp.
+
+**Fuera del alcance.** `DepositSheet.tsx` y `WalletScreen.tsx` son zona del
+segundo dev (`COLA_TRABAJO.md` §1): heredan los tokens nuevos, pero conservan
+sus etiquetas en mayúsculas hasta que él las toque.
 
 ### 2026-07-28 · `--muted` sube de contraste
 

@@ -69,7 +69,7 @@ export function LiquidacionSheet() {
     >
       <div data-testid="liquidacion-aviso" className="space-y-4 pb-2">
         <div className="rounded-card border border-teal bg-teal-soft px-4 py-4 text-center">
-          <p className="text-[12px] font-bold uppercase tracking-wide text-teal">
+          <p className="text-[13px] font-medium text-teal">
             {S.liquidado.total}
           </p>
           <p
@@ -95,7 +95,7 @@ export function LiquidacionSheet() {
               data-testid="liquidacion-evidencia"
               className="rounded-card border border-line2 bg-panel px-4 py-3"
             >
-              <p className="text-[12px] font-bold uppercase tracking-wide text-muted">
+              <p className="text-[13px] font-medium text-muted">
                 {S.liquidado.comoSeSupo}
               </p>
               <p className="mt-1 text-[13px] leading-relaxed text-text2">

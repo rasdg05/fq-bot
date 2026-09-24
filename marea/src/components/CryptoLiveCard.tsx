@@ -243,7 +243,7 @@ export function CryptoLiveCard({ market, pulso, onOpen }: CryptoLiveCardProps) {
             una fila entera */}
         <div className="flex h-4 items-center gap-1.5">
           <CategoriaIcono categoria={market.category} />
-          <span className="mr-auto shrink-0 text-[10px] font-bold uppercase tracking-[0.06em] text-muted">
+          <span className="mr-auto shrink-0 text-[12px] font-medium text-muted">
             {S.categories[market.category]}
           </span>
           <Badge tone="live" dot data-testid="live-countdown">
@@ -358,7 +358,7 @@ export function CryptoLiveCard({ market, pulso, onOpen }: CryptoLiveCardProps) {
               key={lado.id}
               className={cn(
                 "h-full rounded-pill transition-[width] duration-[240ms] ease-[cubic-bezier(.22,1,.36,1)]",
-                lado.lider ? "bg-teal" : "bg-muted",
+                lado.lider ? "bg-teal" : "bg-[color:var(--pill-line)]",
               )}
               style={{ width: `${Math.max(lado.probability * 100, 2)}%` }}
             />

@@ -145,7 +145,7 @@ export function HomeScreen() {
             <section aria-labelledby="all-heading" className="pt-5">
               <h2
                 id="all-heading"
-                className="px-4 pb-1.5 text-[12px] font-bold uppercase tracking-wide text-muted"
+                className="px-4 pb-1.5 text-[13px] font-medium text-muted"
               >
                 {S.feed.sectionAll}
               </h2>

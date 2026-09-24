@@ -1,8 +1,9 @@
 /* ============================================================================
    MAREA — design tokens
    Un solo sistema de tokens. El tema oscuro es un set real de valores, no una
-   inversión de clases (R-012). Los valores heredan del rebrand de marca:
-   papel cálido + tinta marina + un solo teal (ver cockpit.html :root).
+   inversión de clases (R-012). Rediseño 2026-09-24: neutros cálidos (marfil de
+   día, carbón de noche) y el teal como único acento, usado con moderación. Los
+   bordes son filetes de 1 px sobre el color del texto, no del acento.
    Todo par texto/superficie definido aquí está verificado a >= 4.5:1 por
    `tests/contrast.test.ts`.
    ==========================================================================*/
@@ -39,30 +40,33 @@
   --font-display: "Fraunces", ui-serif, Georgia, serif;
   --font-sans: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", Roboto,
     Helvetica, Arial, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Consolas, monospace;
+  /* Las cifras van en la misma grotesca que el texto, con dígitos tabulares: se
+     alinean columna a columna como en una monospace, sin su aspecto de terminal. */
+  --font-mono: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
 
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
 
   /* --- oscuro: default de la app (superficie de mercado, energía oscura) --- */
-  --bg: #0c1a1c;
-  --panel: #102528;
-  --panel2: #15292b;
-  --line: rgba(76, 186, 178, 0.2);
-  --line2: rgba(255, 255, 255, 0.07);
-  --text: #eceae1;
-  --text2: #b7c3c1;
-  --muted: #829290;
-  --teal: #4cbab2;
-  --teal-deep: #79d4cb;
-  --teal-soft: #12312f;
-  --teal-ink: #06201f;
-  --up: #43c989;
-  --dn: #e5795e;
-  --hot: #e8a33d;
-  --live: #ff6b5a;
+  --bg: #1b1a18;
+  --panel: #232220;
+  --panel2: #2b2a27;
+  --line: rgba(245, 244, 239, 0.12);
+  --line2: rgba(245, 244, 239, 0.07);
+  --text: #f5f4ef;
+  --text2: #c4c2b9;
+  --muted: #9d9b92;
+  --teal: #5db8ad;
+  --teal-deep: #8fd1c8;
+  --teal-soft: #1e2b29;
+  --teal-ink: #0e1c1a;
+  --up: #5cc08c;
+  --dn: #e2846b;
+  --hot: #d9a255;
+  --live: #f07a68;
   --pill-ring: color-mix(in srgb, var(--teal) 80%, transparent);
-  --pill-line: color-mix(in srgb, var(--text2) 60%, transparent);
+  --pill-line: color-mix(in srgb, var(--text2) 38%, transparent);
   --pill-wash: color-mix(in srgb, var(--text) 4%, transparent);
   --flash-up: color-mix(in srgb, var(--up) 16%, transparent);
   --flash-dn: color-mix(in srgb, var(--dn) 16%, transparent);
@@ -83,32 +87,32 @@
      mercados es un callejón. */
   --cat-materias-primas: #c08a39;
   --cat-clima: #559bce;
-  --shadow-1: rgba(0, 0, 0, 0.4);
-  --shadow-2: rgba(0, 0, 0, 0.35);
+  --shadow-1: rgba(0, 0, 0, 0.22);
+  --shadow-2: rgba(0, 0, 0, 0.28);
   color-scheme: dark;
 }
 
 /* --- claro: "daylight" de marca, papel cálido + tinta marina --- */
 @media (prefers-color-scheme: light) {
   :root {
-    --bg: #f5f3ec;
+    --bg: #faf9f5;
     --panel: #ffffff;
-    --panel2: #ede8dc;
-    --line: rgba(11, 107, 110, 0.22);
-    --line2: rgba(18, 38, 42, 0.08);
-    --text: #12262a;
-    --text2: #3c5250;
-    --muted: #596a69;
-    --teal: #0b6b6e;
-    --teal-deep: #084f52;
-    --teal-soft: #e2eeec;
+    --panel2: #f1efe8;
+    --line: rgba(26, 26, 24, 0.12);
+    --line2: rgba(26, 26, 24, 0.07);
+    --text: #1a1a18;
+    --text2: #46453f;
+    --muted: #6a6861;
+    --teal: #0c6b66;
+    --teal-deep: #08514d;
+    --teal-soft: #e7f0ed;
     --teal-ink: #ffffff;
-    --up: #157048;
-    --dn: #a8412b;
-    --hot: #8a5a0b;
+    --up: #1b6e46;
+    --dn: #ad432b;
+    --hot: #85580d;
     --live: #b03a22;
     --pill-ring: color-mix(in srgb, var(--teal) 80%, transparent);
-    --pill-line: color-mix(in srgb, var(--text2) 70%, transparent);
+    --pill-line: color-mix(in srgb, var(--text2) 42%, transparent);
     --pill-wash: color-mix(in srgb, var(--text) 4%, transparent);
     --flash-up: color-mix(in srgb, var(--up) 16%, transparent);
     --flash-dn: color-mix(in srgb, var(--dn) 16%, transparent);
@@ -120,31 +124,31 @@
     --cat-otros: #596a69;
     --cat-materias-primas: #83591b;
     --cat-clima: #1f6698;
-    --shadow-1: rgba(18, 38, 42, 0.06);
-    --shadow-2: rgba(18, 38, 42, 0.08);
+    --shadow-1: rgba(26, 26, 24, 0.04);
+    --shadow-2: rgba(26, 26, 24, 0.06);
     color-scheme: light;
   }
 }
 
 :root[data-theme="light"] {
-  --bg: #f5f3ec;
+  --bg: #faf9f5;
   --panel: #ffffff;
-  --panel2: #ede8dc;
-  --line: rgba(11, 107, 110, 0.22);
-  --line2: rgba(18, 38, 42, 0.08);
-  --text: #12262a;
-  --text2: #3c5250;
-  --muted: #596a69;
-  --teal: #0b6b6e;
-  --teal-deep: #084f52;
-  --teal-soft: #e2eeec;
+  --panel2: #f1efe8;
+  --line: rgba(26, 26, 24, 0.12);
+  --line2: rgba(26, 26, 24, 0.07);
+  --text: #1a1a18;
+  --text2: #46453f;
+  --muted: #6a6861;
+  --teal: #0c6b66;
+  --teal-deep: #08514d;
+  --teal-soft: #e7f0ed;
   --teal-ink: #ffffff;
-  --up: #157048;
-  --dn: #a8412b;
-  --hot: #8a5a0b;
+  --up: #1b6e46;
+  --dn: #ad432b;
+  --hot: #85580d;
   --live: #b03a22;
   --pill-ring: color-mix(in srgb, var(--teal) 80%, transparent);
-  --pill-line: color-mix(in srgb, var(--text2) 70%, transparent);
+  --pill-line: color-mix(in srgb, var(--text2) 42%, transparent);
   --pill-wash: color-mix(in srgb, var(--text) 4%, transparent);
   --flash-up: color-mix(in srgb, var(--up) 16%, transparent);
   --flash-dn: color-mix(in srgb, var(--dn) 16%, transparent);
@@ -156,30 +160,30 @@
   --cat-otros: #596a69;
   --cat-materias-primas: #83591b;
   --cat-clima: #1f6698;
-  --shadow-1: rgba(18, 38, 42, 0.06);
-  --shadow-2: rgba(18, 38, 42, 0.08);
+  --shadow-1: rgba(26, 26, 24, 0.04);
+  --shadow-2: rgba(26, 26, 24, 0.06);
   color-scheme: light;
 }
 
 :root[data-theme="dark"] {
-  --bg: #0c1a1c;
-  --panel: #102528;
-  --panel2: #15292b;
-  --line: rgba(76, 186, 178, 0.2);
-  --line2: rgba(255, 255, 255, 0.07);
-  --text: #eceae1;
-  --text2: #b7c3c1;
-  --muted: #829290;
-  --teal: #4cbab2;
-  --teal-deep: #79d4cb;
-  --teal-soft: #12312f;
-  --teal-ink: #06201f;
-  --up: #43c989;
-  --dn: #e5795e;
-  --hot: #e8a33d;
-  --live: #ff6b5a;
+  --bg: #1b1a18;
+  --panel: #232220;
+  --panel2: #2b2a27;
+  --line: rgba(245, 244, 239, 0.12);
+  --line2: rgba(245, 244, 239, 0.07);
+  --text: #f5f4ef;
+  --text2: #c4c2b9;
+  --muted: #9d9b92;
+  --teal: #5db8ad;
+  --teal-deep: #8fd1c8;
+  --teal-soft: #1e2b29;
+  --teal-ink: #0e1c1a;
+  --up: #5cc08c;
+  --dn: #e2846b;
+  --hot: #d9a255;
+  --live: #f07a68;
   --pill-ring: color-mix(in srgb, var(--teal) 80%, transparent);
-  --pill-line: color-mix(in srgb, var(--text2) 60%, transparent);
+  --pill-line: color-mix(in srgb, var(--text2) 38%, transparent);
   --pill-wash: color-mix(in srgb, var(--text) 4%, transparent);
   --flash-up: color-mix(in srgb, var(--up) 16%, transparent);
   --flash-dn: color-mix(in srgb, var(--dn) 16%, transparent);
@@ -191,8 +195,8 @@
   --cat-otros: #829290;
   --cat-materias-primas: #c08a39;
   --cat-clima: #559bce;
-  --shadow-1: rgba(0, 0, 0, 0.4);
-  --shadow-2: rgba(0, 0, 0, 0.35);
+  --shadow-1: rgba(0, 0, 0, 0.22);
+  --shadow-2: rgba(0, 0, 0, 0.28);
   color-scheme: dark;
 }
 
@@ -209,9 +213,21 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  letter-spacing: -0.005em;
   /* sin scroll horizontal en móvil (V11) */
   overflow-x: hidden;
   overscroll-behavior-y: none;
+}
+
+/* toda cifra en `font-mono` es tabular: los números no bailan al cambiar */
+.font-mono {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+::selection {
+  background: var(--teal-soft);
+  color: var(--text);
 }
 
 /* focus visible real en todo elemento accionable (a11y) */

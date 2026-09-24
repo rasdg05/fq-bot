@@ -78,10 +78,10 @@ const config: Config = {
         "safe-b": "var(--safe-b)",
         "safe-t": "var(--safe-t)",
       },
-      borderRadius: { card: "18px", sheet: "24px", pill: "999px" },
+      borderRadius: { card: "16px", sheet: "20px", pill: "999px", ctl: "12px" },
       boxShadow: {
-        card: "0 1px 2px var(--shadow-1), 0 10px 30px var(--shadow-2)",
-        sheet: "0 -8px 40px var(--shadow-2)",
+        card: "0 1px 2px var(--shadow-1), 0 4px 16px var(--shadow-2)",
+        sheet: "0 -4px 32px var(--shadow-2)",
       },
       keyframes: {
         shimmer: { "100%": { transform: "translateX(100%)" } },

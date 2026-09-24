@@ -37,16 +37,16 @@ export function AppHeader() {
 
   return (
     <header
-      className="sticky top-0 z-30 border-b border-line2 bg-bg"
+      className="sticky top-0 z-30 border-b border-line2 bg-[color:color-mix(in_srgb,var(--bg)_82%,transparent)] backdrop-blur-xl backdrop-saturate-150"
       style={{ paddingTop: "var(--safe-t)" }}
     >
       {/* 60 px de alto: el logo pide 34 y respira. Es el único sitio del
           producto donde el cromo crece a propósito — lo primero que se lee al
           abrir tiene que ser el nombre */}
-      <div className="mx-auto flex h-[60px] w-full max-w-[520px] items-center gap-3 px-4">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <Brandmark className="h-[34px] w-[34px]" />
-          <span className="font-display text-[27px] font-bold leading-none tracking-[-0.02em] text-text">
+      <div className="mx-auto flex h-[56px] w-full max-w-[520px] items-center gap-3 px-4">
+        <div className="flex min-w-0 items-center gap-2">
+          <Brandmark className="h-[30px] w-[30px]" />
+          <span className="font-display text-[23px] font-semibold leading-none tracking-[-0.02em] text-text">
             {S.brand.name}
           </span>
         </div>
@@ -67,7 +67,7 @@ export function AppHeader() {
               <span
                 data-testid={sinFondos ? "header-deposit" : undefined}
                 className={cn(
-                  "text-[10px] font-bold uppercase tracking-[0.06em]",
+                  "text-[11px] font-medium",
                   sinFondos ? "text-teal" : "text-muted",
                 )}
               >
@@ -79,7 +79,7 @@ export function AppHeader() {
               </span>
               <span
                 className={cn(
-                  "font-mono text-[15px] font-semibold tabular-nums",
+                  "font-mono text-[15px] font-semibold",
                   // el saldo en cero se apaga: es la señal de que hay que recargar
                   sinFondos ? "text-muted" : "text-text",
                 )}
@@ -100,7 +100,7 @@ export function AppHeader() {
             >
               {/* el círculo mide 32 y el target 44: el aire de alrededor es
                   parte del botón, no un hueco muerto (R-010) */}
-              <span className="grid h-8 w-8 place-items-center rounded-full bg-panel2 text-[13px] font-bold text-text2 ring-1 ring-line2">
+              <span className="grid h-8 w-8 place-items-center rounded-full bg-panel2 text-[13px] font-semibold text-text2 ring-1 ring-line">
                 {inicial ?? <UserIcon aria-hidden className="h-4 w-4" />}
               </span>
               {/* sin saldo, el punto dice dónde tocar. No es un tercer elemento:
@@ -119,7 +119,7 @@ export function AppHeader() {
               type="button"
               data-testid="header-entrar"
               onClick={() => actions.abrirCuenta(true, "entrar")}
-              className="min-h-touch px-2 text-[14px] font-semibold text-text2"
+              className="min-h-touch rounded-ctl px-3 text-[14px] font-medium text-text2 transition-colors hover:bg-panel2 hover:text-text"
             >
               {S.cuenta.entrarCta}
             </button>
