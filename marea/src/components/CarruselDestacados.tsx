@@ -1,6 +1,7 @@
 import type { Market, PulsoVivo } from "@/domain/types";
 import { MarketCard } from "@/components/MarketCard";
 import { cn } from "@/lib/cn";
+import { COLOR_CATEGORIA } from "@/lib/categoria";
 
 /**
  * Carrusel de destacados.
@@ -60,7 +61,12 @@ export function CarruselDestacados({
              queda del ancho que ya tiene en el feed y no se estrecha de más.
              En `rem` y no en `vw` para que con el texto agrandado la tarjeta
              crezca con él en vez de apretar su contenido. */
-          className="w-[min(21rem,calc(100vw-2rem))] shrink-0 snap-center"
+          className="w-[min(21rem,calc(100vw-2rem))] shrink-0 snap-center rounded-[17.5px] p-[1.5px]"
+          /* el filo en degradado es lo que dice «destacado» sin gastar una
+             fila de cromo en un título: va del color de su categoría al acento */
+          style={{
+            background: `linear-gradient(135deg, ${COLOR_CATEGORIA[market.category]}, var(--teal) 60%, var(--cat-clima))`,
+          }}
         >
           <MarketCard
             market={market}

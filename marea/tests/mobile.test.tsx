@@ -40,9 +40,9 @@ describe("Métricas móviles", () => {
     await screen.findByTestId("home-screen");
     const row = screen.getByRole("tablist", { name: S.search.byCategory });
     assertTouchTargets(row, "chips");
-    // dejaron de ser burbujas: sin borde, la separación tiene que hacer el
-    // trabajo que hacía el marco, así que sube de 8 a 20 px (R-010)
-    expect(row.className).toMatch(/gap-5/);
+    // volvieron a ser pastillas con relleno: la forma separa, y 8 px entre
+    // targets de 44 px de alto basta para no tocar la vecina (R-010)
+    expect(row.className).toMatch(/gap-2/);
     expect(row.className).toMatch(/overflow-x-auto/);
   });
 

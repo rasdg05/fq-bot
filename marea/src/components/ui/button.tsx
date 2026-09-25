@@ -15,7 +15,8 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        primary: "bg-teal text-[color:var(--teal-ink)] hover:bg-teal-deep",
+        primary:
+          "bg-teal bg-[linear-gradient(135deg,var(--teal),var(--cat-clima))] text-[color:var(--teal-ink)] shadow-[0_6px_20px_-6px_var(--teal)] hover:brightness-110",
         secondary: "bg-panel text-text border border-line hover:bg-panel2",
         ghost: "bg-transparent text-text2 hover:bg-panel2 hover:text-text",
         yes: "bg-[color:var(--up)] text-[color:var(--bg)] hover:opacity-90",

@@ -1,5 +1,6 @@
 import type { Market, Position } from "@/domain/types";
 import { withEdge } from "@/domain/edge";
+import { activoDeRegla } from "@/domain/oracleRule";
 import { appError } from "@/domain/errors";
 import { FLAGS } from "@/lib/flags";
 import {
@@ -245,6 +246,9 @@ export function createOwnMarketsAdapter(
       pool: { outcomes: { ...pool.outcomes }, feeBps: pool.feeBps },
       region: "latam",
       country: seed.country,
+      equipos: seed.equipos,
+      liga: seed.liga,
+      activo: activoDeRegla(seed.rule),
       hot: totalPool(pool) >= threshold,
       closesAt: seed.closesAt,
       venue: { id: "marea", label: "Marea" },

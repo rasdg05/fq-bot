@@ -1,6 +1,6 @@
 import { assertPublishable } from "@/domain/resolution";
 import { SEED, type Pool } from "@/domain/parimutuel";
-import type { VelaRule } from "@/domain/oracleRule";
+import { KRAKEN_PAR, type VelaRule } from "@/domain/oracleRule";
 import {
   bloqueoDeVentana,
   claveDeVentana,
@@ -41,7 +41,7 @@ export const ARRIBA = "arriba";
 export const ABAJO = "abajo";
 
 export interface ActivoVivo {
-  id: "btc" | "eth";
+  id: "btc" | "eth" | "sol";
   par: VelaRule["par"];
   nombre: string;
 }
@@ -49,12 +49,10 @@ export interface ActivoVivo {
 export const ACTIVOS_VIVOS: ActivoVivo[] = [
   { id: "btc", par: "BTC/USD", nombre: "Bitcoin" },
   { id: "eth", par: "ETH/USD", nombre: "Ethereum" },
+  { id: "sol", par: "SOL/USD", nombre: "Solana" },
 ];
 
-const KRAKEN_PARES: Record<VelaRule["par"], string> = {
-  "BTC/USD": "XBTUSD",
-  "ETH/USD": "ETHUSD",
-};
+const KRAKEN_PARES: Record<VelaRule["par"], string> = KRAKEN_PAR;
 
 export function urlKrakenVela(par: VelaRule["par"], intervalo: IntervaloVivo): string {
   return `https://api.kraken.com/0/public/OHLC?pair=${KRAKEN_PARES[par]}&interval=${intervalo}`;
@@ -107,7 +105,9 @@ function strikeCorto(strike: number): string {
     const miles = strike / 1000;
     return `${Number.isInteger(miles) ? miles : miles.toFixed(1)}k`;
   }
-  return String(Math.round(strike));
+  // un strike de SOL lleva decimales (117.5): redondearlo en la etiqueta
+  // diría otra cifra que la del criterio
+  return Number.isInteger(strike) ? String(strike) : String(Number(strike.toFixed(2)));
 }
 
 export function velaSeed(vela: VelaViva): OwnMarketSeed {

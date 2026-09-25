@@ -7,7 +7,7 @@ import { EmptyState, ErrorState, ListSkeleton } from "@/components/StateViews";
 import { S } from "@/lib/strings";
 import { useApp } from "@/state/store";
 import { hasEdge } from "@/domain/edge";
-import { CATEGORIAS_VISIBLES, COLOR_CATEGORIA } from "@/lib/categoria";
+import { CATEGORIAS_VISIBLES, COLOR_CATEGORIA, ICONO_CATEGORIA } from "@/lib/categoria";
 import { FRESCURA_SALDO_MS } from "@/domain/saldo";
 
 function isHot(market: Market): boolean {
@@ -103,6 +103,7 @@ export function HomeScreen() {
             key={id}
             active={category === id}
             color={COLOR_CATEGORIA[id]}
+            icon={ICONO_CATEGORIA[id]}
             onClick={() => actions.setCategory(id)}
           >
             {S.categories[id]}
@@ -143,19 +144,25 @@ export function HomeScreen() {
 
           {rest.length > 0 ? (
             <section aria-labelledby="all-heading" className="pt-5">
-              <h2
-                id="all-heading"
-                className="px-4 pb-1.5 text-[13px] font-medium text-muted"
-              >
+              <h2 id="all-heading" className="sr-only">
                 {S.feed.sectionAll}
               </h2>
-              <div className="space-y-2 px-4">
-                {rest.map((market) => (
-                  <MarketCard
-                    key={market.id}
-                    market={market}
-                    pulso={state.vivos[market.id]}
-                    onOpen={actions.openMarket}
+              {/* por secciones: con setenta mercados, una lista plana obliga a
+                  leer cada título para saber de qué va. Agrupados por liga o
+                  categoría, el ojo salta a lo suyo */}
+              <div className="space-y-6">
+                {agrupar(rest).map((grupo) => (
+                  <SeccionMercados
+                    key={grupo.clave}
+                    grupo={grupo}
+                    renderCard={(market) => (
+                      <MarketCard
+                        key={market.id}
+                        market={market}
+                        pulso={state.vivos[market.id]}
+                        onOpen={actions.openMarket}
+                      />
+                    )}
                   />
                 ))}
               </div>
@@ -163,6 +170,93 @@ export function HomeScreen() {
           ) : null}
         </>
       )}
+    </div>
+  );
+}
+
+interface Grupo {
+  clave: string;
+  titulo: string;
+  categoria: Market["category"];
+  markets: Market[];
+}
+
+/**
+ * Agrupa por liga (deportes) o por categoría (lo demás). El orden de las
+ * secciones sigue al de las pestañas, y dentro de deportes manda la liga con
+ * más partidos: es la que más se está jugando.
+ */
+function agrupar(markets: Market[]): Grupo[] {
+  const grupos = new Map<string, Grupo>();
+  for (const market of markets) {
+    const clave = market.liga ?? market.category;
+    const grupo = grupos.get(clave) ?? {
+      clave,
+      titulo: market.liga ?? S.categories[market.category],
+      categoria: market.category,
+      markets: [],
+    };
+    grupo.markets.push(market);
+    grupos.set(clave, grupo);
+  }
+  const orden = (categoria: Market["category"]) => {
+    const i = CATEGORIAS_VISIBLES.indexOf(categoria);
+    return i === -1 ? CATEGORIAS_VISIBLES.length : i;
+  };
+  return [...grupos.values()].sort(
+    (a, b) =>
+      orden(a.categoria) - orden(b.categoria) ||
+      b.markets.length - a.markets.length ||
+      a.titulo.localeCompare(b.titulo, "es"),
+  );
+}
+
+/** Cuántas cards se ven de entrada por sección. El resto, a un toque. */
+const VISIBLES_POR_SECCION = 4;
+
+function SeccionMercados({
+  grupo,
+  renderCard,
+}: {
+  grupo: Grupo;
+  renderCard: (market: Market) => React.ReactNode;
+}) {
+  const [abierta, setAbierta] = React.useState(false);
+  const color = COLOR_CATEGORIA[grupo.categoria];
+  const Icono = ICONO_CATEGORIA[grupo.categoria];
+  const ocultas = grupo.markets.length - VISIBLES_POR_SECCION;
+  const visibles = abierta ? grupo.markets : grupo.markets.slice(0, VISIBLES_POR_SECCION);
+
+  return (
+    <div data-testid="seccion-mercados" data-seccion={grupo.clave}>
+      <div className="flex items-center gap-2.5 px-4 pb-2.5">
+        <span
+          aria-hidden
+          className="grid h-7 w-7 place-items-center rounded-[9px]"
+          style={{ backgroundColor: `color-mix(in srgb, ${color} 20%, transparent)` }}
+        >
+          <Icono className="h-4 w-4" style={{ color }} strokeWidth={2.4} />
+        </span>
+        <h3 className="font-display text-[19px] font-semibold tracking-[-0.01em] text-text">
+          {grupo.titulo}
+        </h3>
+        <span className="ml-auto text-[12px] font-medium text-muted">
+          {S.feed.cuantos(grupo.markets.length)}
+        </span>
+      </div>
+      <div className="space-y-2 px-4">{visibles.map(renderCard)}</div>
+      {ocultas > 0 ? (
+        <div className="px-4 pt-2">
+          <button
+            type="button"
+            data-testid="seccion-ver-mas"
+            onClick={() => setAbierta((valor) => !valor)}
+            className="min-h-touch w-full rounded-ctl border border-line2 bg-panel text-[14px] font-semibold text-teal transition-colors hover:bg-panel2"
+          >
+            {abierta ? S.feed.verMenos : S.feed.verMas(ocultas)}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

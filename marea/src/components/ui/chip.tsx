@@ -1,4 +1,5 @@
 import * as React from "react";
+import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 export interface ChipProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -9,21 +10,24 @@ export interface ChipProps extends React.ButtonHTMLAttributes<HTMLButtonElement>
    * ausencia. Nunca es el portador del estado — ver abajo.
    */
   color?: string;
+  /** Glifo de la categoría, en su color. */
+  icon?: LucideIcon;
 }
 
 /**
  * Pestaña de categoría.
  *
- * Dejó de ser una burbuja. Ocho cápsulas con borde en fila son ocho marcos
- * compitiendo por atención antes de que se lea una sola palabra, y el feed
- * empieza con la vista ya cansada. Ahora es texto: la que manda va en blanco y
- * peso fuerte con una raya de 2 px debajo, las demás en gris.
+ * Volvió a ser pastilla, ahora con color: la que manda se rellena con el color
+ * de su categoría (lavado, con el texto en `--text`) y las demás van en gris
+ * sobre `--panel2`. Con veinte ligas y cinco monedas el feed tiene de qué
+ * presumir, y una fila de palabras grises no invitaba a tocar ninguna.
  *
- * El estado activo no depende sólo del color —cambia peso **y** lleva la raya
- * (R-005)— y el target sigue midiendo 44 px de alto.
+ * El estado activo no depende sólo del color —cambia el peso y el relleno
+ * (R-005)— y el target sigue midiendo 44 px de alto: la pastilla visible es de
+ * 34 y el aire de alrededor es parte del botón (R-010).
  */
 export const Chip = React.forwardRef<HTMLButtonElement, ChipProps>(
-  ({ className, active, color, children, ...props }, ref) => (
+  ({ className, active, color, icon: Icono, children, ...props }, ref) => (
     <button
       ref={ref}
       type="button"
@@ -31,19 +35,13 @@ export const Chip = React.forwardRef<HTMLButtonElement, ChipProps>(
       aria-selected={active}
       data-active={active || undefined}
       className={cn(
-        "relative min-h-touch shrink-0 whitespace-nowrap px-0.5 text-[15px] tracking-[-0.01em] transition-colors",
-        "after:absolute after:inset-x-0.5 after:bottom-1 after:h-[2px] after:rounded-pill",
-        // un `::after` no se puede pintar desde `style`, así que el color viaja
-        // como custom property y la clase la consume
-        active
-          ? "font-bold text-text after:bg-[color:var(--chip-raya)]"
-          : "font-medium text-muted hover:text-text2 after:bg-transparent",
+        "group relative flex min-h-touch shrink-0 items-center whitespace-nowrap text-[14px] tracking-[-0.01em]",
+        active ? "font-bold text-text" : "font-medium text-text2",
         className,
       )}
-      /* La raya toma el color de la categoría, pero el color no anuncia nada
-         por su cuenta: la pestaña que manda ya cambia de peso y de color de
-         texto, y la raya está o no está (R-005). Quien no distinga los tonos
-         sigue viendo exactamente lo mismo que antes. */
+      /* el color viaja como custom property: la pastilla lo consume para el
+         relleno y el borde. Quien no distinga los tonos ve igual cuál manda,
+         por el peso y porque sólo ella tiene relleno de color */
       style={
         active
           ? ({ "--chip-raya": color ?? "var(--teal)" } as React.CSSProperties)
@@ -51,7 +49,24 @@ export const Chip = React.forwardRef<HTMLButtonElement, ChipProps>(
       }
       {...props}
     >
-      {children}
+      <span
+        className={cn(
+          "flex h-[34px] items-center gap-1.5 rounded-pill px-3.5 transition-colors",
+          active
+            ? "bg-[color:color-mix(in_srgb,var(--chip-raya)_22%,var(--panel))] ring-1 ring-[color:color-mix(in_srgb,var(--chip-raya)_55%,transparent)]"
+            : "bg-panel2 group-hover:text-text",
+        )}
+      >
+        {Icono ? (
+          <Icono
+            aria-hidden
+            className="h-3.5 w-3.5"
+            strokeWidth={2.4}
+            style={{ color: color ?? "var(--teal)" }}
+          />
+        ) : null}
+        {children}
+      </span>
     </button>
   ),
 );
@@ -99,7 +114,7 @@ export function ChipRow({
         onScroll={revisar}
         className={cn(
           // scroll horizontal contenido: la fila desborda, la página nunca (V11)
-          "flex gap-5 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          "flex gap-2 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         )}
         {...props}
       >

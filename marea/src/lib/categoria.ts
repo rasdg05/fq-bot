@@ -42,6 +42,17 @@ import type { MarketCategory } from "@/domain/types";
  * el tipo, con su color y su glifo, pero todavía no tienen catálogo, y una
  * pestaña que filtra a cero mercados es un callejón sin salida (R-006).
  */
+/**
+ * El color del lado de una respuesta: verde para el sí (o arriba, o gana el de
+ * casa), rojo para el no. Las demás —el empate, los tramos, los nombres— van
+ * sin color de lado. Nunca va solo: la etiqueta dice qué lado es (R-005).
+ */
+export function colorDeLado(outcomeId: string): string | undefined {
+  if (outcomeId === "si" || outcomeId === "arriba" || outcomeId === "gana") return "var(--up)";
+  if (outcomeId === "no" || outcomeId === "abajo" || outcomeId === "pierde") return "var(--dn)";
+  return undefined;
+}
+
 export const CATEGORIAS_VISIBLES: MarketCategory[] = [
   "cripto",
   "economia",

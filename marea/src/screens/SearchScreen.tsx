@@ -5,7 +5,7 @@ import { Chip, ChipRow } from "@/components/ui/chip";
 import { EmptyState, ErrorState, ListSkeleton } from "@/components/StateViews";
 import { S } from "@/lib/strings";
 import { useApp } from "@/state/store";
-import { CATEGORIAS_VISIBLES, COLOR_CATEGORIA } from "@/lib/categoria";
+import { CATEGORIAS_VISIBLES, COLOR_CATEGORIA, ICONO_CATEGORIA } from "@/lib/categoria";
 
 function normalize(value: string): string {
   return value
@@ -81,6 +81,7 @@ export function SearchScreen() {
             key={id}
             active={state.category === id}
             color={COLOR_CATEGORIA[id]}
+            icon={ICONO_CATEGORIA[id]}
             onClick={() => actions.setCategory(id)}
           >
             {S.categories[id]}

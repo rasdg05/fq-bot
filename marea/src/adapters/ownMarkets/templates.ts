@@ -1,8 +1,15 @@
 import { assertPublishable } from "@/domain/resolution";
 import { FRESCURA_MAX_HORAS } from "@/domain/settlement";
 import { SEED, binaryPool, declareSeed, type Pool } from "@/domain/parimutuel";
-import type { MatchRule, PriceRule } from "@/domain/oracleRule";
-import type { OwnMarketSeed } from "./catalog";
+import {
+  KRAKEN_PAR,
+  type MatchOutcomeRule,
+  type MatchRule,
+  type ParCripto,
+  type PriceRule,
+} from "@/domain/oracleRule";
+import { ligaDe, urlJornadaEspn, type LigaId } from "@/domain/ligas";
+import { OUTCOME_LABEL_MAX, SHORT_TITLE_MAX, type OwnMarketSeed } from "./catalog";
 
 /**
  * Mercados que se reponen solos.
@@ -25,14 +32,14 @@ const FEE_BPS = 300;
 /** Entre el cierre de apuestas y la resolución. Ver R-043. */
 const CIERRE_ANTES_MS = 24 * 3_600_000;
 
-export interface SpotPrices {
-  "BTC/USD"?: number;
-  "ETH/USD"?: number;
-}
+export type SpotPrices = Partial<Record<ParCripto, number>>;
 
 /** Redondeo a un número que se dice en voz alta: 71,000, no 70,842. */
 function nivelRedondo(precio: number, paso: number): number {
-  return Math.round(precio / paso) * paso;
+  // el paso de DOGE es medio centavo: sin recortar, 0.1 + 0.005 da colas de
+  // coma flotante que acabarían escritas en el criterio publicado
+  const decimales = Math.max(0, -Math.floor(Math.log10(paso)) + 1);
+  return Number((Math.round(precio / paso) * paso).toFixed(decimales));
 }
 
 function conSeparador(valor: number): string {
@@ -90,7 +97,7 @@ function seedPool(si: number, no: number): Pool {
 
 interface Plantilla {
   id: string;
-  activo: "BTC" | "ETH";
+  activo: string;
   par: PriceRule["par"];
   nombre: string;
   paso: number;
@@ -99,13 +106,15 @@ interface Plantilla {
 const PLANTILLAS: Plantilla[] = [
   { id: "btc", activo: "BTC", par: "BTC/USD", nombre: "Bitcoin", paso: 1_000 },
   { id: "eth", activo: "ETH", par: "ETH/USD", nombre: "Ethereum", paso: 100 },
+  { id: "sol", activo: "SOL", par: "SOL/USD", nombre: "Solana", paso: 5 },
+  { id: "xrp", activo: "XRP", par: "XRP/USD", nombre: "XRP", paso: 0.05 },
+  { id: "doge", activo: "DOGE", par: "DOGE/USD", nombre: "Dogecoin", paso: 0.005 },
 ];
 
 const KRAKEN_DOC = "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=1440";
 
 function urlKraken(par: PriceRule["par"]): string {
-  const simbolo = par === "BTC/USD" ? "XBTUSD" : "ETHUSD";
-  return `https://api.kraken.com/0/public/OHLC?pair=${simbolo}&interval=1440`;
+  return `https://api.kraken.com/0/public/OHLC?pair=${KRAKEN_PAR[par]}&interval=1440`;
 }
 
 /** Mercado de cierre semanal: la pregunta más simple que existe sobre precio. */
@@ -229,21 +238,24 @@ export function rollingSeeds(input: {
   }));
 }
 
-/* ------------------------------- futbol ---------------------------------- */
+/* ------------------------------- deportes -------------------------------- */
 
 /**
- * Mercados de Liga MX. Ésta es la categoría que de verdad se manda al grupo, y
- * se resuelve sola contra el marcador público de ESPN — así que se genera sola
- * cada semana, igual que los de precio.
- *
- * Las apuestas cierran al arrancar el partido, no antes ni después: nadie
- * apuesta con el marcador a la vista (R-043).
+ * Un partido tal como lo lista ESPN. `liga` falta en los que vienen del flujo
+ * viejo, que sólo conocía la Liga MX.
  */
 export interface PartidoDeLaLiga {
   /** ISO del arranque del partido. */
   inicio: string;
   local: string;
   visitante: string;
+  liga?: LigaId;
+  /** Nombres cortos de ESPN (`shortDisplayName`), para cuando el largo no cabe. */
+  localCorto?: string;
+  visitanteCorto?: string;
+  /** Escudo que publica la misma fuente que se lee (R-046). */
+  escudoLocal?: string;
+  escudoVisitante?: string;
 }
 
 const ESPN_MX = "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard";
@@ -251,53 +263,186 @@ const ESPN_MX = "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scor
 /** Cuánto se espera al marcador final antes de leerlo. */
 const DURACION_PARTIDO_MS = 3 * 3_600_000;
 
-export function partidoSeed(partido: PartidoDeLaLiga): OwnMarketSeed {
-  const inicioMs = new Date(partido.inicio).getTime();
-  const dia = new Date(inicioMs).toISOString().slice(0, 10);
-  const settlesAt = new Date(inicioMs + DURACION_PARTIDO_MS).toISOString();
-  const clave = `${partido.local}-${partido.visitante}`
+function claveDe(texto: string): string {
+  return texto
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-");
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+/** `2 de agosto de 2026`, como se escribe en el criterio. */
+function diaLargo(dia: string): string {
+  const fecha = new Date(`${dia}T12:00:00Z`);
+  return fecha.toLocaleDateString("es-MX", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/**
+ * El mercado de un partido. La forma depende de la liga:
+ *
+ * - **Liga MX**: «¿X le gana a Y?», sí o no. Es la forma con la que nació el
+ *   feed y se conserva tal cual (mismos ids, mismo criterio).
+ * - **Resto del futbol**: la quiniela — gana, empata o pierde. El empate pasa
+ *   un cuarto de las veces; plegarlo dentro de «no» esconde la mitad de la
+ *   pregunta.
+ * - **Deportes sin empate** (NFL, MLB, NBA, NHL): quién gana, con los dos
+ *   nombres como respuestas.
+ */
+/** Lo que cabe en una respuesta y en el título corto: los topes del catálogo. */
+const MAX_RESPUESTA = OUTCOME_LABEL_MAX;
+const MAX_TITULO_CORTO = SHORT_TITLE_MAX;
+
+function nombreQueCabe(
+  largo: string,
+  corto: string | undefined,
+  max: number,
+  preferirCortoDesde = max,
+): string {
+  if (largo.length <= preferirCortoDesde) return largo;
+  if (corto && corto.length < largo.length && corto.length <= max) return corto;
+  if (largo.length <= max) return largo;
+  if (corto && corto.length <= max) return corto;
+  return `${(corto ?? largo).slice(0, max - 1).trimEnd()}…`;
+}
+
+export function partidoSeed(partido: PartidoDeLaLiga): OwnMarketSeed {
+  const liga = ligaDe(partido.liga ?? "mex.1");
+  // la respuesta se lee en una pill de unos trece caracteres: «Gana Bills»
+  // cabe entera, «Gana Buffalo Bills» se corta en «Gana Buffalo…» y deja de
+  // decir quién. Con nombre corto disponible, se usa pasado el ancho de la pill
+  const ANCHO_PILL = 12;
+  const localR = nombreQueCabe(partido.local, partido.localCorto, MAX_RESPUESTA - 5, ANCHO_PILL);
+  const visitanteR = nombreQueCabe(
+    partido.visitante,
+    partido.visitanteCorto,
+    MAX_RESPUESTA - 5,
+    ANCHO_PILL,
+  );
+  const versus = (() => {
+    const largo = `${partido.local} vs ${partido.visitante}`;
+    if (largo.length <= MAX_TITULO_CORTO) return largo;
+    const corto = `${partido.localCorto ?? partido.local} vs ${partido.visitanteCorto ?? partido.visitante}`;
+    return corto.length <= MAX_TITULO_CORTO ? corto : `${localR} vs ${visitanteR}`.slice(0, MAX_TITULO_CORTO);
+  })();
+  const inicioMs = new Date(partido.inicio).getTime();
+  const dia = new Date(inicioMs).toISOString().slice(0, 10);
+  const settlesAt = new Date(inicioMs + DURACION_PARTIDO_MS).toISOString();
+  const clave = claveDe(`${partido.local}-${partido.visitante}`);
+  const fuente = urlJornadaEspn(liga.id, dia);
+  const equipos = [
+    { nombre: partido.local, escudo: partido.escudoLocal },
+    { nombre: partido.visitante, escudo: partido.escudoVisitante },
+  ];
+  const comun = {
+    category: "deportes" as const,
+    country: liga.pais,
+    liga: liga.nombre,
+    // se cierra al arrancar: con el marcador a la vista ya no es predicción
+    closesAt: partido.inicio,
+    equipos,
+  };
+  const resolucion = (criterion: string) => ({
+    sourceName: `ESPN (marcador oficial de ${liga.nombre})`,
+    sourceUrl: fuente,
+    criterion,
+    settlesAt,
+    disputeWindowHours: 12,
+    // el marcador de ESPN late a diario: aquí el reloj SÍ dice si el colector
+    // sigue vivo (L8)
+    maxAgeHours: FRESCURA_MAX_HORAS,
+  });
+
+  if (liga.id === "mex.1") {
+    const rule: MatchRule = {
+      kind: "partido",
+      liga: liga.id,
+      fecha: dia,
+      inicio: partido.inicio,
+      equipo: partido.local,
+      resultado: "gana",
+    };
+    return {
+      ...comun,
+      id: `mx-${clave}-${dia}`,
+      title: `¿${partido.local} le gana a ${partido.visitante}?`,
+      shortTitle: nombreQueCabe(
+        `${partido.local} le gana a ${partido.visitante}`,
+        `${localR} le gana a ${visitanteR}`,
+        MAX_TITULO_CORTO,
+      ),
+      outcomes: [
+        { id: "si", label: `Gana ${localR}` },
+        { id: "no", label: "Empata o pierde" },
+      ],
+      pool: seedPool(SEED * 4, SEED * 4),
+      rule,
+      resolution: resolucion(
+        `Se resuelve Sí si ${partido.local} le gana a ${partido.visitante} en el partido del ${dia}, según el marcador final que publica ESPN. Un empate resuelve No.`,
+      ),
+    };
+  }
+
+  if (liga.empate) {
+    const rule: MatchOutcomeRule = {
+      kind: "partido_multiple",
+      liga: liga.id,
+      fecha: dia,
+      inicio: partido.inicio,
+      equipo: partido.local,
+      mercado: "1x2",
+    };
+    return {
+      ...comun,
+      id: `${liga.prefijo}-${clave}-${dia}`,
+      title: `${partido.local} vs ${partido.visitante}: ¿cómo termina?`,
+      shortTitle: versus,
+      outcomes: [
+        { id: "gana", label: `Gana ${localR}` },
+        { id: "empata", label: "Empatan" },
+        { id: "pierde", label: `Gana ${visitanteR}` },
+      ],
+      pool: declareSeed(
+        { outcomes: { gana: SEED * 3, empata: SEED * 2, pierde: SEED * 3 }, feeBps: FEE_BPS },
+        "apuesta",
+      ),
+      rule,
+      resolution: resolucion(
+        `Se resuelve con el marcador final de ${partido.local} contra ${partido.visitante} del ${diaLargo(dia)} (${liga.nombre}), tal como lo publica ESPN: Gana ${partido.local} si anota más goles, Empatan si terminan iguales, y Gana ${partido.visitante} si ${partido.local} anota menos.`,
+      ),
+    };
+  }
 
   const rule: MatchRule = {
     kind: "partido",
-    liga: "mex.1",
+    liga: liga.id,
     fecha: dia,
+    inicio: partido.inicio,
     equipo: partido.local,
     resultado: "gana",
   };
-
   return {
-    id: `mx-${clave}-${dia}`,
-    title: `¿${partido.local} le gana a ${partido.visitante}?`,
-    shortTitle: `${partido.local} le gana a ${partido.visitante}`,
+    ...comun,
+    id: `${liga.prefijo}-${clave}-${dia}`,
+    title: `${liga.nombre}: ¿gana ${partido.local} o ${partido.visitante}?`,
+    shortTitle: versus,
     outcomes: [
-      { id: "si", label: `Gana ${partido.local}` },
-      { id: "no", label: "Empata o pierde" },
+      { id: "si", label: `Gana ${localR}` },
+      { id: "no", label: `Gana ${visitanteR}` },
     ],
-    category: "deportes",
-    country: "MX",
-    // se cierra al arrancar el partido: con el marcador a la vista ya no es
-    // predicción
-    closesAt: partido.inicio,
     pool: seedPool(SEED * 4, SEED * 4),
     rule,
-    resolution: {
-      sourceName: "ESPN (marcador oficial de la Liga MX)",
-      sourceUrl: `${ESPN_MX}?dates=${dia.replace(/-/g, "")}`,
-      criterion: `Se resuelve Sí si ${partido.local} le gana a ${partido.visitante} en el partido del ${dia}, según el marcador final que publica ESPN. Un empate resuelve No.`,
-      settlesAt,
-      disputeWindowHours: 12,
-      // vela diaria de Kraken / marcador de ESPN: fuentes que laten a diario,
-      // así que aquí el reloj SÍ dice si el colector sigue vivo (L8)
-      maxAgeHours: FRESCURA_MAX_HORAS,
-    },
+    resolution: resolucion(
+      `Se resuelve Gana ${partido.local} si ${partido.local} termina con más puntos que ${partido.visitante} en el partido del ${diaLargo(dia)} (${liga.nombre}), según el marcador final que publica ESPN. En cualquier otro caso —incluido un empate, si lo hubiera— se resuelve Gana ${partido.visitante}.`,
+    ),
   };
 }
 
-/** Los partidos de los próximos días, listos para publicarse como mercados. */
 export function partidosSeeds(partidos: PartidoDeLaLiga[], now: number): OwnMarketSeed[] {
   return partidos
     // sólo lo que todavía no empieza: un partido en curso no se puede apostar

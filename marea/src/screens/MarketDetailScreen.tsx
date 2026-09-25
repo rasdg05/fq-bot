@@ -3,6 +3,8 @@ import { ArrowLeft, ShieldCheck } from "lucide-react";
 import type { Market } from "@/domain/types";
 import { formatEdgePp, hasEdge } from "@/domain/edge";
 import { Badge } from "@/components/ui/badge";
+import { AvatarMercado } from "@/components/ui/avatar-mercado";
+import { colorDeLado } from "@/lib/categoria";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/StateViews";
 import { cn } from "@/lib/cn";
@@ -80,17 +82,21 @@ export function MarketDetailScreen({ market }: { market: Market }) {
           {market.status === "closing_soon" ? (
             <Badge tone="hot">{S.badges.closingSoon}</Badge>
           ) : null}
-          {market.country || market.region === "latam" ? (
-            <Badge tone="latam">{market.country ?? S.badges.latam}</Badge>
+          {market.country && market.country !== "LATAM" ? (
+            <Badge tone="latam">{market.country}</Badge>
           ) : null}
           <span className="text-[12px] font-medium text-muted">
             {S.categories[market.category]}
+            {market.liga ? ` · ${market.liga}` : null}
           </span>
         </div>
 
-        <h1 className="mt-3 font-display text-[25px] font-semibold leading-[1.2] tracking-[-0.015em] text-text">
-          {market.title}
-        </h1>
+        <div className="mt-3 flex items-start gap-3">
+          <AvatarMercado market={market} className="mt-0.5 h-[52px] w-[52px]" />
+          <h1 className="min-w-0 flex-1 font-display text-[25px] font-semibold leading-[1.2] tracking-[-0.015em] text-text">
+            {market.title}
+          </h1>
+        </div>
 
         {/* nodo dominante: la probabilidad (R-004) */}
         <div className="mt-6 flex items-end gap-4">
@@ -289,11 +295,20 @@ export function MarketDetailScreen({ market }: { market: Market }) {
                     data-testid={`outcome-${outcome.id}`}
                     onClick={() => setSide(outcome.id)}
                     className={cn(
-                      "flex min-h-touch w-full items-center justify-between gap-3 rounded-ctl border px-4 py-3 text-left transition-colors",
+                      "relative flex min-h-touch w-full items-center justify-between gap-3 overflow-hidden rounded-ctl border px-4 py-3 text-left transition-colors",
                       elegido
                         ? "border-teal bg-teal-soft"
                         : "border-line2 bg-panel",
                     )}
+                    /* el lado se tiñe al fondo con su color, proporcional a su
+                       probabilidad: la fila es a la vez botón y barra */
+                    style={{
+                      backgroundImage: `linear-gradient(90deg, color-mix(in srgb, ${
+                        (market.equipos?.length ? undefined : colorDeLado(outcome.id)) ?? "var(--teal)"
+                      } ${elegido ? 26 : 16}%, transparent) ${Math.round(
+                        outcome.probability * 100,
+                      )}%, transparent 0)`,
+                    }}
                   >
                     <span
                       className={cn(
@@ -304,7 +319,14 @@ export function MarketDetailScreen({ market }: { market: Market }) {
                       {outcome.label}
                     </span>
                     <span className="flex items-baseline gap-3 tabular-nums">
-                      <span className="font-mono text-[15px] font-bold text-text">
+                      <span
+                        className="font-mono text-[15px] font-bold text-text"
+                        style={
+                          !market.equipos?.length && colorDeLado(outcome.id)
+                            ? { color: colorDeLado(outcome.id) }
+                            : undefined
+                        }
+                      >
                         {pct(outcome.probability)}%
                       </span>
                       <span className="text-[13px] font-medium text-text2">

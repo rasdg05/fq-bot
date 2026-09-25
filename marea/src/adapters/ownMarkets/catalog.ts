@@ -37,7 +37,10 @@ export interface OwnMarketSeed {
    */
   shortTitle: string;
   category: MarketCategory;
-  country: "MX" | "AR" | "BR" | "CL" | "CO" | "PE" | "LATAM";
+  /** País o región del badge. Los de fuera de Latam son de las ligas grandes. */
+  country:
+    | "MX" | "AR" | "BR" | "CL" | "CO" | "PE" | "UY" | "LATAM"
+    | "US" | "GB" | "ES" | "IT" | "DE" | "FR" | "EU";
   closesAt: string;
   resolution: ResolutionSpec;
   /** Estado inicial del pozo, sembrado por nosotros para que se pueda entrar. */
@@ -64,6 +67,8 @@ export interface OwnMarketSeed {
    * hay.
    */
   equipos?: { nombre: string; escudo?: string }[];
+  /** Nombre de la liga o torneo, para los mercados de deportes. */
+  liga?: string;
   /**
    * Estado del evento en curso, para las tarjetas de deportes en vivo.
    *

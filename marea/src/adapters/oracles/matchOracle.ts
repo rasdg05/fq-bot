@@ -1,5 +1,6 @@
 import type { Oracle, OracleQuery, OracleReading } from "@/domain/settlement";
 import { idsDeTramos, type MatchOutcomeRule, type MatchRule } from "@/domain/oracleRule";
+import { urlJornadaEspn } from "@/domain/ligas";
 
 /**
  * Oráculo de futbol contra el marcador público de ESPN, que sirve la Liga MX
@@ -20,7 +21,7 @@ export interface EspnCompetidor {
   homeAway: string;
   score?: string;
   winner?: boolean;
-  team: { displayName: string; shortDisplayName?: string; abbreviation?: string };
+  team: { displayName: string; shortDisplayName?: string; abbreviation?: string; logo?: string };
 }
 
 export interface EspnEvento {
@@ -38,10 +39,17 @@ export interface MatchOracleOptions {
   cargarPartidos?: (rule: MatchRule | MatchOutcomeRule) => Promise<EspnEvento[]>;
 }
 
-const BASE = "https://site.api.espn.com/apis/site/v2/sports/soccer";
-
 export function urlDeJornada(liga: string, fecha: string): string {
-  return `${BASE}/${liga}/scoreboard?dates=${fecha.replace(/-/g, "")}`;
+  return urlJornadaEspn(liga, fecha);
+}
+
+/** `YYYY-MM-DD` del día anterior. */
+function diaAnterior(fecha: string): string {
+  return new Date(Date.parse(`${fecha}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+}
+
+function mismoArranque(evento: EspnEvento, inicio: string): boolean {
+  return Math.abs(Date.parse(evento.date) - Date.parse(inicio)) < 60_000;
 }
 
 export async function cargarEspn(
@@ -82,13 +90,30 @@ export function createMatchOracle(options: MatchOracleOptions = {}): Oracle {
 
     async read(query: OracleQuery): Promise<OracleReading> {
       const rule = query.rule as MatchRule | MatchOutcomeRule;
-      const eventos = await cargar(rule);
+      const delEquipo = (lista: EspnEvento[]) =>
+        lista.filter((candidato) =>
+          candidato.competitions[0]?.competitors.some((competidor) =>
+            esElEquipo(competidor, rule.equipo),
+          ),
+        );
+      const elegir = (lista: EspnEvento[]) => {
+        const candidatos = delEquipo(lista);
+        if (!rule.inicio) return candidatos[0];
+        return candidatos.find((candidato) => mismoArranque(candidato, rule.inicio!));
+      };
 
-      const evento = eventos.find((candidato) =>
-        candidato.competitions[0]?.competitors.some((competidor) =>
-          esElEquipo(competidor, rule.equipo),
-        ),
-      );
+      let evento = elegir(await cargar(rule));
+      // ESPN agrupa por día de Estados Unidos: un partido nocturno de América
+      // Latina vive en la jornada del día anterior al UTC. Sin esta segunda
+      // mirada, el mercado se quedaba sin dato para siempre
+      if (!evento) {
+        try {
+          evento = elegir(await cargar({ ...rule, fecha: diaAnterior(rule.fecha) }));
+        } catch {
+          // la jornada vecina es una ayuda, no un requisito: sin ella se
+          // contesta lo mismo que antes
+        }
+      }
       if (!evento) {
         return {
           status: "sin_dato",

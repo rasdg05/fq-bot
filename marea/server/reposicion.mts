@@ -40,8 +40,13 @@ import type { Store } from "./store.mts";
  * gastar sin tope no.
  */
 
-/** Cuántos mercados abiertos consideramos un feed vivo. Igual que en `roll`. */
-export const MINIMO_ABIERTOS = 6;
+/**
+ * Por debajo de cuántos mercados duraderos abiertos se repone. Era 6, igual que
+ * en `roll`: bastaba para que la app no se viera vacía, no para que se viera
+ * llena. Con cripto de cinco pares y deportes de veinte ligas hay de dónde
+ * sacar, y la pantalla de un mercado de predicción se juzga por lo que ofrece.
+ */
+export const MINIMO_ABIERTOS = 60;
 
 export interface ReposicionOptions {
   /** Precio de contado por par. Ausente = no se generan mercados de cripto. */

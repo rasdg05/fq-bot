@@ -208,6 +208,10 @@ export interface Market {
    * lea (R-046).
    */
   equipos?: { nombre: string; escudo?: string }[];
+  /** Nombre de la liga o torneo, para los mercados de deportes. */
+  liga?: string;
+  /** Activo de un mercado de cripto (`BTC`, `ETH`, `SOL`, `XRP`, `DOGE`). */
+  activo?: string;
   /** Marcador, si el partido está en juego o ya terminó. */
   marcador?: { local: number; visitante: number; estado: string };
   /** Marcador estructurado del evento en curso. Sin esto no hay badge LIVE. */

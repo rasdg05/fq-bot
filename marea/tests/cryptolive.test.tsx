@@ -115,10 +115,11 @@ describe("Generación de velas — sin precio no hay mercado", () => {
   it("genera una vela de 5 y una de 15 por activo con precio", () => {
     const velas = velasVigentes({
       ahora: DENTRO,
-      precio: (par) => ({ "BTC/USD": 71_183, "ETH/USD": 4_502 })[par],
+      precio: (par) =>
+        ({ "BTC/USD": 71_183, "ETH/USD": 4_502, "SOL/USD": 117.2 } as Record<string, number>)[par],
     });
-    expect(velas).toHaveLength(4);
-    expect(velas.map((v) => v.intervalo).sort((a, b) => a - b)).toEqual([5, 5, 15, 15]);
+    expect(velas).toHaveLength(6);
+    expect(velas.map((v) => v.intervalo).sort((a, b) => a - b)).toEqual([5, 5, 5, 15, 15, 15]);
   });
 
   it("un par sin lectura fresca genera un mercado menos, no un strike inventado", () => {
@@ -791,11 +792,11 @@ describe("Presupuesto de la card viva", () => {
   it("mantiene las cinco filas que caben junto al esqueleto del feed", () => {
     render(<MarketCard market={mercadoVivo()} onOpen={() => {}} />);
     const card = screen.getByTestId("market-card");
-    // reloj · activo+precio · pills · barra · pie. La barra salió de dentro de
-    // las pills para ser una sola, igual que en la card normal; a cambio ocupa
-    // fila propia. Una fila **más** que éstas es la forma en que se pasa del
-    // alto de la card normal sin darse cuenta
-    expect(card.querySelector("div > div")?.children.length).toBe(5);
+    // ficha (con reloj y activo+precio a su lado) · pills · barra · pie. La
+    // ficha de 38 px ocupa el alto de las dos filas que acompaña, así que el
+    // bloque cuenta como una. Una fila **más** que éstas es la forma en que se
+    // pasa del alto de la card normal sin darse cuenta
+    expect(card.querySelector("div > div")?.children.length).toBe(4);
   });
 
   it("el porcentaje conserva su escala después de `twMerge` (R-004)", () => {

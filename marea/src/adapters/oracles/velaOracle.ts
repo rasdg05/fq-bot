@@ -1,5 +1,5 @@
 import type { Oracle, OracleQuery, OracleReading } from "@/domain/settlement";
-import type { VelaRule } from "@/domain/oracleRule";
+import { KRAKEN_PAR, type VelaRule } from "@/domain/oracleRule";
 import { GRACIA_VELA_MS, relojUtc } from "@/domain/vela";
 import { ABAJO, ARRIBA, urlKrakenVela } from "@/adapters/ownMarkets/cryptoLive";
 
@@ -43,10 +43,7 @@ export interface VelaOracleOptions {
   now?: () => number;
 }
 
-const KRAKEN_PARES: Record<VelaRule["par"], string> = {
-  "BTC/USD": "XBTUSD",
-  "ETH/USD": "ETHUSD",
-};
+const KRAKEN_PARES: Record<VelaRule["par"], string> = KRAKEN_PAR;
 
 async function pedirVelas(
   fetchImpl: typeof fetch,

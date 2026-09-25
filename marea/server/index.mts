@@ -22,6 +22,8 @@ import { metaDeLogro, metaDeMercado } from "./compartir.mts";
 import { logroDe, tarjetaPng } from "./tarjeta.mts";
 import { createRegistroDeEventos } from "./eventos.mts";
 import type { OwnMarketSeed } from "../src/adapters/ownMarkets/catalog";
+import { PARES_CRIPTO } from "../src/domain/oracleRule";
+import { LIGAS } from "../src/domain/ligas";
 import { congelados, type SettlementState } from "../src/domain/settlement";
 
 /**
@@ -120,34 +122,47 @@ const bitacora = {
 };
 
 /**
- * Los partidos de Liga MX de los próximos días, leídos de ESPN.
+ * Los partidos de los próximos días, liga por liga, leídos de ESPN.
  *
- * Un día que no contesta no cancela la semana: se pierde ese día y se sigue.
- * Es la misma tolerancia que tiene `roll`, y por la misma razón — una fuente
- * caída puede dejar el feed más corto, no vacío.
+ * Un día o una liga que no contesta no cancela nada: se pierde ese pedazo y se
+ * sigue. Una fuente caída puede dejar el feed más corto, no vacío. Cada liga se
+ * pide en paralelo y aporta como mucho su `maximo`: el feed no es un calendario.
  */
 async function partidosDeLaSemana(dias = 7): Promise<PartidoDeLaLiga[]> {
-  const partidos: PartidoDeLaLiga[] = [];
   const hoy = Date.now();
-  for (let i = 0; i < dias; i += 1) {
-    const dia = new Date(hoy + i * 86_400_000).toISOString().slice(0, 10);
-    try {
-      for (const evento of await cargarEspn(fetch, "mex.1", dia)) {
-        const competidores = evento.competitions[0]?.competitors ?? [];
-        const local = competidores.find((c) => c.homeAway === "home");
-        const visitante = competidores.find((c) => c.homeAway === "away");
-        if (!local || !visitante) continue;
-        partidos.push({
-          inicio: evento.date,
-          local: local.team.displayName,
-          visitante: visitante.team.displayName,
-        });
+  const porLiga = await Promise.all(
+    LIGAS.map(async (liga) => {
+      const partidos: PartidoDeLaLiga[] = [];
+      for (let i = 0; i < Math.min(dias, liga.dias); i += 1) {
+        const dia = new Date(hoy + i * 86_400_000).toISOString().slice(0, 10);
+        try {
+          for (const evento of await cargarEspn(fetch, liga.id, dia)) {
+            const competidores = evento.competitions[0]?.competitors ?? [];
+            const local = competidores.find((c) => c.homeAway === "home");
+            const visitante = competidores.find((c) => c.homeAway === "away");
+            if (!local || !visitante) continue;
+            partidos.push({
+              inicio: evento.date,
+              local: local.team.displayName,
+              visitante: visitante.team.displayName,
+              liga: liga.id,
+              localCorto: local.team.shortDisplayName,
+              visitanteCorto: visitante.team.shortDisplayName,
+              escudoLocal: local.team.logo,
+              escudoVisitante: visitante.team.logo,
+            });
+          }
+        } catch {
+          // un día que no responde no cancela la semana entera
+        }
       }
-    } catch {
-      // un día que no responde no cancela la semana entera
-    }
-  }
-  return partidos;
+      return partidos
+        .filter((partido) => Date.parse(partido.inicio) > hoy)
+        .sort((a, b) => Date.parse(a.inicio) - Date.parse(b.inicio))
+        .slice(0, liga.maximo);
+    }),
+  );
+  return porLiga.flat();
 }
 
 function log(linea: string) {
@@ -171,10 +186,8 @@ async function ciclo() {
      */
     try {
       const repuesto = await reponer(store, [...seeds, ...vivos.seeds()], Date.now(), {
-        spot: () => ({
-          "BTC/USD": ticker.precio("BTC/USD")?.precio,
-          "ETH/USD": ticker.precio("ETH/USD")?.precio,
-        }),
+        spot: () =>
+          Object.fromEntries(PARES_CRIPTO.map((par) => [par, ticker.precio(par)?.precio])),
         partidos: (dias) => partidosDeLaSemana(dias),
         env: process.env,
         avisar: (mensaje) => log(`reposición: ${mensaje}`),

@@ -5,8 +5,8 @@ import { Card } from "@/components/ui/card";
 import { CryptoLiveCard } from "@/components/CryptoLiveCard";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
-import { CategoriaIcono } from "@/components/ui/categoria-icono";
-import { COLOR_CATEGORIA } from "@/lib/categoria";
+import { AvatarMercado } from "@/components/ui/avatar-mercado";
+import { COLOR_CATEGORIA, colorDeLado } from "@/lib/categoria";
 import { S } from "@/lib/strings";
 import { formatStake } from "@/lib/units";
 import { compactUsd, pct, closesIn, eventoTexto } from "@/lib/format";
@@ -187,18 +187,29 @@ function Opcion({
  * no son lo mismo cuando se está apostando. Decorativa para el lector de
  * pantalla — el porcentaje ya está en texto al lado.
  */
-function ProbBar({ lider, rival }: { lider: number; rival: number }) {
+function ProbBar({
+  lider,
+  rival,
+  colorLider,
+  colorRival,
+}: {
+  lider: number;
+  rival: number;
+  /** Color del lado (verde sí, rojo no). Sin él, el acento y el gris. */
+  colorLider?: string;
+  colorRival?: string;
+}) {
   const ancho = (p: number) => `${Math.max(p * 100, p > 0 ? 2 : 0)}%`;
   return (
     <span aria-hidden className="flex h-[3px] w-full gap-0.5 overflow-hidden rounded-pill">
       <span
         data-testid="prob-bar-lider"
         className="h-full rounded-pill bg-teal transition-[width] duration-[240ms] ease-[cubic-bezier(.22,1,.36,1)]"
-        style={{ width: ancho(lider) }}
+        style={{ width: ancho(lider), ...(colorLider ? { backgroundColor: colorLider } : {}) }}
       />
       <span
         className="h-full rounded-pill bg-[color:var(--pill-line)] transition-[width] duration-[240ms] ease-[cubic-bezier(.22,1,.36,1)]"
-        style={{ width: ancho(rival) }}
+        style={{ width: ancho(rival), ...(colorRival ? { backgroundColor: colorRival } : {}) }}
       />
       <span className="h-full flex-1 rounded-pill bg-line2" />
     </span>
@@ -458,10 +469,15 @@ export function MarketCard({ market, variant, pulso, onOpen }: MarketCardProps) 
         {/* la categoría manda a la izquierda, con su azulejo: es lo primero que
             dice de qué va la card, igual que en las casas que se leen bien.
             Los badges de estado se van a la derecha, donde no compiten */}
+        {/* la ficha a la izquierda abarca la fila de categoría y el título:
+            identifica el mercado de reojo sin sumarle alto a la tarjeta */}
+        <div className="flex items-center gap-2.5">
+        <AvatarMercado market={vista} className="h-[38px] w-[38px]" />
+        <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
         <div className="flex h-4 items-center gap-1.5">
-          <CategoriaIcono categoria={vista.category} />
-          <span className="mr-auto shrink-0 text-[12px] font-medium text-muted">
+          <span className="mr-auto min-w-0 truncate text-[12px] font-semibold text-muted">
             {S.categories[vista.category]}
+            {vista.liga ? <span className="text-text2"> · {vista.liga}</span> : null}
           </span>
           {vivo ? (
             <Badge tone="live" dot>
@@ -479,8 +495,10 @@ export function MarketCard({ market, variant, pulso, onOpen }: MarketCardProps) 
             </Badge>
           ) : null}
           {vista.hot && !resolviendo ? <Badge tone="hot">{S.badges.hot}</Badge> : null}
-          {vista.country || vista.region === "latam" ? (
-            <Badge tone="latam">{vista.country ?? S.badges.latam}</Badge>
+          {/* «LATAM» en todas las cards no distinguía nada: el badge sólo sale
+              cuando nombra un país concreto */}
+          {vista.country && vista.country !== "LATAM" ? (
+            <Badge tone="latam">{vista.country}</Badge>
           ) : null}
         </div>
 
@@ -502,6 +520,8 @@ export function MarketCard({ market, variant, pulso, onOpen }: MarketCardProps) 
             {titulo}
           </h3>
         )}
+        </div>
+        </div>
 
         {multi ? (
           /* lista vertical: las tres respuestas con más pozo, cada una con su
@@ -555,6 +575,10 @@ export function MarketCard({ market, variant, pulso, onOpen }: MarketCardProps) 
           <ProbBar
             lider={probLider}
             rival={rival ? rival.probability : Math.max(0, 1 - probLider)}
+            // en un partido los lados son equipos: pintar uno de rojo lo haría
+            // «el malo». El verde y rojo es para sí/no y arriba/abajo
+            colorLider={lider && !vista.equipos?.length ? colorDeLado(lider.id) : undefined}
+            colorRival={rival && !vista.equipos?.length ? colorDeLado(rival.id) : undefined}
           />
         )}
 

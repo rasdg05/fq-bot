@@ -1,5 +1,5 @@
 import type { Oracle, OracleQuery, OracleReading } from "@/domain/settlement";
-import type { PriceRule } from "@/domain/oracleRule";
+import { KRAKEN_PAR, type PriceRule } from "@/domain/oracleRule";
 import { createSeriesOracle, type SeriesOracleOptions } from "./seriesOracle";
 import { createMatchOracle, type MatchOracleOptions } from "./matchOracle";
 import { createVelaOracle, type VelaOracleOptions } from "./velaOracle";
@@ -20,10 +20,7 @@ import { createVelaOracle, type VelaOracleOptions } from "./velaOracle";
 
 const DIA_MS = 86_400_000;
 
-const PARES: Record<PriceRule["par"], string> = {
-  "BTC/USD": "XBTUSD",
-  "ETH/USD": "ETHUSD",
-};
+const PARES: Record<PriceRule["par"], string> = KRAKEN_PAR;
 
 type Candle = { inicio: number; alto: number; bajo: number; cierre: number };
 

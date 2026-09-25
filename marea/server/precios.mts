@@ -21,6 +21,13 @@
  * número que dejó de ser cierto.
  */
 
+
+import {
+  KRAKEN_PAR,
+  PARES_CRIPTO,
+  parDeClaveKraken,
+  type ParCripto,
+} from "../src/domain/oracleRule";
 export type FuentePrecio = "fq" | "kraken";
 
 export interface Tick {
@@ -47,19 +54,18 @@ export interface TickerOptions {
 }
 
 /** Los pares que seguimos. Es el mismo conjunto que genera mercados vivos. */
-export const PARES_VIVOS = ["BTC/USD", "ETH/USD"] as const;
-export type ParVivo = (typeof PARES_VIVOS)[number];
+export const PARES_VIVOS = PARES_CRIPTO;
+export type ParVivo = ParCripto;
 
-const KRAKEN_TICKER = "https://api.kraken.com/0/public/Ticker?pair=XBTUSD,ETHUSD";
+const KRAKEN_TICKER =
+  "https://api.kraken.com/0/public/Ticker?pair=" +
+  PARES_CRIPTO.map((par) => KRAKEN_PAR[par]).join(",");
 
 /** Lo que devuelve cualquiera de las dos fuentes: par → precio. */
 type Lectura = Partial<Record<ParVivo, number>>;
 
 function normalizarClave(clave: string): ParVivo | undefined {
-  const limpia = clave.toUpperCase();
-  if (/^(BTC|XBT|XXBT)/.test(limpia)) return "BTC/USD";
-  if (/^(ETH|XETH)/.test(limpia)) return "ETH/USD";
-  return undefined;
+  return parDeClaveKraken(clave);
 }
 
 /**

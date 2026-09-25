@@ -10,10 +10,49 @@
  * aparece en el texto del criterio o el mercado no se publica (R-042).
  */
 
+import type { LigaId } from "./ligas";
+
+/**
+ * Pares de cripto que Marea sabe resolver. Todos cotizan en Kraken, que publica
+ * velas y ticker sin llave: lo que no se puede leer de una fuente pública no se
+ * lista.
+ */
+export const PARES_CRIPTO = ["BTC/USD", "ETH/USD", "SOL/USD", "XRP/USD", "DOGE/USD"] as const;
+export type ParCripto = (typeof PARES_CRIPTO)[number];
+
+/** El nombre del par en la URL pública de Kraken (`pair=`). */
+export const KRAKEN_PAR: Record<ParCripto, string> = {
+  "BTC/USD": "XBTUSD",
+  "ETH/USD": "ETHUSD",
+  "SOL/USD": "SOLUSD",
+  "XRP/USD": "XRPUSD",
+  "DOGE/USD": "XDGUSD",
+};
+
+/**
+ * Kraken contesta con claves propias (`XXBTZUSD`, `XDGUSD`, `SOLUSD`…). Esto
+ * devuelve el par que nombran, o nada si no es uno de los nuestros.
+ */
+export function parDeClaveKraken(clave: string): ParCripto | undefined {
+  const limpia = clave.toUpperCase();
+  if (/^(BTC|XBT|XXBT)/.test(limpia)) return "BTC/USD";
+  if (/^(ETH|XETH)/.test(limpia)) return "ETH/USD";
+  if (/^SOL/.test(limpia)) return "SOL/USD";
+  if (/^(XRP|XXRP)/.test(limpia)) return "XRP/USD";
+  if (/^(DOGE|XDG|XXDG)/.test(limpia)) return "DOGE/USD";
+  return undefined;
+}
+
+/** El activo de un mercado de cripto (`BTC`, `SOL`…), leído de su regla. */
+export function activoDeRegla(rule: { kind: string; par?: string } | undefined): string | undefined {
+  if (!rule || (rule.kind !== "precio" && rule.kind !== "vela")) return undefined;
+  return rule.par?.split("/")[0];
+}
+
 export interface PriceRule {
   kind: "precio";
   /** Par tal como lo cotiza el exchange público. */
-  par: "BTC/USD" | "ETH/USD";
+  par: ParCripto;
   umbral: number;
   comparacion: "arriba" | "abajo";
   /**
@@ -53,7 +92,7 @@ export interface PriceRule {
  */
 export interface VelaRule {
   kind: "vela";
-  par: "BTC/USD" | "ETH/USD";
+  par: ParCripto;
   /** Minutos de la vela. Sólo los que Kraken publica nativamente. */
   intervalo: 5 | 15;
   /** Apertura de la vela, en ms UTC. Alineada al reloj por construcción. */
@@ -115,10 +154,17 @@ export interface SeriesRule {
  */
 export interface MatchRule {
   kind: "partido";
-  /** Liga tal como la nombra la fuente. `mex.1` es la Liga MX. */
-  liga: "mex.1";
+  /** Liga tal como la nombra la fuente. `mex.1` es la Liga MX (ver `ligas.ts`). */
+  liga: LigaId;
   /** Día del partido en UTC, `YYYY-MM-DD`. */
   fecha: string;
+  /**
+   * Arranque exacto, en ISO. ESPN agrupa por día **de Estados Unidos**, así que
+   * un partido de las 21:00 en CDMX cae en la jornada del día anterior al UTC.
+   * Con el arranque, el oráculo reconoce el partido aunque lo busque en la
+   * jornada vecina — y no confunde el de hoy con el de ayer en la MLB.
+   */
+  inicio?: string;
   /** Equipo del que se pregunta, con el nombre que usa la fuente. */
   equipo: string;
   /** `gana` es victoria; `no_pierde` incluye el empate. */
@@ -135,9 +181,11 @@ export interface MatchRule {
  */
 export interface MatchOutcomeRule {
   kind: "partido_multiple";
-  liga: "mex.1";
+  liga: LigaId;
   /** Día del partido en UTC, `YYYY-MM-DD`. */
   fecha: string;
+  /** Arranque exacto, en ISO. Ver `MatchRule.inicio`. */
+  inicio?: string;
   /** Equipo desde cuya perspectiva se lee el resultado. */
   equipo: string;
   /**

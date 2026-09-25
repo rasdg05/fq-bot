@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { LiveCandle, Market, Position } from "../src/domain/types";
-import type { VelaRule } from "../src/domain/oracleRule";
+import { activoDeRegla, type VelaRule } from "../src/domain/oracleRule";
 import { deltaPp } from "../src/domain/vela";
 import { ACTIVOS_VIVOS, esVelaViva } from "../src/adapters/ownMarkets/cryptoLive";
 import { withEdge } from "../src/domain/edge";
@@ -197,6 +197,8 @@ export function construirMercado(
     // cuánta gente distinta hay dentro: es lo que dice si el mercado está vivo
     participantes: store.participantesDe(seed.id),
     equipos: seed.equipos,
+    liga: seed.liga,
+    activo: activoDeRegla(seed.rule),
     region: "latam",
     country: seed.country,
     // `hot` es una invitación a apostar, así que un mercado cerrado nunca lo

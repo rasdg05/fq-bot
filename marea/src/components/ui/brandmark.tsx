@@ -24,9 +24,15 @@ export function Brandmark({ className }: { className?: string }) {
       aria-hidden
       className={cn("shrink-0", className)}
     >
-      <rect width="32" height="32" rx="9" className="fill-teal-soft" />
+      <defs>
+        <linearGradient id="marea-ola" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" style={{ stopColor: "var(--cat-clima)" }} />
+          <stop offset="1" style={{ stopColor: "var(--teal)" }} />
+        </linearGradient>
+      </defs>
+      <rect width="32" height="32" rx="9" fill="url(#marea-ola)" />
       <g
-        className="stroke-teal"
+        className="stroke-white"
         fill="none"
         strokeWidth="2.4"
         strokeLinecap="round"

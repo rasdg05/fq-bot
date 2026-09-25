@@ -63,7 +63,11 @@ export function bloqueoDeVentana(inicio: number, intervalo: IntervaloVivo): numb
  * contestada. El criterio es que el paso no pase del 0.1 % del precio.
  */
 export function pasoDeStrike(par: string): number {
-  return par === "BTC/USD" ? 100 : 5;
+  if (par === "BTC/USD") return 100;
+  // SOL se mueve centavos en cinco minutos: con paso de 5 el strike quedaría
+  // siempre lejos y la vela sería una pregunta con respuesta cantada
+  if (par === "SOL/USD") return 0.5;
+  return 5;
 }
 
 export function redondearStrike(precio: number, paso: number): number {

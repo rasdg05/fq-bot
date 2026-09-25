@@ -3,7 +3,8 @@ import type { LiveCandle, Market, PulsoVivo } from "@/domain/types";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
-import { CategoriaIcono } from "@/components/ui/categoria-icono";
+import { AvatarMercado } from "@/components/ui/avatar-mercado";
+import { colorDeLado } from "@/lib/categoria";
 import { S } from "@/lib/strings";
 import { formatStake } from "@/lib/units";
 import { pct } from "@/lib/format";
@@ -241,9 +242,11 @@ export function CryptoLiveCard({ market, pulso, onOpen }: CryptoLiveCardProps) {
         {/* reloj. El countdown vive dentro del badge: es la misma información
             —esto está pasando y le queda esto— y separarla en dos nodos costaba
             una fila entera */}
+        <div className="flex items-center gap-2.5">
+        <AvatarMercado market={market} className="h-[38px] w-[38px]" />
+        <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
         <div className="flex h-4 items-center gap-1.5">
-          <CategoriaIcono categoria={market.category} />
-          <span className="mr-auto shrink-0 text-[12px] font-medium text-muted">
+          <span className="mr-auto shrink-0 text-[12px] font-semibold text-muted">
             {S.categories[market.category]}
           </span>
           <Badge tone="live" dot data-testid="live-countdown">
@@ -291,6 +294,9 @@ export function CryptoLiveCard({ market, pulso, onOpen }: CryptoLiveCardProps) {
               </span>
             ) : null}
           </span>
+        </div>
+
+        </div>
         </div>
 
         {/* la decisión: los dos lados nombrados, con su pago y su barra */}
@@ -360,7 +366,11 @@ export function CryptoLiveCard({ market, pulso, onOpen }: CryptoLiveCardProps) {
                 "h-full rounded-pill transition-[width] duration-[240ms] ease-[cubic-bezier(.22,1,.36,1)]",
                 lado.lider ? "bg-teal" : "bg-[color:var(--pill-line)]",
               )}
-              style={{ width: `${Math.max(lado.probability * 100, 2)}%` }}
+              style={{
+                width: `${Math.max(lado.probability * 100, 2)}%`,
+                // arriba en verde, abajo en rojo: la etiqueta ya dice cuál es
+                backgroundColor: colorDeLado(lado.id),
+              }}
             />
           ))}
         </span>
