@@ -1,4 +1,5 @@
 import type { Oracle, OracleQuery, OracleReading } from "@/domain/settlement";
+import type { Momios } from "@/domain/director";
 import { idsDeTramos, type MatchOutcomeRule, type MatchRule } from "@/domain/oracleRule";
 import { urlJornadaEspn } from "@/domain/ligas";
 
@@ -30,6 +31,19 @@ export interface EspnEvento {
   competitions: {
     status: { type: { name: string; completed?: boolean } };
     competitors: EspnCompetidor[];
+    /**
+     * Momios que ESPN publica junto al partido (DraftKings, medido el
+     * 2026-10-01). Sólo siembran el prior; nunca resuelven nada. La lista puede
+     * traer entradas `null` (Liga MX).
+     */
+    odds?: ({
+      provider?: { name?: string };
+      moneyline?: {
+        home?: { close?: { odds?: string }; open?: { odds?: string } };
+        away?: { close?: { odds?: string }; open?: { odds?: string } };
+        draw?: { close?: { odds?: string }; open?: { odds?: string } };
+      };
+    } | null)[];
   }[];
 }
 
@@ -192,4 +206,23 @@ export function createMatchOracle(options: MatchOracleOptions = {}): Oracle {
       };
     },
   };
+}
+
+/** Los momios de un partido de ESPN, o nada. Toma el cierre; si no hay, la apertura. */
+export function momiosDeEspn(evento: EspnEvento): Momios | undefined {
+  for (const o of evento.competitions[0]?.odds ?? []) {
+    const ml = o?.moneyline;
+    const de = (lado?: { close?: { odds?: string }; open?: { odds?: string } }) => lado?.close?.odds ?? lado?.open?.odds;
+    const local = de(ml?.home);
+    const visitante = de(ml?.away);
+    if (local === undefined || visitante === undefined) continue;
+    const empate = de(ml?.draw);
+    return {
+      local,
+      visitante,
+      ...(empate !== undefined ? { empate } : {}),
+      proveedor: `${o?.provider?.name ?? "casa de apuestas"} vía ESPN`,
+    };
+  }
+  return undefined;
 }

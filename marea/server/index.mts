@@ -13,10 +13,13 @@ import {
   todosLosSeeds,
 } from "./mercados.mts";
 import { correrCiclo, type ResumenCiclo } from "./ciclo.mts";
+import { correrRevisor, fotoDe } from "./revisor.mts";
+import { Juez, clienteAnthropic } from "./juez.mts";
+import { reporteDirector } from "./director.mts";
 import { crearTicker } from "./precios.mts";
 import { MercadosVivos } from "./vivos.mts";
 import { MINIMO_ABIERTOS, reponer, type ResumenReposicion } from "./reposicion.mts";
-import { cargarEspn } from "../src/adapters/oracles/matchOracle";
+import { cargarEspn, momiosDeEspn } from "../src/adapters/oracles/matchOracle";
 import type { PartidoDeLaLiga } from "../src/adapters/ownMarkets/templates";
 import { metaDeLogro, metaDeMercado } from "./compartir.mts";
 import { logroDe, tarjetaPng } from "./tarjeta.mts";
@@ -131,6 +134,11 @@ const ticker = crearTicker({
   onError: (mensaje) => log(`precios: ${mensaje}`),
 });
 const vivos = new MercadosVivos(store, ticker);
+/**
+ * El juez editorial (Claude). Sin `ANTHROPIC_API_KEY` queda apagado y todo
+ * corre igual: las reglas deciden solas (MEMORY/FILOSOFIA.md, principio 7).
+ */
+const juez = new Juez(clienteAnthropic(process.env));
 
 /**
  * El catálogo completo de este instante: lo publicado en el repo, lo que el
@@ -191,6 +199,8 @@ async function partidosDeLaSemana(dias = 7): Promise<PartidoDeLaLiga[]> {
               visitanteCorto: visitante.team.shortDisplayName,
               escudoLocal: local.team.logo,
               escudoVisitante: visitante.team.logo,
+              // el prior del market maker: momios publicados, si los hay
+              ...(momiosDeEspn(evento) ? { momios: momiosDeEspn(evento) } : {}),
             });
           }
         } catch (error) {
@@ -221,6 +231,7 @@ function log(linea: string) {
 
 async function ciclo() {
   bitacora.corridas += 1;
+  juez.nuevoCiclo();
   try {
     // el catálogo puede haber crecido: se relee antes de liquidar
     seeds = todosLosSeeds(ROOT);
@@ -262,6 +273,7 @@ async function ciclo() {
           };
         },
         tenis: { maximo: 8, cargar: partidosDeTenis },
+        juez,
         env: process.env,
         avisar: (mensaje) => log(`reposición: ${mensaje}`),
       });
@@ -283,6 +295,8 @@ async function ciclo() {
             `${repuesto.errores.length} errores`,
         );
       }
+      for (const vetado of repuesto.vetados) log(`  ⚖ juez vetó ${vetado.id}: ${vetado.motivo}`);
+      if (repuesto.diferidos.length > 0) log(`  ⏳ ${repuesto.diferidos.length} esperan al juez en el siguiente ciclo`);
       for (const frenado of repuesto.frenados) {
         log(`  ⛔ ${frenado.id} no se creó: ${frenado.motivo}`);
       }
@@ -301,6 +315,35 @@ async function ciclo() {
         (resumen.huerfanos.length > 0 ? ` · ${resumen.huerfanos.length} huérfanas devueltas` : ""),
     );
     for (const error of resumen.errores) log(`  ⚠ ${error}`);
+
+    /**
+     * El revisor autónomo, al final de cada ciclo: mira todo lo que hay,
+     * retiene lo que contradice al mercado y anota en la bitácora sólo lo que
+     * cambió (MEMORY/FILOSOFIA.md). Que falle no tumba el ciclo: el revisor
+     * observa, no sostiene.
+     */
+    try {
+      const todos = [...conRepuestos, ...vivos.seedsConApuestas()];
+      // el juez lee las resoluciones en disputa antes de que el revisor decida
+      await juez.revisarResoluciones(
+        conRepuestos.flatMap((seed) => {
+          const estado = store.liquidacion(seed.id);
+          return estado?.phase === "en_disputa" ? [{ seed, estado }] : [];
+        }),
+      );
+      const revision = correrRevisor(
+        store,
+        fotoDe(store, todos, Date.now(), {
+          huerfanas: store.apuestasHuerfanas(todos.map((seed) => seed.id)),
+          juicios: juez.juiciosDeResolucion(),
+        }),
+      );
+      for (const h of revision.abren) log(`  🔎 revisor abre [${h.severidad}] ${h.codigo} · ${h.sujeto}: ${h.detalle}`);
+      for (const h of revision.cierran) log(`  ✓ revisor cierra ${h.codigo} · ${h.sujeto}`);
+      for (const id of revision.retenidos) log(`  ✋ revisor retuvo el pago de ${id}`);
+    } catch (error) {
+      log(`revisor falló: ${String(error)}`);
+    }
   } catch (error) {
     log(`ciclo falló entero: ${String(error)}`);
   }
@@ -380,6 +423,18 @@ async function servir(req: IncomingMessage, res: ServerResponse) {
         2,
       ),
     );
+    return;
+  }
+
+  /**
+   * El reporte público del director: qué decidió, qué encontró y cómo le va.
+   * Sin datos de usuarios. Es la transparencia de un agente que decide solo
+   * (MEMORY/FILOSOFIA.md, principio 9).
+   */
+  if (ruta === "/api/director") {
+    const todos = [...seeds, ...store.seedsGeneradas()];
+    res.writeHead(200, { "content-type": TIPOS[".json"], "cache-control": "no-store" });
+    res.end(JSON.stringify(reporteDirector({ store, seeds: todos, juez: juez.estado(), ahora: Date.now() })));
     return;
   }
 

@@ -6,6 +6,7 @@ import { SearchScreen } from "@/screens/SearchScreen";
 import { PortfolioScreen } from "@/screens/PortfolioScreen";
 import { WalletScreen } from "@/screens/WalletScreen";
 import { TablaScreen } from "@/screens/TablaScreen";
+import { DirectorScreen } from "@/screens/DirectorScreen";
 import { ProfileScreen } from "@/screens/ProfileScreen";
 import { MarketDetailScreen } from "@/screens/MarketDetailScreen";
 import { DepositSheet } from "@/screens/DepositSheet";
@@ -34,6 +35,8 @@ function CurrentScreen() {
       return <WalletScreen />;
     case "tabla":
       return <TablaScreen />;
+    case "director":
+      return <DirectorScreen />;
     case "profile":
       return <ProfileScreen />;
     case "markets":

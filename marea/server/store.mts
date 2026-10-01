@@ -7,6 +7,8 @@ import {
   type Side,
 } from "../src/domain/parimutuel";
 import type { SettlementState } from "../src/domain/settlement";
+import { anexar, type DecisionNueva, type EntradaBitacora } from "../src/domain/bitacora";
+import type { Hallazgo } from "../src/domain/revisor";
 import type { OwnMarketSeed } from "../src/adapters/ownMarkets/catalog";
 import {
   CUENTAS_SISTEMA,
@@ -142,6 +144,13 @@ interface Datos {
    * dura días, no cinco minutos.
    */
   generados: OwnMarketSeed[];
+  /**
+   * La bitácora del director: decisiones autónomas, append-only y encadenadas
+   * por hash (`domain/bitacora.ts`). Nunca se edita una entrada.
+   */
+  bitacora: EntradaBitacora[];
+  /** Los hallazgos abiertos del revisor, con la fecha en que aparecieron. */
+  hallazgos: Hallazgo[];
 }
 
 const VACIO: Datos = {
@@ -154,6 +163,8 @@ const VACIO: Datos = {
   libro: [],
   vivos: [],
   generados: [],
+  bitacora: [],
+  hallazgos: [],
 };
 
 /**
@@ -557,6 +568,39 @@ export class Store {
 
   liquidaciones(): SettlementState[] {
     return this.datos.liquidaciones;
+  }
+
+  /* ------------------------- director y revisor -------------------------- */
+
+  bitacora(): readonly EntradaBitacora[] {
+    return this.datos.bitacora;
+  }
+
+  /**
+   * Anota decisiones en la bitácora, en una sola escritura. Encadenadas en el
+   * orden recibido; nunca se reescribe una entrada anterior.
+   */
+  anotar(decisiones: readonly DecisionNueva[], ahora: number): EntradaBitacora[] {
+    if (decisiones.length === 0) return [];
+    return this.mutar((datos) => {
+      const nuevas: EntradaBitacora[] = [];
+      for (const decision of decisiones) {
+        const entrada = anexar(datos.bitacora, decision, ahora);
+        datos.bitacora.push(entrada);
+        nuevas.push(entrada);
+      }
+      return nuevas;
+    });
+  }
+
+  hallazgos(): readonly Hallazgo[] {
+    return this.datos.hallazgos;
+  }
+
+  guardarHallazgos(hallazgos: readonly Hallazgo[]): void {
+    this.mutar((datos) => {
+      datos.hallazgos = [...hallazgos];
+    });
   }
 
   guardarLiquidacion(estado: SettlementState): void {

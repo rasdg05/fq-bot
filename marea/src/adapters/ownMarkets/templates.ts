@@ -10,6 +10,7 @@ import {
   type PriceRule,
 } from "@/domain/oracleRule";
 import { ligaDe, urlJornadaEspn, type LigaId } from "@/domain/ligas";
+import { pozoDesdePrior, probabilidadesDeMomios, type Momios } from "@/domain/director";
 import { urlJornadaTenis } from "@/adapters/oracles/tennisOracle";
 import {
   OUTCOME_LABEL_MAX,
@@ -146,7 +147,9 @@ function cierreSemanal(
   return {
     id: `${plantilla.id}-cierre-${semana}`,
     title: `¿${plantilla.nombre} cierra la semana arriba de ${conSeparador(umbral)} dólares?`,
-    shortTitle: `${plantilla.nombre} arriba de ${conSeparador(umbral)} el domingo`,
+    // «sobre» y no «arriba de»: con «arriba de» medía 35 y en la tarjeta caben 32
+    // (hallazgo `titulo_largo` del revisor, primer arranque del 2026-10-01)
+    shortTitle: `${plantilla.nombre} sobre ${conSeparador(umbral)} el domingo`,
     // los dos lados se llaman por lo que son. "Sí" y "No" no dicen de qué lado
     // está uno cuando la pregunta ya no está a la vista (§3.3 del rediseño)
     outcomes: [
@@ -263,6 +266,11 @@ export interface PartidoDeLaLiga {
   /** Escudo que publica la misma fuente que se lee (R-046). */
   escudoLocal?: string;
   escudoVisitante?: string;
+  /**
+   * Momios publicados con el partido. Sólo deciden con qué prior nace el pozo
+   * —el trabajo de quien hace existir el mercado—; nunca resuelven nada.
+   */
+  momios?: Momios;
 }
 
 const ESPN_MX = "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard";
@@ -359,10 +367,18 @@ export function partidoSeed(partido: PartidoDeLaLiga): OwnMarketSeed {
     closesAt: partido.inicio,
     equipos,
   };
+  /**
+   * El prior: los momios publicados, sin la comisión de la casa de apuestas. Sin
+   * momios legibles, el pozo nace parejo como antes —y la bitácora lo dice—.
+   */
+  const prior = partido.momios ? probabilidadesDeMomios(partido.momios, Boolean(liga.empate) || liga.id === "mex.1") : undefined;
+  const nota = prior && partido.momios
+    ? ` La semilla sigue los momios de ${partido.momios.proveedor} al crear el mercado; no intervienen en el resultado.`
+    : "";
   const resolucion = (criterion: string) => ({
     sourceName: `ESPN (marcador oficial de ${liga.nombre})`,
     sourceUrl: fuente,
-    criterion,
+    criterion: `${criterion}${nota}`,
     settlesAt,
     disputeWindowHours: 12,
     // el marcador de ESPN late a diario: aquí el reloj SÍ dice si el colector
@@ -392,7 +408,12 @@ export function partidoSeed(partido: PartidoDeLaLiga): OwnMarketSeed {
         { id: "si", label: `Gana ${localR}` },
         { id: "no", label: "Empata o pierde" },
       ],
-      pool: seedPool(SEED * 4, SEED * 4),
+      pool: prior
+        ? declareSeed(
+            { outcomes: pozoDesdePrior({ si: prior.local, no: prior.visitante + (prior.empate ?? 0) }, SEED * 8), feeBps: FEE_BPS },
+            "apuesta",
+          )
+        : seedPool(SEED * 4, SEED * 4),
       rule,
       resolution: resolucion(
         `Se resuelve Sí si ${partido.local} le gana a ${partido.visitante} en el partido del ${dia}, según el marcador final que publica ESPN. Un empate resuelve No.`,
@@ -420,7 +441,12 @@ export function partidoSeed(partido: PartidoDeLaLiga): OwnMarketSeed {
         { id: "pierde", label: `Gana ${visitanteR}` },
       ],
       pool: declareSeed(
-        { outcomes: { gana: SEED * 3, empata: SEED * 2, pierde: SEED * 3 }, feeBps: FEE_BPS },
+        {
+          outcomes: prior?.empate !== undefined
+            ? pozoDesdePrior({ gana: prior.local, empata: prior.empate, pierde: prior.visitante }, SEED * 8)
+            : { gana: SEED * 3, empata: SEED * 2, pierde: SEED * 3 },
+          feeBps: FEE_BPS,
+        },
         "apuesta",
       ),
       rule,
@@ -447,7 +473,9 @@ export function partidoSeed(partido: PartidoDeLaLiga): OwnMarketSeed {
       { id: "si", label: `Gana ${localR}` },
       { id: "no", label: `Gana ${visitanteR}` },
     ],
-    pool: seedPool(SEED * 4, SEED * 4),
+    pool: prior
+      ? declareSeed({ outcomes: pozoDesdePrior({ si: prior.local, no: prior.visitante }, SEED * 8), feeBps: FEE_BPS }, "apuesta")
+      : seedPool(SEED * 4, SEED * 4),
     rule,
     resolution: resolucion(
       `Se resuelve Gana ${partido.local} si ${partido.local} termina con más puntos que ${partido.visitante} en el partido del ${diaLargo(dia)} (${liga.nombre}), según el marcador final que publica ESPN. En cualquier otro caso —incluido un empate, si lo hubiera— se resuelve Gana ${partido.visitante}.`,

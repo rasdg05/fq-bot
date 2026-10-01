@@ -2,6 +2,7 @@ import { KALSHI_API, type EstadoKalshi } from "@/adapters/oracles/mirrorOracle";
 import type { MarketCategory } from "@/domain/types";
 import { espejoSeed, probabilidadKalshi, type EspejoCurado } from "./espejos";
 import { OUTCOME_LABEL_MAX, type OwnMarketSeed } from "./catalog";
+import { conNombre } from "@/domain/director";
 
 /**
  * Espejos **recurrentes**: preguntas que Kalshi vuelve a abrir cada semana o
@@ -39,7 +40,7 @@ export interface SerieRecurrente {
   shortTitle: (fecha: string) => string;
   /** Qué publica la fuente, para el criterio: «el Top 10 global de películas de Netflix». */
   queMide: string;
-  /** Cuántas respuestas con nombre; el resto va a «Otra». */
+  /** Tope de respuestas con nombre (por omisión `MAX_CON_NOMBRE`); el resto va a «Otra». */
   candidatos?: number;
   otra: string;
 }
@@ -207,10 +208,12 @@ export function recurrenteDe(
   if (contendientes.some((m) => probabilidadKalshi(m) === undefined)) {
     return { motivo: "un contendiente no tiene precio de verdad" };
   }
-  const elegidos = conPrecio
-    .sort((a, b) => b.p - a.p)
-    .slice(0, serie.candidatos ?? 3)
-    .filter((x) => x.p >= 0.01);
+  // con nombre propio sólo las opciones sólidas (R-079): más de dos si las hay,
+  // y el resto a «Otra», que cubre todos los casos sin rellenar la tarjeta
+  const elegidos = conNombre(
+    conPrecio.map((x) => ({ item: x, p: x.p })),
+    serie.candidatos,
+  );
   if (elegidos.length < 1) return { motivo: "nadie cotiza" };
 
   const nombres = elegidos.map((x) => x.m.yes_sub_title?.trim() || x.m.ticker);

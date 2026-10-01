@@ -40,6 +40,11 @@ watchPatterns = [
 #   MAREA_PRECIO_MS      — cada cuánto se lee el spot (default 3000).
 #   MAREA_PLAN_VIVO_MS   — cada cuánto se planifica la vela siguiente (1000).
 #   MAREA_CICLO_VIVO_MS  — cada cuánto se leen los cierres y se paga (10000).
+#
+# Director de mercados (MEMORY/FILOSOFIA.md). Opcional:
+#   ANTHROPIC_API_KEY    — enciende el juez editorial (Claude, claude-opus-5-5).
+#                     Sin ella el juez queda apagado y deciden sólo las reglas;
+#                     el revisor y la bitácora corren igual. Ver /api/director.
 
 [deploy]
 startCommand = "npx tsx server/index.mts"

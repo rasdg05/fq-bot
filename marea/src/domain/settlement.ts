@@ -51,6 +51,14 @@ export interface SettlementState {
   /** Por qué se atoró, si se atoró. */
   stuckReason?: string;
   /**
+   * Quién retuvo el pago (el revisor autónomo). Una resolución retenida **no**
+   * la vuelve a abrir la siguiente lectura del oráculo: si lo hiciera, el
+   * revisor la retendría otra vez en el ciclo siguiente, para siempre. La
+   * liberan una persona (`resolveByHand`) o el plazo de anulación, que devuelve
+   * todo íntegro (R-082).
+   */
+  retenidoPor?: string;
+  /**
    * De cuándo era el dato con el que se resolvió, y si su antigüedad se pudo
    * comprobar. `false` no es un fallo: es la diferencia entre «está fresco» y
    * «no sé si está fresco», y confundirlas es cómo una fuente parada pasa por
@@ -263,6 +271,8 @@ export function onRead(
     state.phase === "leido" ||
     state.phase === "atorado";
   if (!legible) return state;
+  // retenido por el revisor: ninguna lectura lo reabre (ver `retenidoPor`)
+  if (state.retenidoPor) return state;
 
   if (reading.status === "sin_dato") {
     if (reading.detenerApuestas && state.phase === "abierto") {
@@ -394,6 +404,17 @@ export function dispute(state: SettlementState, motivo: string): SettlementState
   return { ...state, phase: "atorado", stuckReason: motivo };
 }
 
+/**
+ * La retención del revisor autónomo: una disputa que ninguna lectura del
+ * oráculo deshace. Es la acción más fuerte que un agente toma solo, y es
+ * reversible: no paga, no anula, no cambia el resultado — sólo impide pagar uno
+ * que contradice al mercado hasta que una persona lo mire o venza el plazo.
+ */
+export function retener(state: SettlementState, motivo: string, quien = "revisor"): SettlementState {
+  if (state.phase === "pagado" || state.phase === "devuelto") return state;
+  return { ...dispute(state, `Retenido por el ${quien}: ${motivo}`), retenidoPor: quien };
+}
+
 /** Resolución manual, para lo que el oráculo no puede leer. */
 export function resolveByHand(
   state: SettlementState,
@@ -411,6 +432,8 @@ export function resolveByHand(
     evidence: `Confirmado a mano: ${evidence}`,
     disputeUntil: disputeDeadline(at, spec),
     stuckReason: undefined,
+    // una persona decidió: lo que el revisor retuvo queda liberado
+    retenidoPor: undefined,
   };
 }
 

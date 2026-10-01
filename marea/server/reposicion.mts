@@ -13,6 +13,9 @@ import {
   type PartidoTenis,
 } from "../src/adapters/ownMarkets/templates";
 import { validateSeed, type OwnMarketSeed } from "../src/adapters/ownMarkets/catalog";
+import { BINARY_OUTCOMES, rankedOutcomes } from "../src/domain/parimutuel";
+import type { DecisionNueva } from "../src/domain/bitacora";
+import type { DecisionJuez } from "./juez.mts";
 import { seResuelveSolo } from "../src/domain/oracleRule";
 import { esVelaViva } from "../src/adapters/ownMarkets/cryptoLive";
 import type { Store } from "./store.mts";
@@ -80,6 +83,11 @@ export interface ReposicionOptions {
    */
   tenis?: { maximo: number; cargar: () => Promise<PartidoTenis[]> };
   topes?: Topes;
+  /**
+   * El juez editorial (Claude), si está activo. Revisa sólo los textos que
+   * vienen de afuera; puede vetar o pedir que se espere al siguiente ciclo.
+   */
+  juez?: { revisarTexto(seed: OwnMarketSeed): Promise<DecisionJuez> };
   /** Para no depender del entorno en pruebas. */
   env?: Record<string, string | undefined>;
   avisar?: (mensaje: string) => void;
@@ -95,7 +103,18 @@ export interface ResumenReposicion {
   creados: string[];
   /** Rechazados por el freno de presupuesto, con su motivo. */
   frenados: { id: string; motivo: string }[];
+  /** Vetados por el juez, con su motivo. */
+  vetados: { id: string; motivo: string }[];
+  /** Esperan al siguiente ciclo (el juez agotó sus llamadas). */
+  diferidos: string[];
   errores: string[];
+}
+
+/** El prior con el que nace un mercado, en una línea: la decisión de quien lo hace existir. */
+export function priorDe(seed: OwnMarketSeed): string {
+  return rankedOutcomes(seed.pool, seed.outcomes ?? [...BINARY_OUTCOMES])
+    .map((o) => `${o.label} ${Math.round(o.probability * 100)} %`)
+    .join(" · ");
 }
 
 /**
@@ -113,7 +132,22 @@ export async function reponer(
     abiertosAntes: 0,
     creados: [],
     frenados: [],
+    vetados: [],
+    diferidos: [],
     errores: [],
+  };
+  /**
+   * Lo que el director decide en esta vuelta, para la bitácora. Una omisión
+   * que ya está anotada con el mismo motivo no se vuelve a anotar: la bitácora
+   * registra decisiones, no el reloj.
+   */
+  const decisiones: DecisionNueva[] = [];
+  const yaAnotadas = new Set(store.bitacora().map((e) => `${e.tipo}|${e.sujeto}|${e.motivo}`));
+  const anotarUnaVez = (d: DecisionNueva) => {
+    const clave = `${d.tipo}|${d.sujeto}|${d.motivo}`;
+    if (yaAnotadas.has(clave)) return;
+    yaAnotadas.add(clave);
+    decisiones.push(d);
   };
 
   const vivos = [...catalogo, ...store.seedsGeneradas()];
@@ -214,10 +248,21 @@ export async function reponer(
   for (const seed of candidatos) {
     if (!seResuelveSolo(seed.rule)) {
       resumen.errores.push(`${seed.id}: sin oráculo automático; no se publica`);
+      anotarUnaVez({
+        tipo: "omitir",
+        sujeto: seed.id,
+        motivo: "Sin oráculo automático: lo que se genera solo tiene que resolverse solo.",
+        regla: "R-076",
+        autor: "reglas",
+        reversible: true,
+      });
     }
   }
   const nuevos = candidatos.filter((seed) => !conocidos.has(seed.id) && seResuelveSolo(seed.rule));
-  if (nuevos.length === 0) return resumen;
+  if (nuevos.length === 0) {
+    store.anotar(decisiones, ahora);
+    return resumen;
+  }
 
   // el freno de L9, antes de escribir nada
   const topes = options.topes ?? topesDelEntorno(options.env ?? {}, options.avisar);
@@ -228,6 +273,7 @@ export async function reponer(
   });
   for (const { mercado, motivo } of rechazados) {
     resumen.frenados.push({ id: mercado.id, motivo });
+    anotarUnaVez({ tipo: "omitir", sujeto: mercado.id, motivo, regla: "L9", autor: "reglas", reversible: true });
   }
 
   const permitidos = new Set(aceptados.map((m) => m.id));
@@ -237,11 +283,41 @@ export async function reponer(
       // se valida antes de guardar: un mercado sin fuente pública verificable no
       // se publica, y enterarse al arrancar es mejor que enterarse con gente
       // adentro (R-025)
-      store.guardarSeedGenerada(validateSeed(seed));
+      const valido = validateSeed(seed);
+      // y el juez, después de las reglas: sólo puede quitar, nunca agregar
+      const juicio = options.juez ? await options.juez.revisarTexto(valido) : undefined;
+      if (juicio?.decision === "diferir") {
+        resumen.diferidos.push(seed.id);
+        continue;
+      }
+      if (juicio?.decision === "vetar") {
+        resumen.vetados.push({ id: seed.id, motivo: juicio.motivo });
+        anotarUnaVez({
+          tipo: "vetar",
+          sujeto: seed.id,
+          motivo: juicio.motivo,
+          regla: "R-081",
+          autor: juicio.autor,
+          evidencia: valido.title,
+          reversible: true,
+        });
+        continue;
+      }
+      store.guardarSeedGenerada(valido);
       resumen.creados.push(seed.id);
+      decisiones.push({
+        tipo: "publicar",
+        sujeto: seed.id,
+        motivo: `${valido.shortTitle} — nace en ${priorDe(valido)}`,
+        regla: "R-076",
+        autor: juicio?.autor ?? "reglas",
+        evidencia: `Se resuelve con ${valido.resolution.sourceName}`,
+        reversible: true,
+      });
     } catch (error) {
       resumen.errores.push(`${seed.id}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
+  store.anotar(decisiones, ahora);
   return resumen;
 }

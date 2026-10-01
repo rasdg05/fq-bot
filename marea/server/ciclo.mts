@@ -15,6 +15,7 @@ import {
   onDeadline,
   onRead,
   readWithOracles,
+  retener,
   type Oracle,
 } from "../src/domain/settlement";
 import { defaultOracles } from "../src/adapters/oracles/priceOracle";
@@ -163,6 +164,21 @@ export async function correrCiclo(
           // sin apuestas no hay a quién devolver: se cierra y se deja dicho
           estado = { ...estado, phase: "devuelto" };
         }
+      }
+
+      /**
+       * Un resultado que el mercado no tiene no se paga: se **retiene** aquí, en
+       * el punto donde se mueve el dinero, no sólo cuando el revisor lo vea.
+       * Una vela tiene un minuto de disputa; el revisor corre al final del
+       * ciclo. La protección tiene que estar donde ocurre el pago (R-082).
+       */
+      const respuestas = seed.outcomes?.map((o) => o.id) ?? ["si", "no"];
+      if (estado.phase === "en_disputa" && estado.outcome && !respuestas.includes(estado.outcome)) {
+        estado = retener(
+          estado,
+          `la fuente resolvió «${estado.outcome}», que no es una respuesta de este mercado (${respuestas.join(", ")})`,
+        );
+        resumen.errores.push(`${seed.id}: resultado fuera de las opciones; pago retenido`);
       }
 
       if (estado.phase === "en_disputa" && isPayable(estado, ahora)) {

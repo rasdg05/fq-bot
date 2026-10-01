@@ -295,6 +295,41 @@ export const S = {
     loading: "Cargando tabla",
   },
 
+  /**
+   * El director de mercados: el agente autónomo que decide qué se abre y
+   * vigila que cada mercado se resuelva bien (MEMORY/FILOSOFIA.md).
+   */
+  director: {
+    title: "Director de mercados",
+    subtitle:
+      "Un agente autónomo decide qué mercados abrir y vigila que cada uno se resuelva bien. Todo lo que decide queda aquí, encadenado y verificable.",
+    abiertos: "Abiertos",
+    resueltos: "Resueltos 7 d",
+    mediana: "Tarda en pagar",
+    horas: (h: number) => `${h} h`,
+    sinDato: "—",
+    hallazgos: "Hallazgos",
+    hallazgosVacio: "Nada que reportar: todo se está resolviendo como debe.",
+    decisiones: "Últimas decisiones",
+    familias: "Lo que hay abierto",
+    cadenaOk: (n: number) => `Bitácora íntegra · ${n} decisiones encadenadas`,
+    cadenaRota: (n: number) => `La bitácora no verifica desde la decisión ${n}`,
+    juezActivo: (modelo: string) => `Juez editorial: ${modelo}`,
+    juezApagado: "Juez editorial apagado: deciden sólo las reglas",
+    autorReglas: "reglas",
+    tipo: {
+      publicar: "Publicó",
+      omitir: "No publicó",
+      vetar: "Vetó",
+      hallazgo_abre: "Encontró",
+      hallazgo_cierra: "Cerró",
+      retener: "Retuvo el pago",
+      liberar: "Liberó",
+    } as Record<string, string>,
+    severidad: { critico: "Crítico", grave: "Grave", aviso: "Aviso", info: "Info" } as Record<string, string>,
+    error: "No pudimos leer el reporte del director.",
+  },
+
   /** Sin conexión: lo que hay se sigue viendo, y se dice que está viejo. */
   frescura: {
     viejo: "Sin conexión. Esto es lo último que cargamos.",
