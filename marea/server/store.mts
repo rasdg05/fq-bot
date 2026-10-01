@@ -739,6 +739,27 @@ export class Store {
    * esto: el libro sigue sumando cero, con el dinero atrapado en la cuenta
    * equivocada (L3).
    */
+  /**
+   * Lo que el revisor necesita para juzgar un pozo con saldo: cuándo se
+   * liquidó por primera vez y si quedan apuestas sin pagar. Sin esto no se
+   * distingue un residuo heredado del camino de pago anterior a L3 de un bug
+   * vigente — y regularizar un bug vigente sería esconderlo.
+   */
+  detallePozosConSaldo(): Record<string, { saldo: number; liquidadoEl?: string; apuestas: number; sinPagar: number }> {
+    const salida: Record<string, { saldo: number; liquidadoEl?: string; apuestas: number; sinPagar: number }> = {};
+    for (const [id, saldo] of Object.entries(this.pozosConSaldoTrasLiquidar())) {
+      const fechas = this.datos.libro.filter((a) => a.tipo === "liquidacion" && a.ref === id).map((a) => a.at).sort();
+      const apuestas = this.datos.apuestas.filter((a) => a.marketId === id);
+      salida[id] = {
+        saldo,
+        ...(fechas[0] ? { liquidadoEl: fechas[0] } : {}),
+        apuestas: apuestas.length,
+        sinPagar: apuestas.filter((a) => a.pagado === undefined).length,
+      };
+    }
+    return salida;
+  }
+
   pozosConSaldoTrasLiquidar(): Record<string, number> {
     const liquidados = this.datos.libro
       .filter((a) => a.tipo === "liquidacion" && a.ref)

@@ -407,8 +407,10 @@ async function servir(req: IncomingMessage, res: ServerResponse) {
            * era un error —el oráculo contestaba `sin_dato` y el ciclo itera
            * sobre las semillas— y por eso ninguna aparecía. Aparecen aquí.
            */
+          // el catálogo estático **y** el generado: mirar sólo el estático dijo
+          // «0 congelados» con trece partidos de Liga MX atorados (2026-10-01)
           congelados: congelados(
-            seeds
+            [...seeds, ...store.seedsGeneradas()]
               .map((seed) => ({ state: store.liquidacion(seed.id), spec: seed.resolution }))
               .filter((x): x is { state: SettlementState; spec: typeof x.spec } => !!x.state),
             Date.now(),

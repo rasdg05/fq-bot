@@ -77,6 +77,7 @@ export function fotoDe(
     mercados,
     descuadre: store.cuadre(),
     pozosConSaldo: store.pozosConSaldoTrasLiquidar(),
+    detallePozos: store.detallePozosConSaldo(),
     huerfanas: extra.huerfanas,
     familias: FAMILIAS,
     tituloIdeal: SHORT_TITLE_IDEAL,

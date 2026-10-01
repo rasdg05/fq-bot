@@ -137,6 +137,7 @@ export function resolverTenis(rule: TennisRule, partido: EspnPartidoTenis | unde
     outcome: esJugador ? "si" : "no",
     evidence: `Resultado final en ESPN (partido ${rule.partido}): ${nota || `gana ${ganador}`}.`,
     ...(observedAt ? { observedAt } : {}),
+    definitivo: true,
   };
 }
 

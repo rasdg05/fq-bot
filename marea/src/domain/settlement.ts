@@ -94,6 +94,20 @@ export type OracleReading =
        * se finge que sí.
        */
       observedAt?: string;
+      /**
+       * El dato es un **hecho consumado**: un marcador final, una liquidación
+       * firme, un día ya cerrado. No envejece, así que la regla de frescura
+       * (L8) lo mide pero no lo descarta.
+       *
+       * L8 existe para valores que cambian —un precio, una serie que un
+       * colector parado repetiría—. Aplicarla a un marcador final fue un error
+       * de categoría que se vio en producción el 2026-10-01: el oráculo fecha
+       * el marcador con la hora del partido, así que un partido que no se leyó
+       * dentro de 48 h (un 403 de ESPN, un redeploy) **no podía resolverse
+       * nunca**. Trece partidos de Liga MX iban camino de anularse con el
+       * resultado publicado. Lo encontró el revisor (`atorado`).
+       */
+      definitivo?: boolean;
     }
   /**
    * La fuente aún no publicó el dato. Se reintenta.
@@ -228,11 +242,13 @@ export function frescuraDe(
     return { verificable: false, umbralHoras, utilizable: true };
   }
   const horas = Math.max(0, (now - at) / 3_600_000);
+  // un hecho consumado no envejece: se mide (queda escrito) pero no se descarta
+  const definitivo = reading.status === "resuelto" && reading.definitivo === true;
   return {
     verificable: true,
     horas,
     umbralHoras,
-    utilizable: umbralHoras === undefined || horas <= umbralHoras,
+    utilizable: definitivo || umbralHoras === undefined || horas <= umbralHoras,
   };
 }
 

@@ -82,7 +82,7 @@ export function resolverTendencia(
   const observedAt = new Date(Date.parse(`${rule.fecha}T23:59:59Z`)).toISOString();
 
   if (hoyA !== hoyB) {
-    return { status: "resuelto", outcome: hoyA > hoyB ? a.id : b.id, evidence: resumen, observedAt };
+    return { status: "resuelto", outcome: hoyA > hoyB ? a.id : b.id, evidence: resumen, observedAt, definitivo: true };
   }
   const ayer = diaAntes(rule.fecha);
   const ayerA = va.get(ayer) ?? 0;
@@ -93,6 +93,7 @@ export function resolverTendencia(
       outcome: ayerA > ayerB ? a.id : b.id,
       evidence: `${resumen}. Empate exacto: decide el día anterior (${cifra(ayerA)} contra ${cifra(ayerB)}).`,
       observedAt,
+      definitivo: true,
     };
   }
   // doble empate: no se adivina; el plazo anula y devuelve

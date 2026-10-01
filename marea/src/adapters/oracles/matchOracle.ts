@@ -181,7 +181,7 @@ export function createMatchOracle(options: MatchOracleOptions = {}): Oracle {
       if (rule.kind === "partido_multiple") {
         if (rule.mercado === "1x2") {
           const outcome = gano ? "gana" : empato ? "empata" : "pierde";
-          return { status: "resuelto", outcome, evidence: evidencia, observedAt };
+          return { status: "resuelto", outcome, evidence: evidencia, observedAt, definitivo: true };
         }
         const totales = nuestros + suyos;
         const tramos = idsDeTramos(rule.cortes ?? []);
@@ -193,6 +193,7 @@ export function createMatchOracle(options: MatchOracleOptions = {}): Oracle {
           outcome: tramos[indice].id,
           evidence: `${evidencia} Goles totales: ${totales}.`,
           observedAt,
+          definitivo: true,
         };
       }
 
@@ -203,6 +204,9 @@ export function createMatchOracle(options: MatchOracleOptions = {}): Oracle {
         outcome: cumple ? "si" : "no",
         evidence: evidencia,
         observedAt,
+        // un marcador final de ESTE partido (identificado por su arranque) es un
+        // hecho consumado: no envejece (ver `definitivo` en settlement.ts)
+        definitivo: true,
       };
     },
   };

@@ -78,6 +78,7 @@ export function resolverSismo(rule: QuakeRule, sismos: SismoUsgs[], ahora: numbe
       outcome: "si",
       evidence: `Sismo M${p.mag.toFixed(1)} «${p.place}» el ${new Date(p.time).toISOString()} (USGS ${elegido.id}, ${p.status}). ${fuente}`,
       observedAt: new Date(p.time).toISOString(),
+      definitivo: true,
     };
   }
   if (cualquiera) {
@@ -95,6 +96,7 @@ export function resolverSismo(rule: QuakeRule, sismos: SismoUsgs[], ahora: numbe
       outcome: "no",
       evidence: `Ningún sismo de magnitud ${rule.magnitudMin.toFixed(1)} o mayor descrito en México por el USGS entre ${rule.desde} y ${rule.hasta}. ${fuente}`,
       observedAt: new Date(hasta).toISOString(),
+      definitivo: true,
     };
   }
   return { status: "sin_dato", evidence: `La ventana ${rule.desde} – ${rule.hasta} no ha terminado, o falta el día de margen.` };

@@ -310,3 +310,55 @@ describe("Ciclo de vida — todo mercado publicado se puede resolver por program
     expect(sinRegla.map((s) => s.id)).toEqual([]);
   });
 });
+
+describe("Un hecho consumado no envejece (hallazgo del revisor en producción, 2026-10-01)", () => {
+  const specPartido: ResolutionSpec = {
+    sourceName: "ESPN (marcador oficial de la Liga MX)",
+    sourceUrl: "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard",
+    criterion: "x",
+    settlesAt: "2026-09-20T06:15:00Z",
+    disputeWindowHours: 12,
+    maxAgeHours: FRESCURA_MAX_HORAS,
+  };
+  const leidoDiezDiasDespues = Date.parse("2026-10-01T19:00:00Z");
+
+  it("un marcador final leído 280 h después del partido resuelve (antes quedaba atorado para siempre)", async () => {
+    const oraculo = createMatchOracle({
+      cargarPartidos: async () => [
+        {
+          date: "2026-09-20T03:15Z",
+          name: "Guadalajara at América",
+          competitions: [
+            {
+              status: { type: { name: "STATUS_FULL_TIME", completed: true } },
+              competitors: [
+                { homeAway: "home", score: "2", team: { displayName: "América" } },
+                { homeAway: "away", score: "2", team: { displayName: "Guadalajara" } },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const lectura = await oraculo.read({
+      marketId: "mx-america-guadalajara-2026-09-20",
+      spec: specPartido,
+      rule: { kind: "partido", liga: "mex.1", fecha: "2026-09-20", inicio: "2026-09-20T03:15Z", equipo: "América", resultado: "gana" },
+      now: leidoDiezDiasDespues,
+    });
+    expect(lectura).toMatchObject({ status: "resuelto", outcome: "no", definitivo: true });
+    const estado = onRead({ marketId: "x", phase: "atorado", stuckReason: "x" }, lectura, specPartido, leidoDiezDiasDespues);
+    expect(estado.phase).toBe("en_disputa");
+  });
+
+  it("un precio viejo sigue sin usarse: L8 se mantiene para lo que cambia", () => {
+    const estado = onRead(
+      initialState("btc"),
+      { status: "resuelto", outcome: "si", evidence: "precio", observedAt: "2026-09-20T00:00:00Z" },
+      { ...specPartido, maxAgeHours: 6 },
+      leidoDiezDiasDespues,
+    );
+    expect(estado.phase).toBe("abierto");
+    expect(estado.evidence).toMatch(/NO se usa/);
+  });
+});

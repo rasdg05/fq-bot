@@ -96,6 +96,8 @@ export interface Foto {
   descuadre: number;
   /** Pozos que quedaron con saldo tras liquidar. Vacío = sano. */
   pozosConSaldo: Record<string, number>;
+  /** Contexto de cada uno, si se tiene: para distinguir herencia de bug vigente. */
+  detallePozos?: Record<string, { liquidadoEl?: string; apuestas: number; sinPagar: number }>;
   /** Apuestas cuyo mercado ya no está en el catálogo. */
   huerfanas: Record<string, number>;
   familias?: FamiliaEsperada[];
@@ -207,7 +209,13 @@ export function revisar(foto: Foto): Hallazgo[] {
     salida.push(hallazgo("pozo_descuadrado", "critico", "libro", `El libro no cuadra por ${foto.descuadre} puntos.`));
   }
   for (const [id, saldo] of Object.entries(foto.pozosConSaldo)) {
-    salida.push(hallazgo("pozo_descuadrado", "critico", id, `El pozo quedó con ${saldo} puntos tras liquidar.`));
+    const d = foto.detallePozos?.[id];
+    const contexto = d
+      ? ` Liquidado ${d.liquidadoEl?.slice(0, 10) ?? "sin fecha"}; ${d.apuestas} apuestas, ${d.sinPagar} sin pagar.`
+      : "";
+    salida.push(
+      hallazgo("pozo_descuadrado", "critico", id, `El pozo quedó con ${Math.round(saldo * 100) / 100} puntos tras liquidar.${contexto}`),
+    );
   }
   for (const [id, n] of Object.entries(foto.huerfanas)) {
     salida.push(hallazgo("huerfanas", "grave", id, `${n} apuestas cuyo mercado ya no está en el catálogo.`));

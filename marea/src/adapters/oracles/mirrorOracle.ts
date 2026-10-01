@@ -122,6 +122,8 @@ export function resolverEspejo(
           m.settlement_ts ? ` el ${m.settlement_ts.slice(0, 10)}` : ""
         }. Verificable en ${urlMercadoKalshi(ganador)}`,
         ...(m.settlement_ts ? { observedAt: m.settlement_ts } : {}),
+        // liquidado en firme por la bolsa: no envejece
+        definitivo: true,
       };
     }
   }
@@ -140,6 +142,7 @@ export function resolverEspejo(
       outcome: ninguna.id,
       evidence: `${fuente}: los ${tickers.length} mercados se liquidaron y ninguno de los nombrados ganó.`,
       ...(ultimo ? { observedAt: ultimo } : {}),
+      definitivo: true,
     };
   }
 

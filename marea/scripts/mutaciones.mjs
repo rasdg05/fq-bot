@@ -414,6 +414,10 @@ const MUTACIONES = [
   { nombre: "director · el título de cripto vuelve a cortarse", archivo: "src/adapters/ownMarkets/templates.ts",
     de: "    shortTitle: `${plantilla.nombre} sobre ${conSeparador(umbral)} el domingo`,",
     a: "    shortTitle: `${plantilla.nombre} arriba de ${conSeparador(umbral)} el domingo`,", tests: ["tests/director.test.ts"] },
+  // --- revisor en producción: un hecho consumado no envejece ---
+  { nombre: "prod · un marcador final viejo vuelve a quedar atorado para siempre", archivo: "src/domain/settlement.ts",
+    de: "    utilizable: definitivo || umbralHoras === undefined || horas <= umbralHoras,",
+    a: "    utilizable: umbralHoras === undefined || horas <= umbralHoras,", tests: ["tests/frescura.test.ts"] },
 ];
 
 const filtro = process.argv[2]?.toLowerCase();
