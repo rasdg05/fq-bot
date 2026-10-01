@@ -67,11 +67,19 @@ export function pasoDeStrike(par: string): number {
   // SOL se mueve centavos en cinco minutos: con paso de 5 el strike quedaría
   // siempre lejos y la vela sería una pregunta con respuesta cantada
   if (par === "SOL/USD") return 0.5;
+  // divisas: el mismo criterio del 0.1 %. El peso en 18.10 se mueve en
+  // centavos; el real en 5.20, en milésimas; el peso argentino en 1600, en pesos
+  if (par === "USD/MXN") return 0.01;
+  if (par === "USD/BRL") return 0.005;
+  if (par === "USD/ARS") return 1;
   return 5;
 }
 
 export function redondearStrike(precio: number, paso: number): number {
-  return Math.round(precio / paso) * paso;
+  // con pasos de milésimas, 18.1 / 0.01 * 0.01 da 18.099999999999998: el strike
+  // que se publica y el que se compara tienen que ser el mismo número
+  const decimales = Math.max(0, -Math.floor(Math.log10(paso) + 1e-9));
+  return Number((Math.round(precio / paso) * paso).toFixed(decimales + 1));
 }
 
 /** `16:35` en UTC — cómo se nombra la vela en el criterio publicado. */

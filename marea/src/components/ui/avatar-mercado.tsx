@@ -25,6 +25,10 @@ const MONEDA: Record<string, { simbolo: string; color: string }> = {
   SOL: { simbolo: "◎", color: "var(--coin-sol)" },
   XRP: { simbolo: "✕", color: "var(--coin-xrp)" },
   DOGE: { simbolo: "Ð", color: "var(--coin-doge)" },
+  // divisas: el activo de un par USD/xxx es la moneda local (`activoDeRegla`)
+  MXN: { simbolo: "$", color: "var(--fx-mxn)" },
+  ARS: { simbolo: "$", color: "var(--fx-ars)" },
+  BRL: { simbolo: "R$", color: "var(--fx-brl)" },
 };
 
 export function AvatarMercado({
@@ -86,7 +90,7 @@ export function AvatarMercado({
       >
         {/* el glifo en su propio nodo: la ficha mide 38 px y el texto una
             línea, y así es como lo mide `npm run densidad` */}
-        <span>{moneda.simbolo}</span>
+        <span className={moneda.simbolo.length > 1 ? "text-[14px]" : undefined}>{moneda.simbolo}</span>
       </span>
     );
   }

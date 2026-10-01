@@ -30,6 +30,30 @@ export const KRAKEN_PAR: Record<ParCripto, string> = {
 };
 
 /**
+ * Divisas de Latam contra el dólar. No cotizan en Kraken: las publica **Bitso**,
+ * casa de cambio mexicana regulada (ITF), con velas públicas sin llave.
+ *
+ * Medido el 2026-10-01 sobre siete días de velas de Bitso: USD/MXN tiene velas
+ * sin operaciones en 0.2 % (5 min) y 0 % (15 min); USD/ARS y USD/BRL, 10 % en
+ * 5 min y menos de 2 % en 15. Una vela sin operaciones repite el cierre
+ * anterior y empata con el strike, así que esos dos sólo van a 15 min.
+ * USD/COP quedó fuera: 31 % de sus velas de 5 min no tienen ni una operación.
+ */
+export const PARES_DIVISA = ["USD/MXN", "USD/ARS", "USD/BRL"] as const;
+export type ParDivisa = (typeof PARES_DIVISA)[number];
+
+/** El libro de Bitso de cada par (`book=`). */
+export const BITSO_LIBRO: Record<ParDivisa, string> = {
+  "USD/MXN": "usd_mxn",
+  "USD/ARS": "usd_ars",
+  "USD/BRL": "usd_brl",
+};
+
+export function esParDivisa(par: string): par is ParDivisa {
+  return (PARES_DIVISA as readonly string[]).includes(par);
+}
+
+/**
  * Kraken contesta con claves propias (`XXBTZUSD`, `XDGUSD`, `SOLUSD`…). Esto
  * devuelve el par que nombran, o nada si no es uno de los nuestros.
  */
@@ -46,6 +70,9 @@ export function parDeClaveKraken(clave: string): ParCripto | undefined {
 /** El activo de un mercado de cripto (`BTC`, `SOL`…), leído de su regla. */
 export function activoDeRegla(rule: { kind: string; par?: string } | undefined): string | undefined {
   if (!rule || (rule.kind !== "precio" && rule.kind !== "vela")) return undefined;
+  // en una divisa el activo es la moneda local: los tres pares empiezan con
+  // USD, y «USD» juntaría el peso, el real y el peso argentino en uno solo
+  if (rule.par && esParDivisa(rule.par)) return rule.par.split("/")[1];
   return rule.par?.split("/")[0];
 }
 
@@ -92,7 +119,8 @@ export interface PriceRule {
  */
 export interface VelaRule {
   kind: "vela";
-  par: ParCripto;
+  /** Cripto en Kraken, o divisa de Latam en Bitso. El par decide la fuente. */
+  par: ParCripto | ParDivisa;
   /** Minutos de la vela. Sólo los que Kraken publica nativamente. */
   intervalo: 5 | 15;
   /** Apertura de la vela, en ms UTC. Alineada al reloj por construcción. */

@@ -1,7 +1,7 @@
 import type { Oracle, OracleQuery, OracleReading } from "@/domain/settlement";
-import { KRAKEN_PAR, type VelaRule } from "@/domain/oracleRule";
+import { BITSO_LIBRO, KRAKEN_PAR, esParDivisa, type ParCripto, type VelaRule } from "@/domain/oracleRule";
 import { GRACIA_VELA_MS, relojUtc } from "@/domain/vela";
-import { ABAJO, ARRIBA, urlKrakenVela } from "@/adapters/ownMarkets/cryptoLive";
+import { ABAJO, ARRIBA, urlVela } from "@/adapters/ownMarkets/cryptoLive";
 
 /**
  * Oráculo de vela corta. Resuelve los mercados vivos de 5 y 15 minutos contra
@@ -43,7 +43,39 @@ export interface VelaOracleOptions {
   now?: () => number;
 }
 
-const KRAKEN_PARES: Record<VelaRule["par"], string> = KRAKEN_PAR;
+const KRAKEN_PARES: Record<ParCripto, string> = KRAKEN_PAR;
+
+/**
+ * Las velas de Bitso (divisas de Latam). Mismo contrato que las de Kraken:
+ * apertura alineada al reloj y cierre. Bitso publica también la vela en curso,
+ * así que «ya cerró» se decide igual: existe la siguiente.
+ *
+ * El cierre es `last_rate`, el último precio operado en la vela. Una vela sin
+ * operaciones lo repite del cierre anterior: así la publica Bitso y así lo dice
+ * el criterio.
+ */
+async function pedirVelasBitso(
+  fetchImpl: typeof fetch,
+  par: VelaRule["par"],
+  intervalo: VelaRule["intervalo"],
+  desde: number,
+): Promise<VelaKraken[]> {
+  if (!esParDivisa(par)) throw new Error(`Bitso no publica ${par}`);
+  const ventana = intervalo * 60_000;
+  const url =
+    `https://api.bitso.com/v3/ohlc?book=${BITSO_LIBRO[par]}&time_bucket=${intervalo * 60}` +
+    `&start=${desde}&end=${desde + 6 * ventana}`;
+  const respuesta = await fetchImpl(url);
+  if (!respuesta.ok) throw new Error(`Bitso respondió ${respuesta.status}`);
+  const cuerpo = (await respuesta.json()) as {
+    payload?: { bucket_start_time?: number; last_rate?: string }[];
+  };
+  if (!Array.isArray(cuerpo.payload)) throw new Error("Bitso no devolvió velas");
+  return cuerpo.payload.map((vela) => ({
+    inicio: Number(vela.bucket_start_time),
+    cierre: Number(vela.last_rate),
+  }));
+}
 
 async function pedirVelas(
   fetchImpl: typeof fetch,
@@ -51,6 +83,7 @@ async function pedirVelas(
   intervalo: VelaRule["intervalo"],
   desde: number,
 ): Promise<VelaKraken[]> {
+  if (esParDivisa(par)) return pedirVelasBitso(fetchImpl, par, intervalo, desde);
   const url =
     `https://api.kraken.com/0/public/OHLC?pair=${KRAKEN_PARES[par]}` +
     `&interval=${intervalo}&since=${Math.floor(desde / 1000)}`;
@@ -70,7 +103,9 @@ async function pedirVelas(
 }
 
 function monto(valor: number): string {
-  return valor.toLocaleString("es-MX", { maximumFractionDigits: 2 });
+  // tres decimales: el real y el peso se mueven en milésimas, y una evidencia
+  // que redondea el cierre al strike parecería contradecir el resultado
+  return valor.toLocaleString("es-MX", { maximumFractionDigits: 3 });
 }
 
 export function createVelaOracle(options: VelaOracleOptions = {}): Oracle {
@@ -105,7 +140,10 @@ export function createVelaOracle(options: VelaOracleOptions = {}): Oracle {
     id: "kraken-vela",
 
     handles(query: OracleQuery): boolean {
-      return query.rule?.kind === "vela" && query.rule.par in KRAKEN_PARES;
+      return (
+        query.rule?.kind === "vela" &&
+        (query.rule.par in KRAKEN_PARES || esParDivisa(query.rule.par))
+      );
     },
 
     async read(query: OracleQuery): Promise<OracleReading> {
@@ -113,6 +151,8 @@ export function createVelaOracle(options: VelaOracleOptions = {}): Oracle {
       const ventana = rule.intervalo * 60_000;
       const fin = rule.inicio + ventana;
       const reloj = `${relojUtc(rule.inicio)}–${relojUtc(fin)} UTC`;
+      const fuente = esParDivisa(rule.par) ? "Bitso" : "Kraken";
+      const moneda = esParDivisa(rule.par) ? rule.par.split("/")[1] : "USD";
 
       // antes del cierre no hay nada que leer, y la gracia evita quedarnos con
       // la vela todavía en curso, que Kraken devuelve como si fuera una más
@@ -132,13 +172,13 @@ export function createVelaOracle(options: VelaOracleOptions = {}): Oracle {
       if (!vela || !haySiguiente) {
         return {
           status: "sin_dato",
-          evidence: `Kraken todavía no publica cerrada la vela de ${rule.par} de ${reloj}.`,
+          evidence: `${fuente} todavía no publica cerrada la vela de ${rule.par} de ${reloj}.`,
         };
       }
       if (!Number.isFinite(vela.cierre)) {
         return {
           status: "sin_dato",
-          evidence: `Kraken devolvió la vela de ${rule.par} de ${reloj} sin cierre legible.`,
+          evidence: `${fuente} devolvió la vela de ${rule.par} de ${reloj} sin cierre legible.`,
         };
       }
 
@@ -149,9 +189,9 @@ export function createVelaOracle(options: VelaOracleOptions = {}): Oracle {
         status: "resuelto",
         outcome,
         evidence:
-          `Vela de ${rule.intervalo} min de ${rule.par} en Kraken (${reloj}): cierre ` +
-          `${monto(vela.cierre)} USD frente al strike de ${monto(rule.strike)}. ` +
-          `Verificable en ${urlKrakenVela(rule.par, rule.intervalo)}`,
+          `Vela de ${rule.intervalo} min de ${rule.par} en ${fuente} (${reloj}): cierre ` +
+          `${monto(vela.cierre)} ${moneda} frente al strike de ${monto(rule.strike)}. ` +
+          `Verificable en ${urlVela(rule.par, rule.intervalo)}`,
       };
     },
   };

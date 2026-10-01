@@ -68,9 +68,12 @@ function useCongelado<T>(valor: T, congelado: boolean): T {
 }
 
 function precioLegible(valor: number): string {
+  // menos de 100 es una divisa (18.103 pesos, 5.198 reales): se mueve en
+  // milésimas, y con dos decimales el precio parecería quieto sobre el strike
+  const decimales = valor >= 1_000 ? 0 : valor >= 100 ? 2 : 3;
   return valor.toLocaleString("es-MX", {
-    minimumFractionDigits: valor >= 1_000 ? 0 : 2,
-    maximumFractionDigits: valor >= 1_000 ? 0 : 2,
+    minimumFractionDigits: decimales,
+    maximumFractionDigits: decimales,
   });
 }
 

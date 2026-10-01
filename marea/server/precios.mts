@@ -23,12 +23,15 @@
 
 
 import {
+  BITSO_LIBRO,
   KRAKEN_PAR,
   PARES_CRIPTO,
+  PARES_DIVISA,
   parDeClaveKraken,
   type ParCripto,
+  type ParDivisa,
 } from "../src/domain/oracleRule";
-export type FuentePrecio = "fq" | "kraken";
+export type FuentePrecio = "fq" | "kraken" | "bitso";
 
 export interface Tick {
   precio: number;
@@ -51,11 +54,16 @@ export interface TickerOptions {
   castigoMs?: number;
   now?: () => number;
   onError?: (mensaje: string) => void;
+  /** `false` apaga la lectura de Bitso (pruebas que sólo hablan de cripto). */
+  divisas?: boolean;
 }
 
 /** Los pares que seguimos. Es el mismo conjunto que genera mercados vivos. */
-export const PARES_VIVOS = PARES_CRIPTO;
-export type ParVivo = ParCripto;
+export const PARES_VIVOS = [...PARES_CRIPTO, ...PARES_DIVISA] as const;
+export type ParVivo = ParCripto | ParDivisa;
+
+/** Todos los libros de Bitso en una sola consulta: un pedido por vuelta, no tres. */
+const BITSO_TICKER = "https://api.bitso.com/v3/ticker/";
 
 const KRAKEN_TICKER =
   "https://api.kraken.com/0/public/Ticker?pair=" +
@@ -122,6 +130,26 @@ export async function leerKraken(
   return lectura;
 }
 
+/**
+ * Las divisas, de Bitso. No compite con el motor ni con Kraken: es la única
+ * fuente de estos pares, la misma que cita el criterio de sus velas.
+ */
+export async function leerBitso(
+  fetchImpl: typeof fetch,
+  timeoutMs: number,
+): Promise<Lectura> {
+  const respuesta = await fetchImpl(BITSO_TICKER, { signal: AbortSignal.timeout(timeoutMs) });
+  if (!respuesta.ok) throw new Error(`Bitso respondió ${respuesta.status}`);
+  const cuerpo = (await respuesta.json()) as { payload?: { book?: string; last?: string }[] };
+  const lectura: Lectura = {};
+  for (const par of PARES_DIVISA) {
+    const libro = cuerpo.payload?.find((fila) => fila.book === BITSO_LIBRO[par]);
+    const ultimo = Number(libro?.last);
+    if (Number.isFinite(ultimo) && ultimo > 0) lectura[par] = ultimo;
+  }
+  return lectura;
+}
+
 export interface Ticker {
   /** El último precio del par, o `undefined` si no hay lectura fresca. */
   precio(par: string): Tick | undefined;
@@ -158,13 +186,25 @@ export function crearTicker(options: TickerOptions = {}): Ticker {
       const precio = lectura[par];
       if (precio !== undefined) ticks.set(par, { precio, at, fuente });
     }
-    ultimaFuente = fuente;
+    // `fuente` describe la cadena de cripto (motor o respaldo); Bitso no es
+    // respaldo de nadie y no debe pisar ese diagnóstico
+    if (fuente !== "bitso") ultimaFuente = fuente;
+  }
+
+  async function refrescarDivisas(): Promise<void> {
+    try {
+      guardar(await leerBitso(fetchImpl, latenciaMaxima), "bitso", ahora());
+    } catch (error) {
+      options.onError?.(`divisas sin fuente: ${String(error)}`);
+    }
   }
 
   async function refrescar(): Promise<void> {
     // una vuelta a la vez: si el motor tarda, no se apilan lecturas encima
     if (corriendo) return;
     corriendo = true;
+    // en paralelo con la cripto: una no espera a la otra
+    const divisas = options.divisas === false ? Promise.resolve() : refrescarDivisas();
     try {
       const t0 = ahora();
       if (options.urlFq && t0 >= motorCastigadoHasta) {
@@ -196,6 +236,7 @@ export function crearTicker(options: TickerOptions = {}): Ticker {
         options.onError?.(`ticker sin fuente: ${String(error)}`);
       }
     } finally {
+      await divisas;
       corriendo = false;
     }
   }

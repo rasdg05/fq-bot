@@ -126,7 +126,8 @@ function bloqueVivo(
 
   return {
     par: rule.par,
-    activo: activo?.nombre ?? rule.par,
+    // la línea de la card: el nombre corto si lo hay («USD/MXN»), que cabe
+    activo: activo?.corto ?? activo?.nombre ?? rule.par,
     intervalo: rule.intervalo,
     abreAt: new Date(rule.inicio).toISOString(),
     cierraAt: seed.resolution.settlesAt,
