@@ -450,3 +450,11 @@ valen más que todo lo anterior porque eran agujeros de ciclo de vida:**
 
 _Actualizado: 2026-09-08 (dominio de liquidez construido: L1-L3, L5, L6, L8, L9,
 L15). Antes: 2026-09-01 (decisiones de cadena, subsidio y semilla)._
+
+## 10. Lo construido el 2026-10-01 (dos tandas)
+
+Detalle y mediciones en `MEMORY/DECISIONES.md` §23 (tipografía, «Eventos top», espejos de
+política, tenis) y §24 (mercados rápidos con resolución automática obligatoria). Mapa de
+generadores, oráculos y fuentes en `marea/vault/RETOMAR.md` §3bis. Reglas nuevas R-073…R-078.
+Lo medido y descartado (mañaneras por el reto anti-bots de gob.mx, USD/COP, libros vacíos de
+Kalshi) está en `MEMORY/CEMENTERIO.md`, sección Marea.

@@ -7,10 +7,10 @@
 > repo real. Si vas a editar código, abrir un PR o proponer una idea: pasa por aquí.
 
 ## Qué es fq-bot (en 3 líneas)
-Bot de señales cripto de **order-flow** (RasDG + Claude), vivo en producción (Railway)
-con suscriptores reales. Símbolos: SOL (pilar), BTC, ETH. Disciplina central:
-**measure-first** — nada se cree ni se despliega sin pasar el gate de validación; lo
-que no pasa va al cementerio, honesto.
+Monorepo con dos productos: **Marea** (`marea/`, mercados de predicción en español, proyecto
+principal, despliega `main`) y el **bot de señales** cripto de order-flow (raíz, rama
+`bot-senales`, suscriptores de pago). Disciplina central de los dos: **measure-first** —
+nada se cree ni se despliega sin medirlo; lo que no pasa va al cementerio, honesto.
 
 ## Ruteo por ROL (el ecosistema, una sola verdad)
 La memoria es el **cerebro compartido** de todo el equipo. Cada función entra por su vista, pero
@@ -66,16 +66,19 @@ Además de los 5 archivos núcleo, la memoria guarda las **obras** (PDF + texto)
 - `ingenieria/` — la ecuación del motor (P_master, de la vela al disparo).
 - `marketing/` — guías de marca y de cómo se construye una ventaja.
 - `marea/` — **Marea: protocolo de liquidez, cámara de compensación y arquitectura en
-  cadena.** ⚠ **Si vas a tocar Marea, lee antes `marea/vault/RETOMAR.md`:**
-  producción corre `claude/marea-redesign-v6-b0240n`, **no `main`**, y trabajar
-  sobre `main` significa que tu código no llega a la app. La app de mercados de predicción de `marea/`. La decisión (el pozo es cámara,
+  cadena.** **Si vas a tocar Marea, lee antes `marea/vault/RETOMAR.md`** (desde el giro
+  del 2026-09-24 producción despliega `main`; §3bis es el mapa del catálogo automático:
+  qué generador, qué oráculo y qué fuente resuelve cada familia de mercados). La app de mercados de predicción de `marea/`. La decisión (el pozo es cámara,
   no creador de mercado), la aritmética del ingreso, la escalera de fees con su regla de
   bajada, la cadena recomendada (Base; Tron sólo rampa; Monero no), las invariantes
   L1–L16 y la **verificación por niveles** (escalera N0–N3 + compuerta R-069…R-072, viva en
   `marea/src/domain/niveles.ts`). **Giro 2026-09-24 (DECISIONES §22): Marea pasa a proyecto
   principal — `main` = Marea, el bot a su rama; y el redeploy de Marea es libre (<10 usuarios).**
-  Para retomar en frío: `marea/CONTEXTO_SESION_2026-09-24.md`. Estado: diseño; puntos, nada
-  con dinero desplegado.
+  **2026-10-01 (DECISIONES §23–§24):** tipografía Inter 4, «Eventos top», política/geopolítica
+  y Brasil espejados de Kalshi, tenis ATP, velas del dólar (Bitso), Netflix/Billboard,
+  tendencias de Wikipedia y sismos (USGS); todo con resolución automática obligatoria (R-076).
+  Para retomar en frío: `marea/CONTEXTO_SESION_2026-09-24.md` + `marea/vault/RETOMAR.md`.
+  Estado: puntos, nada con dinero desplegado.
 - `investigacion/` — **review científico (preview)** + **preprint EN (SSRN-ready)** +
   **presentación del perfil académico** (físico→quant, CDMX → Cornell/Oxford) +
   **`rutas-nuevas-2026.md`** (ideación estructura/motor/premios/investigación/vanguardia,

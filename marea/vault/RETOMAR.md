@@ -51,8 +51,10 @@ el catálogo estático caducado (R-041), ninguna de código. Comparar contra cer
 en vez de contra la línea base es el error que `marea/vault/LINEA_BASE.md` existe
 para evitar. **La regla es que el número de rojas no crece.**
 
-Hoy: **8 rojas · 497 verdes**. Mutaciones: **95 · 92 detectadas · 3 equivalentes
-documentadas · 0 huecos**.
+Hoy (2026-10-01): **14 rojas · 612 verdes** en `vitest`, todas las rojas del catálogo
+estático caducado (`ownmarkets`, `optimista`, V34 de `settlement`). Mutaciones: **105 ·
+102 detectadas · 3 equivalentes documentadas · 0 caducas · 0 huecos**. Densidad
+(`node scripts/densidad.mjs` contra un servidor local): **PASS**.
 
 ## 3. Qué se construyó y dónde quedó
 
@@ -73,6 +75,28 @@ escritas a vivas**. U7 (contratos Solidity) se saltó: `forge` no es alcanzable.
 | Un mercado anulado no cuenta como fallo en la tabla | `server/tabla.mts` |
 | Un mercado resuelto sólo lo ve quien apostó en él | `server/mercados.mts` (`visiblesPara`) |
 | `npm run ci` sí corre el build | `package.json` |
+
+## 3bis. El catálogo automático (2026-10-01)
+
+Todo lo que se crea solo entra por `server/reposicion.mts` y tiene que resolverse solo
+(R-076: sin regla que un oráculo automático lea, no se publica). Mapa:
+
+| Familia | Generador | Oráculo | Fuente |
+|---|---|---|---|
+| Velas cripto 5/15 min | `ownMarkets/cryptoLive.ts` (+ `server/vivos.mts`) | `oracles/velaOracle.ts` | Kraken |
+| Velas del dólar USD/MXN, ARS, BRL | mismo, `PARES_DIVISA` | mismo, despacha a Bitso | Bitso |
+| Cripto diario, partidos de 20 ligas | `ownMarkets/templates.ts` | `priceOracle`, `matchOracle` | Kraken, ESPN |
+| Tenis ATP | `templates.ts` (`tenisSeeds`) | `oracles/tennisOracle.ts` | ESPN |
+| Política, México, geopolítica, Brasil | `ownMarkets/espejos.ts` (curados) | `oracles/mirrorOracle.ts` | Kalshi |
+| Netflix, Billboard, Spotify, YouTube | `ownMarkets/recurrentes.ts` | `mirrorOracle` | Kalshi |
+| Duelos de tendencias | `ownMarkets/tendencias.ts` | `oracles/trendOracle.ts` | Wikimedia |
+| Sismo M5+ en México | `ownMarkets/sismos.ts` | `oracles/quakeOracle.ts` | USGS |
+
+**Para sumar una familia:** medir primero la fuente (¿responde desde un servidor?, ¿con
+qué latencia publica?, ¿hay libro o dato de verdad?), escribir la regla en
+`domain/oracleRule.ts` (el compilador pide declararla en `SE_RESUELVE_SOLA`), el oráculo
+en `defaultOracles`, el generador, y la entrada en `npm run mutaciones`. Lo que no pasa
+va a `MEMORY/CEMENTERIO.md` (ahí están mañaneras, USD/COP y los libros vacíos de Kalshi).
 
 ## 4. Lo que NO está hecho, dicho en la misma frase
 
@@ -137,5 +161,5 @@ Después del deploy del 2026-09-11, ahí deberían verse `congelados` y `huerfan
 `reposición:`. Si `congelados` sale largo, el plazo está haciendo su trabajo y
 esos mercados se anularán solos a los 30 días de su fecha.
 
-_Escrita el 2026-09-11. Si la fecha es vieja, confírmala contra `git log` y
+_Escrita el 2026-09-11; §2 y §3bis actualizados el 2026-10-01. Si la fecha es vieja, confírmala contra `git log` y
 contra `/salud`._

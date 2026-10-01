@@ -210,7 +210,7 @@ con outcome. El plan **cerebro** (`research/cerebro_arquitectura.md`, commit `f0
 
 ---
 
-## Marea — mercados de predicción (foto 2026-09-11)
+## Marea — mercados de predicción (foto 2026-10-01)
 
 La app de `marea/`. **No es el bot** y no comparte motor, pero sí memoria y disciplina.
 
@@ -226,6 +226,7 @@ La app de `marea/`. **No es el bot** y no comparte motor, pero sí memoria y dis
 | Ciclo automático | **vivo y dentro del servidor**: liquida y **repone el catálogo** cada cuarto de hora en el mismo proceso (`server/ciclo.mts`, `server/reposicion.mts`). Antes la reposición dependía de un cron en la laptop de alguien; nadie lo corrió en un mes y la app se quedó con 4 mercados |
 | Mercados congelados | **cerrado (2026-09-11)**: a los 7 días sin resolver el mercado se marca `atorado` y **aparece** en `/salud`; a los 30 se anula y se devuelve todo sin comisión. `atorado` ya no es callejón sin salida. Antes: 1008 corridas con «0 errores» y apuestas de agosto sin concluir |
 | Catálogo automático | **ampliado (2026-09-25)**: cripto de 5 pares (BTC, ETH, SOL, XRP, DOGE; velas vivas de 5/15 min también en SOL) y partidos de ~20 ligas de ESPN (`src/domain/ligas.ts`: Liga MX, Expansión, MLS, Colombia, Argentina, Brasil, Perú, Chile, Uruguay, Libertadores, las 5 europeas, Champions, NFL, MLB, NBA, WNBA, NHL). Futbol fuera de la Liga MX en 1X2; deportes sin empate, quién gana. Repone hasta 60 abiertos (antes 6). Local: 15 → 69 mercados |
+| Mercados rápidos | **vivos en código (2026-10-01)**: velas del dólar USD/MXN 5/15 min y USD/ARS, USD/BRL 15 (Bitso); espejos de Kalshi curados (política, México, geopolítica, Brasil) y recurrentes (Netflix, Billboard, Spotify, YouTube: entran sólo con libro real); duelos de tendencias de Wikipedia; sismo M5+ semanal (USGS). Arranque en limpio: 76 mercados. Mapa en `marea/vault/RETOMAR.md` §3bis |
 | Oráculo de partidos | **arreglado**: ESPN agrupa por día de EE. UU. y un partido nocturno de CDMX (03:05 UTC) quedaba en la jornada anterior → sin dato para siempre. Ahora busca también la jornada vecina y, con `inicio`, no confunde el partido de hoy con el de ayer |
 | Apuestas huérfanas | **cerrado**: si el mercado desaparece del catálogo, el ciclo las detecta y devuelve íntegro (R-024). Antes quedaban invisibles para siempre |
 | Contrato de custodia | interfaz **definida y declarada simulada** (`custodia/contrato.ts`) |
@@ -234,7 +235,7 @@ La app de `marea/`. **No es el bot** y no comparte motor, pero sí memoria y dis
 | Presupuesto de subsidio | **L9 viva**: `domain/presupuesto.ts` + guardia en `roll.mts`, **antes** de escribir el catálogo. Topes en cero autorizado: no estorban hoy y frenan el día que se encienda el subsidio sin presupuesto |
 | Frescura del oráculo | **L8 viva** — era la deuda heredada. Una lectura vieja no avanza de fase, se reintenta y lo declara. Los tres oráculos reportan de cuándo es el **dato**, no de cuándo se pidió |
 | Árbol de época | **L15 viva en dominio**: `domain/merkle.ts` + `domain/epoca.ts`, con separación de dominio, hoja impar promovida, conteo y secuencia por usuario. Falta publicar las hojas (no es código) |
-| Suite de Marea | **360 verdes** · **6 rojas preexistentes** (+2 fallos de `validate`): el catálogo tiene fechas de julio/agosto y ya caducó (R-041). Se arreglan con `npm run roll`, no con código. **Ojo:** la cifra que circulaba era «4 rojas»; medidas son 6 (`marea/vault/LINEA_BASE.md`) |
+| Suite de Marea | **612 verdes** · **14 rojas preexistentes** (2026-10-01): todas del catálogo estático caducado (R-041), se arreglan con `npm run roll`, no con código. Mutaciones 105 · 102 detectadas · 3 equivalentes · 0 huecos. La regla: el número de rojas no crece |
 | Arquitectura en cadena | **diseño** — **Base decidida** (2026-09-01), nada desplegado. Los contratos no se escribieron: `forge` no es alcanzable en el entorno (P-006) |
 | Semilla | **mecanismo cableado, interruptor apagado.** `seedMode: "apuesta" \| "subsidio"` existe y está probado; **nadie nace en subsidio todavía** porque R-067 pide subsidio *con tope* y las cifras del tope las decide RasDG (P-002, P-004) |
 | Reglas | **R-065 a R-078 escritas** (R-069…R-072: cumplimiento; R-073 espejo; R-074/R-075 interfaz; R-076…R-078 mercados rápidos) — 78 en `RULINGS.md` |

@@ -16,7 +16,30 @@ Monorepo con dos productos y **dos servicios de Railway**, cada uno en su rama
 | **Bot de señales** (raíz) | `bot-senales` | raíz, `railway.toml`, `python launcher.py` | **Vivo con suscriptores de pago.** Gate measure-first intacto |
 
 Un cambio al bot va a `bot-senales`, **no** a `main`: un push a `main` ya no
-redeploya el bot. Lo de abajo (lección, invariantes, números) es del bot.
+redeploya el bot. La sección «Marea» es de la app; el resto (lección, invariantes,
+números) es del bot.
+
+## Marea — antes de tocar `marea/`
+
+1. `marea/vault/RETOMAR.md` — dónde está todo hoy, la línea base y (§3bis) el mapa del
+   catálogo automático: qué generador, qué oráculo y qué fuente resuelve cada familia.
+2. `marea/vault/RULINGS.md` — 78 reglas, append-only. No se reescriben; se agregan.
+3. `MEMORY/DECISIONES.md` §22–§24 y `MEMORY/CEMENTERIO.md` (sección Marea) antes de
+   proponer una fuente o familia de mercados nueva: puede estar ya medida y descartada.
+
+| Invariante de Marea | Dónde | Qué impide |
+|---|---|---|
+| Lo generado se resuelve solo (R-076) | `oracleRule.seResuelveSolo` + `server/reposicion.mts` | Publicar un mercado que espera a una persona |
+| Precio sólo de libros con gente (R-077) | `espejos.probabilidadKalshi`, `recurrentes.recurrenteDe` | Un 50/50 inventado con forma de precio |
+| Espejo paga sólo con liquidación firme (R-073) | `oracles/mirrorOracle.resolverEspejo` | Pagar antes que la fuente que se cita |
+| Frescura del dato (L8) | `domain/settlement.onRead` | Resolver con un dato viejo leído como nuevo |
+| Densidad del feed | `scripts/densidad.mjs` | Tarjetas que crecen, números cortados |
+
+Verificar: `cd marea && npx tsc --noEmit -p . && npx vitest run` (la línea base tiene
+rojas del catálogo caducado: **el número no crece**), `npm run mutaciones`, y la densidad
+contra un servidor local. **Una fuente se mide antes de escribir su código** (¿responde
+desde un servidor?, ¿cuándo publica?, ¿hay dato de verdad?); lo que no pasa va al
+cementerio, no a producción.
 
 ## Antes de tocar nada
 
@@ -41,7 +64,7 @@ este repo: *un hallazgo sin invariante que lo haga cumplir es una nota, no un
 arreglo.* Cuando cierres un hallazgo, pregúntate qué test o qué gate impide que
 vuelva — si la respuesta es "acordarse", no está cerrado.
 
-## Invariantes que ya están cableadas (no las rompas)
+## Invariantes del bot ya cableadas (no las rompas)
 
 | Invariante | Dónde | Qué impide |
 |---|---|---|
@@ -53,7 +76,7 @@ vuelva — si la respuesta es "acordarse", no está cerrado.
 | Frescura de CVD | `tools/fetch_cvd.cvd_confirmation` | Un colector parado contestando como si midiera |
 | Sin relojes de pared | `tests/test_no_wallclock.py` | Que el replay herede la hora del click |
 
-## Números vigentes (agosto 2026) — no inventes otros
+## Números vigentes del bot (agosto 2026) — no inventes otros
 
 - **Track record publicado**: n=12 · WR 41.7% · E[R] +0.208 · PF 1.76.
   (Antes decía n=35 / +1.835R; las 23 filas del fantasma están excluidas por
@@ -98,4 +121,4 @@ ledger_stats.py          ÚNICO punto por el que sale el track record público
 - Suite completa ~40 s. **Córrela antes de cada commit.**
 - Despliegue del bot: push a `bot-senales` → Railway. `railway.toml` excluye `marea/**`,
   `MEMORY/**` y `tools/` (salvo excepciones listadas) de los watchPatterns.
-- Despliegue de Marea: push a `main` → Railway (`marea/railway.toml`). Suite: `cd marea && npm test`.
+- Despliegue de Marea: push a `main` → Railway (`marea/railway.toml`). Suite: `cd marea && npx vitest run`.
