@@ -281,3 +281,13 @@ Se agrega una línea cuando un hallazgo de audit es recurrente o de producto.
   si el criterio publicado lo dice**; los mercados creados antes no lo prometieron y no se resuelven
   con otro día. Encontrado por el revisor en producción el 2026-10-01. Fijado en
   `tests/partidos-vida-real.test.ts`. (oráculos)
+- **R-085** — **El director audita y actúa en el momento; nunca elige un ganador.** Cada minuto
+  revisa todo y, sobre lo accionable (se pasó su cierre, sin resolver, atorado), actúa en la misma
+  vuelta: cierra, vuelve a leer la fuente con los mismos oráculos —si hay resultado, sigue el
+  camino normal de disputa y pago— y **anula con devolución íntegra** lo que demostrablemente ya
+  no se va a resolver (rival por definir pasada su hora; no jugado dentro de la ventana que su
+  criterio prometía, con la fuente diciéndolo). Mínimo daño: no paga distinto de lo que dice la
+  fuente, no anula lo que todavía puede resolverse, no toca lo que ya está en disputa ni lo
+  retenido, y lo anulado no se vuelve a leer. Reintenta cada mercado como mucho cada 5 min. Cada
+  acción va a la bitácora con la transición de fase. Su panel es interno (`MAREA_ADMINS`). Pedido
+  de RasDG, 2026-10-01. Fijado en `tests/director-en-vivo.test.tsx`. (agentes)

@@ -96,9 +96,12 @@ Todo lo que se crea solo entra por `server/reposicion.mts` y tiene que resolvers
 reposición anota en una bitácora encadenada cada publicación (con el prior con que nace), cada
 omisión y cada veto; el revisor (`server/revisor.mts`) corre al final de cada ciclo, abre y
 cierra hallazgos y **retiene** pagos que contradicen al mercado; el juez (`server/juez.mts`,
-Claude) se enciende con `ANTHROPIC_API_KEY`. Todo se ve en `/api/director` y en Perfil →
-Director de mercados. Lo primero al retomar: `curl …/api/director` — si `decisiones.cadena.ok`
-es `false`, alguien tocó la bitácora.
+Claude) se enciende con `ANTHROPIC_API_KEY`. Y cada 60 s el **director en vivo**
+(`server/agente.mts`, R-085, DECISIONES §27) actúa sobre lo que el revisor ve: cierra, relee la
+fuente y anula con devolución íntegra lo irresoluble, anotado como `actuar`. Todo se ve en
+`/api/director` y en Perfil → Director de mercados, **sólo** para `MAREA_ADMINS` (sin la
+variable, la cuenta más antigua). Lo primero al retomar: el panel con sesión de admin — si
+`decisiones.cadena.ok` es `false`, alguien tocó la bitácora.
 
 **Para sumar una familia:** medir primero la fuente (¿responde desde un servidor?, ¿con
 qué latencia publica?, ¿hay libro o dato de verdad?), escribir la regla en

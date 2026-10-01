@@ -853,6 +853,34 @@ tocar nada; tres causas, tres arreglos, todos con prueba y mutación:
 **ver** lo que llevaba semanas invisible, con el contexto justo para que el arreglo se pudiera
 decidir midiendo. Hallazgo → prueba → invariante, ahora con un sensor que corre cada ciclo.
 
+## 27. El director actúa en tiempo real; su panel es interno (2026-10-01)
+
+RasDG, viendo el panel en producción: *«La idea no es necesariamente que sea de acceso
+público. El punto es que tenga la capacidad de resolver en tiempo real sobre lo que va
+auditando.»* Dos cambios:
+
+1. **Actúa, no sólo reporta (R-085).** Un bucle de 60 s (`MAREA_DIRECTOR_MS`) revisa todo y,
+   sobre lo accionable —`sin_leer`, `atorado`, `abierto_tras_cierre`—, actúa en la misma vuelta
+   con un manual determinista (`domain/remediacion.ts`): cierra lo vencido, vuelve a leer la
+   fuente con los mismos oráculos y el mismo `correrCiclo` (si hay resultado sigue disputa y
+   pago, por el camino de siempre), y **anula con devolución íntegra** lo que demostrablemente
+   ya no se resolverá: rival por definir pasada su hora, o no jugado dentro de la ventana que su
+   criterio prometía (72 h sin cláusula; cláusula + 1 día con ella) con la fuente diciendo que
+   no lo lista, que está pospuesto o que no ha terminado. Antes, esos casos esperaban el plazo
+   de 30 días. Candados: nunca toca `en_disputa`, pagado ni retenido; lo anulado ya no se vuelve
+   a leer (una lectura tardía no convierte una anulación en un pago); reintenta un mismo mercado
+   como mucho cada 5 min y 20 por vuelta; el ciclo largo y el director liquidan **en serie**
+   (`Turno`), nunca a la vez. Cada cambio de fase va a la bitácora como `actuar`, R-085, con la
+   transición y la evidencia; sin cambio no se escribe nada. El modelo no participa.
+2. **Panel interno.** `/api/director` responde 401/403 salvo a `MAREA_ADMINS` (usuarios
+   separados por coma; sin la variable, sólo la cuenta más antigua). El perfil enseña la puerta
+   sólo a esas cuentas. Principio 9 de `FILOSOFIA.md` reescrito: auditable, no necesariamente
+   público.
+
+Fijado en `tests/director-en-vivo.test.tsx` (15 pruebas) y 12 mutaciones nuevas, todas
+detectadas; la primera pasada dejó viva «lo anulado se vuelve a leer» (la prueba usaba una
+fuente caída, que no distingue) y se añadió el caso de la lectura tardía con resultado.
+
 ---
 
 ## Disciplinas inegociables

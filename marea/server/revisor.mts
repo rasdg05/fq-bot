@@ -17,9 +17,10 @@ import type { Store } from "./store.mts";
  * El revisor autónomo, corriendo en el servidor después de cada ciclo.
  *
  * Arma la foto con lo que hay en el disco, deja que el dominio decida, aplica
- * **la única** acción que toma solo sobre dinero —retener un pago que
- * contradice al mercado— y escribe en la bitácora lo que cambió. Nunca paga,
- * nunca anula antes del plazo, nunca reescribe un resultado (R-082).
+ * **la única** acción que el revisor toma solo sobre dinero —retener un pago que
+ * contradice al mercado— y escribe en la bitácora lo que cambió. Nunca paga ni
+ * reescribe un resultado (R-082). Lo demás que encuentra lo arregla el director
+ * en vivo, en la misma vuelta (`agente.mts`, R-085).
  */
 
 /** Las familias que el catálogo automático debería tener siempre abiertas. */

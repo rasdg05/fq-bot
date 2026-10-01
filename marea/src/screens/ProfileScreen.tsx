@@ -91,18 +91,21 @@ export function ProfileScreen() {
           </span>
           <ChevronRight aria-hidden className="h-4 w-4 text-muted" />
         </button>
-        <button
-          type="button"
-          data-testid="profile-director"
-          onClick={() => actions.setTab("director")}
-          className="flex min-h-touch w-full items-center justify-between px-5 py-3.5 text-left"
-        >
-          <span className="flex items-center gap-3">
-            <Bot aria-hidden className="h-[18px] w-[18px] text-teal" />
-            <span className="text-[15px] font-semibold text-text">{S.director.title}</span>
-          </span>
-          <ChevronRight aria-hidden className="h-4 w-4 text-muted" />
-        </button>
+        {/* el panel del director es interno: sólo lo ve quien opera Marea */}
+        {state.cuenta?.director ? (
+          <button
+            type="button"
+            data-testid="profile-director"
+            onClick={() => actions.setTab("director")}
+            className="flex min-h-touch w-full items-center justify-between px-5 py-3.5 text-left"
+          >
+            <span className="flex items-center gap-3">
+              <Bot aria-hidden className="h-[18px] w-[18px] text-teal" />
+              <span className="text-[15px] font-semibold text-text">{S.director.title}</span>
+            </span>
+            <ChevronRight aria-hidden className="h-4 w-4 text-muted" />
+          </button>
+        ) : null}
         {!isPointsMode() ? (
           <button
             type="button"

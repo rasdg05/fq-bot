@@ -1,15 +1,17 @@
 import type { OwnMarketSeed } from "../src/adapters/ownMarkets/catalog";
 import { verificarCadena, type EntradaBitacora, type TipoDecision, type Verificacion } from "../src/domain/bitacora";
 import type { Hallazgo, Severidad } from "../src/domain/revisor";
+import type { ResumenAgente } from "./agente.mts";
 import type { EstadoJuez } from "./juez.mts";
 import type { Store } from "./store.mts";
 
 /**
- * El reporte público del director (MEMORY/FILOSOFIA.md, principios 5 y 9: *un
- * agente que no se mide es una superstición*; *transparencia hacia afuera*).
+ * El tablero del director (MEMORY/FILOSOFIA.md, principio 5: *un agente que no
+ * se mide es una superstición*).
  *
- * Sale por `/api/director` y lo pinta la pantalla «Director». No lleva datos de
- * usuarios: sólo mercados, decisiones y números agregados.
+ * Sale por `/api/director` —sólo para quien opera Marea, ver `esDirector`— y lo
+ * pinta la pantalla «Director». No lleva datos de usuarios: sólo mercados,
+ * decisiones y números agregados.
  */
 
 const FAMILIA: Record<string, string> = {
@@ -39,6 +41,8 @@ export interface ReporteDirector {
     ultimas: (EntradaBitacora & { titulo?: string })[];
   };
   juez: EstadoJuez;
+  /** El bucle en tiempo real (R-085): su última vuelta y cada cuánto corre. */
+  enVivo: { cadaSegundos: number; ultima: ResumenAgente | null; acciones24h: number } | null;
 }
 
 const H = 3_600_000;
@@ -56,6 +60,7 @@ export function reporteDirector(input: {
   juez: EstadoJuez;
   ahora: number;
   ultimas?: number;
+  enVivo?: { cadaMs: number; ultima: ResumenAgente | null };
 }): ReporteDirector {
   const { store, seeds, ahora } = input;
   const porId = new Map(seeds.map((s) => [s.id, s]));
@@ -121,5 +126,38 @@ export function reporteDirector(input: {
         .map((e) => ({ ...e, titulo: porId.get(e.sujeto)?.shortTitle })),
     },
     juez: input.juez,
+    enVivo: input.enVivo
+      ? {
+          cadaSegundos: Math.round(input.enVivo.cadaMs / 1000),
+          ultima: input.enVivo.ultima,
+          acciones24h: porTipo24h.actuar ?? 0,
+        }
+      : null,
   };
+}
+
+/**
+ * Quién ve el panel del director. No es público: enseña hallazgos, pozos y la
+ * bitácora completa, y eso es tablero de operación, no vitrina.
+ *
+ * `MAREA_ADMINS` lista los usuarios separados por coma, sin distinguir
+ * mayúsculas. Sin la variable, la cuenta más antigua —quien abrió la app— y
+ * nadie más: un panel interno no se abre por omisión.
+ */
+export function directores(store: Store, env: Record<string, string | undefined> = process.env): Set<string> {
+  const lista = (env.MAREA_ADMINS ?? "")
+    .split(",")
+    .map((n) => n.trim().toLowerCase())
+    .filter(Boolean);
+  if (lista.length > 0) return new Set(lista);
+  const [primera] = [...store.usuarios()].sort((a, b) => a.creado.localeCompare(b.creado));
+  return new Set(primera ? [primera.usuario.toLowerCase()] : []);
+}
+
+export function esDirector(
+  store: Store,
+  usuario: { usuario: string } | null | undefined,
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  return !!usuario && directores(store, env).has(usuario.usuario.toLowerCase());
 }

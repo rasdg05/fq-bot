@@ -37,16 +37,22 @@ medio.
    ¿la evidencia sostiene el resultado?— y **propone o veta; nunca mueve dinero solo**.
    → `server/juez.mts` (R-081).
 
-4. **La autonomía se gradúa por reversibilidad.** Lo reversible y acotado, el agente
-   lo hace solo: no publicar un candidato, retener un pago dudoso, abrir un hallazgo.
-   Lo irreversible —pagar distinto de lo que dice la fuente, tocar el presupuesto,
-   cambiar una regla, que la casa tome un lado— **nunca** lo hace solo. → acciones del
-   revisor (R-082).
+4. **La autonomía se gradúa por reversibilidad y por daño.** Lo reversible y acotado, el
+   agente lo hace solo: no publicar un candidato, retener un pago dudoso, abrir un hallazgo,
+   volver a leer una fuente. Lo que no se deshace lo hace solo **sólo si es el mínimo daño y
+   nadie gana**: devolver íntegro lo apostado en un partido que demostrablemente no se va a
+   resolver. Lo demás —pagar distinto de lo que dice la fuente, elegir un ganador, tocar el
+   presupuesto, cambiar una regla, que la casa tome un lado— **nunca** lo hace solo. →
+   revisor (R-082), director en vivo (R-085).
 
-5. **Un agente que no se mide es una superstición.** El director publica sus números:
-   cuánto resuelve, cuánto tarda, cuánto se atora, qué fuentes fallan, cuántas veces
-   lo corrigieron. Se le juzga con la misma vara que al bot: por lo medido. → panel
-   `/api/director`.
+5. **Un agente que no se mide es una superstición.** El director lleva sus números:
+   cuánto resuelve, cuánto tarda, cuánto se atora, qué fuentes fallan, cuánto actuó solo,
+   cuántas veces lo corrigieron. Se le juzga con la misma vara que al bot: por lo medido.
+   → panel interno `/api/director`.
+
+   **Auditar sin poder actuar es un reporte, no un agente.** Lo que el revisor ve, el
+   director lo arregla en la misma vuelta si cabe en el manual (R-085); lo que no cabe, lo
+   deja escrito para una persona. → `domain/remediacion.ts`, `server/agente.mts`.
 
 6. **Decir «no sé» antes que inventar.** Un oráculo sin dato contesta `sin_dato`; un
    libro sin gente no da precio; un juez sin llave se apaga. El sistema prefiere un
@@ -60,8 +66,10 @@ medio.
    convierte en una regla que impide que vuelva. El revisor no es el arreglo: es el
    sensor que dice dónde falta uno.
 
-9. **Transparencia hacia afuera.** Lo que el director decide se puede ver. Un mercado
-   de predicción que pide confianza tiene que enseñar cómo decide.
+9. **Auditable, no necesariamente público.** Lo que el director decide queda en una
+   cadena que cualquiera con acceso puede verificar; el tablero de operación es interno.
+   Hacia afuera se enseña lo que cada usuario necesita: cómo se resolvió *su* mercado y
+   con qué evidencia.
 
 10. **El agente no es la contraparte.** El director pone la semilla con un prior que
     cita su fuente; **nunca** toma el lado contrario de un usuario ni gana cuando el
@@ -74,7 +82,8 @@ medio.
 | Rol | Qué decide solo | Qué nunca decide | Dónde |
 |---|---|---|---|
 | **Director de mercados** | qué candidatos se publican, en qué orden, con cuántas opciones; registra cada no | el presupuesto (L9), las reglas, el tamaño del subsidio (P-002/P-004) | `domain/director.ts`, `server/reposicion.mts` |
-| **Revisor** | abrir y cerrar hallazgos; retener una resolución que contradice al mercado | pagar, anular por su cuenta antes del plazo, reescribir un resultado | `domain/revisor.ts`, `server/ciclo.mts` |
+| **Revisor** | abrir y cerrar hallazgos; retener una resolución que contradice al mercado | pagar, reescribir un resultado | `domain/revisor.ts`, `server/ciclo.mts` |
+| **Director en vivo** | cada minuto: cerrar lo vencido, releer la fuente de lo atorado, anular y devolver lo irresoluble | elegir un ganador, pagar distinto de la fuente, anular lo que todavía puede resolverse | `domain/remediacion.ts`, `server/agente.mts` |
 | **Juez (Claude)** | vetar un texto ambiguo o sensible antes de publicarse; señalar una evidencia que no sostiene el resultado | nada con dinero; su veto pasa por las reglas del revisor | `server/juez.mts` |
 | **Oráculos** | leer la fuente y decir qué dice, o que no dice nada | interpretar | `adapters/oracles/*` |
 | **Personas (RasDG, devs)** | reglas, presupuestos, topes, opiniones legales, lo que el agente escala | — | `vault/RULINGS.md`, `vault/PREGUNTAS_ABIERTAS.md` |
@@ -97,9 +106,12 @@ Dicho en la misma frase, como todo en este repo:
 - El juez corre desde el 2026-10-01 con `ANTHROPIC_API_KEY` en el servicio; si la llave se
   quita o el modelo se cae, todo lo demás corre igual. Su primera vuelta: 15 resoluciones
   revisadas, ninguna señalada.
-- El revisor **retiene**, no resuelve: una resolución retenida espera a una persona o
-  al plazo de 30 días que devuelve todo.
+- Una resolución **retenida** sigue esperando a una persona o al plazo de 30 días: el
+  director en vivo no libera ni reescribe un resultado. Sólo anula lo que está escrito en su
+  manual (R-085); un caso nuevo de «no se va a resolver» entra al manual con prueba, no se
+  improvisa.
+- El panel es de quien opera Marea (`MAREA_ADMINS`; sin la variable, la cuenta más antigua).
 
-_Fuente de verdad: `MEMORY/DECISIONES.md §25`, `marea/vault/RULINGS.md` (R-079…R-083),
+_Fuente de verdad: `MEMORY/DECISIONES.md §25–§27`, `marea/vault/RULINGS.md` (R-079…R-085),
 el código citado. Si un principio y el código no coinciden, manda el código y este
 documento está desactualizado._

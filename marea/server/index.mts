@@ -15,7 +15,9 @@ import {
 import { correrCiclo, type ResumenCiclo } from "./ciclo.mts";
 import { correrRevisor, fotoDe } from "./revisor.mts";
 import { Juez, clienteAnthropic } from "./juez.mts";
-import { reporteDirector } from "./director.mts";
+import { directores, esDirector, reporteDirector } from "./director.mts";
+import { DirectorEnVivo, Turno } from "./agente.mts";
+import { COOKIE, leerCookie, sesionSegura } from "./auth.mts";
 import { crearTicker } from "./precios.mts";
 import { MercadosVivos } from "./vivos.mts";
 import { MINIMO_ABIERTOS, reponer, type ResumenReposicion } from "./reposicion.mts";
@@ -84,6 +86,8 @@ const CICLO_VIVO_MS = Number(process.env.MAREA_CICLO_VIVO_MS ?? 10_000);
 /** Cada cuánto se planifica la siguiente vela. Barato: es aritmética de reloj. */
 const PLAN_VIVO_MS = Number(process.env.MAREA_PLAN_VIVO_MS ?? 1_000);
 const PRECIO_MS = Number(process.env.MAREA_PRECIO_MS ?? 3_000);
+/** Cada cuánto el director audita y actúa en vivo (R-085). */
+const DIRECTOR_MS = Number(process.env.MAREA_DIRECTOR_MS ?? 60_000);
 
 const TIPOS: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -161,6 +165,13 @@ const juez = new Juez(clienteAnthropic(process.env));
  * del ciclo de liquidación —que itera sobre semillas— y las apuestas que tenga
  * dentro no se resuelven nunca.
  */
+/**
+ * Todo lo que liquida pasa por aquí, uno a la vez: el ciclo largo y el director
+ * en vivo tocan las mismas liquidaciones.
+ */
+const turno = new Turno();
+const director = new DirectorEnVivo(store);
+
 function catalogo(): OwnMarketSeed[] {
   return [...seeds, ...store.seedsGeneradas(), ...vivos.seeds()];
 }
@@ -320,7 +331,7 @@ async function ciclo() {
 
     const conRepuestos = [...seeds, ...store.seedsGeneradas()];
     sembrarPozos(store, conRepuestos);
-    const resumen = await correrCiclo(store, conRepuestos);
+    const resumen = await turno.correr(() => correrCiclo(store, conRepuestos));
     bitacora.ultimoCiclo = resumen;
     log(
       `ciclo ${bitacora.corridas}: ${resumen.leidos} leídos · ${resumen.pagados} pagados · ` +
@@ -344,12 +355,8 @@ async function ciclo() {
           return estado?.phase === "en_disputa" ? [{ seed, estado }] : [];
         }),
       );
-      const revision = correrRevisor(
-        store,
-        fotoDe(store, todos, Date.now(), {
-          huerfanas: store.apuestasHuerfanas(todos.map((seed) => seed.id)),
-          juicios: juez.juiciosDeResolucion(),
-        }),
+      const revision = await turno.correr(async () =>
+        correrRevisor(store, fotoDe(store, todos, Date.now(), extraDelRevisor(todos))),
       );
       for (const h of revision.abren) log(`  🔎 revisor abre [${h.severidad}] ${h.codigo} · ${h.sujeto}: ${h.detalle}`);
       for (const h of revision.cierran) log(`  ✓ revisor cierra ${h.codigo} · ${h.sujeto}`);
@@ -359,6 +366,42 @@ async function ciclo() {
     }
   } catch (error) {
     log(`ciclo falló entero: ${String(error)}`);
+  }
+}
+
+/** Lo mismo que ve el revisor en cada vuelta, sea la larga o la del director. */
+function extraDelRevisor(todos: readonly OwnMarketSeed[]) {
+  return {
+    huerfanas: store.apuestasHuerfanas(todos.map((seed) => seed.id)),
+    juicios: juez.juiciosDeResolucion(),
+  };
+}
+
+/**
+ * El director en tiempo real (R-085). Cada minuto audita y, en la misma vuelta,
+ * actúa: cierra lo que se pasó de hora, vuelve a leer la fuente de lo que no se
+ * ha resuelto y anula con devolución íntegra lo que demostrablemente ya no se
+ * va a resolver. El ciclo largo sigue reponiendo y liquidando cada cuarto de
+ * hora; esto es lo que no puede esperar un cuarto de hora.
+ */
+let directorEnVuelo = false;
+async function directorEnVivo() {
+  if (directorEnVuelo) return;
+  directorEnVuelo = true;
+  try {
+    const catalogoLargo = [...seeds, ...store.seedsGeneradas()];
+    const auditados = [...catalogoLargo, ...vivos.seedsConApuestas()];
+    const vuelta = await turno.correr(() =>
+      director.vuelta({ catalogo: catalogoLargo, auditados, extra: extraDelRevisor(auditados), ahora: Date.now() }),
+    );
+    for (const a of vuelta.acciones) {
+      log(`  ⚡ director ${a.como === "anular" ? "anuló" : "releyó"} ${a.id}: ${a.de} → ${a.a} · ${a.motivo}`);
+    }
+    for (const error of vuelta.errores) log(`  ⚠ director: ${error}`);
+  } catch (error) {
+    log(`director en vivo falló: ${String(error)}`);
+  } finally {
+    directorEnVuelo = false;
   }
 }
 
@@ -442,14 +485,29 @@ async function servir(req: IncomingMessage, res: ServerResponse) {
   }
 
   /**
-   * El reporte público del director: qué decidió, qué encontró y cómo le va.
-   * Sin datos de usuarios. Es la transparencia de un agente que decide solo
-   * (MEMORY/FILOSOFIA.md, principio 9).
+   * El tablero del director: qué decidió, qué encontró, qué arregló y cómo le
+   * va. Interno: sólo para quien opera Marea (`MAREA_ADMINS`).
    */
   if (ruta === "/api/director") {
+    const sesion = sesionSegura(store, leerCookie(req.headers.cookie, COOKIE));
+    if (!esDirector(store, sesion)) {
+      res.writeHead(sesion ? 403 : 401, { "content-type": TIPOS[".json"], "cache-control": "no-store" });
+      res.end(JSON.stringify({ error: "El panel del director es interno." }));
+      return;
+    }
     const todos = [...seeds, ...store.seedsGeneradas()];
     res.writeHead(200, { "content-type": TIPOS[".json"], "cache-control": "no-store" });
-    res.end(JSON.stringify(reporteDirector({ store, seeds: todos, juez: juez.estado(), ahora: Date.now() })));
+    res.end(
+      JSON.stringify(
+        reporteDirector({
+          store,
+          seeds: todos,
+          juez: juez.estado(),
+          ahora: Date.now(),
+          enVivo: { cadaMs: DIRECTOR_MS, ultima: director.ultima },
+        }),
+      ),
+    );
     return;
   }
 
@@ -626,6 +684,12 @@ createServer((req, res) => {
 // el mercado abre con el ciclo ya corrido, y sigue cada cuarto de hora
 void ciclo();
 setInterval(() => void ciclo(), CICLO_MS);
+setInterval(() => void directorEnVivo(), DIRECTOR_MS).unref?.();
+log(
+  `director en vivo cada ${Math.round(DIRECTOR_MS / 1000)} s · panel interno para ` +
+    `${process.env.MAREA_ADMINS ? "MAREA_ADMINS" : "la cuenta más antigua (sin MAREA_ADMINS)"}: ` +
+    `${[...directores(store)].join(", ") || "nadie todavía"}`,
+);
 void listarMercados(store, seeds);
 
 /**

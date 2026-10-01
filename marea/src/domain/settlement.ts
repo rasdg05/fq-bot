@@ -445,6 +445,24 @@ export function dispute(state: SettlementState, motivo: string): SettlementState
 }
 
 /**
+ * Anula un mercado cuyo evento **demostrablemente** no va a resolverse (rival
+ * por definir, partido no jugado en su fecha sin cláusula de reprogramación).
+ * Por el mismo camino que el plazo: atorado + incobrable, y el ciclo devuelve
+ * todo, íntegro y sin comisión, en la misma vuelta. Es la acción de menor daño
+ * cuando no hay ganador posible: nadie gana ni pierde, todos recuperan lo suyo
+ * — ahora y no a los 30 días (R-085).
+ */
+export function anular(state: SettlementState, motivo: string): SettlementState {
+  if (state.phase === "pagado" || state.phase === "devuelto" || state.phase === "en_disputa") return state;
+  return {
+    ...state,
+    phase: "atorado",
+    incobrable: true,
+    stuckReason: `${motivo} Se anula y se devuelve lo apostado, íntegro y sin comisión.`,
+  };
+}
+
+/**
  * La retención del revisor autónomo: una disputa que ninguna lectura del
  * oráculo deshace. Es la acción más fuerte que un agente toma solo, y es
  * reversible: no paga, no anula, no cambia el resultado — sólo impide pagar uno

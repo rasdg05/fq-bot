@@ -25,6 +25,7 @@ import {
   type ContextoVivo,
 } from "./mercados.mts";
 import { calcularTabla } from "./tabla.mts";
+import { esDirector } from "./director.mts";
 import type { MercadosVivos } from "./vivos.mts";
 import type { Store } from "./store.mts";
 
@@ -90,6 +91,8 @@ function perfil(store: Store, usuarioId: string, seeds: OwnMarketSeed[]) {
     correo: usuario.correo,
     recargaDisponible: recargaDisponible(usuario.puntos, usuario.ultimaRecarga),
     posiciones: posicionesDe(store, usuarioId, seeds),
+    // sólo a quien opera Marea se le enseña la puerta del panel interno
+    ...(esDirector(store, usuario) ? { director: true } : {}),
   };
 }
 

@@ -34,6 +34,7 @@ interface Reporte {
   hallazgos: { clave: string; severidad: string; sujeto: string; titulo?: string; detalle: string }[];
   decisiones: { total: number; cadena: { ok: boolean; en?: number; entradas?: number }; ultimas: Entrada[] };
   juez: { activo: boolean; modelo: string | null };
+  enVivo?: { cadaSegundos: number; acciones24h: number } | null;
 }
 
 const TONO: Record<string, string> = {
@@ -61,18 +62,22 @@ function Cifra({ valor, etiqueta }: { valor: string; etiqueta: string }) {
 export function DirectorScreen() {
   const { adapters } = useApp();
   const [datos, setDatos] = React.useState<Reporte | null>(null);
-  const [error, setError] = React.useState(false);
+  const [error, setError] = React.useState<"falla" | "interno" | null>(null);
 
   React.useEffect(() => {
     let vivo = true;
     if (!adapters.api) {
-      setError(true);
+      setError("falla");
       return;
     }
     fetch("/api/director", { credentials: "include" })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((r) => {
+        // el panel es interno: sin permiso se dice así, no «no pudimos leer»
+        if (r.status === 401 || r.status === 403) return Promise.reject(new Error("interno"));
+        return r.ok ? r.json() : Promise.reject(new Error(String(r.status)));
+      })
       .then((cuerpo) => vivo && setDatos(cuerpo as Reporte))
-      .catch(() => vivo && setError(true));
+      .catch((e: unknown) => vivo && setError(e instanceof Error && e.message === "interno" ? "interno" : "falla"));
     return () => {
       vivo = false;
     };
@@ -81,7 +86,11 @@ export function DirectorScreen() {
   if (error) {
     return (
       <div className="pt-4">
-        <EmptyState title={S.director.error} body="" testId="director-error" />
+        <EmptyState
+          title={error === "interno" ? S.director.interno : S.director.error}
+          body=""
+          testId={error === "interno" ? "director-interno" : "director-error"}
+        />
       </div>
     );
   }
@@ -128,6 +137,11 @@ export function DirectorScreen() {
         <p data-testid="director-juez" className="text-text2">
           {juez.activo && juez.modelo ? S.director.juezActivo(juez.modelo) : S.director.juezApagado}
         </p>
+        {datos.enVivo ? (
+          <p data-testid="director-en-vivo" className="text-text2">
+            {S.director.enVivo(datos.enVivo.cadaSegundos, datos.enVivo.acciones24h)}
+          </p>
+        ) : null}
       </div>
 
       {familias.length > 0 ? (

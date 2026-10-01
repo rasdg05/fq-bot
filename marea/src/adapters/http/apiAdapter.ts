@@ -18,6 +18,8 @@ export interface Cuenta {
   correo?: string;
   recargaDisponible: number;
   posiciones: Position[];
+  /** Puede ver el panel interno del director. */
+  director?: boolean;
 }
 
 export interface ApiOptions {

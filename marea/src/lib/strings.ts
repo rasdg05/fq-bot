@@ -302,7 +302,7 @@ export const S = {
   director: {
     title: "Director de mercados",
     subtitle:
-      "Un agente autónomo decide qué mercados abrir y vigila que cada uno se resuelva bien. Todo lo que decide queda aquí, encadenado y verificable.",
+      "Un agente autónomo decide qué mercados abrir, vigila que cada uno se resuelva y arregla en el momento lo que se atora. Todo lo que decide queda aquí, encadenado y verificable.",
     abiertos: "Abiertos",
     resueltos: "Resueltos 7 d",
     mediana: "Tarda en pagar",
@@ -316,6 +316,7 @@ export const S = {
     cadenaRota: (n: number) => `La bitácora no verifica desde la decisión ${n}`,
     juezActivo: (modelo: string) => `Juez editorial: ${modelo}`,
     juezApagado: "Juez editorial apagado: deciden sólo las reglas",
+    enVivo: (s: number, n: number) => `En vivo cada ${s} s · ${n} ${n === 1 ? "acción" : "acciones"} en 24 h`,
     tipo: {
       publicar: "Publicó",
       omitir: "No publicó",
@@ -325,10 +326,12 @@ export const S = {
       retener: "Retuvo el pago",
       liberar: "Liberó",
       regularizar: "Regularizó",
+      actuar: "Actuó",
     } as Record<string, string>,
     autor: { reglas: "reglas", migracion: "migración revisada", persona: "persona" } as Record<string, string>,
     severidad: { critico: "Crítico", grave: "Grave", aviso: "Aviso", info: "Info" } as Record<string, string>,
     error: "No pudimos leer el reporte del director.",
+    interno: "Este panel es interno.",
   },
 
   /** Sin conexión: lo que hay se sigue viendo, y se dice que está viejo. */

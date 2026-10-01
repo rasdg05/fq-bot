@@ -41,6 +41,8 @@ export function createFakeApi(inicial: {
   posiciones?: Position[];
   recargaDisponible?: number;
   usuario?: string;
+  /** Opera Marea: el servidor le enseña la puerta del panel del director. */
+  director?: boolean;
   /** El catálogo que sirve `/mercados`. Sin él, el feed sale vacío. */
   mercados?: Market[];
 }) {
@@ -60,6 +62,7 @@ export function createFakeApi(inicial: {
     puntos: estado.puntos,
     recargaDisponible: estado.recargaDisponible,
     posiciones: [...estado.posiciones],
+    ...(inicial.director ? { director: true } : {}),
   });
 
   const api = {

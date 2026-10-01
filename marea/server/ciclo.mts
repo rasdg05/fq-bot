@@ -98,7 +98,9 @@ export async function correrCiclo(
         estado = onClose(estado);
       }
 
-      if (debeLeerse(seed, estado.phase, ahora)) {
+      // lo anulado ya no se lee: la devolución no depende de que la fuente
+      // conteste, ni una lectura tardía convierte una anulación en un pago (R-085)
+      if (!estado.incobrable && debeLeerse(seed, estado.phase, ahora)) {
         const { reading } = await readWithOracles(oracles, {
           marketId: seed.id,
           spec: seed.resolution,

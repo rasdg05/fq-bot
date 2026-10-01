@@ -42,7 +42,12 @@ export type TipoDecision =
    * migración revisada), no por el agente. Se anota igual: lo que mueve dinero
    * deja rastro, venga de quien venga.
    */
-  | "regularizar";
+  | "regularizar"
+  /**
+   * El director actuó en vivo sobre lo que auditó: cerró, releyó y resolvió,
+   * o anuló un mercado irresoluble. El motivo dice la transición de fase.
+   */
+  | "actuar";
 
 export interface DecisionNueva {
   tipo: TipoDecision;
