@@ -297,6 +297,11 @@ partidos de Liga MX destrabados (frescura vs. hecho consumado), 17 pozos heredad
 (≈13 795 puntos, pozo → capital, con candados), «FC Juárez», «TBD vs TBD», partidos cancelados,
 con hora movida o reprogramados (R-084). Producción quedó en 0 críticos y 0 atorados.
 
+**Juez encendido (2026-10-01 20:34 UTC):** `ANTHROPIC_API_KEY` cargada en Railway. Primera
+vuelta medida: 15 llamadas (el tope por ciclo) sobre resoluciones en disputa, 0 errores, 0 vetos,
+0 señales — todas las evidencias sostenían su resultado. ≈1 150 tokens de entrada y ≈100 de
+salida por llamada: ≈0.10 USD la vuelta completa con `claude-opus-5-5`.
+
 **Retomar en frío:** `MEMORY/marea/CONTEXTO_SESION_2026-09-24.md` guarda todo el contexto de la
 sesión de verificación y el runbook del giro. Detalle de Marea: `MEMORY/marea/README.md`.
 

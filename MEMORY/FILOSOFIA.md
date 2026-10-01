@@ -94,8 +94,9 @@ Dicho en la misma frase, como todo en este repo:
 - El director **no** ajusta el tamaño de la semilla por interés: los topes del subsidio
   esperan cifras de RasDG (P-002, P-004). Hoy siembra con el prior de su fuente y el
   tamaño fijo de cada familia.
-- El juez **no** corre si no hay `ANTHROPIC_API_KEY` en el servicio. Sin ella, todo lo
-  demás corre igual.
+- El juez corre desde el 2026-10-01 con `ANTHROPIC_API_KEY` en el servicio; si la llave se
+  quita o el modelo se cae, todo lo demás corre igual. Su primera vuelta: 15 resoluciones
+  revisadas, ninguna señalada.
 - El revisor **retiene**, no resuelve: una resolución retenida espera a una persona o
   al plazo de 30 días que devuelve todo.
 
