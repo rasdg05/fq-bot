@@ -12,18 +12,11 @@
       content="Marea — mercados de predicción en español. Mira la probabilidad del mercado y la de Marea, lado a lado."
     />
     <title>Marea — mercados de predicción</title>
-    <!-- sólo las dos caras del primer pintado: las demás las pide el CSS
-         cuando hacen falta, para no cargar el camino crítico -->
+    <!-- una sola fuente variable cubre todos los pesos y tamaños: un único
+         archivo en el camino crítico, precargado para no pintar dos veces -->
     <link
       rel="preload"
-      href="/fonts/hanken-400.woff2"
-      as="font"
-      type="font/woff2"
-      crossorigin
-    />
-    <link
-      rel="preload"
-      href="/fonts/fraunces-600.woff2"
+      href="/fonts/inter-marea.woff2"
       as="font"
       type="font/woff2"
       crossorigin

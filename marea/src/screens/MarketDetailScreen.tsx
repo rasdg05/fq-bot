@@ -103,12 +103,12 @@ export function MarketDetailScreen({ market }: { market: Market }) {
           <div data-dominant="probability">
             <div
               data-role="probability"
-              className="font-display font-semibold tabular-nums text-text text-prob-lg"
+              className="font-display font-bold tabular-nums text-text text-prob-lg"
             >
               {marketPct}
-              <span className="ml-1 align-top text-[0.35em] font-bold text-text2">
-                %
-              </span>
+              {/* en línea base y proporcional, igual que en la tarjeta: el
+                  superíndice suelto se leía como nota al pie del dato */}
+              <span className="ml-0.5 text-[0.42em] font-semibold text-text2">%</span>
             </div>
             <div className="mt-1 text-[13px] font-medium text-muted">
               {market.pool ? S.market.hereLabel : S.market.probability}

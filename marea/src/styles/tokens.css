@@ -12,39 +12,40 @@
 /* Rutas absolutas a `public/`: Vite las reescribe con la base al construir,
    así que funcionan igual en la raíz que colgando de un subdirectorio.
    Con rutas relativas el bundler no las resuelve y avisa en cada build. */
+/* Rediseño tipográfico 2026-10-01 (RasDG: «una letra más pro, como los pro de
+   la industria; los números se ven feos y unos más grandes que otros»).
+
+   Una sola familia: Inter 4 variable, con dos ejes. `wght` cubre todos los
+   pesos con un archivo; `opsz` (14–32) cambia el dibujo según el tamaño — a
+   24 px la cifra usa el corte Display (más apretado y nítido) y a 12 px el de
+   texto (más abierto y legible). Es la técnica de las interfaces financieras
+   serias: la jerarquía la hacen el tamaño y el peso, no el cambio de familia.
+
+   El archivo es un subconjunto propio de la fuente oficial (OFL, rsms/inter
+   4.001): Latin-1 + la tipografía fina que usa la app (— … → − “ ” ₿ Ξ ≥ ▲ ▼)
+   y sólo las features que sirven a una UI de cifras. El subconjunto de
+   Fontsource quitaba `cv11`/`ss01`/`zero`; por eso no se usa. 72 KB que
+   sustituyen a cuatro archivos de Hanken más la Fraunces del número.
+
+   La serif del número (DECISIONES_VISUALES, «la quiniela, no el terminal») se
+   revoca a pedido explícito de RasDG; la razón queda escrita allí. */
 @font-face {
-  font-family: "Fraunces";
-  src: url("/fonts/fraunces-600.woff2") format("woff2");
-  font-weight: 600 700;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Hanken Grotesk";
-  src: url("/fonts/hanken-400.woff2") format("woff2");
-  font-weight: 400;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Hanken Grotesk";
-  src: url("/fonts/hanken-500.woff2") format("woff2");
-  font-weight: 500 600;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Hanken Grotesk";
-  src: url("/fonts/hanken-700.woff2") format("woff2");
-  font-weight: 700 800;
+  font-family: "Inter Marea";
+  src: url("/fonts/inter-marea.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
   font-display: swap;
 }
 
 :root {
-  --font-display: "Fraunces", ui-serif, Georgia, serif;
-  --font-sans: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", Roboto,
+  --font-sans: "Inter Marea", system-ui, -apple-system, "Segoe UI", Roboto,
     Helvetica, Arial, sans-serif;
+  /* El display es la misma familia: el eje óptico ya cambia el dibujo a tamaño
+     grande. Se conserva el token para no mover cuarenta clases. */
+  --font-display: var(--font-sans);
   /* Las cifras van en la misma grotesca que el texto, con dígitos tabulares: se
      alinean columna a columna como en una monospace, sin su aspecto de terminal. */
-  --font-mono: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", Roboto,
-    Helvetica, Arial, sans-serif;
+  --font-mono: var(--font-sans);
 
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
@@ -240,9 +241,14 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
+  /* `cv11`: «a» de un solo piso, el dibujo contemporáneo de Inter. `ss01`:
+     dígitos abiertos (6 9 4) — distinguibles de un vistazo a tamaño chico,
+     que es donde vive el pago. El eje óptico se deja en automático. */
+  font-feature-settings: "cv11" 1, "ss01" 1;
+  font-optical-sizing: auto;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  letter-spacing: -0.005em;
+  letter-spacing: -0.011em;
   /* sin scroll horizontal en móvil (V11) */
   overflow-x: hidden;
   overscroll-behavior-y: none;
@@ -252,6 +258,13 @@ body {
 .font-mono {
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
+}
+
+/* `font-display` ya no cambia de familia: lo que lo hace display es el peso y
+   el tracking cerrado. Con `tabular-nums` encima (las probabilidades) el ancho
+   de cada dígito es fijo y un 50 % no salta a 49 % moviendo la fila. */
+.font-display {
+  letter-spacing: -0.022em;
 }
 
 ::selection {

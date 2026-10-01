@@ -41,20 +41,33 @@ describe("Fase 1 — descubrimiento", () => {
     await feed();
     const cards = await screen.findAllByTestId("market-card");
     for (const card of cards.slice(0, 4)) {
-      const dominant = card.querySelector('[data-role="probability"]') as HTMLElement;
+      const dominant = card.querySelector('[data-dominant="probability"]') as HTMLElement;
       expect(dominant).not.toBeNull();
-      // en la card el nodo dominante es la pill de 30 px en peso 700: el de
-      // 44 px (`text-prob`) se fue al detalle. El rival existe y es más chico
-      // —`text-prob-riv`, 20 px—, así que la comprobación es que **nadie más**
-      // usa la escala del líder, no que no haya otro número (R-004)
-      expect(dominant.className).toMatch(/text-prob-pill/);
+      // en la card el nodo dominante es la pill de probabilidad en peso 700:
+      // el de 44 px (`text-prob`) se fue al detalle. Desde el 2026-10-01 las
+      // dos probabilidades **comparten** escala —un 50 % junto a otro 50 % en
+      // dos tamaños decía que uno valía más— y el líder se distingue por peso
+      // y relleno. La regla ahora es: sólo las probabilidades usan la escala
+      // de probabilidad, y sólo el líder va en 700 (R-004)
+      // binaria: `prob-pill`; de varias respuestas: `prob-row` en todas las filas
+      expect(dominant.className).toMatch(/text-prob-(pill|row)/);
       expect(dominant.className).toMatch(/font-bold/);
-      const compiten = [...card.querySelectorAll("*")].filter(
-        (el) =>
-          el !== dominant &&
-          /text-prob-pill|text-prob-lg|text-prob\b/.test(el.className.toString()),
+      const conEscala = [...card.querySelectorAll("*")].filter((el) =>
+        /text-prob-pill|text-prob-row|text-prob-lg|text-prob\b/.test(el.className.toString()),
       );
-      expect(compiten).toHaveLength(0);
+      const escalas = new Set(
+        conEscala.map((el) => el.className.toString().match(/text-prob-[a-z]+|text-prob\b/)![0]),
+      );
+      expect([...escalas], "dentro de una tarjeta, una sola escala de probabilidad").toHaveLength(1);
+      for (const el of conEscala) {
+        expect(el.getAttribute("data-role"), "sólo una probabilidad usa su escala").toBe(
+          "probability",
+        );
+      }
+      const otrosEn700 = conEscala.filter(
+        (el) => el !== dominant && /font-bold/.test(el.className.toString()),
+      );
+      expect(otrosEn700, "el líder es el único número en 700").toHaveLength(0);
     }
   });
 

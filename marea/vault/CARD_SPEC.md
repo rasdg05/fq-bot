@@ -91,7 +91,8 @@ Es una sola línea con dos grupos, uno por resultado. **Nunca envuelve.**
 - Probabilidad: token `text-prob` (44 px), peso 600, `tabular-nums`. Es el nodo
   dominante y **no se toca**: cambiarlo rompería `tokens.lock.json` y, sobre
   todo, la jerarquía — la densidad no se compra degradando la jerarquía
-  (R-004). El `%` va como superíndice a 0.4em.
+  (R-004). El `%` va en línea base a 0.58em (revisión 2026-10-01: antes
+  superíndice a 0.4em). Líder y rival comparten escala; el líder va en 700.
 - Etiqueta y pago en la **misma línea** que la probabilidad, no debajo:
   `Sí 1.8×`, 12 px, peso 600.
 - La palabra `paga` se va. Cuesta cuatro caracteres en la línea más apretada y

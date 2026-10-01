@@ -139,6 +139,8 @@ export const S = {
     closedForBets: "Este mercado ya cerró.",
     /** Card: el pago de cada lado, debajo de su nombre. */
     pays2: (multiplier: string) => `paga ${multiplier}`,
+    /** La palabra sola, para cuando la tarjeta es angosta y sólo cabe la cifra. */
+    pagaPalabra: "paga",
     /** Card multi-resultado: lo que hay debajo de las tres que se enseñan. */
     respuestasMas: (n: number) => (n === 1 ? "+1 respuesta" : `+${n} respuestas`),
     /** Card en resolución: qué se está esperando, sin prometer cuándo. */

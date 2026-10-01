@@ -6,6 +6,7 @@ import { CryptoLiveCard } from "@/components/CryptoLiveCard";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 import { AvatarMercado } from "@/components/ui/avatar-mercado";
+import { Pago } from "@/components/ui/pago";
 import { COLOR_CATEGORIA, colorDeLado } from "@/lib/categoria";
 import { S } from "@/lib/strings";
 import { formatStake } from "@/lib/units";
@@ -53,7 +54,7 @@ const DESTELLO_MS = 200;
  * una tarjeta de 114 px, un anillo que empuja es un anillo que rompe.
  */
 const PILL_BASE = cn(
-  "relative z-10 flex h-9 min-w-[64px] shrink-0 items-center justify-center rounded-pill px-2.5",
+  "relative z-10 flex h-9 min-w-[58px] shrink-0 items-center justify-center rounded-pill px-2",
   // 36 px de pill, 44 de zona tocable: el aire de arriba y abajo es parte del
   // botón y no cuesta una fila de card (R-010)
   "after:absolute after:inset-x-0 after:-inset-y-1 after:content-['']",
@@ -100,7 +101,7 @@ function Opcion({
   return (
     <div
       data-testid={lider ? "card-lider" : "card-other-side"}
-      className="flex min-w-0 flex-1 items-center gap-2"
+      className="flex min-w-0 flex-1 items-center gap-1.5"
     >
       <button
         type="button"
@@ -139,20 +140,26 @@ function Opcion({
         }
       >
         <span
-          {...(lider ? { "data-dominant": "probability", "data-role": "probability" } : {})}
+          // las dos son probabilidades; sólo el líder es el nodo dominante
+          data-role="probability"
+          {...(lider ? { "data-dominant": "probability" } : {})}
           className={cn(
-            "font-display tabular-nums",
+            // las dos probabilidades miden lo mismo: el líder se reconoce por
+            // el peso y el relleno de su pill, no por crecer (R-004, R-005)
+            "font-display text-prob-pill tabular-nums",
             // el rival sube a `--text` con fondo teñido: sobre el relleno del
             // `active` el `--text2` caía a 5,27:1 y el número es el dato
             lider
-              ? "text-prob-pill font-bold text-text"
-              : "text-prob-riv font-semibold text-text2 group-active:text-text",
+              ? "font-bold text-text"
+              : "font-semibold text-text2 group-active:text-text",
           )}
         >
           {porcentaje}
+          {/* el signo va en la línea base y proporcional a la cifra: el
+              superíndice chico se leía como nota al pie, no como parte del dato */}
           <span
             className={cn(
-              "ml-0.5 align-top text-[12px] font-bold opacity-70",
+              "ml-px text-[0.58em] font-semibold opacity-60",
               lider ? "text-text" : "text-text2",
             )}
           >
@@ -172,9 +179,7 @@ function Opcion({
           {label}
         </span>
         {multiplier ? (
-          <span className="mt-0.5 truncate font-mono text-mult font-medium tabular-nums text-muted">
-            {S.market.pays2(multiplier)}
-          </span>
+          <Pago multiplier={multiplier} />
         ) : null}
       </span>
     </div>
@@ -277,26 +282,23 @@ function FilaResultado({
           }
         >
           <span
-            {...(primera
-              ? { "data-dominant": "probability", "data-role": "probability" }
-              : {})}
+            data-role="probability"
+            {...(primera ? { "data-dominant": "probability" } : {})}
             className={cn(
-              "font-display tabular-nums",
-              primera
-                ? "text-prob-pill font-bold text-text"
-                : "text-prob-row font-semibold text-text2",
+              // todas las filas a la misma escala: la primera manda por peso
+              // y relleno, no por medir más que sus hermanas (R-004)
+              "font-display text-prob-row tabular-nums",
+              primera ? "font-bold text-text" : "font-semibold text-text2",
             )}
           >
             {porcentaje}
-            <span className="ml-0.5 align-top text-[11px] font-bold opacity-70">%</span>
+            <span className="ml-px text-[0.58em] font-semibold opacity-60">%</span>
           </span>
         </button>
         <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-text2">
           {outcome.label}
         </span>
-        <span className="shrink-0 font-mono text-mult font-medium tabular-nums text-muted">
-          {S.market.pays2(pago)}
-        </span>
+        <Pago multiplier={pago} className="mt-0 shrink-0" />
       </div>
       <span aria-hidden className="flex h-[3px] w-full overflow-hidden rounded-pill bg-line2">
         <span
@@ -454,7 +456,7 @@ export function MarketCard({ market, variant, pulso, onOpen }: MarketCardProps) 
   return (
     <Card
       as="article"
-      className={cn("relative overflow-hidden", cerrado && "opacity-90")}
+      className={cn("cq-card relative overflow-hidden", cerrado && "opacity-90")}
       data-testid="market-card"
       data-variant={resolved}
       data-market-id={vista.id}

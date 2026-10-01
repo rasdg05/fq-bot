@@ -3,6 +3,7 @@ import type { LiveCandle, Market, PulsoVivo } from "@/domain/types";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
+import { Pago } from "@/components/ui/pago";
 import { AvatarMercado } from "@/components/ui/avatar-mercado";
 import { colorDeLado } from "@/lib/categoria";
 import { S } from "@/lib/strings";
@@ -159,15 +160,16 @@ function Porcentaje({ probability, lider }: { probability: number; lider?: boole
         // densidad lo cazaba como jerarquía degradada (R-004)
         "font-display tabular-nums",
         // el porcentaje sigue siendo el nodo dominante también aquí: la
-        // densidad no se compra encogiéndolo. `npm run densidad` lo mide
+        // densidad no se compra encogiéndolo. `npm run densidad` lo mide. Los
+        // dos lados miden lo mismo; el líder se distingue por peso y relleno
         lider
           ? "text-prob-pill font-bold text-text"
-          : "text-prob-riv font-semibold text-text2",
+          : "text-prob-pill font-semibold text-text2",
         anima && "transition-opacity duration-200",
       )}
     >
       {pct(probability)}
-      <span className="ml-0.5 align-top text-[12px] font-bold opacity-70">%</span>
+      <span className="ml-px text-[0.58em] font-semibold opacity-60">%</span>
     </span>
   );
 }
@@ -227,7 +229,7 @@ export function CryptoLiveCard({ market, pulso, onOpen }: CryptoLiveCardProps) {
        * color tampoco admite modificador de opacidad: la declaración se
        * descarta y no se pinta nada (R-017).
        */
-      className="overflow-hidden"
+      className="cq-card overflow-hidden"
       data-testid="market-card"
       data-variant="live"
       data-market-id={market.id}
@@ -320,7 +322,7 @@ export function CryptoLiveCard({ market, pulso, onOpen }: CryptoLiveCardProps) {
                 // lado que va ganando, contorno para el otro, y el número
                 // dentro. Dos maneras de pintar el mismo dato en un mismo feed
                 // eran dos productos (§3.1 del rediseño)
-                "group relative flex min-w-0 flex-1 items-center gap-2 text-left",
+                "group relative flex min-w-0 flex-1 items-center gap-1.5 text-left",
                 // 36 px de pill, 44 de zona tocable: el aire de arriba y abajo
                 // es parte del botón sin ocupar una fila (R-010)
                 "after:absolute after:inset-x-0 after:-inset-y-1 after:content-['']",
@@ -329,7 +331,7 @@ export function CryptoLiveCard({ market, pulso, onOpen }: CryptoLiveCardProps) {
               <span
                 data-role="pill"
                 className={cn(
-                  "flex h-9 min-w-[64px] shrink-0 items-center justify-center rounded-pill px-2.5",
+                  "flex h-9 min-w-[58px] shrink-0 items-center justify-center rounded-pill px-2",
                   "outline outline-2 outline-offset-2 outline-transparent",
                   "transition-[background-color,outline-color,transform] duration-[120ms] ease-out",
                   "group-focus-visible:outline-pill-ring group-active:scale-[.96]",
@@ -344,9 +346,7 @@ export function CryptoLiveCard({ market, pulso, onOpen }: CryptoLiveCardProps) {
                 <span className="truncate text-[13px] font-semibold leading-[15px] text-text2">
                   {lado.label}
                 </span>
-                <span className="mt-0.5 truncate font-mono text-mult font-medium tabular-nums text-muted">
-                  {S.market.pays2(formatMultiplier(lado.multiplier))}
-                </span>
+                <Pago multiplier={formatMultiplier(lado.multiplier)} />
               </span>
             </button>
           ))}

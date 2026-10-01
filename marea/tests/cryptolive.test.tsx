@@ -808,9 +808,12 @@ describe("Presupuesto de la card viva", () => {
     const escalas = screen
       .getAllByTestId("live-pill")
       .map((nodo) => nodo.querySelector('[data-role="probability"]')?.className ?? "");
-    expect(escalas.some((clase) => clase.includes("text-prob-pill"))).toBe(true);
+    // desde 2026-10-01 los dos lados comparten escala: el líder se distingue
+    // por peso, no por tamaño
+    expect(escalas.length).toBeGreaterThan(0);
     for (const clase of escalas) {
-      expect(clase).toMatch(/text-prob-(pill|riv)/);
+      expect(clase).toMatch(/text-prob-pill/);
     }
+    expect(escalas.filter((clase) => /font-bold/.test(clase))).toHaveLength(1);
   });
 });

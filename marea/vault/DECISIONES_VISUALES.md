@@ -5,6 +5,38 @@ cambió una decisión, y dice qué se descartó.
 
 ---
 
+## Revisión 2026-10-01 — la cifra en grotesca (revoca «La serif en el número»)
+
+**Decisión de RasDG**, viendo la app en vivo junto a Kalshi y Polymarket: «la
+fuente se refleja mucho en los números y los nuestros se ven feos; no me gusta
+que unos números se vean más grandes que otros». Se revoca la serif del número
+y la jerarquía por tamaño entre líder y rival.
+
+| | Antes | Ahora |
+|---|---|---|
+| Familia | Hanken Grotesk + Fraunces (serif en cifras y titulares) | **Inter 4 variable**, una sola familia, eje óptico `opsz` |
+| Probabilidad en tarjeta | líder 30 px serif / rival 20 px | **las dos a 24 px**, líder en 700 con pill rellena, rival en 600 con contorno |
+| `%` | superíndice a 0.4em | en línea base, a 0.58em, más tenue |
+| Pago | `paga 1.94×` con `truncate` (a 320 px se cortaba la cifra) | componente `Pago`: la palabra cede por *container query*, **la cifra nunca** |
+
+**Por qué gana el argumento nuevo.** La serif se defendía como diferenciación
+cultural («la quiniela, no el terminal»). Medido en la app real, el costo era
+legibilidad del dato que se apuesta: dos `50 %` a distinto tamaño comunicaban
+que uno valía más, que es una mentira visual en un producto que vende
+honestidad (R-004 pide que la probabilidad domine **al resto**, no que un lado
+domine al otro). La diferenciación se queda donde sí es nuestra: el color pleno
+por categoría, el vocabulario de quiniela (pozo, paga), los mercados de Latam.
+
+**Medido, no a ojo** (feed real, 684 textos, `scrollWidth > clientWidth`):
+etiquetas recortadas 19/28/108 → **19/27/52** a 390/360/320 px; cifras
+recortadas: había a 320 px → **0** en todo ancho.
+
+Lo que sigue vigente de abajo: el color, el tono y la anatomía de la tarjeta.
+Lo que queda revocado: la sección «La serif en el número» y la fila
+«Número dominante» de la tabla siguiente.
+
+---
+
 ## Por qué no puede parecer Kalshi traducido
 
 El objetivo declarado es dejar huella cultural. Una app que se ve como la
@@ -162,7 +194,9 @@ pasa de 4.66 a 4.91 (oscuro) y de 5.36 a 5.69 (claro); sobre `--bg`, de 5.20 a
 
 ## Lo que no se toca
 
-- La probabilidad es el único nodo en escala `text-prob` (R-004).
+- Sólo las probabilidades usan la escala `text-prob*`, todas las de una tarjeta a
+  la misma escala, y el líder es el único número en 700 (R-004; ver revisión
+  2026-10-01).
 - Todo color con significado lleva además texto o forma: el color nunca es el
   único portador (R-005). Un Edge negativo no apunta hacia arriba.
 - Ningún color de token lleva modificador de opacidad de Tailwind: un color

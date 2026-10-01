@@ -30,8 +30,17 @@ const PRESUPUESTO = {
   altoCardVivaMaxPx: 124,
   /** Nodos de texto de la card que caen en más de una línea. */
   envolturas: 0,
-  /** El nodo de probabilidad no puede encoger para ganar densidad (R-004). */
-  probabilidadMinPx: 30,
+  /**
+   * El nodo de probabilidad no puede encoger para ganar densidad (R-004).
+   *
+   * Era 30 px: el tamaño del líder cuando líder y rival medían distinto (30 y
+   * 20) y la cifra iba en serif. El 2026-10-01 RasDG revocó esa jerarquía —
+   * los dos lados comparten escala y el líder se distingue por peso— y la
+   * escala única quedó en 24 px, que con Inter variable ya usa el corte
+   * Display. No se bajó para ganar densidad: la tarjeta mide lo mismo. Ver
+   * DECISIONES_VISUALES, revisión 2026-10-01.
+   */
+  probabilidadMinPx: 24,
   /** Cromo antes del primer mercado. */
   topePrimeraCardPx: 130,
 };

@@ -2,3 +2,22 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Tarjeta de mercado como contenedor: lo que cabe en ella depende de su ancho,
+   no del de la pantalla (la misma tarjeta mide 358 px en el feed y 333 en el
+   carrusel). Sólo en las tarjetas de mercado: un contenedor `inline-size` cuyo
+   ancho saliera de su contenido colapsaría a cero. */
+.cq-card {
+  container-type: inline-size;
+}
+
+/* «paga 1.94×» completo pide unos 336 px de tarjeta con dos lados; por debajo
+   cede la palabra y queda la cifra entera. Nunca se corta el número (R-063). */
+.pago-palabra {
+  display: none;
+}
+@container (min-width: 336px) {
+  .pago-palabra {
+    display: inline;
+  }
+}

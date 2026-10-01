@@ -61,15 +61,19 @@ const config: Config = {
       },
       fontSize: {
         // escala tipográfica: la probabilidad es el nodo dominante (R-004). En
-        // el detalle manda por tamaño absoluto (`prob`); en la tarjeta manda
-        // por tamaño **y peso** — `prob-pill` es el único nodo en 700
-        prob: ["44px", { lineHeight: "1", letterSpacing: "-0.02em" }],
-        "prob-lg": ["64px", { lineHeight: "1", letterSpacing: "-0.025em" }],
-        "prob-sm": ["30px", { lineHeight: "1", letterSpacing: "-0.015em" }],
-        "prob-pill": ["30px", { lineHeight: "32px", letterSpacing: "-0.025em" }],
-        "prob-riv": ["20px", { lineHeight: "22px", letterSpacing: "-0.015em" }],
-        "prob-row": ["20px", { lineHeight: "22px", letterSpacing: "-0.015em" }],
-        mult: ["12px", { lineHeight: "13px", letterSpacing: "0.01em" }],
+        // el detalle manda por tamaño absoluto (`prob`); en la tarjeta, las
+        // probabilidades comparten **un solo tamaño** (`prob-pill`) y el líder
+        // se distingue por peso y relleno, no por crecer. Un 50 % junto a otro
+        // 50 % en dos tamaños decía que uno valía más (RasDG, 2026-10-01).
+        // Con Inter variable, 24 px ya entra en su corte Display (eje `opsz`).
+        prob: ["44px", { lineHeight: "1", letterSpacing: "-0.03em" }],
+        "prob-lg": ["64px", { lineHeight: "1", letterSpacing: "-0.035em" }],
+        "prob-sm": ["30px", { lineHeight: "1", letterSpacing: "-0.025em" }],
+        "prob-pill": ["24px", { lineHeight: "26px", letterSpacing: "-0.03em" }],
+        // se conserva por las vistas que lo nombran; ya no se usa en tarjetas
+        "prob-riv": ["24px", { lineHeight: "26px", letterSpacing: "-0.03em" }],
+        "prob-row": ["20px", { lineHeight: "22px", letterSpacing: "-0.025em" }],
+        mult: ["12px", { lineHeight: "14px", letterSpacing: "0" }],
       },
       spacing: {
         // targets táctiles (R-010)
