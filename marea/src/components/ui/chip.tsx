@@ -17,14 +17,20 @@ export interface ChipProps extends React.ButtonHTMLAttributes<HTMLButtonElement>
 /**
  * Pestaña de categoría.
  *
- * Volvió a ser pastilla, ahora con color: la que manda se rellena con el color
- * de su categoría (lavado, con el texto en `--text`) y las demás van en gris
- * sobre `--panel2`. Con veinte ligas y cinco monedas el feed tiene de qué
- * presumir, y una fila de palabras grises no invitaba a tocar ninguna.
+ * Rediseño 2026-10-01 (RasDG: «los menús se ven mal»). Antes todas las
+ * pestañas eran pastillas rellenas y la activa sólo sumaba un anillo de color:
+ * la fila entera pesaba igual y nada mandaba. Ahora, el patrón de las
+ * interfaces de mercado serias:
  *
- * El estado activo no depende sólo del color —cambia el peso y el relleno
- * (R-005)— y el target sigue midiendo 44 px de alto: la pastilla visible es de
- * 34 y el aire de alrededor es parte del botón (R-010).
+ *  - **Inactivas sin relleno**: texto en `--text2`, que se aclara al pasar.
+ *  - **La activa, invertida**: pastilla en `--text` con el texto en `--bg`.
+ *    Es el máximo contraste disponible en los dos temas, y se reconoce sin
+ *    distinguir ningún color (R-005): cambian relleno, tono y peso a la vez.
+ *  - El glifo conserva su color de categoría: es el único acento de la fila.
+ *
+ * Radio de 10 px y no píldora entera: a 32 px de alto la píldora se ve como
+ * botón de juguete. El target sigue midiendo 44 px: la pastilla visible es de
+ * 32 y el aire de alrededor es parte del botón (R-010).
  */
 export const Chip = React.forwardRef<HTMLButtonElement, ChipProps>(
   ({ className, active, color, icon: Icono, children, ...props }, ref) => (
@@ -44,17 +50,15 @@ export const Chip = React.forwardRef<HTMLButtonElement, ChipProps>(
          por el peso y porque sólo ella tiene relleno de color */
       style={
         active
-          ? ({ "--chip-raya": color ?? "var(--teal)" } as React.CSSProperties)
+          ? ({ "--chip-acento": color ?? "var(--teal)" } as React.CSSProperties)
           : undefined
       }
       {...props}
     >
       <span
         className={cn(
-          "flex h-[34px] items-center gap-1.5 rounded-pill px-3.5 transition-colors",
-          active
-            ? "bg-[color:color-mix(in_srgb,var(--chip-raya)_22%,var(--panel))] ring-1 ring-[color:color-mix(in_srgb,var(--chip-raya)_55%,transparent)]"
-            : "bg-panel2 group-hover:text-text",
+          "flex h-8 items-center gap-1.5 rounded-[10px] px-3 transition-[background-color,color] duration-150",
+          active ? "bg-text text-bg" : "group-hover:bg-panel2 group-hover:text-text",
         )}
       >
         {Icono ? (
@@ -105,6 +109,26 @@ export function ChipRow({
       globalThis.removeEventListener?.("resize", revisar);
     };
   }, [revisar, children]);
+
+  /**
+   * La pestaña activa siempre queda a la vista y fuera del degradado: si es la
+   * última que asoma, el degradado de «hay más» la tapaba a medias justo
+   * cuando acababa de elegirse. Se desplaza la fila, nunca la página.
+   */
+  React.useEffect(() => {
+    const el = ref.current;
+    const activa = el?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (!el || !activa) return;
+    const MARGEN = 56; // el ancho del degradado (`w-14`)
+    const izquierda = activa.offsetLeft - el.offsetLeft;
+    const derecha = izquierda + activa.offsetWidth;
+    if (derecha > el.scrollLeft + el.clientWidth - MARGEN) {
+      el.scrollLeft = derecha - el.clientWidth + MARGEN;
+    } else if (izquierda < el.scrollLeft) {
+      el.scrollLeft = Math.max(0, izquierda - 16);
+    }
+    revisar();
+  }, [children, revisar]);
 
   return (
     <div className={cn("relative", className)}>
