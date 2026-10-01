@@ -331,7 +331,27 @@ export interface TrendRule {
   articulos: { id: string; titulo: string }[];
 }
 
+/**
+ * ¿Hubo al menos un sismo de magnitud `magnitudMin` o mayor en México entre
+ * `desde` y `hasta`? Según el catálogo público del USGS:
+ * `https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&…`.
+ *
+ * «En México» es lo que dice el USGS, no una interpretación nuestra: un evento
+ * cuenta si su descripción de lugar termina en «Mexico» (p. ej. «off the coast
+ * of Michoacan, Mexico»). Así cualquiera repite la consulta y llega a lo mismo.
+ */
+export interface QuakeRule {
+  kind: "sismo";
+  fuente: "usgs";
+  region: "MX";
+  magnitudMin: number;
+  /** Ventana, ISO. `desde` incluido, `hasta` excluido. */
+  desde: string;
+  hasta: string;
+}
+
 export type OracleRule =
+  | QuakeRule
   | PriceRule
   | VelaRule
   | SeriesRule
@@ -355,6 +375,16 @@ function umbralEnTexto(umbral: number): RegExp {
  */
 export function ruleProblems(rule: OracleRule, criterion: string): string[] {
   const problems: string[] = [];
+
+  if (rule.kind === "sismo") {
+    if (!(rule.magnitudMin >= 3 && rule.magnitudMin <= 9)) problems.push("la magnitud mínima no es razonable");
+    if (!(Date.parse(rule.desde) < Date.parse(rule.hasta))) problems.push("la ventana del sismo está al revés");
+    if (!/usgs/i.test(criterion)) problems.push("el criterio no nombra al USGS como fuente");
+    if (!criterion.includes(rule.magnitudMin.toFixed(1))) {
+      problems.push(`la magnitud ${rule.magnitudMin.toFixed(1)} no aparece en el criterio`);
+    }
+    return problems;
+  }
 
   if (rule.kind === "tendencia") {
     if (rule.proyecto !== "es.wikipedia") problems.push("sólo se mide Wikipedia en español");

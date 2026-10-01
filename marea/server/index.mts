@@ -27,6 +27,7 @@ import { LIGAS } from "../src/domain/ligas";
 import { espejosPendientes } from "../src/adapters/ownMarkets/espejos";
 import { recurrentesPendientes } from "../src/adapters/ownMarkets/recurrentes";
 import { tendenciasPendientes } from "../src/adapters/ownMarkets/tendencias";
+import { sismosPendientes } from "../src/adapters/ownMarkets/sismos";
 import { cargarJornadaTenis } from "../src/adapters/oracles/tennisOracle";
 import type { PartidoTenis } from "../src/adapters/ownMarkets/templates";
 
@@ -250,7 +251,13 @@ async function ciclo() {
             console.log(`[reposicion] recurrentes sin crear: ${recurrentes.omitidos.join(" | ")}`);
           }
           return {
-            seeds: [...curados.seeds, ...recurrentes.seeds, ...tendencias.seeds],
+            seeds: [
+              ...curados.seeds,
+              ...recurrentes.seeds,
+              ...tendencias.seeds,
+              // el sismo de la semana que viene: sale del calendario, sin red
+              ...sismosPendientes({ ahora, existentes }),
+            ],
             errores: [...curados.errores, ...recurrentes.errores, ...tendencias.errores],
           };
         },

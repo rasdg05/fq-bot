@@ -94,6 +94,9 @@ function debeLeerse(seed: OwnMarketSeed, state: SettlementState): boolean {
   // y un partido de tenis: si el orden de juego lo adelanta, se detiene a
   // tiempo en vez de aceptar apuestas con el marcador corriendo
   if (seed.rule?.kind === "tenis") return true;
+  // y un sismo: el «sí» puede llegar el martes, y entonces se paga sin esperar
+  // al domingo (la semana ya no acepta apuestas desde el lunes)
+  if (seed.rule?.kind === "sismo") return true;
   if (seed.rule?.kind === "precio" && seed.rule.modo === "toca") {
     return !seed.rule.desde || new Date(seed.rule.desde).getTime() <= now;
   }
