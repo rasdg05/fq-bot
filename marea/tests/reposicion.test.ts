@@ -177,4 +177,57 @@ describe("Reposición — las velas no cuentan como feed lleno", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it("los curados entran aunque el feed esté sano: no son relleno", async () => {
+    const { dir, store } = conStore();
+    try {
+      // el caso que motivó el cambio: veinte ligas dejan el feed siempre
+      // «sano», y con el corte antiguo la política nunca habría entrado
+      const abiertos = Array.from({ length: MINIMO_ABIERTOS + 5 }, (_, i) => ({
+        ...OWN_MARKETS[0],
+        id: `abierto-${i}`,
+        closesAt: new Date(AHORA + 30 * 86_400_000).toISOString(),
+      }));
+      const curado = {
+        ...OWN_MARKETS[0],
+        id: "pol-curado",
+        closesAt: new Date(AHORA + 40 * 86_400_000).toISOString(),
+        resolution: {
+          ...OWN_MARKETS[0].resolution,
+          settlesAt: new Date(AHORA + 60 * 86_400_000).toISOString(),
+        },
+      };
+      let pedidos = 0;
+      const curados = async (existentes: ReadonlySet<string>) => {
+        pedidos += 1;
+        return { seeds: existentes.has(curado.id) ? [] : [curado], errores: [] };
+      };
+      const r = await reponer(store, abiertos, AHORA, { spot: SPOT, env: {}, curados });
+      expect(r.creados).toEqual(["pol-curado"]);
+      // el relleno sí respeta el mínimo: nada de cripto ni partidos de más
+      expect(store.seedsGeneradas().map((s) => s.id)).toEqual(["pol-curado"]);
+      // y es idempotente: la siguiente vuelta ya lo conoce
+      const otra = await reponer(store, abiertos, AHORA + 60_000, { spot: SPOT, env: {}, curados });
+      expect(otra.creados).toEqual([]);
+      expect(pedidos).toBe(2);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("un curado que falla queda en errores con su motivo, y lo demás sigue", async () => {
+    const { dir, store } = conStore();
+    try {
+      const r = await reponer(store, [], AHORA, {
+        spot: SPOT,
+        env: {},
+        curados: async () => ({ seeds: [], errores: ["pol-x: Kalshi respondió 429"] }),
+      });
+      expect(r.errores.join()).toMatch(/curados: pol-x: Kalshi respondió 429/);
+      // la caída de una fuente no deja el feed vacío: cripto se creó igual
+      expect(r.creados.length).toBeGreaterThan(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

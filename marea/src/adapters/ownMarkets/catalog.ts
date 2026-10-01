@@ -40,7 +40,9 @@ export interface OwnMarketSeed {
   /** País o región del badge. Los de fuera de Latam son de las ligas grandes. */
   country:
     | "MX" | "AR" | "BR" | "CL" | "CO" | "PE" | "UY" | "LATAM"
-    | "US" | "GB" | "ES" | "IT" | "DE" | "FR" | "EU";
+    | "US" | "GB" | "ES" | "IT" | "DE" | "FR" | "EU"
+    /** Geopolítica sin un país propio (Irán, Israel, Ucrania). */
+    | "GLOBAL";
   closesAt: string;
   resolution: ResolutionSpec;
   /** Estado inicial del pozo, sembrado por nosotros para que se pueda entrar. */
@@ -574,8 +576,24 @@ const SEEDS: OwnMarketSeed[] = [
  * criterio inequívoco y ventana de disputa, el módulo falla al importarse: es
  * el momento correcto para enterarse, no cuando ya hay gente apostando.
  */
-/** Lo que cabe en una línea de la tarjeta a 390 px. Medido, no estimado. */
+/**
+ * Tope **de validación** del título corto. Se queda en 42 por compatibilidad:
+ * hay mercados guardados con títulos de hasta 42, y bajarlo los haría fallar al
+ * cargar y desaparecer del feed con apuestas dentro.
+ */
 export const SHORT_TITLE_MAX = 42;
+
+/**
+ * Lo que **de verdad** cabe en una línea, medido en navegador el 2026-10-01
+ * con Inter a 15 px: ~35 caracteres en la tarjeta del feed a 390 px y ~31 en
+ * la del carrusel (333 px). El 42 de arriba se midió con otra fuente y
+ * sobreestimaba: en `main` se recortaban 21 de 62 títulos.
+ *
+ * Los generadores **prefieren** caber aquí (los partidos usan el nombre corto
+ * del equipo: «Browns vs Steelers», como «ATL Falcons vs GB Packers» de los
+ * mercados grandes) y los curados lo cumplen. La validación sigue en 42.
+ */
+export const SHORT_TITLE_IDEAL = 32;
 
 /** Lo que la etiqueta de un resultado puede medir sin recortarse siempre. */
 export const OUTCOME_LABEL_MAX = 26;

@@ -53,6 +53,16 @@ export interface ReposicionOptions {
   spot?: () => Record<string, number | undefined>;
   /** Partidos de los próximos días. Si falla, se sigue sin ellos. */
   partidos?: (dias: number) => Promise<PartidoDeLaLiga[]>;
+  /**
+   * Mercados **curados** (espejos de Kalshi: política, elecciones,
+   * geopolítica) que faltan. No son relleno: se evalúan en cada vuelta aunque
+   * el feed esté sano, porque son idempotentes por id y cada uno existe una
+   * sola vez. Recibe los ids que ya existen para no pedir de más a la red.
+   */
+  curados?: (
+    existentes: ReadonlySet<string>,
+    ahora: number,
+  ) => Promise<{ seeds: OwnMarketSeed[]; errores: string[] }>;
   topes?: Topes;
   /** Para no depender del entorno en pruebas. */
   env?: Record<string, string | undefined>;
@@ -109,18 +119,36 @@ export async function reponer(
     (seed) => !esVelaViva(seed) && new Date(seed.closesAt).getTime() > ahora,
   ).length;
 
-  // el feed ya está sano: no se crea por crear. Un catálogo que sólo crece es
-  // un feed lleno de preguntas que a nadie le importan
-  if (resumen.abiertosAntes >= MINIMO_ABIERTOS) return resumen;
-
   const candidatos: OwnMarketSeed[] = [];
+
+  /**
+   * Los curados van **antes** del corte por mínimo, y ésa es la corrección.
+   *
+   * El mínimo de 60 estaba pensado para el relleno —cripto y partidos—, pero
+   * se aplicaba a todo: con veinte ligas el feed siempre está «sano», así que
+   * cualquier categoría nueva (política, elecciones) nunca habría entrado. Un
+   * mercado curado no es relleno: es una decisión editorial que existe una vez.
+   */
+  if (options.curados) {
+    try {
+      const curados = await options.curados(conocidos, ahora);
+      candidatos.push(...curados.seeds);
+      for (const error of curados.errores) resumen.errores.push(`curados: ${error}`);
+    } catch (error) {
+      resumen.errores.push(`curados: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  // el feed ya está sano: el relleno no se crea por crear. Un catálogo que
+  // sólo crece es un feed lleno de preguntas que a nadie le importan
+  const necesitaRelleno = resumen.abiertosAntes < MINIMO_ABIERTOS;
 
   const precios = options.spot?.() ?? {};
   const spot: Record<string, number> = {};
   for (const [par, valor] of Object.entries(precios)) {
     if (typeof valor === "number" && Number.isFinite(valor) && valor > 0) spot[par] = valor;
   }
-  if (Object.keys(spot).length > 0) {
+  if (necesitaRelleno && Object.keys(spot).length > 0) {
     try {
       candidatos.push(...rollingSeeds({ spot, now: ahora }));
     } catch (error) {
@@ -133,7 +161,7 @@ export async function reponer(
    * igual los de cripto. Una fuente caída puede dejar el feed más corto; no
    * puede dejarlo vacío.
    */
-  if (options.partidos) {
+  if (necesitaRelleno && options.partidos) {
     try {
       candidatos.push(...partidosSeeds(await options.partidos(7), ahora));
     } catch (error) {

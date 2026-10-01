@@ -200,6 +200,40 @@ export interface MatchOutcomeRule {
   cortes?: number[];
 }
 
+/**
+ * Mercado **espejo** de un mercado regulado: la pregunta es la misma que una de
+ * Kalshi (bolsa registrada ante la CFTC) y se resuelve con **su liquidación
+ * pública**, que cualquiera puede leer sin llave:
+ * `https://api.elections.kalshi.com/trade-api/v2/markets/<ticker>`.
+ *
+ * Es lo que permite abrir política, elecciones y geopolítica sin que nadie
+ * decida a mano quién ganó: la decisión la toma una bolsa regulada con reglas
+ * publicadas, y nosotros sólo leemos su `result` cuando su `status` llega a
+ * `finalized` — el estado en el que ya pagó y no hay vuelta atrás.
+ *
+ * Una sola forma cubre los cuatro casos:
+ *  - binario de un mercado: `sí` → `[T]` con `resultado: "yes"`; `no` → `[T]`
+ *    con `resultado: "no"`;
+ *  - varias respuestas excluyentes (la Cámara: D o R): cada una con su ticker;
+ *  - respuestas agrupadas (Banxico «recorta» = recorte de 25, de 50 o más);
+ *  - «ninguno de los anteriores»: `tickers: []`, gana si todos los demás
+ *    liquidaron sin ganador.
+ */
+export interface MirrorRule {
+  kind: "espejo";
+  fuente: "kalshi";
+  /** Evento de Kalshi. Todos los tickers de la regla pertenecen a él. */
+  evento: string;
+  respuestas: {
+    /** Id de la respuesta en nuestro mercado. */
+    id: string;
+    /** Mercados de Kalshi que hacen ganar a esta respuesta (basta uno). */
+    tickers: string[];
+    /** Qué liquidación cuenta. Por omisión `yes`. */
+    resultado?: "yes" | "no";
+  }[];
+}
+
 /** Los ids que produce una regla de tramos de goles, en orden. */
 export function idsDeTramos(cortes: number[]): { id: string; label: string }[] {
   const tramos: { id: string; label: string }[] = [];
@@ -223,7 +257,8 @@ export type OracleRule =
   | VelaRule
   | SeriesRule
   | MatchRule
-  | MatchOutcomeRule;
+  | MatchOutcomeRule
+  | MirrorRule;
 
 /** Cómo se escribe el umbral en el texto: `71000`, `71,000`, `71.000`, `5.00`. */
 function umbralEnTexto(umbral: number): RegExp {
@@ -239,6 +274,27 @@ function umbralEnTexto(umbral: number): RegExp {
  */
 export function ruleProblems(rule: OracleRule, criterion: string): string[] {
   const problems: string[] = [];
+
+  if (rule.kind === "espejo") {
+    if (!/^[A-Z0-9-]+$/.test(rule.evento)) problems.push("el evento de Kalshi no es un ticker");
+    // la fuente tiene que estar nombrada en el criterio: quien apuesta tiene
+    // derecho a saber de quién depende el resultado
+    if (!/kalshi/i.test(criterion)) problems.push("el criterio no nombra a Kalshi como fuente");
+    if (rule.respuestas.length < 2) problems.push("un espejo necesita al menos dos respuestas");
+    const ids = rule.respuestas.map((r) => r.id);
+    if (new Set(ids).size !== ids.length) problems.push("hay respuestas repetidas en el espejo");
+    const ninguna = rule.respuestas.filter((r) => r.tickers.length === 0);
+    if (ninguna.length > 1) problems.push("sólo puede haber un «ninguno de los anteriores»");
+    for (const respuesta of rule.respuestas) {
+      for (const ticker of respuesta.tickers) {
+        // un ticker de otro evento resolvería con una pregunta distinta
+        if (!ticker.startsWith(`${rule.evento}-`) && ticker !== rule.evento) {
+          problems.push(`el ticker ${ticker} no pertenece al evento ${rule.evento}`);
+        }
+      }
+    }
+    return problems;
+  }
 
   if (rule.kind === "partido_multiple") {
     if (!new RegExp(rule.equipo.split(" ")[0], "i").test(criterion)) {

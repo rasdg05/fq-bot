@@ -87,8 +87,16 @@ export type OracleReading =
        */
       observedAt?: string;
     }
-  /** La fuente aún no publicó el dato. Se reintenta. */
-  | { status: "sin_dato"; evidence: string }
+  /**
+   * La fuente aún no publicó el dato. Se reintenta.
+   *
+   * `detenerApuestas`: la fuente todavía no paga, pero **ya dejó de operar** su
+   * mercado — conoce al ganador o cerró todas sus patas. Entre ese momento y el
+   * pago pueden pasar horas, y en esa ventana el resultado ya circula: seguir
+   * aceptando apuestas aquí sería dejar apostar sobre algo que ya ocurrió. El
+   * mercado pasa a `cerrado` y espera su dato como cualquier otro.
+   */
+  | { status: "sin_dato"; evidence: string; detenerApuestas?: boolean }
   /** La fuente no se puede leer por programa: necesita a una persona. */
   | { status: "requiere_humano"; evidence: string };
 
@@ -257,6 +265,9 @@ export function onRead(
   if (!legible) return state;
 
   if (reading.status === "sin_dato") {
+    if (reading.detenerApuestas && state.phase === "abierto") {
+      return { ...state, phase: "cerrado", evidence: reading.evidence };
+    }
     return { ...state, evidence: reading.evidence };
   }
   if (reading.status === "requiere_humano") {

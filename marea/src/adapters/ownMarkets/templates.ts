@@ -9,7 +9,12 @@ import {
   type PriceRule,
 } from "@/domain/oracleRule";
 import { ligaDe, urlJornadaEspn, type LigaId } from "@/domain/ligas";
-import { OUTCOME_LABEL_MAX, SHORT_TITLE_MAX, type OwnMarketSeed } from "./catalog";
+import {
+  OUTCOME_LABEL_MAX,
+  SHORT_TITLE_IDEAL,
+  SHORT_TITLE_MAX,
+  type OwnMarketSeed,
+} from "./catalog";
 
 /**
  * Mercados que se reponen solos.
@@ -326,8 +331,13 @@ export function partidoSeed(partido: PartidoDeLaLiga): OwnMarketSeed {
   );
   const versus = (() => {
     const largo = `${partido.local} vs ${partido.visitante}`;
-    if (largo.length <= MAX_TITULO_CORTO) return largo;
     const corto = `${partido.localCorto ?? partido.local} vs ${partido.visitanteCorto ?? partido.visitante}`;
+    // primero lo que cabe entero en la línea (medido); si el largo no cabe y el
+    // corto sí, el corto: «Browns vs Steelers» se lee entero, «Cleveland
+    // Browns vs Pittsburgh…» no. Sólo si ninguno cabe se usa el tope de 42
+    if (largo.length <= SHORT_TITLE_IDEAL) return largo;
+    if (corto.length <= SHORT_TITLE_IDEAL) return corto;
+    if (largo.length <= MAX_TITULO_CORTO) return largo;
     return corto.length <= MAX_TITULO_CORTO ? corto : `${localR} vs ${visitanteR}`.slice(0, MAX_TITULO_CORTO);
   })();
   const inicioMs = new Date(partido.inicio).getTime();

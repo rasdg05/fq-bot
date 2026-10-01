@@ -53,6 +53,10 @@ function debeLeerse(seed: OwnMarketSeed, fase: string, ahora: number): boolean {
   if (fase === "cerrado" || fase === "leido" || fase === "atorado") return true;
   if (fase !== "abierto") return false;
   // un mercado de toque puede resolver antes de su fecha: se consulta vivo
+  // un espejo también: la bolsa que manda puede liquidar antes de la fecha
+  // (un acuerdo firmado en noviembre) o dejar de operar con el resultado ya
+  // conocido. Se consulta mientras está abierto para cerrar a tiempo
+  if (seed.rule?.kind === "espejo") return true;
   if (seed.rule?.kind === "precio" && seed.rule.modo === "toca") {
     return !seed.rule.desde || new Date(seed.rule.desde).getTime() <= ahora;
   }

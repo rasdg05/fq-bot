@@ -3,6 +3,7 @@ import { KRAKEN_PAR, type PriceRule } from "@/domain/oracleRule";
 import { createSeriesOracle, type SeriesOracleOptions } from "./seriesOracle";
 import { createMatchOracle, type MatchOracleOptions } from "./matchOracle";
 import { createVelaOracle, type VelaOracleOptions } from "./velaOracle";
+import { createMirrorOracle, type MirrorOracleOptions } from "./mirrorOracle";
 
 /**
  * Oráculo de precio contra Kraken, que publica velas históricas sin llave y sin
@@ -225,13 +226,15 @@ export function defaultOracles(
   options: PriceOracleOptions &
     VelaOracleOptions &
     SeriesOracleOptions &
-    MatchOracleOptions = {},
+    MatchOracleOptions &
+    MirrorOracleOptions = {},
 ): Oracle[] {
   return [
     createVelaOracle(options),
     createPriceOracle(options),
     createSeriesOracle(options),
     createMatchOracle(options),
+    createMirrorOracle(options),
     createInstitutionalOracle(),
   ];
 }

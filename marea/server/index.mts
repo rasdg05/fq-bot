@@ -24,6 +24,7 @@ import { createRegistroDeEventos } from "./eventos.mts";
 import type { OwnMarketSeed } from "../src/adapters/ownMarkets/catalog";
 import { PARES_CRIPTO } from "../src/domain/oracleRule";
 import { LIGAS } from "../src/domain/ligas";
+import { espejosPendientes } from "../src/adapters/ownMarkets/espejos";
 import { congelados, type SettlementState } from "../src/domain/settlement";
 
 /**
@@ -130,11 +131,21 @@ const bitacora = {
  */
 async function partidosDeLaSemana(dias = 7): Promise<PartidoDeLaLiga[]> {
   const hoy = Date.now();
+  /**
+   * Las consultas que fallaron, contadas. Antes cada falla se tragaba en
+   * silencio («un día que no responde no cancela la semana»), y eso está bien
+   * para una falla; pero con ESPN caído entero —o bloqueado— la reposición
+   * reportaba «0 errores» con cero partidos, que es el mismo modo de fallo que
+   * dejó la app vacía en agosto: nada roto a la vista, nada apareciendo.
+   */
+  let consultas = 0;
+  const fallas: string[] = [];
   const porLiga = await Promise.all(
     LIGAS.map(async (liga) => {
       const partidos: PartidoDeLaLiga[] = [];
       for (let i = 0; i < Math.min(dias, liga.dias); i += 1) {
         const dia = new Date(hoy + i * 86_400_000).toISOString().slice(0, 10);
+        consultas += 1;
         try {
           for (const evento of await cargarEspn(fetch, liga.id, dia)) {
             const competidores = evento.competitions[0]?.competitors ?? [];
@@ -152,8 +163,9 @@ async function partidosDeLaSemana(dias = 7): Promise<PartidoDeLaLiga[]> {
               escudoVisitante: visitante.team.logo,
             });
           }
-        } catch {
-          // un día que no responde no cancela la semana entera
+        } catch (error) {
+          // un día que no responde no cancela la semana entera, pero se cuenta
+          fallas.push(`${liga.id} ${dia}: ${error instanceof Error ? error.message : String(error)}`);
         }
       }
       return partidos
@@ -162,7 +174,15 @@ async function partidosDeLaSemana(dias = 7): Promise<PartidoDeLaLiga[]> {
         .slice(0, liga.maximo);
     }),
   );
-  return porLiga.flat();
+  const partidos = porLiga.flat();
+  if (fallas.length > 0) {
+    const muestra = [...new Set(fallas.map((f) => f.replace(/^\S+ \S+: /, "")))].slice(0, 3).join("; ");
+    const resumen = `ESPN: ${fallas.length} de ${consultas} consultas fallaron (${muestra})`;
+    // todas cayeron: es un error, y `reponer` lo registra como tal
+    if (fallas.length === consultas) throw new Error(resumen);
+    log(`reposición: ⚠ ${resumen}`);
+  }
+  return partidos;
 }
 
 function log(linea: string) {
@@ -189,6 +209,7 @@ async function ciclo() {
         spot: () =>
           Object.fromEntries(PARES_CRIPTO.map((par) => [par, ticker.precio(par)?.precio])),
         partidos: (dias) => partidosDeLaSemana(dias),
+        curados: (existentes, ahora) => espejosPendientes({ ahora, existentes }),
         env: process.env,
         avisar: (mensaje) => log(`reposición: ${mensaje}`),
       });
