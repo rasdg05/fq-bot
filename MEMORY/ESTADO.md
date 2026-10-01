@@ -237,7 +237,7 @@ La app de `marea/`. **No es el bot** y no comparte motor, pero sí memoria y dis
 | Suite de Marea | **360 verdes** · **6 rojas preexistentes** (+2 fallos de `validate`): el catálogo tiene fechas de julio/agosto y ya caducó (R-041). Se arreglan con `npm run roll`, no con código. **Ojo:** la cifra que circulaba era «4 rojas»; medidas son 6 (`marea/vault/LINEA_BASE.md`) |
 | Arquitectura en cadena | **diseño** — **Base decidida** (2026-09-01), nada desplegado. Los contratos no se escribieron: `forge` no es alcanzable en el entorno (P-006) |
 | Semilla | **mecanismo cableado, interruptor apagado.** `seedMode: "apuesta" \| "subsidio"` existe y está probado; **nadie nace en subsidio todavía** porque R-067 pide subsidio *con tope* y las cifras del tope las decide RasDG (P-002, P-004) |
-| Reglas | **R-065 a R-075 escritas** (R-069…R-072: cumplimiento; R-073 espejo; R-074/R-075 interfaz) — 75 en `RULINGS.md` |
+| Reglas | **R-065 a R-078 escritas** (R-069…R-072: cumplimiento; R-073 espejo; R-074/R-075 interfaz; R-076…R-078 mercados rápidos) — 78 en `RULINGS.md` |
 | Verificación por niveles | escalera N0–N3 + compuerta **vivas en `domain/niveles.ts`** (2026-09-24): `effectiveCapUsd` (R-069/L16), `detectStructuring` (R-070), `kycTrigger` (R-072), `screenDestino` (R-071), 18 pruebas. Falta cablearlo a la app y la pantalla del verificador (2º dev); los topes/ventana esperan la opinión legal (P11/P15–P18) |
 
 **Tiempos (2026-09-01):** lanzamiento en puntos con la cámara nueva **6–8 semanas**;
@@ -277,6 +277,13 @@ liquidación pública de Kalshi (R-073, 9 curados); **tenis ATP** con oráculo E
 en la reposición. Suite: 0 rojas nuevas sobre la línea base (14 rojas preexistentes = catálogo
 estático caducado, se arreglan con `npm run roll`). Rama
 `claude/marea-kyc-verification-tiers-cb7cx6`.
+
+**2026-10-01, segunda tanda (DECISIONES §24):** mercados rápidos con resolución
+automática obligatoria — velas del dólar con Bitso (USD/MXN 5/15 min, USD/ARS y USD/BRL
+15), Brasil 4-oct, espejos recurrentes (Netflix, Billboard, Spotify, YouTube; entran sólo
+con libro real), duelos de tendencias de Wikipedia y sismo M5+ semanal (USGS). Invariante
+R-076 en la reposición; R-077 corrige un 50/50 inventado del espejo. Mañaneras: dormidas
+(gob.mx con reto anti-bots). Reglas: 78 en `RULINGS.md`.
 
 **Retomar en frío:** `MEMORY/marea/CONTEXTO_SESION_2026-09-24.md` guarda todo el contexto de la
 sesión de verificación y el runbook del giro. Detalle de Marea: `MEMORY/marea/README.md`.

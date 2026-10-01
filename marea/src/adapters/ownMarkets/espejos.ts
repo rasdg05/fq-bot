@@ -226,10 +226,10 @@ export const ESPEJOS: EspejoCurado[] = [
     closesAt: "2026-10-04T11:00:00Z",
     settlesAt: "2026-10-15T16:00:00Z",
     criterio:
-      "Se resuelve con el mercado KXBRAZILPRES1R-26OCT04 de Kalshi (¿algún candidato gana en primera vuelta la elección presidencial de Brasil del 4 de octubre de 2026?): Habrá segunda vuelta si Kalshi lo liquida en «no»; Se decide en primera si lo liquida en «sí». Las apuestas cierran al abrir las casillas.",
+      "Se resuelve con el mercado KXBRAZILPRES1R-26OCT04 de Kalshi (¿algún candidato gana en primera vuelta la elección presidencial de Brasil del 4 de octubre de 2026?): 2.ª vuelta si Kalshi lo liquida en «no» (nadie gana en la primera); Gana en 1.ª si lo liquida en «sí». Las apuestas cierran al abrir las casillas.",
     respuestas: [
-      { id: "segunda", label: "Habrá segunda vuelta", tickers: ["KXBRAZILPRES1R-26OCT04"], resultado: "no" },
-      { id: "primera", label: "Se decide en primera", tickers: ["KXBRAZILPRES1R-26OCT04"], resultado: "yes" },
+      { id: "segunda", label: "2.ª vuelta", tickers: ["KXBRAZILPRES1R-26OCT04"], resultado: "no" },
+      { id: "primera", label: "Gana en 1.ª", tickers: ["KXBRAZILPRES1R-26OCT04"], resultado: "yes" },
     ],
   },
 
@@ -360,11 +360,22 @@ export function espejoSeed(
       continue;
     }
     let p = 0;
+    let conPrecio = 0;
     for (const ticker of respuesta.tickers) {
-      const pSi = probabilidadKalshi(mercados.get(ticker)!);
-      if (pSi === undefined) return null;
+      const mercado = mercados.get(ticker)!;
+      const pSi = probabilidadKalshi(mercado);
+      if (pSi === undefined) {
+        // una pata de cola sin compradores (bid 0, ask suelto: el alza de 50+
+        // pb de Banxico estaba en 0.00/0.44) aporta cero a una respuesta
+        // agrupada: nadie paga ni un centavo por ese «sí». Sola, no decide nada
+        const sinCompradores = !(Number(mercado.yes_bid_dollars) > 0);
+        if (respuesta.tickers.length > 1 && sinCompradores && (respuesta.resultado ?? "yes") === "yes") continue;
+        return null;
+      }
+      conPrecio += 1;
       p += (respuesta.resultado ?? "yes") === "yes" ? pSi : 1 - pSi;
     }
+    if (conPrecio === 0) return null;
     crudas.push(p);
   }
   const conocidas = crudas.filter((p) => !Number.isNaN(p)).reduce((s, p) => s + p, 0);

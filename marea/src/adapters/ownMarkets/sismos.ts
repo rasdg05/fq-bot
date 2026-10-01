@@ -72,7 +72,8 @@ export function sismoSeed(desde: number): OwnMarketSeed {
     liga: "Sismos",
     closesAt: new Date(desde).toISOString(),
     outcomes: [
-      { id: "si", label: "Habrá al menos uno" },
+      // cortas: en la pastilla caben unos trece caracteres («Habrá al m…» se cortaba)
+      { id: "si", label: "Al menos uno" },
       { id: "no", label: "Ninguno" },
     ],
     pool: declareSeed({ outcomes: { si, no: SEED * 4 - si }, feeBps: 300 }, "apuesta"),
@@ -81,7 +82,7 @@ export function sismoSeed(desde: number): OwnMarketSeed {
       sourceName: "USGS (catálogo público de sismos, Servicio Geológico de EE.UU.)",
       sourceUrl: urlSismos(rule),
       criterion:
-        `Se resuelve con el catálogo público del USGS: Habrá al menos uno si entre las 00:00 del lunes y las ` +
+        `Se resuelve con el catálogo público del USGS: Al menos uno si entre las 00:00 del lunes y las ` +
         `00:00 del lunes siguiente, hora de la Ciudad de México (semana ${largo}), el USGS registra un sismo de ` +
         `magnitud ${MAGNITUD.toFixed(1)} o mayor cuya descripción de lugar termina en «Mexico» o «MX» (no cuenta ` +
         `«New Mexico», que es Estados Unidos). Se paga con el sismo ya revisado por el USGS; uno sin revisar se ` +

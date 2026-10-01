@@ -111,7 +111,10 @@ export function dueloSeed(input: {
   return {
     id: `wiki-${fecha}-${input.numero}`,
     title: `Tendencias: ¿quién tendrá más visitas en Wikipedia el ${enEspanol(fecha)}, ${nombreA} o ${nombreB}?`,
-    shortTitle: corto.length <= SHORT_TITLE_IDEAL ? corto : "Duelo de tendencias en Wikipedia",
+    // si los nombres no caben, la pregunta: las pastillas ya dicen quiénes son.
+    // «mañana» es exacto mientras está abierto: cierra a las 18:00 de la CDMX
+    // del día anterior al que se mide
+    shortTitle: corto.length <= SHORT_TITLE_IDEAL ? corto : "¿Quién será más visto mañana?",
     category: "cultura",
     country: "LATAM",
     liga: "Tendencias",

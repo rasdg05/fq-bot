@@ -81,3 +81,18 @@ afuera, y como suministro complementario más adelante.
   están cubiertos por pruebas contra payloads reales grabados
   (`tests/fixtures/`), y por dos sondas de red manuales:
   `npm run probe:live` y `npm run probe:supply`.
+
+## Fuentes de resolución automática (2026-10-01)
+
+Todas públicas y sin llave; cada criterio cita la URL exacta que relee el oráculo.
+
+| Fuente | Qué resuelve | Oráculo | Límites medidos |
+|---|---|---|---|
+| Kraken OHLC | velas de cripto 5/15 min, precio diario | `velaOracle`, `priceOracle` | — |
+| Bitso OHLC (`/v3/ohlc`) | velas del dólar USD/MXN, USD/ARS, USD/BRL | `velaOracle` | COP fuera (31 % velas vacías) |
+| ESPN scoreboard | futbol y 20 ligas, tenis ATP | `matchOracle`, `tennisOracle` | Node necesita el proxy del entorno en el sandbox |
+| Kalshi (`/events`) | espejos curados y recurrentes | `mirrorOracle` | 429 con ráfagas: pedidos espaciados; spread ≤ 0.10 (R-077) |
+| Wikimedia pageviews | duelos de tendencias | `trendOracle` | User-Agent propio obligatorio; el día D sale horas después |
+| USGS FDSN | sismo M5+ en México | `quakeOracle` | «New Mexico» excluido por nombre |
+| Banxico / INEGI | series económicas | `seriesOracle` | requieren `BANXICO_TOKEN` / `INEGI_TOKEN` (faltan en producción) |
+| gob.mx estenográficas | (mañaneras) | — | reto anti-bots: no automatizable (CEMENTERIO) |

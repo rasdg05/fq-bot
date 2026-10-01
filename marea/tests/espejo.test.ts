@@ -210,6 +210,33 @@ describe("Espejos curados — la semilla", () => {
     }
   });
 
+  it("una pata de cola sin compradores aporta cero a su respuesta agrupada; sola, no decide", () => {
+    const banxico = ESPEJOS.find((c) => c.id === "mx-banxico-nov-2026")!;
+    // el libro medido el 2026-10-01: el alza de 50+ pb en 0.00/0.44
+    const libro = mapa(
+      m("KXCBDECISIONMEXICO-26NOV05-HOLD", "active", "", { yes_bid_dollars: "0.86", yes_ask_dollars: "0.90" }),
+      m("KXCBDECISIONMEXICO-26NOV05-C25", "active", "", { yes_bid_dollars: "0.02", yes_ask_dollars: "0.06" }),
+      m("KXCBDECISIONMEXICO-26NOV05-C50", "active", "", { yes_bid_dollars: "0.00", yes_ask_dollars: "0.01" }),
+      m("KXCBDECISIONMEXICO-26NOV05-C50P", "active", "", { yes_bid_dollars: "0.00", yes_ask_dollars: "0.01" }),
+      m("KXCBDECISIONMEXICO-26NOV05-H25P", "active", "", { yes_bid_dollars: "0.03", yes_ask_dollars: "0.09" }),
+      m("KXCBDECISIONMEXICO-26NOV05-H50", "active", "", { yes_bid_dollars: "0.02", yes_ask_dollars: "0.06" }),
+      m("KXCBDECISIONMEXICO-26NOV05-H50P", "active", "", { yes_bid_dollars: "0.00", yes_ask_dollars: "0.44" }),
+    );
+    const seed = espejoSeed(banxico, libro)!;
+    expect(seed).not.toBeNull();
+    const sube = rankedOutcomes(seed.pool, seed.outcomes!).find((o) => o.id === "sube")!;
+    // 0.06 + 0.04 + 0, normalizado: lejos del 0.22 que habría dado el punto medio de 0.00/0.44
+    expect(sube.probability).toBeLessThan(0.12);
+    // una respuesta de un solo ticker sin libro sigue sin crearse
+    const camara = ESPEJOS.find((c) => c.id === "pol-eeuu-camara-2026")!;
+    expect(
+      espejoSeed(camara, mapa(
+        m("CONTROLH-2026-D", "active", "", { yes_bid_dollars: "0.91", yes_ask_dollars: "0.92" }),
+        m("CONTROLH-2026-R", "active", "", { yes_bid_dollars: "0.00", yes_ask_dollars: "0.40" }),
+      )),
+    ).toBeNull();
+  });
+
   it("sin precio o con el evento ya sin operar, no se crea: nunca un 50/50 inventado", () => {
     const camara = ESPEJOS.find((c) => c.id === "pol-eeuu-camara-2026")!;
     expect(espejoSeed(camara, mapa(m("CONTROLH-2026-D", "active"), m("CONTROLH-2026-R", "active")))).toBeNull();

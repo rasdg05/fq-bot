@@ -271,6 +271,29 @@ vuelva a proponer.
 - **PancakeSwap / BNB como capa de liquidación.** **Muerto:** un AMM no es una cámara.
   Sirve para el swap de la rampa, nada más.
 
+### Marea — fuentes de mercados rápidos que no pasaron (medido 2026-10-01)
+
+La vara aquí es «se resuelve sola, con una fuente que un tercero puede volver a leer».
+Lo que no la pasa no se publica (R-076), aunque la pregunta sea buena.
+
+- **Mañaneras («¿mencionará X?»).** **Dormido, no muerto.** La versión estenográfica de
+  gob.mx está detrás de un reto anti-bots (página «Challenge Validation» con prueba de
+  trabajo en JavaScript): un servidor no la lee, y resolverla a mano rompe R-076.
+  Revive con una fuente legible por máquina (transcripción oficial en texto, o un
+  proveedor que la publique) — no con un navegador que se salte el reto.
+- **USD/COP en velas de 5 y 15 min (Bitso).** **Muerto:** 31.4 % de las velas de 5 min y
+  10.1 % de las de 15 sin una sola operación; una vela vacía repite el cierre y empata
+  con el strike. USD/ARS y USD/BRL sólo pasan a 15 min (≈10 % vacías a 5).
+- **Dólar diario de Kalshi (KXUSDMXNAW, KXUSDBRLAW) como espejo.** **Muerto:** libros
+  vacíos — casi todos los strikes en 0.01/0.99, medios no monótonos. Además ya lo cubren
+  las velas de Bitso.
+- **YouTube y Spotify diarios de Kalshi.** **Dormidos:** 0.00/0.95 sin gente adentro. La
+  serie está en `SERIES_RECURRENTES`; entra sola el día que tenga libro.
+- **Top de series de Netflix (semana al 5-oct).** **Rechazado esa semana:** sus diez
+  mercados excluyentes sumaban 0.33. Normalizarlo habría inventado un favorito al 60 %.
+- **Tendencias de X / TikTok / Google Trends.** **Muerto como fuente:** sin API pública
+  y estable que un tercero pueda releer. Se usa Wikipedia (visitas diarias, Wikimedia).
+
 ---
 
 ## Resumen de honestidad operacional

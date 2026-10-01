@@ -13,6 +13,7 @@ import {
   type PartidoTenis,
 } from "../src/adapters/ownMarkets/templates";
 import { validateSeed, type OwnMarketSeed } from "../src/adapters/ownMarkets/catalog";
+import { seResuelveSolo } from "../src/domain/oracleRule";
 import { esVelaViva } from "../src/adapters/ownMarkets/cryptoLive";
 import type { Store } from "./store.mts";
 
@@ -204,7 +205,18 @@ export async function reponer(
     }
   }
 
-  const nuevos = candidatos.filter((seed) => !conocidos.has(seed.id));
+  /**
+   * Lo que se genera solo se resuelve solo: un candidato sin regla, o con una
+   * que ningún oráculo automático lee, no se publica aunque todo lo demás esté
+   * en orden. Es la promesa de los mercados rápidos —resolución automática y
+   * obligatoria—, hecha cumplir donde entran, no recordada.
+   */
+  for (const seed of candidatos) {
+    if (!seResuelveSolo(seed.rule)) {
+      resumen.errores.push(`${seed.id}: sin oráculo automático; no se publica`);
+    }
+  }
+  const nuevos = candidatos.filter((seed) => !conocidos.has(seed.id) && seResuelveSolo(seed.rule));
   if (nuevos.length === 0) return resumen;
 
   // el freno de L9, antes de escribir nada

@@ -234,3 +234,18 @@ Se agrega una línea cuando un hallazgo de audit es recurrente o de producto.
 - **R-075** — El carrusel de destacados es una **selección acotada** (≤5, ≤2 por categoría, una
   vela en vivo por activo), no una bandera por mercado: lo que entra al carrusel sale del feed, y
   el feed nunca queda vacío por ello. Fijado en `tests/destacados.test.ts`. (interfaz)
+- **R-076** — **Lo que se genera solo se resuelve solo.** Un mercado que la reposición crea
+  sin que nadie lo escriba necesita una regla que un oráculo automático lee; si no la
+  tiene, no se publica (`seResuelveSolo`, `server/reposicion.mts`). Agregar un tipo de
+  regla obliga a declarar si se resuelve solo: no compila de otro modo. Fijado en
+  `tests/automatico.test.ts`. (oráculos)
+- **R-077** — **Un precio sólo cuenta si hay gente adentro.** El punto medio de un libro
+  vacío no es una probabilidad: spread máximo 0.10, nada de último precio viejo, y en un
+  evento de respuestas excluyentes los precios tienen que sumar 1 ± 0.2. Sin eso el
+  mercado no se crea, nunca nace en un 50/50 inventado. Fijado en
+  `tests/recurrentes.test.ts` y `tests/espejo.test.ts`. (liquidez)
+- **R-078** — **Nadie apuesta con información que los demás no pueden tener, ni sobre una
+  desgracia.** Lo que se resuelve con un evento repentino (un sismo) o con un dato del día
+  (visitas) cierra antes de que empiece la ventana que mide. Y no se publica un mercado
+  sobre la atención a una muerte, un crimen o la violencia. Fijado en `tests/sismos.test.ts`
+  y `tests/tendencias.test.ts`. (producto)

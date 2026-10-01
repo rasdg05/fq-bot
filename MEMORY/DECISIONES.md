@@ -748,6 +748,37 @@ referencia no está cableado para espejos.
 
 ---
 
+## 24. Marea: mercados rápidos con resolución automática obligatoria (2026-10-01)
+
+Pedido de RasDG: mercados ultra rápidos (streaming, TV, mañaneras, tendencias, historias
+verificables de Latam) que **se resuelvan en automático de manera obligatoria**. Cinco
+familias nuevas, cada una con su fuente pública medida antes de escribir código:
+
+| Familia | Fuente (sin llave) | Ritmo | Verificado contra la red real |
+|---|---|---|---|
+| Velas del dólar USD/MXN (5 y 15 min), USD/ARS y USD/BRL (15) | Bitso, velas públicas | minutos | 4 velas resueltas |
+| Brasil 4-oct: ganador de la 1.ª vuelta, ¿habrá 2.ª? | Kalshi (espejo) | días | sembrados 70/27/3 y 96/4 |
+| Recurrentes: Netflix, Billboard, Spotify, YouTube | Kalshi (espejo) | semana/día | hoy entra Netflix película |
+| Duelos de tendencias (visitas de Wikipedia en español) | Wikimedia | diario | 2 duelos pasados resueltos |
+| Sismo M5+ en México la semana que viene | USGS | semanal | 3 semanas de sep. resueltas |
+
+**Invariante (R-076):** la reposición no publica un candidato sin regla que un oráculo
+automático lea; el tipo `OracleRule` obliga a declararlo. **R-077:** precio sólo de libros
+con gente (spread ≤ 0.10, suma coherente). **R-078:** se cierra antes de la ventana que
+mide cuando hay información asimétrica posible, y no se pregunta sobre muertes ni crímenes.
+
+**Hallazgos que cambiaron el diseño (medidos):**
+- `probabilidadKalshi` tomaba el punto medio de cualquier libro: un 0.01/0.99 daba 50 %.
+  Fallo latente en el espejo que ya estaba en producción — corregido.
+- `redondearStrike` publicaba `17.080000000000002` con pasos de centésimas.
+- «New Mexico» termina en «Mexico»: el primer filtro de sismos contaba EE.UU.
+- Wikimedia limita agentes genéricos; Kalshi limita ráfagas: pedidos espaciados.
+- Mañaneras: gob.mx tiene reto anti-bots → no automatizable hoy (CEMENTERIO).
+
+Primer arranque en limpio con todo: **76 mercados** en la primera vuelta; densidad PASS.
+
+---
+
 ## Disciplinas inegociables
 
 1. **Sin data especulativa**: OFI se paga solo si el CVD gratis lo justifica.

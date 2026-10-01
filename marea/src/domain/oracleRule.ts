@@ -361,6 +361,32 @@ export type OracleRule =
   | TennisRule
   | TrendRule;
 
+/**
+ * Las reglas que un oráculo resuelve **sin una persona**. Es un `Record` sobre
+ * el tipo a propósito: una regla nueva que no se agregue aquí no compila, así
+ * que nadie puede sumar una fuente y olvidarse de declarar si se resuelve sola.
+ */
+const SE_RESUELVE_SOLA: Record<OracleRule["kind"], true> = {
+  precio: true,
+  vela: true,
+  serie: true,
+  partido: true,
+  partido_multiple: true,
+  espejo: true,
+  tenis: true,
+  tendencia: true,
+  sismo: true,
+};
+
+/**
+ * ¿Este mercado se resuelve solo? Lo que la reposición genera sin que nadie lo
+ * escriba tiene que resolverse sin que nadie lo lea: un mercado automático que
+ * espera a una persona es uno que nadie va a liquidar a las tres de la mañana.
+ */
+export function seResuelveSolo(rule: { kind: string } | undefined): boolean {
+  return rule !== undefined && Object.prototype.hasOwnProperty.call(SE_RESUELVE_SOLA, rule.kind);
+}
+
 /** Cómo se escribe el umbral en el texto: `71000`, `71,000`, `71.000`, `5.00`. */
 function umbralEnTexto(umbral: number): RegExp {
   const entero = Math.trunc(umbral).toString();
