@@ -779,6 +779,44 @@ Primer arranque en limpio con todo: **76 mercados** en la primera vuelta; densid
 
 ---
 
+## 25. El director de mercados: agentes autónomos con rastro (2026-10-01)
+
+Pedido de RasDG: *«un director de mercados autónomo, como nuestro market maker, y un revisor
+autónomo de mercados en función de si se resolvieron o algo se rompe o trabaja de forma
+errónea. Los agentes autónomos de decisión son el futuro de las organizaciones.»* Y la
+decisión de producto: la tarjeta 1X2 se queda; más de dos opciones sólidas → multi-opción.
+
+**Filosofía** (`MEMORY/FILOSOFIA.md`): las personas fijan reglas y presupuestos; el agente
+decide lo repetible dentro de invariantes que compilan; toda decisión deja rastro encadenado;
+el modelo de lenguaje juzga sólo lo que una regla no alcanza y nunca mueve dinero; la
+autonomía se gradúa por reversibilidad.
+
+**Lo construido:**
+
+| Pieza | Qué hace solo | Dónde |
+|---|---|---|
+| Bitácora | append-only, encadenada por SHA-256; `verificarCadena` dice dónde se rompió | `domain/bitacora.ts`, `store.mts` |
+| Director (publicación) | decide qué se publica; anota cada publicación con el prior con que nace, cada omisión (R-076, L9) y cada veto | `server/reposicion.mts` |
+| Market maker | siembra partidos con los momios publicados (DraftKings vía ESPN), sin comisión y con piso; libro incoherente → parejo | `domain/director.ts`, `templates.ts` |
+| Opciones sólidas | multi-opción cuando hay > 2 opciones ≥ 5 %; hasta 4 con nombre + «Otra» | `domain/director.ts`, `recurrentes.ts` |
+| Revisor | 13 chequeos; hallazgos con ciclo de vida; **retiene** un pago que contradice al mercado | `domain/revisor.ts`, `server/revisor.mts` |
+| Guarda de pago | un resultado fuera de las opciones se retiene **en el punto de pago** | `server/ciclo.mts` |
+| Juez (Claude) | veta textos externos ambiguos/sensibles; señala evidencias que no sostienen; sólo con confianza alta | `server/juez.mts` |
+| Panel | `/api/director` y la pantalla «Director de mercados» (Perfil) | `server/director.mts`, `DirectorScreen.tsx` |
+
+**Medido en el primer arranque limpio (76 mercados):** el revisor encontró en su primera
+vuelta los títulos de cripto diaria que se cortaban (35 > 32 caracteres) — arreglado y fijado
+con prueba — y que deportes es el 64 % de lo abierto (info, sin acción). Los partidos pasaron
+de nacer 50/50 a nacer con prior de momios (p. ej. Valkyries 74/26, Packers 62/38).
+
+**Lo que no es todavía (dicho en la misma frase):** el juez está **apagado** hasta que haya
+`ANTHROPIC_API_KEY` en Railway — probado con cliente falso, sin llamada real desde aquí; el
+tamaño de la semilla no se ajusta por interés (P-002/P-004); el revisor retiene, no resuelve.
+
+Reglas R-079…R-083. Mutaciones: 9 nuevas, 9 detectadas.
+
+---
+
 ## Disciplinas inegociables
 
 1. **Sin data especulativa**: OFI se paga solo si el CVD gratis lo justifica.

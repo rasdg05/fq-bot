@@ -19,6 +19,8 @@ todas leen el MISMO registro — Marketing no puede afirmar lo que Ingeniería n
 - **Ingeniería / backend** → `ROLES/INGENIERIA.md` (invariantes, decisiones, build rules, arquitectura).
 
 ## Cómo usar esta carpeta
+0. **Cómo decide esta organización** → `FILOSOFIA.md` (agentes autónomos con rastro: el
+   director de mercados, el revisor y el juez; qué deciden solos y qué nunca).
 1. Empieza aquí (`00-INDICE.md`).
 2. ¿Vas a tocar el motor / la config / una invariante? → `CONSTITUCION.md`.
 3. ¿Por qué existe X, por qué se eligió Y? → `DECISIONES.md`.

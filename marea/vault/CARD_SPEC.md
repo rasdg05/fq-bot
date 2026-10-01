@@ -143,6 +143,12 @@ para dos nada más.
   densidad encogiéndola es mover el problema, no resolverlo.
 - Los dos lados se ven, cada uno con su probabilidad y su pago (R-063).
   Comprimir no es amputar: se corta la etiqueta, nunca el número ni el lado.
+- **Más de dos respuestas cuando hay más de dos opciones sólidas** (R-079, decisión
+  de RasDG del 2026-10-01). Sólida = probabilidad de nacimiento ≥ 5 % según la fuente
+  que siembra el mercado (`domain/director.ts`, `PISO_SOLIDA`); hasta cuatro con nombre,
+  y el resto en «Otra». La tarjeta 1X2 del futbol se queda (el empate es sólido). Una
+  tarjeta multi-opción usa la variante de filas (`card-multi`), con todas sus
+  probabilidades en la misma escala (R-074).
 - Jugando con puntos no aparece símbolo de moneda, tampoco en la card (I7).
 - Target táctil ≥ 44×44 pt: la card entera es un solo target, así que su alto
   mínimo lo cumple de sobra.

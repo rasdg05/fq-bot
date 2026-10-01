@@ -21,10 +21,12 @@ números) es del bot.
 
 ## Marea — antes de tocar `marea/`
 
+0. `MEMORY/FILOSOFIA.md` — cómo decide esta organización: agentes autónomos (director de
+   mercados, revisor, juez con Claude) dentro de invariantes, con todo decidido en bitácora.
 1. `marea/vault/RETOMAR.md` — dónde está todo hoy, la línea base y (§3bis) el mapa del
    catálogo automático: qué generador, qué oráculo y qué fuente resuelve cada familia.
-2. `marea/vault/RULINGS.md` — 78 reglas, append-only. No se reescriben; se agregan.
-3. `MEMORY/DECISIONES.md` §22–§24 y `MEMORY/CEMENTERIO.md` (sección Marea) antes de
+2. `marea/vault/RULINGS.md` — 83 reglas, append-only. No se reescriben; se agregan.
+3. `MEMORY/DECISIONES.md` §22–§25 y `MEMORY/CEMENTERIO.md` (sección Marea) antes de
    proponer una fuente o familia de mercados nueva: puede estar ya medida y descartada.
 
 | Invariante de Marea | Dónde | Qué impide |
@@ -34,6 +36,8 @@ números) es del bot.
 | Espejo paga sólo con liquidación firme (R-073) | `oracles/mirrorOracle.resolverEspejo` | Pagar antes que la fuente que se cita |
 | Frescura del dato (L8) | `domain/settlement.onRead` | Resolver con un dato viejo leído como nuevo |
 | Densidad del feed | `scripts/densidad.mjs` | Tarjetas que crecen, números cortados |
+| Decisión autónoma con rastro (R-080) | `domain/bitacora.ts` (cadena SHA-256) | Que el agente decida sin que se pueda auditar |
+| El modelo no mueve dinero (R-081, R-082) | `server/juez.mts`, `domain/settlement.retener`, guarda en `server/ciclo.mts` | Pagar un resultado que el mercado no tiene, o que un LLM decida un pago |
 
 Verificar: `cd marea && npx tsc --noEmit -p . && npx vitest run` (la línea base tiene
 rojas del catálogo caducado: **el número no crece**), `npm run mutaciones`, y la densidad

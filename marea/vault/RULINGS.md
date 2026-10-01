@@ -249,3 +249,28 @@ Se agrega una línea cuando un hallazgo de audit es recurrente o de producto.
   (visitas) cierra antes de que empiece la ventana que mide. Y no se publica un mercado
   sobre la atención a una muerte, un crimen o la violencia. Fijado en `tests/sismos.test.ts`
   y `tests/tendencias.test.ts`. (producto)
+- **R-079** — **Opciones sólidas.** Un mercado puede tener más de dos respuestas cuando hay más
+  de dos opciones sólidas: probabilidad de nacimiento ≥ 5 % según la fuente que lo siembra
+  (`PISO_SOLIDA`), hasta cuatro con nombre y el resto en «Otra». Más posibilidades es más
+  variación de apuesta; la condición es que el resultado sea verificable y se resuelva solo
+  (R-076). La 1X2 del futbol se queda. Decisión de RasDG, 2026-10-01. Fijado en
+  `tests/director.test.ts`. (producto)
+- **R-080** — **Una decisión autónoma sin rastro no ocurrió.** Todo lo que el director decide
+  solo —publicar, no publicar, vetar, abrir o cerrar un hallazgo, retener un pago— se anota en
+  una bitácora append-only y encadenada por hash, con la regla, la evidencia y quién decidió
+  (las reglas o el modelo con su versión). Se anotan cambios, no observaciones. Fijado en
+  `tests/revisor.test.ts`. (agentes)
+- **R-081** — **El modelo propone o veta; nunca mueve dinero.** El juez (Claude) sólo juzga lo
+  que una regla no alcanza —claridad, coherencia, sensibilidad, si la evidencia sostiene el
+  resultado— y sólo actúa con confianza alta. Sin llave, caído o con una duda, deciden las
+  reglas. Fijado en `tests/juez.test.ts`. (agentes)
+- **R-082** — **La autonomía se gradúa por reversibilidad.** Lo único que un agente hace solo
+  cuando hay dinero de por medio es **retener** un pago que contradice al mercado: no paga, no
+  anula antes del plazo, no reescribe un resultado. Lo retenido lo libera una persona o el plazo
+  de 30 días, que devuelve todo. Un resultado que no es una respuesta del mercado se retiene en
+  el punto de pago, no sólo cuando el revisor lo ve. Fijado en `tests/revisor.test.ts`. (agentes)
+- **R-083** — **Quien hace existir el mercado lo siembra con la mejor información pública y la
+  cita.** El prior sale de una fuente nombrada —momios publicados, el libro de Kalshi, una tasa
+  base medida, las visitas del día—; si la fuente no es coherente, el mercado nace parejo y la
+  bitácora lo dice. El director nunca es la contraparte de un usuario (R-057). Fijado en
+  `tests/director.test.ts`. (liquidez)

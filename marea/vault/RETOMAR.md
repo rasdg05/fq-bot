@@ -92,6 +92,14 @@ Todo lo que se crea solo entra por `server/reposicion.mts` y tiene que resolvers
 | Duelos de tendencias | `ownMarkets/tendencias.ts` | `oracles/trendOracle.ts` | Wikimedia |
 | Sismo M5+ en México | `ownMarkets/sismos.ts` | `oracles/quakeOracle.ts` | USGS |
 
+**Encima de todo eso, el director de mercados** (`MEMORY/FILOSOFIA.md`, DECISIONES §25): la
+reposición anota en una bitácora encadenada cada publicación (con el prior con que nace), cada
+omisión y cada veto; el revisor (`server/revisor.mts`) corre al final de cada ciclo, abre y
+cierra hallazgos y **retiene** pagos que contradicen al mercado; el juez (`server/juez.mts`,
+Claude) se enciende con `ANTHROPIC_API_KEY`. Todo se ve en `/api/director` y en Perfil →
+Director de mercados. Lo primero al retomar: `curl …/api/director` — si `decisiones.cadena.ok`
+es `false`, alguien tocó la bitácora.
+
 **Para sumar una familia:** medir primero la fuente (¿responde desde un servidor?, ¿con
 qué latencia publica?, ¿hay libro o dato de verdad?), escribir la regla en
 `domain/oracleRule.ts` (el compilador pide declararla en `SE_RESUELVE_SOLA`), el oráculo
