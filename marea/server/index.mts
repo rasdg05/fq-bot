@@ -26,6 +26,7 @@ import { PARES_CRIPTO } from "../src/domain/oracleRule";
 import { LIGAS } from "../src/domain/ligas";
 import { espejosPendientes } from "../src/adapters/ownMarkets/espejos";
 import { recurrentesPendientes } from "../src/adapters/ownMarkets/recurrentes";
+import { tendenciasPendientes } from "../src/adapters/ownMarkets/tendencias";
 import { cargarJornadaTenis } from "../src/adapters/oracles/tennisOracle";
 import type { PartidoTenis } from "../src/adapters/ownMarkets/templates";
 
@@ -243,12 +244,14 @@ async function ciclo() {
           // uno detrás del otro: en paralelo, Kalshi limitaba la tasa (429)
           const curados = await espejosPendientes({ ahora, existentes });
           const recurrentes = await recurrentesPendientes({ ahora, existentes, abiertos });
+          // duelos de tendencias de mañana: Wikipedia en español, sin llave
+          const tendencias = await tendenciasPendientes({ ahora, existentes });
           if (recurrentes.omitidos.length > 0) {
             console.log(`[reposicion] recurrentes sin crear: ${recurrentes.omitidos.join(" | ")}`);
           }
           return {
-            seeds: [...curados.seeds, ...recurrentes.seeds],
-            errores: [...curados.errores, ...recurrentes.errores],
+            seeds: [...curados.seeds, ...recurrentes.seeds, ...tendencias.seeds],
+            errores: [...curados.errores, ...recurrentes.errores, ...tendencias.errores],
           };
         },
         tenis: { maximo: 8, cargar: partidosDeTenis },

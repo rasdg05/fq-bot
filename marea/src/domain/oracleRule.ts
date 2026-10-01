@@ -307,6 +307,30 @@ export function idsDeTramos(cortes: number[]): { id: string; label: string }[] {
 /** Los tres ids del 1X2, desde la perspectiva del equipo de la pregunta. */
 export const IDS_1X2 = ["gana", "empata", "pierde"] as const;
 
+/**
+ * Duelo de tendencias: cuál de dos artículos de Wikipedia en español tiene más
+ * visitas en un día (UTC), según la API pública de Wikimedia, agente `user`
+ * (sin bots), todos los accesos:
+ * `https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/es.wikipedia/all-access/user/<artículo>/daily/<desde>/<hasta>`.
+ *
+ * Es la medida pública más limpia de «de qué se está hablando»: las tendencias
+ * de X o TikTok no tienen una fuente abierta que un tercero pueda volver a leer.
+ *
+ * Gana quien tenga más visitas ese día. **Empate exacto: gana quien tuvo más el
+ * día anterior.** Un día sin visitas no aparece en la API y cuenta como cero,
+ * pero sólo si el día ya está publicado — se sabe porque el otro artículo sí
+ * tiene el dato.
+ */
+export interface TrendRule {
+  kind: "tendencia";
+  fuente: "wikipedia";
+  proyecto: "es.wikipedia";
+  /** Día que se mide, `YYYY-MM-DD`, en UTC. */
+  fecha: string;
+  /** Exactamente dos. `titulo` es el nombre del artículo en la URL (`Diego_Luna`). */
+  articulos: { id: string; titulo: string }[];
+}
+
 export type OracleRule =
   | PriceRule
   | VelaRule
@@ -314,7 +338,8 @@ export type OracleRule =
   | MatchRule
   | MatchOutcomeRule
   | MirrorRule
-  | TennisRule;
+  | TennisRule
+  | TrendRule;
 
 /** Cómo se escribe el umbral en el texto: `71000`, `71,000`, `71.000`, `5.00`. */
 function umbralEnTexto(umbral: number): RegExp {
@@ -330,6 +355,21 @@ function umbralEnTexto(umbral: number): RegExp {
  */
 export function ruleProblems(rule: OracleRule, criterion: string): string[] {
   const problems: string[] = [];
+
+  if (rule.kind === "tendencia") {
+    if (rule.proyecto !== "es.wikipedia") problems.push("sólo se mide Wikipedia en español");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(rule.fecha)) problems.push("la fecha del duelo tiene que ser YYYY-MM-DD");
+    if (rule.articulos.length !== 2) problems.push("un duelo es entre exactamente dos artículos");
+    const titulos = rule.articulos.map((a) => a.titulo);
+    if (new Set(titulos).size !== titulos.length) problems.push("los dos artículos son el mismo");
+    if (!/wikipedia/i.test(criterion)) problems.push("el criterio no nombra a Wikipedia como fuente");
+    // los dos artículos, tal como van en la URL, citados en el criterio: así
+    // cualquiera arma la misma consulta que hace el oráculo
+    for (const titulo of titulos) {
+      if (!criterion.includes(titulo)) problems.push(`el criterio no cita el artículo ${titulo}`);
+    }
+    return problems;
+  }
 
   if (rule.kind === "tenis") {
     if (!/^\d+$/.test(rule.partido)) problems.push("el id de partido de ESPN tiene que ser numérico");
