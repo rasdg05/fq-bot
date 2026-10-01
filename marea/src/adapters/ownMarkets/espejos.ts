@@ -177,6 +177,62 @@ export const ESPEJOS: EspejoCurado[] = [
     ],
   },
 
+  /* ----------------------------- Brasil 2026 ------------------------------ */
+  {
+    id: "br-presidente-1v-2026",
+    evento: "KXBRPRES1MOV-BRPRES26",
+    category: "politica",
+    country: "BR",
+    hub: "Elecciones Brasil 2026",
+    title: "Brasil, primera vuelta del 4 de octubre: ¿quién queda primero?",
+    shortTitle: "Brasil: ganador de la 1.ª vuelta",
+    // las casillas abren a las 8:00 de Brasilia (UTC−3)
+    closesAt: "2026-10-04T11:00:00Z",
+    settlesAt: "2026-10-15T16:00:00Z",
+    criterio:
+      "Se resuelve con el evento KXBRPRES1MOV-BRPRES26 de Kalshi (margen de victoria en la primera vuelta presidencial de Brasil del 4 de octubre de 2026): gana Lula si Kalshi liquida en «sí» cualquiera de los tramos de margen a favor de Luiz Inácio Lula da Silva, y Flávio Bolsonaro si liquida cualquiera de los suyos. Otra persona, si Kalshi no liquida ninguno de los dos. Quedar primero en la primera vuelta no es ganar la presidencia si hay segunda vuelta. Las apuestas cierran al abrir las casillas.",
+    respuestas: [
+      {
+        id: "lula",
+        label: "Lula",
+        tickers: [
+          "KXBRPRES1MOV-BRPRES26-LSIL-P2",
+          "KXBRPRES1MOV-BRPRES26-LSIL-P7",
+          "KXBRPRES1MOV-BRPRES26-LSIL-P12",
+          "KXBRPRES1MOV-BRPRES26-LSIL-P57",
+        ],
+      },
+      {
+        id: "flavio",
+        label: "Flávio Bolsonaro",
+        tickers: [
+          "KXBRPRES1MOV-BRPRES26-FBOL-P2",
+          "KXBRPRES1MOV-BRPRES26-FBOL-P7",
+          "KXBRPRES1MOV-BRPRES26-FBOL-P12",
+          "KXBRPRES1MOV-BRPRES26-FBOL-P57",
+        ],
+      },
+      { id: "otro", label: "Otra persona", tickers: [] },
+    ],
+  },
+  {
+    id: "br-segunda-vuelta-2026",
+    evento: "KXBRAZILPRES1R-26OCT04",
+    category: "politica",
+    country: "BR",
+    hub: "Elecciones Brasil 2026",
+    title: "Brasil 2026: ¿la presidencia se decide en segunda vuelta?",
+    shortTitle: "Brasil: ¿habrá segunda vuelta?",
+    closesAt: "2026-10-04T11:00:00Z",
+    settlesAt: "2026-10-15T16:00:00Z",
+    criterio:
+      "Se resuelve con el mercado KXBRAZILPRES1R-26OCT04 de Kalshi (¿algún candidato gana en primera vuelta la elección presidencial de Brasil del 4 de octubre de 2026?): Habrá segunda vuelta si Kalshi lo liquida en «no»; Se decide en primera si lo liquida en «sí». Las apuestas cierran al abrir las casillas.",
+    respuestas: [
+      { id: "segunda", label: "Habrá segunda vuelta", tickers: ["KXBRAZILPRES1R-26OCT04"], resultado: "no" },
+      { id: "primera", label: "Se decide en primera", tickers: ["KXBRAZILPRES1R-26OCT04"], resultado: "yes" },
+    ],
+  },
+
   /* ------------------------------- Geopolítica ----------------------------- */
   {
     id: "geo-iran-acuerdo-2026",
@@ -253,14 +309,32 @@ export const ESPEJOS: EspejoCurado[] = [
 
 /* ------------------------------------------------------------------------- */
 
-/** Probabilidad de «sí» de un mercado de Kalshi: punto medio del libro, o último precio. */
+/**
+ * Lo más ancho que puede estar un libro para que su punto medio cuente como
+ * precio. Medido el 2026-10-01: las 30 patas de los espejos curados y de Brasil
+ * están en 0.07 o menos; el dólar diario de Kalshi y el Billboard de la semana
+ * estaban en 0.01/0.99 y 0.00/0.90 — libros vacíos.
+ */
+export const SPREAD_MAXIMO = 0.1;
+
+/**
+ * Probabilidad de «sí» de un mercado de Kalshi: el punto medio de un libro
+ * **con gente adentro**, o nada.
+ *
+ * La versión anterior tomaba el punto medio de cualquier libro, y el de un
+ * libro vacío (bid 0.01 / ask 0.99) es 0.50: un 50/50 inventado con forma de
+ * precio, justo lo que el espejo promete no hacer. Tampoco cae ya al último
+ * precio operado: puede ser de hace semanas, y un precio viejo enseñado como de
+ * ahora es mentira con forma de dato (R-022).
+ */
 export function probabilidadKalshi(mercado: EstadoKalshi): number | undefined {
   const num = (v: unknown) => (v === null || v === undefined ? NaN : Number(v));
-  const bid = num(mercado.yes_bid_dollars);
+  const bid = Math.max(0, num(mercado.yes_bid_dollars) || 0);
   const ask = num(mercado.yes_ask_dollars);
-  if (bid > 0 && ask > 0) return (bid + ask) / 2;
-  const ultimo = num(mercado.last_price_dollars);
-  return ultimo > 0 && ultimo < 1 ? ultimo : undefined;
+  if (!(ask > 0) || ask > 1) return undefined;
+  // un libro de 0.00/0.01 sí dice algo: que nadie paga ni un centavo por el sí
+  if (ask - bid > SPREAD_MAXIMO + 1e-9) return undefined;
+  return (bid + ask) / 2;
 }
 
 /** Pozo inicial total de un espejo, en puntos. */

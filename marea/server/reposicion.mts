@@ -69,6 +69,8 @@ export interface ReposicionOptions {
   curados?: (
     existentes: ReadonlySet<string>,
     ahora: number,
+    /** Los que siguen aceptando apuestas: un recurrente abierto no se vuelve a pedir. */
+    abiertos: ReadonlySet<string>,
   ) => Promise<{ seeds: OwnMarketSeed[]; errores: string[] }>;
   /**
    * Tenis con **cupo propio**: como los curados, no depende del mínimo global
@@ -144,7 +146,10 @@ export async function reponer(
    */
   if (options.curados) {
     try {
-      const curados = await options.curados(conocidos, ahora);
+      const abiertos = new Set(
+        vivos.filter((seed) => new Date(seed.closesAt).getTime() > ahora).map((seed) => seed.id),
+      );
+      const curados = await options.curados(conocidos, ahora, abiertos);
       candidatos.push(...curados.seeds);
       for (const error of curados.errores) resumen.errores.push(`curados: ${error}`);
     } catch (error) {

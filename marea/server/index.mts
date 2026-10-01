@@ -25,6 +25,7 @@ import type { OwnMarketSeed } from "../src/adapters/ownMarkets/catalog";
 import { PARES_CRIPTO } from "../src/domain/oracleRule";
 import { LIGAS } from "../src/domain/ligas";
 import { espejosPendientes } from "../src/adapters/ownMarkets/espejos";
+import { recurrentesPendientes } from "../src/adapters/ownMarkets/recurrentes";
 import { cargarJornadaTenis } from "../src/adapters/oracles/tennisOracle";
 import type { PartidoTenis } from "../src/adapters/ownMarkets/templates";
 
@@ -236,7 +237,20 @@ async function ciclo() {
         spot: () =>
           Object.fromEntries(PARES_CRIPTO.map((par) => [par, ticker.precio(par)?.precio])),
         partidos: (dias) => partidosDeLaSemana(dias),
-        curados: (existentes, ahora) => espejosPendientes({ ahora, existentes }),
+        // curados (política, Brasil) y recurrentes (Netflix, Billboard,
+        // Spotify): los dos son espejos de Kalshi y los dos son idempotentes
+        curados: async (existentes, ahora, abiertos) => {
+          // uno detrás del otro: en paralelo, Kalshi limitaba la tasa (429)
+          const curados = await espejosPendientes({ ahora, existentes });
+          const recurrentes = await recurrentesPendientes({ ahora, existentes, abiertos });
+          if (recurrentes.omitidos.length > 0) {
+            console.log(`[reposicion] recurrentes sin crear: ${recurrentes.omitidos.join(" | ")}`);
+          }
+          return {
+            seeds: [...curados.seeds, ...recurrentes.seeds],
+            errores: [...curados.errores, ...recurrentes.errores],
+          };
+        },
         tenis: { maximo: 8, cargar: partidosDeTenis },
         env: process.env,
         avisar: (mensaje) => log(`reposición: ${mensaje}`),
