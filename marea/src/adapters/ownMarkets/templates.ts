@@ -483,10 +483,22 @@ export function partidoSeed(partido: PartidoDeLaLiga): OwnMarketSeed {
   };
 }
 
+/**
+ * ¿El rival todavía no existe? ESPN publica los cruces de eliminatoria con
+ * «TBD» antes de que se definan. Un mercado «TBD vs TBD» no tiene a quién
+ * pagar y el oráculo nunca lo encuentra (hallazgo `sin_leer` del revisor,
+ * producción 2026-10-01). El de tenis ya lo filtraba; el de partidos no.
+ */
+export function equipoPorDefinir(nombre: string | undefined): boolean {
+  const n = (nombre ?? "").trim().toLowerCase();
+  return n === "" || n === "tbd" || n === "tba" || /^(winner|loser|ganador|perdedor)\b/.test(n) || n.includes("por definir");
+}
+
 export function partidosSeeds(partidos: PartidoDeLaLiga[], now: number): OwnMarketSeed[] {
   return partidos
     // sólo lo que todavía no empieza: un partido en curso no se puede apostar
     .filter((partido) => new Date(partido.inicio).getTime() > now)
+    .filter((partido) => !equipoPorDefinir(partido.local) && !equipoPorDefinir(partido.visitante))
     .map(partidoSeed)
     .map((seed) => ({ ...seed, resolution: assertPublishable(seed.resolution) }));
 }

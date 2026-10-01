@@ -84,7 +84,17 @@ function esElEquipo(competidor: EspnCompetidor, equipo: string): boolean {
     competidor.team.shortDisplayName,
     competidor.team.abbreviation,
   ].filter(Boolean) as string[];
-  return nombres.some((nombre) => nombre.toLowerCase() === equipo.toLowerCase());
+  return nombres.some((nombre) => sinAcentos(nombre) === sinAcentos(equipo));
+}
+
+/**
+ * Comparación de nombres sin mayúsculas ni acentos. El mercado decía «FC
+ * Juarez» y ESPN «FC Juárez»: el partido existía, terminado, y el oráculo
+ * contestaba que no lo encontraba (hallazgo `atorado` del revisor, producción
+ * 2026-10-01).
+ */
+export function sinAcentos(texto: string): string {
+  return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 }
 
 export function createMatchOracle(options: MatchOracleOptions = {}): Oracle {

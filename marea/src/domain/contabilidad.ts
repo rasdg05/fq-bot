@@ -72,6 +72,13 @@ export type TipoAsiento =
    * justo lo que necesita el presupuesto de L9.
    */
   | "subsidio"
+  /**
+   * Corrección de un saldo heredado, con su motivo en `ref`. No es un flujo
+   * del negocio: es lo que se escribe cuando un camino ya retirado dejó dinero
+   * quieto en una cuenta (ver `regularizarPozosHeredados` en el store). Nunca
+   * toca una cuenta de usuario.
+   */
+  | "regularizacion"
   | "prueba";
 
 /** Una pata del asiento: a qué cuenta y cuánto. Positivo entra, negativo sale. */

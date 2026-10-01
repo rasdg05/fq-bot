@@ -79,6 +79,14 @@ medio.
 | **Oráculos** | leer la fuente y decir qué dice, o que no dice nada | interpretar | `adapters/oracles/*` |
 | **Personas (RasDG, devs)** | reglas, presupuestos, topes, opiniones legales, lo que el agente escala | — | `vault/RULINGS.md`, `vault/PREGUNTAS_ABIERTAS.md` |
 
+## La primera vuelta, en producción (2026-10-01)
+
+El revisor abrió 63 hallazgos en su primera lectura de producción: 13 partidos atorados con
+el resultado publicado, 17 pozos con saldo heredado, mercados «TBD vs TBD». Nada de eso se veía
+en `/salud`. El revisor no arregló nada solo —no le toca—; dio el contexto para que cada
+arreglo se decidiera midiendo, y en el ciclo siguiente **cerró solo** los hallazgos que dejaron
+de verse. Así se ve el principio 8 funcionando (DECISIONES §26).
+
 ## Lo que todavía no es
 
 Dicho en la misma frase, como todo en este repo:

@@ -740,6 +740,67 @@ export class Store {
    * equivocada (L3).
    */
   /**
+   * Regulariza los pozos que el camino de pago **anterior a L3** dejó con
+   * saldo: devuelve ese saldo al capital de la casa, en un asiento por pozo.
+   *
+   * Medido en producción el 2026-10-01 (hallazgo `pozo_descuadrado` del
+   * revisor): 17 pozos, todos liquidados entre el 29 de julio y el 3 de
+   * septiembre, **ninguno con apuestas sin pagar**. Es la semilla de la casa
+   * (y en algunos la comisión) que `pagarMercado` nunca devolvió: el asiento de
+   * apertura de L3 abrió esas cuentas con el pozo entero, y nadie las cerró.
+   *
+   * Tres candados, para que esto no pueda esconder un bug vigente:
+   *  1. sólo pozos liquidados **antes** de `corte` (L3 entró el 2026-09-08):
+   *     un residuo nuevo sigue siendo un hallazgo crítico, no se regulariza;
+   *  2. sólo si **todas** sus apuestas están pagadas: si falta alguna, ese
+   *     dinero podría ser de alguien y no se toca;
+   *  3. nunca toca una cuenta de usuario: pozo → capital.
+   *
+   * Idempotente: un pozo regularizado queda en cero y no vuelve a aparecer.
+   */
+  regularizarPozosHeredados(corte: string, ahora: number): { regularizados: { marketId: string; saldo: number }[] } {
+    const regularizados: { marketId: string; saldo: number }[] = [];
+    const candidatos = Object.entries(this.detallePozosConSaldo()).filter(
+      ([, d]) => d.liquidadoEl !== undefined && d.liquidadoEl < corte && d.sinPagar === 0,
+    );
+    if (candidatos.length === 0) return { regularizados };
+    this.mutar((datos) => {
+      for (const [marketId, d] of candidatos) {
+        datos.libro.push(
+          asiento(
+            "regularizacion",
+            [
+              { cuenta: cuentaPozo(marketId), monto: -d.saldo },
+              { cuenta: CUENTAS_SISTEMA.capital, monto: d.saldo },
+            ],
+            marketId,
+          ),
+        );
+        regularizados.push({ marketId, saldo: d.saldo });
+      }
+      const at = ahora;
+      for (const r of regularizados) {
+        datos.bitacora.push(
+          anexar(
+            datos.bitacora,
+            {
+              tipo: "regularizar",
+              sujeto: r.marketId,
+              motivo: `Residuo heredado del pago anterior a L3 devuelto al capital: ${Math.round(r.saldo * 100) / 100} puntos. Todas las apuestas de este mercado estaban pagadas.`,
+              regla: "L3",
+              autor: "migracion",
+              evidencia: "Migración de datos escrita y revisada en el código (DECISIONES §26), no decisión del agente.",
+              reversible: false,
+            },
+            at,
+          ),
+        );
+      }
+    });
+    return { regularizados };
+  }
+
+  /**
    * Lo que el revisor necesita para juzgar un pozo con saldo: cuándo se
    * liquidó por primera vez y si quedan apuestas sin pagar. Sin esto no se
    * distingue un residuo heredado del camino de pago anterior a L3 de un bug

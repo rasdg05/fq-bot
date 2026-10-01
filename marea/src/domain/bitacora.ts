@@ -16,8 +16,12 @@ import { sha256Hex } from "./sha256";
  * bitácora crece con lo que pasa y no con el reloj.
  */
 
-/** Quién tomó la decisión. Un modelo se nombra con su versión exacta. */
-export type AutorDecision = "reglas" | "persona" | `claude:${string}`;
+/**
+ * Quién tomó la decisión. Un modelo se nombra con su versión exacta.
+ * `migracion` es un cambio de datos escrito en el código y revisado en un
+ * commit: ni lo decidió el agente en marcha ni una persona en el momento.
+ */
+export type AutorDecision = "reglas" | "persona" | "migracion" | `claude:${string}`;
 
 export type TipoDecision =
   /** El director publicó un mercado. */
@@ -32,7 +36,13 @@ export type TipoDecision =
   /** El revisor retuvo una resolución antes de pagarla. */
   | "retener"
   /** Una persona liberó lo que el agente retuvo. */
-  | "liberar";
+  | "liberar"
+  /**
+   * Una corrección contable decidida por personas y escrita en el código (una
+   * migración revisada), no por el agente. Se anota igual: lo que mueve dinero
+   * deja rastro, venga de quien venga.
+   */
+  | "regularizar";
 
 export interface DecisionNueva {
   tipo: TipoDecision;

@@ -418,6 +418,18 @@ const MUTACIONES = [
   { nombre: "prod · un marcador final viejo vuelve a quedar atorado para siempre", archivo: "src/domain/settlement.ts",
     de: "    utilizable: definitivo || umbralHoras === undefined || horas <= umbralHoras,",
     a: "    utilizable: umbralHoras === undefined || horas <= umbralHoras,", tests: ["tests/frescura.test.ts"] },
+  { nombre: "prod · «FC Juarez» no es «FC Juárez» para el oráculo", archivo: "src/adapters/oracles/matchOracle.ts",
+    de: "  return nombres.some((nombre) => sinAcentos(nombre) === sinAcentos(equipo));",
+    a: "  return nombres.some((nombre) => nombre.toLowerCase() === equipo.toLowerCase());", tests: ["tests/regularizacion.test.ts"] },
+  { nombre: "prod · se publica «TBD vs TBD»", archivo: "src/adapters/ownMarkets/templates.ts",
+    de: "    .filter((partido) => !equipoPorDefinir(partido.local) && !equipoPorDefinir(partido.visitante))",
+    a: "    .filter(() => true)", tests: ["tests/regularizacion.test.ts"] },
+  { nombre: "prod · la regularización esconde un residuo vigente", archivo: "server/store.mts",
+    de: "      ([, d]) => d.liquidadoEl !== undefined && d.liquidadoEl < corte && d.sinPagar === 0,",
+    a: "      ([, d]) => d.sinPagar === 0,", tests: ["tests/regularizacion.test.ts"] },
+  { nombre: "prod · la regularización toca un pozo con apuestas sin pagar", archivo: "server/store.mts",
+    de: "      ([, d]) => d.liquidadoEl !== undefined && d.liquidadoEl < corte && d.sinPagar === 0,",
+    a: "      ([, d]) => d.liquidadoEl !== undefined && d.liquidadoEl < corte,", tests: ["tests/regularizacion.test.ts"] },
 ];
 
 const filtro = process.argv[2]?.toLowerCase();

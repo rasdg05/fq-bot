@@ -141,6 +141,19 @@ const vivos = new MercadosVivos(store, ticker);
 const juez = new Juez(clienteAnthropic(process.env));
 
 /**
+ * Regularización de los pozos que el pago anterior a L3 dejó con saldo
+ * (DECISIONES §26). Sólo los liquidados antes del 2026-09-08 con todas sus
+ * apuestas pagadas; un residuo nuevo sigue siendo un hallazgo crítico.
+ */
+{
+  const { regularizados } = store.regularizarPozosHeredados("2026-09-08T00:00:00.000Z", Date.now());
+  if (regularizados.length > 0) {
+    const total = regularizados.reduce((s, r) => s + r.saldo, 0);
+    console.log(`regularización L3: ${regularizados.length} pozos heredados devueltos al capital (${Math.round(total)} puntos)`);
+  }
+}
+
+/**
  * El catálogo completo de este instante: lo publicado en el repo, lo que el
  * servidor repuso solo, y lo que está corriendo ahora mismo.
  *

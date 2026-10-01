@@ -177,7 +177,7 @@ export function DirectorScreen() {
               </p>
               <p className="pt-0.5 text-[13px] leading-snug text-text2">{e.motivo}</p>
               <p className="pt-0.5 text-[11px] text-muted">
-                #{e.n} · {e.autor === "reglas" ? S.director.autorReglas : e.autor}
+                #{e.n} · {S.director.autor[e.autor] ?? e.autor}
                 {e.regla ? ` · ${e.regla}` : ""}
               </p>
             </div>

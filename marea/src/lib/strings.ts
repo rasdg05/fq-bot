@@ -316,7 +316,6 @@ export const S = {
     cadenaRota: (n: number) => `La bitácora no verifica desde la decisión ${n}`,
     juezActivo: (modelo: string) => `Juez editorial: ${modelo}`,
     juezApagado: "Juez editorial apagado: deciden sólo las reglas",
-    autorReglas: "reglas",
     tipo: {
       publicar: "Publicó",
       omitir: "No publicó",
@@ -325,7 +324,9 @@ export const S = {
       hallazgo_cierra: "Cerró",
       retener: "Retuvo el pago",
       liberar: "Liberó",
+      regularizar: "Regularizó",
     } as Record<string, string>,
+    autor: { reglas: "reglas", migracion: "migración revisada", persona: "persona" } as Record<string, string>,
     severidad: { critico: "Crítico", grave: "Grave", aviso: "Aviso", info: "Info" } as Record<string, string>,
     error: "No pudimos leer el reporte del director.",
   },

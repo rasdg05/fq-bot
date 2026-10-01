@@ -817,6 +817,36 @@ Reglas R-079…R-083. Mutaciones: 9 nuevas, 9 detectadas.
 
 ---
 
+## 26. El revisor en producción: su primera vuelta (2026-10-01)
+
+Al desplegar §25, el revisor leyó producción por primera vez y abrió **63 hallazgos** (17
+críticos, 21 graves). `/salud` decía «0 congelados». Cada uno se investigó con datos antes de
+tocar nada; tres causas, tres arreglos, todos con prueba y mutación:
+
+1. **Trece partidos de Liga MX atorados 10–19 días con el resultado publicado.** La frescura
+   (L8, 48 h) descartaba el marcador final porque el oráculo lo fecha con la hora del partido:
+   un partido no leído a tiempo no podía resolverse nunca e iba a anularse a los 30 días. Error
+   de categoría — L8 es para valores que cambian. Arreglo: `OracleReading.definitivo` para
+   hechos consumados (marcadores, tenis, espejos en firme, sismos, visitas de un día cerrado).
+   En el ciclo siguiente el revisor **cerró solo 12 de los 13** y lo anotó. `/salud` ahora mira
+   también el catálogo generado.
+2. **El 13.º: «FC Juarez» contra «FC Juárez».** La comparación de nombres no quitaba acentos.
+   Y apareció **«TBD vs TBD»**: el generador de partidos publicaba cruces de eliminatoria sin
+   equipos (el de tenis ya los filtraba). Ambos cerrados.
+3. **Diecisiete pozos con saldo tras liquidar** (≈13 795 puntos). Medido antes de mover nada:
+   todos liquidados entre el 29-jul y el 3-sep —antes de L3 (8-sep)— y **ninguno con apuestas
+   sin pagar**. Es la semilla de la casa que el pago viejo nunca devolvió. Se regularizan al
+   arrancar, pozo → capital, con tres candados: sólo antes del corte de L3 (un residuo nuevo
+   sigue siendo crítico), sólo con todo pagado, nunca una cuenta de usuario. Cada uno queda en la
+   bitácora como `regularizar`, autor `migracion` (cambio de código revisado, **no** decisión
+   del agente).
+
+**La lección**, para `FILOSOFIA.md`: el revisor no arregló nada solo y no debía. Su valor fue
+**ver** lo que llevaba semanas invisible, con el contexto justo para que el arreglo se pudiera
+decidir midiendo. Hallazgo → prueba → invariante, ahora con un sensor que corre cada ciclo.
+
+---
+
 ## Disciplinas inegociables
 
 1. **Sin data especulativa**: OFI se paga solo si el CVD gratis lo justifica.
