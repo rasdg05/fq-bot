@@ -25,6 +25,33 @@ import type { OwnMarketSeed } from "../src/adapters/ownMarkets/catalog";
 import { PARES_CRIPTO } from "../src/domain/oracleRule";
 import { LIGAS } from "../src/domain/ligas";
 import { espejosPendientes } from "../src/adapters/ownMarkets/espejos";
+import { cargarJornadaTenis } from "../src/adapters/oracles/tennisOracle";
+import type { PartidoTenis } from "../src/adapters/ownMarkets/templates";
+
+/**
+ * Los partidos ATP de la semana: el marcador sin fecha trae los torneos en
+ * curso con todo su cuadro. Un error sube a `reponer`, que lo registra.
+ */
+async function partidosDeTenis(): Promise<PartidoTenis[]> {
+  const lista = await cargarJornadaTenis(fetch, "atp");
+  return lista
+    .filter(({ partido }) => partido.status.type.name === "STATUS_SCHEDULED")
+    .map(({ torneo, partido }) => {
+      const [a, b] = [...partido.competitors].sort((x, y) => (x.order ?? 0) - (y.order ?? 0));
+      return {
+        id: partido.id,
+        inicio: partido.date,
+        torneo,
+        ronda: partido.round?.displayName,
+        jugador: a?.athlete?.displayName ?? "TBD",
+        rival: b?.athlete?.displayName ?? "TBD",
+        jugadorCorto: a?.athlete?.shortName,
+        rivalCorto: b?.athlete?.shortName,
+        banderaJugador: a?.athlete?.flag?.href,
+        banderaRival: b?.athlete?.flag?.href,
+      };
+    });
+}
 import { congelados, type SettlementState } from "../src/domain/settlement";
 
 /**
@@ -210,6 +237,7 @@ async function ciclo() {
           Object.fromEntries(PARES_CRIPTO.map((par) => [par, ticker.precio(par)?.precio])),
         partidos: (dias) => partidosDeLaSemana(dias),
         curados: (existentes, ahora) => espejosPendientes({ ahora, existentes }),
+        tenis: { maximo: 8, cargar: partidosDeTenis },
         env: process.env,
         avisar: (mensaje) => log(`reposición: ${mensaje}`),
       });

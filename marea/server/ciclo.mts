@@ -57,6 +57,9 @@ function debeLeerse(seed: OwnMarketSeed, fase: string, ahora: number): boolean {
   // (un acuerdo firmado en noviembre) o dejar de operar con el resultado ya
   // conocido. Se consulta mientras está abierto para cerrar a tiempo
   if (seed.rule?.kind === "espejo") return true;
+  // y un partido de tenis: si el orden de juego lo adelanta, se detiene a
+  // tiempo en vez de aceptar apuestas con el marcador corriendo
+  if (seed.rule?.kind === "tenis") return true;
   if (seed.rule?.kind === "precio" && seed.rule.modo === "toca") {
     return !seed.rule.desde || new Date(seed.rule.desde).getTime() <= ahora;
   }

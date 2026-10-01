@@ -5,10 +5,12 @@ import {
   KRAKEN_PAR,
   type MatchOutcomeRule,
   type MatchRule,
+  type TennisRule,
   type ParCripto,
   type PriceRule,
 } from "@/domain/oracleRule";
 import { ligaDe, urlJornadaEspn, type LigaId } from "@/domain/ligas";
+import { urlJornadaTenis } from "@/adapters/oracles/tennisOracle";
 import {
   OUTCOME_LABEL_MAX,
   SHORT_TITLE_IDEAL,
@@ -458,6 +460,126 @@ export function partidosSeeds(partidos: PartidoDeLaLiga[], now: number): OwnMark
     // sólo lo que todavía no empieza: un partido en curso no se puede apostar
     .filter((partido) => new Date(partido.inicio).getTime() > now)
     .map(partidoSeed)
+    .map((seed) => ({ ...seed, resolution: assertPublishable(seed.resolution) }));
+}
+
+/* --------------------------------- tenis --------------------------------- */
+
+/** Sección y hub de los partidos de tenis en el feed. */
+export const LIGA_TENIS = "Tenis ATP";
+
+/** Un partido individual masculino tal como lo lista ESPN. */
+export interface PartidoTenis {
+  /** Id del partido en ESPN. */
+  id: string;
+  /** ISO del arranque programado. */
+  inicio: string;
+  torneo: string;
+  /** Ronda como la da ESPN: `Round 1`, `Quarterfinal`, `Final`… */
+  ronda?: string;
+  jugador: string;
+  rival: string;
+  /** `C. Alcaraz`: de aquí sale el apellido para la pill. */
+  jugadorCorto?: string;
+  rivalCorto?: string;
+  /** Bandera que sirve la misma fuente que resuelve (R-046). */
+  banderaJugador?: string;
+  banderaRival?: string;
+}
+
+/** Cuánto se espera al resultado: un partido largo a cinco sets ronda las 5 h. */
+const DURACION_TENIS_MS = 6 * 3_600_000;
+
+/** «A. Davidovich Fokina» → «Davidovich Fokina». */
+function apellido(corto: string | undefined, largo: string): string {
+  const base = (corto ?? largo).trim();
+  const sinInicial = base.replace(/^[A-ZÀ-Ý]\.\s+/u, "");
+  return sinInicial || largo;
+}
+
+/** La ronda en español, como se dice aquí. */
+export function rondaEnEspanol(ronda: string | undefined): string | undefined {
+  if (!ronda) return undefined;
+  const r = ronda.toLowerCase();
+  if (/^final$/.test(r)) return "final";
+  if (/semi/.test(r)) return "semifinal";
+  if (/quarter/.test(r)) return "cuartos de final";
+  if (/round of 16|4th round/.test(r)) return "octavos de final";
+  const n = r.match(/round (\d+)/);
+  if (n) return `${n[1]}.ª ronda`;
+  if (/qualif/.test(r)) return "clasificación";
+  return ronda;
+}
+
+/** Qué tan lejos está la ronda de la final: las rondas finales van primero. */
+function pesoRonda(ronda: string | undefined): number {
+  const r = (ronda ?? "").toLowerCase();
+  if (/^final$/.test(r)) return 100;
+  if (/semi/.test(r)) return 90;
+  if (/quarter/.test(r)) return 80;
+  if (/round of 16|4th round/.test(r)) return 70;
+  const n = r.match(/round (\d+)/);
+  return n ? Number(n[1]) * 10 : 0;
+}
+
+export function tenisSeed(p: PartidoTenis): OwnMarketSeed {
+  const apA = apellido(p.jugadorCorto, p.jugador);
+  const apB = apellido(p.rivalCorto, p.rival);
+  const inicioMs = Date.parse(p.inicio);
+  const dia = new Date(inicioMs).toISOString().slice(0, 10);
+  const ronda = rondaEnEspanol(p.ronda);
+  const donde = ronda ? `${p.torneo}, ${ronda}` : p.torneo;
+  const rule: TennisRule = {
+    kind: "tenis",
+    circuito: "atp",
+    partido: p.id,
+    fecha: dia,
+    jugador: p.jugador,
+    rival: p.rival,
+  };
+  return {
+    id: `atp-${p.id}`,
+    title: `${donde}: ¿gana ${p.jugador} o ${p.rival}?`,
+    shortTitle: nombreQueCabe(`${apA} vs ${apB}`, `${apA.split(" ").at(-1)} vs ${apB.split(" ").at(-1)}`, MAX_TITULO_CORTO, SHORT_TITLE_IDEAL),
+    category: "deportes",
+    country: "GLOBAL",
+    liga: LIGA_TENIS,
+    // se cierra al arrancar; si el orden de juego lo adelanta, el oráculo lo
+    // ve en juego y detiene las apuestas antes
+    closesAt: new Date(inicioMs).toISOString(),
+    equipos: [
+      { nombre: p.jugador, escudo: p.banderaJugador },
+      { nombre: p.rival, escudo: p.banderaRival },
+    ],
+    outcomes: [
+      { id: "si", label: nombreQueCabe(`Gana ${apA}`, `Gana ${apA.split(" ").at(-1)}`, MAX_RESPUESTA) },
+      { id: "no", label: nombreQueCabe(`Gana ${apB}`, `Gana ${apB.split(" ").at(-1)}`, MAX_RESPUESTA) },
+    ],
+    pool: seedPool(SEED * 4, SEED * 4),
+    rule,
+    resolution: assertPublishable({
+      sourceName: "ESPN (marcador oficial del circuito ATP)",
+      sourceUrl: urlJornadaTenis("atp", dia),
+      criterion: `Se resuelve Gana ${apA} si ESPN marca a ${p.jugador} como ganador del partido contra ${p.rival} del ${diaLargo(dia)} (${donde}), incluido el retiro o la no presentación de su rival: gana quien avanza. En el caso contrario se resuelve Gana ${apB}. Un partido cancelado sin ganador se anula y se devuelve todo.`,
+      settlesAt: new Date(inicioMs + DURACION_TENIS_MS).toISOString(),
+      disputeWindowHours: 12,
+      maxAgeHours: FRESCURA_MAX_HORAS,
+    }),
+  };
+}
+
+/**
+ * Los partidos de tenis que merecen mercado, de mejor a peor: las rondas
+ * finales primero (un cuarto de final de Pekín vale más que una primera ronda
+ * de Tokio) y, dentro de la misma ronda, el que empieza antes. Sólo los que no
+ * han empezado y tienen a sus dos jugadores definidos.
+ */
+export function tenisSeeds(partidos: PartidoTenis[], now: number): OwnMarketSeed[] {
+  return partidos
+    .filter((p) => Date.parse(p.inicio) > now)
+    .filter((p) => !/\b(tbd|por definir|qualifier)\b/i.test(`${p.jugador} ${p.rival}`))
+    .sort((a, b) => pesoRonda(b.ronda) - pesoRonda(a.ronda) || Date.parse(a.inicio) - Date.parse(b.inicio))
+    .map(tenisSeed)
     .map((seed) => ({ ...seed, resolution: assertPublishable(seed.resolution) }));
 }
 

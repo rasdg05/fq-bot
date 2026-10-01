@@ -124,7 +124,9 @@ describe("Motor parimutuel", () => {
   });
 
   it("formatea el pago como lo lee la gente", () => {
-    expect(formatMultiplier(1.8)).toBe("1.8×");
+    // dos decimales siempre: la columna de pagos alinea y nada parece valer menos
+    expect(formatMultiplier(1.8)).toBe("1.80×");
+    expect(formatMultiplier(10)).toBe("10.00×");
     expect(formatMultiplier(2.05)).toBe("2.05×");
   });
 });

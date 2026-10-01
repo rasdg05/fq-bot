@@ -236,8 +236,17 @@ for (const ancho of ANCHOS) {
     );
     if (cards.length === 0) return { alto: 0, hueco: 0 };
     // el esqueleto reemplaza a la card normal: la viva no existe hasta que el
-    // ticker responde, y compararlo con ella medía dos cosas distintas
-    const normales = cards.filter((c) => c.getAttribute("data-variant") !== "live");
+    // ticker responde, y compararlo con ella medía dos cosas distintas. Lo
+    // mismo con la de varias respuestas (`card-multi`, 176 px por diseño): el
+    // esqueleto no puede saber cuántas filas traerá un mercado, y antes la
+    // puerta pasaba o fallaba según qué sección quedara primero — con el disco
+    // limpio del 2026-10-01 la primera «normal» era Banxico, cinco secciones
+    // abajo y fuera de la primera pantalla. Se compara contra la binaria, que es
+    // la que el esqueleto dibuja
+    const normales = cards.filter(
+      (c) =>
+        c.getAttribute("data-variant") !== "live" && !c.querySelector('[data-testid="card-multi"]'),
+    );
     const a = (normales[0] ?? cards[0]).getBoundingClientRect();
     const b = (normales[1] ?? cards[1])?.getBoundingClientRect();
     return {

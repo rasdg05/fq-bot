@@ -4,7 +4,14 @@ import {
   topesDelEntorno,
   type Topes,
 } from "../src/domain/presupuesto";
-import { partidosSeeds, rollingSeeds, type PartidoDeLaLiga } from "../src/adapters/ownMarkets/templates";
+import {
+  LIGA_TENIS,
+  partidosSeeds,
+  rollingSeeds,
+  tenisSeeds,
+  type PartidoDeLaLiga,
+  type PartidoTenis,
+} from "../src/adapters/ownMarkets/templates";
 import { validateSeed, type OwnMarketSeed } from "../src/adapters/ownMarkets/catalog";
 import { esVelaViva } from "../src/adapters/ownMarkets/cryptoLive";
 import type { Store } from "./store.mts";
@@ -63,6 +70,12 @@ export interface ReposicionOptions {
     existentes: ReadonlySet<string>,
     ahora: number,
   ) => Promise<{ seeds: OwnMarketSeed[]; errores: string[] }>;
+  /**
+   * Tenis con **cupo propio**: como los curados, no depende del mínimo global
+   * (con veinte ligas de futbol nunca habría entrado), pero tampoco crece sin
+   * fin: nunca más de `maximo` partidos abiertos a la vez.
+   */
+  tenis?: { maximo: number; cargar: () => Promise<PartidoTenis[]> };
   topes?: Topes;
   /** Para no depender del entorno en pruebas. */
   env?: Record<string, string | undefined>;
@@ -136,6 +149,23 @@ export async function reponer(
       for (const error of curados.errores) resumen.errores.push(`curados: ${error}`);
     } catch (error) {
       resumen.errores.push(`curados: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  if (options.tenis) {
+    const abiertos = vivos.filter(
+      (seed) => seed.liga === LIGA_TENIS && new Date(seed.closesAt).getTime() > ahora,
+    ).length;
+    const cupo = options.tenis.maximo - abiertos;
+    if (cupo > 0) {
+      try {
+        const partidos = tenisSeeds(await options.tenis.cargar(), ahora).filter(
+          (seed) => !conocidos.has(seed.id),
+        );
+        candidatos.push(...partidos.slice(0, cupo));
+      } catch (error) {
+        resumen.errores.push(`tenis: ${error instanceof Error ? error.message : String(error)}`);
+      }
     }
   }
 

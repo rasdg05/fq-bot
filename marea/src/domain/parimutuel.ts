@@ -266,8 +266,16 @@ function clampFee(feeBps: number): number {
 }
 
 /** `1.8×` — el formato con el que el usuario entiende cuánto le pagan. */
+/**
+ * Siempre con dos decimales, como los momios decimales de cualquier casa seria:
+ * `1.80×`, `10.00×`. Antes se quitaba el cero final (`1.8×`, `10.0×`) y en
+ * una misma tarjeta convivían `1.2×`, `8.82×` y `10.0×`: con cifras tabulares,
+ * un número de un decimal junto a uno de dos rompe la columna y se lee como
+ * que uno vale menos (RasDG, 2026-10-01: «unos números se ven más grandes que
+ * otros»).
+ */
 export function formatMultiplier(multiplier: number): string {
-  return `${multiplier.toFixed(2).replace(/0$/, "")}×`;
+  return `${multiplier.toFixed(2)}×`;
 }
 
 export interface Quote {

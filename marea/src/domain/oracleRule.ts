@@ -234,6 +234,33 @@ export interface MirrorRule {
   }[];
 }
 
+/**
+ * Partido de tenis (individual masculino del circuito ATP), leído del marcador
+ * público de ESPN, el mismo que ya resuelve el futbol:
+ * `https://site.api.espn.com/apis/site/v2/sports/tennis/atp/scoreboard?dates=YYYYMMDD`.
+ *
+ * Se identifica por el **id del partido** de ESPN, no por los nombres: dos
+ * «Cerúndolo» en el mismo cuadro o un nombre con tilde distinta no pueden
+ * confundir a quién se paga. `si` = gana `jugador`; `no` = gana `rival`.
+ *
+ * Gana quien ESPN marca como ganador del partido, **incluido** el retiro o la
+ * no presentación del otro (gana quien avanza: la convención de las bolsas de
+ * eventos). Un partido cancelado sin ganador no paga a nadie: el plazo lo anula
+ * y devuelve lo apostado.
+ */
+export interface TennisRule {
+  kind: "tenis";
+  circuito: "atp";
+  /** Id del partido (competition) en ESPN. */
+  partido: string;
+  /** Día del partido en UTC, `YYYY-MM-DD`: la jornada que se pide. */
+  fecha: string;
+  /** Jugador de la respuesta `si`, como lo nombra ESPN. */
+  jugador: string;
+  /** Jugador de la respuesta `no`, como lo nombra ESPN. */
+  rival: string;
+}
+
 /** Los ids que produce una regla de tramos de goles, en orden. */
 export function idsDeTramos(cortes: number[]): { id: string; label: string }[] {
   const tramos: { id: string; label: string }[] = [];
@@ -258,7 +285,8 @@ export type OracleRule =
   | SeriesRule
   | MatchRule
   | MatchOutcomeRule
-  | MirrorRule;
+  | MirrorRule
+  | TennisRule;
 
 /** Cómo se escribe el umbral en el texto: `71000`, `71,000`, `71.000`, `5.00`. */
 function umbralEnTexto(umbral: number): RegExp {
@@ -274,6 +302,21 @@ function umbralEnTexto(umbral: number): RegExp {
  */
 export function ruleProblems(rule: OracleRule, criterion: string): string[] {
   const problems: string[] = [];
+
+  if (rule.kind === "tenis") {
+    if (!/^\d+$/.test(rule.partido)) problems.push("el id de partido de ESPN tiene que ser numérico");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(rule.fecha)) problems.push("la fecha del partido tiene que ser YYYY-MM-DD");
+    // los dos jugadores tienen que estar en el criterio publicado, por su
+    // apellido: el criterio y la regla hablan del mismo partido
+    for (const nombre of [rule.jugador, rule.rival]) {
+      const apellido = nombre.trim().split(/\s+/).at(-1) ?? nombre;
+      if (!new RegExp(apellido.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i").test(criterion)) {
+        problems.push(`el criterio no menciona a ${nombre}`);
+      }
+    }
+    if (rule.jugador === rule.rival) problems.push("un partido necesita dos jugadores distintos");
+    return problems;
+  }
 
   if (rule.kind === "espejo") {
     if (!/^[A-Z0-9-]+$/.test(rule.evento)) problems.push("el evento de Kalshi no es un ticker");

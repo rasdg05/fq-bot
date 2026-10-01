@@ -4,6 +4,7 @@ import { createSeriesOracle, type SeriesOracleOptions } from "./seriesOracle";
 import { createMatchOracle, type MatchOracleOptions } from "./matchOracle";
 import { createVelaOracle, type VelaOracleOptions } from "./velaOracle";
 import { createMirrorOracle, type MirrorOracleOptions } from "./mirrorOracle";
+import { createTennisOracle, type TennisOracleOptions } from "./tennisOracle";
 
 /**
  * Oráculo de precio contra Kraken, que publica velas históricas sin llave y sin
@@ -227,7 +228,8 @@ export function defaultOracles(
     VelaOracleOptions &
     SeriesOracleOptions &
     MatchOracleOptions &
-    MirrorOracleOptions = {},
+    MirrorOracleOptions &
+    TennisOracleOptions = {},
 ): Oracle[] {
   return [
     createVelaOracle(options),
@@ -235,6 +237,7 @@ export function defaultOracles(
     createSeriesOracle(options),
     createMatchOracle(options),
     createMirrorOracle(options),
+    createTennisOracle(options),
     createInstitutionalOracle(),
   ];
 }
