@@ -274,3 +274,10 @@ Se agrega una línea cuando un hallazgo de audit es recurrente o de producto.
   base medida, las visitas del día—; si la fuente no es coherente, el mercado nace parejo y la
   bitácora lo dice. El director nunca es la contraparte de un usuario (R-057). Fijado en
   `tests/director.test.ts`. (liquidez)
+- **R-084** — **Lo que pasa si el partido no se juega a su hora, dicho antes de apostar.** Cancelado
+  por la fuente → se anula y se devuelve todo en la misma vuelta, sin esperar al plazo. Hora movida
+  el mismo día → es el mismo partido, si hay uno solo cerca (en doble cartelera no se adivina).
+  Reprogramado → se resuelve con el partido entre los mismos equipos jugado dentro de 7 días **sólo
+  si el criterio publicado lo dice**; los mercados creados antes no lo prometieron y no se resuelven
+  con otro día. Encontrado por el revisor en producción el 2026-10-01. Fijado en
+  `tests/partidos-vida-real.test.ts`. (oráculos)

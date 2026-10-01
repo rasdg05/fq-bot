@@ -841,6 +841,14 @@ tocar nada; tres causas, tres arreglos, todos con prueba y mutación:
    bitácora como `regularizar`, autor `migracion` (cambio de código revisado, **no** decisión
    del agente).
 
+4. **Tres partidos reales `sin_leer`** con causa en la vida, no en el código: Yankees–Orioles
+   **cancelado**, Phillies–Rays jugado **a otra hora** el mismo día, Red Bull NY–St. Louis
+   **reprogramado** del 26 al 30-sep. R-084: cancelado → se anula y devuelve en la misma vuelta;
+   hora movida → mismo partido si hay uno solo cerca; reprogramado → sólo si el criterio lo
+   prometió (los partidos nuevos llevan la cláusula de 7 días; los anteriores, no, y el plazo
+   los devuelve). Una mutación sobrevivió al primer intento: la prueba de «sin cláusula» no
+   traía rival y no ejercitaba el caso peligroso. Se reforzó.
+
 **La lección**, para `FILOSOFIA.md`: el revisor no arregló nada solo y no debía. Su valor fue
 **ver** lo que llevaba semanas invisible, con el contexto justo para que el arreglo se pudiera
 decidir midiendo. Hallazgo → prueba → invariante, ahora con un sensor que corre cada ciclo.

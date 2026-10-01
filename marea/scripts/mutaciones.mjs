@@ -430,6 +430,18 @@ const MUTACIONES = [
   { nombre: "prod · la regularización toca un pozo con apuestas sin pagar", archivo: "server/store.mts",
     de: "      ([, d]) => d.liquidadoEl !== undefined && d.liquidadoEl < corte && d.sinPagar === 0,",
     a: "      ([, d]) => d.liquidadoEl !== undefined && d.liquidadoEl < corte,", tests: ["tests/regularizacion.test.ts"] },
+  { nombre: "prod · un partido cancelado espera 30 días", archivo: "src/adapters/oracles/matchOracle.ts",
+    de: "      if (estadoEspn === \"STATUS_CANCELED\" || estadoEspn === \"STATUS_ABANDONED\") {",
+    a: "      if (false) {", tests: ["tests/partidos-vida-real.test.ts"] },
+  { nombre: "prod · la anulación de la fuente no anula", archivo: "src/domain/settlement.ts",
+    de: "    if (reading.anular) {",
+    a: "    if (false) {", tests: ["tests/partidos-vida-real.test.ts"] },
+  { nombre: "prod · en doble cartelera se adivina el partido", archivo: "src/adapters/oracles/matchOracle.ts",
+    de: "        return cerca.length === 1 ? cerca[0] : undefined;",
+    a: "        return cerca[0];", tests: ["tests/partidos-vida-real.test.ts"] },
+  { nombre: "prod · se resuelve con otro día sin haberlo prometido", archivo: "src/adapters/oracles/matchOracle.ts",
+    de: "      const ventana = rule.reprogramacionDias ?? 0;",
+    a: "      const ventana = rule.reprogramacionDias ?? 7;", tests: ["tests/partidos-vida-real.test.ts"] },
 ];
 
 const filtro = process.argv[2]?.toLowerCase();

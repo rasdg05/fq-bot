@@ -275,6 +275,9 @@ export interface PartidoDeLaLiga {
 
 const ESPN_MX = "https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard";
 
+/** Días en que un partido reprogramado sigue siendo el mismo mercado (R-084). */
+export const DIAS_REPROGRAMACION = 7;
+
 /** Cuánto se espera al marcador final antes de leerlo. */
 const DURACION_PARTIDO_MS = 3 * 3_600_000;
 
@@ -375,10 +378,13 @@ export function partidoSeed(partido: PartidoDeLaLiga): OwnMarketSeed {
   const nota = prior && partido.momios
     ? ` La semilla sigue los momios de ${partido.momios.proveedor} al crear el mercado; no intervienen en el resultado.`
     : "";
+  // R-084: lo que pasa si el partido se mueve o no se juega, dicho antes de apostar
+  const reprogramacion =
+    ` Si el partido se reprograma, se resuelve con el partido entre los mismos equipos jugado dentro de los ${DIAS_REPROGRAMACION} días siguientes; si se cancela o no se juega en ese plazo, se anula y se devuelve todo.`;
   const resolucion = (criterion: string) => ({
     sourceName: `ESPN (marcador oficial de ${liga.nombre})`,
     sourceUrl: fuente,
-    criterion: `${criterion}${nota}`,
+    criterion: `${criterion}${reprogramacion}${nota}`,
     settlesAt,
     disputeWindowHours: 12,
     // el marcador de ESPN late a diario: aquí el reloj SÍ dice si el colector
@@ -393,6 +399,8 @@ export function partidoSeed(partido: PartidoDeLaLiga): OwnMarketSeed {
       fecha: dia,
       inicio: partido.inicio,
       equipo: partido.local,
+      rival: partido.visitante,
+      reprogramacionDias: DIAS_REPROGRAMACION,
       resultado: "gana",
     };
     return {
@@ -428,6 +436,8 @@ export function partidoSeed(partido: PartidoDeLaLiga): OwnMarketSeed {
       fecha: dia,
       inicio: partido.inicio,
       equipo: partido.local,
+      rival: partido.visitante,
+      reprogramacionDias: DIAS_REPROGRAMACION,
       mercado: "1x2",
     };
     return {
@@ -462,6 +472,8 @@ export function partidoSeed(partido: PartidoDeLaLiga): OwnMarketSeed {
     fecha: dia,
     inicio: partido.inicio,
     equipo: partido.local,
+    rival: partido.visitante,
+    reprogramacionDias: DIAS_REPROGRAMACION,
     resultado: "gana",
   };
   return {

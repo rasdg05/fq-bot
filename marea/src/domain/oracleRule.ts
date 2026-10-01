@@ -197,6 +197,14 @@ export interface MatchRule {
   equipo: string;
   /** `gana` es victoria; `no_pierde` incluye el empate. */
   resultado: "gana" | "no_pierde";
+  /** El rival. Con él, el oráculo reconoce el mismo partido si se reprograma. */
+  rival?: string;
+  /**
+   * Días en que un partido reprogramado sigue siendo **este** partido. Sólo lo
+   * tienen los mercados cuyo criterio lo dice (R-084); los anteriores no lo
+   * prometieron y no se resuelven con otro día.
+   */
+  reprogramacionDias?: number;
 }
 
 /**
@@ -216,6 +224,9 @@ export interface MatchOutcomeRule {
   inicio?: string;
   /** Equipo desde cuya perspectiva se lee el resultado. */
   equipo: string;
+  /** El rival y la ventana de reprogramación, como en `MatchRule`. */
+  rival?: string;
+  reprogramacionDias?: number;
   /**
    * `1x2`: resuelve `gana` | `empata` | `pierde`.
    * `goles`: resuelve por tramos de goles totales, según `cortes`.

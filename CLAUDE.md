@@ -25,8 +25,8 @@ números) es del bot.
    mercados, revisor, juez con Claude) dentro de invariantes, con todo decidido en bitácora.
 1. `marea/vault/RETOMAR.md` — dónde está todo hoy, la línea base y (§3bis) el mapa del
    catálogo automático: qué generador, qué oráculo y qué fuente resuelve cada familia.
-2. `marea/vault/RULINGS.md` — 83 reglas, append-only. No se reescriben; se agregan.
-3. `MEMORY/DECISIONES.md` §22–§25 y `MEMORY/CEMENTERIO.md` (sección Marea) antes de
+2. `marea/vault/RULINGS.md` — 84 reglas, append-only. No se reescriben; se agregan.
+3. `MEMORY/DECISIONES.md` §22–§26 y `MEMORY/CEMENTERIO.md` (sección Marea) antes de
    proponer una fuente o familia de mercados nueva: puede estar ya medida y descartada.
 
 | Invariante de Marea | Dónde | Qué impide |

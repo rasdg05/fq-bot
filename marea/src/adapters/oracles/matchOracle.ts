@@ -62,6 +62,11 @@ function diaAnterior(fecha: string): string {
   return new Date(Date.parse(`${fecha}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
 }
 
+function esPospuesto(evento: EspnEvento): boolean {
+  const nombre = evento.competitions[0]?.status.type.name ?? "";
+  return nombre === "STATUS_POSTPONED" || nombre === "STATUS_DELAYED" || nombre === "STATUS_SUSPENDED";
+}
+
 function mismoArranque(evento: EspnEvento, inicio: string): boolean {
   return Math.abs(Date.parse(evento.date) - Date.parse(inicio)) < 60_000;
 }
@@ -123,7 +128,18 @@ export function createMatchOracle(options: MatchOracleOptions = {}): Oracle {
       const elegir = (lista: EspnEvento[]) => {
         const candidatos = delEquipo(lista);
         if (!rule.inicio) return candidatos[0];
-        return candidatos.find((candidato) => mismoArranque(candidato, rule.inicio!));
+        const exacto = candidatos.find((candidato) => mismoArranque(candidato, rule.inicio!));
+        if (exacto) return exacto;
+        /**
+         * La hora se movió el mismo día: es el mismo partido. Phillies–Rays se
+         * jugó el 27-sep a otra hora y el oráculo decía «ESPN no lista partido»
+         * (revisor, producción 2026-10-01). Sólo si hay **uno** cerca: en una
+         * doble cartelera de la MLB dos partidos del mismo día no se adivinan.
+         */
+        const cerca = candidatos.filter(
+          (candidato) => Math.abs(Date.parse(candidato.date) - Date.parse(rule.inicio!)) <= 12 * 3_600_000,
+        );
+        return cerca.length === 1 ? cerca[0] : undefined;
       };
 
       let evento = elegir(await cargar(rule));
@@ -138,6 +154,34 @@ export function createMatchOracle(options: MatchOracleOptions = {}): Oracle {
           // contesta lo mismo que antes
         }
       }
+      /**
+       * Reprogramado a otro día: sólo si el mercado lo prometió en su criterio
+       * (`reprogramacionDias`, R-084). Se busca el mismo cruce —los dos
+       * equipos— en los días siguientes. Los mercados anteriores no lo
+       * prometieron: resolverlos con otro día sería cambiarles la pregunta.
+       */
+      const pospuesto = evento && esPospuesto(evento);
+      // sin cláusula en el criterio, la ventana es cero: no se busca otro día
+      const ventana = rule.reprogramacionDias ?? 0;
+      if ((!evento || pospuesto) && ventana > 0 && rule.rival) {
+        const elCruce = (lista: EspnEvento[]) =>
+          delEquipo(lista).find((e) => e.competitions[0]?.competitors.some((c) => esElEquipo(c, rule.rival!)));
+        for (let d = 1; d <= ventana; d++) {
+          const dia = new Date(Date.parse(`${rule.fecha}T00:00:00Z`) + d * 86_400_000).toISOString().slice(0, 10);
+          if (query.now < Date.parse(`${dia}T00:00:00Z`)) break;
+          let reprogramado: EspnEvento | undefined;
+          try {
+            reprogramado = elCruce(await cargar({ ...rule, fecha: dia }));
+          } catch {
+            continue;
+          }
+          if (reprogramado && !esPospuesto(reprogramado)) {
+            evento = reprogramado;
+            break;
+          }
+        }
+      }
+
       if (!evento) {
         return {
           status: "sin_dato",
@@ -146,6 +190,21 @@ export function createMatchOracle(options: MatchOracleOptions = {}): Oracle {
       }
 
       const competencia = evento.competitions[0];
+      const estadoEspn = competencia.status.type.name;
+      // cancelado: no habrá ganador. Se anula ya, no a los 30 días
+      if (estadoEspn === "STATUS_CANCELED" || estadoEspn === "STATUS_ABANDONED") {
+        return {
+          status: "sin_dato",
+          anular: true,
+          evidence: `ESPN declaró ${estadoEspn === "STATUS_CANCELED" ? "cancelado" : "abandonado"} ${evento.name} (${evento.date}).`,
+        };
+      }
+      if (esPospuesto(evento)) {
+        return {
+          status: "sin_dato",
+          evidence: `ESPN marca pospuesto ${evento.name}. Si no se juega, el plazo lo anula y devuelve todo.`,
+        };
+      }
       const terminado =
         competencia.status.type.completed === true ||
         competencia.status.type.name === "STATUS_FULL_TIME";

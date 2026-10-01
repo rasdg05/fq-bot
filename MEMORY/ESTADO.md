@@ -238,7 +238,7 @@ La app de `marea/`. **No es el bot** y no comparte motor, pero sí memoria y dis
 | Suite de Marea | **612 verdes** · **14 rojas preexistentes** (2026-10-01): todas del catálogo estático caducado (R-041), se arreglan con `npm run roll`, no con código. Mutaciones 105 · 102 detectadas · 3 equivalentes · 0 huecos. La regla: el número de rojas no crece |
 | Arquitectura en cadena | **diseño** — **Base decidida** (2026-09-01), nada desplegado. Los contratos no se escribieron: `forge` no es alcanzable en el entorno (P-006) |
 | Semilla | **mecanismo cableado, interruptor apagado.** `seedMode: "apuesta" \| "subsidio"` existe y está probado; **nadie nace en subsidio todavía** porque R-067 pide subsidio *con tope* y las cifras del tope las decide RasDG (P-002, P-004) |
-| Reglas | **R-065 a R-078 escritas** (R-069…R-072: cumplimiento; R-073 espejo; R-074/R-075 interfaz; R-076…R-078 mercados rápidos) ; R-079…R-083 director) — 83 en `RULINGS.md` |
+| Reglas | **R-065 a R-078 escritas** (R-069…R-072: cumplimiento; R-073 espejo; R-074/R-075 interfaz; R-076…R-078 mercados rápidos) ; R-079…R-083 director; R-084 partidos en la vida real) — 84 en `RULINGS.md` |
 | Verificación por niveles | escalera N0–N3 + compuerta **vivas en `domain/niveles.ts`** (2026-09-24): `effectiveCapUsd` (R-069/L16), `detectStructuring` (R-070), `kycTrigger` (R-072), `screenDestino` (R-071), 18 pruebas. Falta cablearlo a la app y la pantalla del verificador (2º dev); los topes/ventana esperan la opinión legal (P11/P15–P18) |
 
 **Tiempos (2026-09-01):** lanzamiento en puntos con la cámara nueva **6–8 semanas**;
@@ -291,6 +291,11 @@ bitácora encadenada, revisor con 13 chequeos que retiene pagos inconsistentes, 
 (apagado sin `ANTHROPIC_API_KEY`), siembra de partidos con momios publicados, multi-opción por
 opciones sólidas— y su panel público (`/api/director`, Perfil → Director de mercados).
 Filosofía en `MEMORY/FILOSOFIA.md`. Reglas: 83 en `RULINGS.md`.
+
+**2026-10-01, primera vuelta del revisor en producción (DECISIONES §26):** 63 hallazgos; 13
+partidos de Liga MX destrabados (frescura vs. hecho consumado), 17 pozos heredados regularizados
+(≈13 795 puntos, pozo → capital, con candados), «FC Juárez», «TBD vs TBD», partidos cancelados,
+con hora movida o reprogramados (R-084). Producción quedó en 0 críticos y 0 atorados.
 
 **Retomar en frío:** `MEMORY/marea/CONTEXTO_SESION_2026-09-24.md` guarda todo el contexto de la
 sesión de verificación y el runbook del giro. Detalle de Marea: `MEMORY/marea/README.md`.

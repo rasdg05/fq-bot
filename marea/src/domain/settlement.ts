@@ -118,7 +118,19 @@ export type OracleReading =
    * aceptando apuestas aquí sería dejar apostar sobre algo que ya ocurrió. El
    * mercado pasa a `cerrado` y espera su dato como cualquier otro.
    */
-  | { status: "sin_dato"; evidence: string; detenerApuestas?: boolean }
+  | {
+      status: "sin_dato";
+      evidence: string;
+      detenerApuestas?: boolean;
+      /**
+       * La fuente **declaró** que el evento no ocurrirá: un partido cancelado.
+       * No hay ganador que esperar, así que se anula ya y se devuelve todo,
+       * íntegro y sin comisión — en vez de esperar 30 días al plazo con el
+       * dinero de la gente quieto (Yankees–Orioles, cancelado el 27-sep: el
+       * revisor lo vio `sin_leer` en producción).
+       */
+      anular?: boolean;
+    }
   /** La fuente no se puede leer por programa: necesita a una persona. */
   | { status: "requiere_humano"; evidence: string };
 
@@ -291,6 +303,18 @@ export function onRead(
   if (state.retenidoPor) return state;
 
   if (reading.status === "sin_dato") {
+    if (reading.anular) {
+      // por el mismo camino que el plazo: atorado + incobrable, y el ciclo
+      // devuelve en esta misma vuelta. Dos caminos para mover dinero serían dos
+      // matemáticas de dinero
+      return {
+        ...state,
+        phase: "atorado",
+        incobrable: true,
+        evidence: reading.evidence,
+        stuckReason: `${reading.evidence} Se anula y se devuelve lo apostado, íntegro y sin comisión.`,
+      };
+    }
     if (reading.detenerApuestas && state.phase === "abierto") {
       return { ...state, phase: "cerrado", evidence: reading.evidence };
     }
