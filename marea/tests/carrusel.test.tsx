@@ -47,6 +47,43 @@ describe("Carrusel de destacados", () => {
     }
   });
 
+  it("es una selección: como mucho cinco, y debajo siempre hay secciones", async () => {
+    renderApp({ overrides: READY_NO_FUNDS });
+    await screen.findByTestId("home-screen");
+
+    const carrusel = await screen.findByTestId("carrusel-destacados");
+    expect(within(carrusel).getAllByTestId("carrusel-item").length).toBeLessThanOrEqual(5);
+    // el defecto que esto fija: con el catálogo lleno todo caía al carrusel y
+    // no quedaba ninguna sección debajo
+    expect(screen.getAllByTestId("seccion-mercados").length).toBeGreaterThan(0);
+  });
+
+  it("indica cuántos hay sin ser un control: decorativo y sin animación propia", async () => {
+    renderApp({ overrides: READY_NO_FUNDS });
+    await screen.findByTestId("home-screen");
+
+    const carrusel = await screen.findByTestId("carrusel-destacados");
+    const items = within(carrusel).getAllByTestId("carrusel-item");
+    expect(items.length).toBeGreaterThanOrEqual(2);
+    const puntos = screen.getByTestId("carrusel-puntos");
+    expect(puntos).toHaveAttribute("aria-hidden", "true");
+    expect(puntos.children.length).toBe(items.length);
+    expect(puntos.querySelectorAll("button")).toHaveLength(0);
+    expect([...puntos.children].filter((p) => p.getAttribute("data-activo") === "true")).toHaveLength(1);
+  });
+
+  it("cada marco abraza su tarjeta: ni filo colgando ni relleno vacío", async () => {
+    renderApp({ overrides: READY_NO_FUNDS });
+    await screen.findByTestId("home-screen");
+
+    const carrusel = await screen.findByTestId("carrusel-destacados");
+    // la fila alinea arriba: un marco no se estira al alto de la tarjeta vecina
+    expect(carrusel.className).toMatch(/\bitems-start\b/);
+    for (const item of within(carrusel).getAllByTestId("carrusel-item")) {
+      expect(item.className).not.toMatch(/\bh-full\b|flex-1/);
+    }
+  });
+
   it("los mercados que no están calientes siguen en la lista de abajo", async () => {
     renderApp({ overrides: READY_NO_FUNDS });
     await screen.findByTestId("home-screen");

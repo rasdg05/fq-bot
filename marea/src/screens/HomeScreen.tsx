@@ -2,17 +2,16 @@ import * as React from "react";
 import type { Market } from "@/domain/types";
 import { MarketCard } from "@/components/MarketCard";
 import { CarruselDestacados } from "@/components/CarruselDestacados";
+import { EventosTop, type Hub } from "@/components/EventosTop";
 import { Chip, ChipRow } from "@/components/ui/chip";
 import { EmptyState, ErrorState, ListSkeleton } from "@/components/StateViews";
 import { S } from "@/lib/strings";
 import { useApp } from "@/state/store";
-import { hasEdge } from "@/domain/edge";
+import { elegirDestacados } from "@/domain/destacados";
+import { totalPool } from "@/domain/parimutuel";
+import { formatStake } from "@/lib/units";
 import { CATEGORIAS_VISIBLES, COLOR_CATEGORIA, ICONO_CATEGORIA } from "@/lib/categoria";
 import { FRESCURA_SALDO_MS } from "@/domain/saldo";
-
-function isHot(market: Market): boolean {
-  return Boolean(market.hot) || market.status === "live" || hasEdge(market);
-}
 
 /**
  * Home. Un solo trabajo: descubrir. `Hot ahora` primero, chips de categoría
@@ -36,8 +35,26 @@ export function HomeScreen() {
     () => (category === "all" ? all : all.filter((m) => m.category === category)),
     [all, category],
   );
-  const hot = React.useMemo(() => filtered.filter(isHot), [filtered]);
-  const rest = React.useMemo(() => filtered.filter((m) => !isHot(m)), [filtered]);
+  /**
+   * El carrusel es una **selección** (≤5, variada, lo más vivo primero), no
+   * «todo lo caliente»: caliente era pozo ≥ umbral y la semilla ya lo cumple,
+   * así que con el catálogo lleno todo caía arriba y las secciones quedaban
+   * vacías. Lo que no se destaca va siempre a su sección; nada sale dos veces.
+   */
+  const destacados = React.useMemo(
+    () => elegirDestacados(filtered, { ahora: Date.now(), maxRespuestas: 2 }),
+    [filtered],
+  );
+  const rest = React.useMemo(() => {
+    const arriba = new Set(destacados.map((m) => m.id));
+    return filtered.filter((m) => !arriba.has(m.id));
+  }, [filtered, destacados]);
+  const grupos = React.useMemo(() => agrupar(rest), [rest]);
+  /** Los hubs miran el catálogo entero de la pestaña, destacados incluidos. */
+  const hubs = React.useMemo(
+    () => (category === "all" ? hubsTop(agrupar(filtered)) : []),
+    [filtered, category],
+  );
 
   /**
    * El pulso de las velas sólo corre si hay velas en pantalla, y se apaga al
@@ -123,7 +140,7 @@ export function HomeScreen() {
         </div>
       ) : (
         <>
-          {hot.length > 0 ? (
+          {destacados.length > 0 ? (
             <section aria-labelledby="hot-heading" className="pt-2">
               {/* el encabezado se queda para el lector de pantalla y se va de
                   la pantalla: el badge HOT de cada card ya dice lo mismo, y
@@ -134,7 +151,7 @@ export function HomeScreen() {
               {/* en horizontal: los mismos mercados calientes, sin empujar el
                   resto del catálogo fuera de la primera pantalla */}
               <CarruselDestacados
-                markets={hot}
+                markets={destacados}
                 vivos={state.vivos}
                 onOpen={actions.openMarket}
                 etiqueta={S.feed.hotNow}
@@ -151,19 +168,26 @@ export function HomeScreen() {
                   leer cada título para saber de qué va. Agrupados por liga o
                   categoría, el ojo salta a lo suyo */}
               <div className="space-y-6">
-                {agrupar(rest).map((grupo) => (
-                  <SeccionMercados
-                    key={grupo.clave}
-                    grupo={grupo}
-                    renderCard={(market) => (
-                      <MarketCard
-                        key={market.id}
-                        market={market}
-                        pulso={state.vivos[market.id]}
-                        onOpen={actions.openMarket}
-                      />
-                    )}
-                  />
+                {grupos.map((grupo, indice) => (
+                  <React.Fragment key={grupo.clave}>
+                    <SeccionMercados
+                      grupo={grupo}
+                      renderCard={(market) => (
+                        <MarketCard
+                          key={market.id}
+                          market={market}
+                          pulso={state.vivos[market.id]}
+                          onOpen={actions.openMarket}
+                        />
+                      )}
+                    />
+                    {/* los hubs van después de la primera sección y no antes:
+                        la primera pantalla es para mercados en los que se puede
+                        entrar ya (puerta de densidad: 5 tarjetas a 390 px). Con
+                        los hubs arriba entraban 4; abajo, aparecen al primer
+                        deslizar, que es cuando alguien busca «qué más hay» */}
+                    {indice === 0 ? <EventosTop hubs={hubs} /> : null}
+                  </React.Fragment>
                 ))}
               </div>
             </section>
@@ -211,6 +235,51 @@ function agrupar(markets: Market[]): Grupo[] {
   );
 }
 
+/**
+ * Los hubs: las secciones con más en juego, como accesos directos. Sólo las
+ * que tienen al menos dos mercados — un hub de uno es un mercado con otro
+ * marco — y como mucho seis, que es lo que cabe en dos deslizadas.
+ */
+function hubsTop(grupos: Grupo[]): Hub[] {
+  const candidatos = grupos
+    .filter((grupo) => grupo.markets.length >= 2)
+    .map((grupo) => ({
+      grupo,
+      total: grupo.markets.reduce((suma, m) => suma + (m.pool ? totalPool(m.pool) : 0), 0),
+    }))
+    .sort((a, b) => b.total - a.total || b.grupo.markets.length - a.grupo.markets.length);
+
+  /**
+   * Variedad: se reparten por categoría en rondas — la sección más grande de
+   * cada categoría primero, luego la segunda de cada una. Sin esto, con veinte
+   * ligas los seis hubs eran seis ligas de futbol y el resto del catálogo no
+   * tenía puerta de entrada.
+   */
+  const porCategoria = new Map<string, typeof candidatos>();
+  for (const c of candidatos) {
+    const lista = porCategoria.get(c.grupo.categoria) ?? [];
+    lista.push(c);
+    porCategoria.set(c.grupo.categoria, lista);
+  }
+  const elegidos: typeof candidatos = [];
+  for (let ronda = 0; elegidos.length < 6; ronda += 1) {
+    const deEstaRonda = [...porCategoria.values()]
+      .map((lista) => lista[ronda])
+      .filter(Boolean)
+      .sort((a, b) => b.total - a.total);
+    if (deEstaRonda.length === 0) break;
+    elegidos.push(...deEstaRonda.slice(0, 6 - elegidos.length));
+  }
+
+  return elegidos.map(({ grupo, total }) => ({
+    clave: grupo.clave,
+    titulo: grupo.titulo,
+    categoria: grupo.categoria,
+    mercados: grupo.markets.length,
+    enJuego: formatStake(total),
+  }));
+}
+
 /** Cuántas cards se ven de entrada por sección. El resto, a un toque. */
 const VISIBLES_POR_SECCION = 4;
 
@@ -228,7 +297,7 @@ function SeccionMercados({
   const visibles = abierta ? grupo.markets : grupo.markets.slice(0, VISIBLES_POR_SECCION);
 
   return (
-    <div data-testid="seccion-mercados" data-seccion={grupo.clave}>
+    <div data-testid="seccion-mercados" data-seccion={grupo.clave} className="scroll-mt-4">
       <div className="flex items-center gap-2.5 px-4 pb-2.5">
         <span
           aria-hidden
@@ -237,7 +306,11 @@ function SeccionMercados({
         >
           <Icono className="h-4 w-4" style={{ color }} strokeWidth={2.4} />
         </span>
-        <h3 className="font-display text-[19px] font-semibold tracking-[-0.01em] text-text">
+        {/* enfocable por programa: un hub de «Eventos top» trae el foco aquí */}
+        <h3
+          tabIndex={-1}
+          className="font-display text-[19px] font-semibold tracking-[-0.01em] text-text outline-none"
+        >
           {grupo.titulo}
         </h3>
         <span className="ml-auto text-[12px] font-medium text-muted">

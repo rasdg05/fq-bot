@@ -30,6 +30,16 @@ export const S = {
     allCategories: "Todos",
     sectionAll: "Todos los mercados",
     cuantos: (n: number) => (n === 1 ? "1 mercado" : `${n} mercados`),
+    /** La fila de hubs, al estilo de los «Top events» de los mercados grandes. */
+    eventosTop: "Eventos top",
+    /** Subtítulo de un hub: cuántos mercados y cuánto hay en juego. */
+    hubDetalle: (mercados: number, enJuego: string) =>
+      `${mercados === 1 ? "1 mercado" : `${mercados} mercados`} · ${enJuego} en juego`,
+    /** Etiqueta accesible de un hub: dice adónde lleva. */
+    hubIr: (titulo: string) => `Ir a ${titulo}`,
+    /** La línea corta del hub: `11,900 pts · 16 mercados`. Cabe entera en 15rem. */
+    hubCifras: (enJuego: string, mercados: number) =>
+      `${enJuego} · ${mercados === 1 ? "1 mercado" : `${mercados} mercados`}`,
     verMas: (n: number) => `Ver ${n} más`,
     verMenos: "Ver menos",
     empty: "No hay mercados calientes en este momento. Vuelve en un rato.",
