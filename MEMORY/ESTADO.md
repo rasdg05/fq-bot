@@ -214,9 +214,8 @@ con outcome. El plan **cerebro** (`research/cerebro_arquitectura.md`, commit `f0
 
 La app de `marea/`. **No es el bot** y no comparte motor, pero sí memoria y disciplina.
 
-> ⚠ **Producción corre `claude/marea-redesign-v6-b0240n`, no `main`.** Esa rama
-> tiene el rediseño v6 y la cripto en vivo, y nunca se fusionó. Reconciliar `main`
-> está pendiente y no es trivial. Página de arranque: `marea/vault/RETOMAR.md`.
+> Desde el giro (2026-09-24) **producción de Marea despliega `main`**; el bot vive en
+> `bot-senales`. Página de arranque: `marea/vault/RETOMAR.md`.
 
 | Cosa | Estado |
 |---|---|
@@ -238,7 +237,7 @@ La app de `marea/`. **No es el bot** y no comparte motor, pero sí memoria y dis
 | Suite de Marea | **360 verdes** · **6 rojas preexistentes** (+2 fallos de `validate`): el catálogo tiene fechas de julio/agosto y ya caducó (R-041). Se arreglan con `npm run roll`, no con código. **Ojo:** la cifra que circulaba era «4 rojas»; medidas son 6 (`marea/vault/LINEA_BASE.md`) |
 | Arquitectura en cadena | **diseño** — **Base decidida** (2026-09-01), nada desplegado. Los contratos no se escribieron: `forge` no es alcanzable en el entorno (P-006) |
 | Semilla | **mecanismo cableado, interruptor apagado.** `seedMode: "apuesta" \| "subsidio"` existe y está probado; **nadie nace en subsidio todavía** porque R-067 pide subsidio *con tope* y las cifras del tope las decide RasDG (P-002, P-004) |
-| Reglas | **R-065 a R-072 escritas** (R-069…R-072: verificación/cumplimiento) — 72 en `RULINGS.md` |
+| Reglas | **R-065 a R-075 escritas** (R-069…R-072: cumplimiento; R-073 espejo; R-074/R-075 interfaz) — 75 en `RULINGS.md` |
 | Verificación por niveles | escalera N0–N3 + compuerta **vivas en `domain/niveles.ts`** (2026-09-24): `effectiveCapUsd` (R-069/L16), `detectStructuring` (R-070), `kycTrigger` (R-072), `screenDestino` (R-071), 18 pruebas. Falta cablearlo a la app y la pantalla del verificador (2º dev); los topes/ventana esperan la opinión legal (P11/P15–P18) |
 
 **Tiempos (2026-09-01):** lanzamiento en puntos con la cámara nueva **6–8 semanas**;
@@ -270,6 +269,14 @@ bot a su propia rama **`bot-senales`** (ejecutado el 2026-09-24: el servicio del
 `bot-senales`, el de Marea rastrea `main`, al que se fusionó la rama que producción desplegaba hasta entonces, `claude/marea-redesign-v6-b0240n`; runbook en `MEMORY/marea/CONTEXTO_SESION_2026-09-24.md`). Y **regla nueva: redeploy a producción libre para
 Marea** mientras no haya soft launch ni >10 usuarios activos (no toca el bot ni su gate). Suite y
 typecheck se corren igual.
+
+**2026-10-01 (DECISIONES §23):** tipografía Inter 4 con una sola escala de probabilidad
+(R-074); carrusel de destacados acotado + «Eventos top» (arregla el bug de «todo hot», R-075);
+**mercados espejo** de política/intermedias EE.UU./México/geopolítica resueltos con la
+liquidación pública de Kalshi (R-073, 9 curados); **tenis ATP** con oráculo ESPN; cupos propios
+en la reposición. Suite: 0 rojas nuevas sobre la línea base (14 rojas preexistentes = catálogo
+estático caducado, se arreglan con `npm run roll`). Rama
+`claude/marea-kyc-verification-tiers-cb7cx6`.
 
 **Retomar en frío:** `MEMORY/marea/CONTEXTO_SESION_2026-09-24.md` guarda todo el contexto de la
 sesión de verificación y el runbook del giro. Detalle de Marea: `MEMORY/marea/README.md`.

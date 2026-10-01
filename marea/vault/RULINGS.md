@@ -222,3 +222,15 @@ Se agrega una línea cuando un hallazgo de audit es recurrente o de producto.
   tres condiciones **cerradas**: cruzar el tope de operación acumulada mensual, un patrón de
   anti-structuring (R-070), o subir de nivel voluntariamente. Fuera de esas, la app no pide papeles
   (R-002). La lista es cerrada por diseño: no crece salvo que se agregue una condición aquí. (cumplimiento)
+- **R-073** — Un mercado **espejo** se paga sólo cuando su fuente lo liquidó en firme
+  (`finalized` en Kalshi), nunca con un resultado provisional (`determined`). Y deja de aceptar
+  apuestas en cuanto la fuente deja de operar o el resultado ya circula, aunque falte su hora de
+  cierre (`detenerApuestas`, extensión de R-023). Un dato vacío, `void` o ajeno a la pregunta no
+  se adivina: el plazo anula y devuelve. Fijado en `tests/espejo.test.ts`. (oráculos)
+- **R-074** — **Una sola escala de probabilidad por tarjeta.** Las cifras de las respuestas de
+  una misma tarjeta tienen el mismo tamaño; el líder se distingue por peso y color, no por tamaño.
+  Los multiplicadores se muestran siempre con dos decimales (`1.80×`), para que las columnas
+  alineen. Fijado en `tests/fase1.test.tsx` V3 y `tests/cryptolive.test.tsx`. (interfaz)
+- **R-075** — El carrusel de destacados es una **selección acotada** (≤5, ≤2 por categoría, una
+  vela en vivo por activo), no una bandera por mercado: lo que entra al carrusel sale del feed, y
+  el feed nunca queda vacío por ello. Fijado en `tests/destacados.test.ts`. (interfaz)

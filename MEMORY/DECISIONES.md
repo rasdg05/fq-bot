@@ -706,6 +706,48 @@ Este paso es del runbook y lo confirma RasDG en la sesión en frío.
 
 ---
 
+## 23. Marea: tipografía, «Eventos top», política/geopolítica y tenis (2026-10-01)
+
+Pedido de RasDG con capturas de Kalshi/Polymarket: letra más profesional, cifras que no
+salten de tamaño, controles mejores, mercados políticos (intermedias EE.UU., México,
+geopolítica), tenis ATP y un carrusel de eventos top. Rama
+`claude/marea-kyc-verification-tiers-cb7cx6`, 5 commits (a3dae0b…c8d85d5).
+
+**A — Tipografía (revoca «la serif en el número», `vault/DECISIONES_VISUALES.md`).** Una sola
+familia: Inter 4 variable (opsz+wght), subconjunto propio de 72 KB con `tnum/case/cv11/ss01`.
+Una sola escala de probabilidad por tarjeta (R-074): el líder se marca con peso, no con
+tamaño. Medido: etiquetas truncadas 19/27/52 vs 19/28/108 antes; cifras truncadas 0.
+
+**B — Bug de producción encontrado y cerrado.** Todos los mercados salían «hot» → el catálogo
+entero en el carrusel y las secciones vacías. Ahora `domain/destacados.ts` elige ≤5 por
+puntaje (R-075). `scripts/densidad.mjs` pasó de 4 fallos a PASS.
+
+**C — Mercados espejo (R-073).** Política y geopolítica no tienen API pública oficial que
+resuelva sola; Kalshi (bolsa regulada CFTC) publica su liquidación sin llave. Oráculo
+`adapters/oracles/mirrorOracle.ts`: un pedido por evento (por límite de tasa medido), paga sólo
+`finalized`, detiene apuestas con `determined`/todo cerrado. 9 curados en
+`adapters/ownMarkets/espejos.ts` (Cámara, Senado, Congreso, Banxico 5-nov, diputados 2027,
+Irán, Venezuela, Zelenski-Putin, primer ministro israelí). El pozo nace con la probabilidad de
+Kalshi, piso 3 %; sin precio no se crea. Verificado contra el evento real de Banxico de
+septiembre (liquidado «mantiene», 2026-09-24 19:35 UTC).
+
+**D — Tenis ATP.** `adapters/oracles/tennisOracle.ts` contra el marcador de ESPN (mismo proveedor
+que el futbol). En juego → `detenerApuestas`; sin ganador único → no paga. Verificado con 3
+partidos reales terminados.
+
+**E — Reposición con cupos.** El mínimo de 60 abiertos impedía que entrara una categoría nueva
+con el feed sano. Ahora curados y tenis (≤8) se evalúan siempre; el mínimo sólo gobierna el
+relleno de cripto/partidos. Arranque en limpio: 70 mercados en el primer ciclo.
+
+**F — Observabilidad.** Una semana de ESPN caída daba «0 creados» en silencio; ahora lanza si
+fallan todas las ligas y avisa si fallan algunas.
+
+**Pendiente de RasDG.** `BANXICO_TOKEN`/`INEGI_TOKEN` no están en producción (3 mercados del
+catálogo no pueden resolverse); la tarjeta 1X2 (3 respuestas) contradice CARD_SPEC; el Edge de
+referencia no está cableado para espejos.
+
+---
+
 ## Disciplinas inegociables
 
 1. **Sin data especulativa**: OFI se paga solo si el CVD gratis lo justifica.
