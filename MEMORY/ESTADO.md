@@ -235,7 +235,7 @@ La app de `marea/`. **No es el bot** y no comparte motor, pero sí memoria y dis
 | Presupuesto de subsidio | **L9 viva**: `domain/presupuesto.ts` + guardia en `roll.mts`, **antes** de escribir el catálogo. Topes en cero autorizado: no estorban hoy y frenan el día que se encienda el subsidio sin presupuesto |
 | Frescura del oráculo | **L8 viva** — era la deuda heredada. Una lectura vieja no avanza de fase, se reintenta y lo declara. Los tres oráculos reportan de cuándo es el **dato**, no de cuándo se pidió |
 | Árbol de época | **L15 viva en dominio**: `domain/merkle.ts` + `domain/epoca.ts`, con separación de dominio, hoja impar promovida, conteo y secuencia por usuario. Falta publicar las hojas (no es código) |
-| Suite de Marea | **678 verdes** · **14 rojas preexistentes** (2026-10-01): todas del catálogo estático caducado (R-041), se arreglan con `npm run roll`, no con código. Mutaciones 105 · 102 detectadas · 3 equivalentes · 0 huecos. La regla: el número de rojas no crece |
+| Suite de Marea | **690 verdes** · **14 rojas preexistentes** (2026-10-01): todas del catálogo estático caducado (R-041), se arreglan con `npm run roll`, no con código. Mutaciones 105 · 102 detectadas · 3 equivalentes · 0 huecos. La regla: el número de rojas no crece |
 | Arquitectura en cadena | **diseño** — **Base decidida** (2026-09-01), nada desplegado. Los contratos no se escribieron: `forge` no es alcanzable en el entorno (P-006) |
 | Semilla | **mecanismo cableado, interruptor apagado.** `seedMode: "apuesta" \| "subsidio"` existe y está probado; **nadie nace en subsidio todavía** porque R-067 pide subsidio *con tope* y las cifras del tope las decide RasDG (P-002, P-004) |
 | Reglas | **R-065 a R-078 escritas** (R-069…R-072: cumplimiento; R-073 espejo; R-074/R-075 interfaz; R-076…R-078 mercados rápidos) ; R-079…R-083 director; R-084 partidos en la vida real; R-085 director en tiempo real) — 85 en `RULINGS.md` |
@@ -305,7 +305,9 @@ salida por llamada: ≈0.10 USD la vuelta completa con `claude-opus-5-5`.
 **Director en tiempo real (DECISIONES §27, R-085):** cada 60 s audita y actúa en la misma vuelta
 —cierra lo vencido, relee la fuente de lo atorado, anula con devolución íntegra lo que
 demostrablemente no se resolverá— y anota cada transición como `actuar`. El panel pasó a
-interno: `MAREA_ADMINS` (sin la variable, sólo la cuenta más antigua).
+interno: `MAREA_ADMINS` (sin la variable, sólo la cuenta más antigua). El panel trae su
+**backtest** (Brier pareado de sus priors contra parejo y contra la gente, IC95%, «no concluye»
+con n < 30), las últimas vueltas en vivo y la traza de cualquier mercado.
 
 **Retomar en frío:** `MEMORY/marea/CONTEXTO_SESION_2026-09-24.md` guarda todo el contexto de la
 sesión de verificación y el runbook del giro. Detalle de Marea: `MEMORY/marea/README.md`.

@@ -1,4 +1,7 @@
 import type { OwnMarketSeed } from "../src/adapters/ownMarkets/catalog";
+import { esVelaViva } from "../src/adapters/ownMarkets/cryptoLive";
+import { backtest, type Calificacion, type Muestra } from "../src/domain/calibracion";
+import { probabilities } from "../src/domain/parimutuel";
 import { verificarCadena, type EntradaBitacora, type TipoDecision, type Verificacion } from "../src/domain/bitacora";
 import type { Hallazgo, Severidad } from "../src/domain/revisor";
 import type { ResumenAgente } from "./agente.mts";
@@ -43,6 +46,10 @@ export interface ReporteDirector {
   juez: EstadoJuez;
   /** El bucle en tiempo real (R-085): su última vuelta y cada cuánto corre. */
   enVivo: { cadaSegundos: number; ultima: ResumenAgente | null; acciones24h: number } | null;
+  /** ¿Sirven sus priors? Calificados contra lo que de verdad pasó. */
+  backtest: { total: Calificacion; porFamilia: Record<string, Calificacion> };
+  /** Las últimas vueltas que hicieron algo o fallaron, la más reciente primero. */
+  depuracion: { vueltas: ResumenAgente[] };
 }
 
 const H = 3_600_000;
@@ -60,7 +67,7 @@ export function reporteDirector(input: {
   juez: EstadoJuez;
   ahora: number;
   ultimas?: number;
-  enVivo?: { cadaMs: number; ultima: ResumenAgente | null };
+  enVivo?: { cadaMs: number; ultima: ResumenAgente | null; historial?: readonly ResumenAgente[] };
 }): ReporteDirector {
   const { store, seeds, ahora } = input;
   const porId = new Map(seeds.map((s) => [s.id, s]));
@@ -133,6 +140,73 @@ export function reporteDirector(input: {
           acciones24h: porTipo24h.actuar ?? 0,
         }
       : null,
+    backtest: backtest(muestrasDe(store, seeds)),
+    depuracion: { vueltas: [...(input.enVivo?.historial ?? [])].slice(0, 30) },
+  };
+}
+
+/**
+ * Lo calificable: cada mercado del catálogo que ya pagó, con el prior con que
+ * nació (`seed.pool`, que no cambia) y el precio del pozo al cierre (la semilla
+ * más todo lo apostado). Las velas no entran: su semilla es pareja por
+ * construcción y no dice nada del director.
+ */
+export function muestrasDe(store: Store, seeds: readonly OwnMarketSeed[]): Muestra[] {
+  const muestras: Muestra[] = [];
+  const vistos = new Set<string>();
+  for (const seed of seeds) {
+    if (vistos.has(seed.id) || esVelaViva(seed)) continue;
+    vistos.add(seed.id);
+    const estado = store.liquidacion(seed.id);
+    if (estado?.phase !== "pagado" || !estado.outcome) continue;
+    const ids = seed.outcomes?.map((o) => o.id) ?? ["si", "no"];
+    if (!ids.includes(estado.outcome)) continue;
+    const director = probabilities({ ...seed.pool, outcomes: Object.fromEntries(ids.map((id) => [id, seed.pool.outcomes[id] ?? 0])) });
+    const apuestas = store.apuestasDeMercado(seed.id);
+    const alCierre = Object.fromEntries(ids.map((id) => [id, seed.pool.outcomes[id] ?? 0]));
+    for (const a of apuestas) if (a.side in alCierre) alCierre[a.side] += a.stake;
+    muestras.push({
+      id: seed.id,
+      familia: FAMILIA[seed.rule?.kind ?? "sin_regla"] ?? seed.rule?.kind ?? "Otros",
+      apuestas: apuestas.length,
+      director,
+      gente: probabilities({ ...seed.pool, outcomes: alCierre }),
+      ganador: estado.outcome,
+    });
+  }
+  return muestras;
+}
+
+/**
+ * La traza de un mercado, para depurar: todo lo que se sabe de él en un solo
+ * lugar —qué prometía, en qué fase está, qué dijo la fuente la última vez, qué
+ * hallazgos tiene abiertos y cada decisión que se tomó sobre él—.
+ */
+export function trazaDe(store: Store, seeds: readonly OwnMarketSeed[], id: string) {
+  const seed = seeds.find((s) => s.id === id);
+  const decisiones = store.bitacora().filter((e) => e.sujeto === id);
+  if (!seed && decisiones.length === 0) return null;
+  const apuestas = store.apuestasDeMercado(id);
+  return {
+    id,
+    mercado: seed
+      ? {
+          titulo: seed.shortTitle,
+          familia: FAMILIA[seed.rule?.kind ?? "sin_regla"] ?? seed.rule?.kind,
+          cierra: seed.closesAt,
+          resuelve: seed.resolution.settlesAt,
+          fuente: seed.resolution.sourceName,
+          fuenteUrl: seed.resolution.sourceUrl,
+          criterio: seed.resolution.criterion,
+          opciones: seed.outcomes?.map((o) => o.id) ?? ["si", "no"],
+          prior: probabilities(seed.pool),
+        }
+      : null,
+    estado: store.liquidacion(id) ?? null,
+    pozo: store.pozo(id)?.outcomes ?? null,
+    apuestas: { n: apuestas.length, sinPagar: apuestas.filter((a) => a.pagado === undefined).length },
+    hallazgos: store.hallazgos().filter((h) => h.sujeto === id),
+    decisiones,
   };
 }
 

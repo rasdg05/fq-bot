@@ -47,8 +47,15 @@ medio.
 
 5. **Un agente que no se mide es una superstición.** El director lleva sus números:
    cuánto resuelve, cuánto tarda, cuánto se atora, qué fuentes fallan, cuánto actuó solo,
-   cuántas veces lo corrigieron. Se le juzga con la misma vara que al bot: por lo medido.
-   → panel interno `/api/director`.
+   cuántas veces lo corrigieron, y su **backtest**: si los priors con que siembra aciertan
+   más que un volado y que la gente, con n e IC95% y «no concluye» con n < 30. Se le juzga
+   con la misma vara que al bot: por lo medido. → panel interno `/api/director`,
+   `domain/calibracion.ts`.
+
+   **Un agente que no se deja depurar no se puede corregir.** Cada vuelta en vivo que hizo
+   algo o falló queda con su duración, y cualquier mercado se abre en su traza: qué
+   prometía, en qué fase está, qué dijo la fuente y cada decisión sobre él.
+   → `/api/director/traza`.
 
    **Auditar sin poder actuar es un reporte, no un agente.** Lo que el revisor ve, el
    director lo arregla en la misma vuelta si cabe en el manual (R-085); lo que no cabe, lo

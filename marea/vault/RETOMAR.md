@@ -101,7 +101,9 @@ Claude) se enciende con `ANTHROPIC_API_KEY`. Y cada 60 s el **director en vivo**
 fuente y anula con devolución íntegra lo irresoluble, anotado como `actuar`. Todo se ve en
 `/api/director` y en Perfil → Director de mercados, **sólo** para `MAREA_ADMINS` (sin la
 variable, la cuenta más antigua). Lo primero al retomar: el panel con sesión de admin — si
-`decisiones.cadena.ok` es `false`, alguien tocó la bitácora.
+`decisiones.cadena.ok` es `false`, alguien tocó la bitácora; el **backtest** dice si sus priors
+sirven (con n < 30 no concluye), «Vueltas en vivo» qué hizo y qué falló, y tocar un mercado abre
+su traza.
 
 **Para sumar una familia:** medir primero la fuente (¿responde desde un servidor?, ¿con
 qué latencia publica?, ¿hay libro o dato de verdad?), escribir la regla en

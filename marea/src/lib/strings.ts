@@ -332,6 +332,31 @@ export const S = {
     severidad: { critico: "Crítico", grave: "Grave", aviso: "Aviso", info: "Info" } as Record<string, string>,
     error: "No pudimos leer el reporte del director.",
     interno: "Este panel es interno.",
+    backtest: "Backtest de sus priors",
+    backtestNota:
+      "Cada mercado pagado califica tres pronósticos sobre lo que de verdad pasó: parejo, el prior con que el director lo sembró y el precio de la gente al cierre. Brier: 0 es perfecto; menos es mejor.",
+    muestra: (n: number, conPrior: number, conApuestas: number) => `n ${n} · ${conPrior} con prior · ${conApuestas} con apuestas`,
+    parejo: "parejo",
+    elDirector: "director",
+    laGente: "gente",
+    noConcluye: (n: number) => `n = ${n}: no concluye (hacen falta 30)`,
+    veredicto: {
+      mejor: (a: string, b: string) => `${a} acierta más que ${b}`,
+      peor: (a: string, b: string) => `${a} acierta menos que ${b}`,
+      indistinguible: (a: string, b: string) => `${a} y ${b}: sin diferencia medible`,
+    } as Record<string, (a: string, b: string) => string>,
+    vueltas: "Vueltas en vivo",
+    vueltasVacio: "Ninguna vuelta reciente tuvo algo que hacer.",
+    vuelta: (intentos: number, acciones: number, errores: number) =>
+      `${intentos} ${intentos === 1 ? "intento" : "intentos"} · ${acciones} ${acciones === 1 ? "acción" : "acciones"}` +
+      (errores > 0 ? ` · ${errores} ${errores === 1 ? "error" : "errores"}` : ""),
+    trazaError: "No hay traza de este mercado.",
+    fase: "Fase",
+    evidencia: "Evidencia",
+    fuente: "Fuente",
+    prior: "nació en",
+    retenidoPor: (quien: string) => `retenido por ${quien}`,
+    apuestas: (n: number, sinPagar: number) => `${n} ${n === 1 ? "apuesta" : "apuestas"}${sinPagar > 0 ? ` (${sinPagar} sin pagar)` : ""}`,
   },
 
   /** Sin conexión: lo que hay se sigue viendo, y se dice que está viejo. */

@@ -881,6 +881,25 @@ Fijado en `tests/director-en-vivo.test.tsx` (15 pruebas) y 12 mutaciones nuevas,
 detectadas; la primera pasada dejó viva «lo anulado se vuelve a leer» (la prueba usaba una
 fuente caída, que no distingue) y se añadió el caso de la lectura tardía con resultado.
 
+**Y se mide y se deja depurar** (RasDG: *«igual podría reportar backtests o debugs»*). El panel
+suma tres cosas:
+
+- **Backtest de sus priors** (`domain/calibracion.ts`). Cada mercado pagado califica, sobre los
+  mismos mercados, tres pronósticos: parejo (1/K), el prior con que el director sembró
+  (`seed.pool`, R-083) y el precio de la gente al cierre (semilla + apuestas). Brier multiclase,
+  comparación **pareada** con IC95%, por familia y total, más calibración por tramos. Con
+  n < 30 dice «no concluye»; si el IC cruza cero dice «sin diferencia medible», aunque la media
+  favorezca al director. Cuenta aparte cuántos nacieron con prior distinto de parejo: un
+  catálogo sembrado parejo no tiene nada que medir y el reporte no lo disfraza.
+- **Vueltas en vivo**: las últimas 60 que intentaron algo o fallaron, con duración, acciones y
+  errores. Las vacías no se guardan: mil vueltas sin nada esconden la que importa.
+- **Traza por mercado** (`/api/director/traza?id=`, interno): criterio, fuente, prior, fase,
+  evidencia, apuestas, hallazgos y cada decisión de la bitácora sobre él. En el panel se abre
+  tocando un hallazgo o una decisión.
+
+Fijado en `tests/director-backtest.test.tsx` (12 pruebas) y 8 mutaciones; la primera pasada dejó
+viva «"mejor" con el IC cruzando cero» —ninguna prueba tenía un prior ruidoso— y se añadió.
+
 ---
 
 ## Disciplinas inegociables

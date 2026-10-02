@@ -39,6 +39,8 @@ export interface AccionDirector {
 
 export interface ResumenAgente {
   at: string;
+  /** Cuánto tardó la vuelta: una fuente lenta se ve aquí antes que en ningún lado. */
+  duracionMs: number;
   intentados: number;
   acciones: AccionDirector[];
   errores: string[];
@@ -61,6 +63,9 @@ export class Turno {
 export class DirectorEnVivo {
   private readonly ultimoIntento = new Map<string, number>();
   ultima: ResumenAgente | null = null;
+  /** Las últimas vueltas, para depurar: qué intentó, qué hizo, qué falló y cuánto tardó. */
+  readonly historial: ResumenAgente[] = [];
+  static readonly HISTORIAL = 60;
 
   constructor(
     private readonly store: Store,
@@ -77,16 +82,34 @@ export class DirectorEnVivo {
     extra?: Pick<Foto, "juicios" | "huerfanas">;
     ahora: number;
   }): Promise<ResumenAgente> {
+    const inicio = performance.now();
+    const resumen = await this.vueltaSinMedir(input);
+    resumen.duracionMs = Math.round(performance.now() - inicio);
+    this.ultima = resumen;
+    // sólo se guardan las vueltas que hicieron algo: mil vueltas vacías esconden la que importa
+    if (resumen.intentados > 0 || resumen.errores.length > 0) {
+      this.historial.unshift(resumen);
+      this.historial.length = Math.min(this.historial.length, DirectorEnVivo.HISTORIAL);
+    }
+    return resumen;
+  }
+
+  private async vueltaSinMedir(input: {
+    catalogo: readonly OwnMarketSeed[];
+    auditados?: readonly OwnMarketSeed[];
+    extra?: Pick<Foto, "juicios" | "huerfanas">;
+    ahora: number;
+  }): Promise<ResumenAgente> {
     const { store } = this;
     const { catalogo, ahora } = input;
     const auditados = input.auditados ?? catalogo;
     const extra = input.extra ?? { huerfanas: store.apuestasHuerfanas(auditados.map((s) => s.id)) };
-    const resumen: ResumenAgente = { at: new Date(ahora).toISOString(), intentados: 0, acciones: [], errores: [] };
+    const resumen: ResumenAgente = { at: new Date(ahora).toISOString(), duracionMs: 0, intentados: 0, acciones: [], errores: [] };
 
     const revision = correrRevisor(store, fotoDe(store, auditados, ahora, extra));
     const porId = new Map(catalogo.filter((s) => !esVelaViva(s)).map((s) => [s.id, s]));
     const ids = porActuar(revision.abiertos, this.ultimoIntento, ahora).filter((id) => porId.has(id));
-    if (ids.length === 0) return (this.ultima = resumen);
+    if (ids.length === 0) return resumen;
     resumen.intentados = ids.length;
 
     const antes = new Map(ids.map((id) => [id, store.liquidacion(id)?.phase ?? "abierto"]));
@@ -138,6 +161,6 @@ export class DirectorEnVivo {
     for (const [id, cuando] of this.ultimoIntento) {
       if (ahora - cuando > 24 * 60 * 60_000 + REINTENTO_MS) this.ultimoIntento.delete(id);
     }
-    return (this.ultima = resumen);
+    return resumen;
   }
 }

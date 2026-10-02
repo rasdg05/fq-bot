@@ -15,7 +15,7 @@ import {
 import { correrCiclo, type ResumenCiclo } from "./ciclo.mts";
 import { correrRevisor, fotoDe } from "./revisor.mts";
 import { Juez, clienteAnthropic } from "./juez.mts";
-import { directores, esDirector, reporteDirector } from "./director.mts";
+import { directores, esDirector, reporteDirector, trazaDe } from "./director.mts";
 import { DirectorEnVivo, Turno } from "./agente.mts";
 import { COOKIE, leerCookie, sesionSegura } from "./auth.mts";
 import { crearTicker } from "./precios.mts";
@@ -488,7 +488,7 @@ async function servir(req: IncomingMessage, res: ServerResponse) {
    * El tablero del director: qué decidió, qué encontró, qué arregló y cómo le
    * va. Interno: sólo para quien opera Marea (`MAREA_ADMINS`).
    */
-  if (ruta === "/api/director") {
+  if (ruta === "/api/director" || ruta === "/api/director/traza") {
     const sesion = sesionSegura(store, leerCookie(req.headers.cookie, COOKIE));
     if (!esDirector(store, sesion)) {
       res.writeHead(sesion ? 403 : 401, { "content-type": TIPOS[".json"], "cache-control": "no-store" });
@@ -496,6 +496,13 @@ async function servir(req: IncomingMessage, res: ServerResponse) {
       return;
     }
     const todos = [...seeds, ...store.seedsGeneradas()];
+    if (ruta === "/api/director/traza") {
+      // la traza también ve las velas con apuestas: son las que más rápido se rompen
+      const traza = trazaDe(store, [...todos, ...vivos.seedsConApuestas()], url.searchParams.get("id") ?? "");
+      res.writeHead(traza ? 200 : 404, { "content-type": TIPOS[".json"], "cache-control": "no-store" });
+      res.end(JSON.stringify(traza ?? { error: "No hay nada sobre ese mercado." }));
+      return;
+    }
     res.writeHead(200, { "content-type": TIPOS[".json"], "cache-control": "no-store" });
     res.end(
       JSON.stringify(
@@ -504,7 +511,7 @@ async function servir(req: IncomingMessage, res: ServerResponse) {
           seeds: todos,
           juez: juez.estado(),
           ahora: Date.now(),
-          enVivo: { cadaMs: DIRECTOR_MS, ultima: director.ultima },
+          enVivo: { cadaMs: DIRECTOR_MS, ultima: director.ultima, historial: director.historial },
         }),
       ),
     );
