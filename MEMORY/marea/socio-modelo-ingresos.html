@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Marea — modelo de ingresos</title>
+<style>
+  @page { size: Letter; margin: 18mm 18mm 16mm; }
+  :root { --ink:#14202b; --mute:#5b6773; --line:#d9dee3; --sea:#0f6e8c; --soft:#eef5f8; --warn:#9a5b00; }
+  * { box-sizing:border-box; }
+  body { font: 10.5pt/1.45 "Helvetica Neue", Arial, sans-serif; color:var(--ink); background:#fff; margin:0; }
+  h1 { font-size:22pt; margin:0 0 2pt; color:var(--sea); letter-spacing:-.3px; }
+  h2 { font-size:13pt; margin:16pt 0 6pt; color:var(--sea); border-bottom:1px solid var(--line); padding-bottom:3pt; }
+  h3 { font-size:10.5pt; margin:10pt 0 4pt; }
+  p { margin:0 0 6pt; }
+  .sub { color:var(--mute); margin-bottom:12pt; }
+  .box { background:var(--soft); border-left:3px solid var(--sea); padding:8pt 10pt; margin:8pt 0; }
+  .warn { border-left-color:var(--warn); background:#fbf4ea; }
+  table { width:100%; border-collapse:collapse; margin:6pt 0 8pt; font-size:9.5pt; }
+  th, td { padding:4pt 6pt; border-bottom:1px solid var(--line); text-align:right; }
+  th:first-child, td:first-child { text-align:left; }
+  th { background:#f4f6f8; font-weight:600; }
+  tr.tot td { font-weight:700; border-top:1.5px solid var(--ink); }
+  .kpis { display:flex; gap:8pt; margin:8pt 0; }
+  .kpi { flex:1; border:1px solid var(--line); border-radius:4pt; padding:7pt 9pt; }
+  .kpi b { display:block; font-size:15pt; color:var(--sea); }
+  .kpi span { color:var(--mute); font-size:8.5pt; }
+  ul { margin:0 0 6pt; padding-left:16pt; } li { margin-bottom:2pt; }
+  .small { font-size:8.5pt; color:var(--mute); }
+  .pb { page-break-before:always; }
+  table, .box { page-break-inside:avoid; }
+</style>
+</head>
+<body>
+
+<h1>Marea · cómo gana dinero</h1>
+<div class="sub">Documento para socio potencial · octubre 2026 · cifras en USD</div>
+
+<h2>1. Qué es Marea</h2>
+<p>Marea es una plataforma de mercados de predicción para Latinoamérica: la gente pone dinero
+sobre preguntas con respuesta verificable —«¿América le gana al Santos?», «¿Bitcoin cierra la
+semana arriba de 71,000?», «¿Banxico baja la tasa?»— y quien acierta se reparte lo que pusieron
+quienes no acertaron.</p>
+<p>El catálogo se genera y se resuelve solo: Liga MX, cripto, indicadores económicos y eventos
+se publican desde fuentes públicas y se liquidan con el dato oficial, con la evidencia visible.
+No hay una persona decidiendo quién gana.</p>
+
+<h2>2. De dónde sale el ingreso</h2>
+<div class="box"><b>Una sola fuente hoy: comisión de 3% sobre lo apostado</b> (300 puntos base).
+La casa <b>no apuesta contra el usuario</b>: no gana cuando el usuario pierde. Cobra por operar el
+pozo, como una bolsa cobra por cruzar operaciones.</div>
+<ul>
+  <li><b>Modelo de pozo común (parimutuel).</b> Todo lo apostado en un mercado forma un pozo; al
+  resolverse, el lado perdedor se reparte entre los ganadores. Marea retiene el 3%.</li>
+  <li><b>El ingreso no depende del resultado.</b> Gane quien gane, la comisión es la misma. No hay
+  riesgo de «la casa perdió la jornada».</li>
+  <li><b>Siempre hay contraparte.</b> En un pozo común no hay que esperar a que alguien tome el otro
+  lado, así que no hace falta un creador de mercado que arriesgue capital.</li>
+  <li><b>Si un mercado se anula</b> (menos de 2 participantes) o nadie acierta, se devuelve todo,
+  comisión incluida. Es parte de la promesa de marca.</li>
+</ul>
+<p><b>Fórmula:</b> Ingreso = usuarios activos × apostado por usuario al mes × 3%.</p>
+
+<h3>Líneas de ingreso futuras (no están en la proyección)</h3>
+<ul>
+  <li><b>Datos agregados:</b> «cuando la multitud latina dice 70%, ¿pasa el 70% de las veces?».
+  Nadie tiene esa medición para la región. Se vende agregada, nunca dato personal.</li>
+  <li><b>Libro de órdenes con creadores de mercado</b> cuando haya volumen: comisión más baja,
+  muchísimo más volumen (la comisión sólo baja cuando la rotación medida lo justifica).</li>
+</ul>
+
+<h2 class="pb">3. El primer semestre con 20 mil al mes en publicidad</h2>
+<p>Supuesto de partida: permisos en regla desde el mes 1, <b>USD 20,000/mes en pauta</b>
+(USD 120,000 en el semestre). Tres escenarios, que sólo cambian cuatro variables:</p>
+<table>
+  <tr><th>Supuesto</th><th>Conservador</th><th>Base</th><th>Optimista</th></tr>
+  <tr><td>Costo por usuario que deposita (CAC)</td><td>$80</td><td>$50</td><td>$30</td></tr>
+  <tr><td>Usuarios orgánicos/referidos extra</td><td>+10%</td><td>+25%</td><td>+40%</td></tr>
+  <tr><td>Retención mes a mes</td><td>45%</td><td>55%</td><td>65%</td></tr>
+  <tr><td>Apostado por usuario activo al mes</td><td>$150</td><td>$300</td><td>$600</td></tr>
+</table>
+
+<h3>Resultado del semestre</h3>
+<table>
+  <tr><th></th><th>Conservador</th><th>Base</th><th>Optimista</th></tr>
+  <tr><td>Usuarios nuevos que depositan</td><td>1,650</td><td>3,000</td><td>5,600</td></tr>
+  <tr><td>Usuarios activos en el mes 6</td><td>~500</td><td>~1,080</td><td>~2,470</td></tr>
+  <tr><td><b>Volumen apostado (lo que «se vende»)</b></td><td>$389 mil</td><td><b>$1.60 M</b></td><td>$6.85 M</td></tr>
+  <tr><td><b>Comisión bruta de Marea (3%)</b></td><td>$11.7 mil</td><td><b>$48.1 mil</b></td><td>$205.6 mil</td></tr>
+  <tr><td>Neto estimado tras impuesto y permisionario*</td><td>$4.7 mil</td><td>$19.2 mil</td><td>$82.2 mil</td></tr>
+  <tr><td>Inversión en publicidad</td><td>$120 mil</td><td>$120 mil</td><td>$120 mil</td></tr>
+  <tr class="tot"><td>Resultado del semestre (neto − publicidad)</td><td>−$115 mil</td><td>−$101 mil</td><td>−$38 mil</td></tr>
+</table>
+
+<h3>Escenario base, mes a mes</h3>
+<table>
+  <tr><th>Mes</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th></tr>
+  <tr><td>Usuarios activos</td><td>500</td><td>775</td><td>926</td><td>1,009</td><td>1,055</td><td>1,080</td></tr>
+  <tr><td>Volumen apostado</td><td>$150k</td><td>$233k</td><td>$278k</td><td>$303k</td><td>$317k</td><td>$324k</td></tr>
+  <tr><td>Comisión bruta</td><td>$4.5k</td><td>$7.0k</td><td>$8.3k</td><td>$9.1k</td><td>$9.5k</td><td>$9.7k</td></tr>
+</table>
+<p class="small">* Supuestos de costos regulatorios: 20% de la comisión a un permisionario (si se opera bajo
+permiso de un tercero) y 50% de impuesto especial sobre el ingreso de juego (el caso alto; la tasa
+aplicable la confirma el fiscalista). No incluye nómina, infraestructura, pasarela de pagos ni
+subsidio de liquidez inicial. Si los «20 mil» son pesos y no dólares, todas las cifras se dividen
+entre ~18.</p>
+
+<h2>4. Lectura honesta</h2>
+<div class="box warn"><b>El primer semestre es de inversión, no de utilidad.</b> En los tres escenarios
+la publicidad no se recupera en seis meses. Con 3% de comisión, un usuario de escenario base deja
+~$9/mes; recuperar un CAC de $50 tarda más de lo que dura un usuario promedio con 55% de retención.</div>
+<p>Lo que el semestre sí compra:</p>
+<ul>
+  <li><b>La medición que decide el negocio:</b> CAC real, retención real y apostado real por usuario.
+  Hoy son supuestos; al mes 3 son datos.</li>
+  <li><b>Una base de ~1,000–2,500 usuarios activos</b> que sigue generando comisión sin pauta nueva.</li>
+  <li><b>El dataset de calibración de la multitud latina</b>, que crece con cada mercado resuelto.</li>
+</ul>
+
+<h3>Qué tiene que ser cierto para que la pauta se pague</h3>
+<table>
+  <tr><th>Palanca</th><th>Hoy (base)</th><th>Para cubrir $20k/mes de pauta</th></tr>
+  <tr><td>Volumen mensual apostado</td><td>~$324k</td><td>~$1.67 M (comisión bruta $50k)</td></tr>
+  <tr><td>Apostado por usuario activo</td><td>$300</td><td>~$1,500 con la misma base</td></tr>
+  <tr><td>Costo por usuario (CAC)</td><td>$50</td><td>≤ $20, con referidos haciendo parte del trabajo</td></tr>
+</table>
+<p>Las palancas más realistas, en orden: <b>referidos y tarjeta de resultado para redes</b> (bajan el CAC
+sin pauta), <b>mercados de alto interés</b> (Liga MX, Selección, reality shows: suben lo apostado
+por usuario), y <b>retención</b> (seguir a quien le atina, avisos). Subir la comisión no está sobre la
+mesa: la tesis es cobrar poco y no apostar contra el usuario.</p>
+
+<h2>5. Dónde está hoy y qué falta</h2>
+<ul>
+  <li><b>Construido:</b> app funcionando con puntos, catálogo que se genera y se resuelve solo,
+  contabilidad de doble entrada con cuadre automático, auditoría de cada decisión del sistema.</li>
+  <li><b>Falta para mover dinero real:</b> opinión legal escrita por país (empezando por México),
+  constitución de la entidad, auditoría de seguridad y rampa de depósito/retiro. Estimado interno:
+  <b>7–9 meses</b> a dinero real; el reloj lo marcan lo legal y la auditoría, no el código.</li>
+  <li><b>Atajo:</b> lanzar primero con puntos (6–8 semanas) y medir retención y volumen sin gastar en
+  permisos, para llegar al día del dinero con el CAC y la retención medidos en vez de supuestos.</li>
+</ul>
+
+<div class="box"><b>En una frase:</b> Marea cobra 3% de todo lo que se apuesta sin tomar el lado
+contrario. Con USD 20 mil al mes en publicidad, el escenario base mueve ~USD 1.6 M en el primer
+semestre y deja ~USD 48 mil de comisión: es una etapa de inversión para comprar usuarios y datos,
+y la rentabilidad depende de bajar el costo por usuario y subir lo que cada uno apuesta.</div>
+
+<p class="small">Proyección ilustrativa, no pronóstico. Los cuatro supuestos de la sección 3 no están medidos
+todavía: Marea no tiene usuarios con dinero real. El mecanismo de comisión es el definido en el diseño de
+liquidez de la plataforma (fase de arranque, 300 pb).</p>
+
+</body>
+</html>
