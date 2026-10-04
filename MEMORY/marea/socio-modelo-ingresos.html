@@ -28,6 +28,7 @@
   .small { font-size:8.5pt; color:var(--mute); }
   .pb { page-break-before:always; }
   table, .box { page-break-inside:avoid; }
+  h2, h3 { page-break-after:avoid; break-after:avoid; }
 </style>
 </head>
 <body>
@@ -70,64 +71,59 @@ pozo, como una bolsa cobra por cruzar operaciones.</div>
 
 <h2 class="pb">3. El primer semestre con 20 mil al mes en publicidad</h2>
 <p>Supuesto de partida: permisos en regla desde el mes 1, <b>$20,000 MXN al mes en pauta</b>
-($120,000 MXN en el semestre). Tres escenarios, que sólo cambian cuatro variables:</p>
+($120,000 MXN en el semestre) y <b>costo de $45 MXN por usuario</b>, la meta del equipo.
+El escenario principal usa esa meta; las otras columnas muestran qué pasa si una sola variable sale distinta.</p>
 <table>
-  <tr><th>Supuesto</th><th>Conservador</th><th>Base</th><th>Optimista</th></tr>
-  <tr><td>Costo por usuario que deposita (CAC)</td><td>$1,440</td><td>$900</td><td>$540</td></tr>
-  <tr><td>Usuarios orgánicos/referidos extra</td><td>+10%</td><td>+25%</td><td>+40%</td></tr>
-  <tr><td>Retención mes a mes</td><td>45%</td><td>55%</td><td>65%</td></tr>
-  <tr><td>Apostado por usuario activo al mes</td><td>$2,700</td><td>$5,400</td><td>$10,800</td></tr>
+  <tr><th>Supuesto</th><th>Meta del equipo</th><th>Apuestan la mitad</th><th>$45 es por registro</th><th>Optimista</th></tr>
+  <tr><td>Costo por usuario que deposita</td><td><b>$45</b></td><td>$45</td><td>$150<br><span class="small">(30% de registros deposita)</span></td><td>$45</td></tr>
+  <tr><td>Usuarios orgánicos/referidos extra</td><td>+25%</td><td>+25%</td><td>+25%</td><td>+40%</td></tr>
+  <tr><td>Retención mes a mes</td><td>55%</td><td>55%</td><td>55%</td><td>65%</td></tr>
+  <tr><td>Apostado por usuario activo al mes</td><td>$5,400</td><td>$2,700</td><td>$5,400</td><td>$5,400</td></tr>
 </table>
 
 <h3>Resultado del semestre (MXN)</h3>
 <table>
-  <tr><th></th><th>Conservador</th><th>Base</th><th>Optimista</th></tr>
-  <tr><td>Usuarios nuevos que depositan</td><td>~90</td><td>~170</td><td>~310</td></tr>
-  <tr><td>Usuarios activos en el mes 6</td><td>~28</td><td>~60</td><td>~137</td></tr>
-  <tr><td><b>Volumen apostado (lo que «se vende»)</b></td><td>$389 mil</td><td><b>$1.60 M</b></td><td>$6.85 M</td></tr>
-  <tr><td><b>Comisión bruta de Marea (3%)</b></td><td>$11.7 mil</td><td><b>$48.1 mil</b></td><td>$205.6 mil</td></tr>
-  <tr><td>Neto estimado tras impuesto y permisionario*</td><td>$4.7 mil</td><td>$19.2 mil</td><td>$82.2 mil</td></tr>
-  <tr><td>Inversión en publicidad</td><td>$120 mil</td><td>$120 mil</td><td>$120 mil</td></tr>
-  <tr class="tot"><td>Resultado del semestre (neto − publicidad)</td><td>−$115 mil</td><td>−$101 mil</td><td>−$38 mil</td></tr>
+  <tr><th></th><th>Meta del equipo</th><th>Apuestan la mitad</th><th>$45 es por registro</th><th>Optimista</th></tr>
+  <tr><td>Usuarios nuevos que depositan</td><td>~3,300</td><td>~3,300</td><td>~1,000</td><td>~3,700</td></tr>
+  <tr><td>Usuarios activos en el mes 6</td><td>~1,200</td><td>~1,200</td><td>~360</td><td>~1,640</td></tr>
+  <tr><td><b>Volumen apostado (lo que «se vende»)</b></td><td><b>$32.1 M</b></td><td>$16.0 M</td><td>$9.6 M</td><td>$41.1 M</td></tr>
+  <tr><td><b>Comisión bruta de Marea (3%)</b></td><td><b>$962 mil</b></td><td>$481 mil</td><td>$289 mil</td><td>$1.23 M</td></tr>
+  <tr><td>Neto tras impuesto y permisionario*</td><td>$385 mil</td><td>$192 mil</td><td>$115 mil</td><td>$493 mil</td></tr>
+  <tr><td>Inversión en publicidad</td><td>$120 mil</td><td>$120 mil</td><td>$120 mil</td><td>$120 mil</td></tr>
+  <tr class="tot"><td>Resultado del semestre (neto − publicidad)</td><td>+$265 mil</td><td>+$72 mil</td><td>−$5 mil</td><td>+$373 mil</td></tr>
 </table>
 
-<h3>Escenario base, mes a mes</h3>
+<h3>Meta del equipo, mes a mes</h3>
 <table>
   <tr><th>Mes</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th></tr>
-  <tr><td>Usuarios activos</td><td>28</td><td>43</td><td>51</td><td>56</td><td>59</td><td>60</td></tr>
-  <tr><td>Volumen apostado</td><td>$150k</td><td>$233k</td><td>$278k</td><td>$303k</td><td>$317k</td><td>$324k</td></tr>
-  <tr><td>Comisión bruta</td><td>$4.5k</td><td>$7.0k</td><td>$8.3k</td><td>$9.1k</td><td>$9.5k</td><td>$9.7k</td></tr>
+  <tr><td>Usuarios activos</td><td>556</td><td>861</td><td>1,029</td><td>1,122</td><td>1,172</td><td>1,200</td></tr>
+  <tr><td>Volumen apostado</td><td>$3.0 M</td><td>$4.7 M</td><td>$5.6 M</td><td>$6.1 M</td><td>$6.3 M</td><td>$6.5 M</td></tr>
+  <tr><td>Comisión bruta</td><td>$90k</td><td>$140k</td><td>$167k</td><td>$182k</td><td>$190k</td><td>$194k</td></tr>
+  <tr><td>Neto − pauta del mes</td><td>+$16k</td><td>+$36k</td><td>+$47k</td><td>+$53k</td><td>+$56k</td><td>+$58k</td></tr>
 </table>
-<p class="small">* Supuestos de costos regulatorios: 20% de la comisión a un permisionario (si se opera bajo
-permiso de un tercero) y 50% de impuesto especial sobre el ingreso de juego (el caso alto; la tasa
-aplicable la confirma el fiscalista). No incluye nómina, infraestructura, pasarela de pagos ni
-subsidio de liquidez inicial. Tipo de cambio de referencia: ~18 MXN por dólar.</p>
+<p class="small">* Supuestos de costos regulatorios: 20% de la comisión a un permisionario (si se opera bajo permiso de un tercero) y 50% de impuesto
+especial sobre el ingreso de juego (el caso alto; la tasa aplicable la confirma el fiscalista). No incluye nómina, infraestructura, pasarela
+de pagos ni subsidio de liquidez inicial.</p>
 
-<h2>4. Lectura honesta</h2>
-<div class="box warn"><b>El primer semestre es de inversión, no de utilidad.</b> En los tres escenarios
-la publicidad no se recupera en seis meses. Con 3% de comisión, un usuario de escenario base deja
-~$160 MXN al mes; recuperar un CAC de $900 tarda más de lo que dura un usuario promedio con 55% de retención.</div>
-<p><b>$20 mil pesos al mes es un presupuesto de piloto:</b> alcanza para ~170 usuarios que depositan en el
-semestre (escenario base). Sirve para validar el producto con dinero real, no para escalar.</p>
-<p>Lo que el semestre sí compra:</p>
+<h2 class="pb">4. Lectura</h2>
+<div class="box"><b>Con un costo de $45 por usuario que deposita, la pauta se paga desde el primer mes.</b>
+Cada usuario activo deja ~$160 de comisión al mes (~$65 neto) y dura en promedio ~2.2 meses: recupera
+su costo de adquisición tres veces. El semestre cierra con ~1,200 usuarios activos y ~$265 mil de resultado neto
+después de publicidad.</div>
+<div class="box warn"><b>La variable que decide todo es qué significa «$45 por usuario».</b> Si son $45 por
+<i>registro</i> y sólo 3 de cada 10 registrados depositan, el costo real es ~$150 por usuario que deposita y el
+semestre queda en punto de equilibrio. Por eso la primera métrica a medir en la campaña es el costo por
+<b>primer depósito</b>, no por registro ni por clic.</div>
+<p>Lo que el semestre además compra:</p>
 <ul>
-  <li><b>La medición que decide el negocio:</b> CAC real, retención real y apostado real por usuario.
-  Hoy son supuestos; al mes 3 son datos.</li>
-  <li><b>Una primera base de usuarios reales</b> (~60–140 activos) que sigue generando comisión sin pauta nueva.</li>
+  <li><b>La medición que decide el escalamiento:</b> si el costo por depósito se sostiene en $45, cada peso
+  adicional de pauta es rentable y conviene subir el presupuesto.</li>
+  <li><b>Una base de ~1,200 usuarios activos</b> que sigue generando comisión sin pauta nueva.</li>
   <li><b>El dataset de calibración de la multitud latina</b>, que crece con cada mercado resuelto.</li>
 </ul>
-
-<h3>Qué tiene que ser cierto para que la pauta se pague</h3>
-<table>
-  <tr><th>Palanca</th><th>Mes 6 (base)</th><th>Para cubrir $20k MXN/mes de pauta</th></tr>
-  <tr><td>Volumen mensual apostado</td><td>~$324 mil</td><td>~$1.67 M (comisión bruta $50 mil)</td></tr>
-  <tr><td>Usuarios activos (a $5,400 c/u)</td><td>~60</td><td>~310</td></tr>
-  <tr><td>Costo por usuario (CAC)</td><td>$900</td><td>≤ $360, con referidos haciendo parte del trabajo</td></tr>
-</table>
-<p>Las palancas más realistas, en orden: <b>referidos y tarjeta de resultado para redes</b> (bajan el CAC
-sin pauta), <b>mercados de alto interés</b> (Liga MX, Selección, reality shows: suben lo apostado
-por usuario), y <b>retención</b> (seguir a quien le atina, avisos). Subir la comisión no está sobre la
-mesa: la tesis es cobrar poco y no apostar contra el usuario.</p>
+<p>Palancas para sostener el costo bajo y el volumen alto: <b>referidos y tarjeta de resultado para redes</b>,
+<b>mercados de alto interés</b> (Liga MX, Selección, reality shows) y <b>retención</b> (seguir a quien le atina,
+avisos). La comisión se queda en 3%: la tesis es cobrar poco y no apostar contra el usuario.</p>
 
 <h2>5. Dónde está hoy y qué falta</h2>
 <ul>
@@ -141,11 +137,11 @@ mesa: la tesis es cobrar poco y no apostar contra el usuario.</p>
 </ul>
 
 <div class="box"><b>En una frase:</b> Marea cobra 3% de todo lo que se apuesta sin tomar el lado
-contrario. Con $20 mil pesos al mes en publicidad, el escenario base mueve ~$1.6 millones de pesos en el primer
-semestre y deja ~$48 mil pesos de comisión: es una etapa de inversión para comprar usuarios y datos,
-y la rentabilidad depende de bajar el costo por usuario y subir lo que cada uno apuesta.</div>
+contrario. Con $20 mil pesos al mes en publicidad y $45 por usuario que deposita, el primer semestre mueve
+~$32 millones de pesos en apuestas, deja ~$960 mil de comisión y ~$265 mil de resultado neto después de
+publicidad. La campaña se diseña para medir el costo por primer depósito desde la primera semana.</div>
 
-<p class="small">Proyección ilustrativa, no pronóstico. Los cuatro supuestos de la sección 3 no están medidos
+<p class="small">Proyección ilustrativa, no pronóstico. Los supuestos de la sección 3 no están medidos
 todavía: Marea no tiene usuarios con dinero real. El mecanismo de comisión es el definido en el diseño de
 liquidez de la plataforma (fase de arranque, 300 pb).</p>
 
